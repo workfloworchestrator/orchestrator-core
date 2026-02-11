@@ -29,6 +29,20 @@ UPDATE subscriptions
 SET note = NULL
 WHERE note IS NOT NULL AND TRIM(note) = '';
 
+-- Truncate existing values to fit within new length limits before altering column types
+-- For most columns, preserve the first X characters; for traceback, preserve the last X characters
+UPDATE subscriptions SET note = LEFT(note, 5000) WHERE LENGTH(note) > 5000;
+UPDATE subscriptions SET description = LEFT(description, 2000) WHERE LENGTH(description) > 2000;
+UPDATE processes SET failed_reason = LEFT(failed_reason, 10000) WHERE LENGTH(failed_reason) > 10000;
+UPDATE processes SET traceback = RIGHT(traceback, 50000) WHERE LENGTH(traceback) > 50000;
+UPDATE products SET description = LEFT(description, 2000) WHERE LENGTH(description) > 2000;
+UPDATE product_blocks SET description = LEFT(description, 2000) WHERE LENGTH(description) > 2000;
+UPDATE resource_types SET description = LEFT(description, 2000) WHERE LENGTH(description) > 2000;
+UPDATE workflows SET description = LEFT(description, 2000) WHERE LENGTH(description) > 2000;
+UPDATE subscription_customer_descriptions SET description = LEFT(description, 2000) WHERE LENGTH(description) > 2000;
+UPDATE subscription_instance_values SET value = LEFT(value, 10000) WHERE LENGTH(value) > 10000;
+UPDATE subscription_instance_relations SET domain_model_attr = LEFT(domain_model_attr, 255) WHERE LENGTH(domain_model_attr) > 255;
+
 -- Alter column types from TEXT to VARCHAR with limits
 ALTER TABLE subscriptions ALTER COLUMN note TYPE VARCHAR(5000);
 ALTER TABLE subscriptions ALTER COLUMN description TYPE VARCHAR(2000);
