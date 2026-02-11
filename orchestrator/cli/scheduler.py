@@ -186,7 +186,7 @@ def list_all_ap_scheduled_tasks() -> None:
 
     all_scheduled_tasks = get_all_scheduler_tasks()
     all_scheduled_tasks = enrich_with_workflow_id(
-        scheduled_tasks=all_scheduled_tasks, include_decorator_scheduled_tasks=True  # type: ignore
+        scheduled_tasks=all_scheduled_tasks, include_decorator_scheduled_tasks=True
     )
 
     result = [
