@@ -2,8 +2,8 @@ from typing import Any
 from uuid import UUID
 
 from pydantic_graph.persistence import BaseStatePersistence, EndSnapshot, NodeSnapshot
-from sqlalchemy.orm import Session
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 from structlog import get_logger
 
 from orchestrator.db.models import GraphSnapshotTable
@@ -152,7 +152,6 @@ class PostgresStatePersistence(BaseStatePersistence[SearchState]):
             return None
 
         snapshot_data = db_snapshot.snapshot_data
-        snapshot_kind = snapshot_data.get("kind")
 
         # Deserialize state from snapshot (works for both node and end snapshots)
         state_data = snapshot_data.get("state", {})

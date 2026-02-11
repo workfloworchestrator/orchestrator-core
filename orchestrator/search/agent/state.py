@@ -17,7 +17,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from orchestrator.search.agent.environment import ConversationEnvironment
-from orchestrator.search.core.types import QueryOperation
+from orchestrator.search.core.types import EntityType, QueryOperation
 from orchestrator.search.query.queries import Query
 
 
@@ -29,6 +29,50 @@ class IntentType(str, Enum):
     RESULT_ACTIONS = "result_actions"
     TEXT_RESPONSE = "text_response"
     NO_MORE_ACTIONS = "no_more_actions"
+
+
+class Task(BaseModel):
+    """Executable task descriptor for routing to action nodes."""
+
+    action_type: IntentType = Field(description="Which action node to execute")
+    entity_type: EntityType | None = Field(default=None, description="Entity type for search/aggregation tasks")
+    query_operation: QueryOperation | None = Field(
+        default=None, description="Query operation type for search/aggregation tasks"
+    )
+    description: str = Field(description="Human-readable task description")
+    status: str = Field(default="pending", description="Task status: pending, executing, completed, failed")
+    error_message: str | None = Field(default=None, description="Error message if task failed")
+
+
+class ExecutionPlan(BaseModel):
+    """Sequential execution plan with task queue."""
+
+    tasks: list[Task] = Field(description="List of tasks to execute in order")
+    current_task_index: int = Field(default=0, description="Index of current task being executed")
+    failed: bool = Field(default=False, description="Whether the plan has failed")
+
+    def has_next_task(self) -> bool:
+        """Check if there are more tasks to execute."""
+        return self.current_task_index < len(self.tasks)
+
+    def get_current_task(self) -> Task | None:
+        """Get the current task to execute."""
+        if self.has_next_task():
+            return self.tasks[self.current_task_index]
+        return None
+
+    def complete_current_task(self) -> None:
+        """Mark current task as completed and advance to next."""
+        if self.has_next_task():
+            self.tasks[self.current_task_index].status = "completed"
+            self.current_task_index += 1
+
+    def mark_current_failed(self, error: str) -> None:
+        """Mark current task and plan as failed."""
+        if self.has_next_task():
+            self.tasks[self.current_task_index].status = "failed"
+            self.tasks[self.current_task_index].error_message = error
+        self.failed = True
 
 
 class SearchState(BaseModel):
@@ -45,8 +89,10 @@ class SearchState(BaseModel):
     results_count: int | None = None  # Number of results from last executed search/aggregation
     intent: IntentType | None = None  # User's intent, determines routing
     export_url: str | None = None  # Export URL if export has been prepared
-    end_actions: bool = False  # Whether to end after current action completes (set by IntentNode)
+    end_actions: bool = False  # Whether to end after current action completes
     environment: ConversationEnvironment = Field(default_factory=ConversationEnvironment)
+
+    execution_plan: ExecutionPlan | None = None  # Multi-step execution plan
 
     class Config:
         arbitrary_types_allowed = True

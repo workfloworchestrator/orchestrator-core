@@ -30,9 +30,9 @@ from orchestrator.search.agent.handlers import (
     execute_aggregation_with_persistence,
     execute_search_with_persistence,
 )
-from orchestrator.search.agent.state import SearchState, IntentType
+from orchestrator.search.agent.state import IntentType, SearchState
 from orchestrator.search.aggregations import Aggregation, FieldAggregation, TemporalGrouping
-from orchestrator.search.core.types import QueryOperation, EntityType, FilterOp
+from orchestrator.search.core.types import EntityType, FilterOp, QueryOperation
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.query import engine
 from orchestrator.search.query.exceptions import PathNotFoundError, QueryValidationError
@@ -119,7 +119,7 @@ async def set_filter_tree(
     Returns the updated Query as structured output.
     """
     if ctx.deps.state.query is None:
-        raise ModelRetry("Search query is not initialized. IntentNode should have initialized it.")
+        raise ModelRetry("Search query is not initialized. PlannerNode should have initialized it.")
 
     entity_type = ctx.deps.state.query.entity_type
 
@@ -261,7 +261,7 @@ async def discover_filter_paths(
         if ctx.deps.state.query:
             entity_type = ctx.deps.state.query.entity_type
         else:
-            raise ModelRetry("Entity type not specified and no query in state. IntentNode should have initialized it.")
+            raise ModelRetry("Entity type not specified and no query in state. PlannerNode should have initialized it.")
 
     all_results = {}
     for field_name in field_names:

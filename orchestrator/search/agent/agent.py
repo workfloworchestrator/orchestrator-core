@@ -33,7 +33,7 @@ else:
 
 from orchestrator.search.agent.graph_nodes import (
     AggregationNode,
-    IntentNode,
+    PlannerNode,
     ResultActionsNode,
     SearchNode,
     TextResponseNode,
@@ -53,7 +53,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
     but unused - the search_agent in graph nodes handles actual LLM calls.
     """
 
-    DEFAULT_START_NODE = IntentNode
+    DEFAULT_START_NODE = PlannerNode
 
     def __init__(
         self,
@@ -99,7 +99,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             node_class = node_def.node
             description = None
             if hasattr(node_class, "__dataclass_fields__"):
-                fields = getattr(node_class, "__dataclass_fields__")
+                fields = node_class.__dataclass_fields__
                 if "description" in fields:
                     description = fields["description"].default
 
@@ -111,11 +111,11 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
                 )
             )
 
-        # Build edges - only from IntentNode to action nodes
-        # Skip edges from action nodes back to IntentNode to avoid visual clutter
+        # Build edges - only from PlannerNode to action nodes
+        # Skip edges from action nodes back to PlannerNode to avoid visual clutter
         edges = []
         for node_id, node_def in self.graph.node_defs.items():
-            if node_id == IntentNode.__name__:
+            if node_id == PlannerNode.__name__:
                 for next_node_id, edge in node_def.next_node_edges.items():
                     edges.append(GraphEdge(source=node_id, target=next_node_id, label=getattr(edge, "label", None)))
 
@@ -158,7 +158,9 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
 
         try:
             self._current_graph_events: deque[str] = deque()
-            emit_event = lambda event: self._current_graph_events.append(f"data: {event.model_dump_json()}\n\n")
+
+            def emit_event(event):
+                self._current_graph_events.append(f"data: {event.model_dump_json()}\n\n")
 
             persistence = self._persistence
             # If persistence provided, try to load previous state
@@ -175,7 +177,10 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
                     initial_state = previous_state
                     initial_state.user_input = user_input  # Update with current turn's input
 
-            if not initial_state.environment.current_turn or initial_state.environment.current_turn.user_question != user_input:
+            if (
+                not initial_state.environment.current_turn
+                or initial_state.environment.current_turn.user_question != user_input
+            ):
                 initial_state.environment.start_turn(user_input)
 
             start_node = self.DEFAULT_START_NODE(
@@ -237,7 +242,7 @@ def build_agent_instance(model: str, agent_tools: list[FunctionToolset[Any]] | N
     """
     graph: Graph[SearchState, None, str] = Graph(
         nodes=[
-            IntentNode,
+            PlannerNode,
             SearchNode,
             AggregationNode,
             ResultActionsNode,

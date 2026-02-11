@@ -14,7 +14,6 @@
 from textwrap import dedent
 
 from orchestrator.search.agent import tools
-from orchestrator.search.agent.environment import MemoryScope
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.core.types import EntityType, QueryOperation
 
@@ -40,10 +39,7 @@ def get_search_execution_prompt(state: SearchState) -> str:
     Returns:
         Complete prompt for executing search with optional filtering
     """
-    context = state.environment.format_context_for_llm(
-        include_past_conversations=True,
-        memory_scope=MemoryScope.CONVERSATION,
-    )
+    context = state.environment.format_context_for_llm(state)
 
     return dedent(
         f"""
@@ -78,10 +74,7 @@ def get_aggregation_execution_prompt(state: SearchState) -> str:
         Complete prompt for executing aggregation with optional filtering and grouping
     """
 
-    context = state.environment.format_context_for_llm(
-        include_past_conversations=True,
-        memory_scope=MemoryScope.CONVERSATION,
-    )
+    context = state.environment.format_context_for_llm(state)
     query_operation = state.query_operation.value if state.query_operation else "unknown"
 
     return dedent(
@@ -122,7 +115,7 @@ def get_text_response_prompt(state: SearchState, is_forced_response: bool = Fals
     """
     if is_forced_response:
         context = state.environment.format_context_for_llm(
-            include_past_conversations=True,
+            state,
             include_available_context=True,
             include_current_run_steps=True,
         )
@@ -148,10 +141,7 @@ def get_text_response_prompt(state: SearchState, is_forced_response: bool = Fals
             """
         ).strip()
 
-    context = state.environment.format_context_for_llm(
-        include_past_conversations=True,
-        memory_scope=MemoryScope.CONVERSATION,
-    )
+    context = state.environment.format_context_for_llm(state)
     entity_types = ", ".join([et.value for et in EntityType])
 
     return dedent(
@@ -178,28 +168,50 @@ def get_text_response_prompt(state: SearchState, is_forced_response: bool = Fals
     ).strip()
 
 
-def get_intent_classification_prompt(state: SearchState) -> str:
+def get_planning_prompt(state: SearchState, is_replanning: bool = False) -> str:
+    """Get prompt for PlannerNode to create execution plan.
+
+    Args:
+        state: Current search state
+        is_replanning: True if replanning after a failed execution
+
+    Returns:
+        Complete prompt for creating multi-step execution plan
+    """
+    # Get available context (NOT conversation - that's in message_history now)
     context = state.environment.format_context_for_llm(
-        include_past_conversations=True,
+        state,
         include_available_context=True,
-        include_current_run_steps=True,
+        include_current_run_steps=is_replanning,
     )
+
+    # Different guidelines for initial planning vs replanning
+    if is_replanning:
+        guidelines = """## Your Task & Guidelines
+        Replan after failure - analyze what went wrong and create a new approach.
+
+        1. **Review what failed**: Check "Steps already executed" to see what went wrong
+        2. **Adjust approach**: Create a different plan that avoids the previous failure
+        3. **Use available context**: If results exist from before the failure, you can use them
+        4. **Keep it simple**: Prefer 1-2 tasks when possible"""
+    else:
+        guidelines = """## Your Task & Guidelines
+        Analyze the user's request and create a sequential execution plan.
+
+        1. **Check available context**: If results already exist from previous turns, you can act on them directly
+        2. **Break into tasks**: Each task = one node execution
+        3. **Keep it simple**: Prefer 1-2 tasks when possible"""
 
     return dedent(
         f"""
-        # Intent Classification
+        # Execution Planning
 
         {GRAPH_CONTEXT}
 
-        ## Your Task
-        Classify the user's intent for the NEXT single action.
+        {guidelines}
 
-        ## Decision Rules
-        1. Recent conversation is for reference only (past turns)
-        2. "Steps already executed for this request" shows what has ALREADY been done for the current request
-        3. IMPORTANT: When tools are called, results are IMMEDIATELY streamed to the user's UI - the user has already SEEN the results
-        4. Set end_actions=True if next action completes the request
-        5. Use no_more_actions if no further actions needed
+        IMPORTANT: Query execution nodes automatically stream results to the user.
+        Do NOT create redundant tasks just to "show" or "present" results that are already displayed.
 
         ---
 
@@ -218,9 +230,8 @@ def get_result_actions_prompt(state: SearchState) -> str:
         Complete prompt for result actions
     """
     context = state.environment.format_context_for_llm(
-        include_past_conversations=True,
+        state,
         include_available_context=True,
-        memory_scope=MemoryScope.CONVERSATION,
     )
     return dedent(
         f"""

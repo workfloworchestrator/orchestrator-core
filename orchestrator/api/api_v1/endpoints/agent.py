@@ -13,17 +13,15 @@
 
 from functools import cache
 from typing import Annotated, AsyncGenerator
+from uuid import UUID
 
 from ag_ui.core import RunAgentInput
 from anyio import create_memory_object_stream, create_task_group
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import ValidationError
 from pydantic_ai.ag_ui import SSE_CONTENT_TYPE, StateDeps, run_ag_ui
-from pydantic_ai.ui.ag_ui import AGUIAdapter
 from starlette.responses import Response, StreamingResponse
 from structlog import get_logger
-
-from uuid import UUID
 
 from orchestrator.db import db
 from orchestrator.db.models import AgentRunTable
@@ -59,9 +57,6 @@ def prepare_run_input(run_input: RunAgentInput) -> RunAgentInput:
             break
 
     logger.debug("Extracted latest user message", user_input=user_input[:100] if user_input else "(empty)")
-
-    # Convert AG-UI messages to pydantic-ai ModelMessage format
-    model_messages = AGUIAdapter.load_messages(run_input.messages)
 
     # Build state dict for SearchState by extracting data from AG-UI messages
     # Preserve any existing state fields from client, then add our derived fields
@@ -143,15 +138,8 @@ async def agent_conversation(
                     "Loaded previous state from persistence",
                     completed_turns=len(initial_state.environment.completed_turns),
                     current_turn=initial_state.environment.current_turn is not None,
-                    has_context=(
-                        initial_state.environment.current_context.query_id is not None
-                        or initial_state.environment.current_context.results_available
-                    ),
-                    query_id=(
-                        str(initial_state.environment.current_context.query_id)
-                        if initial_state.environment.current_context.query_id
-                        else None
-                    ),
+                    has_context=(initial_state.query_id is not None or (initial_state.results_count or 0) > 0),
+                    query_id=str(initial_state.query_id) if initial_state.query_id else None,
                 )
             else:
                 initial_state = SearchState(**prepared_run_input.state)

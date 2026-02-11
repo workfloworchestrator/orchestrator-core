@@ -6,6 +6,7 @@ from uuid import UUID
 
 import structlog
 from pydantic import BaseModel, ConfigDict
+from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 
 logger = structlog.get_logger(__name__)
 
@@ -13,7 +14,7 @@ logger = structlog.get_logger(__name__)
 class MemoryScope(Enum):
     """Defines what context is visible to different nodes."""
 
-    FULL = "full"  # User questions + answers + execution traces (IntentNode)
+    FULL = "full"  # User questions + answers + execution traces (PlannerNode)
     CONVERSATION = "conversation"  # User questions + answers only (Action nodes)
 
 
@@ -41,7 +42,7 @@ class NodeStep(StepRecord):
     """
 
     tool_steps: list["ToolStep"] = field(default_factory=list)  # Tools called within this node
-    decision_reason: str | None = None  # For IntentNode: why this route was chosen
+    decision_reason: str | None = None  # For PlannerNode: why this route was chosen
 
     def __post_init__(self):
         self.step_category = "node"
@@ -80,32 +81,15 @@ class CurrentTurn:
     timestamp: datetime = field(default_factory=lambda: datetime.now())
 
 
-@dataclass
-class CurrentContext:
-    last_step: StepRecord | None = None
-    query_id: UUID | None = None
-    results_available: bool = False
-    export_url: str | None = None
-
-
 class ConversationEnvironment(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     completed_turns: list[CompletedTurn] = []
     current_turn: CurrentTurn | None = None
-    current_context: CurrentContext = CurrentContext()
     hidden: dict[str, Any] = {}
 
     def start_turn(self, user_question: str):
         self.current_turn = CurrentTurn(user_question=user_question, node_steps=[])
-        # Preserve context from previous turn (query_id, results_available, etc.)
-        # Only reset last_step since we're starting fresh steps for this turn
-        self.current_context = CurrentContext(
-            last_step=None,
-            query_id=self.current_context.query_id,
-            results_available=self.current_context.results_available,
-            export_url=self.current_context.export_url,
-        )
 
     def start_node_step(self, node_step: NodeStep):
         """Start recording a new node execution."""
@@ -122,18 +106,6 @@ class ConversationEnvironment(BaseModel):
 
         # Add tool to current node
         self.current_turn.current_node_step.add_tool_step(tool_step)
-
-        # Update context based on tool results
-        self.current_context = CurrentContext(
-            last_step=tool_step,
-            query_id=self.current_context.query_id,
-            results_available=(
-                tool_step.results_count > 0
-                if tool_step.step_type in ("run_search", "run_aggregation")
-                else self.current_context.results_available
-            ),
-            export_url=self.current_context.export_url,
-        )
 
     def finish_node_step(self):
         """Finish the current node step and add it to the list."""
@@ -180,77 +152,88 @@ class ConversationEnvironment(BaseModel):
             last_completed_question=self.completed_turns[-1].user_question if self.completed_turns else None,
         )
 
-        if query_id:
-            self.current_context = CurrentContext(
-                last_step=self.current_context.last_step,
-                query_id=query_id,
-                results_available=self.current_context.results_available,
-                export_url=self.current_context.export_url,
-            )
         self.current_turn = None
 
-    def format_for_llm(self, max_turns: int = 5, scope: MemoryScope = MemoryScope.FULL) -> str:
-        """Format conversation history for LLM with configurable scope.
+    def get_message_history(
+        self, max_turns: int = 5, scope: MemoryScope = MemoryScope.FULL
+    ) -> list[ModelRequest | ModelResponse]:
+        """Get conversation history as pydantic-ai message objects for message_history parameter.
 
         Args:
             max_turns: Maximum number of recent turns to include
             scope: Memory scope controlling what details to include
 
         Returns:
-            Formatted conversation string
+            List of ModelRequest/ModelResponse messages for agent message_history
         """
         recent = self.completed_turns[-max_turns:]
-        if not recent:
-            return "[No previous conversation]"
-        sections = []
+
+        # Build messages using pydantic-ai message types
+        messages = []
         for turn in recent:
-            sections.append(f"user: {turn.user_question}")
+            # User message
+            messages.append(ModelRequest(parts=[UserPromptPart(content=turn.user_question)]))
 
-            # Only include execution traces if FULL scope
+            # Execution trace as separate system context (only for FULL scope)
             if scope == MemoryScope.FULL and turn.node_steps:
-                sections.append("Execution trace:")
-                for i, node_step in enumerate(turn.node_steps, 1):
-                    sections.append(f"  {i}. {node_step.step_type}")
-                    if node_step.tool_steps:
-                        for tool_step in node_step.tool_steps:
-                            # Add results info if available
-                            result_info = f" ({tool_step.results_count} results)" if tool_step.results_count else ""
-                            sections.append(f"     • {tool_step.step_type}: {tool_step.description}{result_info}")
+                # Filter out PlannerNode - only show action nodes with actual work
+                action_nodes = [step for step in turn.node_steps if step.step_type != "PlannerNode"]
 
-            sections.append(f"assistant: {turn.assistant_answer}")
-        return "\n".join(sections)
+                if action_nodes:
+                    trace_lines = ["Plan executed:"]
+                    for i, node_step in enumerate(action_nodes, 1):
+                        trace_lines.append(f"  {i}. [Node] {node_step.step_type}")
+                        if node_step.tool_steps:
+                            for tool_step in node_step.tool_steps:
+                                # Add results info if available
+                                result_info = f" ({tool_step.results_count} results)" if tool_step.results_count else ""
+                                trace_lines.append(
+                                    f"     • [Tool] {tool_step.step_type}: {tool_step.description}{result_info}"
+                                )
+                    # Add trace as system message (not user input)
+                    from pydantic_ai.messages import SystemPromptPart
 
-    def format_current_context(self) -> str:
+                    messages.append(ModelRequest(parts=[SystemPromptPart(content="\n".join(trace_lines))]))
+
+            # Assistant response
+            messages.append(ModelResponse(parts=[TextPart(content=turn.assistant_answer)]))
+
+        # Always add current turn's user question
+        if self.current_turn:
+            messages.append(ModelRequest(parts=[UserPromptPart(content=self.current_turn.user_question)]))
+
+        return messages
+
+    def format_current_context(self, state) -> str:
         """Format available context from previous runs.
 
         Shows what's available to use in the current run (results, exports, etc).
+        Reads state from SearchState instead of internal tracking.
         """
-        if not self.current_context.query_id and not self.current_context.results_available:
+        if not state.query_id and not state.results_count:
             return "None"
 
         lines = []
 
         # Show what's available from previous runs
-        if self.current_context.results_available:
-            if self.current_context.last_step and isinstance(self.current_context.last_step, ToolStep):
-                count = self.current_context.last_step.results_count
-                entity_type = self.current_context.last_step.entity_type or "records"
-                lines.append(f"Results available: {count} {entity_type}")
-            else:
-                lines.append("Results available from previous query")
+        if state.results_count and state.results_count > 0:
+            count = state.results_count
+            entity_type = state.query.entity_type.value if state.query else "records"
+            lines.append(f"Results available: {count} {entity_type}")
 
-        if self.current_context.export_url:
-            lines.append(f"Export ready: {self.current_context.export_url}")
+        if state.export_url:
+            lines.append(f"Export ready: {state.export_url}")
 
-        if self.current_context.query_id:
-            lines.append(f"Query ID: {self.current_context.query_id}")
+        if state.query_id:
+            lines.append(f"Query ID: {state.query_id}")
 
         return "\n".join(lines) if lines else "None"
 
     def format_current_steps(self) -> str:
         """Format the steps taken in the current turn for display in prompts.
 
-        Used in IntentNode to show what has been executed so far in this graph run.
+        Used for replanning to show what has been executed so far in this incomplete turn.
+        Uses the same format as message history for consistency.
         """
         if not self.current_turn:
             return "None"
@@ -259,86 +242,57 @@ class ConversationEnvironment(BaseModel):
         if self.current_turn.current_node_step:
             all_node_steps.append(self.current_turn.current_node_step)
 
-        if not all_node_steps:
+        # Filter out PlannerNode - only show action nodes
+        action_nodes = [step for step in all_node_steps if step.step_type != "PlannerNode"]
+
+        if not action_nodes:
             return "None"
 
-        lines = []
-        for i, node_step in enumerate(all_node_steps, 1):
-            if node_step.decision_reason:
-                lines.append(f"{i}. {node_step.step_type}: {node_step.decision_reason}")
-            else:
-                lines.append(f"{i}. {node_step.step_type}")
+        lines = ["Plan executed:"]
+        for i, node_step in enumerate(action_nodes, 1):
+            lines.append(f"  {i}. [Node] {node_step.step_type}")
             if node_step.tool_steps:
                 for tool_step in node_step.tool_steps:
                     result_info = f" ({tool_step.results_count} results)" if tool_step.results_count else ""
-
-                    # Show query snapshot if available (for search/aggregation tools)
-                    args_display = ""
-                    if tool_step.query_snapshot:
-                        import json
-
-                        args_display = f"\n     Query: {json.dumps(tool_step.query_snapshot, indent=2)}"
-
-                    lines.append(f"   • {tool_step.step_type}: {tool_step.description}{result_info}{args_display}")
+                    lines.append(f"     • [Tool] {tool_step.step_type}: {tool_step.description}{result_info}")
 
         return "\n".join(lines)
 
     def format_context_for_llm(
         self,
+        state,
         *,
-        include_past_conversations: bool = True,
         include_available_context: bool = False,
         include_current_run_steps: bool = False,
-        max_past_turns: int = 5,
-        memory_scope: MemoryScope = MemoryScope.FULL,
     ) -> str:
         """Universal context formatter for LLM prompts.
 
         Provides a single consistent interface for formatting conversation context
-        with configurable sections. Labels are hardcoded for consistency across all prompts.
-
-        Uses the current turn's user_question which is already tracked in the environment.
+        with configurable sections. Current user request and conversation history
+        are passed via message_history parameter, not included here.
 
         Args:
-            include_past_conversations: Show completed conversation turns
+            state: SearchState instance for accessing current context
             include_available_context: Show context from previous runs (query_id, results, etc)
             include_current_run_steps: Show steps executed so far in current run
-            max_past_turns: Maximum number of past turns to include
-            memory_scope: Memory scope controlling detail level (FULL includes execution traces, CONVERSATION omits them)
 
         Returns:
             Formatted context string ready to insert into prompt
         """
-        # Get user input from current turn
-        user_input = self.current_turn.user_question if self.current_turn else ""
-
         sections = []
-
-        # Past conversations
-        if include_past_conversations:
-            conversation = self.format_for_llm(max_turns=max_past_turns, scope=memory_scope)
-            sections.append("# Recent Conversation")
-            sections.append(conversation)
-            sections.append("")
 
         # Available context from previous runs
         if include_available_context:
-            context = self.format_current_context()
+            context = self.format_current_context(state)
             sections.append("# Available Context from Previous Runs")
             sections.append(context)
-            sections.append("")
 
-        # Current run
+        # Current run steps (for replanning)
         if include_current_run_steps:
             steps = self.format_current_steps()
-            sections.append("# Current Request")
-            sections.append(f'"{user_input}"')
-            sections.append("")
-            sections.append("Steps already executed for this request:")
+            if sections:
+                sections.append("")
+            sections.append("# Steps Already Executed")
             sections.append(steps)
-        else:
-            # Just show current request
-            sections.append("# Current Request")
-            sections.append(f'"{user_input}"')
 
         return "\n".join(sections)

@@ -2,7 +2,7 @@ import pytest
 
 from orchestrator.search.agent.graph_nodes import (
     FilterBuildingNode,
-    IntentNode,
+    PlannerNode,
     SearchNode,
     TextResponseNode,
 )
@@ -19,8 +19,7 @@ async def test_graph_nodes_creation():
     mock_model = "openai:gpt-4"
 
     # Test node creation with event_emitter
-    intent_node = IntentNode(
-        user_input="count subscriptions",
+    planner_node = PlannerNode(
         model=mock_model,
         event_emitter=event_emitter,
     )

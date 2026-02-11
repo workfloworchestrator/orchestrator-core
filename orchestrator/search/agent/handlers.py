@@ -17,7 +17,7 @@ from uuid import UUID
 
 import structlog
 
-from orchestrator.db import AgentRunTable, SearchQueryTable
+from orchestrator.db import SearchQueryTable
 from orchestrator.db.database import WrappedSession
 from orchestrator.search.query import engine
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery

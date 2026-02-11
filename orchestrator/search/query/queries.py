@@ -15,7 +15,7 @@ from typing import Annotated, Any, ClassVar, Literal, Self, Union
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, model_validator
 
-from orchestrator.search.core.types import QueryOperation, EntityType
+from orchestrator.search.core.types import EntityType, QueryOperation
 from orchestrator.search.filters import FilterTree
 
 from .mixins import (
