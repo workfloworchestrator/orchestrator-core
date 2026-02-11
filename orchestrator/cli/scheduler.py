@@ -175,31 +175,3 @@ def load_initial_schedule() -> None:
         typer.echo(f"Initial Schedule: {schedule}")
         add_unique_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))  # type: ignore
 
-
-@app.command()
-def list_all_ap_scheduled_tasks() -> None:
-    """Returns a list of all scheduled tasks in the APScheduler instance.
-
-    This also includes tasks that are scheduled through the decorator and not through the API, which can be useful for debugging.
-    """
-    typer.echo("Get all scheduled tasks from APScheduler:")
-
-    all_scheduled_tasks = get_all_scheduler_tasks()
-    all_scheduled_tasks = enrich_with_workflow_id(
-        scheduled_tasks=all_scheduled_tasks, include_decorator_scheduled_tasks=True
-    )
-
-    result = [
-        {
-            "id": task.id,
-            "name": task.name,
-            "workflow_id": task.workflow_id,
-            "next_run_time": (str(task.next_run_time.replace(microsecond=0)) if task.next_run_time else "None"),
-            "trigger": str(task.trigger),
-        }
-        for task in all_scheduled_tasks
-    ]
-
-    typer.echo(json.dumps(result, indent=4))
-
-    typer.echo("Total scheduled tasks: {}".format(len(all_scheduled_tasks)))
