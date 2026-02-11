@@ -100,7 +100,7 @@ Turn 2:
   → Confirmation message (UI shows download link)
 ```
 
-**Note**: Requires state persistence across turns (query_id from turn 1)
+**Note**: Requires conversation history persistence (query_id from turn 1's ToolStep)
 
 ---
 
@@ -122,7 +122,7 @@ Turn 2:
   → Parse detailed data and answer question about statuses
 ```
 
-**Note**: Requires state persistence across turns (query_id from turn 1)
+**Note**: Requires conversation history persistence (query_id from turn 1's ToolStep)
 
 ---
 

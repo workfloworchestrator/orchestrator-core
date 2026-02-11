@@ -6,7 +6,7 @@ from uuid import UUID
 
 import structlog
 from pydantic import BaseModel, ConfigDict
-from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
+from pydantic_ai.messages import ModelRequest, ModelResponse, SystemPromptPart, TextPart, UserPromptPart
 
 logger = structlog.get_logger(__name__)
 
@@ -14,8 +14,9 @@ logger = structlog.get_logger(__name__)
 class MemoryScope(Enum):
     """Defines what context is visible to different nodes."""
 
-    FULL = "full"  # User questions + answers + execution traces (PlannerNode)
-    CONVERSATION = "conversation"  # User questions + answers only (Action nodes)
+    FULL = "full"  # User questions + answers + full execution traces (PlannerNode)
+    LIGHTWEIGHT = "lightweight"  # User questions + answers + full query JSON (Search/Aggregation nodes)
+    MINIMAL = "minimal"  # User questions + answers + query_id only (ResultActions node)
 
 
 @dataclass
@@ -60,6 +61,7 @@ class ToolStep(StepRecord):
     results_count: int = 0
     query_operation: str | None = None
     query_snapshot: dict | None = None
+    query_id: UUID | None = None
 
     def __post_init__(self):
         self.step_category = "tool"
@@ -121,7 +123,7 @@ class ConversationEnvironment(BaseModel):
             timestamp=self.current_turn.timestamp,
         )
 
-    def complete_turn(self, assistant_answer: str, query_id: UUID | None = None):
+    def complete_turn(self, assistant_answer: str):
         if not self.current_turn:
             raise ValueError("No active turn")
 
@@ -154,6 +156,69 @@ class ConversationEnvironment(BaseModel):
 
         self.current_turn = None
 
+    def _format_query_summary(self, node_steps: list[NodeStep], include_full_query: bool = True) -> str | None:
+        """Format query summary - either full JSON or just query_id with one-liner.
+
+        Args:
+            node_steps: List of NodeStep objects to extract queries from
+            include_full_query: If True, show full query JSON; if False, just query_id + description
+
+        Returns:
+            Formatted query summary string, or None if no queries
+        """
+        import json
+
+        # Find tool steps with query_ids
+        query_tools = []
+        for node_step in node_steps:
+            for tool_step in node_step.tool_steps:
+                if tool_step.query_id:
+                    query_tools.append(tool_step)
+
+        if not query_tools:
+            return None
+
+        summaries = []
+        for tool in query_tools:
+            if include_full_query and tool.query_snapshot:
+                # Full query JSON for Search/Aggregation nodes
+                query_json = json.dumps(tool.query_snapshot, indent=2)
+                summaries.append(f"Query {tool.query_id}:\n{query_json}")
+            else:
+                # Minimal one-liner for ResultActions node
+                operation = tool.query_operation or "QUERY"
+                entity = tool.entity_type or "unknown"
+                results = f" ({tool.results_count} results)" if tool.results_count else ""
+                summaries.append(f"Query {tool.query_id}: {operation} {entity}{results}")
+
+        return "\n\n".join(summaries) if summaries else None
+
+    def _format_execution_trace(self, node_steps: list[NodeStep]) -> str | None:
+        """Format node steps as execution trace string.
+
+        Args:
+            node_steps: List of NodeStep objects to format
+
+        Returns:
+            Formatted execution trace string, or None if no action nodes
+        """
+        # Filter out PlannerNode - only show action nodes
+        action_nodes = [step for step in node_steps if step.step_type != "PlannerNode"]
+
+        if not action_nodes:
+            return None
+
+        lines = ["Plan executed:"]
+        for i, node_step in enumerate(action_nodes, 1):
+            lines.append(f"  {i}. [Node] {node_step.step_type}")
+            if node_step.tool_steps:
+                for tool_step in node_step.tool_steps:
+                    result_info = f" ({tool_step.results_count} results)" if tool_step.results_count else ""
+                    query_info = f" [query: {tool_step.query_id}]" if tool_step.query_id else ""
+                    lines.append(f"     • [Tool] {tool_step.step_type}: {tool_step.description}{result_info}{query_info}")
+
+        return "\n".join(lines)
+
     def get_message_history(
         self, max_turns: int = 5, scope: MemoryScope = MemoryScope.FULL
     ) -> list[ModelRequest | ModelResponse]:
@@ -174,26 +239,23 @@ class ConversationEnvironment(BaseModel):
             # User message
             messages.append(ModelRequest(parts=[UserPromptPart(content=turn.user_question)]))
 
-            # Execution trace as separate system context (only for FULL scope)
-            if scope == MemoryScope.FULL and turn.node_steps:
-                # Filter out PlannerNode - only show action nodes with actual work
-                action_nodes = [step for step in turn.node_steps if step.step_type != "PlannerNode"]
-
-                if action_nodes:
-                    trace_lines = ["Plan executed:"]
-                    for i, node_step in enumerate(action_nodes, 1):
-                        trace_lines.append(f"  {i}. [Node] {node_step.step_type}")
-                        if node_step.tool_steps:
-                            for tool_step in node_step.tool_steps:
-                                # Add results info if available
-                                result_info = f" ({tool_step.results_count} results)" if tool_step.results_count else ""
-                                trace_lines.append(
-                                    f"     • [Tool] {tool_step.step_type}: {tool_step.description}{result_info}"
-                                )
-                    # Add trace as system message (not user input)
-                    from pydantic_ai.messages import SystemPromptPart
-
-                    messages.append(ModelRequest(parts=[SystemPromptPart(content="\n".join(trace_lines))]))
+            # Add context based on scope
+            if turn.node_steps:
+                if scope == MemoryScope.FULL:
+                    # Full execution trace with all details
+                    trace = self._format_execution_trace(turn.node_steps)
+                    if trace:
+                        messages.append(ModelRequest(parts=[SystemPromptPart(content=trace)]))
+                elif scope == MemoryScope.LIGHTWEIGHT:
+                    # Full query JSON for re-running
+                    summary = self._format_query_summary(turn.node_steps, include_full_query=True)
+                    if summary:
+                        messages.append(ModelRequest(parts=[SystemPromptPart(content=summary)]))
+                elif scope == MemoryScope.MINIMAL:
+                    # Just query_id + one-liner
+                    summary = self._format_query_summary(turn.node_steps, include_full_query=False)
+                    if summary:
+                        messages.append(ModelRequest(parts=[SystemPromptPart(content=summary)]))
 
             # Assistant response
             messages.append(ModelResponse(parts=[TextPart(content=turn.assistant_answer)]))
@@ -203,31 +265,6 @@ class ConversationEnvironment(BaseModel):
             messages.append(ModelRequest(parts=[UserPromptPart(content=self.current_turn.user_question)]))
 
         return messages
-
-    def format_current_context(self, state) -> str:
-        """Format available context from previous runs.
-
-        Shows what's available to use in the current run (results, exports, etc).
-        Reads state from SearchState instead of internal tracking.
-        """
-        if not state.query_id and not state.results_count:
-            return "None"
-
-        lines = []
-
-        # Show what's available from previous runs
-        if state.results_count and state.results_count > 0:
-            count = state.results_count
-            entity_type = state.query.entity_type.value if state.query else "records"
-            lines.append(f"Results available: {count} {entity_type}")
-
-        if state.export_url:
-            lines.append(f"Export ready: {state.export_url}")
-
-        if state.query_id:
-            lines.append(f"Query ID: {state.query_id}")
-
-        return "\n".join(lines) if lines else "None"
 
     def format_current_steps(self) -> str:
         """Format the steps taken in the current turn for display in prompts.
@@ -242,27 +279,13 @@ class ConversationEnvironment(BaseModel):
         if self.current_turn.current_node_step:
             all_node_steps.append(self.current_turn.current_node_step)
 
-        # Filter out PlannerNode - only show action nodes
-        action_nodes = [step for step in all_node_steps if step.step_type != "PlannerNode"]
-
-        if not action_nodes:
-            return "None"
-
-        lines = ["Plan executed:"]
-        for i, node_step in enumerate(action_nodes, 1):
-            lines.append(f"  {i}. [Node] {node_step.step_type}")
-            if node_step.tool_steps:
-                for tool_step in node_step.tool_steps:
-                    result_info = f" ({tool_step.results_count} results)" if tool_step.results_count else ""
-                    lines.append(f"     • [Tool] {tool_step.step_type}: {tool_step.description}{result_info}")
-
-        return "\n".join(lines)
+        trace = self._format_execution_trace(all_node_steps)
+        return trace if trace else "None"
 
     def format_context_for_llm(
         self,
         state,
         *,
-        include_available_context: bool = False,
         include_current_run_steps: bool = False,
     ) -> str:
         """Universal context formatter for LLM prompts.
@@ -273,26 +296,14 @@ class ConversationEnvironment(BaseModel):
 
         Args:
             state: SearchState instance for accessing current context
-            include_available_context: Show context from previous runs (query_id, results, etc)
             include_current_run_steps: Show steps executed so far in current run
 
         Returns:
             Formatted context string ready to insert into prompt
         """
-        sections = []
-
-        # Available context from previous runs
-        if include_available_context:
-            context = self.format_current_context(state)
-            sections.append("# Available Context from Previous Runs")
-            sections.append(context)
-
         # Current run steps (for replanning)
         if include_current_run_steps:
             steps = self.format_current_steps()
-            if sections:
-                sections.append("")
-            sections.append("# Steps Already Executed")
-            sections.append(steps)
+            return f"# Steps Already Executed\n{steps}"
 
-        return "\n".join(sections)
+        return ""

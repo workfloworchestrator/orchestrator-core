@@ -49,6 +49,7 @@ def get_search_execution_prompt(state: SearchState) -> str:
 
         ## Your Task
         Execute a database search to answer the user's request.
+        **IMPORTANT**: This query starts empty - previous query filters shown in history are NOT applied unless you rebuild them.
 
         ## Steps
         1. If filters needed: Call {tools.discover_filter_paths.__name__}, {tools.get_valid_operators.__name__}, build FilterTree, call {tools.set_filter_tree.__name__}
@@ -75,7 +76,7 @@ def get_aggregation_execution_prompt(state: SearchState) -> str:
     """
 
     context = state.environment.format_context_for_llm(state)
-    query_operation = state.query_operation.value if state.query_operation else "unknown"
+    query_operation = state.query.query_operation.value if state.query else "unknown"
 
     return dedent(
         f"""
@@ -85,6 +86,7 @@ def get_aggregation_execution_prompt(state: SearchState) -> str:
 
         ## Your Task
         Execute an aggregation query (operation: {query_operation}) for the user's request.
+        **IMPORTANT**: This query starts empty - previous query filters/grouping shown in history are NOT applied unless you rebuild them.
 
         ## Steps
         1. If filters needed: Call {tools.discover_filter_paths.__name__}, {tools.get_valid_operators.__name__}, build FilterTree, call {tools.set_filter_tree.__name__}
@@ -103,44 +105,15 @@ def get_aggregation_execution_prompt(state: SearchState) -> str:
     ).strip()
 
 
-def get_text_response_prompt(state: SearchState, is_forced_response: bool = False) -> str:
+def get_text_response_prompt(state: SearchState) -> str:
     """Get prompt for TextResponseNode agent.
 
     Args:
         state: Current search state
-        is_forced_response: If True, generate completion message because no actions were taken
 
     Returns:
         Complete prompt for generating text response
     """
-    if is_forced_response:
-        context = state.environment.format_context_for_llm(
-            state,
-            include_available_context=True,
-            include_current_run_steps=True,
-        )
-        return dedent(
-            f"""
-            # Acknowledging Edge Case
-
-            The system determined no actions were needed for this request. This typically indicates an edge case or ambiguous request.
-
-            ## Your Task
-            Briefly acknowledge the situation based on context and ask what they'd like to do next.
-
-            ## Examples
-            - "I'm not sure what action to take here. Can you clarify what you need?"
-            - "It looks like we're in an unusual state. What would you like me to do?"
-            - "I don't have a clear next step. Can you rephrase or tell me what you need?"
-
-            Keep it brief.
-
-            ---
-
-            {context}
-            """
-        ).strip()
-
     context = state.environment.format_context_for_llm(state)
     entity_types = ", ".join([et.value for et in EntityType])
 
@@ -178,10 +151,9 @@ def get_planning_prompt(state: SearchState, is_replanning: bool = False) -> str:
     Returns:
         Complete prompt for creating multi-step execution plan
     """
-    # Get available context (NOT conversation - that's in message_history now)
+    # Get context for replanning (NOT conversation - that's in message_history now)
     context = state.environment.format_context_for_llm(
         state,
-        include_available_context=True,
         include_current_run_steps=is_replanning,
     )
 
@@ -229,10 +201,7 @@ def get_result_actions_prompt(state: SearchState) -> str:
     Returns:
         Complete prompt for result actions
     """
-    context = state.environment.format_context_for_llm(
-        state,
-        include_available_context=True,
-    )
+    context = state.environment.format_context_for_llm(state)
     return dedent(
         f"""
         # Acting on Results
@@ -240,9 +209,6 @@ def get_result_actions_prompt(state: SearchState) -> str:
         {GRAPH_CONTEXT}
 
         Act on existing search/aggregation results.
-
-        ## Current State
-        {state.results_count or 0} results available from previous query.
 
         ## Available Actions
         - If user wants to EXPORT/DOWNLOAD results: Call {tools.prepare_export.__name__}() ONLY

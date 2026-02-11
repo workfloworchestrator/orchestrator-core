@@ -165,7 +165,6 @@ class PostgresStatePersistence(BaseStatePersistence[SearchState]):
             thread_id=self.thread_id,
             run_id=str(self.run_id),
             sequence=db_snapshot.sequence_number,
-            has_query_id=state.query_id is not None,
         )
 
         # Note: we don't have the actual node object, so we pass None and provide an id

@@ -171,7 +171,6 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
                     logger.debug(
                         "GraphAgentAdapter: Resuming from previous state",
                         run_id=persistence.run_id,
-                        has_query_id=previous_state.query_id is not None,
                     )
                     # Use the loaded state as initial state, but update user_input for current turn
                     initial_state = previous_state
@@ -220,7 +219,6 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
                 "GraphAgentAdapter: Graph streaming complete",
                 final_output=final_output,
                 final_state_keys=list(graph_run.state.model_dump().keys()),
-                has_query_id=graph_run.state.query_id is not None,
             )
 
             yield AgentRunResultEvent(result=AgentRunResult(output=final_output))

@@ -31,7 +31,6 @@ from pydantic_ai.messages import (
 from pydantic_ai.run import AgentRunResultEvent
 from pydantic_graph import BaseNode, End, GraphRunContext
 
-from orchestrator.search.agent import tools
 from orchestrator.search.agent.environment import MemoryScope, NodeStep, ToolStep
 from orchestrator.search.agent.graph_events import (
     GraphNodeActiveEvent,
@@ -52,6 +51,7 @@ from orchestrator.search.agent.tools import (
     result_actions_toolset,
     search_execution_toolset,
 )
+from orchestrator.search.agent.utils import log_agent_request
 from orchestrator.search.core.types import QueryOperation
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
 
@@ -108,8 +108,8 @@ class BaseGraphNode(ABC):
 
     def get_message_history(self, ctx: GraphRunContext[SearchState, None]):
         """Get message history for this node. Override in subclasses that need different scope."""
-        # Default: CONVERSATION scope (no execution traces)
-        return ctx.state.environment.get_message_history(max_turns=5, scope=MemoryScope.CONVERSATION)
+        # Default: LIGHTWEIGHT scope (query summaries without full traces)
+        return ctx.state.environment.get_message_history(max_turns=5, scope=MemoryScope.LIGHTWEIGHT)
 
     async def event_generator(
         self, ctx: GraphRunContext[SearchState, None]
@@ -125,6 +125,8 @@ class BaseGraphNode(ABC):
         prompt = self.get_prompt(ctx)
         message_history = self.get_message_history(ctx)
         state_deps = StateDeps(ctx.state)
+
+        log_agent_request(self.node_name, prompt, message_history)
 
         # Use the node's dedicated agent with AG-UI event processing
         async for event in self.node_agent.run_stream_events(
@@ -214,7 +216,6 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             logger.info("PlannerNode: Plan completed, ending execution")
             ctx.state.environment.complete_turn(
                 assistant_answer="Complete",
-                query_id=ctx.state.query_id,
             )
             ctx.state.execution_plan = None
             return End("Plan completed")
@@ -232,7 +233,8 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         message_history = ctx.state.environment.get_message_history(max_turns=5, scope=MemoryScope.FULL)
 
         prompt = get_planning_prompt(ctx.state, is_replanning=is_replanning)
-        print(prompt)  # noqa: T201
+
+        log_agent_request(self.node_name, prompt, message_history)
 
         result = await self.node_agent.run(
             instructions=prompt, message_history=message_history, deps=StateDeps(ctx.state)
@@ -269,7 +271,6 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             logger.info("PlannerNode: All tasks completed")
             ctx.state.environment.complete_turn(
                 assistant_answer="Complete",
-                query_id=ctx.state.query_id,
             )
             ctx.state.execution_plan = None
             return End("Plan completed")
@@ -306,8 +307,6 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         if not task.entity_type or not task.query_operation:
             raise ValueError(f"Task missing entity_type or query_operation: {task.description}")
 
-        ctx.state.query_operation = task.query_operation
-
         if task.query_operation == QueryOperation.SELECT:
             ctx.state.query = SelectQuery(entity_type=task.entity_type, query_text=ctx.state.user_input)
         elif task.query_operation == QueryOperation.COUNT:
@@ -335,31 +334,12 @@ class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
     def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
         """Get the search execution prompt."""
-        prompt = get_search_execution_prompt(ctx.state)
-        print(prompt)  # noqa: T201
-        return prompt
+        return get_search_execution_prompt(ctx.state)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
         self.record_node_entry(ctx)
 
         try:
-            query = ctx.state.query
-            if query:
-                results = ctx.state.results_count or 0
-
-                ctx.state.environment.record_tool_step(
-                    ToolStep(
-                        step_type="run_search",
-                        description=f"Searched {results} {query.entity_type.value}",
-                        entity_type=query.entity_type.value,
-                        results_count=results,
-                        query_operation=ctx.state.query_operation.value if ctx.state.query_operation else None,
-                        query_snapshot=query.model_dump(),
-                        success=True,
-                    )
-                )
-
-            # Mark task as complete
             if ctx.state.execution_plan:
                 ctx.state.execution_plan.complete_current_task()
 
@@ -375,7 +355,6 @@ class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
             ctx.state.environment.complete_turn(
                 assistant_answer=f"Search failed: {str(e)}",
-                query_id=ctx.state.query_id,
             )
             return End(f"Failed: {str(e)}")
 
@@ -401,31 +380,12 @@ class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
     def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
         """Get the aggregation execution prompt."""
-        prompt = get_aggregation_execution_prompt(ctx.state)
-        print(prompt)  # noqa: T201
-        return prompt
+        return get_aggregation_execution_prompt(ctx.state)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
         self.record_node_entry(ctx)
 
         try:
-            query = ctx.state.query
-            if query:
-                results = ctx.state.results_count or 0
-
-                ctx.state.environment.record_tool_step(
-                    ToolStep(
-                        step_type="run_aggregation",
-                        description=f"Aggregated {results} groups for {query.entity_type.value}",
-                        entity_type=query.entity_type.value,
-                        results_count=results,
-                        query_operation=ctx.state.query_operation.value if ctx.state.query_operation else None,
-                        query_snapshot=query.model_dump(),
-                        success=True,
-                    )
-                )
-
-            # Mark task as complete
             if ctx.state.execution_plan:
                 ctx.state.execution_plan.complete_current_task()
 
@@ -443,7 +403,6 @@ class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
             ctx.state.environment.complete_turn(
                 assistant_answer=f"Aggregation failed: {str(e)}",
-                query_id=ctx.state.query_id,
             )
             return End(f"Failed: {str(e)}")
 
@@ -469,46 +428,16 @@ class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
     def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
         """Get the result actions prompt."""
-        prompt = get_result_actions_prompt(ctx.state)
-        print(prompt)  # noqa: T201
-        return prompt
+        return get_result_actions_prompt(ctx.state)
+
+    def get_message_history(self, ctx: GraphRunContext[SearchState, None]):
+        """ResultActionsNode only needs query_ids, not full queries."""
+        return ctx.state.environment.get_message_history(max_turns=5, scope=MemoryScope.MINIMAL)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
         self.record_node_entry(ctx)
 
         try:
-            tool_action_map = {
-                tools.prepare_export.__name__: ("export", "Prepared export for results"),
-                tools.fetch_entity_details.__name__: ("fetch_details", "Fetched entity details"),
-            }
-
-            logger.debug(
-                f"{self.__class__.__name__}: Tool calls tracked",
-                tool_calls=self._tool_calls_in_current_run,
-            )
-
-            # Record step for the tool that was called
-            for tool_name in self._tool_calls_in_current_run:
-                if tool_name in tool_action_map:
-                    step_type, description = tool_action_map[tool_name]
-
-                    # Capture query snapshot if available (shows what results are being acted on)
-                    query_snapshot = None
-                    if ctx.state.query:
-                        query_snapshot = ctx.state.query.model_dump()
-
-                    ctx.state.environment.record_tool_step(
-                        ToolStep(
-                            step_type=step_type,
-                            description=description,
-                            results_count=ctx.state.results_count or 0,
-                            success=True,
-                            query_snapshot=query_snapshot,
-                        )
-                    )
-                    break
-
-            # Mark task as complete
             if ctx.state.execution_plan:
                 ctx.state.execution_plan.complete_current_task()
 
@@ -529,7 +458,6 @@ class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
             ctx.state.environment.complete_turn(
                 assistant_answer=f"Action failed: {str(e)}",
-                query_id=ctx.state.query_id,
             )
             return End(f"Failed: {str(e)}")
 
@@ -538,11 +466,10 @@ class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
 @dataclass
 class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
-    """Generates text responses for general questions or completion acknowledgments.
+    """Generates text responses for general questions or out-of-scope queries.
 
-    This node handles two cases:
-    1. TEXT_RESPONSE intent: User asks general questions, greetings, or out-of-scope queries
-    2. NO_MORE_ACTIONS intent: Generates a brief completion message when work is done
+    Handles TEXT_RESPONSE tasks where the user asks general questions, greetings,
+    or requests that don't involve search/aggregation operations.
     """
 
     description: str = field(default="Generates text responses for general questions", init=False)
@@ -560,15 +487,7 @@ class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
     def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
         """Get the text response prompt (delegates to prompts.py)."""
-        # Only forced response if NO_MORE_ACTIONS and no steps were performed
-        has_steps = ctx.state.environment.current_turn and (
-            len(ctx.state.environment.current_turn.node_steps) > 0
-            or ctx.state.environment.current_turn.current_node_step is not None
-        )
-        is_forced = ctx.state.intent == IntentType.NO_MORE_ACTIONS and not has_steps
-        prompt = get_text_response_prompt(ctx.state, is_forced_response=is_forced)
-        print(prompt)  # noqa: T201
-        return prompt
+        return get_text_response_prompt(ctx.state)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
         """Text response completes the flow."""

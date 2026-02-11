@@ -138,8 +138,6 @@ async def agent_conversation(
                     "Loaded previous state from persistence",
                     completed_turns=len(initial_state.environment.completed_turns),
                     current_turn=initial_state.environment.current_turn is not None,
-                    has_context=(initial_state.query_id is not None or (initial_state.results_count or 0) > 0),
-                    query_id=str(initial_state.query_id) if initial_state.query_id else None,
                 )
             else:
                 initial_state = SearchState(**prepared_run_input.state)

@@ -28,7 +28,6 @@ class IntentType(str, Enum):
     AGGREGATION = "aggregation"
     RESULT_ACTIONS = "result_actions"
     TEXT_RESPONSE = "text_response"
-    NO_MORE_ACTIONS = "no_more_actions"
 
 
 class Task(BaseModel):
@@ -83,13 +82,7 @@ class SearchState(BaseModel):
 
     user_input: str = ""  # Original user input text from current conversation turn
     run_id: UUID | None = None
-    query_id: UUID | None = None
-    query_operation: QueryOperation | None = None  # Type of query operation (SELECT, COUNT, AGGREGATE)
     query: Query | None = None
-    results_count: int | None = None  # Number of results from last executed search/aggregation
-    intent: IntentType | None = None  # User's intent, determines routing
-    export_url: str | None = None  # Export URL if export has been prepared
-    end_actions: bool = False  # Whether to end after current action completes
     environment: ConversationEnvironment = Field(default_factory=ConversationEnvironment)
 
     execution_plan: ExecutionPlan | None = None  # Multi-step execution plan

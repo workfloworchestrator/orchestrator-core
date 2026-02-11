@@ -13,9 +13,10 @@
 
 import json
 from typing import Any, cast
+from uuid import UUID
 
 import structlog
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
@@ -26,13 +27,14 @@ from orchestrator.api.api_v1.endpoints.search import (
     list_paths,
 )
 from orchestrator.db import db
+from orchestrator.search.agent.environment import ToolStep
 from orchestrator.search.agent.handlers import (
     execute_aggregation_with_persistence,
     execute_search_with_persistence,
 )
-from orchestrator.search.agent.state import IntentType, SearchState
+from orchestrator.search.agent.state import SearchState
 from orchestrator.search.aggregations import Aggregation, FieldAggregation, TemporalGrouping
-from orchestrator.search.core.types import EntityType, FilterOp, QueryOperation
+from orchestrator.search.core.types import EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.query import engine
 from orchestrator.search.query.exceptions import PathNotFoundError, QueryValidationError
@@ -51,52 +53,6 @@ from orchestrator.search.query.validation import (
 from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
-
-
-class IntentAndQueryInit(BaseModel):
-    """Combined intent classification and query initialization."""
-
-    intent: IntentType = Field(
-        description=(
-            "The user's intent:\n"
-            "- search: Find/search data\n"
-            "- aggregation: Count, group, or aggregate data\n"
-            "- result_actions: Export or Fetch details for a single entity\n"
-            "- text_response: General questions, greetings, or explanations\n"
-            "- no_more_actions: All requested work is complete"
-        )
-    )
-    entity_type: EntityType | None = Field(
-        default=None,
-        description="Required for search/aggregation intents. The type of entity to query.",
-    )
-    query_operation: QueryOperation | None = Field(
-        default=None,
-        description=(
-            "Required for search/aggregation intents.\n"
-            "- SELECT: Find/Search/Retrieve individual entity records (e.g., 'find subscriptions', 'show products')\n"
-            "- COUNT: Count records, especially when grouping by fields \n"
-            "- AGGREGATE: Compute sum, avg, min, max over records \n"
-            "IMPORTANT: Any request with 'by <field>' or 'per <field>' typically needs COUNT or AGGREGATE, not SELECT."
-        ),
-    )
-    end_actions: bool = Field(
-        default=False,
-        description=(
-            "Whether to end actions after completing the selected intent. "
-            "Set to True if the current request will be fully completed after this action executes, "
-            "meaning no further actions are needed and the system should wait for user input. "
-            "Set to False if more actions will be needed after this one completes (the action will loop back to intent classification)."
-        ),
-    )
-    decision_reason: str = Field(
-        description=(
-            "Brief explanation of why this intent/action was chosen. "
-            "This helps track the decision-making process and prevents duplicate actions in cyclic graphs. "
-            "Example: 'User wants active subscriptions, need to search with status filter' or "
-            "'Search already complete with 10 results, request fulfilled'"
-        )
-    )
 
 
 # Node-specific toolsets for graph control flow
@@ -164,8 +120,20 @@ async def run_search(
     search_response, run_id, query_id = await execute_search_with_persistence(query, db.session, ctx.deps.state.run_id)
 
     ctx.deps.state.run_id = run_id
-    ctx.deps.state.query_id = query_id
-    ctx.deps.state.results_count = len(search_response.results)
+
+    # Record tool step with query_id
+    ctx.deps.state.environment.record_tool_step(
+        ToolStep(
+            step_type="run_search",
+            description=f"Searched {len(search_response.results)} {query.entity_type.value}",
+            entity_type=query.entity_type.value,
+            results_count=len(search_response.results),
+            query_operation=query.query_operation.value,
+            query_snapshot=query.model_dump(),
+            query_id=query_id,
+            success=True,
+        )
+    )
 
     # Convert SearchResults to AggregationResults for consistent rendering
     aggregation_results = [
@@ -190,12 +158,11 @@ async def run_search(
 
     logger.debug(
         "Search completed",
-        total_count=ctx.deps.state.results_count,
+        total_count=len(search_response.results),
         query_id=str(query_id),
     )
 
     # Note: State is automatically tracked by AG-UI through StateDeps
-    # We modified query_id, run_id, results_count above, which AG-UI will capture
     return aggregation_response
 
 
@@ -231,8 +198,20 @@ async def run_aggregation(
     )
 
     ctx.deps.state.run_id = run_id
-    ctx.deps.state.query_id = query_id
-    ctx.deps.state.results_count = aggregation_response.total_groups
+
+    # Record tool step with query_id
+    ctx.deps.state.environment.record_tool_step(
+        ToolStep(
+            step_type="run_aggregation",
+            description=f"Aggregated {aggregation_response.total_groups} groups for {query.entity_type.value}",
+            entity_type=query.entity_type.value,
+            results_count=aggregation_response.total_groups,
+            query_operation=query.query_operation.value,
+            query_snapshot=query.model_dump(),
+            query_id=query_id,
+            success=True,
+        )
+    )
 
     aggregation_response.visualization_type = visualization_type
 
@@ -325,6 +304,7 @@ async def get_valid_operators() -> dict[str, list[FilterOp]]:
 @result_actions_toolset.tool
 async def fetch_entity_details(
     ctx: RunContext[StateDeps[SearchState]],
+    query_id: UUID,
     limit: int = 10,
 ) -> str:
     """Fetch detailed entity information to answer user questions.
@@ -335,19 +315,16 @@ async def fetch_entity_details(
 
     Args:
         ctx: Runtime context for agent (injected).
+        query_id: ID of the query to fetch details from. Extract from conversation history.
         limit: Maximum number of entities to fetch details for (default 10).
 
     Returns:
         JSON string containing detailed entity information.
-
-    Raises:
-        ModelRetry: If no search has been executed.
     """
-    if ctx.deps.state.query_id is None:
-        raise ModelRetry("No query_id found. Run a search first.")
+    qid = query_id
 
     # Load the saved query and re-execute it to get entity IDs
-    query_state = QueryState.load_from_id(ctx.deps.state.query_id, SelectQuery)
+    query_state = QueryState.load_from_id(qid, SelectQuery)
     query = query_state.query.model_copy(update={"limit": limit})
     search_response = await engine.execute_search(query, db.session)
     entity_ids = [r.entity_id for r in search_response.results]
@@ -361,9 +338,22 @@ async def fetch_entity_details(
         "Fetching detailed entity data",
         entity_type=entity_type.value,
         entity_count=len(entity_ids),
+        query_id=str(qid),
     )
 
     detailed_data = fetch_export_data(entity_type, entity_ids)
+
+    # Record tool step
+    ctx.deps.state.environment.record_tool_step(
+        ToolStep(
+            step_type="fetch_entity_details",
+            description=f"Fetched details for {len(entity_ids)} {entity_type.value} entities",
+            entity_type=entity_type.value,
+            results_count=len(entity_ids),
+            query_id=query_id,
+            success=True,
+        )
+    )
 
     return json.dumps(detailed_data, indent=2)
 
@@ -371,29 +361,40 @@ async def fetch_entity_details(
 @result_actions_toolset.tool
 async def prepare_export(
     ctx: RunContext[StateDeps[SearchState]],
+    query_id: UUID,
 ) -> ExportData:
-    """Prepares export URL using the last executed search query.
+    """Prepares export URL for a search query.
 
-    Returns export data which is displayed directly in the UI.
+    Args:
+        ctx: Runtime context for agent (injected).
+        query_id: ID of the query to export. Extract from conversation history.
+
+    Returns:
+        Export data which is displayed directly in the UI.
     """
-    if not ctx.deps.state.query_id or not ctx.deps.state.run_id:
-        raise ModelRetry("No search has been executed yet. Run a search first before exporting.")
 
     logger.debug(
         "Prepared query for export",
-        query_id=str(ctx.deps.state.query_id),
+        query_id=str(query_id),
     )
 
-    download_url = f"{app_settings.BASE_URL}/api/search/queries/{ctx.deps.state.query_id}/export"
+    download_url = f"{app_settings.BASE_URL}/api/search/queries/{query_id}/export"
 
     export_data = ExportData(
-        query_id=str(ctx.deps.state.query_id),
+        query_id=str(query_id),
         download_url=download_url,
         message="Export ready for download.",
     )
 
-    # Save export URL to state for multi-turn tracking
-    ctx.deps.state.export_url = download_url
+    # Record tool step
+    ctx.deps.state.environment.record_tool_step(
+        ToolStep(
+            step_type="prepare_export",
+            description=f"Prepared export for query {query_id}",
+            query_id=query_id,
+            success=True,
+        )
+    )
 
     logger.debug("Export prepared", query_id=export_data.query_id)
 
