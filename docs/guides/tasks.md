@@ -316,31 +316,22 @@ From the Frontend, you will not be able to see schedules that were created using
 If you want to see all schedules, you can:
 
 1. Directly query the database for schedules
-2. Run the `python main.py scheduler list-all-ap-scheduled-tasks` command to see all schedules, including those created with the `@scheduler.scheduled_job()` decorator.
+2. Run the `python main.py scheduler show-schedule` command to see all schedules, including those created with the `@scheduler.scheduled_job()` decorator.
    3. > This command will effectively run a Database query to list all schedules, including those created with the `@scheduler.scheduled_job()` decorator. It will print the schedule id, name, trigger, and trigger kwargs for each schedule.
 
 
-Example result for running `python main.py scheduler list-all-ap-scheduled-tasks`:
+Example result for running `python main.py scheduler show-schedule`:
 
 ```
-Get all scheduled tasks from APScheduler:
-[
-    {
-        "id": "29637aae-64ab-440d-b0d7-394049fe7588",
-        "name": "Task Clean Up Tasks",
-        "workflow_id": "6d644947-9cff-42d5-a03c-bbebc077ecf2",  <--- This is a task created with the decorator
-        "next_run_time": "2026-02-11 05:21:09+00:00",
-        "trigger": "interval[6:00:00]"
-    },
-    {
-        "id": "validate-some-task",
-        "name": "Valideate some task",
-        "workflow_id": null,  <--- This is a task created with the decorator
-        "next_run_time": "2026-02-11 07:00:00+00:00",
-        "trigger": "cron[hour='7']"
-    },
-    ...
-]  
+                                                                                Scheduled Tasks                                                                                
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
+┃ id                                             ┃ name                                                           ┃ source    ┃ next run time             ┃ trigger           ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
+│ 5feb3845-08aa-497e-a475-a4fff8b9aa5f           │ Task Resume Workflows                                          │ API       │ 2026-02-11 13:21:09+00:00 │ interval[1:00:00] │          │
+│ 6a00c713-d8e5-46df-9e37-18790c3412ac           │ Task Validate Subscriptions                                    │ API       │ 2026-02-12 00:10:00+00:00 │ cron              │          │
+│ import-come-workflow                           │ Import Some Workflow                                           │ decorator │ 2026-02-12 12:00:00+00:00 │ cron              │
+└────────────────────────────────────────────────┴────────────────────────────────────────────────────────────────┴───────────┴───────────────────────────┴───────────────────┘
+
 ```
 
 
