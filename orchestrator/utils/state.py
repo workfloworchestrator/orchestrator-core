@@ -297,9 +297,9 @@ def _handle_value_param(param: inspect.Parameter, state: State, func: StepFunc |
             ) from key_error
         except ValueError as value_error:
             logger.error(
-                "Could not convert value to expected type.", key=param_name, state=state, value=state[param_name]
+                "Could not convert value to expected type.", key=param_name, state=state, value=value
             )
-            raise ValueError(f"Could not convert value '{state[param_name]}' to {param.annotation}") from value_error
+            raise ValueError(f"Could not convert value '{value}' to {param.annotation}") from value_error
 
 
 def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:
