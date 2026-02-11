@@ -146,7 +146,7 @@ def _convert_to_uuid(v: Any) -> UUID:
     return v if isinstance(v, UUID) else UUID(v)
 
 
-def _convert_uuid_value(value: Any, annotation: Any, param_name: str) -> Any:
+def _apply_type_conversion(value: Any, annotation: Any, param_name: str) -> Any:
     """Apply UUID conversion based on annotation type.
 
     Args:
@@ -279,7 +279,7 @@ def _handle_value_param(param: inspect.Parameter, state: State, func: StepFunc |
         # Only apply conversion if value came from state (not the default itself)
         if value != param.default:
             try:
-                return _convert_uuid_value(value, param.annotation, param_name)
+                return _apply_type_conversion(value, param.annotation, param_name)
             except ValueError as value_error:
                 logger.error("Could not convert value to expected type.", key=param_name, state=state, value=value)
                 raise ValueError(f"Could not convert value '{value}' to {param.annotation}") from value_error
@@ -289,16 +289,14 @@ def _handle_value_param(param: inspect.Parameter, state: State, func: StepFunc |
         # Required parameter: must be in state
         try:
             value = state[param_name]
-            return _convert_uuid_value(value, param.annotation, param_name)
+            return _apply_type_conversion(value, param.annotation, param_name)
         except KeyError as key_error:
             logger.error("Could not find key in state.", key=param_name, state=state)
             raise KeyError(
                 f"Could not find key '{param_name}' in state. for function {func.__module__}.{func.__qualname__}"
             ) from key_error
         except ValueError as value_error:
-            logger.error(
-                "Could not convert value to expected type.", key=param_name, state=state, value=value
-            )
+            logger.error("Could not convert value to expected type.", key=param_name, state=state, value=value)
             raise ValueError(f"Could not convert value '{value}' to {param.annotation}") from value_error
 
 
