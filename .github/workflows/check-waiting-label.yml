@@ -11,7 +11,7 @@ on:
       - synchronize
 
 jobs:
-  fail-if-labeled:
+  fail-if-waiting:
     if: contains(github.event.pull_request.labels.*.name, 'waiting')
     runs-on: ubuntu-latest
     steps:
