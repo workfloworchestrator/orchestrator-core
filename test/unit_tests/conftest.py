@@ -936,6 +936,8 @@ def create_schedules_via_api(test_client, scheduler_with_jobs):
         trigger_kwargs: dict | None = None,
     ):
         workflow = get_workflow_by_name(workflow_name)
+        if not workflow:
+            return
 
         scheduler_with_jobs(
             job_name=job_name,

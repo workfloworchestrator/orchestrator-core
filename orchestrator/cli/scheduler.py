@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 import time
 from typing import cast
 
@@ -18,7 +17,6 @@ import typer
 from redis import Redis
 
 from orchestrator.schedules.scheduler import (
-    enrich_with_workflow_id,
     get_all_scheduler_tasks,
     get_scheduler,
     get_scheduler_task,
@@ -174,4 +172,3 @@ def load_initial_schedule() -> None:
 
         typer.echo(f"Initial Schedule: {schedule}")
         add_unique_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))  # type: ignore
-
