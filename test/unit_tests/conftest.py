@@ -34,11 +34,13 @@ from orchestrator.db import (
     db,
 )
 from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
+from orchestrator.db.models import WorkflowApschedulerJob
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.schedules.scheduler import get_scheduler
 from orchestrator.schedules.service import run_start_workflow_scheduler_task
 from orchestrator.services.translations import generate_translations
+from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import json_dumps
@@ -922,3 +924,29 @@ def clear_all_scheduler_jobs():
                 scheduler.remove_job(job.id)
 
     return _clear
+
+
+@pytest.fixture
+def create_schedules_via_api(test_client, scheduler_with_jobs):
+    def _create(
+        job_name: str = "Test Job",
+        workflow_name: str = "task_resume_workflows",
+        schedule_id: str = str(uuid.uuid4()),
+        trigger: str = "interval",
+        trigger_kwargs: dict | None = None,
+    ):
+        workflow = get_workflow_by_name(workflow_name)
+
+        scheduler_with_jobs(
+            job_name=job_name,
+            workflow_name=workflow_name,
+            schedule_id=schedule_id,
+            trigger=trigger,
+            trigger_kwargs=trigger_kwargs,
+        )
+
+        workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow.workflow_id, schedule_id=schedule_id)
+        db.session.add(workflows_apscheduler_job)
+        db.session.commit()
+
+    return _create

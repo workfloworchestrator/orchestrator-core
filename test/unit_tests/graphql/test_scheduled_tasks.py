@@ -45,13 +45,20 @@ query ScheduledTasksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!
     ).encode("utf-8")
 
 
-def test_scheduled_tasks_query(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+def test_scheduled_tasks_query(test_client, scheduler_with_jobs, clear_all_scheduler_jobs, create_schedules_via_api):
     clear_all_scheduler_jobs()
 
+    # Created without API call, should not return in GraphQL
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
+
+    # Created with API call, should return in GraphQL
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
 
     data = get_scheduled_tasks_query(first=2)
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -74,13 +81,22 @@ def test_scheduled_tasks_query(test_client, scheduler_with_jobs, clear_all_sched
     }
 
 
-def test_scheduled_tasks_has_previous_page(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+def test_scheduled_tasks_has_previous_page(
+    test_client, scheduler_with_jobs, clear_all_scheduler_jobs, create_schedules_via_api
+):
     clear_all_scheduler_jobs()
 
+    # Created without API call, should not return in GraphQL
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
+
+    # Created with API call, should return in GraphQL
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
 
     data = get_scheduled_tasks_query(after=1, sort_by=[{"field": "name", "order": "ASC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -103,9 +119,10 @@ def test_scheduled_tasks_has_previous_page(test_client, scheduler_with_jobs, cle
     assert len(scheduled_tasks) == 3
 
 
-def test_scheduled_tasks_filter(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+def test_scheduled_tasks_filter(test_client, scheduler_with_jobs, clear_all_scheduler_jobs, create_schedules_via_api):
     clear_all_scheduler_jobs()
 
+    # Created without API call, should not return in GraphQL
     scheduler_with_jobs(
         job_name="subscriptions-validator", workflow_name="subscriptions-validator", schedule_id=f"{uuid4()}"
     )
@@ -115,8 +132,18 @@ def test_scheduled_tasks_filter(test_client, scheduler_with_jobs, clear_all_sche
         schedule_id=f"{uuid4()}",
     )
 
+    # Created with API call, should return in GraphQL
+    create_schedules_via_api(
+        job_name="Should be resuming workflows", workflow_name="task_resume_workflows", schedule_id=f"{uuid4()}"
+    )
+    create_schedules_via_api(
+        job_name="Resume workflows",
+        workflow_name="task_resume_workflows",
+        schedule_id=f"{uuid4()}",
+    )
+
     data = get_scheduled_tasks_query(
-        filter_by=[{"field": "name", "value": "validat"}], sort_by=[{"field": "name", "order": "ASC"}]
+        filter_by=[{"field": "name", "value": "workflows"}], sort_by=[{"field": "name", "order": "ASC"}]
     )
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -135,8 +162,8 @@ def test_scheduled_tasks_filter(test_client, scheduler_with_jobs, clear_all_sche
         "totalItems": 2,
     }
     expected_workflows = [
-        "subscriptions-validator",
-        "validate-products",
+        "Resume workflows",
+        "Should be resuming workflows",
     ]
     assert [job["name"] for job in scheduled_tasks] == expected_workflows
 
@@ -168,9 +195,10 @@ def test_scheduled_tasks_invalid_filter(test_client):
     assert not scheduled_tasks
 
 
-def test_scheduled_tasks_sort_by(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+def test_scheduled_tasks_sort_by(test_client, scheduler_with_jobs, clear_all_scheduler_jobs, create_schedules_via_api):
     clear_all_scheduler_jobs()
 
+    # Created without API call, should not return in GraphQL
     scheduler_with_jobs(
         job_name="Validate Products and inactive subscriptions",
         workflow_name="validate-products",
@@ -183,6 +211,24 @@ def test_scheduled_tasks_sort_by(test_client, scheduler_with_jobs, clear_all_sch
     )
     scheduler_with_jobs(job_name="Resume workflows", workflow_name="task-resume-workflows", schedule_id=f"{uuid4()}")
     scheduler_with_jobs(job_name="Clean up tasks", workflow_name="task-clean-up-tasks", schedule_id=f"{uuid4()}")
+
+    # Created with API call, should return in GraphQL
+    create_schedules_via_api(
+        job_name="Validate Products and inactive subscriptions",
+        workflow_name="task_resume_workflows",
+        schedule_id=f"{uuid4()}",
+    )
+    create_schedules_via_api(
+        job_name="Subscriptions Validator",
+        workflow_name="task_resume_workflows",
+        schedule_id=f"{uuid4()}",
+    )
+    create_schedules_via_api(job_name="Clean up tasks", workflow_name="task_resume_workflows", schedule_id=f"{uuid4()}")
+    create_schedules_via_api(
+        job_name="Resume workflows",
+        workflow_name="task_resume_workflows",
+        schedule_id=f"{uuid4()}",
+    )
 
     data = get_scheduled_tasks_query(sort_by=[{"field": "name", "order": "DESC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -210,13 +256,22 @@ def test_scheduled_tasks_sort_by(test_client, scheduler_with_jobs, clear_all_sch
     assert [job["name"] for job in scheduled_tasks] == expected_workflows
 
 
-def test_scheduled_tasks_invalid_sort(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+def test_scheduled_tasks_invalid_sort(
+    test_client, scheduler_with_jobs, clear_all_scheduler_jobs, create_schedules_via_api
+):
     clear_all_scheduler_jobs()
 
+    # Created without API call, should not return in GraphQL
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
+
+    # Created with API call, should return in GraphQL
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
 
     data = get_scheduled_tasks_query(sort_by=[{"field": "namee", "order": "DESC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
