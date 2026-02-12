@@ -11,9 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
-import logging
 from uuid import UUID, uuid4
 
+import structlog
 from apscheduler.schedulers.base import BaseScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
@@ -21,7 +21,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import delete
 
 from orchestrator import app_settings
-from orchestrator.db import db
+from orchestrator.db import db, transactional
 from orchestrator.db.models import WorkflowApschedulerJob
 from orchestrator.schemas.schedules import (
     APSchedulerJobCreate,
@@ -39,7 +39,7 @@ redis_connection = create_redis_client(app_settings.CACHE_URI)
 SCHEDULER_QUEUE = "scheduler:queue:"
 
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def serialize_payload(payload: APSchedulerJobs) -> bytes:
@@ -154,8 +154,14 @@ def run_start_workflow_scheduler_task(workflow_name: str) -> None:
     Args:
         workflow_name: str The name of the workflow to start.
     """
-    logger.info(f"Starting workflow: {workflow_name}")
-    start_process(workflow_name)
+    log = logger.bind(workflow_name=workflow_name)
+    try:
+        with transactional(db, logger):
+            log.info("Starting workflow")
+            process_id = start_process(workflow_name)
+            log.info("Started workflow", process_id=process_id)
+    except Exception:
+        log.exception("Failed to start workflow")
 
 
 def _add_scheduled_task(payload: APSchedulerJobCreate, scheduler_connection: BaseScheduler) -> None:
