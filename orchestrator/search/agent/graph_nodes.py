@@ -77,10 +77,17 @@ class BaseGraphNode(ABC):
         """Get the name of this node for event emission."""
         return self.__class__.__name__
 
-    def emit_node_active_event(self) -> None:
+    def emit_node_active_event(self, ctx: GraphRunContext[SearchState, None] | None = None) -> None:
         """Emit GRAPH_NODE_ACTIVE event for this node."""
         if self.event_emitter:
             value: GraphNodeActiveValue = {"node": self.node_name, "step_type": "graph_node"}
+
+            # Add reasoning if available from current task
+            if ctx and ctx.state.execution_plan:
+                task = ctx.state.execution_plan.get_current_task()
+                if task and task.reasoning:
+                    value["reasoning"] = task.reasoning
+
             self.event_emitter(GraphNodeActiveEvent(timestamp=_current_timestamp_ms(), value=value))
 
     def record_node_entry(self, ctx: GraphRunContext[SearchState, None]) -> None:
@@ -116,7 +123,7 @@ class BaseGraphNode(ABC):
     ) -> AsyncIterator[AgentStreamEvent | AgentRunResultEvent[Any]]:
         """Generate events from the node's dedicated agent as they happen."""
         # Emit GRAPH_NODE_ACTIVE event when node becomes active
-        self.emit_node_active_event()
+        self.emit_node_active_event(ctx)
 
         # Reset tool calls tracking and result for this run
         self._tool_calls_in_current_run = []
@@ -186,7 +193,7 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         """Only streams when creating a plan (not when routing from queue)."""
 
         async def event_generator() -> AsyncIterator[AgentStreamEvent]:
-            self.emit_node_active_event()
+            self.emit_node_active_event(ctx)
             # Streaming handled in _create_plan() method
             return
             yield
@@ -248,11 +255,6 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             num_tasks=len(plan.tasks),
             tasks=[f"{i+1}. {t.description}" for i, t in enumerate(plan.tasks)],
         )
-
-        # Record plan in node step
-        if ctx.state.environment.current_turn and ctx.state.environment.current_turn.current_node_step:
-            task_list = "\n".join([f"{i+1}. {t.description}" for i, t in enumerate(plan.tasks)])
-            ctx.state.environment.current_turn.current_node_step.decision_reason = f"Created plan:\n{task_list}"
 
         # Execute first task
         return await self._execute_next_task(ctx)

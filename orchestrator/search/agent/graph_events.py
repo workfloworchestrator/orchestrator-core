@@ -17,11 +17,12 @@ from pydantic import Field
 from typing_extensions import TypedDict
 
 
-class GraphNodeActiveValue(TypedDict):
+class GraphNodeActiveValue(TypedDict, total=False):
     """Typed structure for GRAPH_NODE_ACTIVE event value."""
 
     node: str
     step_type: str
+    reasoning: str
 
 
 class GraphNodeActiveEvent(CustomEvent):

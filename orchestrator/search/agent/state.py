@@ -39,6 +39,9 @@ class Task(BaseModel):
         default=None, description="Query operation type for search/aggregation tasks"
     )
     description: str = Field(description="Human-readable task description")
+    reasoning: str = Field(
+        description="1-2 sentence explanation of what will be done (e.g., 'I need to generate an aggregation query to count subscriptions grouped by month')"
+    )
     status: str = Field(default="pending", description="Task status: pending, executing, completed, failed")
     error_message: str | None = Field(default=None, description="Error message if task failed")
 

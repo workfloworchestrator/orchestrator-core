@@ -54,7 +54,7 @@ def get_search_execution_prompt(state: SearchState) -> str:
         ## Steps
         1. If filters needed: Call {tools.discover_filter_paths.__name__}, {tools.get_valid_operators.__name__}, build FilterTree, call {tools.set_filter_tree.__name__}
         2. Call {tools.run_search.__name__}()
-        3. Briefly confirm what was searched (1-2 sentences). DO NOT list results - UI shows them
+        3. Explain what you did in 1-2 sentences at most. DO NOT list the actual results, they are already shown to the user.
 
         {FILTERING_RULES}
 
@@ -93,7 +93,7 @@ def get_aggregation_execution_prompt(state: SearchState) -> str:
         2. Set grouping: Temporal ({tools.set_temporal_grouping.__name__}) or regular ({tools.set_grouping.__name__})
         3. For {QueryOperation.AGGREGATE.value} operation ONLY: Call {tools.set_aggregations.__name__}. For {QueryOperation.COUNT.value}: Do NOT call (counting is automatic)
         4. Call {tools.run_aggregation.__name__}(visualization_type=...)
-        5. Briefly confirm what was computed (1-2 sentences). DO NOT list results - visualization shows them
+        3. Explain what you did in 1-2 sentences at most. DO NOT list the actual results, they are already shown to the user
 
         {FILTERING_RULES}
         - Filters restrict WHICH records; grouping controls HOW to aggregate

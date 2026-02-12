@@ -43,7 +43,6 @@ class NodeStep(StepRecord):
     """
 
     tool_steps: list["ToolStep"] = field(default_factory=list)  # Tools called within this node
-    decision_reason: str | None = None  # For PlannerNode: why this route was chosen
 
     def __post_init__(self):
         self.step_category = "node"
