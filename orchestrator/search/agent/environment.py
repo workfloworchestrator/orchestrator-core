@@ -92,6 +92,19 @@ class ConversationEnvironment(BaseModel):
     def start_turn(self, user_question: str):
         self.current_turn = CurrentTurn(user_question=user_question, node_steps=[])
 
+    def record_node_entry(self, node_name: str) -> None:
+        """Record entering a new node (finishes previous node if any, starts new one)."""
+        # Finish previous node if any
+        if self.current_turn and self.current_turn.current_node_step:
+            self.finish_node_step()
+
+        # Start new node step
+        node_step = NodeStep(
+            step_type=node_name,
+            description=f"Executing {node_name}",
+        )
+        self.start_node_step(node_step)
+
     def start_node_step(self, node_step: NodeStep):
         """Start recording a new node execution."""
         if not self.current_turn:

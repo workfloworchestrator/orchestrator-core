@@ -11,6 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from time import time_ns
+
+
+def current_timestamp_ms() -> int:
+    """Get current timestamp in milliseconds."""
+    return time_ns() // 1_000_000
+
 
 def log_agent_request(node_name: str, instructions: str, message_history: list) -> None:
     """Log the complete request being sent to the LLM for debugging.

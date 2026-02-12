@@ -17,7 +17,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from time import time_ns
 from typing import Any, AsyncIterator, Callable
 
 import structlog
@@ -31,7 +30,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.run import AgentRunResultEvent
 from pydantic_graph import BaseNode, End, GraphRunContext
 
-from orchestrator.search.agent.environment import MemoryScope, NodeStep, ToolStep
+from orchestrator.search.agent.environment import MemoryScope, ToolStep
 from orchestrator.search.agent.graph_events import (
     GraphNodeActiveEvent,
     GraphNodeActiveValue,
@@ -43,7 +42,7 @@ from orchestrator.search.agent.prompts import (
     get_search_execution_prompt,
     get_text_response_prompt,
 )
-from orchestrator.search.agent.state import ExecutionPlan, IntentType, SearchState
+from orchestrator.search.agent.state import ExecutionPlan, IntentType, SearchState, TaskStatus
 from orchestrator.search.agent.tools import (
     aggregation_execution_toolset,
     aggregation_toolset,
@@ -51,16 +50,11 @@ from orchestrator.search.agent.tools import (
     result_actions_toolset,
     search_execution_toolset,
 )
-from orchestrator.search.agent.utils import log_agent_request
+from orchestrator.search.agent.utils import current_timestamp_ms, log_agent_request
 from orchestrator.search.core.types import QueryOperation
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
 
 logger = structlog.get_logger(__name__)
-
-
-def _current_timestamp_ms() -> int:
-    """Get current timestamp in milliseconds."""
-    return time_ns() // 1_000_000
 
 
 @dataclass
@@ -84,24 +78,11 @@ class BaseGraphNode(ABC):
 
             # Add reasoning if available from current task
             if ctx and ctx.state.execution_plan:
-                task = ctx.state.execution_plan.get_current_task()
+                task = ctx.state.execution_plan.current
                 if task and task.reasoning:
                     value["reasoning"] = task.reasoning
 
-            self.event_emitter(GraphNodeActiveEvent(timestamp=_current_timestamp_ms(), value=value))
-
-    def record_node_entry(self, ctx: GraphRunContext[SearchState, None]) -> None:
-        """Record entering this node as a NodeStep."""
-        # Finish previous node if any
-        if ctx.state.environment.current_turn and ctx.state.environment.current_turn.current_node_step:
-            ctx.state.environment.finish_node_step()
-
-        # Start new node step
-        node_step = NodeStep(
-            step_type=self.__class__.__name__,
-            description=f"Executing {self.__class__.__name__}",
-        )
-        ctx.state.environment.start_node_step(node_step)
+            self.event_emitter(GraphNodeActiveEvent(timestamp=current_timestamp_ms(), value=value))
 
     @property
     @abstractmethod
@@ -204,7 +185,7 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         self, ctx: GraphRunContext[SearchState, None]
     ) -> SearchNode | AggregationNode | ResultActionsNode | TextResponseNode | PlannerNode | End[str]:
         """Create plan or route to next task."""
-        self.record_node_entry(ctx)
+        ctx.state.environment.record_node_entry(self.__class__.__name__)
 
         # Track if we're replanning after failure
         is_replanning_after_failure = bool(ctx.state.execution_plan and ctx.state.execution_plan.failed)
@@ -215,11 +196,11 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             ctx.state.execution_plan = None
 
         # Case 1: Active plan with remaining tasks
-        if ctx.state.execution_plan and ctx.state.execution_plan.has_next_task():
+        if ctx.state.execution_plan and not ctx.state.execution_plan.is_complete:
             return await self._execute_next_task(ctx)
 
         # Case 2: Completed plan - end execution
-        if ctx.state.execution_plan and not ctx.state.execution_plan.has_next_task():
+        if ctx.state.execution_plan and ctx.state.execution_plan.is_complete:
             logger.info("PlannerNode: Plan completed, ending execution")
             ctx.state.environment.complete_turn(
                 assistant_answer="Complete",
@@ -253,7 +234,7 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         logger.info(
             "PlannerNode: Plan created",
             num_tasks=len(plan.tasks),
-            tasks=[f"{i+1}. {t.description}" for i, t in enumerate(plan.tasks)],
+            tasks=[f"{i+1}. {t.reasoning}" for i, t in enumerate(plan.tasks)],
         )
 
         # Execute first task
@@ -266,7 +247,7 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         plan = ctx.state.execution_plan
         if not plan:
             raise ValueError("_execute_next_task called without an execution plan")
-        task = plan.get_current_task()
+        task = plan.current
 
         if not task:
             # All tasks complete
@@ -279,13 +260,13 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
         logger.info(
             "PlannerNode: Routing to task",
-            task_index=plan.current_task_index + 1,
+            task_index=plan.current_index + 1,
             total_tasks=len(plan.tasks),
             action=task.action_type.value,
-            description=task.description,
+            reasoning=task.reasoning,
         )
 
-        task.status = "executing"
+        task.status = TaskStatus.EXECUTING
 
         # Initialize query if needed
         if task.action_type in (IntentType.SEARCH, IntentType.AGGREGATION):
@@ -301,13 +282,14 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         if task.action_type == IntentType.TEXT_RESPONSE:
             return TextResponseNode(model=self.model, event_emitter=self.event_emitter)
         logger.warning(f"Unknown task type: {task.action_type}, skipping")
-        plan.complete_current_task()
+        task.status = TaskStatus.COMPLETED
+        plan.next()
         return PlannerNode(model=self.model, event_emitter=self.event_emitter)
 
     def _initialize_query_from_task(self, ctx: GraphRunContext[SearchState, None], task):
         """Setup query from task parameters."""
         if not task.entity_type or not task.query_operation:
-            raise ValueError(f"Task missing entity_type or query_operation: {task.description}")
+            raise ValueError(f"Task missing entity_type or query_operation: {task.reasoning}")
 
         if task.query_operation == QueryOperation.SELECT:
             ctx.state.query = SelectQuery(entity_type=task.entity_type, query_text=ctx.state.user_input)
@@ -339,17 +321,18 @@ class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         return get_search_execution_prompt(ctx.state)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
-        self.record_node_entry(ctx)
+        ctx.state.environment.record_node_entry(self.__class__.__name__)
 
         try:
-            if ctx.state.execution_plan:
-                ctx.state.execution_plan.complete_current_task()
+            if ctx.state.execution_plan and ctx.state.execution_plan.current:
+                ctx.state.execution_plan.current.status = TaskStatus.COMPLETED
+                ctx.state.execution_plan.next()
 
         except Exception as e:
             logger.error("SearchNode: Execution failed", error=str(e))
 
-            if ctx.state.execution_plan:
-                ctx.state.execution_plan.mark_current_failed(str(e))
+            if ctx.state.execution_plan and ctx.state.execution_plan.current:
+                ctx.state.execution_plan.current.status = TaskStatus.FAILED
 
             ctx.state.environment.record_tool_step(
                 ToolStep(step_type="error", description=f"Search failed: {str(e)}", success=False, error_message=str(e))
@@ -385,17 +368,18 @@ class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         return get_aggregation_execution_prompt(ctx.state)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
-        self.record_node_entry(ctx)
+        ctx.state.environment.record_node_entry(self.__class__.__name__)
 
         try:
-            if ctx.state.execution_plan:
-                ctx.state.execution_plan.complete_current_task()
+            if ctx.state.execution_plan and ctx.state.execution_plan.current:
+                ctx.state.execution_plan.current.status = TaskStatus.COMPLETED
+                ctx.state.execution_plan.next()
 
         except Exception as e:
             logger.error("AggregationNode: Execution failed", error=str(e))
 
-            if ctx.state.execution_plan:
-                ctx.state.execution_plan.mark_current_failed(str(e))
+            if ctx.state.execution_plan and ctx.state.execution_plan.current:
+                ctx.state.execution_plan.current.status = TaskStatus.FAILED
 
             ctx.state.environment.record_tool_step(
                 ToolStep(
@@ -437,17 +421,18 @@ class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         return ctx.state.environment.get_message_history(max_turns=5, scope=MemoryScope.MINIMAL)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
-        self.record_node_entry(ctx)
+        ctx.state.environment.record_node_entry(self.__class__.__name__)
 
         try:
-            if ctx.state.execution_plan:
-                ctx.state.execution_plan.complete_current_task()
+            if ctx.state.execution_plan and ctx.state.execution_plan.current:
+                ctx.state.execution_plan.current.status = TaskStatus.COMPLETED
+                ctx.state.execution_plan.next()
 
         except Exception as e:
             logger.error("ResultActionsNode: Execution failed", error=str(e))
 
-            if ctx.state.execution_plan:
-                ctx.state.execution_plan.mark_current_failed(str(e))
+            if ctx.state.execution_plan and ctx.state.execution_plan.current:
+                ctx.state.execution_plan.current.status = TaskStatus.FAILED
 
             ctx.state.environment.record_tool_step(
                 ToolStep(
@@ -493,10 +478,11 @@ class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
         """Text response completes the flow."""
-        self.record_node_entry(ctx)
+        ctx.state.environment.record_node_entry(self.__class__.__name__)
 
-        if ctx.state.execution_plan:
-            ctx.state.execution_plan.complete_current_task()
+        if ctx.state.execution_plan and ctx.state.execution_plan.current:
+            ctx.state.execution_plan.current.status = TaskStatus.COMPLETED
+            ctx.state.execution_plan.next()
 
         return PlannerNode(model=self.model, event_emitter=self.event_emitter)
 
@@ -506,6 +492,6 @@ def emit_end_event(event_emitter: Callable[[BaseEvent], None] | None) -> None:
     if event_emitter:
         event_emitter(
             GraphNodeActiveEvent(
-                timestamp=_current_timestamp_ms(), value={"node": End.__name__, "step_type": "graph_node"}
+                timestamp=current_timestamp_ms(), value={"node": End.__name__, "step_type": "graph_node"}
             )
         )

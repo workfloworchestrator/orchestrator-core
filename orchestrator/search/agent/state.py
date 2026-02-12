@@ -30,6 +30,15 @@ class IntentType(str, Enum):
     TEXT_RESPONSE = "text_response"
 
 
+class TaskStatus(str, Enum):
+    """Task execution status."""
+
+    PENDING = "pending"
+    EXECUTING = "executing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class Task(BaseModel):
     """Executable task descriptor for routing to action nodes."""
 
@@ -38,43 +47,44 @@ class Task(BaseModel):
     query_operation: QueryOperation | None = Field(
         default=None, description="Query operation type for search/aggregation tasks"
     )
-    description: str = Field(description="Human-readable task description")
     reasoning: str = Field(
-        description="1-2 sentence explanation of what will be done (e.g., 'I need to generate an aggregation query to count subscriptions grouped by month')"
+        description="Human-readable explanation of what will be done (e.g., 'I need to search for active subscriptions created in 2024')"
     )
-    status: str = Field(default="pending", description="Task status: pending, executing, completed, failed")
-    error_message: str | None = Field(default=None, description="Error message if task failed")
+    status: TaskStatus = Field(
+        default=TaskStatus.PENDING, exclude=True, description="Task execution status (managed internally)"
+    )
+
+    @property
+    def is_failed(self) -> bool:
+        """Check if task has failed."""
+        return self.status == TaskStatus.FAILED
 
 
 class ExecutionPlan(BaseModel):
     """Sequential execution plan with task queue."""
 
     tasks: list[Task] = Field(description="List of tasks to execute in order")
-    current_task_index: int = Field(default=0, description="Index of current task being executed")
-    failed: bool = Field(default=False, description="Whether the plan has failed")
+    current_index: int = Field(default=0, description="Index of current task being executed")
 
-    def has_next_task(self) -> bool:
-        """Check if there are more tasks to execute."""
-        return self.current_task_index < len(self.tasks)
+    @property
+    def current(self) -> Task | None:
+        """Get current task without advancing."""
+        return self.tasks[self.current_index] if self.current_index < len(self.tasks) else None
 
-    def get_current_task(self) -> Task | None:
-        """Get the current task to execute."""
-        if self.has_next_task():
-            return self.tasks[self.current_task_index]
-        return None
+    @property
+    def is_complete(self) -> bool:
+        """Check if all tasks are done."""
+        return self.current_index >= len(self.tasks)
 
-    def complete_current_task(self) -> None:
-        """Mark current task as completed and advance to next."""
-        if self.has_next_task():
-            self.tasks[self.current_task_index].status = "completed"
-            self.current_task_index += 1
+    @property
+    def failed(self) -> bool:
+        """Check if any task failed."""
+        return any(task.is_failed for task in self.tasks)
 
-    def mark_current_failed(self, error: str) -> None:
-        """Mark current task and plan as failed."""
-        if self.has_next_task():
-            self.tasks[self.current_task_index].status = "failed"
-            self.tasks[self.current_task_index].error_message = error
-        self.failed = True
+    def next(self) -> None:
+        """Advance to next task in the queue."""
+        if not self.is_complete:
+            self.current_index += 1
 
 
 class SearchState(BaseModel):
