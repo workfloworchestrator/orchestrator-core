@@ -21,8 +21,8 @@ from orchestrator.search.core.types import EntityType, QueryOperation
 from orchestrator.search.query.queries import Query
 
 
-class IntentType(str, Enum):
-    """User's intent - determines which action node to route to."""
+class TaskAction(str, Enum):
+    """The action to perform for a task."""
 
     SEARCH = "search"
     AGGREGATION = "aggregation"
@@ -42,10 +42,15 @@ class TaskStatus(str, Enum):
 class Task(BaseModel):
     """Executable task descriptor for routing to action nodes."""
 
-    action_type: IntentType = Field(description="Which action node to execute")
-    entity_type: EntityType | None = Field(default=None, description="Entity type for search/aggregation tasks")
+    action_type: TaskAction = Field(
+        description="Which action node to execute: SEARCH (find entities), AGGREGATION (count/calculate/group), RESULT_ACTIONS (export/download/detailed results), TEXT_RESPONSE (answer questions)"
+    )
+    entity_type: EntityType | None = Field(
+        default=None, description="Entity type (required for SEARCH/AGGREGATION tasks)"
+    )
     query_operation: QueryOperation | None = Field(
-        default=None, description="Query operation type for search/aggregation tasks"
+        default=None,
+        description="Query operation: SELECT for finding entities, COUNT for counting, AGGREGATE for calculations (required for SEARCH/AGGREGATION tasks)",
     )
     reasoning: str = Field(
         description="Human-readable explanation of what will be done (e.g., 'I need to search for active subscriptions created in 2024')"
@@ -63,7 +68,9 @@ class Task(BaseModel):
 class ExecutionPlan(BaseModel):
     """Sequential execution plan with task queue."""
 
-    tasks: list[Task] = Field(description="List of tasks to execute in order")
+    tasks: list[Task] = Field(
+        description='List of tasks to execute in order. Use multiple tasks for compound requests (e.g., "find X and export" needs 2 tasks).'
+    )
     current_index: int = Field(default=0, description="Index of current task being executed")
 
     @property

@@ -64,6 +64,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         model_settings: "ModelSettings | None" = None,
         toolsets: Sequence[AbstractToolset[Any]] | None = None,
         instructions: Any = None,
+        debug: bool = False,
     ):
         """Initialize the graph wrapper agent.
 
@@ -74,6 +75,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             model_settings: Model settings
             toolsets: Tool sets (not used directly, but required by base class)
             instructions: Instructions (not used directly, but required by base class)
+            debug: Enable debug logging for all nodes
         """
         super().__init__(
             model=model,
@@ -85,6 +87,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         self.graph = graph
         self.model_name = model if isinstance(model, str) else str(model)
         self._persistence: Any | None = None
+        self.debug = debug
 
     def get_graph_structure(self) -> GraphStructure:
         """Build graph structure for visualization.
@@ -185,6 +188,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             start_node = self.DEFAULT_START_NODE(
                 model=self.model_name,
                 event_emitter=emit_event,
+                debug=self.debug,
             )
 
             logger.debug("GraphAgentAdapter: Starting new graph execution", node=type(start_node).__name__)
@@ -228,12 +232,15 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             raise
 
 
-def build_agent_instance(model: str, agent_tools: list[FunctionToolset[Any]] | None = None) -> GraphAgentAdapter:
+def build_agent_instance(
+    model: str, agent_tools: list[FunctionToolset[Any]] | None = None, debug: bool = False
+) -> GraphAgentAdapter:
     """Build and configure the graph-based search agent instance.
 
     Args:
         model: The LLM model to use (string or model instance)
         agent_tools: Optional list of additional toolsets to include (currently unused)
+        debug: Enable debug logging for all graph nodes
 
     Returns:
         GraphAgentAdapter instance
@@ -252,6 +259,7 @@ def build_agent_instance(model: str, agent_tools: list[FunctionToolset[Any]] | N
         model=model,
         graph=graph,
         deps_type=StateDeps[SearchState],
+        debug=debug,
     )
 
     logger.debug("GraphAgentAdapter: Built graph-based agent adapter", model=model)

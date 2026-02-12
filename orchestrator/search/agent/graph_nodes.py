@@ -42,7 +42,7 @@ from orchestrator.search.agent.prompts import (
     get_search_execution_prompt,
     get_text_response_prompt,
 )
-from orchestrator.search.agent.state import ExecutionPlan, IntentType, SearchState, TaskStatus
+from orchestrator.search.agent.state import ExecutionPlan, SearchState, TaskAction, TaskStatus
 from orchestrator.search.agent.tools import (
     aggregation_execution_toolset,
     aggregation_toolset,
@@ -50,7 +50,7 @@ from orchestrator.search.agent.tools import (
     result_actions_toolset,
     search_execution_toolset,
 )
-from orchestrator.search.agent.utils import current_timestamp_ms, log_agent_request
+from orchestrator.search.agent.utils import current_timestamp_ms, log_agent_request, log_execution_plan
 from orchestrator.search.core.types import QueryOperation
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
 
@@ -63,6 +63,7 @@ class BaseGraphNode(ABC):
 
     model: str = field(kw_only=True)  # LLM model identifier
     event_emitter: Callable[[BaseEvent], None] | None = None
+    debug: bool = False  # Enable debug logging
     _tool_calls_in_current_run: list[str] = field(default_factory=list, init=False, repr=False)
     _last_run_result: Any | None = field(default=None, init=False, repr=False)
 
@@ -114,7 +115,8 @@ class BaseGraphNode(ABC):
         message_history = self.get_message_history(ctx)
         state_deps = StateDeps(ctx.state)
 
-        log_agent_request(self.node_name, prompt, message_history)
+        if self.debug:
+            log_agent_request(self.node_name, prompt, message_history)
 
         # Use the node's dedicated agent with AG-UI event processing
         async for event in self.node_agent.run_stream_events(
@@ -222,7 +224,8 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
         prompt = get_planning_prompt(ctx.state, is_replanning=is_replanning)
 
-        log_agent_request(self.node_name, prompt, message_history)
+        if self.debug:
+            log_agent_request(self.node_name, prompt, message_history)
 
         result = await self.node_agent.run(
             instructions=prompt, message_history=message_history, deps=StateDeps(ctx.state)
@@ -266,25 +269,28 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             reasoning=task.reasoning,
         )
 
+        if self.debug:
+            log_execution_plan(plan)
+
         task.status = TaskStatus.EXECUTING
 
         # Initialize query if needed
-        if task.action_type in (IntentType.SEARCH, IntentType.AGGREGATION):
+        if task.action_type in (TaskAction.SEARCH, TaskAction.AGGREGATION):
             self._initialize_query_from_task(ctx, task)
 
         # Deterministic routing based on task action_type
-        if task.action_type == IntentType.SEARCH:
-            return SearchNode(model=self.model, event_emitter=self.event_emitter)
-        if task.action_type == IntentType.AGGREGATION:
-            return AggregationNode(model=self.model, event_emitter=self.event_emitter)
-        if task.action_type == IntentType.RESULT_ACTIONS:
-            return ResultActionsNode(model=self.model, event_emitter=self.event_emitter)
-        if task.action_type == IntentType.TEXT_RESPONSE:
-            return TextResponseNode(model=self.model, event_emitter=self.event_emitter)
+        if task.action_type == TaskAction.SEARCH:
+            return SearchNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
+        if task.action_type == TaskAction.AGGREGATION:
+            return AggregationNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
+        if task.action_type == TaskAction.RESULT_ACTIONS:
+            return ResultActionsNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
+        if task.action_type == TaskAction.TEXT_RESPONSE:
+            return TextResponseNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
         logger.warning(f"Unknown task type: {task.action_type}, skipping")
         task.status = TaskStatus.COMPLETED
         plan.next()
-        return PlannerNode(model=self.model, event_emitter=self.event_emitter)
+        return PlannerNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
 
     def _initialize_query_from_task(self, ctx: GraphRunContext[SearchState, None], task):
         """Setup query from task parameters."""
@@ -343,7 +349,7 @@ class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             )
             return End(f"Failed: {str(e)}")
 
-        return PlannerNode(model=self.model, event_emitter=self.event_emitter)
+        return PlannerNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
 
 
 @dataclass
@@ -392,7 +398,7 @@ class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             )
             return End(f"Failed: {str(e)}")
 
-        return PlannerNode(model=self.model, event_emitter=self.event_emitter)
+        return PlannerNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
 
 
 @dataclass
@@ -448,7 +454,7 @@ class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             )
             return End(f"Failed: {str(e)}")
 
-        return PlannerNode(model=self.model, event_emitter=self.event_emitter)
+        return PlannerNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
 
 
 @dataclass
@@ -484,7 +490,7 @@ class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             ctx.state.execution_plan.current.status = TaskStatus.COMPLETED
             ctx.state.execution_plan.next()
 
-        return PlannerNode(model=self.model, event_emitter=self.event_emitter)
+        return PlannerNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
 
 
 def emit_end_event(event_emitter: Callable[[BaseEvent], None] | None) -> None:

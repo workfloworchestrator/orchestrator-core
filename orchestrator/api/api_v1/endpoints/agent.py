@@ -80,10 +80,13 @@ def get_agent(request: Request) -> GraphAgentAdapter:
 
     The agent is built once and cached for the lifetime of the application.
     """
-    model = request.app.agent_model
+    from orchestrator.llm_settings import llm_settings
 
-    logger.debug("Building graph agent instance", model=model)
-    return build_agent_instance(model)
+    model = request.app.agent_model
+    debug = llm_settings.AGENT_DEBUG
+
+    logger.debug("Building graph agent instance", model=model, debug=debug)
+    return build_agent_instance(model, debug=debug)
 
 
 @router.post("/")

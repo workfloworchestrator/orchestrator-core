@@ -171,8 +171,13 @@ def get_planning_prompt(state: SearchState, is_replanning: bool = False) -> str:
         Analyze the user's request and create a sequential execution plan.
 
         1. **Check available context**: If results already exist from previous turns, you can act on them directly
-        2. **Break into tasks**: Each task = one node execution
-        3. **Keep it simple**: Prefer 1-2 tasks when possible"""
+        2. **Break into tasks**: Each task = one node execution. Create as many tasks as needed to fulfill the request.
+
+        ## Example
+        Request: "Find X and export them"
+        Plan: {"tasks": [{"action_type": "search", "reasoning": "..."}, {"action_type": "result_actions", "reasoning": "..."}]}
+
+        Note: Exports or detailed entity data require a RESULT_ACTIONS task."""
 
     return dedent(
         f"""
