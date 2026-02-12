@@ -67,6 +67,8 @@ StateMerger = Merger([(dict, ["merge"])], ["override"], ["override"])
 SYSTEM_USER = "SYSTEM"
 
 _workflow_executor = None
+_active_threadpool_jobs = 0
+_active_jobs_lock = __import__("threading").Lock()
 
 START_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be started because it has been removed"
 RESUME_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be resumed because it has been removed"
@@ -81,6 +83,46 @@ def get_execution_context() -> dict[str, Callable]:
     from orchestrator.services.executors.threadpool import THREADPOOL_EXECUTION_CONTEXT
 
     return THREADPOOL_EXECUTION_CONTEXT
+
+
+def _increment_active_jobs() -> None:
+    """Increment the count of active threadpool jobs."""
+    global _active_threadpool_jobs
+    with _active_jobs_lock:
+        _active_threadpool_jobs += 1
+
+
+def _decrement_active_jobs() -> None:
+    """Decrement the count of active threadpool jobs."""
+    global _active_threadpool_jobs
+    with _active_jobs_lock:
+        _active_threadpool_jobs = max(0, _active_threadpool_jobs - 1)
+
+
+def get_active_threadpool_jobs_count() -> int:
+    """Get the current count of active threadpool jobs.
+
+    Returns:
+        Number of jobs currently being executed by the threadpool
+    """
+    with _active_jobs_lock:
+        return _active_threadpool_jobs
+
+
+class _ActiveJobTracker:
+    """Context manager to track active jobs for ThreadPool executor."""
+
+    def __init__(self) -> None:
+        self.is_threadpool = app_settings.EXECUTOR == ExecutorType.THREADPOOL
+
+    def __enter__(self) -> "_ActiveJobTracker":
+        if self.is_threadpool:
+            _increment_active_jobs()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if self.is_threadpool:
+            _decrement_active_jobs()
 
 
 def get_thread_pool() -> ThreadPoolExecutor:
@@ -392,23 +434,24 @@ def _run_process_async(process_id: UUID, f: Callable) -> UUID:
         db.session.commit()
 
     def run() -> WFProcess:
-        try:
-            with db.database_scope():
-                try:
-                    logger.new(process_id=str(process_id))
-                    result = f()
-                except Exception as ex:
-                    # We still have access to the database, so we can log at least something
-                    _db_log_process_ex(process_id, ex)
-                    raise
-                finally:
-                    _update_running_processes("-")
-        except Exception as ex:
-            # We lost access to database here, so we can only log
-            logger.exception("Unknown workflow failure", process_id=process_id)
-            result = Failed(ex)
+        with _ActiveJobTracker():
+            try:
+                with db.database_scope():
+                    try:
+                        logger.new(process_id=str(process_id))
+                        result = f()
+                    except Exception as ex:
+                        # We still have access to the database, so we can log at least something
+                        _db_log_process_ex(process_id, ex)
+                        raise
+                    finally:
+                        _update_running_processes("-")
+            except Exception as ex:
+                # We lost access to database here, so we can only log
+                logger.exception("Unknown workflow failure", process_id=process_id)
+                result = Failed(ex)
 
-        return result
+            return result
 
     _update_running_processes("+")
     if app_settings.EXECUTOR == ExecutorType.THREADPOOL:
@@ -859,4 +902,4 @@ class ThreadPoolWorkerStatus(WorkerStatus):
         thread_pool = get_thread_pool()
         self.number_of_workers_online = getattr(thread_pool, "_max_workers", -1)
         self.number_of_queued_jobs = thread_pool._work_queue.qsize() if hasattr(thread_pool, "_work_queue") else 0
-        self.number_of_running_jobs = len(getattr(thread_pool, "_threads", []))
+        self.number_of_running_jobs = get_active_threadpool_jobs_count()
