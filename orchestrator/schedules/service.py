@@ -21,7 +21,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import delete
 
 from orchestrator import app_settings
-from orchestrator.db import db, transactional
+from orchestrator.db import db
 from orchestrator.db.models import WorkflowApschedulerJob
 from orchestrator.schemas.schedules import (
     APSchedulerJobCreate,
@@ -156,7 +156,7 @@ def run_start_workflow_scheduler_task(workflow_name: str) -> None:
     """
     log = logger.bind(workflow_name=workflow_name)
     try:
-        with transactional(db, logger):
+        with db.database_scope():
             log.info("Starting workflow")
             process_id = start_process(workflow_name)
             log.info("Started workflow", process_id=process_id)
