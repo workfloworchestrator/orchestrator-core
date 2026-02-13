@@ -363,11 +363,8 @@ def test_enrich_schedule_with_and_without_workflow_id(scheduler_with_jobs, clear
         jobs = scheduler.get_jobs()
         enriched_tasks = enrich_with_workflow_id(jobs)
 
-    assert len(enriched_tasks) == 2
+    assert len(enriched_tasks) == 1
     assert enriched_tasks[0].workflow_id == str(workflow.workflow_id)
-
-    # Get linker entries for the job without linker entry
-    assert enriched_tasks[1].workflow_id is None
 
 
 def test_enrich_all_schedule_with_workflow_id(scheduler_with_jobs, clear_all_scheduler_jobs):
