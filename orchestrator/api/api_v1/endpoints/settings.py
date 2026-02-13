@@ -49,7 +49,7 @@ CACHE_FLUSH_OPTIONS: dict[str, str] = {
 
 @router.delete("/cache/{name}")
 async def clear_cache(name: str) -> int | None:
-    cache: AIORedis = create_redis_asyncio_client(app_settings.CACHE_URI)
+    cache: AIORedis = create_redis_asyncio_client(app_settings.CACHE_URI.get_secret_value())
     if name not in CACHE_FLUSH_OPTIONS:
         raise_status(HTTPStatus.BAD_REQUEST, "Invalid cache name")
 

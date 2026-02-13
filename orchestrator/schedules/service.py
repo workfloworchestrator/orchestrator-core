@@ -34,7 +34,7 @@ from orchestrator.services.processes import start_process
 from orchestrator.services.workflows import get_workflow_by_workflow_id
 from orchestrator.utils.redis_client import create_redis_client
 
-redis_connection = create_redis_client(app_settings.CACHE_URI)
+redis_connection = create_redis_client(app_settings.CACHE_URI.get_secret_value())
 
 SCHEDULER_QUEUE = "scheduler:queue:"
 
