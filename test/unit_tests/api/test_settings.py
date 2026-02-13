@@ -12,6 +12,10 @@ from orchestrator.services.settings_env_variables import expose_settings, get_al
 
 
 def test_get_engine_status(test_client):
+    from uuid import uuid4
+
+    from orchestrator.db import ProcessTable, WorkflowTable
+
     engine_settings = get_engine_settings()
     response = test_client.get("/api/settings/status")
     assert response.status_code == HTTPStatus.OK
@@ -19,8 +23,17 @@ def test_get_engine_status(test_client):
     assert response.json()["global_lock"] is False
     assert response.json()["global_status"] == "RUNNING"
 
+    # Create an active process in the database to test the actual count
+    # Using "created" status which is an active state
+    workflow = db.session.query(WorkflowTable).first()
+    test_process = ProcessTable(
+        process_id=uuid4(),
+        workflow_id=workflow.workflow_id,
+        last_status="created",
+        is_task=False,
+    )
+    db.session.add(test_process)
     engine_settings.global_lock = True
-    engine_settings.running_processes = 1
     db.session.flush()
 
     response = test_client.get("/api/settings/status")
@@ -29,7 +42,8 @@ def test_get_engine_status(test_client):
     assert response.json()["global_lock"] is True
     assert response.json()["global_status"] == "PAUSING"
 
-    engine_settings.running_processes = 0
+    # Change process status to completed (terminal state)
+    test_process.last_status = "completed"
     db.session.flush()
 
     response = test_client.get("/api/settings/status")
