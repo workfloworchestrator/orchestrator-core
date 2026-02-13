@@ -88,6 +88,9 @@ class Step(Protocol):
     def __call__(self, state: State) -> Process: ...
 
 
+RunPredicate = Callable[["PredicateContext"], bool]
+
+
 @runtime_checkable
 class Workflow(Protocol):
     __name__: str
@@ -99,8 +102,17 @@ class Workflow(Protocol):
     initial_input_form: InputFormGenerator | None = None
     target: Target
     steps: StepList
+    run_predicate: RunPredicate | None = None
 
     def __call__(self) -> NoReturn: ...
+
+
+@dataclass(frozen=True)
+class PredicateContext:
+    """Context passed to a workflow's run predicate."""
+
+    workflow: Workflow
+    workflow_key: str
 
 
 def make_step_function(
@@ -206,6 +218,7 @@ def make_workflow(
     steps: StepList,
     authorize_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
+    run_predicate: RunPredicate | None = None,
 ) -> Workflow:
     @functools.wraps(f)
     def wrapping_function() -> NoReturn:
@@ -229,6 +242,7 @@ def make_workflow(
     wrapping_function.initial_input_form = _handle_simple_input_form_generator(initial_input_form)
     wrapping_function.target = target
     wrapping_function.steps = steps
+    wrapping_function.run_predicate = run_predicate
 
     wrapping_function.__doc__ = make_workflow_doc(wrapping_function)
 
@@ -532,6 +546,7 @@ def workflow(
     target: Target = Target.SYSTEM,
     authorize_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
+    run_predicate: RunPredicate | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -559,6 +574,7 @@ def workflow(
             f(),
             authorize_callback=authorize_callback,
             retry_auth_callback=retry_auth_callback,
+            run_predicate=run_predicate,
         )
 
     return _workflow

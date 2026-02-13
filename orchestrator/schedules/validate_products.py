@@ -10,12 +10,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from sqlalchemy import func, select
+import structlog
 
-from orchestrator.db import db
-from orchestrator.db.models import ProcessTable
 from orchestrator.schedules.scheduler import scheduler
 from orchestrator.services.processes import start_process
+from orchestrator.utils.errors import StartPredicateError
+
+logger = structlog.get_logger(__name__)
 
 
 @scheduler.scheduled_job(  # type: ignore[misc]
@@ -26,10 +27,7 @@ from orchestrator.services.processes import start_process
     minute=30,
 )
 def validate_products() -> None:
-    uncompleted_products = db.session.scalar(
-        select(func.count())
-        .select_from(ProcessTable)
-        .filter(ProcessTable.workflow.has(name="validate_products"), ProcessTable.last_status != "completed")
-    )
-    if not uncompleted_products:
+    try:
         start_process("task_validate_products")
+    except StartPredicateError:
+        logger.info("Skipping task_validate_products: start predicate not satisfied")
