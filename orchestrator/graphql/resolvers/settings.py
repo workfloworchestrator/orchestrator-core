@@ -60,7 +60,7 @@ def resolve_settings(info: OrchestratorInfo) -> StatusType:
 
 # Mutations
 async def clear_cache(info: OrchestratorInfo, name: str) -> CacheClearSuccess | Error:
-    cache: AIORedis = create_redis_asyncio_client(app_settings.CACHE_URI)
+    cache: AIORedis = create_redis_asyncio_client(app_settings.CACHE_URI.get_secret_value())
     if name not in CACHE_FLUSH_OPTIONS:
         return Error(message="Invalid cache name")
 

@@ -59,7 +59,7 @@ def run() -> None:
         return None
 
     with get_scheduler() as scheduler_connection:
-        redis_connection = create_redis_client(app_settings.CACHE_URI)
+        redis_connection = create_redis_client(app_settings.CACHE_URI.get_secret_value())
         while True:
             item = _get_scheduled_task_item_from_queue(redis_connection)
             if not item:

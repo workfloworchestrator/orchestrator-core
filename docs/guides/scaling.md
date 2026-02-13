@@ -204,11 +204,11 @@ class OrchestratorWorker(Celery):
 
 
 celery = OrchestratorWorker(
-    f"{app_settings.SERVICE_NAME}-worker", broker=str(app_settings.CACHE_URI), include=["orchestrator.services.tasks"]
+    f"{app_settings.SERVICE_NAME}-worker", broker=str(app_settings.CACHE_URI.get_secret_value()), include=["orchestrator.services.tasks"]
 )
 
 if app_settings.TESTING:
-    celery.conf.update(backend=str(app_settings.CACHE_URI), task_ignore_result=False)
+    celery.conf.update(backend=str(app_settings.CACHE_URI.get_secret_value()), task_ignore_result=False)
 else:
     celery.conf.update(task_ignore_result=True)
 
