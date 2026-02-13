@@ -39,7 +39,7 @@ from orchestrator.domain.base import ProductBlockModel
 from orchestrator.schedules.scheduler import get_scheduler
 from orchestrator.schedules.service import run_start_workflow_scheduler_task
 from orchestrator.services.translations import generate_translations
-from orchestrator.settings import app_settings
+from orchestrator.settings import SecretPostgresDsn, app_settings
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis_client import create_redis_client
@@ -181,7 +181,7 @@ def run_migrations(db_uri: str) -> None:
     """
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)))
     os.environ["DATABASE_URI"] = db_uri
-    app_settings.DATABASE_URI = db_uri  # type: ignore
+    app_settings.DATABASE_URI = SecretPostgresDsn(db_uri)  # type: ignore
     alembic_cfg = Config(file_=os.path.join(path, "../../orchestrator/migrations/alembic.ini"))
     alembic_cfg.set_main_option("script_location", os.path.join(path, "../../orchestrator/migrations"))
     alembic_cfg.set_main_option(
@@ -315,7 +315,7 @@ def fastapi_app(database, db_uri):
 
     oauth2lib_settings.OAUTH2_ACTIVE = False
     oauth2lib_settings.ENVIRONMENT_IGNORE_MUTATION_DISABLED = ["local", "TESTING"]
-    app_settings.DATABASE_URI = db_uri
+    app_settings.DATABASE_URI = SecretPostgresDsn(db_uri)
     app_settings.ENABLE_PROMETHEUS_METRICS_ENDPOINT = True
     app = OrchestratorCore(base_settings=app_settings)
     # Start ProcessDataBroadcastThread to test websocket_manager with memory backend
@@ -814,7 +814,7 @@ def make_customer_description():
 def cache_fixture(monkeypatch):
     """Fixture to enable domain model caching and cleanup keys added to the list."""
     with monkeypatch.context():
-        cache = create_redis_client(app_settings.CACHE_URI)
+        cache = create_redis_client(app_settings.CACHE_URI.get_secret_value())
         # Clear cache before using this fixture
         cache.flushdb()
 

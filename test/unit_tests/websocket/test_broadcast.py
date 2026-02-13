@@ -13,7 +13,7 @@ from orchestrator.websocket.websocket_manager import WebSocketManager
 
 @pytest.fixture
 def redis_uri() -> str:
-    return str(app_settings.CACHE_URI)
+    return str(app_settings.CACHE_URI.get_secret_value())
 
 
 @pytest.fixture
