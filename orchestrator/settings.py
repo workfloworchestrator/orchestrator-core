@@ -64,12 +64,12 @@ class AppSettings(BaseSettings):
     WORKFLOWS_SWAGGER_HOST: str = "localhost"
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
     BASE_URL: str = "http://localhost:8080"  # Base URL for the API (used for generating export URLs)
-    DATABASE_URI: SecretPostgresDsn = SecretPostgresDsn("postgresql://nwa:nwa@localhost/orchestrator-core")  # type: ignore
+    DATABASE_URI: SecretPostgresDsn = "postgresql://nwa:nwa@localhost/orchestrator-core"  # type: ignore
     MAX_WORKERS: int = 5
     MAIL_SERVER: str = "localhost"
     MAIL_PORT: int = 25
     MAIL_STARTTLS: bool = False
-    CACHE_URI: SecretRedisDsn = SecretRedisDsn("redis://localhost:6379/0")  # type: ignore
+    CACHE_URI: SecretRedisDsn = "redis://localhost:6379/0"  # type: ignore
     CACHE_HMAC_SECRET: OrchSecretStr | None = None  # HMAC signing key, used when pickling results in the cache
     REDIS_RETRY_COUNT: NonNegativeInt = Field(
         2, description="Number of retries for redis connection errors/timeouts, 0 to disable"
@@ -85,7 +85,7 @@ class AppSettings(BaseSettings):
     TRACING_ENABLED: bool = False
     TRACE_HOST: str = "http://localhost:4317"
     TRANSLATIONS_DIR: Path | None = None
-    WEBSOCKET_BROADCASTER_URL: SecretStr = SecretStr("memory://")  # type: ignore
+    WEBSOCKET_BROADCASTER_URL: SecretStr = "memory://"  # type: ignore
     ENABLE_WEBSOCKETS: bool = True
     DISABLE_INSYNC_CHECK: bool = False
     DEFAULT_PRODUCT_WORKFLOWS: list[str] = ["modify_note"]
