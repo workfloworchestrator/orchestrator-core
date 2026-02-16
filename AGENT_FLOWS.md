@@ -7,8 +7,7 @@
 **Tool Sequence**:
 
 ```
-start_new_search(entity_type=SUBSCRIPTION, action=SELECT)
-→ run_search(limit=10)
+→ run_search(entity_type=SUBSCRIPTION, limit=10)
 → Conversational response about results
 ```
 
@@ -21,11 +20,10 @@ start_new_search(entity_type=SUBSCRIPTION, action=SELECT)
 **Tool Sequence**:
 
 ```
-start_new_search(entity_type=SUBSCRIPTION, action=SELECT)
-→ discover_filter_paths(["status"])
+→ discover_filter_paths(["status"], entity_type=SUBSCRIPTION)
 → get_valid_operators()
 → set_filter_tree(filters=FilterTree with status=active)
-→ run_search(limit=10)
+→ run_search(entity_type=SUBSCRIPTION, limit=10)
 → Conversational response
 ```
 
@@ -38,10 +36,9 @@ start_new_search(entity_type=SUBSCRIPTION, action=SELECT)
 **Tool Sequence**:
 
 ```
-start_new_search(entity_type=SUBSCRIPTION, action=COUNT)
-→ discover_filter_paths(["insync_date" or "start_date"])
+→ discover_filter_paths(["insync_date" or "start_date"], entity_type=SUBSCRIPTION)
 → set_temporal_grouping(temporal_groups=[TemporalGrouping(field=path, period="month")])
-→ run_aggregation(visualization_type="line_chart")
+→ run_aggregation(entity_type=SUBSCRIPTION, query_operation=COUNT, visualization_type="line_chart")
 → Brief confirmation (UI shows chart)
 ```
 
@@ -54,11 +51,10 @@ start_new_search(entity_type=SUBSCRIPTION, action=COUNT)
 **Tool Sequence**:
 
 ```
-start_new_search(entity_type=SUBSCRIPTION, action=COUNT)
-→ discover_filter_paths(["status", "start_date"])
+→ discover_filter_paths(["status", "start_date"], entity_type=SUBSCRIPTION)
 → set_filter_tree(filters=FilterTree with status=active AND year=2025)
 → set_grouping(group_by_paths=["subscription.status"])
-→ run_aggregation(visualization_type="bar_chart")
+→ run_aggregation(entity_type=SUBSCRIPTION, query_operation=COUNT, visualization_type="bar_chart")
 → Brief confirmation
 ```
 
@@ -71,10 +67,9 @@ start_new_search(entity_type=SUBSCRIPTION, action=COUNT)
 **Tool Sequence**:
 
 ```
-start_new_search(entity_type=PRODUCT, action=AGGREGATE)
-→ discover_filter_paths(["price"])
+→ discover_filter_paths(["price"], entity_type=PRODUCT)
 → set_aggregations([FieldAggregation(type="avg", field="product.price", alias="avg_price")])
-→ run_aggregation(visualization_type="table")
+→ run_aggregation(entity_type=PRODUCT, query_operation=AGGREGATE, visualization_type="table")
 → Brief confirmation (UI shows avg_price value)
 ```
 
@@ -91,8 +86,7 @@ start_new_search(entity_type=PRODUCT, action=AGGREGATE)
 
 ```
 Turn 1:
-  start_new_search(entity_type=SUBSCRIPTION, action=SELECT)
-  → run_search(limit=10)
+  → run_search(entity_type=SUBSCRIPTION, limit=10)
   → Conversational response
 
 Turn 2:
@@ -113,8 +107,7 @@ Turn 2:
 
 ```
 Turn 1:
-  start_new_search(entity_type=SUBSCRIPTION, action=SELECT) with query_text="fiber"
-  → run_search(limit=10)
+  → run_search(entity_type=SUBSCRIPTION, limit=10) with query_text="fiber"
   → Conversational response
 
 Turn 2:
@@ -146,12 +139,11 @@ No tools called
 **Tool Sequence**:
 
 ```
-start_new_search(entity_type=SUBSCRIPTION, action=COUNT)
-→ discover_filter_paths(["start_date", "product"])
+→ discover_filter_paths(["start_date", "product"], entity_type=SUBSCRIPTION)
 → set_filter_tree(filters=FilterTree with year=2024)
 → set_temporal_grouping(temporal_groups=[TemporalGrouping(field="start_date", period="month")], cumulative=True)
 → set_grouping(group_by_paths=["product.name"])
-→ run_aggregation(visualization_type="line_chart")
+→ run_aggregation(entity_type=SUBSCRIPTION, query_operation=COUNT, visualization_type="line_chart")
 → Brief confirmation
 ```
 
@@ -166,10 +158,9 @@ start_new_search(entity_type=SUBSCRIPTION, action=COUNT)
 **Tool Sequence**:
 
 ```
-start_new_search(entity_type=SUBSCRIPTION, action=COUNT)
-→ discover_filter_paths(["status"])
+→ discover_filter_paths(["status"], entity_type=SUBSCRIPTION)
 → set_grouping(group_by_paths=["subscription.status"])
-→ run_aggregation(visualization_type="bar_chart")
+→ run_aggregation(entity_type=SUBSCRIPTION, query_operation=COUNT, visualization_type="bar_chart")
 → Brief confirmation
 ```
 
@@ -182,14 +173,13 @@ start_new_search(entity_type=SUBSCRIPTION, action=COUNT)
 **Tool Sequence**:
 
 ```
-start_new_search(entity_type=SUBSCRIPTION, action=AGGREGATE)
-→ discover_filter_paths(["status", "price"])
+→ discover_filter_paths(["status", "price"], entity_type=SUBSCRIPTION)
 → set_grouping(group_by_paths=["subscription.status"])
 → set_aggregations([
      FieldAggregation(type="sum", field="price", alias="total_price"),
      FieldAggregation(type="avg", field="price", alias="avg_price")
    ])
-→ run_aggregation(visualization_type="table")
+→ run_aggregation(entity_type=SUBSCRIPTION, query_operation=AGGREGATE, visualization_type="table")
 → Brief confirmation
 ```
 

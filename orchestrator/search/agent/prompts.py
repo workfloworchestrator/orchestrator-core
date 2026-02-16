@@ -15,7 +15,7 @@ from textwrap import dedent
 
 from orchestrator.search.agent import tools
 from orchestrator.search.agent.state import SearchState
-from orchestrator.search.core.types import EntityType, QueryOperation
+from orchestrator.search.core.types import EntityType
 
 GRAPH_CONTEXT = """You are an agent in a cyclic graph that can visit nodes multiple times per request.
 When tools complete successfully, results are immediately streamed to the user's UI in real-time."""
@@ -52,9 +52,10 @@ def get_search_execution_prompt(state: SearchState) -> str:
         **IMPORTANT**: This query starts empty - previous query filters shown in history are NOT applied unless you rebuild them.
 
         ## Steps
-        1. If filters needed: Call {tools.discover_filter_paths.__name__}, {tools.get_valid_operators.__name__}, build FilterTree, call {tools.set_filter_tree.__name__}
-        2. Call {tools.run_search.__name__}()
-        3. Explain what you did in 1-2 sentences at most. DO NOT list the actual results, they are already shown to the user.
+        1. Determine the entity_type for this search (SUBSCRIPTION, PRODUCT, WORKFLOW, or PROCESS)
+        2. If filters needed: Call {tools.discover_filter_paths.__name__}(field_names=[...], entity_type=...), {tools.get_valid_operators.__name__}, build FilterTree, call {tools.set_filter_tree.__name__}
+        3. Call {tools.run_search.__name__}(entity_type=...) — you MUST pass entity_type
+        4. Explain what you did in 1-2 sentences at most. DO NOT list the actual results, they are already shown to the user.
 
         {FILTERING_RULES}
 
@@ -76,7 +77,6 @@ def get_aggregation_execution_prompt(state: SearchState) -> str:
     """
 
     context = state.environment.format_context_for_llm(state)
-    query_operation = state.query.query_operation.value if state.query else "unknown"
 
     return dedent(
         f"""
@@ -85,15 +85,16 @@ def get_aggregation_execution_prompt(state: SearchState) -> str:
         {GRAPH_CONTEXT}
 
         ## Your Task
-        Execute an aggregation query (operation: {query_operation}) for the user's request.
+        Execute an aggregation query for the user's request.
         **IMPORTANT**: This query starts empty - previous query filters/grouping shown in history are NOT applied unless you rebuild them.
 
         ## Steps
-        1. If filters needed: Call {tools.discover_filter_paths.__name__}, {tools.get_valid_operators.__name__}, build FilterTree, call {tools.set_filter_tree.__name__}
-        2. Set grouping: Temporal ({tools.set_temporal_grouping.__name__}) or regular ({tools.set_grouping.__name__})
-        3. For {QueryOperation.AGGREGATE.value} operation ONLY: Call {tools.set_aggregations.__name__}. For {QueryOperation.COUNT.value}: Do NOT call (counting is automatic)
-        4. Call {tools.run_aggregation.__name__}(visualization_type=...)
-        3. Explain what you did in 1-2 sentences at most. DO NOT list the actual results, they are already shown to the user
+        1. Determine entity_type (SUBSCRIPTION, PRODUCT, WORKFLOW, or PROCESS) and query_operation (COUNT for counting, AGGREGATE for numeric calculations like SUM/AVG/MIN/MAX)
+        2. If filters needed: Call {tools.discover_filter_paths.__name__}(field_names=[...], entity_type=...), {tools.get_valid_operators.__name__}, build FilterTree, call {tools.set_filter_tree.__name__}
+        3. Set grouping: Temporal ({tools.set_temporal_grouping.__name__}) or regular ({tools.set_grouping.__name__}) — you MUST pass entity_type and query_operation
+        4. For AGGREGATE operation ONLY: Call {tools.set_aggregations.__name__}(entity_type=..., query_operation=...). For COUNT: Do NOT call (counting is automatic)
+        5. Call {tools.run_aggregation.__name__}(entity_type=..., query_operation=..., visualization_type=...)
+        6. Explain what you did in 1-2 sentences at most. DO NOT list the actual results, they are already shown to the user
 
         {FILTERING_RULES}
         - Filters restrict WHICH records; grouping controls HOW to aggregate
@@ -175,7 +176,7 @@ def get_planning_prompt(state: SearchState, is_replanning: bool = False) -> str:
 
         ## Example
         Request: "Find X and export them"
-        Plan: {"tasks": [{"action_type": "search", "reasoning": "..."}, {"action_type": "result_actions", "reasoning": "..."}]}
+        Plan: {{"tasks": [{{"action_type": "search", "reasoning": "Search for X"}}, {{"action_type": "result_actions", "reasoning": "Export the results"}}]}}
 
         Note: Exports or detailed entity data require a RESULT_ACTIONS task."""
 
@@ -220,7 +221,7 @@ def get_result_actions_prompt(state: SearchState) -> str:
         - If user wants DETAILED INFORMATION about entities: Call {tools.fetch_entity_details.__name__}(limit=...)
 
         ## Your Task
-        Execute the requested action and provide a brief confirmation.
+        Execute the requested action. After calling the tool, respond with a single short confirmation like "Prepared an export for [description]." or "Fetched details for [count] entities."
 
         IMPORTANT: For export requests, ONLY call prepare_export(). Do NOT fetch entity details.
         ---

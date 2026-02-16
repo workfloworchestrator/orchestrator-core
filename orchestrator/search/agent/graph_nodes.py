@@ -51,8 +51,6 @@ from orchestrator.search.agent.tools import (
     search_execution_toolset,
 )
 from orchestrator.search.agent.utils import current_timestamp_ms, log_agent_request, log_execution_plan
-from orchestrator.search.core.types import QueryOperation
-from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
 
 logger = structlog.get_logger(__name__)
 
@@ -274,9 +272,10 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
         task.status = TaskStatus.EXECUTING
 
-        # Initialize query if needed
+        # Reset query for fresh search/aggregation tasks (prevents stale queries between tasks)
         if task.action_type in (TaskAction.SEARCH, TaskAction.AGGREGATION):
-            self._initialize_query_from_task(ctx, task)
+            ctx.state.query = None
+            ctx.state.pending_filters = None
 
         # Deterministic routing based on task action_type
         if task.action_type == TaskAction.SEARCH:
@@ -291,18 +290,6 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         task.status = TaskStatus.COMPLETED
         plan.next()
         return PlannerNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
-
-    def _initialize_query_from_task(self, ctx: GraphRunContext[SearchState, None], task):
-        """Setup query from task parameters."""
-        if not task.entity_type or not task.query_operation:
-            raise ValueError(f"Task missing entity_type or query_operation: {task.reasoning}")
-
-        if task.query_operation == QueryOperation.SELECT:
-            ctx.state.query = SelectQuery(entity_type=task.entity_type, query_text=ctx.state.user_input)
-        elif task.query_operation == QueryOperation.COUNT:
-            ctx.state.query = CountQuery(entity_type=task.entity_type)
-        else:  # AGGREGATE
-            ctx.state.query = AggregateQuery(entity_type=task.entity_type, aggregations=[])
 
 
 @dataclass

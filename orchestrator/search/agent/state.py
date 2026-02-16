@@ -17,7 +17,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from orchestrator.search.agent.environment import ConversationEnvironment
-from orchestrator.search.core.types import EntityType, QueryOperation
+from orchestrator.search.filters import FilterTree
 from orchestrator.search.query.queries import Query
 
 
@@ -44,13 +44,6 @@ class Task(BaseModel):
 
     action_type: TaskAction = Field(
         description="Which action node to execute: SEARCH (find entities), AGGREGATION (count/calculate/group), RESULT_ACTIONS (export/download/detailed results), TEXT_RESPONSE (answer questions)"
-    )
-    entity_type: EntityType | None = Field(
-        default=None, description="Entity type (required for SEARCH/AGGREGATION tasks)"
-    )
-    query_operation: QueryOperation | None = Field(
-        default=None,
-        description="Query operation: SELECT for finding entities, COUNT for counting, AGGREGATE for calculations (required for SEARCH/AGGREGATION tasks)",
     )
     reasoning: str = Field(
         description="Human-readable explanation of what will be done (e.g., 'I need to search for active subscriptions created in 2024')"
@@ -102,7 +95,9 @@ class SearchState(BaseModel):
 
     user_input: str = ""  # Original user input text from current conversation turn
     run_id: UUID | None = None
+    query_id: UUID | None = None  # ID of the last persisted query (set by run_search/run_aggregation)
     query: Query | None = None
+    pending_filters: FilterTree | None = None
     environment: ConversationEnvironment = Field(default_factory=ConversationEnvironment)
 
     execution_plan: ExecutionPlan | None = None  # Multi-step execution plan

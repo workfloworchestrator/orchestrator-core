@@ -41,10 +41,6 @@ def log_execution_plan(plan) -> None:
         marker = "→" if i == plan.current_index else " "
         print(f"\n{marker} [{i+1}] {task.status.value.upper()}")  # noqa: T201
         print(f"    Action: {task.action_type.value}")  # noqa: T201
-        if task.entity_type:
-            print(f"    Entity: {task.entity_type.value}")  # noqa: T201
-        if task.query_operation:
-            print(f"    Operation: {task.query_operation.value}")  # noqa: T201
         print(f"    Reasoning: {task.reasoning}")  # noqa: T201
 
     print(f"\n{'='*80}\n")  # noqa: T201

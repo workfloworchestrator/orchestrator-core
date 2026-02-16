@@ -12,7 +12,7 @@
 # limitations under the License.
 
 import json
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import UUID
 
 import structlog
@@ -34,7 +34,7 @@ from orchestrator.search.agent.handlers import (
 )
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.aggregations import Aggregation, FieldAggregation, TemporalGrouping
-from orchestrator.search.core.types import EntityType, FilterOp
+from orchestrator.search.core.types import EntityType, FilterOp, QueryOperation
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.query import engine
 from orchestrator.search.query.exceptions import PathNotFoundError, QueryValidationError
@@ -54,6 +54,47 @@ from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
 
+AggregationOperation = Literal[QueryOperation.COUNT, QueryOperation.AGGREGATE]
+
+
+def _ensure_query_initialized(
+    state: SearchState,
+    entity_type: EntityType,
+    query_operation: QueryOperation = QueryOperation.SELECT,
+) -> None:
+    """Lazy-initialize query on state if not already set, or re-create if type mismatches.
+
+    Preserves filters (from existing query or pending_filters) when creating/upgrading.
+    """
+    expected_types = {
+        QueryOperation.SELECT: SelectQuery,
+        QueryOperation.COUNT: CountQuery,
+        QueryOperation.AGGREGATE: AggregateQuery,
+    }
+    expected_type = expected_types[query_operation]
+
+    if state.query is not None and isinstance(state.query, expected_type):
+        return
+
+    if state.query is not None:
+        logger.warning(
+            "Query type mismatch — re-creating query, grouping/aggregations will be lost",
+            existing_type=type(state.query).__name__,
+            requested_operation=query_operation.value,
+        )
+
+    # Collect filters: from existing query, or from pending_filters set by set_filter_tree
+    filters = (state.query.filters if state.query else None) or state.pending_filters
+
+    if query_operation == QueryOperation.SELECT:
+        state.query = SelectQuery(entity_type=entity_type, query_text=state.user_input, filters=filters)
+    elif query_operation == QueryOperation.COUNT:
+        state.query = CountQuery(entity_type=entity_type, filters=filters)
+    else:
+        state.query = AggregateQuery(entity_type=entity_type, aggregations=[], filters=filters)
+
+    state.pending_filters = None
+
 
 # Node-specific toolsets for graph control flow
 filter_building_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
@@ -67,18 +108,13 @@ result_actions_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolse
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
     filters: FilterTree | None,
-) -> Query:
+    entity_type: EntityType,
+) -> FilterTree | None:
     """Replace current filters atomically with a full FilterTree, or clear with None.
 
     See FilterTree model for structure, operators, and examples.
-
-    Returns the updated Query as structured output.
+    Filters are validated immediately and applied when the query executes.
     """
-    if ctx.deps.state.query is None:
-        raise ModelRetry("Search query is not initialized. PlannerNode should have initialized it.")
-
-    entity_type = ctx.deps.state.query.entity_type
-
     logger.debug(
         "Setting filter tree",
         entity_type=entity_type.value,
@@ -92,22 +128,25 @@ async def set_filter_tree(
         logger.debug(f"{PathNotFoundError.__name__}: {str(e)}")
         raise ModelRetry(f"{str(e)} Use discover_filter_paths tool to find valid paths.")
     except QueryValidationError as e:
-        # ModelRetry will trigger an agent retry, containing the specific validation error.
         logger.debug(f"Query validation failed: {str(e)}")
         raise ModelRetry(str(e))
     except Exception as e:
         logger.error("Unexpected Filter validation exception", error=str(e))
         raise ModelRetry(f"Filter validation failed: {str(e)}. Please check your filter structure and try again.")
 
-    updated_query = cast(Query, ctx.deps.state.query).model_copy(update={"filters": filters})
-    ctx.deps.state.query = updated_query
+    # Store validated filters — applied when query is created by run_search/run_aggregation
+    if ctx.deps.state.query is not None:
+        ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"filters": filters})
+    else:
+        ctx.deps.state.pending_filters = filters
 
-    return updated_query
+    return filters
 
 
 @search_execution_toolset.tool
 async def run_search(
     ctx: RunContext[StateDeps[SearchState]],
+    entity_type: EntityType,
     limit: int = 10,
 ) -> AggregationResponse:
     """Execute a search to find and rank entities.
@@ -115,11 +154,13 @@ async def run_search(
     Use this tool for SELECT action to find entities matching your criteria.
     For counting or computing statistics, use run_aggregation instead.
     """
+    _ensure_query_initialized(ctx.deps.state, entity_type)
     query = cast(SelectQuery, cast(Query, ctx.deps.state.query).model_copy(update={"limit": limit}))
 
     search_response, run_id, query_id = await execute_search_with_persistence(query, db.session, ctx.deps.state.run_id)
 
     ctx.deps.state.run_id = run_id
+    ctx.deps.state.query_id = query_id
 
     # Record tool step with query_id
     ctx.deps.state.environment.record_tool_step(
@@ -169,6 +210,8 @@ async def run_search(
 @aggregation_execution_toolset.tool
 async def run_aggregation(
     ctx: RunContext[StateDeps[SearchState]],
+    entity_type: EntityType,
+    query_operation: AggregationOperation,
     visualization_type: VisualizationType,
 ) -> AggregationResponse:
     """Execute an aggregation to compute counts or statistics over entities.
@@ -177,6 +220,7 @@ async def run_aggregation(
     - Grouping fields with set_grouping or set_temporal_grouping
     - Aggregation functions with set_aggregations (for AGGREGATE action)
     """
+    _ensure_query_initialized(ctx.deps.state, entity_type, query_operation)
     query = cast(CountQuery | AggregateQuery, ctx.deps.state.query)
 
     # Validate AGGREGATE action has aggregations set
@@ -198,6 +242,7 @@ async def run_aggregation(
     )
 
     ctx.deps.state.run_id = run_id
+    ctx.deps.state.query_id = query_id
 
     # Record tool step with query_id
     ctx.deps.state.environment.record_tool_step(
@@ -240,7 +285,7 @@ async def discover_filter_paths(
         if ctx.deps.state.query:
             entity_type = ctx.deps.state.query.entity_type
         else:
-            raise ModelRetry("Entity type not specified and no query in state. PlannerNode should have initialized it.")
+            raise ModelRetry("Entity type not specified and no query in state. Pass entity_type.")
 
     all_results = {}
     for field_name in field_names:
@@ -304,8 +349,8 @@ async def get_valid_operators() -> dict[str, list[FilterOp]]:
 @result_actions_toolset.tool
 async def fetch_entity_details(
     ctx: RunContext[StateDeps[SearchState]],
-    query_id: UUID,
     limit: int = 10,
+    query_id: UUID | None = None,
 ) -> str:
     """Fetch detailed entity information to answer user questions.
 
@@ -315,13 +360,15 @@ async def fetch_entity_details(
 
     Args:
         ctx: Runtime context for agent (injected).
-        query_id: ID of the query to fetch details from. Extract from conversation history.
         limit: Maximum number of entities to fetch details for (default 10).
+        query_id: Optional. Defaults to the most recent query. Only pass this to reference a specific historical query.
 
     Returns:
         JSON string containing detailed entity information.
     """
-    qid = query_id
+    qid = query_id or ctx.deps.state.query_id
+    if qid is None:
+        raise ModelRetry("No query available. Run a search first.")
 
     # Load the saved query and re-execute it to get entity IDs
     query_state = QueryState.load_from_id(qid, SelectQuery)
@@ -350,7 +397,7 @@ async def fetch_entity_details(
             description=f"Fetched details for {len(entity_ids)} {entity_type.value} entities",
             entity_type=entity_type.value,
             results_count=len(entity_ids),
-            query_id=query_id,
+            query_id=qid,
             success=True,
         )
     )
@@ -361,17 +408,20 @@ async def fetch_entity_details(
 @result_actions_toolset.tool
 async def prepare_export(
     ctx: RunContext[StateDeps[SearchState]],
-    query_id: UUID,
+    query_id: UUID | None = None,
 ) -> ExportData:
     """Prepares export URL for a search query.
 
     Args:
         ctx: Runtime context for agent (injected).
-        query_id: ID of the query to export. Extract from conversation history.
+        query_id: Optional. Defaults to the most recent query. Only pass this to reference a specific historical query.
 
     Returns:
         Export data which is displayed directly in the UI.
     """
+    query_id = query_id or ctx.deps.state.query_id
+    if query_id is None:
+        raise ModelRetry("No query available. Run a search first.")
 
     logger.debug(
         "Prepared query for export",
@@ -405,6 +455,8 @@ async def prepare_export(
 async def set_grouping(
     ctx: RunContext[StateDeps[SearchState]],
     group_by_paths: list[str],
+    entity_type: EntityType,
+    query_operation: AggregationOperation,
     order_by: list[OrderBy] | None = None,
 ) -> Query:
     """Set which field paths to group results by for aggregation.
@@ -417,6 +469,8 @@ async def set_grouping(
 
     Returns the updated Query as structured output.
     """
+    _ensure_query_initialized(ctx.deps.state, entity_type, query_operation)
+
     try:
         validate_grouping_fields(group_by_paths)
         validate_order_by_fields(order_by)
@@ -443,6 +497,8 @@ async def set_grouping(
 async def set_aggregations(
     ctx: RunContext[StateDeps[SearchState]],
     aggregations: list[Aggregation],
+    entity_type: EntityType,
+    query_operation: AggregationOperation,
 ) -> Query:
     """Define what aggregations to compute over the matching records.
 
@@ -450,6 +506,8 @@ async def set_aggregations(
 
     Returns the updated Query as structured output.
     """
+    _ensure_query_initialized(ctx.deps.state, entity_type, query_operation)
+
     # Validate field paths for FieldAggregations
     try:
         for agg in aggregations:
@@ -478,6 +536,8 @@ async def set_aggregations(
 async def set_temporal_grouping(
     ctx: RunContext[StateDeps[SearchState]],
     temporal_groups: list[TemporalGrouping],
+    entity_type: EntityType,
+    query_operation: AggregationOperation,
     cumulative: bool = False,
     order_by: list[OrderBy] | None = None,
 ) -> Query:
@@ -491,6 +551,8 @@ async def set_temporal_grouping(
 
     Returns the updated Query as structured output.
     """
+    _ensure_query_initialized(ctx.deps.state, entity_type, query_operation)
+
     try:
         for tg in temporal_groups:
             validate_temporal_grouping_field(tg.field)
