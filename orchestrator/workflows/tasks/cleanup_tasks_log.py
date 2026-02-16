@@ -78,9 +78,4 @@ def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
     retry_auth_callback=authorizers.retry_auth_callback,
 )
 def task_clean_up_tasks() -> StepList:
-    return (
-        init
-        >> remove_tasks
-        >> cleanup_ai_search_index
-        >> done
-    )
+    return init >> remove_tasks >> cleanup_ai_search_index >> done
