@@ -68,7 +68,7 @@ def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
         return {"ai_search_index_rows_deleted": count}
 
     logger.warning("Search Service not enabled, table ai_search_index does not exist")
-    return {"ai_search_index_rows_deleted": count, "ai_search_table_exists": False}
+    return {"ai_search_index_rows_deleted": count, "ai_search_enabled": False}
 
 
 @workflow(
