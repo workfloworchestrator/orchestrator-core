@@ -6,6 +6,7 @@ from prometheus_client.registry import Collector
 
 from orchestrator.schemas.engine_settings import GlobalStatusEnum
 from orchestrator.services import settings
+from orchestrator.services.worker_status_monitor import get_worker_status_monitor
 
 
 def _get_engine_status() -> tuple[GlobalStatusEnum, int]:
@@ -13,10 +14,13 @@ def _get_engine_status() -> tuple[GlobalStatusEnum, int]:
 
     This includes the engine status, and the amount of currently running processes.
     """
-    engine_settings = settings.get_engine_settings()
-    engine_status = settings.generate_engine_global_status(engine_settings)
+    monitor = get_worker_status_monitor()
+    running_count = monitor.get_running_jobs_count()
 
-    return engine_status, int(engine_settings.running_processes)
+    engine_settings = settings.get_engine_settings()
+    engine_status = settings.generate_engine_global_status(engine_settings, running_count)
+
+    return engine_status, running_count
 
 
 class WorkflowEngineCollector(Collector):

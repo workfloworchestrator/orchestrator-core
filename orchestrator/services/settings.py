@@ -35,11 +35,19 @@ def get_engine_settings_for_update() -> EngineSettingsTable:
     return db.session.execute(select(EngineSettingsTable).with_for_update()).scalar_one()
 
 
-def generate_engine_global_status(engine_settings: EngineSettingsTable) -> GlobalStatusEnum:
-    """Returns the global status of the engine."""
-    if engine_settings.global_lock and engine_settings.running_processes > 0:
+def generate_engine_global_status(engine_settings: EngineSettingsTable, running_count: int) -> GlobalStatusEnum:
+    """Returns the global status of the engine.
+
+    Args:
+        engine_settings: Engine settings database object
+        running_count: Count of currently running processes from worker monitor
+
+    Returns:
+        The global status enum
+    """
+    if engine_settings.global_lock and running_count > 0:
         return GlobalStatusEnum.PAUSING
-    if engine_settings.global_lock and engine_settings.running_processes == 0:
+    if engine_settings.global_lock and running_count == 0:
         return GlobalStatusEnum.PAUSED
     return GlobalStatusEnum.RUNNING
 
