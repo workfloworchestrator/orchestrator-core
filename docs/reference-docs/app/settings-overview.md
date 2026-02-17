@@ -115,10 +115,9 @@ The following rules apply when exposing settings:
 
 ### Rules for Masking Secrets
 
-- Keys containing `"password"` or `"secret"` in their names are masked.
 - `SecretStr` from `from pydantic import SecretStr` are masked.
-- `SecretStr` from `from orchestrator.utils.expose_settings import SecretStr` are masked.
-- `PostgresDsn` from `from pydantic import PostgresDsn` are masked.
+- `SecretPostgresDsn` from `from orchestrator.settings import SecretPostgresDsn` is masked.
+- `SecretRedisDsn` from `from orchestrator.settings import SecretRedisDsn` is masked.
 
 ## Overview of AppSettings class
 
