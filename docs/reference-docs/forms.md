@@ -155,12 +155,12 @@ class ChooseUser(str):
 
     @classmethod
     def __modify_schema__(cls, field_schema: dict[str, Any]) -> None:
-        uniforms: dict[str, Any] = {}
+        extra_properties: dict[str, Any] = {}
 
         if cls.group_id:
-            uniforms["groupId"] = cls.group_id
+            extra_properties["groupId"] = cls.group_id
 
-        field_schema.update(format="ChooseUser", uniforms=uniforms)
+        field_schema.update(format="ChooseUser", extraProperties=extra_properties)
 ```
 
 And add it to a form:
@@ -208,6 +208,7 @@ for this example, we would need to add to a `ChooseUser` case to the String swit
 ...
 import ChooseUserField from "custom/uniforms/ChooseUserField";
 
+// TODO ruben to rewrite
 export function autoFieldFunction(props: GuaranteedProps<unknown> & Record<string, any>, uniforms: Context<unknown>) {
     const { allowedValues, checkboxes, fieldType, field } = props;
     const { format } = field;
@@ -233,6 +234,8 @@ export function autoFieldFunction(props: GuaranteedProps<unknown> & Record<strin
 example custom field to select a user by group.
 
 ``` js
+// TODO ruben rewrite ?
+
 import { EuiFlexItem, EuiFormRow, EuiText } from "@elastic/eui";
 import { FieldProps } from "lib/uniforms-surfnet/src/types";
 import React, { useCallback, useContext, useEffect, useState } from "react";

@@ -52,7 +52,8 @@ dependencies = [
     "pgvector>=0.4.1",
     "prometheus-client==0.24.1",
     "psycopg2-binary==2.9.11",
-    "pydantic-forms>=1.4.0",
+    # "pydantic-forms>=1.4.0",  # TODO bump to 2.4.0 once released
+    "pydantic-forms @ git+https://github.com/workfloworchestrator/pydantic-forms@add-pydanticforms-in-schema",
     "pydantic-settings~=2.13.0",
     "pydantic[email]~=2.12.4",
     "python-dateutil==2.9.0.post0",

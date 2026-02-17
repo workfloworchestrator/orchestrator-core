@@ -8,7 +8,7 @@ interact with the products, subscriptions and processes that are built and run
 in the orchestrator.
 
 The GUI uses [Elastic-UI](https://elastic.github.io/eui/#/) as framework for
-standard components and [Uniforms](https://uniforms.tools/) to parse
+standard components and [pydantic-forms][pf] to parse
 JSON-Schema produced by the forms endpoints in the core and render the correct
 components and widgets.
 
@@ -109,3 +109,6 @@ user_input
 │ modify/terminate workflow │
 └───────────────────────────┘
 </pre>
+
+
+[pf]: https://www.npmjs.com/package/pydantic-forms

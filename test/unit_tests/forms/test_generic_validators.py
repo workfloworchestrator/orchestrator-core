@@ -45,6 +45,7 @@ def test_product_id_schema():
                 "title": "Product X",
                 "type": "string",
                 "uniforms": {"productIds": [str(product_x_id)]},
+                "extraProperties": {"productIds": [str(product_x_id)]},
             },
         },
         "required": ["product_x", "product_id"],
