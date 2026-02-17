@@ -18,7 +18,6 @@ from pydantic_settings import BaseSettings
 from orchestrator.utils.expose_settings import SettingsEnvVariablesSchema, SettingsExposedSchema
 
 EXPOSED_ENV_SETTINGS_REGISTRY: Dict[str, Type[BaseSettings]] = {}
-MASK = "**********"
 
 
 def expose_settings(settings_name: str, base_settings: Type[BaseSettings]) -> Type[BaseSettings]:
@@ -32,10 +31,11 @@ def get_all_exposed_settings() -> list[SettingsExposedSchema]:
 
     def _get_settings_env_variables(base_settings: Type[BaseSettings]) -> list[SettingsEnvVariablesSchema]:
         """Get environment variables from settings."""
-        return [
+        settings_env_variables: list[SettingsEnvVariablesSchema] = [
             SettingsEnvVariablesSchema(env_name=key, env_value=value)
             for key, value in base_settings.model_dump().items()  # type: ignore
         ]
+        return sorted(settings_env_variables, key=lambda v: v.env_name)
 
     return [
         SettingsExposedSchema(name=name, variables=_get_settings_env_variables(base_settings))

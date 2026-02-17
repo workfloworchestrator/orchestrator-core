@@ -73,7 +73,7 @@ class AppSettings(BaseSettings):
     CACHE_HMAC_SECRET: OrchSecretStr | None = None  # HMAC signing key, used when pickling results in the cache
     REDIS_RETRY_COUNT: NonNegativeInt = Field(
         2, description="Number of retries for redis connection errors/timeouts, 0 to disable"
-    )  # More info: https://redis-py.regadthedocs.io/en/stable/retry.html
+    )  # More info: https://redis-py.readthedocs.io/en/stable/retry.html
     ENABLE_DISTLOCK_MANAGER: bool = True
     DISTLOCK_BACKEND: str = "memory"
     CC_NOC: int = 0
