@@ -34,7 +34,7 @@ def test_monitor_updates_count_periodically(monitor):
             mock_status.return_value = mock_instance
 
             # Force immediate update for deterministic testing
-            monitor.refresh_once()
+            monitor._refresh_once()
 
             # Verify count was updated
             assert monitor.get_running_jobs_count() == 3
@@ -51,7 +51,7 @@ def test_monitor_caches_count_for_fast_access(monitor):
             mock_status.return_value = mock_instance
 
             # Force immediate update for deterministic testing
-            monitor.refresh_once()
+            monitor._refresh_once()
 
             # Record how many times ThreadPoolWorkerStatus was called so far
             initial_call_count = mock_status.call_count
@@ -83,13 +83,13 @@ def test_monitor_handles_worker_inspection_errors_gracefully(monitor):
             mock_instance.number_of_running_jobs = 4
             mock_status.return_value = mock_instance
 
-            monitor.refresh_once()
+            monitor._refresh_once()
             assert monitor.get_running_jobs_count() == 4
 
             # Next update fails
             mock_status.side_effect = Exception("Worker inspection failed")
 
-            monitor.refresh_once()
+            monitor._refresh_once()
             # Should keep previous count
             assert monitor.get_running_jobs_count() == 4
 
@@ -108,7 +108,7 @@ def test_monitor_with_celery_executor():
                 mock_instance.number_of_running_jobs = 7
                 mock_status.return_value = mock_instance
 
-                monitor.refresh_once()
+                monitor._refresh_once()
 
                 assert monitor.get_running_jobs_count() == 7
     finally:
@@ -129,7 +129,7 @@ def test_monitor_with_threadpool_executor():
                 mock_instance.number_of_running_jobs = 2
                 mock_status.return_value = mock_instance
 
-                monitor.refresh_once()
+                monitor._refresh_once()
 
                 assert monitor.get_running_jobs_count() == 2
     finally:
@@ -187,7 +187,7 @@ def test_monitor_count_reflects_workers_not_database_status(monitor):
             mock_instance.number_of_running_jobs = 2  # Only 2 workers actually running
             mock_status.return_value = mock_instance
 
-            monitor.refresh_once()
+            monitor._refresh_once()
 
             # Should return 2 (actual workers), not 10 (database count)
             assert monitor.get_running_jobs_count() == 2
@@ -208,7 +208,7 @@ def test_monitor_shows_zero_when_engine_paused(monitor):
             mock_instance.number_of_running_jobs = 0  # No workers running
             mock_status.return_value = mock_instance
 
-            monitor.refresh_once()
+            monitor._refresh_once()
 
             # Should return 0 (accurate), not count from database
             assert monitor.get_running_jobs_count() == 0
@@ -226,7 +226,7 @@ def test_monitor_thread_safe_concurrent_access(monitor):
             mock_instance.number_of_running_jobs = 5
             mock_status.return_value = mock_instance
 
-            monitor.refresh_once()
+            monitor._refresh_once()
 
             results = []
 

@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import threading
 from collections.abc import Callable, Sequence
 from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
@@ -68,7 +69,7 @@ SYSTEM_USER = "SYSTEM"
 
 _workflow_executor = None
 _active_threadpool_jobs = 0
-_active_jobs_lock = __import__("threading").Lock()
+_active_jobs_lock = threading.Lock()
 
 START_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be started because it has been removed"
 RESUME_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be resumed because it has been removed"

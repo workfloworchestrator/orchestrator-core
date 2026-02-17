@@ -31,7 +31,6 @@ class WorkerStatusMonitor(threading.Thread):
         self._shutdown_event = threading.Event()
         self.update_interval = update_interval
         self._running_jobs_count = 0
-        self._lock = threading.Lock()
 
     def run(self) -> None:
         logger.info("Starting WorkerStatusMonitor", update_interval=self.update_interval)
@@ -39,8 +38,7 @@ class WorkerStatusMonitor(threading.Thread):
             while not self._shutdown_event.is_set():
                 try:
                     count = self._get_worker_count()
-                    with self._lock:
-                        self._running_jobs_count = count
+                    self._running_jobs_count = count
                 except Exception:
                     logger.exception("Failed to update worker status, keeping previous count")
 
@@ -72,18 +70,17 @@ class WorkerStatusMonitor(threading.Thread):
 
         This is fast as it reads from cache rather than inspecting workers.
         """
-        with self._lock:
-            return self._running_jobs_count
+        return self._running_jobs_count
 
-    def refresh_once(self) -> None:
+    def _refresh_once(self) -> None:
         """Force an immediate update of the worker count.
 
-        This is primarily for testing to avoid relying on timing/sleep.
+        This is an internal method used in tests to avoid relying on timing/sleep.
+        Not intended for use in production code paths.
         """
         try:
             count = self._get_worker_count()
-            with self._lock:
-                self._running_jobs_count = count
+            self._running_jobs_count = count
         except Exception:
             logger.exception("Failed to refresh worker status")
 
