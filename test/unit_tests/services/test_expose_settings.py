@@ -4,8 +4,6 @@ from pydantic_settings import BaseSettings
 from orchestrator.services.settings_env_variables import expose_settings, get_all_exposed_settings
 from orchestrator.settings import SecretPostgresDsn, SecretRedisDsn
 
-PYDANTIC_SECRET_MASK = "**********"
-
 
 def test_expose_settings():
 
