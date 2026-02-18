@@ -56,14 +56,12 @@ def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
         from orchestrator.search.core.types import EntityType
 
         if len(deleted_process_id_list) > 0:
-            rows_to_delete = db.session.scalars(
-                select(AiSearchIndex)
+            count = (
+                db.session.query(AiSearchIndex)
                 .filter(AiSearchIndex.entity_type == EntityType.PROCESS)
                 .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
+                .delete(synchronize_session=False)
             )
-            for row in rows_to_delete:
-                db.session.delete(row)
-                count += 1
 
         return {"ai_search_index_rows_deleted": count}
 
