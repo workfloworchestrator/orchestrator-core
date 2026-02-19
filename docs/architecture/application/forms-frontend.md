@@ -13,6 +13,10 @@ The steps that happen to initiate a workflow on the frontend are:
 -   The frontend uses the [pydantic-forms library][1] to parse the JSON response into a form to display
 -   The [AutofieldLoader function][3] is called for each of the form.properties in the JSON response. This function uses the properties `type` and `format` to determine what kind of field will be displayed.
 
+!!! info
+    The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
+    Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
+
 ```
 
 In the example json response below one of the properties is
@@ -22,7 +26,7 @@ In the example json response below one of the properties is
                 "format": "customerId",
                 "title": "Customer Id",
                 "type": "string",
-                "extraProperties": {
+                "uniforms": {
                     "disabled": true,
                     "value": "c9b5e717-0b11-e511-80d0-005056956c1a"
                 }
@@ -33,7 +37,7 @@ In the autoFieldFunction this maps to a CustomerField.
 
 export function autoFieldFunction(
     props,
-    uniforms, // TODO ruben to rewrite
+    uniforms,
 ) {
     const { allowedValues, checkboxes, fieldType, field } = props;
     const { format } = field;
@@ -169,7 +173,7 @@ The type specified for each property (eg divider_1: Divider) determines what `ty
                 "format": "customerId",
                 "title": "Customer Id",
                 "type": "string",
-                "extraProperties": {
+                "uniforms": {
                     "disabled": true,
                     "value": "c9b5e717-0b11-e511-80d0-005056956c1a"
                 }
