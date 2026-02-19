@@ -1,6 +1,10 @@
 # Pydantic Forms
 
-In the orchestrator core, the forms a user will use in the web UI are created by defining your form input elements as a class that is a subclass of the `FormPage` class in the core. This allows you to write your form data for your WFO instance as simple python classes, but still have a useful form rendered in the frontend Web UI. This is achieved by using the library [pydantic-forms](https://github.com/workfloworchestrator/pydantic-forms). One benefit of this model is that it lets WFO developers not have to understand much about frontend technologies to build complex form structures. It's definitely worth poking around in that module to see the various input types the core library exposes.
+In the orchestrator core, the forms a user will use in the web UI are created by defining your form input elements as a class that is a subclass of the `FormPage` class in the core.
+This allows you to write your form data for your WFO instance as simple python classes, but still have a useful form rendered in the frontend Web UI.
+This is achieved by using the library [pydantic-forms](https://github.com/workfloworchestrator/pydantic-forms).
+One benefit of this model is that it lets WFO developers not have to understand much about frontend technologies to build complex form structures.
+It's definitely worth poking around in that module to see the various input types the core library exposes.
 
 ## Form Examples
 
@@ -135,6 +139,10 @@ For multistep forms especially, it can be useful to use the `orchestrator.forms.
 
 ### Custom Form Fields
 
+!!! info
+    The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
+    Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
+
 You can create a custom field component in the frontend. The components in `orchestrator-gui/src/lib/uniforms-surfnet/src` can be used to study reference implementations for a couple of custom form field types.
 
 For it to show up in the form, you have to do 2 things, a pydantic type/class in the backend and add the component to the `AutoFieldLoader.tsx`.
@@ -143,6 +151,10 @@ as an example I will create a custom field with name field and group select fiel
 
 
 #### Pydantic Type/Class In Backend
+
+!!! info
+    The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
+    Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
 
 Create a pydantic type/class.
 
@@ -197,6 +209,10 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
 ```
 
 #### Auto Field Loader
+
+!!! info
+    The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
+    Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
 
 The auto field loader is for loading the correct field component in the form.
 It has switches that check the field type and the field format.

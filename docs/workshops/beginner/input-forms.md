@@ -8,7 +8,7 @@ interact with the products, subscriptions and processes that are built and run
 in the orchestrator.
 
 The GUI uses [Elastic-UI](https://elastic.github.io/eui/#/) as framework for
-standard components and [Uniforms](https://uniforms.tools/) to parse
+standard components and [pydantic-forms][pf] to parse
 JSON-Schema produced by the forms endpoints in the core and render the correct
 components and widgets.
 
@@ -39,7 +39,7 @@ as a `Dict` and will be merged into the `State`. The `product_name` argument
 comes from the initial `State`.
 
 The optional `Config` class can be used to pass configuration information to
-Uniforms. In this case Uniforms is asked to show a input form page with the
+Pydantic Forms. In this case Pydantic Forms is asked to show a input form page with the
 name of the product as title.
 
 The helper functions `wrap_create_initial_input_form`, for create workflows,
@@ -109,3 +109,6 @@ user_input
 │ modify/terminate workflow │
 └───────────────────────────┘
 </pre>
+
+
+[pf]: https://www.npmjs.com/package/pydantic-forms

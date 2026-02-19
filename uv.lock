@@ -2454,7 +2454,7 @@ requires-dist = [
     { name = "psycopg2-binary", specifier = "==2.9.11" },
     { name = "pydantic", extras = ["email"], specifier = "~=2.12.4" },
     { name = "pydantic-ai-slim", marker = "extra == 'agent'", specifier = ">=1.56.0" },
-    { name = "pydantic-forms", specifier = ">=1.4.0" },
+    { name = "pydantic-forms", specifier = ">=2.4.0" },
     { name = "pydantic-settings", specifier = "~=2.13.0" },
     { name = "python-dateutil", specifier = "==2.9.0.post0" },
     { name = "python-rapidjson", specifier = ">=1.23,<1.24" },
@@ -3112,16 +3112,16 @@ wheels = [
 
 [[package]]
 name = "pydantic-forms"
-version = "2.3.0"
+version = "2.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "more-itertools" },
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-i18n" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/13/4c/4e9b0fb19714e49fa52e0dcac02bf9658286333f2192610a490a1726d305/pydantic_forms-2.3.0.tar.gz", hash = "sha256:a62371d70fa57bf8f0a0ea86d6a6155bf581e0be69008195fa10d51619bf5afd", size = 44115, upload-time = "2025-11-18T09:48:36.629Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/73/29/6a593b78c705c7363a09af1a8b6152eed69005efc5e7b1daac2bc20140d8/pydantic_forms-2.4.0.tar.gz", hash = "sha256:bc4aeb91c87ab6753c4db88a1a36768f236eff7cdfd613e34c860d0968a40616", size = 44467, upload-time = "2026-02-19T10:28:25.97Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/01/c3/ff8e7ac74795a8ecc5ad2f9e895771f2f9c0ca02be8ee0618e8d0fc35c93/pydantic_forms-2.3.0-py3-none-any.whl", hash = "sha256:134da0bb860b99a012d40ca9c7a57329d52e14de682eee6f420ab61e59eac3f0", size = 44951, upload-time = "2025-11-18T09:48:35.038Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/40/1cde8eedaccaa5c8adb209c8a19a2034e9997ccd306eb5b897f8001f3afc/pydantic_forms-2.4.0-py3-none-any.whl", hash = "sha256:eb31a68d62e535d00199efbffd1b0dd4cc7ea2a8c37f6ba787522ebf58f8a0f0", size = 45732, upload-time = "2026-02-19T10:28:24.673Z" },
 ]
 
 [[package]]
