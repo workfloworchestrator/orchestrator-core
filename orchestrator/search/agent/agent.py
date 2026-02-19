@@ -32,6 +32,7 @@ else:
     Model = Any
 
 from orchestrator.search.agent.graph_nodes import (
+    ACTION_TO_NODE,
     AggregationNode,
     PlannerNode,
     ResultActionsNode,
@@ -40,7 +41,8 @@ from orchestrator.search.agent.graph_nodes import (
     emit_end_event,
 )
 from orchestrator.search.agent.schemas import GraphEdge, GraphNode, GraphStructure
-from orchestrator.search.agent.state import SearchState
+from orchestrator.search.agent.skills import SKILLS, Skill
+from orchestrator.search.agent.state import SearchState, TaskAction
 
 logger = structlog.get_logger(__name__)
 
@@ -59,6 +61,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         self,
         model: "Model | KnownModelName | str",  # type: ignore[valid-type]
         graph: Graph[SearchState, None, str],
+        skills: dict[TaskAction, Skill],
         *,
         deps_type: type[StateDeps[SearchState]] = StateDeps[SearchState],
         model_settings: "ModelSettings | None" = None,
@@ -71,6 +74,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         Args:
             model: LLM model to use (stored for node creation)
             graph: The pydantic-graph Graph instance to execute
+            skills: Skill definitions keyed by TaskAction
             deps_type: Dependencies type (defaults to StateDeps[SearchState])
             model_settings: Model settings
             toolsets: Tool sets (not used directly, but required by base class)
@@ -85,6 +89,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             instructions=instructions or [],
         )
         self.graph = graph
+        self.skills = skills
         self.model_name = model if isinstance(model, str) else str(model)
         self._persistence: Any | None = None
         self.debug = debug
@@ -129,6 +134,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         user_prompt: str | Sequence[UserContent] | None = None,
         *,
         deps: StateDeps[SearchState] | None = None,
+        target_action: TaskAction | None = None,
         **kwargs: Any,
     ) -> AsyncIterator[AgentStreamEvent | AgentRunResultEvent[str] | Any]:
         """Execute the graph and stream events in real-time.
@@ -185,16 +191,26 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             ):
                 initial_state.environment.start_turn(user_input)
 
-            start_node = self.DEFAULT_START_NODE(
-                model=self.model_name,
-                event_emitter=emit_event,
-                debug=self.debug,
-            )
+            if target_action:
+                node_cls = ACTION_TO_NODE[target_action]
+                start_node = node_cls(
+                    model=self.model_name,
+                    skills=self.skills,
+                    event_emitter=emit_event,
+                    debug=self.debug,
+                )
+            else:
+                start_node = self.DEFAULT_START_NODE(
+                    model=self.model_name,
+                    skills=self.skills,
+                    event_emitter=emit_event,
+                    debug=self.debug,
+                )
 
             logger.debug("GraphAgentAdapter: Starting new graph execution", node=type(start_node).__name__)
 
             async with self.graph.iter(
-                start_node=start_node, state=initial_state, persistence=persistence
+                start_node=start_node, state=initial_state, persistence=persistence  # type: ignore[arg-type]
             ) as graph_run:
                 async for next_node in graph_run:
 
@@ -258,6 +274,7 @@ def build_agent_instance(
     adapter = GraphAgentAdapter(
         model=model,
         graph=graph,
+        skills=SKILLS,
         deps_type=StateDeps[SearchState],
         debug=debug,
     )

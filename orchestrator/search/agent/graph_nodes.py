@@ -14,10 +14,10 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Callable
+from typing import TYPE_CHECKING, Any, AsyncIterator, Callable, ClassVar
 
 import structlog
 from ag_ui.core import BaseEvent
@@ -35,22 +35,12 @@ from orchestrator.search.agent.graph_events import (
     GraphNodeActiveEvent,
     GraphNodeActiveValue,
 )
-from orchestrator.search.agent.prompts import (
-    get_aggregation_execution_prompt,
-    get_planning_prompt,
-    get_result_actions_prompt,
-    get_search_execution_prompt,
-    get_text_response_prompt,
-)
+from orchestrator.search.agent.prompts import get_planning_prompt
 from orchestrator.search.agent.state import ExecutionPlan, SearchState, TaskAction, TaskStatus
-from orchestrator.search.agent.tools import (
-    aggregation_execution_toolset,
-    aggregation_toolset,
-    filter_building_toolset,
-    result_actions_toolset,
-    search_execution_toolset,
-)
 from orchestrator.search.agent.utils import current_timestamp_ms, log_agent_request, log_execution_plan
+
+if TYPE_CHECKING:
+    from orchestrator.search.agent.skills import Skill
 
 logger = structlog.get_logger(__name__)
 
@@ -59,65 +49,49 @@ logger = structlog.get_logger(__name__)
 class BaseGraphNode(ABC):
     """Base class for all graph nodes with common fields and streaming logic."""
 
+    action: ClassVar[TaskAction]  # Which skill this node executes — set by subclasses
+
     model: str = field(kw_only=True)  # LLM model identifier
+    skills: dict[TaskAction, Skill] = field(kw_only=True)
     event_emitter: Callable[[BaseEvent], None] | None = None
     debug: bool = False  # Enable debug logging
     _tool_calls_in_current_run: list[str] = field(default_factory=list, init=False, repr=False)
     _last_run_result: Any | None = field(default=None, init=False, repr=False)
 
-    @property
-    def node_name(self) -> str:
-        """Get the name of this node for event emission."""
-        return self.__class__.__name__
-
-    def emit_node_active_event(self, ctx: GraphRunContext[SearchState, None] | None = None) -> None:
-        """Emit GRAPH_NODE_ACTIVE event for this node."""
-        if self.event_emitter:
-            value: GraphNodeActiveValue = {"node": self.node_name, "step_type": "graph_node"}
-
-            # Add reasoning if available from current task
-            if ctx and ctx.state.execution_plan:
-                task = ctx.state.execution_plan.current
-                if task and task.reasoning:
-                    value["reasoning"] = task.reasoning
-
-            self.event_emitter(GraphNodeActiveEvent(timestamp=current_timestamp_ms(), value=value))
+    def __post_init__(self):
+        self._skill = self.skills[self.action]
+        self._node_agent = Agent(
+            model=self.model,
+            deps_type=StateDeps[SearchState],
+            retries=2,
+            toolsets=self._skill.toolsets,
+        )
 
     @property
-    @abstractmethod
-    def node_agent(self) -> Agent[StateDeps[SearchState], Any]:
-        """Get the agent for this node. Must be implemented by subclasses."""
-        ...
-
-    def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
-        """Get the prompt for this node's agent. Must be implemented by nodes using event_generator."""
-        raise NotImplementedError(f"{self.node_name} must implement get_prompt() if using default event_generator()")
-
-    def get_message_history(self, ctx: GraphRunContext[SearchState, None]):
-        """Get message history for this node. Override in subclasses that need different scope."""
-        # Default: LIGHTWEIGHT scope (query summaries without full traces)
-        return ctx.state.environment.get_message_history(max_turns=5, scope=MemoryScope.LIGHTWEIGHT)
+    def skill(self) -> Skill:
+        return self._skill
 
     async def event_generator(
         self, ctx: GraphRunContext[SearchState, None]
     ) -> AsyncIterator[AgentStreamEvent | AgentRunResultEvent[Any]]:
         """Generate events from the node's dedicated agent as they happen."""
-        # Emit GRAPH_NODE_ACTIVE event when node becomes active
-        self.emit_node_active_event(ctx)
+        node_name = self.__class__.__name__
+
+        emit_node_active_event(self.event_emitter, node_name, ctx)
 
         # Reset tool calls tracking and result for this run
         self._tool_calls_in_current_run = []
         self._last_run_result = None
 
-        prompt = self.get_prompt(ctx)
-        message_history = self.get_message_history(ctx)
+        prompt = self.skill.get_prompt(ctx.state)
+        message_history = ctx.state.environment.get_message_history(max_turns=5, scope=self.skill.memory_scope)
         state_deps = StateDeps(ctx.state)
 
         if self.debug:
-            log_agent_request(self.node_name, prompt, message_history)
+            log_agent_request(node_name, prompt, message_history)
 
         # Use the node's dedicated agent with AG-UI event processing
-        async for event in self.node_agent.run_stream_events(
+        async for event in self._node_agent.run_stream_events(
             instructions=prompt,
             deps=state_deps,
             message_history=message_history,
@@ -133,13 +107,13 @@ class BaseGraphNode(ABC):
             if isinstance(event, AgentRunResultEvent):
                 self._last_run_result = event.result
                 logger.debug(
-                    f"{self.node_name}: Captured final result with {len(event.result.new_messages())} new messages"
+                    f"{node_name}: Captured final result with {len(event.result.new_messages())} new messages"
                 )
 
             yield event
 
         if self._last_run_result is None:
-            logger.warning(f"{self.node_name}: No result captured")
+            logger.warning(f"{node_name}: No result captured")
 
     @asynccontextmanager
     async def stream(
@@ -148,10 +122,15 @@ class BaseGraphNode(ABC):
         yield self.event_generator(ctx)
 
 
+
 @dataclass
-class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+class PlannerNode(BaseNode[SearchState, None, str]):
     """Plans and orchestrates multi-step task execution."""
 
+    model: str = field(kw_only=True)
+    skills: dict[TaskAction, Skill] = field(kw_only=True)
+    event_emitter: Callable[[BaseEvent], None] | None = None
+    debug: bool = False
     description: str = field(default="Creates execution plans and routes tasks deterministically", init=False)
 
     def __post_init__(self):
@@ -164,17 +143,12 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             retries=2,
         )
 
-    @property
-    def node_agent(self) -> Agent[StateDeps[SearchState], Any]:
-        """Get the planning agent."""
-        return self._node_agent
-
     @asynccontextmanager
     async def stream(self, ctx: GraphRunContext[SearchState, None]) -> AsyncIterator[AsyncIterator[AgentStreamEvent]]:
         """Only streams when creating a plan (not when routing from queue)."""
 
         async def event_generator() -> AsyncIterator[AgentStreamEvent]:
-            self.emit_node_active_event(ctx)
+            emit_node_active_event(self.event_emitter, self.__class__.__name__, ctx)
             # Streaming handled in _create_plan() method
             return
             yield
@@ -223,9 +197,9 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         prompt = get_planning_prompt(ctx.state, is_replanning=is_replanning)
 
         if self.debug:
-            log_agent_request(self.node_name, prompt, message_history)
+            log_agent_request(self.__class__.__name__, prompt, message_history)
 
-        result = await self.node_agent.run(
+        result = await self._node_agent.run(
             instructions=prompt, message_history=message_history, deps=StateDeps(ctx.state)
         )
 
@@ -278,40 +252,25 @@ class PlannerNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             ctx.state.pending_filters = None
 
         # Deterministic routing based on task action_type
-        if task.action_type == TaskAction.SEARCH:
-            return SearchNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
-        if task.action_type == TaskAction.AGGREGATION:
-            return AggregationNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
-        if task.action_type == TaskAction.RESULT_ACTIONS:
-            return ResultActionsNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
-        if task.action_type == TaskAction.TEXT_RESPONSE:
-            return TextResponseNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
+        node_cls = ACTION_TO_NODE.get(task.action_type)
+        if node_cls:
+            return node_cls(
+                model=self.model,
+                skills=self.skills,
+                event_emitter=self.event_emitter,
+                debug=self.debug,
+            )
+
         logger.warning(f"Unknown task type: {task.action_type}, skipping")
         task.status = TaskStatus.COMPLETED
         plan.next()
-        return PlannerNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
+        return PlannerNode(model=self.model, skills=self.skills, event_emitter=self.event_emitter, debug=self.debug)
 
 
 @dataclass
 class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+    action: ClassVar[TaskAction] = TaskAction.SEARCH
     description: str = field(default="Executes database searches with optional filtering", init=False)
-
-    def __post_init__(self):
-        """Create the agent for this node."""
-        self._node_agent = Agent(
-            model=self.model,
-            deps_type=StateDeps[SearchState],
-            retries=2,
-            toolsets=[filter_building_toolset, search_execution_toolset],
-        )
-
-    @property
-    def node_agent(self) -> Agent[StateDeps[SearchState], Any]:
-        return self._node_agent
-
-    def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
-        """Get the search execution prompt."""
-        return get_search_execution_prompt(ctx.state)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
         ctx.state.environment.record_node_entry(self.__class__.__name__)
@@ -336,29 +295,17 @@ class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             )
             return End(f"Failed: {str(e)}")
 
-        return PlannerNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
+        if not ctx.state.execution_plan:
+            ctx.state.environment.complete_turn(assistant_answer="Done")
+            return End("Done")
+
+        return PlannerNode(model=self.model, skills=self.skills, event_emitter=self.event_emitter, debug=self.debug)
 
 
 @dataclass
 class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+    action: ClassVar[TaskAction] = TaskAction.AGGREGATION
     description: str = field(default="Executes aggregations with grouping, filtering, and visualization", init=False)
-
-    def __post_init__(self):
-        """Create the agent for this node."""
-        self._node_agent = Agent(
-            model=self.model,
-            deps_type=StateDeps[SearchState],
-            retries=2,
-            toolsets=[filter_building_toolset, aggregation_toolset, aggregation_execution_toolset],
-        )
-
-    @property
-    def node_agent(self) -> Agent[StateDeps[SearchState], Any]:
-        return self._node_agent
-
-    def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
-        """Get the aggregation execution prompt."""
-        return get_aggregation_execution_prompt(ctx.state)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
         ctx.state.environment.record_node_entry(self.__class__.__name__)
@@ -385,33 +332,17 @@ class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             )
             return End(f"Failed: {str(e)}")
 
-        return PlannerNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
+        if not ctx.state.execution_plan:
+            ctx.state.environment.complete_turn(assistant_answer="Done")
+            return End("Done")
+
+        return PlannerNode(model=self.model, skills=self.skills, event_emitter=self.event_emitter, debug=self.debug)
 
 
 @dataclass
 class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+    action: ClassVar[TaskAction] = TaskAction.RESULT_ACTIONS
     description: str = field(default="Exports, fetches details, or visualizes existing results", init=False)
-
-    def __post_init__(self):
-        """Create the agent for this node."""
-        self._node_agent = Agent(
-            model=self.model,
-            deps_type=StateDeps[SearchState],
-            retries=2,
-            toolsets=[result_actions_toolset],
-        )
-
-    @property
-    def node_agent(self) -> Agent[StateDeps[SearchState], Any]:
-        return self._node_agent
-
-    def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
-        """Get the result actions prompt."""
-        return get_result_actions_prompt(ctx.state)
-
-    def get_message_history(self, ctx: GraphRunContext[SearchState, None]):
-        """ResultActionsNode only needs query_ids, not full queries."""
-        return ctx.state.environment.get_message_history(max_turns=5, scope=MemoryScope.MINIMAL)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
         ctx.state.environment.record_node_entry(self.__class__.__name__)
@@ -441,33 +372,19 @@ class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             )
             return End(f"Failed: {str(e)}")
 
-        return PlannerNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
+        if not ctx.state.execution_plan:
+            ctx.state.environment.complete_turn(assistant_answer="Done")
+            return End("Done")
+
+        return PlannerNode(model=self.model, skills=self.skills, event_emitter=self.event_emitter, debug=self.debug)
 
 
 @dataclass
 class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
-    """Generates text responses for general questions or out-of-scope queries.
+    """Generates text responses for general questions or out-of-scope queries."""
 
-    Handles TEXT_RESPONSE tasks where the user asks general questions, greetings,
-    or requests that don't involve search/aggregation operations.
-    """
-
+    action: ClassVar[TaskAction] = TaskAction.TEXT_RESPONSE
     description: str = field(default="Generates text responses for general questions", init=False)
-
-    def __post_init__(self):
-        """Create the agent for this node."""
-        self._node_agent = Agent(
-            model=self.model,
-            deps_type=StateDeps[SearchState],
-        )
-
-    @property
-    def node_agent(self) -> Agent[StateDeps[SearchState], Any]:
-        return self._node_agent
-
-    def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
-        """Get the text response prompt (delegates to prompts.py)."""
-        return get_text_response_prompt(ctx.state)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
         """Text response completes the flow."""
@@ -477,7 +394,33 @@ class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             ctx.state.execution_plan.current.status = TaskStatus.COMPLETED
             ctx.state.execution_plan.next()
 
-        return PlannerNode(model=self.model, event_emitter=self.event_emitter, debug=self.debug)
+        if not ctx.state.execution_plan:
+            ctx.state.environment.complete_turn(assistant_answer="Done")
+            return End("Done")
+
+        return PlannerNode(model=self.model, skills=self.skills, event_emitter=self.event_emitter, debug=self.debug)
+
+
+# Derived from BaseGraphNode subclasses — each declares action: ClassVar[TaskAction]
+ActionNode = SearchNode | AggregationNode | ResultActionsNode | TextResponseNode
+ACTION_TO_NODE: dict[TaskAction, type[ActionNode]] = {
+    cls.action: cls for cls in BaseGraphNode.__subclasses__()  # type: ignore[misc]
+}
+
+
+def emit_node_active_event(
+    event_emitter: Callable[[BaseEvent], None] | None,
+    node_name: str,
+    ctx: GraphRunContext[SearchState, None] | None = None,
+) -> None:
+    """Emit GRAPH_NODE_ACTIVE event for a node."""
+    if event_emitter:
+        value: GraphNodeActiveValue = {"node": node_name, "step_type": "graph_node"}
+        if ctx and ctx.state.execution_plan:
+            task = ctx.state.execution_plan.current
+            if task and task.reasoning:
+                value["reasoning"] = task.reasoning
+        event_emitter(GraphNodeActiveEvent(timestamp=current_timestamp_ms(), value=value))
 
 
 def emit_end_event(event_emitter: Callable[[BaseEvent], None] | None) -> None:
