@@ -90,6 +90,7 @@ class Step(Protocol):
 
 RunPredicate = Callable[..., bool]
 
+
 @runtime_checkable
 class Workflow(Protocol):
     __name__: str
