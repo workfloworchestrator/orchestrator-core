@@ -107,6 +107,14 @@ class Workflow(Protocol):
     def __call__(self) -> NoReturn: ...
 
 
+@dataclass(frozen=True)
+class PredicateContext:
+    """Context passed as the first argument to a workflow's run predicate."""
+
+    workflow: Workflow
+    workflow_key: str
+
+
 def make_step_function(
     f: Callable,
     name: str,
