@@ -11,7 +11,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import wraps
 from time import time_ns
+
+# Set of tool names whose results should be included in A2A artifacts
+a2a_result_tools: set[str] = set()
+
+
+def a2a_result(func):
+    """Mark a tool function's output as relevant for A2A artifacts.
+
+    Tools decorated with @a2a_result will have their return values included
+    in the A2A task artifact. Tools without this marker (e.g. filter discovery,
+    operator validation) are considered intermediate and their results are omitted.
+    """
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        return await func(*args, **kwargs)
+
+    a2a_result_tools.add(func.__name__)
+    return wrapper
 
 
 def current_timestamp_ms() -> int:
@@ -69,7 +89,7 @@ def log_agent_request(node_name: str, instructions: str, message_history: list) 
             print(f"\n--- Message {i} [{msg.kind}] ---")  # noqa: T201
             for part in msg.parts:
                 part_type = part.__class__.__name__
-                if hasattr(part, 'content'):
+                if hasattr(part, "content"):
                     print(f"[{part_type}] {part.content}")  # noqa: T201
                 else:
                     print(f"[{part_type}] {part}")  # noqa: T201

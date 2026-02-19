@@ -227,7 +227,9 @@ class ConversationEnvironment(BaseModel):
                 for tool_step in node_step.tool_steps:
                     result_info = f" ({tool_step.results_count} results)" if tool_step.results_count else ""
                     query_info = f" [query: {tool_step.query_id}]" if tool_step.query_id else ""
-                    lines.append(f"     • [Tool] {tool_step.step_type}: {tool_step.description}{result_info}{query_info}")
+                    lines.append(
+                        f"     • [Tool] {tool_step.step_type}: {tool_step.description}{result_info}{query_info}"
+                    )
 
         return "\n".join(lines)
 

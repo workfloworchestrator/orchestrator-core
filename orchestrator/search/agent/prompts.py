@@ -178,7 +178,7 @@ def get_planning_prompt(state: SearchState, is_replanning: bool = False) -> str:
         Request: "Find X and export them"
         Plan: {{"tasks": [{{"action_type": "search", "reasoning": "Search for X"}}, {{"action_type": "result_actions", "reasoning": "Export the results"}}]}}
 
-        Note: Exports or detailed entity data require a RESULT_ACTIONS task."""
+        Note: Getting detailed data for a single entity (by ID) or preparing an export require a RESULT_ACTIONS task, not SEARCH."""
 
     return dedent(
         f"""
@@ -218,10 +218,10 @@ def get_result_actions_prompt(state: SearchState) -> str:
 
         ## Available Actions
         - If user wants to EXPORT/DOWNLOAD results: Call {tools.prepare_export.__name__}() ONLY
-        - If user wants DETAILED INFORMATION about entities: Call {tools.fetch_entity_details.__name__}(limit=...)
+        - If user wants DETAILED INFORMATION about a specific entity: Call {tools.fetch_entity_details.__name__}(entity_id=..., entity_type=...)
 
         ## Your Task
-        Execute the requested action. After calling the tool, respond with a single short confirmation like "Prepared an export for [description]." or "Fetched details for [count] entities."
+        Execute the requested action. After calling the tool, respond with a single short confirmation.
 
         IMPORTANT: For export requests, ONLY call prepare_export(). Do NOT fetch entity details.
         ---

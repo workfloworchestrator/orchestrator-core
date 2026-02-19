@@ -16,7 +16,7 @@ provides the ability to run the CLI with LLM features (search and/or agent).
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import typer
 from structlog import get_logger
@@ -24,9 +24,6 @@ from structlog import get_logger
 from orchestrator.app import OrchestratorCore
 from orchestrator.cli.main import app as cli_app
 from orchestrator.llm_settings import LLMSettings, llm_settings
-
-if TYPE_CHECKING:
-    from pydantic_ai.models.openai import OpenAIChatModel
 
 logger = get_logger(__name__)
 
@@ -36,7 +33,7 @@ class LLMOrchestratorCore(OrchestratorCore):
         self,
         *args: Any,
         llm_settings: LLMSettings = llm_settings,
-        agent_model: "OpenAIChatModel | str | None" = None,
+        agent_model: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the `LLMOrchestratorCore` class.
@@ -57,6 +54,30 @@ class LLMOrchestratorCore(OrchestratorCore):
         self.agent_model = agent_model or llm_settings.AGENT_MODEL
 
         super().__init__(*args, **kwargs)
+
+        # Mount A2A endpoint if agent is enabled
+        if self.llm_settings.AGENT_ENABLED:
+            from orchestrator.api.api_v1.endpoints.a2a import create_a2a_app, start_a2a
+            from orchestrator.search.agent.agent import build_agent_instance
+
+            a2a_agent = build_agent_instance(self.agent_model, debug=self.llm_settings.AGENT_DEBUG)
+            a2a_app = create_a2a_app(a2a_agent)
+            self.mount("/api/a2a", a2a_app)
+
+            # FastA2A's lifespan doesn't run when mounted as sub-app,
+            # so we start the task manager + worker via host app events.
+            _a2a_stack = None
+
+            async def _start_a2a() -> None:
+                nonlocal _a2a_stack
+                _a2a_stack = await start_a2a(a2a_app)
+
+            async def _stop_a2a() -> None:
+                if _a2a_stack:
+                    await _a2a_stack.__aexit__(None, None, None)
+
+            self.add_event_handler("startup", _start_a2a)
+            self.add_event_handler("shutdown", _stop_a2a)
 
         # Run search migration if search or agent is enabled
         if self.llm_settings.SEARCH_ENABLED or self.llm_settings.AGENT_ENABLED:

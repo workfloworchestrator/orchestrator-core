@@ -13,13 +13,23 @@
 
 from collections import deque
 from typing import TYPE_CHECKING, Any, AsyncIterator, Sequence
+from uuid import uuid4
 
 import structlog
 from pydantic_ai import Agent, AgentRunResult, ModelSettings
+from pydantic_ai._agent_graph import GraphAgentState
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.messages import (
     AgentStreamEvent,
+    FunctionToolResultEvent,
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
     UserContent,
+    UserPromptPart,
+)
+from pydantic_ai.messages import (
+    TextPart as AiTextPart,
 )
 from pydantic_ai.run import AgentRunResultEvent
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
@@ -128,6 +138,91 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
                     edges.append(GraphEdge(source=node_id, target=next_node_id, label=getattr(edge, "label", None)))
 
         return GraphStructure(nodes=nodes, edges=edges, start_node=self.DEFAULT_START_NODE.__name__)
+
+    @staticmethod
+    def _extract_user_input(
+        user_prompt: str | Sequence[UserContent] | None,
+        message_history: Sequence[ModelMessage] | None,
+    ) -> str:
+        """Extract user input text from user_prompt or message_history."""
+        if user_prompt and isinstance(user_prompt, str):
+            return user_prompt
+        if message_history:
+            for msg in reversed(message_history):
+                if isinstance(msg, ModelRequest):
+                    for part in msg.parts:
+                        if isinstance(part, UserPromptPart) and isinstance(part.content, str):
+                            return part.content
+        return ""
+
+    async def run(  # type: ignore[override]
+        self,
+        user_prompt: str | Sequence[UserContent] | None = None,
+        *,
+        message_history: Sequence[ModelMessage] | None = None,
+        deps: StateDeps[SearchState] | None = None,
+        **kwargs: Any,
+    ) -> AgentRunResult[str]:
+        """Non-streaming graph execution for A2A.
+
+        Wraps run_stream_events() — the same AG-UI streaming pipeline — and
+        collects tool results and the final output. This reuses the entire
+        existing graph execution without any parallel code path.
+        """
+        user_input = self._extract_user_input(user_prompt, message_history)
+
+        if deps is None:
+            deps = StateDeps(SearchState())
+
+        deps.state.user_input = user_input
+
+        # Create AgentRunTable record for DB persistence (AG-UI endpoint does this)
+        if not deps.state.run_id:
+            from orchestrator.db import db
+            from orchestrator.db.models import AgentRunTable
+
+            deps.state.run_id = uuid4()
+            agent_run = AgentRunTable(run_id=deps.state.run_id, thread_id=str(uuid4()), agent_type="a2a")
+            db.session.add(agent_run)
+            db.session.commit()
+
+        logger.debug("GraphAgentAdapter.run: Starting A2A execution (wrapping stream)")
+
+        from orchestrator.search.agent.utils import a2a_result_tools
+
+        tool_results: list[str] = []
+        final_output = ""
+
+        async for event in self.run_stream_events(deps=deps):
+            # Collect only tool outputs marked with @a2a_result
+            if isinstance(event, FunctionToolResultEvent) and hasattr(event.result, "tool_name"):
+                if event.result.tool_name in a2a_result_tools:
+                    tool_results.append(str(event.result.content))
+
+            # Capture the final result
+            if isinstance(event, AgentRunResultEvent):
+                final_output = str(event.result.output)
+
+        # Combine: tool results are the data, final_output is the LLM summary
+        if tool_results:
+            combined = "\n\n".join(tool_results)
+            if final_output and final_output != "Plan completed":
+                combined = f"{final_output}\n\n{combined}"
+            final_output = combined
+        elif not final_output:
+            final_output = "Graph execution completed"
+
+        logger.debug("GraphAgentAdapter.run: A2A execution complete", output_length=len(final_output))
+
+        # Build message history so AgentWorker can convert it to A2A agent messages.
+        # Without this, new_messages() returns [] and the A2A task history has no agent response.
+        state = GraphAgentState(
+            message_history=[
+                ModelRequest(parts=[UserPromptPart(content=user_input)]),
+                ModelResponse(parts=[AiTextPart(content=final_output)]),
+            ]
+        )
+        return AgentRunResult(output=final_output, _state=state, _new_message_index=0)
 
     async def run_stream_events(  # type: ignore[override]
         self,
