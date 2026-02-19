@@ -1,0 +1,27 @@
+:root {
+    --md-primary-fg-color: #0067AC;
+    --md-primary-fg-color--light: #94A4B8;
+    --md-primary-fg-color--dark: #64758B;
+    --md-primary-bg-color: #F1F5F9;
+    --md-primary-bg-color--light: #FFFFFF;
+    --md-accent-fg-color: #262830;
+    --md-accent-fg-color--transparent: #51576;
+    --md-accent-bg-color: #F1F5F9;
+    --md-accent-bg-color--light: #FFFFFF;
+}
+
+.md-header__button.md-logo {
+    padding: 0;
+}
+.md-header__button.md-logo img, .md-header__button.md-logo svg {
+    height: 55px;
+}
+
+.md-header, .md-tabs {
+    background-color: #05385E;
+}
+
+img[alt='pypi-downloads'], img[alt='npm-downloads'] {
+    height: 19px;
+    padding-top: 5px;
+}

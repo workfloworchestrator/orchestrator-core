@@ -1,0 +1,5684 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="An extensible workflow engine to manage customer facing resources and resource facing resources.">
+      
+      
+      
+        <link rel="canonical" href="https://workfloworchestrator.org/orchestrator-core/reference-docs/graphql/">
+      
+      
+        <link rel="prev" href="../api/">
+      
+      
+        <link rel="next" href="../auth-backend-and-frontend/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../img/favicon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.2">
+    
+    
+      
+        <title>GraphQL - Workflow Orchestrator</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../css/termynal.css">
+    
+      <link rel="stylesheet" href="../../css/custom.css">
+    
+      <link rel="stylesheet" href="../../css/style.css">
+    
+      <link rel="stylesheet" href="../../css/markers.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="GraphQL - Workflow Orchestrator" />
+<meta property="og:description" content="An extensible workflow engine to manage customer facing resources and resource facing resources." />
+<meta property="og:image" content="https://workfloworchestrator.org/orchestrator-core/assets/images/social/reference-docs/graphql.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://workfloworchestrator.org/orchestrator-core/reference-docs/graphql/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="GraphQL - Workflow Orchestrator" />
+<meta property="twitter:description" content="An extensible workflow engine to manage customer facing resources and resource facing resources." />
+<meta property="twitter:image" content="https://workfloworchestrator.org/orchestrator-core/assets/images/social/reference-docs/graphql.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#graphql-documentation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Workflow Orchestrator" class="md-header__button md-logo" aria-label="Workflow Orchestrator" data-md-component="logo">
+      
+  <img src="../../img/WFO-Emblem-White.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Workflow Orchestrator
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              GraphQL
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 6a6 6 0 0 1 6 6c0 2.22-1.21 4.16-3 5.2V19a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-1.8c-1.79-1.04-3-2.98-3-5.2a6 6 0 0 1 6-6m2 15v1a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-1zm6-10h3v2h-3zM1 11h3v2H1zM13 1v3h-2V1zM4.92 3.5l2.13 2.14-1.42 1.41L3.5 4.93zm12.03 2.13 2.12-2.13 1.43 1.43-2.13 2.12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7M9 21v-1h6v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1m3-17a5 5 0 0 0-5 5c0 2.05 1.23 3.81 3 4.58V16h4v-2.42c1.77-.77 3-2.53 3-4.58a5 5 0 0 0-5-5"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 2C5.13 2 2 5.13 2 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7M6 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H6zm13-8h-2l-3.2 9h1.9l.7-2h3.2l.7 2h1.9zm-2.15 5.65L18 15l1.15 3.65z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/workfloworchestrator/orchestrator-core" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M202.1 328.7c0 20.9-10.9 55.1-36.7 55.1s-36.7-34.2-36.7-55.1 10.9-55.1 36.7-55.1 36.7 34.2 36.7 55.1M496 278.2c0 31.9-3.2 65.7-17.5 95-37.9 76.6-142.1 74.8-216.7 74.8-75.8 0-186.2 2.7-225.6-74.8-14.6-29-20.2-63.1-20.2-95 0-41.9 13.9-81.5 41.5-113.6-5.2-15.8-7.7-32.4-7.7-48.8 0-21.5 4.9-32.3 14.6-51.8 45.3 0 74.3 9 108.8 36 29-6.9 58.8-10 88.7-10 27 0 54.2 2.9 80.4 9.2 34-26.7 63-35.2 107.8-35.2 9.8 19.5 14.6 30.3 14.6 51.8 0 16.4-2.6 32.7-7.7 48.2 27.5 32.4 39 72.3 39 114.2m-64.3 50.5c0-43.9-26.7-82.6-73.5-82.6-18.9 0-37 3.4-56 6-14.9 2.3-29.8 3.2-45.1 3.2-15.2 0-30.1-.9-45.1-3.2-18.7-2.6-37-6-56-6-46.8 0-73.5 38.7-73.5 82.6 0 87.8 80.4 101.3 150.4 101.3h48.2c70.3 0 150.6-13.4 150.6-101.3m-82.6-55.1c-25.8 0-36.7 34.2-36.7 55.1s10.9 55.1 36.7 55.1 36.7-34.2 36.7-55.1-10.9-55.1-36.7-55.1"/></svg>
+  </div>
+  <div class="md-source__repository">
+    workfloworchestrator/orchestrator-core
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Workflow Orchestrator
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/versions/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../tldr/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../workshops/advanced/overview/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Workshops
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/development/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Workflow Orchestrator" class="md-nav__button md-logo" aria-label="Workflow Orchestrator" data-md-component="logo">
+      
+  <img src="../../img/WFO-Emblem-White.png" alt="logo">
+
+    </a>
+    Workflow Orchestrator
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/workfloworchestrator/orchestrator-core" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M202.1 328.7c0 20.9-10.9 55.1-36.7 55.1s-36.7-34.2-36.7-55.1 10.9-55.1 36.7-55.1 36.7 34.2 36.7 55.1M496 278.2c0 31.9-3.2 65.7-17.5 95-37.9 76.6-142.1 74.8-216.7 74.8-75.8 0-186.2 2.7-225.6-74.8-14.6-29-20.2-63.1-20.2-95 0-41.9 13.9-81.5 41.5-113.6-5.2-15.8-7.7-32.4-7.7-48.8 0-21.5 4.9-32.3 14.6-51.8 45.3 0 74.3 9 108.8 36 29-6.9 58.8-10 88.7-10 27 0 54.2 2.9 80.4 9.2 34-26.7 63-35.2 107.8-35.2 9.8 19.5 14.6 30.3 14.6 51.8 0 16.4-2.6 32.7-7.7 48.2 27.5 32.4 39 72.3 39 114.2m-64.3 50.5c0-43.9-26.7-82.6-73.5-82.6-18.9 0-37 3.4-56 6-14.9 2.3-29.8 3.2-45.1 3.2-15.2 0-30.1-.9-45.1-3.2-18.7-2.6-37-6-56-6-46.8 0-73.5 38.7-73.5 82.6 0 87.8 80.4 101.3 150.4 101.3h48.2c70.3 0 150.6-13.4 150.6-101.3m-82.6-55.1c-25.8 0-36.7 34.2-36.7 55.1s10.9 55.1 36.7 55.1 36.7-34.2 36.7-55.1-10.9-55.1-36.7-55.1"/></svg>
+  </div>
+  <div class="md-source__repository">
+    workfloworchestrator/orchestrator-core
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../.." class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow Orchestrator
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_1" id="__nav_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workflow Orchestrator
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/framework/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestrator Framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_3" id="__nav_1_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestrator UI
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Orchestrator UI
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/orchestration/orchestrator-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestrator UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_3_2" id="__nav_1_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User input forms
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User input forms
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/application/forms-frontend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Generic solution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_4" id="__nav_1_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/tldr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture; TL;DR
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/orchestration/philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration Philosophy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/application/domainmodels/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Domain Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/application/workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How do Workflows work?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_4_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_4_5" id="__nav_1_4_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product modeling
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_4_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_4_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Product modeling
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/product_modelling/introduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/product_modelling/standards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Standards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/product_modelling/modelling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modelling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/product_modelling/context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/product_modelling/terminology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_4_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_4_5_6" id="__nav_1_4_5_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Product Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_1_4_5_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_4_5_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Example Product Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/product_modelling/node/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Node
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/product_modelling/port/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Port
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/product_modelling/l2_point_to_point/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    L2 Point-to-Point
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/product_modelling/l2_vpn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    L2 VPN
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/product_modelling/ip_static/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IP Static
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/product_modelling/product_block_graph/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product Block Graph
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_1" id="__nav_2_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/versions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prerequisites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_1_2" id="__nav_2_1_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Application
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Application
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/prepare-source-folder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preparing source folder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/base/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Base application
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/agentic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agentic application
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_1_3" id="__nav_2_1_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workflows
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating a workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/workflows#register-workflows" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registering a workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/docker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/orchestration-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestrator UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product Modeling
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Product Modeling
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/product-modeling/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Importing Existing Products
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/product-modeling/backfilling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backfilling Existing Subscriptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating Tasks and Schedules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/scaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaling the Orchestrator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/pause-and-resume/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pausing the Orchestrator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Upgrade Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Upgrade Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/upgrading/2.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v2.x
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/upgrading/3.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v3.x
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/upgrading/4.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v4.x
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/upgrading/4.7/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v4.7
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tldr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TL;DR
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API docs
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API docs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rest API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GraphQL
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GraphQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-we-use-strawberry-for-graphql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How we use Strawberry for GraphQL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How we use Strawberry for GraphQL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-strawberry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is Strawberry?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-do-we-use-strawberry-graphql-in-the-orchestrator-core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do we use Strawberry GraphQL in the orchestrator-core?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-enable-federation-in-the-orchestrator-core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to enable Federation in the orchestrator-core?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extending-the-query-and-mutation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extending the Query and Mutation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-federated-types-to-the-graphql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding federated types to the GraphQL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#add-json-schema-for-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add JSON schema for metadata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#domain-models-auto-registration-for-graphql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Domain Models Auto Registration for GraphQL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Domain Models Auto Registration for GraphQL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scalars-for-auto-registration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scalars for Auto Registration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#federating-with-autogenerated-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Federating with Autogenerated Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Federating with Autogenerated Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#federating-with-specific-subscriptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Federating with Specific Subscriptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#federating-with-specific-subscription-product-blocks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Federating with Specific Subscription Product Blocks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#usage-of-use_pydantic_alias_model_mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage of USE_PYDANTIC_ALIAS_MODEL_MAPPING
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#overriding-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overriding Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Overriding Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overriding-customertype-and-resolvers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overriding CustomerType and Resolvers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Overriding CustomerType and Resolvers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customertype-override" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CustomerType Override
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#customertype-resolver-override" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CustomerType Resolver Override
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#customertype-related-type-overrides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CustomerType Related Type Overrides
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#behavior-of-filterby" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behavior of filterBy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../auth-backend-and-frontend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auth(n|z)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Domain Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Domain Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../domain_models/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_6_2" id="__nav_3_6_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Domain Model Types
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_6_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Domain Model Types
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../domain_models/product_types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../domain_models/product_blocks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product Blocks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../domain_models/model_attributes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Attributes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_6_3" id="__nav_3_6_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Helpers
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_6_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Helpers
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../domain_models/generator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Generator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../forms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Forms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_8" id="__nav_3_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the App
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Running the App
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../app/app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    App.py
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../app/agentic-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agentic App.py
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Version
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../app/settings-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_9" id="__nav_3_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workflows
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflows/workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflows/workflow-steps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow Steps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflows/callbacks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Callback step
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Websockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../search/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Search
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_12" id="__nav_3_12_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Monitoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Monitoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../monitoring/error-tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Error Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../monitoring/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workshops
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workshops
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Orchestrator Workshop
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Example Orchestrator Workshop
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1_2" id="__nav_4_1_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bootstrapping
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Bootstrapping
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/bootstrap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/execute-workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Seeding data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1_3" id="__nav_4_1_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Products
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Products
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/scenario/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scenario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/domain-models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Domain models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1_4" id="__nav_4_1_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workflows
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/workflow-introduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/workflow-basics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow Basics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1_4_3" id="__nav_4_1_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workflow Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/node-create/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Create Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/node-modify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modify Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/node-terminate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminate Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/node-validate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validate Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1_5" id="__nav_4_1_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Create your own product and workflows
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Create your own product and workflows
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/create-your-own/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    L2 Point-to-Point
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workshops/advanced/generator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product and Workflow Generator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/guidelines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-we-use-strawberry-for-graphql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How we use Strawberry for GraphQL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How we use Strawberry for GraphQL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-strawberry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is Strawberry?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-do-we-use-strawberry-graphql-in-the-orchestrator-core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do we use Strawberry GraphQL in the orchestrator-core?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-enable-federation-in-the-orchestrator-core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to enable Federation in the orchestrator-core?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extending-the-query-and-mutation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extending the Query and Mutation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-federated-types-to-the-graphql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding federated types to the GraphQL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#add-json-schema-for-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add JSON schema for metadata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#domain-models-auto-registration-for-graphql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Domain Models Auto Registration for GraphQL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Domain Models Auto Registration for GraphQL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scalars-for-auto-registration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scalars for Auto Registration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#federating-with-autogenerated-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Federating with Autogenerated Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Federating with Autogenerated Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#federating-with-specific-subscriptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Federating with Specific Subscriptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#federating-with-specific-subscription-product-blocks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Federating with Specific Subscription Product Blocks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#usage-of-use_pydantic_alias_model_mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage of USE_PYDANTIC_ALIAS_MODEL_MAPPING
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#overriding-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overriding Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Overriding Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overriding-customertype-and-resolvers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overriding CustomerType and Resolvers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Overriding CustomerType and Resolvers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customertype-override" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CustomerType Override
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#customertype-resolver-override" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CustomerType Resolver Override
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#customertype-related-type-overrides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CustomerType Related Type Overrides
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#behavior-of-filterby" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behavior of filterBy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="graphql-documentation">GraphQL documentation</h1>
+<p>The <code>orchestrator-core</code> comes with a GraphQL interface that can to be registered after you create your OrchestratorApp.
+If you add it after registering your <code>SUBSCRIPTION_MODEL_REGISTRY</code> it will automatically create GraphQL types for them.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><span class="n">app</span> <span class="o">=</span> <span class="n">OrchestratorCore</span><span class="p">(</span><span class="n">base_settings</span><span class="o">=</span><span class="n">AppSettings</span><span class="p">())</span>
+<span class="c1"># register SUBSCRIPTION_MODEL_REGISTRY</span>
+<span class="n">app</span><span class="o">.</span><span class="n">register_graphql</span><span class="p">()</span>
+</code></pre></div>
+<h2 id="how-we-use-strawberry-for-graphql">How we use Strawberry for GraphQL</h2>
+<h3 id="what-is-strawberry">What is Strawberry?</h3>
+<p><a href="https://strawberry.rocks/">Strawberry</a> is a Python library for building GraphQL APIs using a
+code-first approach. It allows you to define your GraphQL schema using Python classes and type
+annotations.</p>
+<p>Here is a simple example of how Strawberry create's a schema:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">typing</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">strawberry</span>
+
+
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Book</span><span class="p">:</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">author</span><span class="p">:</span> <span class="s2">&quot;Author&quot;</span>
+
+
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Author</span><span class="p">:</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">books</span><span class="p">:</span> <span class="n">typing</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="n">Book</span><span class="p">]</span>
+
+
+<span class="n">schema</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">Schema</span><span class="p">(</span><span class="n">query</span><span class="o">=</span><span class="n">Query</span><span class="p">)</span>
+</code></pre></div>
+<p>The schema defines a hierarchy of types with fields that are populated from data stores. The schema
+also specifies exactly which queries and mutations are available for clients to execute.</p>
+<h3 id="how-do-we-use-strawberry-graphql-in-the-orchestrator-core">How do we use Strawberry GraphQL in the <code>orchestrator-core</code>?</h3>
+<p>Strawberry GraphQL is used to define and expose a GraphQL API for orchestrating products,
+subscriptions, and related entities. Here’s a brief overview of how GraphQL is used:</p>
+<ul>
+<li>
+<p><strong>Schema Definition:</strong> GraphQL types, interfaces, and inputs are defined using Strawberry
+decorators (e.g., <code>@strawberry.field</code>, <code>@strawberry.type</code>, <code>@strawberry.interface</code>,
+<code>@strawberry.input</code>). These are mapped to Pydantic models and SQLAlchemy tables for type safety and
+data validation.</p>
+</li>
+<li>
+<p><strong>Resolvers:</strong> Resolver functions (e.g., <code>resolve_subscriptions</code>, <code>resolve_products</code>) are
+implemented to fetch and return data from the database, often using SQLAlchemy queries. These
+resolvers are attached to fields in the schema.</p>
+</li>
+<li>
+<p><strong>Pagination, Filtering, Sorting</strong>: The API supports pagination, filtering, and sorting for list
+queries, using custom types like <code>GraphqlFilter</code>, <code>GraphqlSort</code>, and a <code>Connection</code> type for
+paginated results.</p>
+</li>
+<li>
+<p><strong>Federation:</strong> Some types use Strawberry’s federation features
+(e.g., <code>@strawberry.federation.interface</code>) to support a federated GraphQL architecture.</p>
+</li>
+</ul>
+<div class="admonition info">
+<p class="admonition-title">Federation</p>
+<p>Federation allows you to combine multiple, distributed GraphQL services into one unified API. This is extremely
+useful when working with multiple services, as it enables you to develop, deploy, and scale GraphQL
+services independently while presenting a single schema to clients.</p>
+</div>
+<h3 id="how-to-enable-federation-in-the-orchestrator-core">How to enable Federation in the <code>orchestrator-core</code>?</h3>
+<ul>
+<li>Set <code>FEDERATION_ENABLED=True</code> in your <code>.env</code> file</li>
+<li>See the <a href="https://github.com/workfloworchestrator/example-orchestrator/blob/master/README.md#federation"><code>example-orchestrator</code> documentation</a> for a detailed example of
+setting up federation with the orchestrator-core and other backend services.</li>
+</ul>
+<h2 id="extending-the-query-and-mutation">Extending the Query and Mutation</h2>
+<p>You are not able to remove resolvers from a Query, so we split the Query into 2 and merged them back for a default Query.
+Our usecase for this is that we use an external GraphQL source as our customers root.</p>
+<ul>
+<li><code>OrchestratorQuery</code> all resolvers except for customers.</li>
+<li><code>CustomerQuery</code> only has <code>customers</code> resolver.</li>
+<li><code>Query</code> Merges of <code>OrchestratorQuery</code> and <code>CustomerQuery</code> and serves as the default.</li>
+</ul>
+<p>This is an basic example of how to extend the query.
+You can do the same to extend Mutation.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql</span><span class="w"> </span><span class="kn">import</span> <span class="n">Query</span><span class="p">,</span> <span class="n">Mutation</span><span class="p">,</span> <span class="n">OrchestratorQuery</span>
+
+
+<span class="c1"># Queries</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_new</span><span class="p">(</span><span class="n">info</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="s2">&quot;resolve new...&quot;</span>
+
+
+<span class="c1"># with customers.</span>
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">federation</span><span class="o">.</span><span class="n">type</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Orchestrator queries&quot;</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NewQuery</span><span class="p">(</span><span class="n">Query</span><span class="p">):</span>
+    <span class="n">other_processes</span><span class="p">:</span> <span class="n">Connection</span><span class="p">[</span><span class="n">ProcessType</span><span class="p">]</span> <span class="o">=</span> <span class="n">authenticated_field</span><span class="p">(</span>
+        <span class="n">resolver</span><span class="o">=</span><span class="n">resolve_processes</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;resolve_processes used for another field&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">new</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">resolve_new</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;new resolver&quot;</span><span class="p">)</span>
+
+<span class="c1"># without customers.</span>
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">federation</span><span class="o">.</span><span class="n">type</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Orchestrator queries&quot;</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NewQueryWithoutCustomers</span><span class="p">(</span><span class="n">OrchestratorQuery</span><span class="p">):</span>
+    <span class="n">other_processes</span><span class="p">:</span> <span class="n">Connection</span><span class="p">[</span><span class="n">ProcessType</span><span class="p">]</span> <span class="o">=</span> <span class="n">authenticated_field</span><span class="p">(</span>
+        <span class="n">resolver</span><span class="o">=</span><span class="n">resolve_processes</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;resolve_processes used for another field&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">new</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">resolve_new</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;new resolver&quot;</span><span class="p">)</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">OrchestratorCore</span><span class="p">(</span><span class="n">base_settings</span><span class="o">=</span><span class="n">AppSettings</span><span class="p">())</span>
+<span class="c1"># register SUBSCRIPTION_MODEL_REGISTRY</span>
+<span class="n">app</span><span class="o">.</span><span class="n">register_graphql</span><span class="p">(</span><span class="n">query</span><span class="o">=</span><span class="n">NewQuery</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="adding-federated-types-to-the-graphql">Adding federated types to the GraphQL</h2>
+<p>For an introduction to federation using Strawberry, see the <a href="https://strawberry.rocks/docs/federation/introduction">Strawberry federation docs</a>.</p>
+<p>Within a federation, it is possible to add orchestrator data to GraphQL types from other sources by extending the <code>DEFAULT_GRAPHL_MODELS</code> dictionary with your own federated classes and adding them as parameter to <code>app.register_graphql(graphql_models={})</code>.</p>
+<p>Here is an example for when instead of overriding the customers resolver, you instead use a different GraphQL source (know that not storing any customer data in the orchestator will make filtering and sorting unavailable and very tricky to implement):</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">strawberry</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy</span><span class="w"> </span><span class="kn">import</span> <span class="n">select</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">oauth2_lib.strawberry</span><span class="w"> </span><span class="kn">import</span> <span class="n">authenticated_field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">db</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">Connection</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.schemas.subscription</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubscriptionInterface</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">GraphqlFilter</span><span class="p">,</span> <span class="n">GraphqlSort</span><span class="p">,</span> <span class="n">OrchestratorInfo</span>
+
+
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">federation</span><span class="o">.</span><span class="n">type</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Customer&quot;</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;customer_id&quot;</span><span class="p">])</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Customer</span><span class="p">:</span>
+    <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_reference</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Customer&quot;</span><span class="p">:</span>  <span class="c1"># noqa: N803</span>
+        <span class="k">return</span> <span class="n">Customer</span><span class="p">(</span><span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">)</span>
+
+    <span class="nd">@authenticated_field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Returns subscriptions of a customer&quot;</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">subscriptions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">info</span><span class="p">:</span> <span class="n">OrchestratorInfo</span><span class="p">,</span>
+        <span class="n">filter_by</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">GraphqlFilter</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">sort_by</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">GraphqlSort</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">first</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+        <span class="n">after</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Connection</span><span class="p">[</span><span class="n">SubscriptionInterface</span><span class="p">]:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.resolvers.subscription</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_subscriptions</span>
+
+        <span class="n">filter_by_customer_id</span> <span class="o">=</span> <span class="p">(</span><span class="n">filter_by</span> <span class="ow">or</span> <span class="p">[])</span> <span class="o">+</span> <span class="p">[</span><span class="n">GraphqlFilter</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">&quot;customerId&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">uuid</span><span class="p">))]</span>  <span class="c1"># type: ignore</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">resolve_subscriptions</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="n">filter_by_customer_id</span><span class="p">,</span> <span class="n">sort_by</span><span class="p">,</span> <span class="n">first</span><span class="p">,</span> <span class="n">after</span><span class="p">)</span>
+
+<span class="n">UPDATED_GRAPHQL_MODELS</span> <span class="o">=</span> <span class="n">DEFAULT_GRAPHQL_MODELS</span> <span class="o">|</span> <span class="p">{</span>
+    <span class="s2">&quot;Customer&quot;</span><span class="p">:</span> <span class="n">Customer</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">app</span><span class="o">.</span><span class="n">register_graphql</span><span class="p">(</span><span class="n">query</span><span class="o">=</span><span class="n">OrchestratorQuery</span><span class="p">,</span> <span class="n">graphql_models</span><span class="o">=</span><span class="n">UPDATED_GRAPHQL_MODELS</span><span class="p">)</span>
+</code></pre></div>
+<p>Types that are added in this way but aren't used in a resolver, will be viewable outside of a federation inside the types in the GraphQL UI interface.</p>
+<p>Adding product or product block Strawberry types to the <code>graphql_models</code> will skip their generation inside <code>register_domain_models</code>. More info <a href="#domain-models-auto-registration-for-graphql">here</a></p>
+<h2 id="add-json-schema-for-metadata">Add JSON schema for metadata</h2>
+<p>The metadata in a subscription is completely unrestricted and can have anything.
+This functionality is to make metadata descriptive in a <code>__schema__</code> for the frontend to be able to render the metadata and know what to do with typing.</p>
+<p>example how to update the <code>__schema__</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.schemas.subscription</span><span class="w"> </span><span class="kn">import</span> <span class="n">MetadataDict</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Metadata</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">some_metadata_prop</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+
+<span class="n">MetadataDict</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">&quot;metadata&quot;</span><span class="p">:</span> <span class="n">Metadata</span><span class="p">})</span>
+</code></pre></div>
+<p>This will result in json schema:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Metadata&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;object&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;properties&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;some_metadata_prop&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Some Metadata Prop&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;array&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;items&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="s2">&quot;some_metadata_prop&quot;</span>
+<span class="w">    </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="domain-models-auto-registration-for-graphql">Domain Models Auto Registration for GraphQL</h2>
+<p>When using the <code>app.register_graphql()</code> function, all products in the <code>SUBSCRIPTION_MODEL_REGISTRY</code> will be automatically converted into GraphQL types.
+You are able to turn this off with <code>app.register_graphql(register_models=False)</code>, but then you can only query fields from the default <code>SubscriptionModel</code>.
+The registration process iterates through the list, starting from the deepest product block and working its way back up to the product level.</p>
+<p>However, there is a potential issue when dealing with a <code>ProductBlock</code> that references itself, as it could lead to an error expecting the <code>ProductBlock</code> type to exist.</p>
+<p>Here is an example of the expected error with a self referenced <code>ProductBlock</code>:</p>
+<div class="highlight"><pre><span></span><code>strawberry.experimental.pydantic.exceptions.UnregisteredTypeException: Cannot find a Strawberry Type for &lt;class &#39;products.product_blocks.product_block_file.ProductBlock&#39;&gt; did you forget to register it?
+</code></pre></div>
+<p>To handle this situation, you must manually create the GraphQL type for that <code>ProductBlock</code> and add it to the <code>DEFAULT_GRAPHQL_MODELS</code> list.</p>
+<p>Here's an example of how to do it:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># product_block_file.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">strawberry</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">app.product_blocks</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProductBlock</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_GRAPHQL_MODELS</span>
+
+
+<span class="c1"># It is necessary to use pydantic type, so that other product blocks can recognize it when typing to GraphQL.</span>
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">experimental</span><span class="o">.</span><span class="n">pydantic</span><span class="o">.</span><span class="n">type</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">ProductBlock</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProductBlockGraphql</span><span class="p">:</span>
+    <span class="n">name</span><span class="p">:</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">auto</span>
+    <span class="n">self_reference_block</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="s2">&quot;ProductBlockGraphql&quot;</span><span class="p">,</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">lazy</span><span class="p">(</span><span class="s2">&quot;.product_block_file&quot;</span><span class="p">)</span>
+    <span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="o">...</span>
+
+
+<span class="c1"># Add the ProductBlockGraphql type to GRAPHQL_MODELS, which skips its auto-register and used for products or product blocks dependant on it.</span>
+<span class="n">UPDATED_GRAPHQL_MODELS</span> <span class="o">=</span> <span class="n">DEFAULT_GRAPHQL_MODELS</span> <span class="o">|</span> <span class="p">{</span>
+    <span class="s2">&quot;ProductBlockGraphql&quot;</span><span class="p">:</span> <span class="n">ProductBlockGraphql</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">app</span><span class="o">.</span><span class="n">register_graphql</span><span class="p">(</span><span class="n">query</span><span class="o">=</span><span class="n">OrchestratorQuery</span><span class="p">,</span> <span class="n">graphql_models</span><span class="o">=</span><span class="n">UPDATED_GRAPHQL_MODELS</span><span class="p">)</span>
+</code></pre></div>
+<p>By following this example, you can effectively create the necessary GraphQL type for <code>ProductBlock</code> and ensure proper registration with <code>app.register_graphql()</code>. This will help you avoid any <code>Cannot find a Strawberry Type</code> scenarios and enable smooth integration of domain models with GraphQL.</p>
+<h3 id="scalars-for-auto-registration">Scalars for Auto Registration</h3>
+<p>When working with special types such as <code>VlanRanges</code> or <code>IPv4Interface</code> in the core module, scalar types are essential for the auto registration process.
+Scalar types enable smooth integration of these special types into the GraphQL schema, They need to be initialized and can be added with a dict to <code>app.register_graphql(scalar_overrides={})</code>.</p>
+<p>Here's an example of how to add a new scalar:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">strawberry</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">NewType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql</span><span class="w"> </span><span class="kn">import</span> <span class="n">SCALAR_OVERRIDES</span>
+
+<span class="n">VlanRangesType</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span>
+    <span class="n">NewType</span><span class="p">(</span><span class="s2">&quot;VlanRangesType&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">),</span>
+    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Represent the Orchestrator VlanRanges data type&quot;</span><span class="p">,</span>
+    <span class="n">serialize</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">to_list_of_tuples</span><span class="p">(),</span>
+    <span class="n">parse_value</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Add the scalar to the SCALAR_OVERRIDES dictionary, with the type in the product block as the key and the scalar as the value</span>
+<span class="n">UPDATED_SCALAR_OVERRIDES</span> <span class="o">=</span> <span class="n">SCALAR_OVERRIDES</span> <span class="o">|</span> <span class="p">{</span>
+    <span class="n">VlanRanges</span><span class="p">:</span> <span class="n">VlanRangesType</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">app</span><span class="o">.</span><span class="n">register_graphql</span><span class="p">(</span><span class="n">other_params</span><span class="o">...</span><span class="p">,</span> <span class="n">scalar_overrides</span><span class="o">=</span><span class="n">UPDATED_SCALAR_OVERRIDES</span><span class="p">)</span>
+</code></pre></div>
+<p>You can find more examples of scalar usage in the <code>orchestrator/graphql/types.py</code> file.
+For additional information on Scalars, please refer to the Strawberry documentation on Scalars: https://strawberry.rocks/docs/types/scalars.</p>
+<p>By using scalar types for auto registration, you can seamlessly incorporate special types into your GraphQL schema, making it easier to work with complex data in the Orchestrator application.</p>
+<h3 id="federating-with-autogenerated-types">Federating with Autogenerated Types</h3>
+<p>To enable federation, set the <code>FEDERATION_ENABLED</code> environment variable to <code>True</code>.</p>
+<div class="admonition info">
+<p class="admonition-title">Info</p>
+<p>The dockerized <a href="../../getting-started/docker/">example-orchestrator</a> contains a working Federation setup that demonstrates how the below works in practice.</p>
+</div>
+<p>Federation allows you to federate with subscriptions using the <code>subscriptionId</code> and with product blocks inside the subscription by utilizing any property that includes <code>_id</code> in its name.</p>
+<p>Below is an example of a GraphQL app that extends the <code>SubscriptionInterface</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">strawberry</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">starlette.applications</span><span class="w"> </span><span class="kn">import</span> <span class="n">Starlette</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">starlette.routing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Route</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">strawberry.asgi</span><span class="w"> </span><span class="kn">import</span> <span class="n">GraphQL</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+
+
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">federation</span><span class="o">.</span><span class="n">interface_object</span><span class="p">(</span><span class="n">keys</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;subscriptionId&quot;</span><span class="p">])</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SubscriptionInterface</span><span class="p">:</span>
+    <span class="n">subscription_id</span><span class="p">:</span> <span class="n">UUID</span>
+    <span class="n">new_value</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_reference</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;SubscriptionInterface&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">subscription_id</span> <span class="o">:=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subscriptionId&quot;</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Need &#39;subscriptionId&#39; to resolve reference. Found keys: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="n">new_value_resolver</span><span class="p">(</span><span class="n">subscription_id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">SubscriptionInterface</span><span class="p">(</span><span class="n">subscription_id</span><span class="o">=</span><span class="n">subscription_id</span><span class="p">,</span> <span class="n">new_value</span><span class="o">=</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Query</span><span class="p">:</span>
+    <span class="n">hi</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="s2">&quot;query for other graphql&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># Add `SubscriptionInterface` in types array.</span>
+<span class="n">schema</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">federation</span><span class="o">.</span><span class="n">Schema</span><span class="p">(</span>
+    <span class="n">query</span><span class="o">=</span><span class="n">Query</span><span class="p">,</span>
+    <span class="n">types</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionInterface</span><span class="p">],</span>
+    <span class="n">enable_federation_2</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Starlette</span><span class="p">(</span><span class="n">debug</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">routes</span><span class="o">=</span><span class="p">[</span><span class="n">Route</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="n">GraphQL</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">graphiql</span><span class="o">=</span><span class="kc">True</span><span class="p">))])</span>
+</code></pre></div>
+<p>To run this example, execute the following command:</p>
+<div class="highlight"><pre><span></span><code>uvicorn<span class="w"> </span>app:app<span class="w"> </span>--port<span class="w"> </span><span class="m">4001</span><span class="w"> </span>--host<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span>--reload
+</code></pre></div>
+<p>In the <code>supergraph.yaml</code> file, you can federate the GraphQL endpoints together as shown below:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">federation_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="nt">subgraphs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">orchestrator</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">routing_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://orchestrator-graphql-endpoint</span>
+<span class="w">    </span><span class="nt">schema</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">subgraph_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://orchestrator-graphql-endpoint</span>
+<span class="w">  </span><span class="nt">new_graphql</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">routing_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:4001</span>
+<span class="w">    </span><span class="nt">schema</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">subgraph_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:4001</span>
+</code></pre></div>
+<p>When both GraphQL endpoints are available, you can compose the supergraph schema using the following command:</p>
+<div class="highlight"><pre><span></span><code>rover<span class="w"> </span>supergraph<span class="w"> </span>compose<span class="w"> </span>--config<span class="w"> </span>./supergraph.yaml<span class="w"> </span>&gt;<span class="w"> </span>supergraph-schema.graphql
+</code></pre></div>
+<p>The command will return errors if incorrect keys or other issues are present.
+Then, you can run the federation with the following command:</p>
+<div class="highlight"><pre><span></span><code>./router<span class="w"> </span>--supergraph<span class="w"> </span>supergraph-schema.graphql
+</code></pre></div>
+<p>Now you can query the endpoint to obtain <code>newValue</code> from all subscriptions using the payload below:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;rationName&quot;</span><span class="p">:</span><span class="w">  </span><span class="s2">&quot;ExampleQuery&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;query&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;query ExampleQuery {\n  subscriptions {\n    page {\n      newValue\n    }\n  }\n}\n&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;variables&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h4 id="federating-with-specific-subscriptions">Federating with Specific Subscriptions</h4>
+<p>To federate with specific subscriptions, you need to make a few changes. Here's an example of a specific subscription:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># `type` instead of `interface_object` and name the class exactly the same as the one in orchestrator.</span>
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">federation</span><span class="o">.</span><span class="n">type</span><span class="p">(</span><span class="n">keys</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;subscriptionId&quot;</span><span class="p">])</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">YourProductSubscription</span><span class="p">:</span>
+    <span class="n">subscription_id</span><span class="p">:</span> <span class="n">UUID</span>
+    <span class="n">new_value</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_reference</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;SubscriptionInterface&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">subscription_id</span> <span class="o">:=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subscriptionId&quot;</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Need &#39;subscriptionId&#39; to resolve reference. Found keys: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="n">new_value_resolver</span><span class="p">(</span><span class="n">subscription_id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">SubscriptionInterface</span><span class="p">(</span><span class="n">subscription_id</span><span class="o">=</span><span class="n">subscription_id</span><span class="p">,</span> <span class="n">new_value</span><span class="o">=</span><span class="n">value</span><span class="p">)</span>
+</code></pre></div>
+<h4 id="federating-with-specific-subscription-product-blocks">Federating with Specific Subscription Product Blocks</h4>
+<p>You can also federate a ProductBlock. In this case, the <code>subscriptionInstanceId</code> can be replaced with any product block property containing <code>Id</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@strawberry</span><span class="o">.</span><span class="n">federation</span><span class="o">.</span><span class="n">interface_object</span><span class="p">(</span><span class="n">keys</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;subscriptionInstanceId&quot;</span><span class="p">])</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">YourProductBlock</span><span class="p">:</span>
+    <span class="n">subscription_instance_id</span><span class="p">:</span> <span class="n">UUID</span>
+    <span class="n">new_value</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_reference</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;YourProductBlock&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">subscription_id</span> <span class="o">:=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subscriptionInstanceId&quot;</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Need &#39;subscriptionInstanceId&#39; to resolve reference. Found keys: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="s2">&quot;new value&quot;</span>
+        <span class="k">return</span> <span class="n">YourProductBlock</span><span class="p">(</span><span class="n">subscription_id</span><span class="o">=</span><span class="n">subscription_id</span><span class="p">,</span> <span class="n">new_value</span><span class="o">=</span><span class="s2">&quot;new value&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>By following these examples, you can effectively federate autogenerated types (<code>subscriptions</code> and <code>product blocks</code>) enabling seamless integration across multiple GraphQL endpoints.</p>
+<h3 id="usage-of-use_pydantic_alias_model_mapping">Usage of USE_PYDANTIC_ALIAS_MODEL_MAPPING</h3>
+<p><code>USE_PYDANTIC_ALIAS_MODEL_MAPPING</code> is a mapping to prevent pydantic field alias from being used as field names when creating Strawberry types in the domain model autoregistration.
+Our use case for this is that functions decorated with pydantics <code>@computed_field</code> and <code>@property</code> in domain models are not converted to Strawberry fields inside the Strawberry types.
+To add the function properties, we use a aliased pydantic field:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ExampleProductInactive</span><span class="p">(</span><span class="n">SubscriptionModel</span><span class="p">,</span> <span class="n">is_base</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="c1"># this aliased property is used to add `property_example` as Strawberry field.</span>
+    <span class="c1"># you need a default it the value can&#39;t be `None` since it doesn&#39;t directly add the return value of property_example</span>
+    <span class="n">aliased_property_example</span><span class="p">:</span> <span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;property_example&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+    <span class="c1"># this computed property function does not get converted into the Strawberry type.</span>
+    <span class="nd">@computed_field</span>  <span class="c1"># type: ignore[misc]</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">property_example</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;example&quot;</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ExampleProductProvisioning</span><span class="p">(</span>
+    <span class="n">ExampleProductInactive</span><span class="p">,</span> <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">PROVISIONING</span><span class="p">]</span>
+<span class="p">):</span>
+    <span class="k">pass</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ExampleProduct</span><span class="p">(</span><span class="n">ExampleProductInactive</span><span class="p">,</span> <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">ACTIVE</span><span class="p">]):</span>
+    <span class="k">pass</span>
+</code></pre></div>
+<p>The problem with this is that Strawberry automatically uses the alias name and doesn't camelcase it so the Strawberry field becomes <code>property_example</code>.
+To fix it and have CamelCasing, we can prevent aliases from being used in <code>strawberry.type</code> using the created mapping <code>USE_PYDANTIC_ALIAS_MODEL_MAPPING</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.autoregistration</span><span class="w"> </span><span class="kn">import</span> <span class="n">USE_PYDANTIC_ALIAS_MODEL_MAPPING</span>
+
+<span class="n">USE_PYDANTIC_ALIAS_MODEL_MAPPING</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">&quot;ExampleProductSubscription&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">})</span>
+</code></pre></div>
+<p>which would now give us a Strawberry field <code>aliasedPropertyExample</code>.
+To name it <code>propertyExample</code> you can't override the function property name and have two choices:</p>
+<ol>
+<li>
+<p>CamelCase the aliased property:
+   <div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ExampleProductInactive</span><span class="p">(</span><span class="n">SubscriptionModel</span><span class="p">,</span> <span class="n">is_base</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="c1"># this aliased property is used to add `property_example` as Strawberry field.</span>
+    <span class="n">propertyExample</span><span class="p">:</span> <span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;property_example&quot;</span><span class="p">)</span>
+</code></pre></div></p>
+</li>
+<li>
+<p>Rename the property function and name the aliased field correctly, when accessing outside of the GraphQLfield, you do need to use <code>computed_property_example</code> instead of <code>property_example</code>:
+   <div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ExampleProductInactive</span><span class="p">(</span><span class="n">SubscriptionModel</span><span class="p">,</span> <span class="n">is_base</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="c1"># this aliased property is used to add `property_example` as Strawberry field.</span>
+    <span class="n">property_example</span><span class="p">:</span> <span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;computed_property_example&quot;</span><span class="p">)</span>
+
+    <span class="c1"># this computed property function does not get converted into the Strawberry type.</span>
+    <span class="nd">@computed_field</span>  <span class="c1"># type: ignore[misc]</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">computed_property_example</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;example&quot;</span>
+</code></pre></div></p>
+</li>
+</ol>
+<h2 id="overriding-types">Overriding Types</h2>
+<p>Overriding Strawberry types can be achieved through various methods. One less desirable approach involves extending classes using class inheritance.
+However, this method becomes cumbersome when updating a single class, as it necessitates updating all associated types and their corresponding resolvers, essentially impacting the entire structure.</p>
+<p>For instance, consider the scenario of overriding the <code>CustomerType</code>. you would need to update the related <code>SubscriptionInterface</code>, <code>ProcessType</code> and their respective resolvers. due to these modifications, all their related types and resolvers would also require updates, resulting in a tedious and error-prone process.</p>
+<p>To enhance the override process, we created a helper function <code>override_class</code> to override fields. It takes the base class as well as a list of fields that will replace their counterparts within the class or add new fields.</p>
+<p>It's worth noting that <code>SubscriptionInterface</code> poses a unique challenge due to its auto-generated types. The issue arises from the fact that the models inherited from <code>SubscriptionInterface</code> do not automatically update. This can be addressed by utilizing the <code>override_class</code> function and incorporating the returned class into the <code>app.register_graphql</code> function. This ensures that the updated class, with overridden fields, becomes the basis for generating the auto-generated models.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Define a custom subscription interface using the `override_class` function, incorporating specified override fields.</span>
+<span class="n">custom_subscription_interface</span> <span class="o">=</span> <span class="n">override_class</span><span class="p">(</span><span class="n">SubscriptionInterface</span><span class="p">,</span> <span class="n">override_fields</span><span class="p">)</span>
+
+<span class="c1"># Register the customized subscription interface when setting up GraphQL in your application.</span>
+<span class="n">app</span><span class="o">.</span><span class="n">register_graphql</span><span class="p">(</span><span class="n">subscription_interface</span><span class="o">=</span><span class="n">custom_subscription_interface</span><span class="p">)</span>
+</code></pre></div>
+<p>Quick example (for more indebt check customerType override):</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">strawberry</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.utils.override_class</span><span class="w"> </span><span class="kn">import</span> <span class="n">override_class</span>
+
+
+<span class="c1"># Define a Strawberry type representing an example entity</span>
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span><span class="p">()</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ExampleType</span><span class="p">:</span>
+    <span class="nd">@strawberry</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Existing field&quot;</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">existing</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+
+
+<span class="c1"># Define a Strawberry type for example queries</span>
+<span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Example queries&quot;</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Query</span><span class="p">:</span>
+    <span class="n">example</span><span class="p">:</span> <span class="n">ExampleType</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">ExampleType</span><span class="p">())</span>
+
+
+<span class="c1"># Create a resolver for updating the existing field</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">update_existing_resolver</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="s2">&quot;updated to new type&quot;</span>
+
+
+<span class="c1"># Create a Strawberry field with the resolver for the existing field</span>
+<span class="n">existing_field</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">update_existing_resolver</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;update existing field&quot;</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+<span class="c1"># Assign a new name to the Strawberry field; this name will override the existing field in the class</span>
+<span class="n">existing_field</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;existing&quot;</span>
+
+
+<span class="c1"># Create a new field with a resolver</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">new_resolver</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">return</span> <span class="mi">1</span>
+
+
+<span class="n">new_field</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">new_resolver</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;a new field&quot;</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+<span class="c1"># Assign a name that is not present in the class yet</span>
+<span class="n">new_field</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;new&quot;</span>
+
+<span class="c1"># Use the override_class function to replace fields in the ExampleType</span>
+<span class="n">override_class</span><span class="p">(</span><span class="n">ExampleType</span><span class="p">,</span> <span class="p">[</span><span class="n">new_field</span><span class="p">,</span> <span class="n">existing_field</span><span class="p">])</span>
+</code></pre></div>
+<h3 id="overriding-customertype-and-resolvers">Overriding CustomerType and Resolvers</h3>
+<p>Within the orchestrator core, there exists a base <code>CustomerType</code> designed to provide a default customer, allowing for the customization of data through environment variables.
+This approach minimizes the necessity for everyone to implement custom customer logic.</p>
+<p>Below, I present an example illustrating how to override the <code>CustomerType</code> and its associated resolvers.</p>
+<h4 id="customertype-override">CustomerType Override</h4>
+<p>Here's a generic override for the <code>CustomerType</code> that introduces a new <code>subscriptions</code> relation:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">strawberry</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">oauth2_lib.strawberry</span><span class="w"> </span><span class="kn">import</span> <span class="n">authenticated_field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">Connection</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.schemas.customer</span><span class="w"> </span><span class="kn">import</span> <span class="n">CustomerType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.schemas.subscription</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">SubscriptionInterface</span><span class="p">,</span>
+<span class="p">)</span>  <span class="c1"># noqa: F401</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">GraphqlFilter</span><span class="p">,</span> <span class="n">GraphqlSort</span><span class="p">,</span> <span class="n">OrchestratorInfo</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.utils.override_class</span><span class="w"> </span><span class="kn">import</span> <span class="n">override_class</span>
+
+<span class="c1"># Type annotation for better readability rather than having this directly as a return type</span>
+<span class="n">SubscriptionInterfaceType</span> <span class="o">=</span> <span class="n">Connection</span><span class="p">[</span>
+    <span class="n">Annotated</span><span class="p">[</span>
+        <span class="s2">&quot;SubscriptionInterface&quot;</span><span class="p">,</span>
+        <span class="n">strawberry</span><span class="o">.</span><span class="n">lazy</span><span class="p">(</span><span class="s2">&quot;orchestrator.graphql.schemas.subscription&quot;</span><span class="p">),</span>
+    <span class="p">]</span>
+<span class="p">]</span>
+
+
+<span class="c1"># Resolver for fetching subscriptions of a customer</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_subscriptions</span><span class="p">(</span>
+    <span class="n">root</span><span class="p">:</span> <span class="n">CustomerType</span><span class="p">,</span>
+    <span class="n">info</span><span class="p">:</span> <span class="n">OrchestratorInfo</span><span class="p">,</span>
+    <span class="n">filter_by</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">GraphqlFilter</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">sort_by</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">GraphqlSort</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">first</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="n">after</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SubscriptionInterfaceType</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.resolvers.subscription</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_subscriptions</span>
+
+    <span class="c1"># Include the filter for the customer ID; since &#39;customerId&#39; exists in the subscription, filtering updates are not required.</span>
+    <span class="n">filter_by_customer_id</span> <span class="o">=</span> <span class="p">(</span><span class="n">filter_by</span> <span class="ow">or</span> <span class="p">[])</span> <span class="o">+</span> <span class="p">[</span><span class="n">GraphqlFilter</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">&quot;customerId&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">customer_id</span><span class="p">))]</span>  <span class="c1"># type: ignore</span>
+    <span class="k">return</span> <span class="k">await</span> <span class="n">resolve_subscriptions</span><span class="p">(</span>
+        <span class="n">info</span><span class="p">,</span> <span class="n">filter_by_customer_id</span><span class="p">,</span> <span class="n">sort_by</span><span class="p">,</span> <span class="n">first</span><span class="p">,</span> <span class="n">after</span>
+    <span class="p">)</span>
+
+
+<span class="c1"># Create an authenticated field for customer subscriptions</span>
+<span class="n">customer_subscriptions_field</span> <span class="o">=</span> <span class="n">authenticated_field</span><span class="p">(</span>
+    <span class="n">resolver</span><span class="o">=</span><span class="n">resolve_subscriptions</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Returns subscriptions of a customer&quot;</span>
+<span class="p">)</span>
+<span class="c1"># Assign a new name to the Strawberry field; this name will add the &#39;subscriptions&#39; field in the class</span>
+<span class="n">customer_subscriptions_field</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;subscriptions&quot;</span>
+
+<span class="c1"># Override the CustomerType with the new &#39;subscriptions&#39; field</span>
+<span class="n">override_class</span><span class="p">(</span><span class="n">CustomerType</span><span class="p">,</span> <span class="p">[</span><span class="n">customer_subscriptions_field</span><span class="p">])</span>
+</code></pre></div>
+<h4 id="customertype-resolver-override">CustomerType Resolver Override</h4>
+<p>In this example code, we introduce a resolver override for the <code>CustomerType</code>. The scenario involves a supplementary <code>CustomerTable</code> in the database, encompassing the default values of <code>CustomerType</code>—namely, <code>customer_id</code>, <code>fullname</code>, and <code>shortcode</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">structlog</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy</span><span class="w"> </span><span class="kn">import</span> <span class="n">func</span><span class="p">,</span> <span class="n">select</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">db</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.db.filters</span><span class="w"> </span><span class="kn">import</span> <span class="n">Filter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.db.range.range</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_range_to_statement</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.db.sorting</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sort</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">Connection</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.resolvers.helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">rows_from_statement</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.schemas.customer</span><span class="w"> </span><span class="kn">import</span> <span class="n">CustomerType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">GraphqlFilter</span><span class="p">,</span> <span class="n">GraphqlSort</span><span class="p">,</span> <span class="n">OrchestratorInfo</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.utils.create_resolver_error_handler</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">create_resolver_error_handler</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.graphql.utils.to_graphql_result_page</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_graphql_result_page</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">orchestrator.utils.search_query</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_sqlalchemy_select</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">your_customer_table_location.db.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">CustomerTable</span>
+
+<span class="c1"># # Import custom sorting and filtering modules used with `sort_by` and `filter_by`.</span>
+<span class="c1"># from sort_loc import sort_customers, sort_customers_fields</span>
+<span class="c1"># from filter_loc import filter_customers, filter_customers_fields</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">structlog</span><span class="o">.</span><span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="c1"># Queries</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_customers</span><span class="p">(</span>
+    <span class="n">info</span><span class="p">:</span> <span class="n">OrchestratorInfo</span><span class="p">,</span>
+    <span class="n">filter_by</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">GraphqlFilter</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">sort_by</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">GraphqlSort</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">first</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="n">after</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Connection</span><span class="p">[</span><span class="n">CustomerType</span><span class="p">]:</span>
+    <span class="c1"># ---- DEFAULT RESOLVER LOGIC ----</span>
+    <span class="n">_error_handler</span> <span class="o">=</span> <span class="n">create_resolver_error_handler</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+
+    <span class="n">pydantic_filter_by</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Filter</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">to_pydantic</span><span class="p">()</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">filter_by</span><span class="p">]</span> <span class="k">if</span> <span class="n">filter_by</span> <span class="k">else</span> <span class="p">[]</span>  <span class="c1"># type: ignore</span>
+    <span class="n">pydantic_sort_by</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Sort</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">to_pydantic</span><span class="p">()</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">sort_by</span><span class="p">]</span> <span class="k">if</span> <span class="n">sort_by</span> <span class="k">else</span> <span class="p">[]</span>  <span class="c1"># type: ignore</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+        <span class="s2">&quot;resolve_customers() called&quot;</span><span class="p">,</span>
+        <span class="nb">range</span><span class="o">=</span><span class="p">[</span><span class="n">after</span><span class="p">,</span> <span class="n">after</span> <span class="o">+</span> <span class="n">first</span><span class="p">],</span>
+        <span class="n">sort</span><span class="o">=</span><span class="n">pydantic_sort_by</span><span class="p">,</span>
+        <span class="nb">filter</span><span class="o">=</span><span class="n">pydantic_filter_by</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="c1"># ---- END OF DEFAULT RESOLVER LOGIC ----</span>
+
+    <span class="n">select_stmt</span> <span class="o">=</span> <span class="n">select</span><span class="p">(</span><span class="n">CustomerTable</span><span class="p">)</span>
+
+    <span class="c1"># # Include custom filtering logic if imported</span>
+    <span class="c1"># select_stmt = filter_customers(select_stmt, pydantic_filter_by, _error_handler)</span>
+
+    <span class="k">if</span> <span class="n">query</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">stmt</span> <span class="o">=</span> <span class="n">create_sqlalchemy_select</span><span class="p">(</span>
+            <span class="n">select_stmt</span><span class="p">,</span>
+            <span class="n">query</span><span class="p">,</span>
+            <span class="n">mappings</span><span class="o">=</span><span class="p">{},</span>
+            <span class="n">base_table</span><span class="o">=</span><span class="n">CustomerTable</span><span class="p">,</span>
+            <span class="n">join_key</span><span class="o">=</span><span class="n">CustomerTable</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">stmt</span> <span class="o">=</span> <span class="n">select_stmt</span>
+
+    <span class="c1"># # Include custom sorting logic if imported</span>
+    <span class="c1"># stmt = sort_customers(stmt, pydantic_sort_by, _error_handler)</span>
+
+    <span class="c1"># ---- DEFAULT RESOLVER LOGIC ----</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span><span class="n">select</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">count</span><span class="p">())</span><span class="o">.</span><span class="n">select_from</span><span class="p">(</span><span class="n">stmt</span><span class="o">.</span><span class="n">subquery</span><span class="p">()))</span>
+    <span class="n">stmt</span> <span class="o">=</span> <span class="n">apply_range_to_statement</span><span class="p">(</span><span class="n">stmt</span><span class="p">,</span> <span class="n">after</span><span class="p">,</span> <span class="n">after</span> <span class="o">+</span> <span class="n">first</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">customers</span> <span class="o">=</span> <span class="n">rows_from_statement</span><span class="p">(</span><span class="n">stmt</span><span class="p">,</span> <span class="n">CustomerTable</span><span class="p">)</span>
+    <span class="n">graphql_customers</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">CustomerType</span><span class="p">(</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="n">c</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">fullname</span><span class="o">=</span><span class="n">c</span><span class="o">.</span><span class="n">fullname</span><span class="p">,</span> <span class="n">shortcode</span><span class="o">=</span><span class="n">c</span><span class="o">.</span><span class="n">shortcode</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">customers</span>
+    <span class="p">]</span>
+    <span class="k">return</span> <span class="n">to_graphql_result_page</span><span class="p">(</span>
+        <span class="n">graphql_customers</span><span class="p">,</span>
+        <span class="n">first</span><span class="p">,</span>
+        <span class="n">after</span><span class="p">,</span>
+        <span class="n">total</span><span class="p">,</span>
+        <span class="n">sort_customers_fields</span><span class="p">,</span>
+        <span class="n">filter_customers_fields</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="c1"># ---- END OF DEFAULT RESOLVER LOGIC ----</span>
+</code></pre></div>
+<h4 id="customertype-related-type-overrides">CustomerType Related Type Overrides</h4>
+<p>Having overridden the <code>customer_resolver</code> and added the <code>subscriptions</code> field to the <code>CustomerType</code>, the final step involves updating the related Strawberry types, namely <code>SubscriptionInterface</code> and <code>ProcessType</code>.</p>
+<p>For both types, the <code>customer_id</code> is at the root, allowing us to create a generic override resolver for both.
+As we modify <code>SubscriptionInterface</code>, it's essential to utilize the returned type (stored in the <code>custom_subscription_interface</code> variable) when registering GraphQL in the application using <code>app.register_graphql(subscription_interface=custom_subscription_interface)</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_customer</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="n">CustomerType</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CustomerType</span><span class="p">:</span>
+    <span class="n">stmt</span> <span class="o">=</span> <span class="n">select</span><span class="p">(</span><span class="n">CustomerTable</span><span class="p">)</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">CustomerTable</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">==</span> <span class="n">root</span><span class="o">.</span><span class="n">customer_id</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">customer</span> <span class="o">:=</span> <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">stmt</span><span class="p">)</span><span class="o">.</span><span class="n">scalars</span><span class="p">()</span><span class="o">.</span><span class="n">first</span><span class="p">()):</span>
+        <span class="k">return</span> <span class="n">CustomerType</span><span class="p">(</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="n">root</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">fullname</span><span class="o">=</span><span class="s2">&quot;missing&quot;</span><span class="p">,</span> <span class="n">shortcode</span><span class="o">=</span><span class="s2">&quot;missing&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">CustomerType</span><span class="p">(</span>
+        <span class="n">customer_id</span><span class="o">=</span><span class="n">customer</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span>
+        <span class="n">fullname</span><span class="o">=</span><span class="n">customer</span><span class="o">.</span><span class="n">fullname</span><span class="p">,</span>
+        <span class="n">shortcode</span><span class="o">=</span><span class="n">customer</span><span class="o">.</span><span class="n">shortcode</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="c1"># Create a Strawberry field with the resolver for the customer field</span>
+<span class="n">customer_field</span> <span class="o">=</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">resolve_customer</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Returns customer of a subscription&quot;</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+<span class="c1"># Assign a new name to the Strawberry field; this name will add the &#39;customer&#39; field in the class</span>
+<span class="n">customer_field</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;customer&quot;</span>
+
+<span class="c1"># Override the SubscriptionInterface and ProcessType with the new &#39;customer&#39; field</span>
+<span class="n">override_class</span><span class="p">(</span><span class="n">ProcessType</span><span class="p">,</span> <span class="p">[</span><span class="n">customer_field</span><span class="p">])</span>
+<span class="n">custom_subscription_interface</span> <span class="o">=</span> <span class="n">override_class</span><span class="p">(</span><span class="n">SubscriptionInterface</span><span class="p">,</span> <span class="p">[</span><span class="n">customer_field</span><span class="p">])</span>
+</code></pre></div>
+<h3 id="behavior-of-filterby">Behavior of filterBy</h3>
+<p>By default, string matching is configured for exact matches, i.e a search for <code>10</code> will return ONLY <code>10</code>
+and won't include <code>10G</code> or <code>100G</code>.
+Searching can also be configured for partial matching as well, where a search for <code>10</code> would include <code>10G</code> and <code>100G</code>.</p>
+<p>This can be controlled by setting the variable <code>FILTER_BY_MODE</code> can be set to a value of <code>exact</code> or <code>partial</code> as needed.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2018 - 2024 Workflow Orchestrator Programme
+    </div>
+  
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://discord.gg/fQkQn5ajFR" target="_blank" rel="noopener" title="WFO on Discord!" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M492.5 69.8c-.2-.3-.4-.6-.8-.7-38.1-17.5-78.4-30-119.7-37.1-.4-.1-.8 0-1.1.1s-.6.4-.8.8c-5.5 9.9-10.5 20.2-14.9 30.6-44.6-6.8-89.9-6.8-134.4 0-4.5-10.5-9.5-20.7-15.1-30.6-.2-.3-.5-.6-.8-.8s-.7-.2-1.1-.2C162.5 39 122.2 51.5 84.1 69c-.3.1-.6.4-.8.7C7.1 183.5-13.8 294.6-3.6 404.2c0 .3.1.5.2.8s.3.4.5.6c44.4 32.9 94 58 146.8 74.2.4.1.8.1 1.1 0s.7-.4.9-.7c11.3-15.4 21.4-31.8 30-48.8.1-.2.2-.5.2-.8s0-.5-.1-.8-.2-.5-.4-.6-.4-.3-.7-.4c-15.8-6.1-31.2-13.4-45.9-21.9-.3-.2-.5-.4-.7-.6s-.3-.6-.3-.9 0-.6.2-.9.3-.5.6-.7c3.1-2.3 6.2-4.7 9.1-7.1.3-.2.6-.4.9-.4s.7 0 1 .1c96.2 43.9 200.4 43.9 295.5 0 .3-.1.7-.2 1-.2s.7.2.9.4c2.9 2.4 6 4.9 9.1 7.2.2.2.4.4.6.7s.2.6.2.9-.1.6-.3.9-.4.5-.6.6c-14.7 8.6-30 15.9-45.9 21.8-.2.1-.5.2-.7.4s-.3.4-.4.7-.1.5-.1.8.1.5.2.8c8.8 17 18.8 33.3 30 48.8.2.3.6.6.9.7s.8.1 1.1 0c52.9-16.2 102.6-41.3 147.1-74.2.2-.2.4-.4.5-.6s.2-.5.2-.8c12.3-126.8-20.5-236.9-86.9-334.5zm-302 267.7c-29 0-52.8-26.6-52.8-59.2s23.4-59.2 52.8-59.2c29.7 0 53.3 26.8 52.8 59.2 0 32.7-23.4 59.2-52.8 59.2m195.4 0c-29 0-52.8-26.6-52.8-59.2s23.4-59.2 52.8-59.2c29.7 0 53.3 26.8 52.8 59.2 0 32.7-23.2 59.2-52.8 59.2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["search.suggest", "search.highlight", "navigation.tabs", "navigation.tabs.sticky", "navigation.tracking", "navigation.instant", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tooltips", "header.autohide"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../js/termynal.js"></script>
+      
+        <script src="../../js/custom.js"></script>
+      
+        <script src="../../js/open_in_new_tab.js"></script>
+      
+    
+  </body>
+</html>
