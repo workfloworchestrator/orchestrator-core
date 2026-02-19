@@ -37,7 +37,7 @@ class JSONSubSchema(TypedDict, total=False):
     pattern: str
     const: Any
     default: Any
-    uniforms: dict  # Deprecated, use extraProperties instead
+    uniforms: dict  # Deprecated, use extraProperties instead (#1416 for removal)
     extraProperties: dict
     enum: list
     allOf: list

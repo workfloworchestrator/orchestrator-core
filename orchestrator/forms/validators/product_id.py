@@ -57,7 +57,7 @@ def product_id(product_ids: list[UUID] | None = None) -> type[ProductId]:
     if product_ids:
         product_ids_schema = {"productIds": product_ids}
         schema = {
-            "uniforms": product_ids_schema,  # Deprecated, use extra properties instead
+            "uniforms": product_ids_schema,  # Deprecated, use extra properties instead (#1416 for removal)
             constants.EXTRA_PROPERTIES: product_ids_schema,
         }
     else:
