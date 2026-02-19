@@ -31,14 +31,15 @@ else:
     KnownModelName = str
     Model = Any
 
+from orchestrator.search.agent.graph_events import GraphDeps
 from orchestrator.search.agent.graph_nodes import (
     ACTION_TO_NODE,
     AggregationNode,
+    BaseGraphNode,
     PlannerNode,
     ResultActionsNode,
     SearchNode,
     TextResponseNode,
-    emit_end_event,
 )
 from orchestrator.search.agent.schemas import GraphEdge, GraphNode, GraphStructure
 from orchestrator.search.agent.skills import SKILLS, Skill
@@ -60,7 +61,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
     def __init__(
         self,
         model: "Model | KnownModelName | str",  # type: ignore[valid-type]
-        graph: Graph[SearchState, None, str],
+        graph: Graph[SearchState, GraphDeps, str],
         skills: dict[TaskAction, Skill],
         *,
         deps_type: type[StateDeps[SearchState]] = StateDeps[SearchState],
@@ -93,6 +94,10 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         self.model_name = model if isinstance(model, str) else str(model)
         self._persistence: Any | None = None
         self.debug = debug
+
+    def _emit_sse_event(self, event: Any) -> None:
+        """Serialize an AG-UI event to SSE wire format and enqueue it."""
+        self._current_graph_events.append(f"data: {event.model_dump_json()}\n\n")
 
     def get_graph_structure(self) -> GraphStructure:
         """Build graph structure for visualization.
@@ -129,6 +134,47 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
 
         return GraphStructure(nodes=nodes, edges=edges, start_node=self.DEFAULT_START_NODE.__name__)
 
+    async def _prepare_state(
+        self,
+        deps: StateDeps[SearchState],
+        target_action: TaskAction | None = None,
+    ) -> tuple[SearchState, PlannerNode | BaseGraphNode, GraphDeps]:
+        """Shared state preparation for both streaming and non-streaming entry points.
+
+        Loads persisted state (if any), starts a new turn, constructs GraphDeps,
+        and builds the start node.
+        """
+        initial_state = deps.state
+        user_input = initial_state.user_input
+
+        persistence = self._persistence
+        if persistence:
+            snapshot = await persistence.load_next()
+            if snapshot:
+                previous_state = snapshot.state
+                logger.debug(
+                    "GraphAgentAdapter: Resuming from previous state",
+                    run_id=persistence.run_id,
+                )
+                initial_state = previous_state
+                initial_state.user_input = user_input
+
+        if (
+            not initial_state.environment.current_turn
+            or initial_state.environment.current_turn.user_question != user_input
+        ):
+            initial_state.environment.start_turn(user_input)
+
+        graph_deps = GraphDeps(_emit=self._emit_sse_event)
+
+        if target_action:
+            node_cls = ACTION_TO_NODE[target_action]
+            start_node = node_cls(model=self.model_name, skills=self.skills, debug=self.debug)
+        else:
+            start_node = self.DEFAULT_START_NODE(model=self.model_name, skills=self.skills, debug=self.debug)
+
+        return initial_state, start_node, graph_deps
+
     async def run_stream_events(  # type: ignore[override]
         self,
         user_prompt: str | Sequence[UserContent] | None = None,
@@ -139,83 +185,34 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
     ) -> AsyncIterator[AgentStreamEvent | AgentRunResultEvent[str] | Any]:
         """Execute the graph and stream events in real-time.
 
-        This implementation manually streams events because for now pydantic-ai only supports
+        This implementation manually streams events because pydantic-ai only supports
         emitting events from tool calls. Since we need to emit custom graph
         events (node transitions, state changes), we cannot use the standard AG-UI
         handlers (handle_ag_ui_request, AGUIAdapter.dispatch_request) as they filter
         out custom events via pattern matching in UIEventStream.handle_event().
 
         The pattern:
-        1. graph.iter() or graph.iter_from_persistence() yields the next node to execute
+        1. graph.iter() yields the next node to execute
         2. Call node.stream(ctx) to get an async generator of AgentStreamEvents
         3. Yield those events in real-time to the frontend
         4. Continue until End node is reached
-
-        Args:
-            user_prompt: User input (not used - comes from deps.state.user_input)
-            deps: StateDeps containing SearchState
-            persistence: PostgresStatePersistence for resuming interrupted graphs
-            **kwargs: Additional arguments
         """
         if deps is None:
             deps = StateDeps(SearchState())
 
-        initial_state = deps.state
-
-        # Get user input from state (populated by endpoint from run_input.messages via AG-UI)
-        user_input = initial_state.user_input
-
         try:
             self._current_graph_events: deque[str] = deque()
-
-            def emit_event(event):
-                self._current_graph_events.append(f"data: {event.model_dump_json()}\n\n")
-
-            persistence = self._persistence
-            # If persistence provided, try to load previous state
-            if persistence:
-                snapshot = await persistence.load_next()
-                if snapshot:
-                    previous_state = snapshot.state
-                    logger.debug(
-                        "GraphAgentAdapter: Resuming from previous state",
-                        run_id=persistence.run_id,
-                    )
-                    # Use the loaded state as initial state, but update user_input for current turn
-                    initial_state = previous_state
-                    initial_state.user_input = user_input  # Update with current turn's input
-
-            if (
-                not initial_state.environment.current_turn
-                or initial_state.environment.current_turn.user_question != user_input
-            ):
-                initial_state.environment.start_turn(user_input)
-
-            if target_action:
-                node_cls = ACTION_TO_NODE[target_action]
-                start_node = node_cls(
-                    model=self.model_name,
-                    skills=self.skills,
-                    event_emitter=emit_event,
-                    debug=self.debug,
-                )
-            else:
-                start_node = self.DEFAULT_START_NODE(
-                    model=self.model_name,
-                    skills=self.skills,
-                    event_emitter=emit_event,
-                    debug=self.debug,
-                )
+            initial_state, start_node, graph_deps = await self._prepare_state(deps, target_action)
 
             logger.debug("GraphAgentAdapter: Starting new graph execution", node=type(start_node).__name__)
 
             async with self.graph.iter(
-                start_node=start_node, state=initial_state, persistence=persistence  # type: ignore[arg-type]
+                start_node=start_node, state=initial_state, deps=graph_deps, persistence=self._persistence  # type: ignore[arg-type]
             ) as graph_run:
                 async for next_node in graph_run:
 
                     if isinstance(next_node, End):
-                        emit_end_event(emit_event)
+                        graph_run.deps.emit_node_active(End.__name__)
                         break
 
                     # Stream events from the node
@@ -261,7 +258,7 @@ def build_agent_instance(
     Returns:
         GraphAgentAdapter instance
     """
-    graph: Graph[SearchState, None, str] = Graph(
+    graph: Graph[SearchState, GraphDeps, str] = Graph(
         nodes=[
             PlannerNode,
             SearchNode,

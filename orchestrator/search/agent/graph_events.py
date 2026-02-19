@@ -12,16 +12,20 @@
 # limitations under the License.
 
 
-from ag_ui.core import CustomEvent
+from dataclasses import dataclass
+from typing import Callable
+
+from ag_ui.core import BaseEvent, CustomEvent
 from pydantic import Field
 from typing_extensions import TypedDict
+
+from orchestrator.search.agent.utils import current_timestamp_ms
 
 
 class GraphNodeActiveValue(TypedDict, total=False):
     """Typed structure for GRAPH_NODE_ACTIVE event value."""
 
     node: str
-    step_type: str
     reasoning: str
 
 
@@ -30,3 +34,17 @@ class GraphNodeActiveEvent(CustomEvent):
 
     name: str = Field(default="GRAPH_NODE_ACTIVE", frozen=True)
     value: GraphNodeActiveValue
+
+
+@dataclass
+class GraphDeps:
+    """Request-scoped dependencies injected into graph nodes via ctx.deps."""
+
+    _emit: Callable[[BaseEvent], None]
+
+    def emit_node_active(self, node_name: str, reasoning: str | None = None) -> None:
+        """Emit a GRAPH_NODE_ACTIVE event via the attached emitter."""
+        value = GraphNodeActiveValue(node=node_name)
+        if reasoning:
+            value["reasoning"] = reasoning
+        self._emit(GraphNodeActiveEvent(timestamp=current_timestamp_ms(), value=value))
