@@ -444,8 +444,9 @@ def create_process(
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
     if workflow.run_predicate is not None:
-        if not workflow.run_predicate():
-            raise StartPredicateError(workflow_key)
+        allowed, reason = workflow.run_predicate()
+        if not allowed:
+            raise StartPredicateError(workflow_key, reason)
 
     initial_state = {
         "process_id": process_id,
