@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import TypedDict
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -29,36 +28,6 @@ class TaskAction(str, Enum):
     AGGREGATION = "aggregation"
     RESULT_ACTIONS = "result_actions"
     TEXT_RESPONSE = "text_response"
-
-
-class SkillMetadata(TypedDict):
-    name: str
-    description: str
-    tags: list[str]
-
-
-TASK_ACTION_SKILLS: dict[TaskAction, SkillMetadata] = {
-    TaskAction.SEARCH: {
-        "name": "Search",
-        "description": "Find subscriptions, products, workflows, processes",
-        "tags": ["search", "query"],
-    },
-    TaskAction.AGGREGATION: {
-        "name": "Aggregate",
-        "description": "Count, sum, avg with grouping",
-        "tags": ["aggregate", "analytics"],
-    },
-    TaskAction.RESULT_ACTIONS: {
-        "name": "Result Actions",
-        "description": "Export results or fetch entity details",
-        "tags": ["export", "details"],
-    },
-    TaskAction.TEXT_RESPONSE: {
-        "name": "Text Response",
-        "description": "Answer general questions about the system",
-        "tags": ["text", "help"],
-    },
-}
 
 
 class TaskStatus(str, Enum):

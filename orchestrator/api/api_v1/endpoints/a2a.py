@@ -21,18 +21,18 @@ from fasta2a.storage import InMemoryStorage
 from pydantic_ai._a2a import AgentWorker
 
 from orchestrator.search.agent.agent import GraphAgentAdapter
-from orchestrator.search.agent.state import TASK_ACTION_SKILLS
+from orchestrator.search.agent.skills import SKILLS
 
 A2A_SKILLS = [
     Skill(
         id=action.value,
-        name=meta["name"],
-        description=meta["description"],
-        tags=meta["tags"],
+        name=skill.name,
+        description=skill.description,
+        tags=skill.tags,
         input_modes=["application/json"],
         output_modes=["application/json"],
     )
-    for action, meta in TASK_ACTION_SKILLS.items()
+    for action, skill in SKILLS.items()
 ]
 
 

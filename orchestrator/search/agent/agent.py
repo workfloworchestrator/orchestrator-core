@@ -161,6 +161,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         *,
         message_history: Sequence[ModelMessage] | None = None,
         deps: StateDeps[SearchState] | None = None,
+        target_action: TaskAction | None = None,
         **kwargs: Any,
     ) -> AgentRunResult[str]:
         """Non-streaming graph execution for A2A.
@@ -193,7 +194,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         tool_results: list[str] = []
         final_output = ""
 
-        async for event in self.run_stream_events(deps=deps):
+        async for event in self.run_stream_events(deps=deps, target_action=target_action):
             # Collect only tool outputs marked with @a2a_result
             if isinstance(event, FunctionToolResultEvent) and hasattr(event.result, "tool_name"):
                 if event.result.tool_name in a2a_result_tools:
