@@ -25,7 +25,7 @@ from pydantic_forms.types import UUIDstr
 logger = get_logger(__name__)
 
 
-broadcaster_type = urlparse(app_settings.WEBSOCKET_BROADCASTER_URL).scheme
+broadcaster_type = urlparse(app_settings.WEBSOCKET_BROADCASTER_URL.get_secret_value()).scheme
 
 
 class WS_CHANNELS:
@@ -72,7 +72,7 @@ websocket_manager = cast(WebSocketManager, wrapped_websocket_manager)
 # The Global WebSocketManager is set after calling this function
 def init_websocket_manager(settings: AppSettings) -> WebSocketManager:
     wrapped_websocket_manager.update(
-        WebSocketManager(settings.ENABLE_WEBSOCKETS, str(settings.WEBSOCKET_BROADCASTER_URL))
+        WebSocketManager(settings.ENABLE_WEBSOCKETS, settings.WEBSOCKET_BROADCASTER_URL.get_secret_value())
     )
     return websocket_manager
 

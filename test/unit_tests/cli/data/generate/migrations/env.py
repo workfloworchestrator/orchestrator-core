@@ -12,7 +12,7 @@ config = context.config
 # Setup logging
 logger = structlog.get_logger()
 
-config.set_main_option("sqlalchemy.url", str(app_settings.DATABASE_URI))
+config.set_main_option("sqlalchemy.url", str(app_settings.DATABASE_URI.get_secret_value()))
 
 # add your model's MetaData object here
 # for 'autogenerate' support

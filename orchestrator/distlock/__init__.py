@@ -55,7 +55,9 @@ distlock_manager = cast(DistLockManager, wrapped_distlock_manager)
 # The Global DistLockManager is set after calling this function
 def init_distlock_manager(settings: AppSettings) -> DistLockManager:
     wrapped_distlock_manager.update(
-        DistLockManager(settings.ENABLE_DISTLOCK_MANAGER, settings.DISTLOCK_BACKEND, settings.CACHE_URI)
+        DistLockManager(
+            settings.ENABLE_DISTLOCK_MANAGER, settings.DISTLOCK_BACKEND, settings.CACHE_URI.get_secret_value()
+        )
     )
     return distlock_manager
 
