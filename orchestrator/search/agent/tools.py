@@ -27,7 +27,7 @@ from orchestrator.api.api_v1.endpoints.search import (
     list_paths,
 )
 from orchestrator.db import db
-from orchestrator.search.agent.environment import ToolStep
+from orchestrator.search.agent.memory import ToolStep
 from orchestrator.search.agent.handlers import (
     execute_aggregation_with_persistence,
     execute_search_with_persistence,
@@ -163,7 +163,7 @@ async def run_search(
     ctx.deps.state.query_id = query_id
 
     # Record tool step with query_id
-    ctx.deps.state.environment.record_tool_step(
+    ctx.deps.state.memory.record_tool_step(
         ToolStep(
             step_type="run_search",
             description=f"Searched {len(search_response.results)} {query.entity_type.value}",
@@ -245,7 +245,7 @@ async def run_aggregation(
     ctx.deps.state.query_id = query_id
 
     # Record tool step with query_id
-    ctx.deps.state.environment.record_tool_step(
+    ctx.deps.state.memory.record_tool_step(
         ToolStep(
             step_type="run_aggregation",
             description=f"Aggregated {aggregation_response.total_groups} groups for {query.entity_type.value}",
@@ -391,7 +391,7 @@ async def fetch_entity_details(
     detailed_data = fetch_export_data(entity_type, entity_ids)
 
     # Record tool step
-    ctx.deps.state.environment.record_tool_step(
+    ctx.deps.state.memory.record_tool_step(
         ToolStep(
             step_type="fetch_entity_details",
             description=f"Fetched details for {len(entity_ids)} {entity_type.value} entities",
@@ -437,7 +437,7 @@ async def prepare_export(
     )
 
     # Record tool step
-    ctx.deps.state.environment.record_tool_step(
+    ctx.deps.state.memory.record_tool_step(
         ToolStep(
             step_type="prepare_export",
             description=f"Prepared export for query {query_id}",

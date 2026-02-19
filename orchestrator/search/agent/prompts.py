@@ -39,7 +39,7 @@ def get_search_execution_prompt(state: SearchState) -> str:
     Returns:
         Complete prompt for executing search with optional filtering
     """
-    context = state.environment.format_context_for_llm(state)
+    context = state.memory.format_context_for_llm(state)
 
     return dedent(
         f"""
@@ -76,7 +76,7 @@ def get_aggregation_execution_prompt(state: SearchState) -> str:
         Complete prompt for executing aggregation with optional filtering and grouping
     """
 
-    context = state.environment.format_context_for_llm(state)
+    context = state.memory.format_context_for_llm(state)
 
     return dedent(
         f"""
@@ -115,7 +115,7 @@ def get_text_response_prompt(state: SearchState) -> str:
     Returns:
         Complete prompt for generating text response
     """
-    context = state.environment.format_context_for_llm(state)
+    context = state.memory.format_context_for_llm(state)
     entity_types = ", ".join([et.value for et in EntityType])
 
     return dedent(
@@ -153,7 +153,7 @@ def get_planning_prompt(state: SearchState, is_replanning: bool = False) -> str:
         Complete prompt for creating multi-step execution plan
     """
     # Get context for replanning (NOT conversation - that's in message_history now)
-    context = state.environment.format_context_for_llm(
+    context = state.memory.format_context_for_llm(
         state,
         include_current_run_steps=is_replanning,
     )
@@ -207,7 +207,7 @@ def get_result_actions_prompt(state: SearchState) -> str:
     Returns:
         Complete prompt for result actions
     """
-    context = state.environment.format_context_for_llm(state)
+    context = state.memory.format_context_for_llm(state)
     return dedent(
         f"""
         # Acting on Results

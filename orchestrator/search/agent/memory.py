@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
 from uuid import UUID
 
 import structlog
@@ -67,33 +66,40 @@ class ToolStep(StepRecord):
 
 
 @dataclass
-class CompletedTurn:
+class Turn:
     user_question: str
-    assistant_answer: str
-    node_steps: list[NodeStep]  # Only top-level NodeSteps (which contain ToolSteps)
-    timestamp: datetime
-
-
-@dataclass
-class CurrentTurn:
-    user_question: str
-    node_steps: list[NodeStep] = field(default_factory=list)  # Only top-level NodeSteps
-    current_node_step: NodeStep | None = None  # The currently active node
+    assistant_answer: str | None = None
+    node_steps: list[NodeStep] = field(default_factory=list)
+    current_node_step: NodeStep | None = None
     timestamp: datetime = field(default_factory=lambda: datetime.now())
 
+    @property
+    def is_complete(self) -> bool:
+        return self.assistant_answer is not None
 
-class ConversationEnvironment(BaseModel):
+
+class Memory(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    completed_turns: list[CompletedTurn] = []
-    current_turn: CurrentTurn | None = None
-    hidden: dict[str, Any] = {}
+    turns: list[Turn] = []
+
+    @property
+    def current_turn(self) -> Turn | None:
+        """Return the last turn if it's incomplete, else None."""
+        if self.turns and not self.turns[-1].is_complete:
+            return self.turns[-1]
+        return None
+
+    @property
+    def completed_turns(self) -> list[Turn]:
+        """Return all completed turns."""
+        return [t for t in self.turns if t.is_complete]
 
     def start_turn(self, user_question: str):
-        self.current_turn = CurrentTurn(user_question=user_question, node_steps=[])
+        self.turns.append(Turn(user_question=user_question))
 
-    def record_node_entry(self, node_name: str) -> None:
-        """Record entering a new node (finishes previous node if any, starts new one)."""
+    def start_node_step(self, node_name: str) -> None:
+        """Start a new node step (finishes previous node if any)."""
         if not self.current_turn:
             raise ValueError("No active turn")
 
@@ -110,9 +116,8 @@ class ConversationEnvironment(BaseModel):
         if not self.current_turn:
             raise ValueError("No active turn")
         if not self.current_turn.current_node_step:
-            raise ValueError("No active node step - must call start_node_step first")
+            raise ValueError("No active node step — must call start_node_step first")
 
-        # Add tool to current node
         self.current_turn.current_node_step.add_tool_step(tool_step)
 
     def finish_node_step(self):
@@ -122,12 +127,10 @@ class ConversationEnvironment(BaseModel):
         if not self.current_turn.current_node_step:
             raise ValueError("No active node step to finish")
 
-        self.current_turn = CurrentTurn(
-            user_question=self.current_turn.user_question,
-            node_steps=list(self.current_turn.node_steps) + [self.current_turn.current_node_step],
-            current_node_step=None,
-            timestamp=self.current_turn.timestamp,
-        )
+        turn = self.current_turn
+        if turn.current_node_step is not None:
+            turn.node_steps.append(turn.current_node_step)
+            turn.current_node_step = None
 
     def complete_turn(self, assistant_answer: str):
         if not self.current_turn:
@@ -137,30 +140,16 @@ class ConversationEnvironment(BaseModel):
         if self.current_turn.current_node_step:
             self.finish_node_step()
 
+        turn = self.current_turn
+
         logger.debug(
-            "complete_turn: before",
+            "complete_turn",
             completed_count_before=len(self.completed_turns),
-            current_turn_question=self.current_turn.user_question,
-            node_step_count=len(self.current_turn.node_steps),
+            question=turn.user_question,
+            node_step_count=len(turn.node_steps),
         )
 
-        completed = CompletedTurn(
-            user_question=self.current_turn.user_question,
-            assistant_answer=assistant_answer,
-            node_steps=list(self.current_turn.node_steps),
-            timestamp=self.current_turn.timestamp,
-        )
-        # Force Pydantic to detect change by creating new list
-        self.completed_turns.append(completed)
-        self.completed_turns = list(self.completed_turns)
-
-        logger.debug(
-            "complete_turn: after append",
-            completed_count_after=len(self.completed_turns),
-            last_completed_question=self.completed_turns[-1].user_question if self.completed_turns else None,
-        )
-
-        self.current_turn = None
+        turn.assistant_answer = assistant_answer
 
     def _format_query_summary(self, node_steps: list[NodeStep], include_full_query: bool = True) -> str | None:
         """Format query summary - either full JSON or just query_id with one-liner.
@@ -193,7 +182,7 @@ class ConversationEnvironment(BaseModel):
             else:
                 # Minimal one-liner for ResultActions node
                 operation = tool.query_operation or "QUERY"
-                entity = tool.entity_type or "unknown"
+                entity = tool.entity_type or "unknown3"
                 results = f" ({tool.results_count} results)" if tool.results_count else ""
                 summaries.append(f"Query {tool.query_id}: {operation} {entity}{results}")
 
@@ -221,7 +210,9 @@ class ConversationEnvironment(BaseModel):
                 for tool_step in node_step.tool_steps:
                     result_info = f" ({tool_step.results_count} results)" if tool_step.results_count else ""
                     query_info = f" [query: {tool_step.query_id}]" if tool_step.query_id else ""
-                    lines.append(f"     • [Tool] {tool_step.step_type}: {tool_step.description}{result_info}{query_info}")
+                    lines.append(
+                        f"     • [Tool] {tool_step.step_type}: {tool_step.description}{result_info}{query_info}"
+                    )
 
         return "\n".join(lines)
 
@@ -264,7 +255,8 @@ class ConversationEnvironment(BaseModel):
                         messages.append(ModelRequest(parts=[SystemPromptPart(content=summary)]))
 
             # Assistant response
-            messages.append(ModelResponse(parts=[TextPart(content=turn.assistant_answer)]))
+            if turn.assistant_answer is not None:
+                messages.append(ModelResponse(parts=[TextPart(content=turn.assistant_answer)]))
 
         # Always add current turn's user question
         if self.current_turn:

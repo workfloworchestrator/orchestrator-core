@@ -16,7 +16,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from orchestrator.search.agent.environment import ConversationEnvironment
+from orchestrator.search.agent.memory import Memory
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.query.queries import Query
 
@@ -98,7 +98,7 @@ class SearchState(BaseModel):
     query_id: UUID | None = None  # ID of the last persisted query (set by run_search/run_aggregation)
     query: Query | None = None
     pending_filters: FilterTree | None = None
-    environment: ConversationEnvironment = Field(default_factory=ConversationEnvironment)
+    memory: Memory = Field(default_factory=Memory)
 
     execution_plan: ExecutionPlan | None = None  # Multi-step execution plan
 

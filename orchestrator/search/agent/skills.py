@@ -16,7 +16,7 @@ from typing import Any, Callable
 
 from pydantic_ai.toolsets import AbstractToolset
 
-from orchestrator.search.agent.environment import MemoryScope
+from orchestrator.search.agent.memory import MemoryScope
 from orchestrator.search.agent.prompts import (
     get_aggregation_execution_prompt,
     get_result_actions_prompt,

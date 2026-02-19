@@ -160,10 +160,10 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
                 initial_state.user_input = user_input
 
         if (
-            not initial_state.environment.current_turn
-            or initial_state.environment.current_turn.user_question != user_input
+            not initial_state.memory.current_turn
+            or initial_state.memory.current_turn.user_question != user_input
         ):
-            initial_state.environment.start_turn(user_input)
+            initial_state.memory.start_turn(user_input)
 
         graph_deps = GraphDeps(_emit=self._emit_sse_event)
 

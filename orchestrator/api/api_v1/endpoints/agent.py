@@ -139,8 +139,8 @@ async def agent_conversation(
                 initial_state.run_id = run_id
                 logger.debug(
                     "Loaded previous state from persistence",
-                    completed_turns=len(initial_state.environment.completed_turns),
-                    current_turn=initial_state.environment.current_turn is not None,
+                    completed_turns=len(initial_state.memory.completed_turns),
+                    current_turn=initial_state.memory.current_turn is not None,
                 )
             else:
                 initial_state = SearchState(**prepared_run_input.state)
