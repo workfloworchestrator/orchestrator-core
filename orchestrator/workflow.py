@@ -88,8 +88,7 @@ class Step(Protocol):
     def __call__(self, state: State) -> Process: ...
 
 
-RunPredicate = Callable[["PredicateContext"], bool]
-
+RunPredicate = Callable[..., bool]
 
 @runtime_checkable
 class Workflow(Protocol):
@@ -105,14 +104,6 @@ class Workflow(Protocol):
     run_predicate: RunPredicate | None = None
 
     def __call__(self) -> NoReturn: ...
-
-
-@dataclass(frozen=True)
-class PredicateContext:
-    """Context passed to a workflow's run predicate."""
-
-    workflow: Workflow
-    workflow_key: str
 
 
 def make_step_function(

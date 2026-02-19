@@ -13,24 +13,32 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from sqlalchemy import func, select
 
 from orchestrator.db import ProcessTable, db
-from orchestrator.workflow import PredicateContext
 
 
-def no_uncompleted_instance(context: PredicateContext) -> bool:
-    """Prevent starting if an uncompleted instance of the same workflow exists.
+def no_uncompleted_instance(workflow_name: str) -> Callable[[], bool]:
+    """Create a predicate that prevents starting if an uncompleted instance of the given workflow exists.
 
-    Returns True if no processes for this workflow are in a non-completed state,
-    allowing the workflow to start. Returns False otherwise.
+    Args:
+        workflow_name: The workflow name to check for uncompleted instances.
+
+    Returns:
+        A callable that returns True if no uncompleted instances exist, False otherwise.
     """
-    uncompleted_count = db.session.scalar(
-        select(func.count())
-        .select_from(ProcessTable)
-        .filter(
-            ProcessTable.workflow.has(name=context.workflow_key),
-            ProcessTable.last_status != "completed",
+
+    def predicate() -> bool:
+        uncompleted_count = db.session.scalar(
+            select(func.count())
+            .select_from(ProcessTable)
+            .filter(
+                ProcessTable.workflow.has(name=workflow_name),
+                ProcessTable.last_status != "completed",
+            )
         )
-    )
-    return uncompleted_count == 0
+        return uncompleted_count == 0
+
+    return predicate
