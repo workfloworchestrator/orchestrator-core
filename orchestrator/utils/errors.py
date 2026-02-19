@@ -83,6 +83,15 @@ class StaleDataError(ValueError):
         super().__init__(message)
 
 
+class StartPredicateError(Exception):
+    """Raised when a workflow's start predicate returns False, preventing the workflow from starting."""
+
+    def __init__(self, workflow_key: str, message: str | None = None) -> None:
+        self.workflow_key = workflow_key
+        self.message = message or f"Start predicate for workflow '{workflow_key}' is not satisfied"
+        super().__init__(self.message)
+
+
 def is_api_exception(ex: Exception) -> bool:
     """Test for swagger-codegen ApiException.
 

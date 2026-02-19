@@ -60,6 +60,7 @@ from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.utils.auth import Authorizer
 from orchestrator.utils.enrich_process import enrich_process
+from orchestrator.utils.errors import StartPredicateError
 from orchestrator.websocket import (
     WS_CHANNELS,
     broadcast_invalidate_status_counts,
@@ -194,14 +195,17 @@ async def new_process(
     if not await workflow.authorize_callback(user_model):
         raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to execute '{workflow_key}' workflow")
 
-    process_id = await asyncio.to_thread(
-        start_process,
-        workflow_key,
-        user_inputs=json_data,
-        user_model=user_model,
-        user=user,
-        broadcast_func=broadcast_func,
-    )
+    try:
+        process_id = await asyncio.to_thread(
+            start_process,
+            workflow_key,
+            user_inputs=json_data,
+            user_model=user_model,
+            user=user,
+            broadcast_func=broadcast_func,
+        )
+    except StartPredicateError as e:
+        raise_status(HTTPStatus.PRECONDITION_FAILED, str(e))
 
     return {"id": process_id}
 

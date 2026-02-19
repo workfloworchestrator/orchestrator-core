@@ -40,12 +40,13 @@ from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.types import BroadcastFunc
 from orchestrator.utils.datetime import nowtz
-from orchestrator.utils.errors import error_state_to_dict
+from orchestrator.utils.errors import StartPredicateError, error_state_to_dict
 from orchestrator.websocket import broadcast_invalidate_status_counts, broadcast_process_update_to_websocket
 from orchestrator.workflow import (
     CALLBACK_TOKEN_KEY,
     DEFAULT_CALLBACK_PROGRESS_KEY,
     Failed,
+    PredicateContext,
     ProcessStat,
     ProcessStatus,
     Step,
@@ -486,6 +487,12 @@ def create_process(
 
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
+    if workflow.run_predicate is not None:
+        context = PredicateContext(workflow=workflow, workflow_key=workflow_key)
+        allowed, reason = workflow.run_predicate(context)
+        if not allowed:
+            raise StartPredicateError(workflow_key, reason)
 
     initial_state = {
         "process_id": process_id,
