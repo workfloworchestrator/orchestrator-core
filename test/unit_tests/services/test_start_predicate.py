@@ -59,7 +59,7 @@ def test_workflow_with_true_predicate_starts_normally():
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow with passing predicate", target=Target.SYSTEM, run_predicate=lambda: (True, None))
+    @workflow("Test workflow with passing predicate", target=Target.SYSTEM, run_predicate=lambda ctx: (True, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -73,7 +73,7 @@ def test_workflow_with_false_predicate_raises_error():
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow with failing predicate", target=Target.SYSTEM, run_predicate=lambda: (False, None))
+    @workflow("Test workflow with failing predicate", target=Target.SYSTEM, run_predicate=lambda ctx: (False, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -90,7 +90,7 @@ def test_false_predicate_with_reason():
     @workflow(
         "Test workflow with reason",
         target=Target.SYSTEM,
-        run_predicate=lambda: (False, "Maintenance window is closed"),
+        run_predicate=lambda ctx: (False, "Maintenance window is closed"),
     )
     def test_wf():
         return begin >> test_step_fn >> done
@@ -108,7 +108,7 @@ def test_false_predicate_without_reason_uses_default_message():
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow no reason", target=Target.SYSTEM, run_predicate=lambda: (False, None))
+    @workflow("Test workflow no reason", target=Target.SYSTEM, run_predicate=lambda ctx: (False, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -126,7 +126,7 @@ def test_false_predicate_does_not_create_db_row():
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow no db row", target=Target.SYSTEM, run_predicate=lambda: (False, None))
+    @workflow("Test workflow no db row", target=Target.SYSTEM, run_predicate=lambda ctx: (False, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -152,7 +152,7 @@ def test_start_predicate_returns_412_via_rest(test_client):
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow blocked", target=Target.SYSTEM, run_predicate=lambda: (False, None))
+    @workflow("Test workflow blocked", target=Target.SYSTEM, run_predicate=lambda ctx: (False, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -170,7 +170,7 @@ def test_start_predicate_reason_in_412_response(test_client):
     @workflow(
         "Test workflow with reason",
         target=Target.SYSTEM,
-        run_predicate=lambda: (False, "System is in read-only mode"),
+        run_predicate=lambda ctx: (False, "System is in read-only mode"),
     )
     def test_wf():
         return begin >> test_step_fn >> done
@@ -186,7 +186,7 @@ def test_start_predicate_passes_via_rest(test_client):
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow allowed", target=Target.SYSTEM, run_predicate=lambda: (True, None))
+    @workflow("Test workflow allowed", target=Target.SYSTEM, run_predicate=lambda ctx: (True, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -204,7 +204,7 @@ def test_start_predicate_returns_mutation_error_via_graphql(httpx_mock, test_cli
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow blocked gql", target=Target.SYSTEM, run_predicate=lambda: (False, None))
+    @workflow("Test workflow blocked gql", target=Target.SYSTEM, run_predicate=lambda ctx: (False, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -228,7 +228,7 @@ def test_start_predicate_reason_in_graphql_error(httpx_mock, test_client):
     @workflow(
         "Test workflow reason gql",
         target=Target.SYSTEM,
-        run_predicate=lambda: (False, "Already running"),
+        run_predicate=lambda ctx: (False, "Already running"),
     )
     def test_wf():
         return begin >> test_step_fn >> done
@@ -250,7 +250,7 @@ def test_start_predicate_passes_via_graphql(httpx_mock, test_client):
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow allowed gql", target=Target.SYSTEM, run_predicate=lambda: (True, None))
+    @workflow("Test workflow allowed gql", target=Target.SYSTEM, run_predicate=lambda ctx: (True, None))
     def test_wf():
         return begin >> test_step_fn >> done
 

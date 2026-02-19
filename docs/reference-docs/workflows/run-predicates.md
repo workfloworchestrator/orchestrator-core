@@ -7,7 +7,7 @@ Run predicates allow you to conditionally prevent a workflow from starting. A pr
 When `create_process()` is called (via the REST API, GraphQL, a scheduler, or `start_process()` directly), the following happens:
 
 1. The workflow is looked up from the registry
-2. If `run_predicate` is set on the workflow, it is called
+2. If `run_predicate` is set on the workflow, it is called with a `PredicateContext`
 3. The predicate returns a tuple `(allowed, reason)`
 4. If `allowed` is `False`, a `StartPredicateError` is raised with the optional `reason`
 5. If `allowed` is `True`, the process is created normally
@@ -20,9 +20,20 @@ The error is then handled by each caller:
 | GraphQL | Returns a `MutationError` with `message="Start predicate not satisfied"` and the reason in `details` |
 | Scheduler | Logs an info message and skips the run |
 
+## PredicateContext
+
+Every predicate receives a `PredicateContext` as its first argument. This is a frozen dataclass with:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workflow` | `Workflow` | The full workflow object (name, description, target, steps, etc.) |
+| `workflow_key` | `str` | The string key used to look up the workflow (e.g. `"task_validate_products"`) |
+
+You can use the context or ignore it depending on your needs.
+
 ## Defining a predicate
 
-A predicate is any callable that returns `tuple[bool, str | None]`:
+A predicate is any callable that accepts a `PredicateContext` and returns `tuple[bool, str | None]`:
 
 - `(True, None)` - allow the workflow to start
 - `(False, "reason")` - block the workflow, with an explanation
@@ -31,14 +42,14 @@ A predicate is any callable that returns `tuple[bool, str | None]`:
 ### Simple function
 
 ```python
-from orchestrator.workflow import workflow
+from orchestrator.workflow import PredicateContext, workflow
 
-def is_maintenance_window() -> tuple[bool, str | None]:
+def is_maintenance_window(context: PredicateContext) -> tuple[bool, str | None]:
     from datetime import datetime
     now = datetime.now()
     if 2 <= now.hour <= 6:
         return True, None
-    return False, "Workflow can only run during maintenance window (02:00-06:00)"
+    return False, f"Workflow '{context.workflow_key}' can only run during maintenance window (02:00-06:00)"
 
 @workflow("Risky migration", run_predicate=is_maintenance_window)
 def risky_migration():
@@ -48,48 +59,8 @@ def risky_migration():
 ### Lambda
 
 ```python
-@workflow("Quick task", run_predicate=lambda: (True, None))
+@workflow("Quick task", run_predicate=lambda ctx: (True, None))
 def quick_task():
-    ...
-```
-
-### Factory (for parameterized predicates)
-
-When a predicate needs configuration, use a factory function that returns a callable:
-
-```python
-from orchestrator.workflows.predicates import no_uncompleted_instance
-
-@workflow(
-    "Validate products",
-    run_predicate=no_uncompleted_instance("task_validate_products"),
-)
-def task_validate_products():
-    ...
-```
-
-`no_uncompleted_instance` is a built-in factory that returns a predicate checking whether any uncompleted process exists for the given workflow name.
-
-You can write your own factories:
-
-```python
-def max_concurrent(workflow_name: str, limit: int) -> Callable[[], tuple[bool, str | None]]:
-    def predicate() -> tuple[bool, str | None]:
-        running = db.session.scalar(
-            select(func.count())
-            .select_from(ProcessTable)
-            .filter(
-                ProcessTable.workflow.has(name=workflow_name),
-                ProcessTable.last_status == "running",
-            )
-        )
-        if running < limit:
-            return True, None
-        return False, f"Already {running} running instances (limit: {limit})"
-    return predicate
-
-@workflow("Heavy task", run_predicate=max_concurrent("heavy_task", 3))
-def heavy_task():
     ...
 ```
 
@@ -107,15 +78,3 @@ def heavy_task():
 ## Default behavior
 
 The default is `run_predicate=None`, which means no predicate is evaluated and the workflow starts unconditionally. Existing workflows are unaffected.
-
-## Built-in predicates
-
-::: orchestrator.workflows.predicates
-    options:
-        heading_level: 3
-
-## Error handling
-
-::: orchestrator.utils.errors.StartPredicateError
-    options:
-        heading_level: 3

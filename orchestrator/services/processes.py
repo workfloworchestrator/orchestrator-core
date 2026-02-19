@@ -46,6 +46,7 @@ from orchestrator.workflow import (
     CALLBACK_TOKEN_KEY,
     DEFAULT_CALLBACK_PROGRESS_KEY,
     Failed,
+    PredicateContext,
     ProcessStat,
     ProcessStatus,
     Step,
@@ -488,7 +489,8 @@ def create_process(
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
     if workflow.run_predicate is not None:
-        allowed, reason = workflow.run_predicate()
+        context = PredicateContext(workflow=workflow, workflow_key=workflow_key)
+        allowed, reason = workflow.run_predicate(context)
         if not allowed:
             raise StartPredicateError(workflow_key, reason)
 
