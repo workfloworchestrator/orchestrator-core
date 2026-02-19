@@ -53,46 +53,6 @@ def quick_task():
     ...
 ```
 
-### Factory (for parameterized predicates)
-
-When a predicate needs configuration, use a factory function that returns a callable:
-
-```python
-from orchestrator.workflows.predicates import no_uncompleted_instance
-
-@workflow(
-    "Validate products",
-    run_predicate=no_uncompleted_instance("task_validate_products"),
-)
-def task_validate_products():
-    ...
-```
-
-`no_uncompleted_instance` is a built-in factory that returns a predicate checking whether any uncompleted process exists for the given workflow name.
-
-You can write your own factories:
-
-```python
-def max_concurrent(workflow_name: str, limit: int) -> Callable[[], tuple[bool, str | None]]:
-    def predicate() -> tuple[bool, str | None]:
-        running = db.session.scalar(
-            select(func.count())
-            .select_from(ProcessTable)
-            .filter(
-                ProcessTable.workflow.has(name=workflow_name),
-                ProcessTable.last_status == "running",
-            )
-        )
-        if running < limit:
-            return True, None
-        return False, f"Already {running} running instances (limit: {limit})"
-    return predicate
-
-@workflow("Heavy task", run_predicate=max_concurrent("heavy_task", 3))
-def heavy_task():
-    ...
-```
-
 ## Supported decorators
 
 `run_predicate` is available on all workflow decorators:
@@ -107,15 +67,3 @@ def heavy_task():
 ## Default behavior
 
 The default is `run_predicate=None`, which means no predicate is evaluated and the workflow starts unconditionally. Existing workflows are unaffected.
-
-## Built-in predicates
-
-::: orchestrator.workflows.predicates
-    options:
-        heading_level: 3
-
-## Error handling
-
-::: orchestrator.utils.errors.StartPredicateError
-    options:
-        heading_level: 3
