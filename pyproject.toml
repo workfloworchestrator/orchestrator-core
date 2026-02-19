@@ -92,7 +92,7 @@ agent = [
 # Local dependencies for development
 [dependency-groups]
 docs = [
-    "click<=8.3.1",  # hotreloading is broken https://github.com/squidfunk/mkdocs-material/issues/8478
+    "click<=8.3.1",
     "mkdocs>=1.6.1",
     "mkdocs-embed-external-markdown>=3.0.2",
     "mkdocs-include-markdown-plugin>=7.1.6",
