@@ -59,7 +59,7 @@ def test_workflow_with_true_predicate_starts_normally():
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow with passing predicate", target=Target.SYSTEM, run_predicate=lambda: True)
+    @workflow("Test workflow with passing predicate", target=Target.SYSTEM, run_predicate=lambda: (True, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -73,7 +73,7 @@ def test_workflow_with_false_predicate_raises_error():
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow with failing predicate", target=Target.SYSTEM, run_predicate=lambda: False)
+    @workflow("Test workflow with failing predicate", target=Target.SYSTEM, run_predicate=lambda: (False, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -82,12 +82,51 @@ def test_workflow_with_false_predicate_raises_error():
             run_workflow("test_wf_false_predicate", {})
 
 
+def test_false_predicate_with_reason():
+    @step("Test step")
+    def test_step_fn():
+        return {"result": True}
+
+    @workflow(
+        "Test workflow with reason",
+        target=Target.SYSTEM,
+        run_predicate=lambda: (False, "Maintenance window is closed"),
+    )
+    def test_wf():
+        return begin >> test_step_fn >> done
+
+    with WorkflowInstanceForTests(test_wf, "test_wf_with_reason"):
+        with pytest.raises(StartPredicateError, match="Maintenance window is closed") as exc_info:
+            run_workflow("test_wf_with_reason", {})
+
+        assert exc_info.value.workflow_key == "test_wf_with_reason"
+        assert exc_info.value.message == "Maintenance window is closed"
+
+
+def test_false_predicate_without_reason_uses_default_message():
+    @step("Test step")
+    def test_step_fn():
+        return {"result": True}
+
+    @workflow("Test workflow no reason", target=Target.SYSTEM, run_predicate=lambda: (False, None))
+    def test_wf():
+        return begin >> test_step_fn >> done
+
+    with WorkflowInstanceForTests(test_wf, "test_wf_no_reason"):
+        with pytest.raises(StartPredicateError) as exc_info:
+            run_workflow("test_wf_no_reason", {})
+
+        assert exc_info.value.workflow_key == "test_wf_no_reason"
+        assert "test_wf_no_reason" in exc_info.value.message
+        assert "is not satisfied" in exc_info.value.message
+
+
 def test_false_predicate_does_not_create_db_row():
     @step("Test step")
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow no db row", target=Target.SYSTEM, run_predicate=lambda: False)
+    @workflow("Test workflow no db row", target=Target.SYSTEM, run_predicate=lambda: (False, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -113,7 +152,7 @@ def test_start_predicate_returns_412_via_rest(test_client):
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow blocked", target=Target.SYSTEM, run_predicate=lambda: False)
+    @workflow("Test workflow blocked", target=Target.SYSTEM, run_predicate=lambda: (False, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -123,12 +162,31 @@ def test_start_predicate_returns_412_via_rest(test_client):
         assert "test_wf_blocked" in response.json()["detail"]
 
 
+def test_start_predicate_reason_in_412_response(test_client):
+    @step("Test step")
+    def test_step_fn():
+        return {"result": True}
+
+    @workflow(
+        "Test workflow with reason",
+        target=Target.SYSTEM,
+        run_predicate=lambda: (False, "System is in read-only mode"),
+    )
+    def test_wf():
+        return begin >> test_step_fn >> done
+
+    with WorkflowInstanceForTests(test_wf, "test_wf_reason_412"):
+        response = test_client.post("/api/processes/test_wf_reason_412", json=[{}])
+        assert HTTPStatus.PRECONDITION_FAILED == response.status_code
+        assert "System is in read-only mode" in response.json()["detail"]
+
+
 def test_start_predicate_passes_via_rest(test_client):
     @step("Test step")
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow allowed", target=Target.SYSTEM, run_predicate=lambda: True)
+    @workflow("Test workflow allowed", target=Target.SYSTEM, run_predicate=lambda: (True, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -146,7 +204,7 @@ def test_start_predicate_returns_mutation_error_via_graphql(httpx_mock, test_cli
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow blocked gql", target=Target.SYSTEM, run_predicate=lambda: False)
+    @workflow("Test workflow blocked gql", target=Target.SYSTEM, run_predicate=lambda: (False, None))
     def test_wf():
         return begin >> test_step_fn >> done
 
@@ -162,12 +220,37 @@ def test_start_predicate_returns_mutation_error_via_graphql(httpx_mock, test_cli
         assert "test_wf_blocked_gql" in data["details"]
 
 
+def test_start_predicate_reason_in_graphql_error(httpx_mock, test_client):
+    @step("Test step")
+    def test_step_fn():
+        return {"result": True}
+
+    @workflow(
+        "Test workflow reason gql",
+        target=Target.SYSTEM,
+        run_predicate=lambda: (False, "Already running"),
+    )
+    def test_wf():
+        return begin >> test_step_fn >> done
+
+    with WorkflowInstanceForTests(test_wf, "test_wf_reason_gql"):
+        query = get_start_process_mutation(name="test_wf_reason_gql", payload={"payload": [{}]})
+
+        with mutation_authorization():
+            response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+
+        assert response.status_code == HTTPStatus.OK
+        data = response.json()["data"]["startProcess"]
+        assert data["message"] == "Start predicate not satisfied"
+        assert "Already running" in data["details"]
+
+
 def test_start_predicate_passes_via_graphql(httpx_mock, test_client):
     @step("Test step")
     def test_step_fn():
         return {"result": True}
 
-    @workflow("Test workflow allowed gql", target=Target.SYSTEM, run_predicate=lambda: True)
+    @workflow("Test workflow allowed gql", target=Target.SYSTEM, run_predicate=lambda: (True, None))
     def test_wf():
         return begin >> test_step_fn >> done
 

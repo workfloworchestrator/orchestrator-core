@@ -88,7 +88,7 @@ class Step(Protocol):
     def __call__(self, state: State) -> Process: ...
 
 
-RunPredicate = Callable[..., bool]
+RunPredicate = Callable[..., tuple[bool, str | None]]
 
 
 @runtime_checkable

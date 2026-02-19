@@ -20,17 +20,18 @@ from sqlalchemy import func, select
 from orchestrator.db import ProcessTable, db
 
 
-def no_uncompleted_instance(workflow_name: str) -> Callable[[], bool]:
+def no_uncompleted_instance(workflow_name: str) -> Callable[[], tuple[bool, str | None]]:
     """Create a predicate that prevents starting if an uncompleted instance of the given workflow exists.
 
     Args:
         workflow_name: The workflow name to check for uncompleted instances.
 
     Returns:
-        A callable that returns True if no uncompleted instances exist, False otherwise.
+        A callable that returns (True, None) if no uncompleted instances exist,
+        or (False, reason) otherwise.
     """
 
-    def predicate() -> bool:
+    def predicate() -> tuple[bool, str | None]:
         uncompleted_count = db.session.scalar(
             select(func.count())
             .select_from(ProcessTable)
@@ -39,6 +40,8 @@ def no_uncompleted_instance(workflow_name: str) -> Callable[[], bool]:
                 ProcessTable.last_status != "completed",
             )
         )
-        return uncompleted_count == 0
+        if uncompleted_count == 0:
+            return True, None
+        return False, f"Workflow '{workflow_name}' already has {uncompleted_count} uncompleted instance(s)"
 
     return predicate
