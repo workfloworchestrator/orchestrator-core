@@ -63,6 +63,9 @@ class AppSettings(BaseSettings):
     BASE_URL: str = "http://localhost:8080"  # Base URL for the API (used for generating export URLs)
     DATABASE_URI: PostgresDsn = "postgresql://nwa:nwa@localhost/orchestrator-core"  # type: ignore
     MAX_WORKERS: int = 5
+    WORKER_STATUS_INTERVAL: int = Field(
+        5, description="Interval in seconds for updating worker status count in the background monitor"
+    )
     MAIL_SERVER: str = "localhost"
     MAIL_PORT: int = 25
     MAIL_STARTTLS: bool = False

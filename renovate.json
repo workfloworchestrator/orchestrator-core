@@ -14,7 +14,8 @@
     }
   ],
   "lockFileMaintenance": {
-    "enabled": true
+    "enabled": true,
+    "schedule": ["before 3am on Wednesday"]
   },
   "ignorePaths": [
     "Dockerfile"
