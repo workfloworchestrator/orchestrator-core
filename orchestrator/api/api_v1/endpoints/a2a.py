@@ -12,16 +12,20 @@
 # limitations under the License.
 
 from contextlib import AsyncExitStack, asynccontextmanager
-from typing import AsyncIterator
+from typing import AsyncIterator, cast
 
+import structlog
 from fasta2a.applications import FastA2A
 from fasta2a.broker import InMemoryBroker
-from fasta2a.schema import Skill
+from fasta2a.schema import Skill, TaskSendParams
 from fasta2a.storage import InMemoryStorage
 from pydantic_ai._a2a import AgentWorker
 
 from orchestrator.search.agent.agent import GraphAgentAdapter
 from orchestrator.search.agent.skills import SKILLS
+from orchestrator.search.agent.state import TaskAction
+
+logger = structlog.get_logger(__name__)
 
 A2A_SKILLS = [
     Skill(
@@ -34,6 +38,35 @@ A2A_SKILLS = [
     )
     for action, skill in SKILLS.items()
 ]
+
+
+class SkillAwareWorker(AgentWorker):  # type: ignore[type-arg]
+    """AgentWorker subclass that extracts skillId from A2A message metadata.
+
+    The A2A protocol advertises skills on the Agent Card but has no first-class
+    field for targeting a skill on ``message/send``. The convention is to pass
+    ``{"skill_id": "<action>"}`` in the message metadata. This worker extracts
+    that hint and sets it on the agent as ``_a2a_target_action`` before delegating
+    to the parent ``run_task``. ``GraphAgentAdapter.run()`` picks it up and
+    bypasses the planner, invoking the skill node directly (preventing 1 extra llm call).
+    """
+
+    async def run_task(self, params: TaskSendParams) -> None:
+        agent = cast(GraphAgentAdapter, self.agent)
+        metadata = params["message"].get("metadata", {})
+        skill_id = metadata.get("skill_id") or metadata.get("skillId")
+
+        if skill_id:
+            try:
+                agent._a2a_target_action = TaskAction(skill_id)
+                logger.debug("A2A: Routing to skill directly", target_action=agent._a2a_target_action)
+            except ValueError:
+                logger.warning("A2A: Unknown skillId, falling back to planner", skill_id=skill_id)
+
+        try:
+            await super().run_task(params)
+        finally:
+            agent._a2a_target_action = None
 
 
 def create_a2a_app(agent: GraphAgentAdapter, url: str = "http://localhost:8080/api/a2a/") -> FastA2A:
@@ -54,7 +87,7 @@ def create_a2a_app(agent: GraphAgentAdapter, url: str = "http://localhost:8080/a
     """
     storage = InMemoryStorage()
     broker = InMemoryBroker()
-    worker = AgentWorker(agent=agent, broker=broker, storage=storage)
+    worker = SkillAwareWorker(agent=agent, broker=broker, storage=storage)  # type: ignore[arg-type]
 
     @asynccontextmanager
     async def _noop_lifespan(app: FastA2A) -> AsyncIterator[None]:

@@ -170,6 +170,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         collects tool results and the final output. This reuses the entire
         existing graph execution without any parallel code path.
         """
+        target_action = target_action or getattr(self, "_a2a_target_action", None)
         user_input = self._extract_user_input(user_prompt, message_history)
 
         if deps is None:

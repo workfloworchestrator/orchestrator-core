@@ -77,6 +77,9 @@ class BaseGraphNode(ABC):
         """Generate events from the node's dedicated agent as they happen."""
         node_name = self.__class__.__name__
 
+        # Must record node entry before tools run (stream() executes before run())
+        ctx.state.environment.record_node_entry(node_name)
+
         emit_node_active_event(self.event_emitter, node_name, ctx)
 
         # Reset tool calls tracking and result for this run
@@ -273,8 +276,6 @@ class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
     description: str = field(default="Executes database searches with optional filtering", init=False)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
-        ctx.state.environment.record_node_entry(self.__class__.__name__)
-
         try:
             if ctx.state.execution_plan and ctx.state.execution_plan.current:
                 ctx.state.execution_plan.current.status = TaskStatus.COMPLETED
@@ -308,8 +309,6 @@ class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
     description: str = field(default="Executes aggregations with grouping, filtering, and visualization", init=False)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
-        ctx.state.environment.record_node_entry(self.__class__.__name__)
-
         try:
             if ctx.state.execution_plan and ctx.state.execution_plan.current:
                 ctx.state.execution_plan.current.status = TaskStatus.COMPLETED
@@ -345,8 +344,6 @@ class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
     description: str = field(default="Exports, fetches details, or visualizes existing results", init=False)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
-        ctx.state.environment.record_node_entry(self.__class__.__name__)
-
         try:
             if ctx.state.execution_plan and ctx.state.execution_plan.current:
                 ctx.state.execution_plan.current.status = TaskStatus.COMPLETED
@@ -388,8 +385,6 @@ class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> PlannerNode | End[str]:
         """Text response completes the flow."""
-        ctx.state.environment.record_node_entry(self.__class__.__name__)
-
         if ctx.state.execution_plan and ctx.state.execution_plan.current:
             ctx.state.execution_plan.current.status = TaskStatus.COMPLETED
             ctx.state.execution_plan.next()
