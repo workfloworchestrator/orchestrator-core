@@ -196,7 +196,7 @@ def check_subscription_models() -> State:
     target=Target.SYSTEM,
     authorize_callback=authorizers.authorize_callback,
     retry_auth_callback=authorizers.retry_auth_callback,
-    run_predicate=no_uncompleted_instance,
+    run_predicate=no_uncompleted_instance("task_validate_products"),
 )
 def task_validate_products() -> StepList:
     return (

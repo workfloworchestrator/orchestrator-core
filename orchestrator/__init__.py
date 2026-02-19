@@ -32,7 +32,6 @@ else:
     from orchestrator.app import OrchestratorCore  # type: ignore[assignment]
 
 from orchestrator.workflow import (
-    PredicateContext,
     RunPredicate,
     begin,
     conditional,
@@ -47,7 +46,6 @@ from orchestrator.workflow import (
 
 __all__ = [
     "OrchestratorCore",
-    "PredicateContext",
     "RunPredicate",
     "app_settings",
     "llm_settings",
