@@ -41,7 +41,7 @@ dependencies = [
     "click==8.*",
     "deepmerge==2.0",
     "deprecated>=1.2.18",
-    "fastapi~=0.128.0",
+    "fastapi~=0.129.0",
     "fastapi-etag==0.4.0",
     "itsdangerous>=2.2.0",
     "jinja2==3.1.6",
