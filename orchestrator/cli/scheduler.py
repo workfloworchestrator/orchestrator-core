@@ -16,6 +16,7 @@ from typing import cast
 import typer
 from redis import Redis
 
+from orchestrator.db import db
 from orchestrator.schedules.scheduler import (
     get_all_scheduler_tasks,
     get_scheduler,
@@ -64,7 +65,8 @@ def run() -> None:
             if not item:
                 continue
 
-            workflow_scheduler_queue(item, scheduler_connection)
+            with db.database_scope():
+                workflow_scheduler_queue(item, scheduler_connection)
 
 
 @app.command()

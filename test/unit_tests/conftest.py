@@ -349,6 +349,28 @@ def test_client(fastapi_app):
 
 
 @pytest.fixture(autouse=True)
+def reset_worker_monitor_state():
+    """Reset worker monitor state between tests to prevent count leaking across tests.
+
+    The monitor is a session-scoped singleton. Tests that run actual workflows leave
+    _active_threadpool_jobs > 0, which the background thread caches. This fixture
+    resets that state after each test so the next test starts with an accurate count of 0.
+    """
+    import orchestrator.services.processes as proc_module
+    import orchestrator.services.worker_status_monitor as wsm_module
+
+    yield
+
+    # Reset the active jobs counter so the monitor reflects reality (no jobs running between tests)
+    with proc_module._active_jobs_lock:
+        proc_module._active_threadpool_jobs = 0
+
+    # Force the monitor to refresh its cache immediately with the reset value
+    if wsm_module._monitor is not None and wsm_module._monitor.is_alive():
+        wsm_module._monitor._refresh_once()
+
+
+@pytest.fixture(autouse=True)
 def responses(request):
     if request.node.get_closest_marker("noresponses"):
         # This test doesn't want responses mocking

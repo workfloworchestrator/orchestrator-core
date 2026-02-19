@@ -15,25 +15,18 @@ def test_get_engine_status(test_client):
     engine_settings = get_engine_settings()
     response = test_client.get("/api/settings/status")
     assert response.status_code == HTTPStatus.OK
+    # Worker-based counting: no actual workers executing in test environment
     assert response.json()["running_processes"] == 0
     assert response.json()["global_lock"] is False
     assert response.json()["global_status"] == "RUNNING"
 
+    # Set global lock - count should still be 0 (no workers executing)
     engine_settings.global_lock = True
-    engine_settings.running_processes = 1
     db.session.flush()
 
     response = test_client.get("/api/settings/status")
     assert response.status_code == HTTPStatus.OK
-    assert response.json()["running_processes"] == 1
-    assert response.json()["global_lock"] is True
-    assert response.json()["global_status"] == "PAUSING"
-
-    engine_settings.running_processes = 0
-    db.session.flush()
-
-    response = test_client.get("/api/settings/status")
-    assert response.status_code == HTTPStatus.OK
+    # Worker-based counting: still 0 as no actual workers are executing
     assert response.json()["running_processes"] == 0
     assert response.json()["global_lock"] is True
     assert response.json()["global_status"] == "PAUSED"

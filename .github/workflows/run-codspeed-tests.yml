@@ -46,7 +46,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.10.0"
+          version: "0.10.2"
 
       - name: Install the project
         # --all-extras: [project.optional-dependencies]
