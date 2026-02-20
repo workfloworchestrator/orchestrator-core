@@ -87,7 +87,6 @@ agent = [
     "pydantic-ai-slim >=1.27.0",
     "ag-ui-protocol>=0.1.10",
     "litellm>=1.75.7",
-    "pydantic-graph>=1.0.0",
 ]
 
 # Local dependencies for development

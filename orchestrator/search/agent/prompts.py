@@ -17,7 +17,7 @@ from orchestrator.search.agent import tools
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.core.types import EntityType
 
-GRAPH_CONTEXT = """You are an agent in a cyclic graph that can visit nodes multiple times per request.
+AGENT_CONTEXT = """You are an agent that executes tasks in a plan, one step at a time.
 When tools complete successfully, results are immediately streamed to the user's UI in real-time."""
 
 FILTERING_RULES = f"""### Filtering Rules (if query requires filters)
@@ -31,7 +31,7 @@ FILTERING_RULES = f"""### Filtering Rules (if query requires filters)
 
 
 def get_search_execution_prompt(state: SearchState) -> str:
-    """Get prompt for SearchNode agent.
+    """Get prompt for Search skill.
 
     Args:
         state: Current search state
@@ -45,7 +45,7 @@ def get_search_execution_prompt(state: SearchState) -> str:
         f"""
         # Searching
 
-        {GRAPH_CONTEXT}
+        {AGENT_CONTEXT}
 
         ## Your Task
         Execute a database search to answer the user's request.
@@ -67,7 +67,7 @@ def get_search_execution_prompt(state: SearchState) -> str:
 
 
 def get_aggregation_execution_prompt(state: SearchState) -> str:
-    """Get prompt for AggregationNode agent.
+    """Get prompt for Aggregation skill.
 
     Args:
         state: Current search state with query_operation and query info
@@ -75,14 +75,13 @@ def get_aggregation_execution_prompt(state: SearchState) -> str:
     Returns:
         Complete prompt for executing aggregation with optional filtering and grouping
     """
-
     context = state.memory.format_context_for_llm(state)
 
     return dedent(
         f"""
         # Aggregating
 
-        {GRAPH_CONTEXT}
+        {AGENT_CONTEXT}
 
         ## Your Task
         Execute an aggregation query for the user's request.
@@ -122,7 +121,7 @@ def get_text_response_prompt(state: SearchState) -> str:
         f"""
         # Responding
 
-        {GRAPH_CONTEXT}
+        {AGENT_CONTEXT}
 
         ## Available Capabilities
         - Search for entities: {entity_types}
@@ -142,37 +141,22 @@ def get_text_response_prompt(state: SearchState) -> str:
     ).strip()
 
 
-def get_planning_prompt(state: SearchState, is_replanning: bool = False) -> str:
-    """Get prompt for PlannerNode to create execution plan.
+def get_planning_prompt(state: SearchState) -> str:
+    """Get prompt for Planner to create execution plan.
 
     Args:
         state: Current search state
-        is_replanning: True if replanning after a failed execution
 
     Returns:
         Complete prompt for creating multi-step execution plan
     """
-    # Get context for replanning (NOT conversation - that's in message_history now)
-    context = state.memory.format_context_for_llm(
-        state,
-        include_current_run_steps=is_replanning,
-    )
+    context = state.memory.format_context_for_llm(state)
 
-    # Different guidelines for initial planning vs replanning
-    if is_replanning:
-        guidelines = """## Your Task & Guidelines
-        Replan after failure - analyze what went wrong and create a new approach.
-
-        1. **Review what failed**: Check "Steps already executed" to see what went wrong
-        2. **Adjust approach**: Create a different plan that avoids the previous failure
-        3. **Use available context**: If results exist from before the failure, you can use them
-        4. **Keep it simple**: Prefer 1-2 tasks when possible"""
-    else:
-        guidelines = """## Your Task & Guidelines
+    guidelines = """## Your Task & Guidelines
         Analyze the user's request and create a sequential execution plan.
 
         1. **Check available context**: If results already exist from previous turns, you can act on them directly
-        2. **Break into tasks**: Each task = one node execution. Create as many tasks as needed to fulfill the request.
+        2. **Break into tasks**: Each task = one skill execution. Create as many tasks as needed to fulfill the request.
 
         ## Example
         Request: "Find X and export them"
@@ -184,11 +168,11 @@ def get_planning_prompt(state: SearchState, is_replanning: bool = False) -> str:
         f"""
         # Execution Planning
 
-        {GRAPH_CONTEXT}
+        {AGENT_CONTEXT}
 
         {guidelines}
 
-        IMPORTANT: Query execution nodes automatically stream results to the user.
+        IMPORTANT: Query execution skills automatically stream results to the user.
         Do NOT create redundant tasks just to "show" or "present" results that are already displayed.
 
         ---
@@ -212,7 +196,7 @@ def get_result_actions_prompt(state: SearchState) -> str:
         f"""
         # Acting on Results
 
-        {GRAPH_CONTEXT}
+        {AGENT_CONTEXT}
 
         Act on existing search/aggregation results.
 
@@ -224,6 +208,7 @@ def get_result_actions_prompt(state: SearchState) -> str:
         Execute the requested action. After calling the tool, respond with a single short confirmation like "Prepared an export for [description]." or "Fetched details for [count] entities."
 
         IMPORTANT: For export requests, ONLY call prepare_export(). Do NOT fetch entity details.
+
         ---
 
         {context}

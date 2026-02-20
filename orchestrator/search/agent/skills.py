@@ -43,7 +43,7 @@ class Skill:
     memory scope. The agent creates pydantic-ai Agent instances from
     skills at execution time.
 
-    Note: Anthropic's "Agent Skills" are a different concept — filesystem-based
+    Note: Anthropic's "Agent Skills" are a different concept; filesystem-based
     instruction packages (SKILL.md) for teaching Claude workflows.
     """
 

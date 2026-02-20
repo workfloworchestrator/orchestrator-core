@@ -42,7 +42,7 @@ async def execute_search_with_persistence(
     Returns:
         Tuple of (search_response, run_id, query_id)
     """
-    # run_id must be provided when called from graph agent (endpoint creates the run)
+    # run_id must be provided when called from agent (endpoint creates the run)
     if run_id is None:
         raise ValueError("run_id is required - agent run must be created by endpoint with thread_id")
 
@@ -81,7 +81,7 @@ async def execute_aggregation_with_persistence(
     Returns:
         Tuple of (aggregation_response, run_id, query_id)
     """
-    # run_id must be provided when called from graph agent (endpoint creates the run)
+    # run_id must be provided when called from agent (endpoint creates the run)
     if run_id is None:
         raise ValueError("run_id is required - agent run must be created by endpoint with thread_id")
 

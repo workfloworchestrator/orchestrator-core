@@ -19,32 +19,41 @@ from ag_ui.core import BaseEvent, CustomEvent
 from pydantic import Field
 from typing_extensions import TypedDict
 
+from orchestrator.search.agent.state import SearchState
 from orchestrator.search.agent.utils import current_timestamp_ms
 
 
-class GraphNodeActiveValue(TypedDict, total=False):
-    """Typed structure for GRAPH_NODE_ACTIVE event value."""
+class AgentStepActiveValue(TypedDict, total=False):
+    """Typed structure for AGENT_STEP_ACTIVE event value."""
 
-    node: str
+    step: str
     reasoning: str
 
 
-class GraphNodeActiveEvent(CustomEvent):
-    """Event emitted when a graph node becomes active."""
+class AgentStepActiveEvent(CustomEvent):
+    """Event emitted when an agent step becomes active."""
 
-    name: str = Field(default="GRAPH_NODE_ACTIVE", frozen=True)
-    value: GraphNodeActiveValue
+    name: str = Field(default="AGENT_STEP_ACTIVE", frozen=True)
+    value: AgentStepActiveValue
 
 
 @dataclass
-class GraphDeps:
-    """Request-scoped dependencies injected into graph nodes via ctx.deps."""
+class AgentDeps:
+    """Request-scoped dependencies injected into agent steps."""
 
     _emit: Callable[[BaseEvent], None]
 
-    def emit_node_active(self, node_name: str, reasoning: str | None = None) -> None:
-        """Emit a GRAPH_NODE_ACTIVE event via the attached emitter."""
-        value = GraphNodeActiveValue(node=node_name)
+    def emit_step_active(self, step_name: str, reasoning: str | None = None) -> None:
+        """Emit an AGENT_STEP_ACTIVE event via the attached emitter."""
+        value = AgentStepActiveValue(step=step_name)
         if reasoning:
             value["reasoning"] = reasoning
-        self._emit(GraphNodeActiveEvent(timestamp=current_timestamp_ms(), value=value))
+        self._emit(AgentStepActiveEvent(timestamp=current_timestamp_ms(), value=value))
+
+
+@dataclass
+class RunContext:
+    """Execution context passed to Planner and SkillRunner."""
+
+    state: SearchState
+    deps: AgentDeps

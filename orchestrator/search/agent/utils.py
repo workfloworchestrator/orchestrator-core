@@ -30,16 +30,11 @@ def log_execution_plan(plan) -> None:
         return
 
     print(f"\n{'='*80}")  # noqa: T201
-    print("[EXECUTION PLAN]")  # noqa: T201
+    print(f"[EXECUTION PLAN] {len(plan.tasks)} tasks")  # noqa: T201
     print(f"{'='*80}")  # noqa: T201
-    print(f"Current Index: {plan.current_index}/{len(plan.tasks)}")  # noqa: T201
-    print(f"Complete: {plan.is_complete}")  # noqa: T201
-    print(f"Failed: {plan.failed}")  # noqa: T201
-    print(f"\nTasks ({len(plan.tasks)}):")  # noqa: T201
 
     for i, task in enumerate(plan.tasks):
-        marker = "→" if i == plan.current_index else " "
-        print(f"\n{marker} [{i+1}] {task.status.value.upper()}")  # noqa: T201
+        print(f"\n  [{i+1}] {task.status.value.upper()}")  # noqa: T201
         print(f"    Action: {task.action_type.value}")  # noqa: T201
         print(f"    Reasoning: {task.reasoning}")  # noqa: T201
 

@@ -25,9 +25,8 @@ from structlog import get_logger
 
 from orchestrator.db import db
 from orchestrator.db.models import AgentRunTable
-from orchestrator.search.agent.agent import GraphAgentAdapter, build_agent_instance
+from orchestrator.search.agent.agent import AgentAdapter, build_agent_instance
 from orchestrator.search.agent.persistence import PostgresStatePersistence
-from orchestrator.search.agent.schemas import GraphStructure
 from orchestrator.search.agent.state import SearchState
 
 router = APIRouter()
@@ -49,7 +48,6 @@ def prepare_run_input(run_input: RunAgentInput) -> RunAgentInput:
         Modified RunAgentInput with user_input added to state
     """
     # Extract the most recent user message
-    # QueryAnalysisNode LLM will decide if it's a new search or follow-up
     user_input = ""
     for msg in reversed(run_input.messages):
         if msg.role == "user" and msg.content:
@@ -75,7 +73,7 @@ def prepare_run_input(run_input: RunAgentInput) -> RunAgentInput:
 
 
 @cache
-def get_agent(request: Request) -> GraphAgentAdapter:
+def get_agent(request: Request) -> AgentAdapter:
     """Dependency to provide the agent instance.
 
     The agent is built once and cached for the lifetime of the application.
@@ -85,19 +83,19 @@ def get_agent(request: Request) -> GraphAgentAdapter:
     model = request.app.agent_model
     debug = llm_settings.AGENT_DEBUG
 
-    logger.debug("Building graph agent instance", model=model, debug=debug)
+    logger.debug("Building agent instance", model=model, debug=debug)
     return build_agent_instance(model, debug=debug)
 
 
 @router.post("/")
 async def agent_conversation(
     request: Request,
-    agent: Annotated[GraphAgentAdapter, Depends(get_agent)],
+    agent: Annotated[AgentAdapter, Depends(get_agent)],
 ) -> Response:
     """Agent conversation endpoint using pydantic-ai ag_ui protocol.
 
     This endpoint handles the interactive agent conversation for search.
-    Uses manual stream management to allow custom graph events to be injected.
+    Uses manual stream management to allow custom events to be injected.
     """
 
     # Parse the request body to get RunAgentInput
@@ -132,9 +130,9 @@ async def agent_conversation(
 
             persistence = PostgresStatePersistence(thread_id=thread_id, run_id=run_id, session=db.session)
 
-            snapshot = await persistence.load_next()
-            if snapshot:
-                initial_state = snapshot.state
+            loaded_state = await persistence.load_state()
+            if loaded_state:
+                initial_state = loaded_state
                 initial_state.user_input = prepared_run_input.state["user_input"]
                 initial_state.run_id = run_id
                 logger.debug(
@@ -146,7 +144,7 @@ async def agent_conversation(
                 initial_state = SearchState(**prepared_run_input.state)
                 logger.debug("Created fresh state (no previous snapshot)")
 
-            # Set persistence on agent instance (run_ag_ui doesn't support passing it as parameter)
+            # Set persistence on agent instance
             agent._persistence = persistence
 
             # Run agent with AG-UI protocol handling
@@ -157,10 +155,10 @@ async def agent_conversation(
             )
 
             async for event_str in event_iterator:
-                # First, check if there are any custom graph events to inject
-                if hasattr(agent, "_current_graph_events"):
-                    while agent._current_graph_events:
-                        custom_event = agent._current_graph_events.popleft()
+                # First, check if there are any custom events to inject
+                if hasattr(agent, "_current_events"):
+                    while agent._current_events:
+                        custom_event = agent._current_events.popleft()
                         await send_stream.send(custom_event)
 
                 # Then send the AG-UI event
@@ -190,23 +188,3 @@ async def agent_conversation(
     return StreamingResponse(stream_generator(), media_type=SSE_CONTENT_TYPE)
 
 
-@router.get("/graph")
-async def get_graph_structure(
-    request: Request,
-    agent: Annotated[GraphAgentAdapter, Depends(get_agent)],
-) -> GraphStructure:
-    """Get the agent graph structure for visualization.
-
-    Returns structured graph data (nodes and edges) that the frontend can use to:
-    - Visualize the graph structure
-    - Highlight nodes based on events received during execution
-
-    Args:
-        request: FastAPI request object
-        agent: The agent instance (injected by FastAPI dependency)
-
-    Returns:
-        GraphStructure with nodes, edges, and start_node
-    """
-    logger.info("Retrieving graph structure")
-    return agent.get_graph_structure()

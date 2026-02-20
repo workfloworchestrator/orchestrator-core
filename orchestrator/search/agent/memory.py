@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from uuid import UUID
+from typing import Any
 
 import structlog
 from pydantic import BaseModel, ConfigDict
@@ -11,66 +11,55 @@ logger = structlog.get_logger(__name__)
 
 
 class MemoryScope(Enum):
-    """Defines what context is visible to different nodes."""
+    """Defines what context is visible to different steps."""
 
-    FULL = "full"  # User questions + answers + full execution traces (PlannerNode)
-    LIGHTWEIGHT = "lightweight"  # User questions + answers + full query JSON (Search/Aggregation nodes)
-    MINIMAL = "minimal"  # User questions + answers + query_id only (ResultActions node)
+    FULL = "full"  # User questions + answers + full execution traces (Planner)
+    LIGHTWEIGHT = "lightweight"  # User questions + answers + full query JSON (Search/Aggregation)
+    MINIMAL = "minimal"  # User questions + answers + query_id only (Result Actions)
 
 
 @dataclass
-class StepRecord:
+class Step:
     """Base class for execution steps in a turn.
 
-    A step represents a discrete action taken during graph execution,
+    A step represents a discrete action taken during agent execution,
     either visiting a node or calling a tool.
     """
 
-    step_type: str  # Specific type: node name or tool name
+    step_type: str  # Specific type: step name or tool name
     description: str
-    step_category: str = ""  # "node" or "tool" - set by subclass
     success: bool = True
     error_message: str | None = None
     timestamp: datetime = field(default_factory=lambda: datetime.now())
 
 
 @dataclass
-class NodeStep(StepRecord):
-    """Records a node execution in the graph.
+class AgentStep(Step):
+    """Records an agent step execution.
 
-    Contains nested tool_steps that were executed within this node.
+    Contains nested tool_steps that were executed within this step.
     """
 
-    tool_steps: list["ToolStep"] = field(default_factory=list)  # Tools called within this node
-
-    def __post_init__(self):
-        self.step_category = "node"
+    tool_steps: list["ToolStep"] = field(default_factory=list)  # Tools called by this agent.
 
     def add_tool_step(self, tool_step: "ToolStep") -> None:
-        """Add a tool step that was executed within this node."""
+        """Add a tool step that was executed within this step."""
         self.tool_steps.append(tool_step)
 
 
 @dataclass
-class ToolStep(StepRecord):
+class ToolStep(Step):
     """Records a tool call execution."""
 
-    entity_type: str | None = None
-    results_count: int = 0
-    query_operation: str | None = None
-    query_snapshot: dict | None = None
-    query_id: UUID | None = None
-
-    def __post_init__(self):
-        self.step_category = "tool"
+    context: dict[str, Any] | None = None
 
 
 @dataclass
 class Turn:
     user_question: str
     assistant_answer: str | None = None
-    node_steps: list[NodeStep] = field(default_factory=list)
-    current_node_step: NodeStep | None = None
+    steps: list[AgentStep] = field(default_factory=list)
+    current_step: AgentStep | None = None
     timestamp: datetime = field(default_factory=lambda: datetime.now())
 
     @property
@@ -98,47 +87,47 @@ class Memory(BaseModel):
     def start_turn(self, user_question: str):
         self.turns.append(Turn(user_question=user_question))
 
-    def start_node_step(self, node_name: str) -> None:
-        """Start a new node step (finishes previous node if any)."""
+    def start_step(self, step_name: str) -> None:
+        """Start a new agent step (finishes previous step if any)."""
         if not self.current_turn:
             raise ValueError("No active turn")
 
-        if self.current_turn.current_node_step:
-            self.finish_node_step()
+        if self.current_turn.current_step:
+            self.finish_step()
 
-        self.current_turn.current_node_step = NodeStep(
-            step_type=node_name,
-            description=f"Executing {node_name}",
+        self.current_turn.current_step = AgentStep(
+            step_type=step_name,
+            description=f"Executing {step_name}",
         )
 
     def record_tool_step(self, tool_step: ToolStep):
-        """Record a tool call within the current node."""
+        """Record a tool call within the current step."""
         if not self.current_turn:
             raise ValueError("No active turn")
-        if not self.current_turn.current_node_step:
-            raise ValueError("No active node step — must call start_node_step first")
+        if not self.current_turn.current_step:
+            raise ValueError("No active step — must call start_step first")
 
-        self.current_turn.current_node_step.add_tool_step(tool_step)
+        self.current_turn.current_step.add_tool_step(tool_step)
 
-    def finish_node_step(self):
-        """Finish the current node step and add it to the list."""
+    def finish_step(self):
+        """Finish the current step and add it to the list."""
         if not self.current_turn:
             raise ValueError("No active turn")
-        if not self.current_turn.current_node_step:
-            raise ValueError("No active node step to finish")
+        if not self.current_turn.current_step:
+            raise ValueError("No active step to finish")
 
         turn = self.current_turn
-        if turn.current_node_step is not None:
-            turn.node_steps.append(turn.current_node_step)
-            turn.current_node_step = None
+        if turn.current_step is not None:
+            turn.steps.append(turn.current_step)
+            turn.current_step = None
 
     def complete_turn(self, assistant_answer: str):
         if not self.current_turn:
             raise ValueError("No active turn")
 
-        # Finish any in-progress node step
-        if self.current_turn.current_node_step:
-            self.finish_node_step()
+        # Finish any in-progress step
+        if self.current_turn.current_step:
+            self.finish_step()
 
         turn = self.current_turn
 
@@ -146,16 +135,16 @@ class Memory(BaseModel):
             "complete_turn",
             completed_count_before=len(self.completed_turns),
             question=turn.user_question,
-            node_step_count=len(turn.node_steps),
+            step_count=len(turn.steps),
         )
 
         turn.assistant_answer = assistant_answer
 
-    def _format_query_summary(self, node_steps: list[NodeStep], include_full_query: bool = True) -> str | None:
+    def _format_query_summary(self, steps: list[AgentStep], include_full_query: bool = True) -> str | None:
         """Format query summary - either full JSON or just query_id with one-liner.
 
         Args:
-            node_steps: List of NodeStep objects to extract queries from
+            steps: List of AgentStep objects to extract queries from
             include_full_query: If True, show full query JSON; if False, just query_id + description
 
         Returns:
@@ -165,9 +154,9 @@ class Memory(BaseModel):
 
         # Find tool steps with query_ids
         query_tools = []
-        for node_step in node_steps:
-            for tool_step in node_step.tool_steps:
-                if tool_step.query_id:
+        for step in steps:
+            for tool_step in step.tool_steps:
+                if tool_step.context and tool_step.context.get("query_id"):
                     query_tools.append(tool_step)
 
         if not query_tools:
@@ -175,44 +164,41 @@ class Memory(BaseModel):
 
         summaries = []
         for tool in query_tools:
-            if include_full_query and tool.query_snapshot:
+            query_id = tool.context.get("query_id")
+            query_snapshot = tool.context.get("query_snapshot")
+            if include_full_query and query_snapshot:
                 # Full query JSON for Search/Aggregation nodes
-                query_json = json.dumps(tool.query_snapshot, indent=2)
-                summaries.append(f"Query {tool.query_id}:\n{query_json}")
+                query_json = json.dumps(query_snapshot, indent=2)
+                summaries.append(f"Query {query_id}:\n{query_json}")
             else:
-                # Minimal one-liner for ResultActions node
-                operation = tool.query_operation or "QUERY"
-                entity = tool.entity_type or "unknown3"
-                results = f" ({tool.results_count} results)" if tool.results_count else ""
-                summaries.append(f"Query {tool.query_id}: {operation} {entity}{results}")
+                # Minimal one-liner for ResultActions
+                summaries.append(f"Query {query_id}: {tool.description}")
 
         return "\n\n".join(summaries) if summaries else None
 
-    def _format_execution_trace(self, node_steps: list[NodeStep]) -> str | None:
-        """Format node steps as execution trace string.
+    def _format_execution_trace(self, steps: list[AgentStep]) -> str | None:
+        """Format steps as execution trace string.
 
         Args:
-            node_steps: List of NodeStep objects to format
+            steps: List of AgentStep objects to format
 
         Returns:
-            Formatted execution trace string, or None if no action nodes
+            Formatted execution trace string, or None if no action steps
         """
-        # Filter out PlannerNode - only show action nodes
-        action_nodes = [step for step in node_steps if step.step_type != "PlannerNode"]
+        # Filter out Planner - only show action steps
+        action_steps = [step for step in steps if step.step_type != "Planner"]
 
-        if not action_nodes:
+        if not action_steps:
             return None
 
         lines = ["Plan executed:"]
-        for i, node_step in enumerate(action_nodes, 1):
-            lines.append(f"  {i}. [Node] {node_step.step_type}")
-            if node_step.tool_steps:
-                for tool_step in node_step.tool_steps:
-                    result_info = f" ({tool_step.results_count} results)" if tool_step.results_count else ""
-                    query_info = f" [query: {tool_step.query_id}]" if tool_step.query_id else ""
-                    lines.append(
-                        f"     • [Tool] {tool_step.step_type}: {tool_step.description}{result_info}{query_info}"
-                    )
+        for i, step in enumerate(action_steps, 1):
+            lines.append(f"  {i}. [Step] {step.step_type}")
+            if step.tool_steps:
+                for tool_step in step.tool_steps:
+                    query_id = tool_step.context.get("query_id") if tool_step.context else None
+                    query_info = f" [query: {query_id}]" if query_id else ""
+                    lines.append(f"     • [Tool] {tool_step.step_type}: {tool_step.description}{query_info}")
 
         return "\n".join(lines)
 
@@ -237,20 +223,20 @@ class Memory(BaseModel):
             messages.append(ModelRequest(parts=[UserPromptPart(content=turn.user_question)]))
 
             # Add context based on scope
-            if turn.node_steps:
+            if turn.steps:
                 if scope == MemoryScope.FULL:
                     # Full execution trace with all details
-                    trace = self._format_execution_trace(turn.node_steps)
+                    trace = self._format_execution_trace(turn.steps)
                     if trace:
                         messages.append(ModelRequest(parts=[SystemPromptPart(content=trace)]))
                 elif scope == MemoryScope.LIGHTWEIGHT:
                     # Full query JSON for re-running
-                    summary = self._format_query_summary(turn.node_steps, include_full_query=True)
+                    summary = self._format_query_summary(turn.steps, include_full_query=True)
                     if summary:
                         messages.append(ModelRequest(parts=[SystemPromptPart(content=summary)]))
                 elif scope == MemoryScope.MINIMAL:
                     # Just query_id + one-liner
-                    summary = self._format_query_summary(turn.node_steps, include_full_query=False)
+                    summary = self._format_query_summary(turn.steps, include_full_query=False)
                     if summary:
                         messages.append(ModelRequest(parts=[SystemPromptPart(content=summary)]))
 
@@ -267,17 +253,16 @@ class Memory(BaseModel):
     def format_current_steps(self) -> str:
         """Format the steps taken in the current turn for display in prompts.
 
-        Used for replanning to show what has been executed so far in this incomplete turn.
-        Uses the same format as message history for consistency.
+        Used to show what has been executed so far in this incomplete turn.
         """
         if not self.current_turn:
             return "None"
 
-        all_node_steps = list(self.current_turn.node_steps)
-        if self.current_turn.current_node_step:
-            all_node_steps.append(self.current_turn.current_node_step)
+        all_steps = list(self.current_turn.steps)
+        if self.current_turn.current_step:
+            all_steps.append(self.current_turn.current_step)
 
-        trace = self._format_execution_trace(all_node_steps)
+        trace = self._format_execution_trace(all_steps)
         return trace if trace else "None"
 
     def format_context_for_llm(
@@ -286,11 +271,10 @@ class Memory(BaseModel):
         *,
         include_current_run_steps: bool = False,
     ) -> str:
-        """Universal context formatter for LLM prompts.
+        """Context formatter for LLM prompts.
 
-        Provides a single consistent interface for formatting conversation context
-        with configurable sections. Current user request and conversation history
-        are passed via message_history parameter, not included here.
+        Current user request and conversation history are passed via
+        message_history parameter, not included here.
 
         Args:
             state: SearchState instance for accessing current context
@@ -299,7 +283,6 @@ class Memory(BaseModel):
         Returns:
             Formatted context string ready to insert into prompt
         """
-        # Current run steps (for replanning)
         if include_current_run_steps:
             steps = self.format_current_steps()
             return f"# Steps Already Executed\n{steps}"

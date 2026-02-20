@@ -2386,7 +2386,6 @@ agent = [
     { name = "ag-ui-protocol" },
     { name = "litellm" },
     { name = "pydantic-ai-slim" },
-    { name = "pydantic-graph" },
 ]
 celery = [
     { name = "celery" },
@@ -2478,7 +2477,6 @@ requires-dist = [
     { name = "pydantic", extras = ["email"], specifier = "~=2.12.4" },
     { name = "pydantic-ai-slim", marker = "extra == 'agent'", specifier = ">=1.27.0" },
     { name = "pydantic-forms", specifier = ">=1.4.0" },
-    { name = "pydantic-graph", marker = "extra == 'agent'", specifier = ">=1.0.0" },
     { name = "pydantic-settings", specifier = "~=2.12.0" },
     { name = "python-dateutil", specifier = "==2.9.0.post0" },
     { name = "python-rapidjson", specifier = ">=1.23,<1.24" },

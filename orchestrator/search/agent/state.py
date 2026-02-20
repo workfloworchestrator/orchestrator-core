@@ -40,10 +40,10 @@ class TaskStatus(str, Enum):
 
 
 class Task(BaseModel):
-    """Executable task descriptor for routing to action nodes."""
+    """Executable task descriptor for routing to skills."""
 
     action_type: TaskAction = Field(
-        description="Which action node to execute: SEARCH (find entities), AGGREGATION (count/calculate/group), RESULT_ACTIONS (export/download/detailed results), TEXT_RESPONSE (answer questions)"
+        description="Which skill to execute: SEARCH (find entities), AGGREGATION (count/calculate/group), RESULT_ACTIONS (export/download/detailed results), TEXT_RESPONSE (answer questions)"
     )
     reasoning: str = Field(
         description="Human-readable explanation of what will be done (e.g., 'I need to search for active subscriptions created in 2024')"
@@ -52,39 +52,13 @@ class Task(BaseModel):
         default=TaskStatus.PENDING, exclude=True, description="Task execution status (managed internally)"
     )
 
-    @property
-    def is_failed(self) -> bool:
-        """Check if task has failed."""
-        return self.status == TaskStatus.FAILED
-
 
 class ExecutionPlan(BaseModel):
-    """Sequential execution plan with task queue."""
+    """Sequential execution plan — structured output from the Planner LLM."""
 
     tasks: list[Task] = Field(
         description='List of tasks to execute in order. Use multiple tasks for compound requests (e.g., "find X and export" needs 2 tasks).'
     )
-    current_index: int = Field(default=0, description="Index of current task being executed")
-
-    @property
-    def current(self) -> Task | None:
-        """Get current task without advancing."""
-        return self.tasks[self.current_index] if self.current_index < len(self.tasks) else None
-
-    @property
-    def is_complete(self) -> bool:
-        """Check if all tasks are done."""
-        return self.current_index >= len(self.tasks)
-
-    @property
-    def failed(self) -> bool:
-        """Check if any task failed."""
-        return any(task.is_failed for task in self.tasks)
-
-    def next(self) -> None:
-        """Advance to next task in the queue."""
-        if not self.is_complete:
-            self.current_index += 1
 
 
 class SearchState(BaseModel):
@@ -100,7 +74,6 @@ class SearchState(BaseModel):
     pending_filters: FilterTree | None = None
     memory: Memory = Field(default_factory=Memory)
 
-    execution_plan: ExecutionPlan | None = None  # Multi-step execution plan
 
     class Config:
         arbitrary_types_allowed = True

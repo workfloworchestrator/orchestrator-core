@@ -23,7 +23,6 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.run import AgentRunResultEvent
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
-from pydantic_graph import End, Graph, GraphRunContext
 
 if TYPE_CHECKING:
     from pydantic_ai.models import KnownModelName, Model
@@ -31,37 +30,26 @@ else:
     KnownModelName = str
     Model = Any
 
-from orchestrator.search.agent.graph_events import GraphDeps
-from orchestrator.search.agent.graph_nodes import (
-    ACTION_TO_NODE,
-    AggregationNode,
-    BaseGraphNode,
-    PlannerNode,
-    ResultActionsNode,
-    SearchNode,
-    TextResponseNode,
-)
-from orchestrator.search.agent.schemas import GraphEdge, GraphNode, GraphStructure
+from orchestrator.search.agent.events import AgentDeps, RunContext
+from orchestrator.search.agent.planner import Planner
 from orchestrator.search.agent.skills import SKILLS, Skill
 from orchestrator.search.agent.state import SearchState, TaskAction
 
 logger = structlog.get_logger(__name__)
 
 
-class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
-    """Adapter that overrides run_stream_events to execute a pydantic-graph instead of standard Agent behavior.
+class AgentAdapter(Agent[StateDeps[SearchState], str]):
+    """Overrides run_stream_events to inject custom AG-UI events.
 
-    Implements the Agent interface for AG-UI compatibility while replacing LLM conversation
-    with multi-node graph execution. The model/toolsets are required by Agent's constructor
-    but unused - the search_agent in graph nodes handles actual LLM calls.
+    pydantic-ai's AG-UI pipeline filters out custom events via UIEventStream.handle_event().
+    This adapter bypasses that by emitting AGENT_STEP_ACTIVE events through a deque that the
+    endpoint reads between yielded events. The model/toolsets are required by Agent's constructor
+    but unused, the agents in Planner and SkillRunner handle actual LLM calls.
     """
-
-    DEFAULT_START_NODE = PlannerNode
 
     def __init__(
         self,
         model: "Model | KnownModelName | str",  # type: ignore[valid-type]
-        graph: Graph[SearchState, GraphDeps, str],
         skills: dict[TaskAction, Skill],
         *,
         deps_type: type[StateDeps[SearchState]] = StateDeps[SearchState],
@@ -70,18 +58,6 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         instructions: Any = None,
         debug: bool = False,
     ):
-        """Initialize the graph wrapper agent.
-
-        Args:
-            model: LLM model to use (stored for node creation)
-            graph: The pydantic-graph Graph instance to execute
-            skills: Skill definitions keyed by TaskAction
-            deps_type: Dependencies type (defaults to StateDeps[SearchState])
-            model_settings: Model settings
-            toolsets: Tool sets (not used directly, but required by base class)
-            instructions: Instructions (not used directly, but required by base class)
-            debug: Enable debug logging for all nodes
-        """
         super().__init__(
             model=model,
             deps_type=deps_type,
@@ -89,7 +65,6 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             toolsets=toolsets or [],
             instructions=instructions or [],
         )
-        self.graph = graph
         self.skills = skills
         self.model_name = model if isinstance(model, str) else str(model)
         self._persistence: Any | None = None
@@ -97,83 +72,25 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
 
     def _emit_sse_event(self, event: Any) -> None:
         """Serialize an AG-UI event to SSE wire format and enqueue it."""
-        self._current_graph_events.append(f"data: {event.model_dump_json()}\n\n")
+        self._current_events.append(f"data: {event.model_dump_json()}\n\n")
 
-    def get_graph_structure(self) -> GraphStructure:
-        """Build graph structure for visualization.
-
-        Returns:
-            GraphStructure with nodes, edges, and start_node
-        """
-        # Build nodes
-        nodes = []
-        for node_id, node_def in self.graph.node_defs.items():
-            # Get the node class from NodeDef
-            node_class = node_def.node
-            description = None
-            if hasattr(node_class, "__dataclass_fields__"):
-                fields = node_class.__dataclass_fields__
-                if "description" in fields:
-                    description = fields["description"].default
-
-            nodes.append(
-                GraphNode(
-                    id=node_id,
-                    label=node_id,
-                    description=description,
-                )
-            )
-
-        # Build edges - only from PlannerNode to action nodes
-        # Skip edges from action nodes back to PlannerNode to avoid visual clutter
-        edges = []
-        for node_id, node_def in self.graph.node_defs.items():
-            if node_id == PlannerNode.__name__:
-                for next_node_id, edge in node_def.next_node_edges.items():
-                    edges.append(GraphEdge(source=node_id, target=next_node_id, label=getattr(edge, "label", None)))
-
-        return GraphStructure(nodes=nodes, edges=edges, start_node=self.DEFAULT_START_NODE.__name__)
-
-    async def _prepare_state(
-        self,
-        deps: StateDeps[SearchState],
-        target_action: TaskAction | None = None,
-    ) -> tuple[SearchState, PlannerNode | BaseGraphNode, GraphDeps]:
-        """Shared state preparation for both streaming and non-streaming entry points.
-
-        Loads persisted state (if any), starts a new turn, constructs GraphDeps,
-        and builds the start node.
-        """
+    async def _prepare_state(self, deps: StateDeps[SearchState]) -> tuple[SearchState, AgentDeps]:
+        """Load persisted state (if any) and start a new turn."""
         initial_state = deps.state
         user_input = initial_state.user_input
 
-        persistence = self._persistence
-        if persistence:
-            snapshot = await persistence.load_next()
-            if snapshot:
-                previous_state = snapshot.state
-                logger.debug(
-                    "GraphAgentAdapter: Resuming from previous state",
-                    run_id=persistence.run_id,
-                )
-                initial_state = previous_state
+        if self._persistence:
+            loaded = await self._persistence.load_state()
+            if loaded:
+                logger.debug("AgentAdapter: Resuming from previous state", run_id=self._persistence.run_id)
+                initial_state = loaded
                 initial_state.user_input = user_input
 
-        if (
-            not initial_state.memory.current_turn
-            or initial_state.memory.current_turn.user_question != user_input
-        ):
+        if not initial_state.memory.current_turn or initial_state.memory.current_turn.user_question != user_input:
             initial_state.memory.start_turn(user_input)
 
-        graph_deps = GraphDeps(_emit=self._emit_sse_event)
-
-        if target_action:
-            node_cls = ACTION_TO_NODE[target_action]
-            start_node = node_cls(model=self.model_name, skills=self.skills, debug=self.debug)
-        else:
-            start_node = self.DEFAULT_START_NODE(model=self.model_name, skills=self.skills, debug=self.debug)
-
-        return initial_state, start_node, graph_deps
+        agent_deps = AgentDeps(_emit=self._emit_sse_event)
+        return initial_state, agent_deps
 
     async def run_stream_events(  # type: ignore[override]
         self,
@@ -183,99 +100,65 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         target_action: TaskAction | None = None,
         **kwargs: Any,
     ) -> AsyncIterator[AgentStreamEvent | AgentRunResultEvent[str] | Any]:
-        """Execute the graph and stream events in real-time.
+        """Execute the plan and stream events in real-time.
 
         This implementation manually streams events because pydantic-ai only supports
-        emitting events from tool calls. Since we need to emit custom graph
-        events (node transitions, state changes), we cannot use the standard AG-UI
+        emitting events from tool calls. Since we need to emit custom
+        events (step transitions, state changes), we cannot use the standard AG-UI
         handlers (handle_ag_ui_request, AGUIAdapter.dispatch_request) as they filter
         out custom events via pattern matching in UIEventStream.handle_event().
 
         The pattern:
-        1. graph.iter() yields the next node to execute
-        2. Call node.stream(ctx) to get an async generator of AgentStreamEvents
-        3. Yield those events in real-time to the frontend
-        4. Continue until End node is reached
+        1. Planner.execute() iterates the plan tasks
+        2. Each task runs a SkillRunner that streams AgentStreamEvents
+        3. Custom AGENT_STEP_ACTIVE events bypass via _current_events deque
+        4. All events are yielded in real-time to the frontend
         """
         if deps is None:
             deps = StateDeps(SearchState())
 
         try:
-            self._current_graph_events: deque[str] = deque()
-            initial_state, start_node, graph_deps = await self._prepare_state(deps, target_action)
+            self._current_events: deque[str] = deque()
+            initial_state, agent_deps = await self._prepare_state(deps)
+            ctx = RunContext(state=initial_state, deps=agent_deps)
+            planner = Planner(model=self.model_name, skills=self.skills, debug=self.debug)
 
-            logger.debug("GraphAgentAdapter: Starting new graph execution", node=type(start_node).__name__)
+            async for event in planner.execute(ctx, target_action=target_action):
+                yield event
 
-            async with self.graph.iter(
-                start_node=start_node, state=initial_state, deps=graph_deps, persistence=self._persistence  # type: ignore[arg-type]
-            ) as graph_run:
-                async for next_node in graph_run:
+            ctx.state.memory.complete_turn(assistant_answer="Complete")
+            deps.state = ctx.state
 
-                    if isinstance(next_node, End):
-                        graph_run.deps.emit_node_active(End.__name__)
-                        break
+            if self._persistence:
+                await self._persistence.snapshot(ctx.state)
 
-                    # Stream events from the node
-                    ctx = GraphRunContext(state=graph_run.state, deps=graph_run.deps)
-                    async with next_node.stream(ctx) as event_stream:  # type: ignore[attr-defined]
-                        async for event in event_stream:
-                            yield event
-
-                final_output = (
-                    str(getattr(graph_run.result, "output", graph_run.result))
-                    if graph_run.result
-                    else "Graph execution completed"
-                )
-
-                deps.state = graph_run.state
-
-                # complete_turn() is now called by nodes before returning End()
-                # This ensures the automatic snapshot_end() captures the completed turn
-
-            logger.debug(
-                "GraphAgentAdapter: Graph streaming complete",
-                final_output=final_output,
-                final_state_keys=list(graph_run.state.model_dump().keys()),
-            )
-
-            yield AgentRunResultEvent(result=AgentRunResult(output=final_output))
+            yield AgentRunResultEvent(result=AgentRunResult(output="Execution completed"))
 
         except Exception as e:
-            logger.error("GraphAgentAdapter: Graph streaming failed", error=str(e), exc_info=True)
+            logger.error("AgentAdapter: Execution failed", error=str(e), exc_info=True)
             raise
 
 
 def build_agent_instance(
     model: str, agent_tools: list[FunctionToolset[Any]] | None = None, debug: bool = False
-) -> GraphAgentAdapter:
-    """Build and configure the graph-based search agent instance.
+) -> AgentAdapter:
+    """Build and configure the agent instance.
 
     Args:
-        model: The LLM model to use (string or model instance)
-        agent_tools: Optional list of additional toolsets to include (currently unused)
-        debug: Enable debug logging for all graph nodes
+        model: The LLM model to use
+        agent_tools: Optional list of additional toolsets (currently unused)
+        debug: Enable debug logging
 
     Returns:
-        GraphAgentAdapter instance
+        AgentAdapter instance
     """
-    graph: Graph[SearchState, GraphDeps, str] = Graph(
-        nodes=[
-            PlannerNode,
-            SearchNode,
-            AggregationNode,
-            ResultActionsNode,
-            TextResponseNode,
-        ],
-    )
-
-    adapter = GraphAgentAdapter(
+    adapter = AgentAdapter(
         model=model,
-        graph=graph,
         skills=SKILLS,
         deps_type=StateDeps[SearchState],
         debug=debug,
     )
 
-    logger.debug("GraphAgentAdapter: Built graph-based agent adapter", model=model)
+    logger.debug("AgentAdapter: Built agent adapter", model=model)
 
     return adapter

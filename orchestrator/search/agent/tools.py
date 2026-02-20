@@ -27,11 +27,11 @@ from orchestrator.api.api_v1.endpoints.search import (
     list_paths,
 )
 from orchestrator.db import db
-from orchestrator.search.agent.memory import ToolStep
 from orchestrator.search.agent.handlers import (
     execute_aggregation_with_persistence,
     execute_search_with_persistence,
 )
+from orchestrator.search.agent.memory import ToolStep
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.aggregations import Aggregation, FieldAggregation, TemporalGrouping
 from orchestrator.search.core.types import EntityType, FilterOp, QueryOperation
@@ -96,7 +96,7 @@ def _ensure_query_initialized(
     state.pending_filters = None
 
 
-# Node-specific toolsets for graph control flow
+# Skill-specific toolsets
 filter_building_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
 aggregation_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
 search_execution_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
@@ -167,12 +167,7 @@ async def run_search(
         ToolStep(
             step_type="run_search",
             description=f"Searched {len(search_response.results)} {query.entity_type.value}",
-            entity_type=query.entity_type.value,
-            results_count=len(search_response.results),
-            query_operation=query.query_operation.value,
-            query_snapshot=query.model_dump(),
-            query_id=query_id,
-            success=True,
+            context={"query_id": query_id, "query_snapshot": query.model_dump()},
         )
     )
 
@@ -249,12 +244,7 @@ async def run_aggregation(
         ToolStep(
             step_type="run_aggregation",
             description=f"Aggregated {aggregation_response.total_groups} groups for {query.entity_type.value}",
-            entity_type=query.entity_type.value,
-            results_count=aggregation_response.total_groups,
-            query_operation=query.query_operation.value,
-            query_snapshot=query.model_dump(),
-            query_id=query_id,
-            success=True,
+            context={"query_id": query_id, "query_snapshot": query.model_dump()},
         )
     )
 
@@ -395,10 +385,7 @@ async def fetch_entity_details(
         ToolStep(
             step_type="fetch_entity_details",
             description=f"Fetched details for {len(entity_ids)} {entity_type.value} entities",
-            entity_type=entity_type.value,
-            results_count=len(entity_ids),
-            query_id=qid,
-            success=True,
+            context={"query_id": qid},
         )
     )
 
@@ -441,8 +428,7 @@ async def prepare_export(
         ToolStep(
             step_type="prepare_export",
             description=f"Prepared export for query {query_id}",
-            query_id=query_id,
-            success=True,
+            context={"query_id": query_id},
         )
     )
 
