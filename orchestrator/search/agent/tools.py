@@ -41,7 +41,7 @@ from orchestrator.search.query.exceptions import PathNotFoundError, QueryValidat
 from orchestrator.search.query.export import fetch_export_data
 from orchestrator.search.query.mixins import OrderBy
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, Query, SelectQuery
-from orchestrator.search.query.results import AggregationResponse, AggregationResult, ExportData, VisualizationType
+from orchestrator.search.query.results import ExportData, QueryArtifact, VisualizationType
 from orchestrator.search.query.state import QueryState
 from orchestrator.search.query.validation import (
     validate_aggregation_field,
@@ -148,7 +148,7 @@ async def run_search(
     ctx: RunContext[StateDeps[SearchState]],
     entity_type: EntityType,
     limit: int = 10,
-) -> AggregationResponse:
+) -> QueryArtifact:
     """Execute a search to find and rank entities.
 
     Use this tool for SELECT action to find entities matching your criteria.
@@ -162,34 +162,15 @@ async def run_search(
     ctx.deps.state.run_id = run_id
     ctx.deps.state.query_id = query_id
 
+    description = f"Searched {len(search_response.results)} {query.entity_type.value}"
+
     # Record tool step with query_id
     ctx.deps.state.memory.record_tool_step(
         ToolStep(
             step_type="run_search",
-            description=f"Searched {len(search_response.results)} {query.entity_type.value}",
+            description=description,
             context={"query_id": query_id, "query_snapshot": query.model_dump()},
         )
-    )
-
-    # Convert SearchResults to AggregationResults for consistent rendering
-    aggregation_results = [
-        AggregationResult(
-            group_values={
-                "entity_id": result.entity_id,
-                "title": result.entity_title,
-                "entity_type": result.entity_type.value,
-            },
-            aggregations={"score": result.score},
-        )
-        for result in search_response.results
-    ]
-
-    # For now use the default table visualization for search results
-    aggregation_response = AggregationResponse(
-        results=aggregation_results,
-        total_groups=len(aggregation_results),
-        metadata=search_response.metadata,
-        visualization_type=VisualizationType(type="table"),
     )
 
     logger.debug(
@@ -198,8 +179,12 @@ async def run_search(
         query_id=str(query_id),
     )
 
-    # Note: State is automatically tracked by AG-UI through StateDeps
-    return aggregation_response
+    return QueryArtifact(
+        query_id=str(query_id),
+        total_results=len(search_response.results),
+        visualization_type=VisualizationType(type="table"),
+        description=description,
+    )
 
 
 @aggregation_execution_toolset.tool
@@ -208,7 +193,7 @@ async def run_aggregation(
     entity_type: EntityType,
     query_operation: AggregationOperation,
     visualization_type: VisualizationType,
-) -> AggregationResponse:
+) -> QueryArtifact:
     """Execute an aggregation to compute counts or statistics over entities.
 
     Use this tool for COUNT or AGGREGATE actions after setting up:
@@ -239,25 +224,30 @@ async def run_aggregation(
     ctx.deps.state.run_id = run_id
     ctx.deps.state.query_id = query_id
 
+    description = f"Aggregated {aggregation_response.total_results} groups for {query.entity_type.value}"
+
     # Record tool step with query_id
     ctx.deps.state.memory.record_tool_step(
         ToolStep(
             step_type="run_aggregation",
-            description=f"Aggregated {aggregation_response.total_groups} groups for {query.entity_type.value}",
+            description=description,
             context={"query_id": query_id, "query_snapshot": query.model_dump()},
         )
     )
 
-    aggregation_response.visualization_type = visualization_type
-
     logger.debug(
         "Aggregation completed",
-        total_groups=aggregation_response.total_groups,
+        total_results=aggregation_response.total_results,
         visualization_type=visualization_type.type,
         query_id=str(query_id),
     )
 
-    return aggregation_response
+    return QueryArtifact(
+        query_id=str(query_id),
+        total_results=aggregation_response.total_results,
+        visualization_type=visualization_type,
+        description=description,
+    )
 
 
 @filter_building_toolset.tool

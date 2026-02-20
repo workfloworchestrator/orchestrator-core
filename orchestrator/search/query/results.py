@@ -68,24 +68,36 @@ class SearchResponse(BaseModel):
     has_more: bool = False
 
 
-class AggregationResult(BaseModel):
-    """Represents a single aggregation result row."""
+class ResultRow(BaseModel):
+    """A single result row with labeled string columns and numeric columns."""
 
-    group_values: dict[str, str] = Field(default_factory=dict)  # group_by field -> value
-    aggregations: dict[str, float | int] = Field(default_factory=dict)  # alias -> computed value
+    group_values: dict[str, str] = Field(default_factory=dict)
+    aggregations: dict[str, float | int] = Field(default_factory=dict)
 
     model_config = ConfigDict(extra="forbid")
 
 
-class AggregationResponse(BaseModel):
-    """Response containing aggregation results."""
+class QueryResultsResponse(BaseModel):
+    """Tabular query results used for both search and aggregation rendering."""
 
-    results: list[AggregationResult]
-    total_groups: int
+    results: list[ResultRow]
+    total_results: int
     metadata: SearchMetadata
     visualization_type: VisualizationType = Field(default_factory=VisualizationType)
 
     model_config = ConfigDict(extra="forbid")
+
+
+class QueryArtifact(BaseModel):
+    """Lightweight reference returned by query tools.
+
+    Client fetches full results via GET /queries/{query_id}/results.
+    """
+
+    query_id: str
+    total_results: int
+    visualization_type: VisualizationType = Field(default_factory=VisualizationType)
+    description: str
 
 
 class ExportData(BaseModel):
@@ -101,8 +113,8 @@ def format_aggregation_response(
     result_rows: Sequence[RowMapping],
     group_column_names: list[str],
     query: CountQuery | AggregateQuery,
-) -> AggregationResponse:
-    """Format raw aggregation query results into AggregationResponse.
+) -> QueryResultsResponse:
+    """Format raw aggregation query results into QueryResultsResponse.
 
     Args:
         result_rows: Raw database result rows
@@ -110,7 +122,7 @@ def format_aggregation_response(
         query: Query plan for metadata
 
     Returns:
-        AggregationResponse with formatted results and metadata
+        QueryResultsResponse with formatted results and metadata
     """
     results = []
     for row in result_rows:
@@ -119,22 +131,20 @@ def format_aggregation_response(
 
         for key, value in row.items():
             if key in group_column_names:
-                # It's a grouping column
                 group_values[key] = str(value) if value is not None else ""
             else:
-                # It's an aggregation result
                 aggregations[key] = value if value is not None else 0
 
-        results.append(AggregationResult(group_values=group_values, aggregations=aggregations))
+        results.append(ResultRow(group_values=group_values, aggregations=aggregations))
 
     metadata = SearchMetadata(
         search_type="aggregation",
         description=f"Aggregation query with {len(query.group_by or [])} grouping dimension(s)",
     )
 
-    return AggregationResponse(
+    return QueryResultsResponse(
         results=results,
-        total_groups=len(results),
+        total_results=len(results),
         metadata=metadata,
     )
 

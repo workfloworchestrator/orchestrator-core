@@ -21,7 +21,7 @@ from orchestrator.db import SearchQueryTable
 from orchestrator.db.database import WrappedSession
 from orchestrator.search.query import engine
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
-from orchestrator.search.query.results import AggregationResponse, SearchResponse
+from orchestrator.search.query.results import QueryResultsResponse, SearchResponse
 from orchestrator.search.query.state import QueryState
 
 logger = structlog.get_logger(__name__)
@@ -70,7 +70,7 @@ async def execute_aggregation_with_persistence(
     query: CountQuery | AggregateQuery,
     db_session: WrappedSession,
     run_id: UUID | None,
-) -> tuple[AggregationResponse, UUID, UUID]:
+) -> tuple[QueryResultsResponse, UUID, UUID]:
     """Execute aggregation, persist to DB, return response and IDs.
 
     Args:

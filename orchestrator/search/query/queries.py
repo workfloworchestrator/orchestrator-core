@@ -13,7 +13,7 @@
 
 from typing import Annotated, Any, ClassVar, Literal, Self, Union
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, TypeAdapter, model_validator
 
 from orchestrator.search.core.types import EntityType, QueryOperation
 from orchestrator.search.filters import FilterTree
@@ -59,6 +59,7 @@ class BaseQuery(BaseModel):
             Query instance of the appropriate type
         """
         return cls.model_validate(data)
+
 
 
 class SelectQuery(BaseQuery, SearchMixin):
@@ -141,3 +142,5 @@ Query = Annotated[
     Union[SelectQuery, ExportQuery, CountQuery, AggregateQuery],
     Discriminator("query_type"),
 ]
+
+QueryAdapter = TypeAdapter(Query)

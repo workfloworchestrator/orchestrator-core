@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from orchestrator.search.core.embedding import QueryEmbedder
 from orchestrator.search.core.types import EntityType, RetrieverType, SearchMetadata
 from orchestrator.search.query.results import (
-    AggregationResponse,
+    QueryResultsResponse,
     SearchResponse,
     format_aggregation_response,
     format_search_response,
@@ -197,7 +197,7 @@ async def execute_export(
 async def execute_aggregation(
     query: CountQuery | AggregateQuery,
     db_session: Session,
-) -> AggregationResponse:
+) -> QueryResultsResponse:
     """Execute aggregation query and return formatted results.
 
     Args:
@@ -205,7 +205,7 @@ async def execute_aggregation(
         db_session: Database session
 
     Returns:
-        AggregationResponse with results and metadata
+        QueryResultsResponse with results and metadata
     """
     candidate_query = build_candidate_query(query)
 

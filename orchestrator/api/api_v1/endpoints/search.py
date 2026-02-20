@@ -11,10 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from uuid import UUID
+
 import structlog
 from fastapi import APIRouter, HTTPException, Query, status
 
-from orchestrator.db import db
+from orchestrator.db import SearchQueryTable, db
 from orchestrator.schemas.search import (
     ExportResponse,
     PageInfoSchema,
@@ -27,8 +29,8 @@ from orchestrator.search.core.types import EntityType, UIType
 from orchestrator.search.filters.definitions import TypeDefinition, generate_definitions
 from orchestrator.search.query import QueryState, engine
 from orchestrator.search.query.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
-from orchestrator.search.query.queries import ExportQuery, SelectQuery
-from orchestrator.search.query.results import SearchResult
+from orchestrator.search.query.queries import AggregateQuery, CountQuery, ExportQuery, QueryAdapter, SelectQuery
+from orchestrator.search.query.results import QueryResultsResponse, ResultRow, SearchResult, VisualizationType
 from orchestrator.search.query.validation import is_lquery_syntactically_valid
 from orchestrator.search.retrieval.pagination import PageCursor, encode_next_page_cursor
 
@@ -165,6 +167,66 @@ async def list_paths(
 async def get_definitions() -> dict[UIType, TypeDefinition]:
     """Provide a static definition of operators and schemas for each UI type."""
     return generate_definitions()
+
+
+@router.get(
+    "/queries/{query_id}/results",
+    response_model=QueryResultsResponse,
+    summary="Fetch full query results by query_id",
+)
+async def get_query_results(query_id: UUID) -> QueryResultsResponse:
+    """Fetch full results for any query type (select, count, aggregate).
+
+    Detects query type from stored parameters and executes accordingly,
+    always returning QueryResultsResponse for consistent client rendering.
+    """
+    try:
+        row = db.session.query(SearchQueryTable).filter_by(query_id=query_id).first()
+        if not row:
+            raise QueryStateNotFoundError(f"Query {query_id} not found")
+
+        query = QueryAdapter.validate_python(row.parameters)
+
+        if isinstance(query, SelectQuery):
+            embedding = list(row.query_embedding) if row.query_embedding is not None else None
+            search_response = await engine.execute_search(
+                query, db.session, query_embedding=embedding
+            )
+            result_rows = [
+                ResultRow(
+                    group_values={
+                        "entity_id": result.entity_id,
+                        "title": result.entity_title,
+                        "entity_type": result.entity_type.value,
+                    },
+                    aggregations={"score": result.score},
+                )
+                for result in search_response.results
+            ]
+            return QueryResultsResponse(
+                results=result_rows,
+                total_results=len(result_rows),
+                metadata=search_response.metadata,
+                visualization_type=VisualizationType(type="table"),
+            )
+
+        if isinstance(query, (CountQuery, AggregateQuery)):
+            return await engine.execute_aggregation(query, db.session)
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported query type: {query.query_type}",
+        )
+    except QueryStateNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to fetch query results", query_id=query_id, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch query results: {str(e)}",
+        )
 
 
 @router.get(
