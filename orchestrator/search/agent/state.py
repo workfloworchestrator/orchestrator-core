@@ -43,7 +43,7 @@ class Task(BaseModel):
     """Executable task descriptor for routing to skills."""
 
     action_type: TaskAction = Field(
-        description="Which skill to execute: SEARCH (find entities), AGGREGATION (count/calculate/group), RESULT_ACTIONS (export/download/detailed results), TEXT_RESPONSE (answer questions)"
+        description="Which skill to execute: SEARCH (find entities), AGGREGATION (count/calculate/group), RESULT_ACTIONS (get detailed data for a single entity OR prepare an export for a query), TEXT_RESPONSE (answer questions)"
     )
     reasoning: str = Field(
         description="Human-readable explanation of what will be done (e.g., 'I need to search for active subscriptions created in 2024')"

@@ -14,7 +14,7 @@
 """Custom AG-UI transport layer.
 
 Two responsibilities:
-1. Replace full query results with lightweight QueryArtifact references for the frontend
+1. Replace full tool results with lightweight ToolArtifact references for the frontend
 2. Pass through CustomEvent instances (e.g. AGENT_STEP_ACTIVE) that pydantic-ai's
    default handle_event() would silently drop via its catch-all `case _: pass`
 """
@@ -30,14 +30,14 @@ from pydantic_ai.messages import FunctionToolResultEvent, ToolReturnPart
 from pydantic_ai.ui import NativeEvent
 from pydantic_ai.ui.ag_ui import AGUIAdapter, AGUIEventStream
 
-from orchestrator.search.query.results import QueryArtifact
+from orchestrator.search.agent.artifacts import ToolArtifact
 
 
 @dataclass
 class ArtifactEventStream(AGUIEventStream[Any, Any]):
     """Custom event stream for the search agent.
 
-    - Replaces tool results that carry QueryArtifact metadata with the artifact JSON,
+    - Replaces tool results that carry ToolArtifact metadata with the artifact JSON,
       so the AG-UI frontend receives a lightweight reference instead of full data.
     - Yields CustomEvent instances (AGENT_STEP_ACTIVE) that the base class would drop.
     """
@@ -54,7 +54,7 @@ class ArtifactEventStream(AGUIEventStream[Any, Any]):
 
     async def handle_function_tool_result(self, event: FunctionToolResultEvent) -> AsyncIterator[BaseEvent]:
         result = event.result
-        if isinstance(result, ToolReturnPart) and isinstance(result.metadata, QueryArtifact):
+        if isinstance(result, ToolReturnPart) and isinstance(result.metadata, ToolArtifact):
             yield ToolCallResultEvent(
                 message_id=self.new_message_id(),
                 type=EventType.TOOL_CALL_RESULT,

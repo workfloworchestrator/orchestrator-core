@@ -17,9 +17,10 @@ import json
 
 from pydantic_ai.messages import ToolReturnPart
 
+from orchestrator.search.agent.artifacts import DataArtifact, ExportArtifact, QueryArtifact, ToolArtifact
 from orchestrator.search.core.types import SearchMetadata
 from orchestrator.search.query.results import (
-    QueryArtifact,
+    ExportData,
     QueryResultsResponse,
     ResultRow,
     VisualizationType,
@@ -101,3 +102,74 @@ def test_artifact_metadata_is_lightweight():
     assert artifact_dict["query_id"] == "q-001"
     assert artifact_dict["total_results"] == 2
     assert "results" not in artifact_dict
+
+
+def test_export_artifact_metadata_intercepted():
+    """ExportArtifact metadata is recognized as a ToolArtifact by adapters."""
+    export_data = ExportData(
+        query_id="q-002",
+        download_url="http://localhost/api/search/queries/q-002/export",
+        message="Export ready for download.",
+    )
+
+    artifact = ExportArtifact(
+        description="Prepared export for query q-002",
+        query_id="q-002",
+        download_url="http://localhost/api/search/queries/q-002/export",
+    )
+
+    tool_return_part = ToolReturnPart(
+        tool_name="prepare_export",
+        content=export_data,
+        tool_call_id="call_456",
+        metadata=artifact,
+    )
+
+    # Adapter check: isinstance(metadata, ToolArtifact) catches both QueryArtifact and ExportArtifact
+    assert isinstance(tool_return_part.metadata, ToolArtifact)
+    assert isinstance(tool_return_part.metadata, ExportArtifact)
+
+    artifact_dict = json.loads(tool_return_part.metadata.model_dump_json())
+    assert artifact_dict["query_id"] == "q-002"
+    assert artifact_dict["download_url"] == "http://localhost/api/search/queries/q-002/export"
+    assert artifact_dict["description"] == "Prepared export for query q-002"
+
+    # Full data is still in .content for non-AG-UI consumers
+    assert isinstance(tool_return_part.content, ExportData)
+    assert tool_return_part.content.download_url == "http://localhost/api/search/queries/q-002/export"
+
+
+def test_entity_details_data_artifact_metadata():
+    """DataArtifact from fetch_entity_details carries entity info."""
+    detailed_json = json.dumps({"subscription_id": "sub-123", "description": "Test"})
+
+    artifact = DataArtifact(
+        description="Fetched details for subscriptions sub-123",
+        entity_id="sub-123",
+        entity_type="subscriptions",
+    )
+
+    tool_return_part = ToolReturnPart(
+        tool_name="fetch_entity_details",
+        content=detailed_json,
+        tool_call_id="call_789",
+        metadata=artifact,
+    )
+
+    assert isinstance(tool_return_part.metadata, ToolArtifact)
+    assert isinstance(tool_return_part.metadata, DataArtifact)
+
+    artifact_dict = json.loads(tool_return_part.metadata.model_dump_json())
+    assert artifact_dict["entity_id"] == "sub-123"
+    assert artifact_dict["entity_type"] == "subscriptions"
+    assert "query_id" not in artifact_dict
+    assert "download_url" not in artifact_dict
+
+
+def test_query_artifact_is_tool_artifact():
+    """QueryArtifact is also a ToolArtifact — isinstance check works for both."""
+    _, artifact, tool_return_part = _make_tool_result_with_artifact()
+
+    assert isinstance(artifact, ToolArtifact)
+    assert isinstance(artifact, QueryArtifact)
+    assert isinstance(tool_return_part.metadata, ToolArtifact)

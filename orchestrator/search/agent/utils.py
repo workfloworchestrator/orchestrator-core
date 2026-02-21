@@ -64,7 +64,7 @@ def log_agent_request(node_name: str, instructions: str, message_history: list) 
             print(f"\n--- Message {i} [{msg.kind}] ---")  # noqa: T201
             for part in msg.parts:
                 part_type = part.__class__.__name__
-                if hasattr(part, 'content'):
+                if hasattr(part, "content"):
                     print(f"[{part_type}] {part.content}")  # noqa: T201
                 else:
                     print(f"[{part_type}] {part}")  # noqa: T201

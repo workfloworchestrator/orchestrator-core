@@ -28,6 +28,7 @@ from orchestrator.api.api_v1.endpoints.search import (
     list_paths,
 )
 from orchestrator.db import db
+from orchestrator.search.agent.artifacts import DataArtifact, ExportArtifact, QueryArtifact
 from orchestrator.search.agent.handlers import (
     execute_aggregation_with_persistence,
     execute_search_with_persistence,
@@ -37,19 +38,15 @@ from orchestrator.search.agent.state import SearchState
 from orchestrator.search.aggregations import Aggregation, FieldAggregation, TemporalGrouping
 from orchestrator.search.core.types import EntityType, FilterOp, QueryOperation
 from orchestrator.search.filters import FilterTree
-from orchestrator.search.query import engine
 from orchestrator.search.query.exceptions import PathNotFoundError, QueryValidationError
-from orchestrator.search.query.export import fetch_export_data
 from orchestrator.search.query.mixins import OrderBy
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, Query, SelectQuery
 from orchestrator.search.query.results import (
     ExportData,
-    QueryArtifact,
     QueryResultsResponse,
     ResultRow,
     VisualizationType,
 )
-from orchestrator.search.query.state import QueryState
 from orchestrator.search.query.validation import (
     validate_aggregation_field,
     validate_filter_tree,
@@ -360,64 +357,96 @@ async def get_valid_operators() -> dict[str, list[FilterOp]]:
 @result_actions_toolset.tool
 async def fetch_entity_details(
     ctx: RunContext[StateDeps[SearchState]],
-    limit: int = 10,
-    query_id: UUID | None = None,
-) -> str:
-    """Fetch detailed entity information to answer user questions.
-
-    Use this tool when you need detailed information about entities from the search results
-    to answer the user's question. This provides the same detailed data that would be
-    included in an export (e.g., subscription status, product details, workflow info, etc.).
+    entity_id: str,
+    entity_type: EntityType,
+) -> ToolReturn:
+    """Fetch detailed information for a single entity by its ID.
 
     Args:
         ctx: Runtime context for agent (injected).
-        limit: Maximum number of entities to fetch details for (default 10).
-        query_id: Optional. Defaults to the most recent query. Only pass this to reference a specific historical query.
+        entity_id: The UUID of the entity to fetch details for.
+        entity_type: Type of entity.
 
     Returns:
-        JSON string containing detailed entity information.
+        ToolReturn with entity JSON and ExportArtifact metadata.
     """
-    qid = query_id or ctx.deps.state.query_id
-    if qid is None:
-        raise ModelRetry("No query available. Run a search first.")
-
-    # Load the saved query and re-execute it to get entity IDs
-    query_state = QueryState.load_from_id(qid, SelectQuery)
-    query = query_state.query.model_copy(update={"limit": limit})
-    search_response = await engine.execute_search(query, db.session)
-    entity_ids = [r.entity_id for r in search_response.results]
-
-    if not entity_ids:
-        return json.dumps({"message": "No entities found in search results."})
-
-    entity_type = query.entity_type
-
     logger.debug(
         "Fetching detailed entity data",
         entity_type=entity_type.value,
-        entity_count=len(entity_ids),
-        query_id=str(qid),
+        entity_id=entity_id,
     )
 
-    detailed_data = fetch_export_data(entity_type, entity_ids)
+    from orchestrator.services.processes import _get_process, load_process
+    from orchestrator.utils.enrich_process import enrich_process
+    from orchestrator.utils.get_subscription_dict import get_subscription_dict
 
-    # Record tool step
+    uid = UUID(entity_id)
+    detailed: Any
+
+    if entity_type == EntityType.SUBSCRIPTION:
+        subscription, _etag = await get_subscription_dict(uid)
+        detailed = subscription
+    elif entity_type == EntityType.PROCESS:
+        process = _get_process(uid)
+        p_stat = load_process(process)
+        detailed = enrich_process(process, p_stat)
+    elif entity_type == EntityType.PRODUCT:
+        from sqlalchemy.orm import joinedload
+
+        from orchestrator.db import ProductTable
+
+        product = db.session.scalars(
+            ProductTable.query.options(
+                joinedload(ProductTable.fixed_inputs),
+                joinedload(ProductTable.product_blocks),
+                joinedload(ProductTable.workflows),
+            ).filter(ProductTable.product_id == uid)
+        ).first()
+        if not product:
+            raise ModelRetry(f"No product found with ID {entity_id}.")
+
+        from orchestrator.schemas.product import ProductSchema
+
+        detailed = ProductSchema.model_validate(product).model_dump(mode="json")
+    elif entity_type == EntityType.WORKFLOW:
+        from orchestrator.db import WorkflowTable
+
+        workflow = db.session.get(WorkflowTable, uid)
+        if not workflow:
+            raise ModelRetry(f"No workflow found with ID {entity_id}.")
+
+        from orchestrator.schemas.workflow import WorkflowSchema
+
+        detailed = WorkflowSchema.model_validate(workflow).model_dump(mode="json")
+    else:
+        raise ModelRetry(f"Unsupported entity type: {entity_type}")
+
+    description = f"Fetched details for {entity_type.value} {entity_id}"
+
     ctx.deps.state.memory.record_tool_step(
         ToolStep(
             step_type="fetch_entity_details",
-            description=f"Fetched details for {len(entity_ids)} {entity_type.value} entities",
-            context={"query_id": qid},
+            description=description,
+            context={"entity_id": entity_id},
         )
     )
 
-    return json.dumps(detailed_data, indent=2)
+    detailed_json = json.dumps(detailed, indent=2, default=str)
+
+    artifact = DataArtifact(
+        description=description,
+        entity_id=entity_id,
+        entity_type=entity_type.value,
+    )
+
+    return ToolReturn(return_value=detailed_json, metadata=artifact)
 
 
 @result_actions_toolset.tool
 async def prepare_export(
     ctx: RunContext[StateDeps[SearchState]],
     query_id: UUID | None = None,
-) -> ExportData:
+) -> ToolReturn:
     """Prepares export URL for a search query.
 
     Args:
@@ -425,7 +454,7 @@ async def prepare_export(
         query_id: Optional. Defaults to the most recent query. Only pass this to reference a specific historical query.
 
     Returns:
-        Export data which is displayed directly in the UI.
+        ToolReturn with ExportData and ExportArtifact metadata.
     """
     query_id = query_id or ctx.deps.state.query_id
     if query_id is None:
@@ -444,18 +473,26 @@ async def prepare_export(
         message="Export ready for download.",
     )
 
+    description = f"Prepared export for query {query_id}"
+
     # Record tool step
     ctx.deps.state.memory.record_tool_step(
         ToolStep(
             step_type="prepare_export",
-            description=f"Prepared export for query {query_id}",
+            description=description,
             context={"query_id": query_id},
         )
     )
 
     logger.debug("Export prepared", query_id=export_data.query_id)
 
-    return export_data
+    artifact = ExportArtifact(
+        description=description,
+        query_id=str(query_id),
+        download_url=download_url,
+    )
+
+    return ToolReturn(return_value=export_data, metadata=artifact)
 
 
 @aggregation_toolset.tool

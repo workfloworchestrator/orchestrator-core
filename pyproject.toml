@@ -87,6 +87,7 @@ agent = [
     "pydantic-ai-slim >=1.27.0",
     "ag-ui-protocol>=0.1.10",
     "litellm>=1.75.7",
+    "fasta2a>=0.1.0",
 ]
 
 # Local dependencies for development
@@ -232,6 +233,7 @@ ban-relative-imports = "all"
 "test/*" = ["S101", "B033", "N816", "N802", "T201"]
 "orchestrator/__init__.py" = ["E402"]
 "orchestrator/search/llm_migration.py" = ["S608"]
+"demos/*" = ["S101", "T201"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

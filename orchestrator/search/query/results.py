@@ -88,18 +88,6 @@ class QueryResultsResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class QueryArtifact(BaseModel):
-    """Lightweight reference returned by query tools.
-
-    Client fetches full results via GET /queries/{query_id}/results.
-    """
-
-    query_id: str
-    total_results: int
-    visualization_type: VisualizationType = Field(default_factory=VisualizationType)
-    description: str
-
-
 class ExportData(BaseModel):
     """Export metadata for download."""
 
