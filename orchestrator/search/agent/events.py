@@ -13,9 +13,8 @@
 
 
 from dataclasses import dataclass
-from typing import Callable
 
-from ag_ui.core import BaseEvent, CustomEvent
+from ag_ui.core import CustomEvent
 from pydantic import Field
 from typing_extensions import TypedDict
 
@@ -37,18 +36,12 @@ class AgentStepActiveEvent(CustomEvent):
     value: AgentStepActiveValue
 
 
-@dataclass
-class AgentDeps:
-    """Request-scoped dependencies injected into agent steps."""
-
-    _emit: Callable[[BaseEvent], None]
-
-    def emit_step_active(self, step_name: str, reasoning: str | None = None) -> None:
-        """Emit an AGENT_STEP_ACTIVE event via the attached emitter."""
-        value = AgentStepActiveValue(step=step_name)
-        if reasoning:
-            value["reasoning"] = reasoning
-        self._emit(AgentStepActiveEvent(timestamp=current_timestamp_ms(), value=value))
+def make_step_active_event(step_name: str, reasoning: str | None = None) -> AgentStepActiveEvent:
+    """Create an AGENT_STEP_ACTIVE event for yielding into the event stream."""
+    value = AgentStepActiveValue(step=step_name)
+    if reasoning:
+        value["reasoning"] = reasoning
+    return AgentStepActiveEvent(timestamp=current_timestamp_ms(), value=value)
 
 
 @dataclass
@@ -56,4 +49,3 @@ class RunContext:
     """Execution context passed to Planner and SkillRunner."""
 
     state: SearchState
-    deps: AgentDeps

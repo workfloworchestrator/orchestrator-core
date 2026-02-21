@@ -21,7 +21,7 @@ import structlog
 from pydantic_ai import Agent
 from pydantic_ai.ag_ui import StateDeps
 
-from orchestrator.search.agent.events import RunContext
+from orchestrator.search.agent.events import RunContext, make_step_active_event
 from orchestrator.search.agent.memory import MemoryScope, ToolStep
 from orchestrator.search.agent.prompts import get_planning_prompt
 from orchestrator.search.agent.skill_runner import SkillRunner
@@ -58,7 +58,6 @@ class Planner:
     async def _create_plan(self, ctx: RunContext) -> ExecutionPlan:
         """Create an execution plan via LLM."""
         ctx.state.memory.start_step("Planner")
-        ctx.deps.emit_step_active("Planner")
 
         logger.info("Planner: Creating execution plan")
 
@@ -125,6 +124,7 @@ class Planner:
         if target_action:
             tasks = [Task(action_type=target_action, reasoning="Direct invocation")]
         else:
+            yield make_step_active_event("Planner")
             tasks = (await self._create_plan(ctx)).tasks
 
         async for event in self._run_tasks(ctx, tasks):

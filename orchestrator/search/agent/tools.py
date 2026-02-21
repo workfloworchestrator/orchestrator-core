@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.messages import ToolReturn
 from pydantic_ai.toolsets import FunctionToolset
 
 from orchestrator.api.api_v1.endpoints.search import (
@@ -41,7 +42,13 @@ from orchestrator.search.query.exceptions import PathNotFoundError, QueryValidat
 from orchestrator.search.query.export import fetch_export_data
 from orchestrator.search.query.mixins import OrderBy
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, Query, SelectQuery
-from orchestrator.search.query.results import ExportData, QueryArtifact, VisualizationType
+from orchestrator.search.query.results import (
+    ExportData,
+    QueryArtifact,
+    QueryResultsResponse,
+    ResultRow,
+    VisualizationType,
+)
 from orchestrator.search.query.state import QueryState
 from orchestrator.search.query.validation import (
     validate_aggregation_field,
@@ -148,7 +155,7 @@ async def run_search(
     ctx: RunContext[StateDeps[SearchState]],
     entity_type: EntityType,
     limit: int = 10,
-) -> QueryArtifact:
+) -> ToolReturn:
     """Execute a search to find and rank entities.
 
     Use this tool for SELECT action to find entities matching your criteria.
@@ -179,12 +186,30 @@ async def run_search(
         query_id=str(query_id),
     )
 
-    return QueryArtifact(
+    # Build full response for LLM/A2A/MCP consumers
+    result_rows = [
+        ResultRow(
+            group_values={"entity_id": r.entity_id, "title": r.entity_title, "entity_type": r.entity_type.value},
+            aggregations={"score": r.score},
+        )
+        for r in search_response.results
+    ]
+    full_response = QueryResultsResponse(
+        results=result_rows,
+        total_results=len(result_rows),
+        metadata=search_response.metadata,
+        visualization_type=VisualizationType(type="table"),
+    )
+
+    # Lightweight artifact for AG-UI frontend (fetches full data via REST)
+    artifact = QueryArtifact(
         query_id=str(query_id),
-        total_results=len(search_response.results),
+        total_results=len(result_rows),
         visualization_type=VisualizationType(type="table"),
         description=description,
     )
+
+    return ToolReturn(return_value=full_response, metadata=artifact)
 
 
 @aggregation_execution_toolset.tool
@@ -193,7 +218,7 @@ async def run_aggregation(
     entity_type: EntityType,
     query_operation: AggregationOperation,
     visualization_type: VisualizationType,
-) -> QueryArtifact:
+) -> ToolReturn:
     """Execute an aggregation to compute counts or statistics over entities.
 
     Use this tool for COUNT or AGGREGATE actions after setting up:
@@ -242,12 +267,18 @@ async def run_aggregation(
         query_id=str(query_id),
     )
 
-    return QueryArtifact(
+    # Full response for LLM/A2A/MCP consumers (already a QueryResultsResponse)
+    full_response = aggregation_response.model_copy(update={"visualization_type": visualization_type})
+
+    # Lightweight artifact for AG-UI frontend
+    artifact = QueryArtifact(
         query_id=str(query_id),
         total_results=aggregation_response.total_results,
         visualization_type=visualization_type,
         description=description,
     )
+
+    return ToolReturn(return_value=full_response, metadata=artifact)
 
 
 @filter_building_toolset.tool

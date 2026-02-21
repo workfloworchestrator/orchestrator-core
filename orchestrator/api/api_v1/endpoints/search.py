@@ -189,9 +189,7 @@ async def get_query_results(query_id: UUID) -> QueryResultsResponse:
 
         if isinstance(query, SelectQuery):
             embedding = list(row.query_embedding) if row.query_embedding is not None else None
-            search_response = await engine.execute_search(
-                query, db.session, query_embedding=embedding
-            )
+            search_response = await engine.execute_search(query, db.session, query_embedding=embedding)
             result_rows = [
                 ResultRow(
                     group_values={

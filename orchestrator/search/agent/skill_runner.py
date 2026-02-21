@@ -23,7 +23,7 @@ from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.messages import FunctionToolCallEvent
 from pydantic_ai.run import AgentRunResultEvent
 
-from orchestrator.search.agent.events import RunContext
+from orchestrator.search.agent.events import RunContext, make_step_active_event
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.agent.utils import log_agent_request
 
@@ -64,7 +64,7 @@ class SkillRunner:
         """
         step_name = self.skill.name
         ctx.state.memory.start_step(step_name)
-        ctx.deps.emit_step_active(step_name, reasoning)
+        yield make_step_active_event(step_name, reasoning)
 
         self._tool_calls_in_current_run = []
         self._last_run_result = None

@@ -16,15 +16,15 @@ from typing import Annotated, AsyncGenerator
 from uuid import UUID
 
 from ag_ui.core import RunAgentInput
-from anyio import create_memory_object_stream, create_task_group
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import ValidationError
-from pydantic_ai.ag_ui import SSE_CONTENT_TYPE, StateDeps, run_ag_ui
+from pydantic_ai.ag_ui import SSE_CONTENT_TYPE, StateDeps
 from starlette.responses import Response, StreamingResponse
 from structlog import get_logger
 
 from orchestrator.db import db
 from orchestrator.db.models import AgentRunTable
+from orchestrator.search.agent.adapters import ArtifactAGUIAdapter
 from orchestrator.search.agent.agent import AgentAdapter, build_agent_instance
 from orchestrator.search.agent.persistence import PostgresStatePersistence
 from orchestrator.search.agent.state import SearchState
@@ -92,10 +92,11 @@ async def agent_conversation(
     request: Request,
     agent: Annotated[AgentAdapter, Depends(get_agent)],
 ) -> Response:
-    """Agent conversation endpoint using pydantic-ai ag_ui protocol.
+    """Agent conversation endpoint using pydantic-ai AG-UI protocol.
 
-    This endpoint handles the interactive agent conversation for search.
-    Uses manual stream management to allow custom events to be injected.
+    Uses ArtifactAGUIAdapter which:
+    - Replaces full query results with lightweight QueryArtifact references
+    - Passes through custom events (AGENT_STEP_ACTIVE) that pydantic-ai would drop
     """
 
     # Parse the request body to get RunAgentInput
@@ -109,82 +110,51 @@ async def agent_conversation(
     # Prepare run_input with user message extracted into state
     prepared_run_input = prepare_run_input(run_input)
 
-    # Create memory stream for events
-    send_stream, receive_stream = create_memory_object_stream[str]()
+    run_id = UUID(prepared_run_input.run_id)
+    thread_id = prepared_run_input.thread_id
 
-    async def run_agent_task() -> None:
-        """Run the agent and send events to the stream."""
+    # Create or get agent run record for persistence tracking
+    agent_run = db.session.get(AgentRunTable, run_id)
+    if not agent_run:
+        agent_run = AgentRunTable(run_id=run_id, thread_id=thread_id, agent_type="search")
+        db.session.add(agent_run)
+        db.session.commit()
+        logger.debug("Created new agent run", run_id=str(run_id), thread_id=thread_id)
+
+    prepared_run_input.state["run_id"] = run_id
+
+    persistence = PostgresStatePersistence(thread_id=thread_id, run_id=run_id, session=db.session)
+
+    loaded_state = await persistence.load_state()
+    if loaded_state:
+        initial_state = loaded_state
+        initial_state.user_input = prepared_run_input.state["user_input"]
+        initial_state.run_id = run_id
+        logger.debug(
+            "Loaded previous state from persistence",
+            completed_turns=len(initial_state.memory.completed_turns),
+            current_turn=initial_state.memory.current_turn is not None,
+        )
+    else:
+        initial_state = SearchState(**prepared_run_input.state)
+        logger.debug("Created fresh state (no previous snapshot)")
+
+    # Set persistence on agent instance
+    agent._persistence = persistence
+
+    # Create adapter — all event handling (artifacts, custom events) flows through the stream
+    adapter = ArtifactAGUIAdapter(agent=agent, run_input=prepared_run_input)
+    event_stream = adapter.encode_stream(adapter.run_stream(deps=StateDeps(initial_state)))
+
+    async def stream_with_persistence() -> AsyncGenerator[str, None]:
+        """Stream AG-UI events and commit DB on completion."""
         try:
-            run_id = UUID(prepared_run_input.run_id)
-            thread_id = prepared_run_input.thread_id
-
-            # Create or get agent run record for persistence tracking
-            agent_run = db.session.get(AgentRunTable, run_id)
-            if not agent_run:
-                agent_run = AgentRunTable(run_id=run_id, thread_id=thread_id, agent_type="search")
-                db.session.add(agent_run)
-                db.session.commit()
-                logger.debug("Created new agent run", run_id=str(run_id), thread_id=thread_id)
-
-            prepared_run_input.state["run_id"] = run_id
-
-            persistence = PostgresStatePersistence(thread_id=thread_id, run_id=run_id, session=db.session)
-
-            loaded_state = await persistence.load_state()
-            if loaded_state:
-                initial_state = loaded_state
-                initial_state.user_input = prepared_run_input.state["user_input"]
-                initial_state.run_id = run_id
-                logger.debug(
-                    "Loaded previous state from persistence",
-                    completed_turns=len(initial_state.memory.completed_turns),
-                    current_turn=initial_state.memory.current_turn is not None,
-                )
-            else:
-                initial_state = SearchState(**prepared_run_input.state)
-                logger.debug("Created fresh state (no previous snapshot)")
-
-            # Set persistence on agent instance
-            agent._persistence = persistence
-
-            # Run agent with AG-UI protocol handling
-            event_iterator = run_ag_ui(
-                agent,
-                run_input=prepared_run_input,
-                deps=StateDeps(initial_state),
-            )
-
-            async for event_str in event_iterator:
-                # First, check if there are any custom events to inject
-                if hasattr(agent, "_current_events"):
-                    while agent._current_events:
-                        custom_event = agent._current_events.popleft()
-                        await send_stream.send(custom_event)
-
-                # Then send the AG-UI event
-                await send_stream.send(event_str)
-
-            # Commit transaction to persist snapshots
+            async for event_str in event_stream:
+                yield event_str
             db.session.commit()
-
         except Exception as e:
-            logger.error("Error in run_agent_task", error=str(e), exc_info=True)
+            logger.error("Error in agent stream", error=str(e), exc_info=True)
             db.session.rollback()
             raise
-        finally:
-            await send_stream.aclose()
 
-    async def stream_generator() -> AsyncGenerator[str, None]:
-        """Generate SSE events from the memory stream."""
-        async with create_task_group() as tg:
-            # Start agent execution in background
-            tg.start_soon(run_agent_task)
-
-            # Stream events as they arrive
-            async with receive_stream:
-                async for event in receive_stream:
-                    yield event
-
-    return StreamingResponse(stream_generator(), media_type=SSE_CONTENT_TYPE)
-
-
+    return StreamingResponse(stream_with_persistence(), media_type=SSE_CONTENT_TYPE)
