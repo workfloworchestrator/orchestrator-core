@@ -12,64 +12,21 @@
 # limitations under the License.
 
 from functools import cache
-from typing import Annotated, AsyncGenerator
-from uuid import UUID
+from typing import Annotated
 
 from ag_ui.core import RunAgentInput
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import ValidationError
-from pydantic_ai.ag_ui import SSE_CONTENT_TYPE, StateDeps
+from pydantic_ai.ag_ui import SSE_CONTENT_TYPE
 from starlette.responses import Response, StreamingResponse
 from structlog import get_logger
 
 from orchestrator.db import db
-from orchestrator.db.models import AgentRunTable
-from orchestrator.search.agent.adapters import ArtifactAGUIAdapter
+from orchestrator.search.agent.adapters import AGUIWorker
 from orchestrator.search.agent.agent import AgentAdapter, build_agent_instance
-from orchestrator.search.agent.persistence import PostgresStatePersistence
-from orchestrator.search.agent.state import SearchState
 
 router = APIRouter()
 logger = get_logger(__name__)
-
-
-def prepare_run_input(run_input: RunAgentInput) -> RunAgentInput:
-    """Prepare RunAgentInput by extracting user message and adding it to state.
-
-    This preprocessing is necessary because:
-    - AG-UI transforms messages into LLM prompts during processing
-    - We need the original user query text for tools and prompts
-    - The endpoint is the only place with access to raw messages before transformation
-
-    Args:
-        run_input: Original RunAgentInput from the client
-
-    Returns:
-        Modified RunAgentInput with user_input added to state
-    """
-    # Extract the most recent user message
-    user_input = ""
-    for msg in reversed(run_input.messages):
-        if msg.role == "user" and msg.content:
-            user_input = msg.content
-            break
-
-    logger.debug("Extracted latest user message", user_input=user_input[:100] if user_input else "(empty)")
-
-    # Build state dict for SearchState by extracting data from AG-UI messages
-    # Preserve any existing state fields from client, then add our derived fields
-    state_dict = dict(run_input.state) if run_input.state else {}
-    state_dict["user_input"] = user_input
-
-    return RunAgentInput(
-        thread_id=run_input.thread_id,
-        run_id=run_input.run_id,
-        state=state_dict,
-        messages=run_input.messages,
-        tools=run_input.tools,
-        context=run_input.context,
-        forwarded_props=run_input.forwarded_props,
-    )
 
 
 @cache
@@ -92,14 +49,7 @@ async def agent_conversation(
     request: Request,
     agent: Annotated[AgentAdapter, Depends(get_agent)],
 ) -> Response:
-    """Agent conversation endpoint using pydantic-ai AG-UI protocol.
-
-    Uses ArtifactAGUIAdapter which:
-    - Replaces full query results with lightweight QueryArtifact references
-    - Passes through custom events (AGENT_STEP_ACTIVE) that pydantic-ai would drop
-    """
-
-    # Parse the request body to get RunAgentInput
+    """Agent conversation endpoint using pydantic-ai AG-UI protocol."""
     try:
         body = await request.json()
         run_input = RunAgentInput(**body)
@@ -107,54 +57,5 @@ async def agent_conversation(
         logger.error("Invalid request body", error=str(e))
         raise HTTPException(status_code=400, detail=f"Invalid request body: {e}")
 
-    # Prepare run_input with user message extracted into state
-    prepared_run_input = prepare_run_input(run_input)
-
-    run_id = UUID(prepared_run_input.run_id)
-    thread_id = prepared_run_input.thread_id
-
-    # Create or get agent run record for persistence tracking
-    agent_run = db.session.get(AgentRunTable, run_id)
-    if not agent_run:
-        agent_run = AgentRunTable(run_id=run_id, thread_id=thread_id, agent_type="search")
-        db.session.add(agent_run)
-        db.session.commit()
-        logger.debug("Created new agent run", run_id=str(run_id), thread_id=thread_id)
-
-    prepared_run_input.state["run_id"] = run_id
-
-    persistence = PostgresStatePersistence(thread_id=thread_id, run_id=run_id, session=db.session)
-
-    loaded_state = await persistence.load_state()
-    if loaded_state:
-        initial_state = loaded_state
-        initial_state.user_input = prepared_run_input.state["user_input"]
-        initial_state.run_id = run_id
-        logger.debug(
-            "Loaded previous state from persistence",
-            completed_turns=len(initial_state.memory.completed_turns),
-            current_turn=initial_state.memory.current_turn is not None,
-        )
-    else:
-        initial_state = SearchState(**prepared_run_input.state)
-        logger.debug("Created fresh state (no previous snapshot)")
-
-    # Set persistence on agent instance
-    agent._persistence = persistence
-
-    # Create adapter — all event handling (artifacts, custom events) flows through the stream
-    adapter = ArtifactAGUIAdapter(agent=agent, run_input=prepared_run_input)
-    event_stream = adapter.encode_stream(adapter.run_stream(deps=StateDeps(initial_state)))
-
-    async def stream_with_persistence() -> AsyncGenerator[str, None]:
-        """Stream AG-UI events and commit DB on completion."""
-        try:
-            async for event_str in event_stream:
-                yield event_str
-            db.session.commit()
-        except Exception as e:
-            logger.error("Error in agent stream", error=str(e), exc_info=True)
-            db.session.rollback()
-            raise
-
-    return StreamingResponse(stream_with_persistence(), media_type=SSE_CONTENT_TYPE)
+    stream = await AGUIWorker.run_request(agent=agent, run_input=run_input, db_session=db.session)
+    return StreamingResponse(stream, media_type=SSE_CONTENT_TYPE)

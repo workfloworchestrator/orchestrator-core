@@ -1,0 +1,246 @@
+# Copyright 2019-2025 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from typing import Any, Literal, cast
+
+import structlog
+from pydantic import ValidationError
+from pydantic_ai import RunContext
+from pydantic_ai.ag_ui import StateDeps
+from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.messages import ToolReturn
+from pydantic_ai.toolsets import FunctionToolset
+
+from orchestrator.db import db
+from orchestrator.search.agent.artifacts import QueryArtifact
+from orchestrator.search.agent.handlers import execute_aggregation_with_persistence
+from orchestrator.search.agent.memory import ToolStep
+from orchestrator.search.agent.state import SearchState
+from orchestrator.search.agent.tools.filters import ensure_query_initialized
+from orchestrator.search.aggregations import Aggregation, FieldAggregation, TemporalGrouping
+from orchestrator.search.core.types import EntityType, QueryOperation
+from orchestrator.search.query.exceptions import PathNotFoundError, QueryValidationError
+from orchestrator.search.query.mixins import OrderBy
+from orchestrator.search.query.queries import AggregateQuery, CountQuery, Query
+from orchestrator.search.query.results import VisualizationType
+from orchestrator.search.query.validation import (
+    validate_aggregation_field,
+    validate_grouping_fields,
+    validate_order_by_fields,
+    validate_temporal_grouping_field,
+)
+
+logger = structlog.get_logger(__name__)
+
+AggregationOperation = Literal[QueryOperation.COUNT, QueryOperation.AGGREGATE]
+
+aggregation_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
+aggregation_execution_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
+
+
+@aggregation_execution_toolset.tool
+async def run_aggregation(
+    ctx: RunContext[StateDeps[SearchState]],
+    entity_type: EntityType,
+    query_operation: AggregationOperation,
+    visualization_type: VisualizationType,
+) -> ToolReturn:
+    """Execute an aggregation to compute counts or statistics over entities.
+
+    Use this tool for COUNT or AGGREGATE actions after setting up:
+    - Grouping fields with set_grouping or set_temporal_grouping
+    - Aggregation functions with set_aggregations (for AGGREGATE action)
+    """
+    ensure_query_initialized(ctx.deps.state, entity_type, query_operation)
+    query = cast(CountQuery | AggregateQuery, ctx.deps.state.query)
+
+    # Validate AGGREGATE action has aggregations set
+    if isinstance(query, AggregateQuery) and not query.aggregations:
+        raise ModelRetry(
+            "AGGREGATE action requires calling set_aggregations() first to specify which numeric operations to compute (SUM, AVG, MIN, MAX). "
+            "If you just want to count rows, use COUNT action instead."
+        )
+
+    logger.debug(
+        "Executing aggregation",
+        search_entity_type=query.entity_type.value,
+        has_filters=query.filters is not None,
+        query_operation=query.query_operation,
+    )
+
+    aggregation_response, run_id, query_id = await execute_aggregation_with_persistence(
+        query, db.session, ctx.deps.state.run_id
+    )
+
+    ctx.deps.state.run_id = run_id
+    ctx.deps.state.query_id = query_id
+
+    description = f"Aggregated {aggregation_response.total_results} groups for {query.entity_type.value}"
+
+    # Record tool step with query_id
+    ctx.deps.state.memory.record_tool_step(
+        ToolStep(
+            step_type="run_aggregation",
+            description=description,
+            context={"query_id": query_id, "query_snapshot": query.model_dump()},
+        )
+    )
+
+    logger.debug(
+        "Aggregation completed",
+        total_results=aggregation_response.total_results,
+        visualization_type=visualization_type.type,
+        query_id=str(query_id),
+    )
+
+    # Full response for LLM/A2A/MCP consumers (already a QueryResultsResponse)
+    full_response = aggregation_response.model_copy(update={"visualization_type": visualization_type})
+
+    # Lightweight artifact for AG-UI frontend
+    artifact = QueryArtifact(
+        query_id=str(query_id),
+        total_results=aggregation_response.total_results,
+        visualization_type=visualization_type,
+        description=description,
+    )
+
+    return ToolReturn(return_value=full_response, metadata=artifact)
+
+
+@aggregation_toolset.tool
+async def set_grouping(
+    ctx: RunContext[StateDeps[SearchState]],
+    group_by_paths: list[str],
+    entity_type: EntityType,
+    query_operation: AggregationOperation,
+    order_by: list[OrderBy] | None = None,
+) -> Query:
+    """Set which field paths to group results by for aggregation.
+
+    Only used with COUNT or AGGREGATE actions. Paths must exist in the schema; use discover_filter_paths to verify.
+    Optionally specify ordering for the grouped results.
+
+    For order_by: You can order by grouping field paths OR aggregation aliases (e.g., 'count').
+    Grouping field paths will be validated; aggregation aliases cannot be validated until execution.
+
+    Returns the updated Query as structured output.
+    """
+    ensure_query_initialized(ctx.deps.state, entity_type, query_operation)
+
+    try:
+        validate_grouping_fields(group_by_paths)
+        validate_order_by_fields(order_by)
+    except PathNotFoundError as e:
+        raise ModelRetry(f"{str(e)} Use discover_filter_paths to find valid paths.")
+    except Exception as e:
+        raise ModelRetry(f"Validation failed: {str(e)}")
+
+    update_dict: dict[str, Any] = {"group_by": group_by_paths}
+    if order_by is not None:
+        update_dict["order_by"] = order_by
+
+    try:
+        updated_query = cast(Query, ctx.deps.state.query).model_copy(update=update_dict)
+        ctx.deps.state.query = updated_query
+    except ValidationError as e:
+        raise ModelRetry(str(e))
+
+    logger.debug(f"Grouping set by {len(group_by_paths)} field(s): {', '.join(group_by_paths)}")
+    return updated_query
+
+
+@aggregation_toolset.tool
+async def set_aggregations(
+    ctx: RunContext[StateDeps[SearchState]],
+    aggregations: list[Aggregation],
+    entity_type: EntityType,
+    query_operation: AggregationOperation,
+) -> Query:
+    """Define what aggregations to compute over the matching records.
+
+    Only used with AGGREGATE action. See Aggregation model (CountAggregation, FieldAggregation) for structure and field requirements.
+
+    Returns the updated Query as structured output.
+    """
+    ensure_query_initialized(ctx.deps.state, entity_type, query_operation)
+
+    # Validate field paths for FieldAggregations
+    try:
+        for agg in aggregations:
+            if isinstance(agg, FieldAggregation):
+                validate_aggregation_field(agg.type, agg.field)
+    except PathNotFoundError as e:
+        raise ModelRetry(
+            f"{str(e)} "
+            f"You MUST call discover_filter_paths first to find valid fields. "
+            f"If the field truly doesn't exist, inform the user that this data is not available."
+        )
+    except QueryValidationError as e:
+        raise ModelRetry(f"{str(e)}")
+
+    try:
+        updated_query = cast(Query, ctx.deps.state.query).model_copy(update={"aggregations": aggregations})
+        ctx.deps.state.query = updated_query
+    except ValidationError as e:
+        raise ModelRetry(str(e))
+
+    logger.debug(f"Aggregations configured: {len(aggregations)} aggregation(s)")
+    return updated_query
+
+
+@aggregation_toolset.tool
+async def set_temporal_grouping(
+    ctx: RunContext[StateDeps[SearchState]],
+    temporal_groups: list[TemporalGrouping],
+    entity_type: EntityType,
+    query_operation: AggregationOperation,
+    cumulative: bool = False,
+    order_by: list[OrderBy] | None = None,
+) -> Query:
+    """Set temporal grouping to group datetime fields by time periods.
+
+    Only used with COUNT or AGGREGATE actions. See TemporalGrouping model for structure, periods, and examples.
+    Optionally enable cumulative aggregations (running totals) and specify ordering.
+
+    For order_by: You can order by temporal field paths OR aggregation aliases (e.g., 'count').
+    Temporal field paths will be validated; aggregation aliases cannot be validated until execution.
+
+    Returns the updated Query as structured output.
+    """
+    ensure_query_initialized(ctx.deps.state, entity_type, query_operation)
+
+    try:
+        for tg in temporal_groups:
+            validate_temporal_grouping_field(tg.field)
+        validate_order_by_fields(order_by)
+    except PathNotFoundError as e:
+        raise ModelRetry(f"{str(e)} Use discover_filter_paths to find valid paths.")
+    except QueryValidationError as e:
+        raise ModelRetry(f"{str(e)} Use discover_filter_paths to find datetime fields.")
+
+    update_dict: dict[str, Any] = {"temporal_group_by": temporal_groups}
+    if cumulative:
+        update_dict["cumulative"] = cumulative
+    if order_by is not None:
+        update_dict["order_by"] = order_by
+
+    try:
+        updated_query = cast(Query, ctx.deps.state.query).model_copy(update=update_dict)
+        ctx.deps.state.query = updated_query
+    except ValidationError as e:
+        raise ModelRetry(str(e))
+
+    temporal_desc = ", ".join(f"{tg.field} by {tg.period}" for tg in temporal_groups)
+    cumulative_text = " (cumulative)" if cumulative else ""
+    logger.debug(f"Temporal grouping set: {temporal_desc}{cumulative_text}")
+    return updated_query
