@@ -20,7 +20,7 @@ from orchestrator.db import (
 )
 from orchestrator.security import authenticate
 from orchestrator.services.processes import RESUME_WORKFLOW_REMOVED_ERROR_MSG, can_be_resumed, shutdown_thread_pool
-from orchestrator.services.settings import get_engine_settings
+from orchestrator.services.settings import get_engine_settings_table
 from orchestrator.services.tasks import RESUME_WORKFLOW
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
@@ -207,7 +207,7 @@ def test_long_running_pause(test_client, long_running_workflow):
 
 
 def test_service_unavailable_engine_locked(test_client, test_workflow):
-    engine_settings = get_engine_settings()
+    engine_settings = get_engine_settings_table()
     engine_settings.global_lock = True
     db.session.flush()
 

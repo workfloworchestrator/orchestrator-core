@@ -56,7 +56,7 @@ from orchestrator.services.processes import (
     start_process,
     update_awaiting_process_progress,
 )
-from orchestrator.services.settings import get_engine_settings
+from orchestrator.services.settings import get_engine_settings_table
 from orchestrator.settings import app_settings
 from orchestrator.utils.auth import Authorizer
 from orchestrator.utils.enrich_process import enrich_process
@@ -83,7 +83,7 @@ def check_global_lock() -> None:
         None or raises an exception
 
     """
-    engine_settings = get_engine_settings()
+    engine_settings = get_engine_settings_table()
     if engine_settings.global_lock:
         logger.info("Unable to interact with processes at this time. Engine StatusEnum is locked")
         raise_status(

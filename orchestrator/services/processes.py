@@ -35,7 +35,6 @@ from orchestrator.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.distlock import distlock_manager
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.services.input_state import store_input_state
-from orchestrator.services.settings import get_engine_settings_for_update
 from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.types import BroadcastFunc
@@ -394,7 +393,7 @@ def _db_log_process_ex(process_id: UUID, ex: Exception) -> None:
     db.session.add(p)
     try:
         db.session.commit()
-    except BaseException:
+    except Exception:
         logger.exception("Commit failed, rolling back", process_id=process_id)
         db.session.rollback()
         raise
@@ -417,22 +416,6 @@ def _get_process(process_id: UUID) -> ProcessTable:
 
 
 def _run_process_async(process_id: UUID, f: Callable) -> UUID:
-    def _update_running_processes(method: str, *args: Any) -> None:
-        """Update amount of running processes by one.
-
-        Args:
-            method: Add or subtract by one the amount of running processes
-            args: Any args that are still going to be passed. When called as a callback this will be the future.
-
-        Returns:
-            None
-
-        """
-        engine_settings = get_engine_settings_for_update()
-        engine_settings.running_processes += 1 if method == "+" else -1
-        if engine_settings.running_processes < 0:
-            engine_settings.running_processes = 0
-        db.session.commit()
 
     def run() -> WFProcess:
         with _ActiveJobTracker():
@@ -446,7 +429,7 @@ def _run_process_async(process_id: UUID, f: Callable) -> UUID:
                         _db_log_process_ex(process_id, ex)
                         raise
                     finally:
-                        _update_running_processes("-")
+                        db.session.commit()
             except Exception as ex:
                 # We lost access to database here, so we can only log
                 logger.exception("Unknown workflow failure", process_id=process_id)
@@ -454,7 +437,6 @@ def _run_process_async(process_id: UUID, f: Callable) -> UUID:
 
             return result
 
-    _update_running_processes("+")
     if app_settings.EXECUTOR == ExecutorType.THREADPOOL:
         workflow_executor = get_thread_pool()
         process_handle = workflow_executor.submit(run)
