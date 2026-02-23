@@ -8,6 +8,7 @@ from orchestrator.api.api_v1.endpoints.processes import resolve_user_name
 from orchestrator.graphql.types import MutationError, OrchestratorInfo
 from orchestrator.services.process_broadcast_thread import graphql_broadcast_process_data
 from orchestrator.services.processes import start_process
+from orchestrator.utils.errors import StartPredicateError
 
 
 @strawberry.type(description="Process status")
@@ -32,6 +33,8 @@ async def resolve_start_process(
 
     try:
         process_id = start_process(name, user_inputs=payload.payload, user=user, broadcast_func=broadcast_func)
+    except StartPredicateError as exc:
+        return MutationError(message="Start predicate not satisfied", details=str(exc))
     except Exception as exc:
         return MutationError(message="Could not create process", details=str(exc))
 

@@ -12,8 +12,6 @@
 # limitations under the License.
 import warnings
 
-from orchestrator.schedules.validate_products import validate_products
-
 warnings.warn(
     "ALL_SCHEDULERS is deprecated and will be removed in 5.0.0. "
     "Scheduling tasks can now be handled entirely through the API. "
@@ -21,6 +19,4 @@ warnings.warn(
     DeprecationWarning,
     stacklevel=2,
 )
-ALL_SCHEDULERS: list = [
-    validate_products,
-]
+ALL_SCHEDULERS: list = []

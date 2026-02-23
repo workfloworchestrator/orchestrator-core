@@ -31,6 +31,7 @@ from orchestrator.targets import Target
 from orchestrator.utils.errors import ProcessFailureError
 from orchestrator.utils.fixed_inputs import fixed_input_configuration as fi_configuration
 from orchestrator.workflow import StepList, done, init, step, workflow
+from orchestrator.workflows.predicates import no_uncompleted_instance
 from pydantic_forms.types import State
 
 authorizers = get_authorizers()
@@ -195,6 +196,7 @@ def check_subscription_models() -> State:
     target=Target.SYSTEM,
     authorize_callback=authorizers.authorize_callback,
     retry_auth_callback=authorizers.retry_auth_callback,
+    run_predicate=no_uncompleted_instance,
 )
 def task_validate_products() -> StepList:
     return (
