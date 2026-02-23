@@ -159,6 +159,13 @@ def load_initial_schedule() -> None:
             "trigger": "cron",
             "trigger_kwargs": {"hour": 0, "minute": 10},
         },
+        {
+            "name": "Task Validate Products",
+            "workflow_name": "task_validate_products",
+            "workflow_id": "",
+            "trigger": "cron",
+            "trigger_kwargs": {"hour": 2, "minute": 30},
+        },
     ]
 
     for schedule in initial_schedules:
