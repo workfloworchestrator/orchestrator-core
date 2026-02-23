@@ -27,7 +27,7 @@ from orchestrator.services.processes import (
     safe_logstep,
     start_process,
 )
-from orchestrator.services.settings import get_engine_settings
+from orchestrator.services.settings import get_engine_settings_table
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.utils.errors import ApiException, error_state_to_dict
@@ -772,12 +772,12 @@ def test_run_process_async_success():
     _run_process_async(process_id, run_func)
     sleep(0.01)
 
-    assert get_engine_settings().running_processes == 1
+    assert get_engine_settings_table().running_processes == 1
 
     event.set()
     sleep(1)
 
-    assert get_engine_settings().running_processes == 0
+    assert get_engine_settings_table().running_processes == 0
     app_settings.TESTING = True
 
 
@@ -795,12 +795,12 @@ def test_run_process_async_exception(mock_db_log_process_ex):
     _run_process_async(process_id, run_func)
     sleep(0.1)
 
-    assert get_engine_settings().running_processes == 1
+    assert get_engine_settings_table().running_processes == 1
 
     event.set()
     sleep(0.1)
 
-    assert get_engine_settings().running_processes == 0
+    assert get_engine_settings_table().running_processes == 0
 
     mock_db_log_process_ex.assert_called_once_with(process_id, mock.ANY)
     assert repr(mock_db_log_process_ex.call_args[0][1]) == "ValueError('Failed')"
