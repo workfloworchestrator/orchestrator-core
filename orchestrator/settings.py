@@ -114,9 +114,9 @@ oauth2lib_settings.SERVICE_NAME = app_settings.SERVICE_NAME
 oauth2lib_settings.ENVIRONMENT = app_settings.ENVIRONMENT
 
 if app_settings.EXPOSE_SETTINGS:
-    expose_settings("app_settings", app_settings)  # type: ignore
+    expose_settings("app_settings", app_settings)
 if app_settings.EXPOSE_OAUTH_SETTINGS:
-    expose_settings("oauth2lib_settings", oauth2lib_settings)  # type: ignore
+    expose_settings("oauth2lib_settings", oauth2lib_settings)
 
 
 class Authorizers(BaseModel):

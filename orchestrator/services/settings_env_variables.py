@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Type
+from typing import Any, Dict
 
 from pydantic import SecretStr as PydanticSecretStr
 from pydantic.networks import AnyUrl, _BaseMultiHostUrl
@@ -20,11 +20,11 @@ from pydantic_settings import BaseSettings
 from orchestrator.utils.expose_settings import SecretStr as OrchSecretStr
 from orchestrator.utils.expose_settings import SettingsEnvVariablesSchema, SettingsExposedSchema
 
-EXPOSED_ENV_SETTINGS_REGISTRY: Dict[str, Type[BaseSettings]] = {}
+EXPOSED_ENV_SETTINGS_REGISTRY: Dict[str, BaseSettings] = {}
 MASK = "**********"
 
 
-def expose_settings(settings_name: str, base_settings: Type[BaseSettings]) -> Type[BaseSettings]:
+def expose_settings(settings_name: str, base_settings: BaseSettings) -> BaseSettings:
     """Decorator to register settings classes."""
     EXPOSED_ENV_SETTINGS_REGISTRY[settings_name] = base_settings
     return base_settings
@@ -43,11 +43,11 @@ def mask_value(key: str, value: Any) -> Any:
 def get_all_exposed_settings() -> list[SettingsExposedSchema]:
     """Return all registered settings as dicts."""
 
-    def _get_settings_env_variables(base_settings: Type[BaseSettings]) -> list[SettingsEnvVariablesSchema]:
+    def _get_settings_env_variables(base_settings: BaseSettings) -> list[SettingsEnvVariablesSchema]:
         """Get environment variables from settings."""
         return [
             SettingsEnvVariablesSchema(env_name=key, env_value=mask_value(key, value))
-            for key, value in base_settings.model_dump().items()  # type: ignore
+            for key, value in base_settings.model_dump().items()
         ]
 
     return [
