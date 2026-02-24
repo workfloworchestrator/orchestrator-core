@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import SecretStr as PydanticSecretStr
 from pydantic.networks import AnyUrl, _BaseMultiHostUrl
@@ -20,7 +20,7 @@ from pydantic_settings import BaseSettings
 from orchestrator.utils.expose_settings import SecretStr as OrchSecretStr
 from orchestrator.utils.expose_settings import SettingsEnvVariablesSchema, SettingsExposedSchema
 
-EXPOSED_ENV_SETTINGS_REGISTRY: Dict[str, BaseSettings] = {}
+EXPOSED_ENV_SETTINGS_REGISTRY: dict[str, BaseSettings] = {}
 MASK = "**********"
 
 
