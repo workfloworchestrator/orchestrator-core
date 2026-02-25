@@ -9,7 +9,9 @@ Per default, the application settings are used to configure the application. The
 An example of the settings is shown below:
 
 ```python
+from oauth2_lib.settings import oauth2lib_settings
 from orchestrator.settings import BaseSettings
+from orchestrator.services.settings_env_variables import expose_settings
 
 
 class AppSettings(BaseSettings):
@@ -24,10 +26,10 @@ class AppSettings(BaseSettings):
 app_settings = AppSettings()
 
 if app_settings.EXPOSE_SETTINGS:
-    expose_settings("app_settings", app_settings)  # type: ignore
+    expose_settings("app_settings", app_settings)
 
 if app_settings.EXPOSE_OAUTH_SETTINGS:
-    expose_settings("oauth2lib_settings", oauth2lib_settings)  # type: ignore
+    expose_settings("oauth2lib_settings", oauth2lib_settings)
 ```
 
 What you see above is the default settings for the application. The settings are defined in the

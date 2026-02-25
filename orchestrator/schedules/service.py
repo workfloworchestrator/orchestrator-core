@@ -32,6 +32,7 @@ from orchestrator.schemas.schedules import (
 )
 from orchestrator.services.processes import start_process
 from orchestrator.services.workflows import get_workflow_by_workflow_id
+from orchestrator.utils.errors import StartPredicateError
 from orchestrator.utils.redis_client import create_redis_client
 
 redis_connection = create_redis_client(app_settings.CACHE_URI)
@@ -160,8 +161,10 @@ def run_start_workflow_scheduler_task(workflow_name: str) -> None:
             log.info("Starting workflow")
             process_id = start_process(workflow_name)
             log.info("Started workflow", process_id=process_id)
-    except Exception:
-        log.exception("Failed to start workflow")
+    except StartPredicateError:
+        logger.info(f"Skipping {workflow_name} -> start predicate not satisfied")
+    except Exception as e:
+        log.exception(f"Failed to start {workflow_name} - unexpected error: {e}")
 
 
 def _add_scheduled_task(payload: APSchedulerJobCreate, scheduler_connection: BaseScheduler) -> None:
