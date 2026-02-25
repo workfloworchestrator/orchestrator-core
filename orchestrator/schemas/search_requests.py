@@ -43,6 +43,10 @@ class SearchRequest(BaseModel):
         default=None,
         description="Force a specific retriever type. If None, uses default routing logic.",
     )
+    response_columns: list[str] | None = Field(
+        default=None,
+        description="Field paths to return as inline columns on each search result.",
+    )
 
     model_config = ConfigDict(extra="forbid")
 
@@ -61,4 +65,5 @@ class SearchRequest(BaseModel):
             query_text=self.query,
             limit=self.limit,
             retriever=self.retriever,
+            response_columns=self.response_columns,
         )

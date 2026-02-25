@@ -316,6 +316,70 @@ def _apply_ordering(
     return stmt
 
 
+def build_response_columns_query(
+    entity_ids: list[str],
+    entity_type: EntityType,
+    response_columns: list[str],
+) -> Select:
+    """Build a pivot query that returns requested field paths as columns for the given entities.
+
+    Uses the same MAX(CASE ...) pivot pattern as _build_pivot_cte().
+
+    Args:
+        entity_ids: List of entity IDs to fetch columns for.
+        entity_type: The entity type being searched.
+        response_columns: Field paths to pivot into columns.
+
+    Returns:
+        Select statement with entity_id + one column per requested path.
+    """
+    pivot_columns: list = [AiSearchIndex.entity_id.label("entity_id")]
+
+    for field_path in response_columns:
+        pivot_columns.append(
+            func.max(case((AiSearchIndex.path == Ltree(field_path), AiSearchIndex.value), else_=None)).label(
+                BaseAggregation.field_to_alias(field_path)
+            )
+        )
+
+    return (
+        select(*pivot_columns)
+        .where(
+            AiSearchIndex.entity_id.in_(entity_ids),
+            AiSearchIndex.entity_type == entity_type.value,
+            AiSearchIndex.path.in_([Ltree(p) for p in response_columns]),
+        )
+        .group_by(AiSearchIndex.entity_id)
+    )
+
+
+def process_response_columns(
+    rows: Sequence[Row],
+    response_columns: list[str],
+) -> dict[str, dict[str, str | None]]:
+    """Convert pivot query rows into a mapping of entity_id -> {path: value}.
+
+    Args:
+        rows: Result rows from build_response_columns_query.
+        response_columns: The original field paths requested.
+
+    Returns:
+        Dict mapping entity_id to a dict of path -> value (or None).
+    """
+    alias_to_path = {BaseAggregation.field_to_alias(path): path for path in response_columns}
+    result: dict[str, dict[str, str | None]] = {}
+
+    for row in rows:
+        entity_id = str(row.entity_id)
+        columns: dict[str, str | None] = {}
+        for alias, path in alias_to_path.items():
+            value = getattr(row, alias, None)
+            columns[path] = str(value) if value is not None else None
+        result[entity_id] = columns
+
+    return result
+
+
 def build_simple_count_query(base_query: Select) -> Select:
     """Build a simple count query without grouping.
 
