@@ -23,14 +23,21 @@ class OrderDirection(str, Enum):
     DESC = "desc"
 
 
+direction = Field(default=OrderDirection.ASC, description="Sorting direction (asc or desc).")
+
+
 class OrderBy(BaseModel):
     """Ordering descriptor for aggregation responses."""
 
     field: str = Field(description="Grouping or aggregation field/alias to order by.")
-    direction: OrderDirection = Field(
-        default=OrderDirection.ASC,
-        description="Sorting direction (asc or desc).",
-    )
+    direction: OrderDirection = direction
+
+
+class StructuredOrderBy(BaseModel):
+    """Ordering descriptor for structured searches."""
+
+    element: str = Field(description="element to order by.")
+    direction: OrderDirection = direction
 
 
 class SearchMixin(BaseModel):
@@ -72,6 +79,13 @@ class SearchMixin(BaseModel):
             return None
         words = self.query_text.split()
         return self.query_text if len(words) == 1 else None
+
+
+class StructuredOrderByMixin(BaseModel):
+    order_by: StructuredOrderBy | None = Field(
+        default=None,
+        description="Ordering instructions for search results, only applied by structured search.",
+    )
 
 
 class GroupingMixin(BaseModel):

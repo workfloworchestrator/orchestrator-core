@@ -22,7 +22,7 @@ from orchestrator.schemas.search import (
     PathsResponse,
     SearchResultsSchema,
 )
-from orchestrator.schemas.search_requests import SearchRequest
+from orchestrator.schemas.search_requests import SearchRequest, validate_order_by_element
 from orchestrator.search.core.exceptions import InvalidCursorError, QueryStateNotFoundError
 from orchestrator.search.core.types import EntityType, UIType
 from orchestrator.search.filters.definitions import TypeDefinition, generate_definitions
@@ -55,6 +55,8 @@ async def _perform_search_and_fetch(
         Search results with entity_id, score, and matching_field.
     """
     try:
+        await validate_order_by_element(entity_type, request)
+
         page_cursor: PageCursor | None = None
         query: SelectQuery
 
