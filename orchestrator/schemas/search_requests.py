@@ -13,8 +13,6 @@
 
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import select
-from sqlalchemy_utils import Ltree
 
 from orchestrator.search.core.types import EntityType, RetrieverType
 from orchestrator.search.filters import FilterTree
@@ -76,23 +74,3 @@ class SearchRequest(BaseModel):
         if self.order_by and self.query:
             raise ValueError("order_by can only be set when query is empty")
         return self
-
-
-async def validate_order_by_element(entity_type: EntityType | None, request: SearchRequest | None) -> None:
-    from orchestrator.db import db
-    from orchestrator.db.models import AiSearchIndex
-
-    if not request or not request.order_by or not entity_type:
-        return
-
-    element = request.order_by.element
-
-    stmt = (
-        select(AiSearchIndex.path)
-        .where(AiSearchIndex.entity_type == entity_type.value, AiSearchIndex.path == Ltree(element))
-        .limit(1)
-    )
-
-    exists = db.session.execute(stmt).all()
-    if not exists:
-        raise ValueError(f"Element {element} is not a valid path")

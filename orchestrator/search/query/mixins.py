@@ -40,6 +40,13 @@ class StructuredOrderBy(BaseModel):
     direction: OrderDirection = direction
 
 
+class StructuredOrderByMixin(BaseModel):
+    order_by: StructuredOrderBy | None = Field(
+        default=None,
+        description="Ordering instructions for search results, only applied by structured search.",
+    )
+
+
 class SearchMixin(BaseModel):
     """Mixin providing text search capability.
 
@@ -79,13 +86,6 @@ class SearchMixin(BaseModel):
             return None
         words = self.query_text.split()
         return self.query_text if len(words) == 1 else None
-
-
-class StructuredOrderByMixin(BaseModel):
-    order_by: StructuredOrderBy | None = Field(
-        default=None,
-        description="Ordering instructions for search results, only applied by structured search.",
-    )
 
 
 class GroupingMixin(BaseModel):
