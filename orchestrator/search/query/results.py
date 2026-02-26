@@ -57,7 +57,7 @@ class SearchResult(BaseModel):
     score: float
     perfect_match: int = 0
     matching_field: MatchingField | None = None
-    columns: dict[str, str | None] | None = None
+    response_columns: dict[str, str | None] | None = None
 
 
 class SearchResponse(BaseModel):
@@ -296,7 +296,7 @@ def format_search_response(
                 score=row.score,
                 perfect_match=row.get("perfect_match", 0),
                 matching_field=matching_field,
-                columns=columns,
+                response_columns=columns,
             )
         )
     return SearchResponse(
