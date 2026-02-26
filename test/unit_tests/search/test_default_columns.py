@@ -20,7 +20,6 @@ from orchestrator.search.filters import EqualityFilter, FilterTree, PathFilter
 from orchestrator.search.query.default_columns import DEFAULT_RESPONSE_COLUMNS
 from orchestrator.search.query.queries import SelectQuery
 
-
 pytestmark = pytest.mark.search
 
 

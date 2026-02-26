@@ -173,7 +173,11 @@ async def _execute_search(
         )
 
     column_data: dict[str, dict[str, str | None]] | None = None
-    response_columns = query.response_columns if query.response_columns is not None else DEFAULT_RESPONSE_COLUMNS.get(query.entity_type)
+    response_columns = (
+        query.response_columns
+        if query.response_columns is not None
+        else DEFAULT_RESPONSE_COLUMNS.get(query.entity_type)
+    )
     if response_columns and result_rows:
         entity_ids = [str(row.entity_id) for row in result_rows]
         col_stmt = build_response_columns_query(entity_ids, query.entity_type, response_columns)
