@@ -8,9 +8,9 @@ When `create_process()` is called (via the REST API, GraphQL, a scheduler, or `s
 
 1. The workflow is looked up from the registry
 2. If `run_predicate` is set on the workflow, it is called with a `PredicateContext`
-3. The predicate returns a tuple `(allowed, reason)`
-4. If `allowed` is `False`, a `StartPredicateError` is raised with the optional `reason`
-5. If `allowed` is `True`, the process is created normally
+3. The predicate returns a `RunPredicatePass` or `RunPredicateFail`
+4. If a `RunPredicateFail` is returned, a `StartPredicateError` is raised with its `message`
+5. If a `RunPredicatePass` is returned, the process is created normally
 
 The error is then handled by each caller:
 
@@ -33,23 +33,22 @@ You can use the context or ignore it depending on your needs.
 
 ## Defining a predicate
 
-A predicate is any callable that accepts a `PredicateContext` and returns `tuple[bool, str | None]`:
+A predicate is any callable that accepts a `PredicateContext` and returns a `RunPredicateResult` (a union of `RunPredicatePass` and `RunPredicateFail`):
 
-- `(True, None)` - allow the workflow to start
-- `(False, "reason")` - block the workflow, with an explanation
-- `(False, None)` - block the workflow, using a default message
+- `RunPredicatePass()` - allow the workflow to start
+- `RunPredicateFail("reason")` - block the workflow, with an explanation
 
 ### Simple function
 
 ```python
-from orchestrator.workflow import PredicateContext, workflow
+from orchestrator.workflow import PredicateContext, RunPredicateFail, RunPredicatePass, RunPredicateResult, workflow
 
-def is_maintenance_window(context: PredicateContext) -> tuple[bool, str | None]:
+def is_maintenance_window(context: PredicateContext) -> RunPredicateResult:
     from datetime import datetime
     now = datetime.now()
     if 2 <= now.hour <= 6:
-        return True, None
-    return False, f"Workflow '{context.workflow_key}' can only run during maintenance window (02:00-06:00)"
+        return RunPredicatePass()
+    return RunPredicateFail(f"Workflow '{context.workflow_key}' can only run during maintenance window (02:00-06:00)")
 
 @workflow("Risky migration", run_predicate=is_maintenance_window)
 def risky_migration():
@@ -59,7 +58,7 @@ def risky_migration():
 ### Lambda
 
 ```python
-@workflow("Quick task", run_predicate=lambda ctx: (True, None))
+@workflow("Quick task", run_predicate=lambda ctx: RunPredicatePass())
 def quick_task():
     ...
 ```

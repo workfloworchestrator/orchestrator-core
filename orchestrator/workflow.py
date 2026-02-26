@@ -88,7 +88,26 @@ class Step(Protocol):
     def __call__(self, state: State) -> Process: ...
 
 
-RunPredicate = Callable[..., tuple[bool, str | None]]
+@dataclass(frozen=True)
+class RunPredicatePass:
+    """Return this from a run predicate to allow the workflow to start."""
+
+    def __bool__(self) -> bool:
+        return True
+
+
+@dataclass(frozen=True)
+class RunPredicateFail:
+    """Return this from a run predicate to block the workflow from starting."""
+
+    message: str
+
+    def __bool__(self) -> bool:
+        return False
+
+
+RunPredicateResult = RunPredicatePass | RunPredicateFail
+RunPredicate = Callable[..., RunPredicateResult]
 
 
 @runtime_checkable
