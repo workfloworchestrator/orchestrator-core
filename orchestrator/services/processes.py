@@ -49,6 +49,8 @@ from orchestrator.workflow import (
     PredicateContext,
     ProcessStat,
     ProcessStatus,
+    RunPredicateFail,
+    RunPredicatePass,
     Step,
     StepList,
     Success,
@@ -490,9 +492,11 @@ def create_process(
 
     if workflow.run_predicate is not None:
         context = PredicateContext(workflow=workflow, workflow_key=workflow_key)
-        allowed, reason = workflow.run_predicate(context)
-        if not allowed:
-            raise StartPredicateError(workflow_key, reason)
+        match workflow.run_predicate(context):
+            case RunPredicateFail(message=message):
+                raise StartPredicateError(workflow_key, message)
+            case RunPredicatePass():
+                pass
 
     initial_state = {
         "process_id": process_id,

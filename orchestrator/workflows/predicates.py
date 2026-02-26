@@ -16,17 +16,17 @@ from __future__ import annotations
 from sqlalchemy import func, select
 
 from orchestrator.db import ProcessTable, db
-from orchestrator.workflow import PredicateContext
+from orchestrator.workflow import PredicateContext, RunPredicateFail, RunPredicatePass, RunPredicateResult
 
 
-def no_uncompleted_instance(context: PredicateContext) -> tuple[bool, str | None]:
+def no_uncompleted_instance(context: PredicateContext) -> RunPredicateResult:
     """Predicate that prevents starting if an uncompleted instance of the workflow exists.
 
     Args:
         context: PredicateContext containing the workflow information.
 
     Returns:
-        (True, None) if no uncompleted instances exist, or (False, reason) otherwise.
+        RunPredicatePass if no uncompleted instances exist, or RunPredicateFail with reason otherwise.
     """
     workflow_name = context.workflow_key
     uncompleted_count = db.session.scalar(
@@ -38,5 +38,5 @@ def no_uncompleted_instance(context: PredicateContext) -> tuple[bool, str | None
         )
     )
     if uncompleted_count == 0:
-        return True, None
-    return False, f"Workflow '{workflow_name}' already has {uncompleted_count} uncompleted instance(s)"
+        return RunPredicatePass()
+    return RunPredicateFail(f"Workflow '{workflow_name}' already has {uncompleted_count} uncompleted instance(s)")
