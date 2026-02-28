@@ -22,8 +22,8 @@ from orchestrator.search.agent.tools.aggregation import (
     set_temporal_grouping,
 )
 from orchestrator.search.agent.tools.filters import (
-    ensure_query_initialized,
     discover_filter_paths,
+    ensure_query_initialized,
     filter_building_toolset,
     get_valid_operators,
     set_filter_tree,

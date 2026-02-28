@@ -1,13 +1,14 @@
-"""Demo: Troubleshoot agent that communicates with the WFO Search Agent via A2A.
+"""Demo: CrewAI agent that delegates to the WFO Search Agent over A2A.
+
+Requires:
+    uv pip install crewai
 
 Usage:
-    uv run demos/a2a_troubleshoot.py 25f4f60a-5dbc-4c72-ab57-a10815c4b67e
-    uv run demos/a2a_troubleshoot.py 25f4f60a-5dbc-4c72-ab57-a10815c4b67e --base-url http://localhost:8080/api/a2a
+    uv run demos/a2a_client.py 25f4f60a-5dbc-4c72-ab57-a10815c4b67e
+    uv run demos/a2a_client.py 25f4f60a-5dbc-4c72-ab57-a10815c4b67e --base-url http://localhost:8080/api/agent/a2a
 
-This is a CrewAI agent that delegates to the WFO Search Agent over the A2A protocol.
 CrewAI handles all A2A communication (discovery, messaging, polling) automatically
 via the A2AClientConfig.
-
 """
 
 import sys
@@ -67,7 +68,7 @@ def main() -> None:
         sys.exit(1)
 
     subscription_id = sys.argv[1]
-    base_url = "http://localhost:8080/api/a2a"
+    base_url = "http://localhost:8080/api/agent/a2a"
     if "--base-url" in sys.argv:
         base_url = sys.argv[sys.argv.index("--base-url") + 1]
 

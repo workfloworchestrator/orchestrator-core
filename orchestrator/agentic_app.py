@@ -16,6 +16,7 @@ provides the ability to run the CLI with LLM features (search and/or agent).
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from contextlib import AsyncExitStack
 from typing import Any
 
 import typer
@@ -55,29 +56,35 @@ class LLMOrchestratorCore(OrchestratorCore):
 
         super().__init__(*args, **kwargs)
 
-        # Mount A2A endpoint if agent is enabled
+        # Mount agent protocol adapters under /api/agent/
         if self.llm_settings.AGENT_ENABLED:
-            from orchestrator.search.agent.adapters.a2a import create_a2a_app, start_a2a
+            from orchestrator.search.agent.adapters import create_a2a_app, create_mcp_app, start_a2a, start_mcp
             from orchestrator.search.agent.agent import build_agent_instance
 
             a2a_agent = build_agent_instance(self.agent_model, debug=self.llm_settings.AGENT_DEBUG)
             a2a_app = create_a2a_app(a2a_agent)
-            self.mount("/api/a2a", a2a_app)
+            self.mount("/api/agent/a2a", a2a_app)
 
-            # FastA2A's lifespan doesn't run when mounted as sub-app,
-            # so we start the task manager + worker via host app events.
-            _a2a_stack = None
+            mcp_agent = build_agent_instance(self.agent_model, debug=self.llm_settings.AGENT_DEBUG)
+            self.mount("/api/agent", create_mcp_app(mcp_agent))
 
-            async def _start_a2a() -> None:
-                nonlocal _a2a_stack
-                _a2a_stack = await start_a2a(a2a_app)
+            # Sub-app lifespans don't run when mounted, so we start
+            # the A2A and MCP managers via host app startup/shutdown.
+            _adapter_stack: AsyncExitStack | None = None
 
-            async def _stop_a2a() -> None:
-                if _a2a_stack:
-                    await _a2a_stack.__aexit__(None, None, None)
+            async def _start_adapters() -> None:
+                nonlocal _adapter_stack
+                _adapter_stack = AsyncExitStack()
+                await _adapter_stack.__aenter__()
+                await _adapter_stack.enter_async_context(await start_a2a(a2a_app))
+                await _adapter_stack.enter_async_context(await start_mcp())
 
-            self.add_event_handler("startup", _start_a2a)
-            self.add_event_handler("shutdown", _stop_a2a)
+            async def _stop_adapters() -> None:
+                if _adapter_stack:
+                    await _adapter_stack.__aexit__(None, None, None)
+
+            self.add_event_handler("startup", _start_adapters)
+            self.add_event_handler("shutdown", _stop_adapters)
 
         # Run search migration if search or agent is enabled
         if self.llm_settings.SEARCH_ENABLED or self.llm_settings.AGENT_ENABLED:
