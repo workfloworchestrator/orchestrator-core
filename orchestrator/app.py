@@ -241,9 +241,8 @@ class OrchestratorCore(FastAPI):
 
     def register_graphql(
         self: "OrchestratorCore",
-        # mypy 1.9 cannot properly inspect these, fixed in 1.15
-        query: Any = Query,  # type: ignore
-        mutation: Any = Mutation,  # type: ignore
+        query: Any = Query,
+        mutation: Any = Mutation,
         register_models: bool = True,
         subscription_interface: Any = SubscriptionInterface,
         graphql_models: StrawberryModelType | None = None,

@@ -58,9 +58,11 @@ class AGUIEventStream(_BaseAGUIEventStream[Any, Any]):
     - Yields CustomEvent instances (AGENT_STEP_ACTIVE) that the base class would drop.
     """
 
-    async def handle_event(self, event: NativeEvent) -> AsyncIterator[BaseEvent]:
+    async def handle_event(self, event: NativeEvent | CustomEvent) -> AsyncIterator[BaseEvent]:
         # Pass through AG-UI CustomEvents (e.g. AGENT_STEP_ACTIVE) that the
         # base class match/case would silently discard.
+        # NativeEvent doesn't include CustomEvent in its union, but we receive
+        # them at runtime via the agent's event stream.
         if isinstance(event, CustomEvent):
             yield event
             return

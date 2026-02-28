@@ -97,7 +97,6 @@ class MCPWorker:
         return final_output or "No results"
 
 
-
 mcp = FastMCP(
     name="WFO Search Agent",
     instructions="Search, filter and aggregate orchestration data",
@@ -114,7 +113,7 @@ def _get_worker() -> MCPWorker:
     return _worker
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[misc]
 async def search(query: str) -> str:
     """Find subscriptions, products, workflows, or processes.
 
@@ -124,7 +123,7 @@ async def search(query: str) -> str:
     return await _get_worker().run_skill(query, TaskAction.SEARCH)
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[misc]
 async def aggregate(query: str) -> str:
     """Count, sum, or average data with grouping.
 
@@ -134,7 +133,7 @@ async def aggregate(query: str) -> str:
     return await _get_worker().run_skill(query, TaskAction.AGGREGATION)
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[misc]
 async def get_entity_details(entity_type: EntityType, entity_id: uuid.UUID) -> str:
     """Fetch full details for a specific entity.
 
@@ -146,14 +145,13 @@ async def get_entity_details(entity_type: EntityType, entity_id: uuid.UUID) -> s
     return await _get_worker().run_skill(query, TaskAction.RESULT_ACTIONS)
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[misc]
 async def ask(query: str) -> str:
     """Ask any question about the orchestration system.
 
     The agent will determine the best approach — search, aggregate, or answer directly.
     """
     return await _get_worker().run_skill(query, target_action=None)
-
 
 
 def create_mcp_app(agent: AgentAdapter) -> Starlette:

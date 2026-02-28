@@ -1,7 +1,12 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from orchestrator.search.agent.state import SearchState
 
 import structlog
 from pydantic import BaseModel, ConfigDict
@@ -84,7 +89,7 @@ class Memory(BaseModel):
         """Return all completed turns."""
         return [t for t in self.turns if t.is_complete]
 
-    def start_turn(self, user_question: str):
+    def start_turn(self, user_question: str) -> None:
         self.turns.append(Turn(user_question=user_question))
 
     def start_step(self, step_name: str) -> None:
@@ -100,7 +105,7 @@ class Memory(BaseModel):
             description=f"Executing {step_name}",
         )
 
-    def record_tool_step(self, tool_step: ToolStep):
+    def record_tool_step(self, tool_step: ToolStep) -> None:
         """Record a tool call within the current step."""
         if not self.current_turn:
             raise ValueError("No active turn")
@@ -109,7 +114,7 @@ class Memory(BaseModel):
 
         self.current_turn.current_step.add_tool_step(tool_step)
 
-    def finish_step(self):
+    def finish_step(self) -> None:
         """Finish the current step and add it to the list."""
         if not self.current_turn:
             raise ValueError("No active turn")
@@ -121,7 +126,7 @@ class Memory(BaseModel):
             turn.steps.append(turn.current_step)
             turn.current_step = None
 
-    def complete_turn(self, assistant_answer: str):
+    def complete_turn(self, assistant_answer: str) -> None:
         if not self.current_turn:
             raise ValueError("No active turn")
 
@@ -164,8 +169,9 @@ class Memory(BaseModel):
 
         summaries = []
         for tool in query_tools:
-            query_id = tool.context.get("query_id")
-            query_snapshot = tool.context.get("query_snapshot")
+            ctx = tool.context or {}
+            query_id = ctx.get("query_id")
+            query_snapshot = ctx.get("query_snapshot")
             if include_full_query and query_snapshot:
                 # Full query JSON for Search/Aggregation nodes
                 query_json = json.dumps(query_snapshot, indent=2)
@@ -202,6 +208,17 @@ class Memory(BaseModel):
 
         return "\n".join(lines)
 
+    def _format_turn_context(self, steps: list[AgentStep], scope: MemoryScope) -> str | None:
+        """Format turn context based on memory scope."""
+        if not steps:
+            return None
+        if scope == MemoryScope.FULL:
+            return self._format_execution_trace(steps)
+        if scope == MemoryScope.LIGHTWEIGHT:
+            return self._format_query_summary(steps, include_full_query=True)
+        # MINIMAL: just query_id + one-liner
+        return self._format_query_summary(steps, include_full_query=False)
+
     def get_message_history(
         self, max_turns: int = 5, scope: MemoryScope = MemoryScope.FULL
     ) -> list[ModelRequest | ModelResponse]:
@@ -217,28 +234,15 @@ class Memory(BaseModel):
         recent = self.completed_turns[-max_turns:]
 
         # Build messages using pydantic-ai message types
-        messages = []
+        messages: list[ModelRequest | ModelResponse] = []
         for turn in recent:
             # User message
             messages.append(ModelRequest(parts=[UserPromptPart(content=turn.user_question)]))
 
             # Add context based on scope
-            if turn.steps:
-                if scope == MemoryScope.FULL:
-                    # Full execution trace with all details
-                    trace = self._format_execution_trace(turn.steps)
-                    if trace:
-                        messages.append(ModelRequest(parts=[SystemPromptPart(content=trace)]))
-                elif scope == MemoryScope.LIGHTWEIGHT:
-                    # Full query JSON for re-running
-                    summary = self._format_query_summary(turn.steps, include_full_query=True)
-                    if summary:
-                        messages.append(ModelRequest(parts=[SystemPromptPart(content=summary)]))
-                elif scope == MemoryScope.MINIMAL:
-                    # Just query_id + one-liner
-                    summary = self._format_query_summary(turn.steps, include_full_query=False)
-                    if summary:
-                        messages.append(ModelRequest(parts=[SystemPromptPart(content=summary)]))
+            context = self._format_turn_context(turn.steps, scope)
+            if context:
+                messages.append(ModelRequest(parts=[SystemPromptPart(content=context)]))
 
             # Assistant response
             if turn.assistant_answer is not None:
@@ -267,7 +271,7 @@ class Memory(BaseModel):
 
     def format_context_for_llm(
         self,
-        state,
+        state: SearchState,
         *,
         include_current_run_steps: bool = False,
     ) -> str:

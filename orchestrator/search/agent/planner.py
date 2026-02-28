@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, Any, AsyncIterator, cast
 
 import structlog
 from pydantic_ai import Agent
@@ -46,7 +46,7 @@ class Planner:
     skills: dict[TaskAction, Skill]
     debug: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self._agent = Agent(
             model=self.model,
             deps_type=StateDeps[SearchState],
@@ -67,11 +67,9 @@ class Planner:
         if self.debug:
             log_agent_request("Planner", prompt, message_history)
 
-        result = await self._agent.run(
-            instructions=prompt, message_history=message_history, deps=StateDeps(ctx.state)
-        )
+        result = await self._agent.run(instructions=prompt, message_history=message_history, deps=StateDeps(ctx.state))
 
-        plan = result.output
+        plan = cast(ExecutionPlan, result.output)
 
         if self.debug:
             log_execution_plan(plan)
@@ -107,14 +105,13 @@ class Planner:
                 logger.error(f"Task failed: {task.action_type}", error=str(e))
                 task.status = TaskStatus.FAILED
                 ctx.state.memory.record_tool_step(
-                    ToolStep(step_type="error", description=f"{skill.name} failed: {e}",
-                             success=False, error_message=str(e))
+                    ToolStep(
+                        step_type="error", description=f"{skill.name} failed: {e}", success=False, error_message=str(e)
+                    )
                 )
                 break
 
-    async def execute(
-        self, ctx: RunContext, *, target_action: TaskAction | None = None
-    ) -> AsyncIterator[Any]:
+    async def execute(self, ctx: RunContext, *, target_action: TaskAction | None = None) -> AsyncIterator[Any]:
         """Create and execute a plan, streaming all events.
 
         Args:

@@ -11,7 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from time import time_ns
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from orchestrator.search.agent.state import ExecutionPlan
 
 
 def current_timestamp_ms() -> int:
@@ -19,7 +25,7 @@ def current_timestamp_ms() -> int:
     return time_ns() // 1_000_000
 
 
-def log_execution_plan(plan) -> None:
+def log_execution_plan(plan: "ExecutionPlan | None") -> None:
     """Print the execution plan for debugging.
 
     Args:

@@ -47,7 +47,7 @@ class SkillRunner:
     _tool_calls_in_current_run: list[str] = field(default_factory=list, init=False, repr=False)
     _last_run_result: Any | None = field(default=None, init=False, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self._agent = Agent(
             model=self.model,
             deps_type=StateDeps[SearchState],

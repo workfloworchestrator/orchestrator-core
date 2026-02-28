@@ -74,6 +74,5 @@ class SearchState(BaseModel):
     pending_filters: FilterTree | None = None
     memory: Memory = Field(default_factory=Memory)
 
-
     class Config:
         arbitrary_types_allowed = True

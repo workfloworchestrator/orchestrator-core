@@ -61,7 +61,6 @@ class BaseQuery(BaseModel):
         return cls.model_validate(data)
 
 
-
 class SelectQuery(BaseQuery, SearchMixin):
     """Query for SELECT operations.
 
@@ -143,4 +142,4 @@ Query = Annotated[
     Discriminator("query_type"),
 ]
 
-QueryAdapter = TypeAdapter(Query)
+QueryAdapter: TypeAdapter[Query] = TypeAdapter(Query)

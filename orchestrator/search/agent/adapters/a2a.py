@@ -55,7 +55,7 @@ A2A_SKILLS = [
 ]
 
 
-class A2AWorker(AgentWorker):  # type: ignore[type-arg]
+class A2AWorker(AgentWorker):
     """AgentWorker subclass that consumes the agent's event stream directly.
 
     Bypasses ``AgentWorker.run_task()`` (which calls ``agent.run()``) and
@@ -121,10 +121,12 @@ class A2AWorker(AgentWorker):  # type: ignore[type-arg]
 
             # Update context with synthetic message history so multi-turn works
             context_messages = await self.storage.load_context(task["context_id"]) or []
-            context_messages.extend([
-                ModelRequest(parts=[UserPromptPart(content=user_input)]),
-                ModelResponse(parts=[AiTextPart(content=final_output)]),
-            ])
+            context_messages.extend(
+                [
+                    ModelRequest(parts=[UserPromptPart(content=user_input)]),
+                    ModelResponse(parts=[AiTextPart(content=final_output)]),
+                ]
+            )
             await self.storage.update_context(task["context_id"], context_messages)
 
             artifacts = self.build_artifacts(final_output)
@@ -186,7 +188,7 @@ class A2AWorker(AgentWorker):  # type: ignore[type-arg]
         return ""
 
 
-def create_a2a_app(agent: AgentAdapter, url: str = "http://localhost:8080/api/a2a/") -> FastA2A:
+def create_a2a_app(agent: AgentAdapter, url: str = "") -> FastA2A:
     """Create an A2A (Agent-to-Agent) app from the search agent.
 
     Builds the FastA2A app, broker, storage, and worker manually (instead of
@@ -221,8 +223,8 @@ def create_a2a_app(agent: AgentAdapter, url: str = "http://localhost:8080/api/a2
     )
 
     # Expose internals so the host app can manage the lifecycle
-    a2a_app._a2a_worker = worker  # type: ignore[attr-defined]
-    a2a_app._a2a_agent = agent  # type: ignore[attr-defined]
+    a2a_app._a2a_worker = worker
+    a2a_app._a2a_agent = agent
 
     return a2a_app
 
@@ -236,6 +238,6 @@ async def start_a2a(a2a_app: FastA2A) -> AsyncExitStack:
     stack = AsyncExitStack()
     await stack.__aenter__()
     await stack.enter_async_context(a2a_app.task_manager)
-    await stack.enter_async_context(a2a_app._a2a_agent)  # type: ignore[attr-defined]
-    await stack.enter_async_context(a2a_app._a2a_worker.run())  # type: ignore[attr-defined]
+    await stack.enter_async_context(a2a_app._a2a_agent)
+    await stack.enter_async_context(a2a_app._a2a_worker.run())
     return stack
