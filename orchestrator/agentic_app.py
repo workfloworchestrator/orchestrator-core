@@ -58,30 +58,30 @@ class LLMOrchestratorCore(OrchestratorCore):
 
         # Mount agent protocol adapters under /api/agent/
         if self.llm_settings.AGENT_ENABLED:
-            from orchestrator.search.agent.adapters import create_a2a_app, create_mcp_app, start_a2a, start_mcp
-            from orchestrator.search.agent.agent import build_agent_instance
+            from orchestrator.search.agent.adapters import A2AApp, MCPApp
+            from orchestrator.search.agent.agent import AgentAdapter
+            from orchestrator.settings import app_settings
 
-            a2a_agent = build_agent_instance(self.agent_model, debug=self.llm_settings.AGENT_DEBUG)
-            a2a_app = create_a2a_app(a2a_agent)
-            self.mount("/api/agent/a2a", a2a_app)
+            a2a_path = "/api/agent/a2a"
+            a2a_url = f"{app_settings.BASE_URL}{a2a_path}/"
+            a2a = A2AApp(AgentAdapter(self.agent_model, debug=self.llm_settings.AGENT_DEBUG), url=a2a_url)
+            self.mount(a2a_path, a2a.app)
 
-            mcp_agent = build_agent_instance(self.agent_model, debug=self.llm_settings.AGENT_DEBUG)
-            self.mount("/api/agent", create_mcp_app(mcp_agent))
+            mcp_app = MCPApp(AgentAdapter(self.agent_model, debug=self.llm_settings.AGENT_DEBUG))
+            self.mount("/api/agent", mcp_app.app)
 
-            # Sub-app lifespans don't run when mounted, so we start
-            # the A2A and MCP managers via host app startup/shutdown.
-            _adapter_stack: AsyncExitStack | None = None
+            # Sub-app lifespans don't run when mounted, so we manage
+            # the A2A and MCP lifecycles via host app startup/shutdown.
+            # AsyncExitStack ensures clean rollback if a later entry fails.
+            _adapter_stack = AsyncExitStack()
 
             async def _start_adapters() -> None:
-                nonlocal _adapter_stack
-                _adapter_stack = AsyncExitStack()
                 await _adapter_stack.__aenter__()
-                await _adapter_stack.enter_async_context(await start_a2a(a2a_app))
-                await _adapter_stack.enter_async_context(await start_mcp())
+                await _adapter_stack.enter_async_context(a2a)
+                await _adapter_stack.enter_async_context(mcp_app)
 
             async def _stop_adapters() -> None:
-                if _adapter_stack:
-                    await _adapter_stack.__aexit__(None, None, None)
+                await _adapter_stack.__aexit__(None, None, None)
 
             self.add_event_handler("startup", _start_adapters)
             self.add_event_handler("shutdown", _stop_adapters)

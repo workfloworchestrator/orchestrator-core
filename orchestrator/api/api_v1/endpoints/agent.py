@@ -23,7 +23,7 @@ from structlog import get_logger
 
 from orchestrator.db import db
 from orchestrator.search.agent.adapters import AGUIWorker
-from orchestrator.search.agent.agent import AgentAdapter, build_agent_instance
+from orchestrator.search.agent.agent import AgentAdapter
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -40,8 +40,7 @@ def get_agent(request: Request) -> AgentAdapter:
     model = request.app.agent_model
     debug = llm_settings.AGENT_DEBUG
 
-    logger.debug("Building agent instance", model=model, debug=debug)
-    return build_agent_instance(model, debug=debug)
+    return AgentAdapter(model, debug=debug)
 
 
 @router.post("/")

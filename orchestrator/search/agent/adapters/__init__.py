@@ -1,14 +1,14 @@
-from orchestrator.search.agent.adapters.a2a import A2AWorker, create_a2a_app, start_a2a
+from orchestrator.search.agent.adapters.a2a import A2AApp, A2AWorker
 from orchestrator.search.agent.adapters.ag_ui import AGUIEventStream, AGUIWorker
-from orchestrator.search.agent.adapters.mcp import MCPWorker, create_mcp_app, start_mcp
+from orchestrator.search.agent.adapters.mcp import MCPApp, MCPWorker
+from orchestrator.search.agent.adapters.stream import collect_stream_output
 
 __all__ = [
+    "A2AApp",
     "A2AWorker",
     "AGUIEventStream",
     "AGUIWorker",
+    "MCPApp",
     "MCPWorker",
-    "create_a2a_app",
-    "create_mcp_app",
-    "start_a2a",
-    "start_mcp",
+    "collect_stream_output",
 ]

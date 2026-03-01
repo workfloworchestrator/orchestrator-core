@@ -11,8 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import uuid
 from contextlib import AsyncExitStack, asynccontextmanager
+from types import TracebackType
 from typing import AsyncIterator, Sequence, cast
 
 import structlog
@@ -24,19 +27,16 @@ from fasta2a.storage import InMemoryStorage
 from pydantic_ai._a2a import AgentWorker
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.messages import (
-    FunctionToolResultEvent,
     ModelRequest,
     ModelResponse,
-    ToolReturnPart,
     UserPromptPart,
 )
 from pydantic_ai.messages import (
     TextPart as AiTextPart,
 )
-from pydantic_ai.run import AgentRunResultEvent
 
+from orchestrator.search.agent.adapters.stream import collect_stream_output
 from orchestrator.search.agent.agent import AgentAdapter
-from orchestrator.search.agent.artifacts import ToolArtifact
 from orchestrator.search.agent.skills import SKILLS
 from orchestrator.search.agent.state import SearchState, TaskAction
 
@@ -108,7 +108,8 @@ class A2AWorker(AgentWorker):
         logger.debug("A2AWorker: Starting execution", task_id=task["id"])
 
         try:
-            final_output = await self._consume_stream(agent, deps, target_action)
+            event_stream = agent.run_stream_events(deps=deps, target_action=target_action)
+            final_output = await collect_stream_output(event_stream)
 
             a2a_messages: list[Message] = [
                 Message(
@@ -139,41 +140,6 @@ class A2AWorker(AgentWorker):
             )
 
     @staticmethod
-    async def _consume_stream(
-        agent: AgentAdapter,
-        deps: StateDeps[SearchState],
-        target_action: TaskAction | None,
-    ) -> str:
-        """Consume the agent event stream and collect the final output.
-
-        Collects ToolArtifact results from tool calls and the final LLM output,
-        combining them into a single response string.
-        """
-        tool_results: list[str] = []
-        final_output = ""
-
-        async for event in agent.run_stream_events(deps=deps, target_action=target_action):
-            if isinstance(event, FunctionToolResultEvent):
-                result = event.result
-                if isinstance(result, ToolReturnPart) and isinstance(result.metadata, ToolArtifact):
-                    tool_results.append(str(result.content))
-
-            if isinstance(event, AgentRunResultEvent):
-                final_output = str(event.result.output)
-
-        # Combine: tool results are the data, final_output is the LLM summary
-        if tool_results:
-            combined = "\n\n".join(tool_results)
-            if final_output and final_output != "Execution completed":
-                combined = f"{final_output}\n\n{combined}"
-            final_output = combined
-        elif not final_output:
-            final_output = "Execution completed"
-
-        logger.debug("A2AWorker: Execution complete", output_length=len(final_output))
-        return final_output
-
-    @staticmethod
     def _extract_user_input(history: list[Message] | Sequence[Message]) -> str:
         """Extract user input text from A2A task history messages."""
 
@@ -188,56 +154,47 @@ class A2AWorker(AgentWorker):
         return ""
 
 
-def create_a2a_app(agent: AgentAdapter, url: str = "") -> FastA2A:
-    """Create an A2A (Agent-to-Agent) app from the search agent.
+class A2AApp:
+    """A2A adapter app: FastA2A server, worker, and lifecycle.
 
-    Builds the FastA2A app, broker, storage, and worker manually (instead of
-    using ``agent_to_a2a``) so that the worker lifecycle can be tied to the
-    host application's lifespan when mounted as a sub-app.
-
-    Args:
-        agent: The AgentAdapter instance to expose via A2A.
-        url: The public URL where the A2A endpoint is accessible.
-
-    Returns:
-        A FastA2A Starlette application to be mounted in the main app.
-        The ``_a2a_worker`` and ``_a2a_agent`` attributes are set on the app
-        so that the host can start them in its own startup/shutdown hooks.
+    Builds the FastA2A app, broker, storage, and worker so that the worker
+    lifecycle can be tied to the host application's lifespan when mounted
+    as a sub-app.
     """
-    storage = InMemoryStorage()
-    broker = InMemoryBroker()
-    worker = A2AWorker(agent=agent, broker=broker, storage=storage)  # type: ignore[arg-type]
 
-    @asynccontextmanager
-    async def _noop_lifespan(app: FastA2A) -> AsyncIterator[None]:
-        yield
+    def __init__(self, agent: AgentAdapter, url: str = "") -> None:
+        self.agent = agent
 
-    a2a_app = FastA2A(
-        storage=storage,
-        broker=broker,
-        name="WFO Search Agent",
-        url=url,
-        description="Search, filter and aggregate orchestration data",
-        skills=A2A_SKILLS,
-        lifespan=_noop_lifespan,
-    )
+        storage = InMemoryStorage()
+        broker = InMemoryBroker()
+        self.worker = A2AWorker(agent=agent, broker=broker, storage=storage)  # type: ignore[arg-type]
 
-    # Expose internals so the host app can manage the lifecycle
-    a2a_app._a2a_worker = worker
-    a2a_app._a2a_agent = agent
+        @asynccontextmanager
+        async def _noop_lifespan(_app: FastA2A) -> AsyncIterator[None]:
+            yield
 
-    return a2a_app
+        self.app = FastA2A(
+            storage=storage,
+            broker=broker,
+            name="WFO Search Agent",
+            url=url,
+            description="Search, filter and aggregate orchestration data",
+            skills=A2A_SKILLS,
+            lifespan=_noop_lifespan,
+        )
 
+    async def __aenter__(self) -> A2AApp:
+        self._stack = AsyncExitStack()
+        await self._stack.__aenter__()
+        await self._stack.enter_async_context(self.app.task_manager)
+        await self._stack.enter_async_context(self.agent)
+        await self._stack.enter_async_context(self.worker.run())
+        return self
 
-async def start_a2a(a2a_app: FastA2A) -> AsyncExitStack:
-    """Start the A2A task manager, agent, and worker.
-
-    Call this during host application startup. Returns an AsyncExitStack
-    that must be closed during shutdown to cleanly stop everything.
-    """
-    stack = AsyncExitStack()
-    await stack.__aenter__()
-    await stack.enter_async_context(a2a_app.task_manager)
-    await stack.enter_async_context(a2a_app._a2a_agent)
-    await stack.enter_async_context(a2a_app._a2a_worker.run())
-    return stack
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        await self._stack.__aexit__(exc_type, exc_val, exc_tb)

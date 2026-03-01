@@ -64,7 +64,7 @@ def run_troubleshoot(subscription_id: str, base_url: str) -> None:
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print("Usage: python demos/a2a_troubleshoot.py <subscription_id> [--base-url URL]")
+        print("Usage: uv run demos/a2a_client.py <subscription_id> [--base-url URL]")
         sys.exit(1)
 
     subscription_id = sys.argv[1]

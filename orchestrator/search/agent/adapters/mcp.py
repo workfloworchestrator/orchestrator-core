@@ -29,23 +29,17 @@ from __future__ import annotations
 
 import uuid
 from contextlib import AsyncExitStack
-from typing import TYPE_CHECKING
 
 import structlog
 from mcp.server.fastmcp import FastMCP
 from pydantic_ai.ag_ui import StateDeps
-from pydantic_ai.messages import FunctionToolResultEvent, ToolReturnPart
-from pydantic_ai.run import AgentRunResultEvent
 
 from orchestrator.db import db
 from orchestrator.db.models import AgentRunTable
+from orchestrator.search.agent.adapters.stream import collect_stream_output
 from orchestrator.search.agent.agent import AgentAdapter
-from orchestrator.search.agent.artifacts import ToolArtifact
 from orchestrator.search.agent.state import SearchState, TaskAction
 from orchestrator.search.core.types import EntityType
-
-if TYPE_CHECKING:
-    from starlette.applications import Starlette
 
 logger = structlog.get_logger(__name__)
 
@@ -61,11 +55,7 @@ class MCPWorker:
         self.agent = agent
 
     async def run_skill(self, query: str, target_action: TaskAction | None = None) -> str:
-        """Create state, consume the agent stream, and return a result string.
-
-        Same stream-consumption pattern as ``A2AWorker._consume_stream()`` —
-        collects ToolArtifact results and the final LLM output.
-        """
+        """Create state, consume the agent stream, and return a result string."""
         deps = StateDeps(SearchState(user_input=query))
 
         deps.state.run_id = uuid.uuid4()
@@ -76,109 +66,79 @@ class MCPWorker:
         logger.debug("MCPWorker: Starting skill execution", target_action=target_action, query=query[:100])
 
         try:
-            artifact_results: list[ToolReturnPart] = []
-            final_output = ""
-
-            async for event in self.agent.run_stream_events(deps=deps, target_action=target_action):
-                if isinstance(event, FunctionToolResultEvent):
-                    result = event.result
-                    if isinstance(result, ToolReturnPart) and isinstance(result.metadata, ToolArtifact):
-                        artifact_results.append(result)
-
-                if isinstance(event, AgentRunResultEvent):
-                    final_output = str(event.result.output)
+            event_stream = self.agent.run_stream_events(deps=deps, target_action=target_action)
+            return await collect_stream_output(event_stream)
         except Exception:
             logger.exception("MCPWorker: Skill execution failed", query=query[:100])
             raise
 
-        if artifact_results:
-            return "\n\n".join(part.model_response_str() for part in artifact_results)
 
-        return final_output or "No results"
+class MCPApp:
+    """MCP adapter app: FastMCP server, worker, tools, and lifecycle.
 
-
-mcp = FastMCP(
-    name="WFO Search Agent",
-    instructions="Search, filter and aggregate orchestration data",
-    stateless_http=True,
-)
-
-# Module-level worker reference, set by create_mcp_app().
-_worker: MCPWorker | None = None
-
-
-def _get_worker() -> MCPWorker:
-    if _worker is None:
-        raise RuntimeError("MCP adapter not initialized — call create_mcp_app() first")
-    return _worker
-
-
-@mcp.tool()  # type: ignore[misc]
-async def search(query: str) -> str:
-    """Find subscriptions, products, workflows, or processes.
-
-    Describe what you're looking for in natural language.
-    Examples: "active subscriptions", "failed workflows from last week"
+    Bundles the Starlette sub-app with the session manager lifecycle so the
+    host can ``async with mcp_app`` symmetrically with A2AApp.  Tool handlers
+    close over ``self.worker`` — no module-level global needed.
     """
-    return await _get_worker().run_skill(query, TaskAction.SEARCH)
 
+    def __init__(self, agent: AgentAdapter) -> None:
+        self.agent = agent
+        self.worker = MCPWorker(agent)
+        self._stack: AsyncExitStack
 
-@mcp.tool()  # type: ignore[misc]
-async def aggregate(query: str) -> str:
-    """Count, sum, or average data with grouping.
+        self.server = FastMCP(
+            name="WFO Search Agent",
+            instructions="Search, filter and aggregate orchestration data",
+            stateless_http=True,
+        )
+        self._register_tools()
+        self.app = self.server.streamable_http_app()
 
-    Describe what aggregation you need.
-    Examples: "count subscriptions by product", "average workflow duration by status"
-    """
-    return await _get_worker().run_skill(query, TaskAction.AGGREGATION)
+    def _register_tools(self) -> None:
+        worker = self.worker
 
+        @self.server.tool()  # type: ignore[misc]
+        async def search(query: str) -> str:
+            """Find subscriptions, products, workflows, or processes.
 
-@mcp.tool()  # type: ignore[misc]
-async def get_entity_details(entity_type: EntityType, entity_id: uuid.UUID) -> str:
-    """Fetch full details for a specific entity.
+            Describe what you're looking for in natural language.
+            Examples: "active subscriptions", "failed workflows from last week"
+            """
+            return await worker.run_skill(query, TaskAction.SEARCH)
 
-    Args:
-        entity_type: The type of entity (SUBSCRIPTION, PRODUCT, WORKFLOW, PROCESS)
-        entity_id: The UUID of the entity
-    """
-    query = f"Get details for {entity_type.value} {entity_id}"
-    return await _get_worker().run_skill(query, TaskAction.RESULT_ACTIONS)
+        @self.server.tool()  # type: ignore[misc]
+        async def aggregate(query: str) -> str:
+            """Count, sum, or average data with grouping.
 
+            Describe what aggregation you need.
+            Examples: "count subscriptions by product", "average workflow duration by status"
+            """
+            return await worker.run_skill(query, TaskAction.AGGREGATION)
 
-@mcp.tool()  # type: ignore[misc]
-async def ask(query: str) -> str:
-    """Ask any question about the orchestration system.
+        @self.server.tool()  # type: ignore[misc]
+        async def get_entity_details(entity_type: EntityType, entity_id: uuid.UUID) -> str:
+            """Fetch full details for a specific entity.
 
-    The agent will determine the best approach — search, aggregate, or answer directly.
-    """
-    return await _get_worker().run_skill(query, target_action=None)
+            Args:
+                entity_type: The type of entity (SUBSCRIPTION, PRODUCT, WORKFLOW, PROCESS)
+                entity_id: The UUID of the entity
+            """
+            query = f"Get details for {entity_type.value} {entity_id}"
+            return await worker.run_skill(query, TaskAction.RESULT_ACTIONS)
 
+        @self.server.tool()  # type: ignore[misc]
+        async def ask(query: str) -> str:
+            """Ask any question about the orchestration system.
 
-def create_mcp_app(agent: AgentAdapter) -> Starlette:
-    """Create MCP Starlette app to mount as sub-app.
+            The agent will determine the best approach — search, aggregate, or answer directly.
+            """
+            return await worker.run_skill(query, target_action=None)
 
-    Args:
-        agent: The AgentAdapter instance to expose via MCP.
+    async def __aenter__(self) -> MCPApp:
+        self._stack = AsyncExitStack()
+        await self._stack.__aenter__()
+        await self._stack.enter_async_context(self.server.session_manager.run())
+        return self
 
-    Returns:
-        A Starlette application serving the MCP streamable HTTP transport.
-    """
-    global _worker
-    _worker = MCPWorker(agent)
-    return mcp.streamable_http_app()
-
-
-async def start_mcp() -> AsyncExitStack:
-    """Start the MCP session manager.
-
-    Sub-app lifespans don't run when mounted, so the host application
-    must call this during its own startup.  Returns an AsyncExitStack
-    that must be closed during shutdown to cleanly stop the session manager.
-
-    Must be called after ``create_mcp_app()`` (which triggers lazy
-    initialisation of the session manager via ``streamable_http_app()``).
-    """
-    stack = AsyncExitStack()
-    await stack.__aenter__()
-    await stack.enter_async_context(mcp.session_manager.run())
-    return stack
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore[no-untyped-def]
+        await self._stack.__aexit__(exc_type, exc_val, exc_tb)

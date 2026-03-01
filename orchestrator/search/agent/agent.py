@@ -21,7 +21,7 @@ from pydantic_ai.messages import (
     UserContent,
 )
 from pydantic_ai.run import AgentRunResultEvent
-from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
+from pydantic_ai.toolsets import AbstractToolset
 
 if TYPE_CHECKING:
     from pydantic_ai.models import KnownModelName, Model
@@ -51,7 +51,7 @@ class AgentAdapter(Agent[StateDeps[SearchState], str]):
     def __init__(
         self,
         model: "Model | KnownModelName | str",  # type: ignore[valid-type]
-        skills: dict[TaskAction, Skill],
+        skills: dict[TaskAction, Skill] = SKILLS,
         *,
         deps_type: type[StateDeps[SearchState]] = StateDeps[SearchState],
         model_settings: "ModelSettings | None" = None,
@@ -123,28 +123,3 @@ class AgentAdapter(Agent[StateDeps[SearchState], str]):
         except Exception as e:
             logger.error("AgentAdapter: Execution failed", error=str(e), exc_info=True)
             raise
-
-
-def build_agent_instance(
-    model: str, agent_tools: list[FunctionToolset[Any]] | None = None, debug: bool = False
-) -> AgentAdapter:
-    """Build and configure the agent instance.
-
-    Args:
-        model: The LLM model to use
-        agent_tools: Optional list of additional toolsets (currently unused)
-        debug: Enable debug logging
-
-    Returns:
-        AgentAdapter instance
-    """
-    adapter = AgentAdapter(
-        model=model,
-        skills=SKILLS,
-        deps_type=StateDeps[SearchState],
-        debug=debug,
-    )
-
-    logger.debug("AgentAdapter: Built agent adapter", model=model)
-
-    return adapter
