@@ -19,6 +19,7 @@ from sqlalchemy.dialects import postgresql
 
 from orchestrator.db import db
 from orchestrator.db.models import AiSearchIndex
+from orchestrator.search.query.mixins import OrderDirection, StructuredOrderBy
 from orchestrator.search.retrieval.pagination import PageCursor
 from orchestrator.search.retrieval.retrievers.fuzzy import FuzzyRetriever
 from orchestrator.search.retrieval.retrievers.hybrid import RrfHybridRetriever, compute_rrf_hybrid_score_sql
@@ -69,6 +70,16 @@ class TestStructuredRetriever:
         sql = compile_query_to_sql(query)
 
         assert_sql_matches_snapshot("StructuredRetriever.test_pagination_structure", sql, request)
+
+    def test_basic_query_structure_with_order_by(self, candidate_query, query_id, request):
+        """Test basic structured retrieval query structure ordered by element."""
+        order_by = StructuredOrderBy(element="subscription.description", direction=OrderDirection.ASC)
+        retriever = StructuredRetriever(cursor=None, order_by=order_by)
+
+        query = retriever.apply(candidate_query)
+        sql = compile_query_to_sql(query)
+
+        assert_sql_matches_snapshot("StructuredRetriever.test_basic_query_structure_with_order_by", sql, request)
 
     def test_metadata(self):
         """Test metadata returns correct search type."""

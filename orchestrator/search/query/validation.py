@@ -18,6 +18,7 @@ from sqlalchemy_utils import Ltree
 from orchestrator.db import db
 from orchestrator.db.database import WrappedSession
 from orchestrator.db.models import AiSearchIndex
+from orchestrator.schemas.search_requests import SearchRequest
 from orchestrator.search.aggregations import AggregationType
 from orchestrator.search.core.types import EntityType, FieldType
 from orchestrator.search.filters import FilterCondition, FilterTree, LtreeFilter, PathFilter
@@ -250,3 +251,20 @@ def validate_order_by_fields(order_by: list[OrderBy] | None) -> None:
         field_type = validate_filter_path(order_instr.field)
         if field_type is None:
             raise PathNotFoundError(order_instr.field)
+
+
+def get_ai_search_index_by_entity_type_and_path(entity_type: EntityType, path: str) -> AiSearchIndex | None:
+    stmt = (
+        select(AiSearchIndex)
+        .where(AiSearchIndex.path == Ltree(path), AiSearchIndex.entity_type == entity_type.value)
+        .limit(1)
+    )
+    return db.session.execute(stmt).scalar_one_or_none()
+
+
+def validate_structured_order_by_element(entity_type: EntityType | None, request: SearchRequest | None) -> None:
+    if request and request.order_by and entity_type:
+        element = request.order_by.element
+        exists = get_ai_search_index_by_entity_type_and_path(entity_type, element)
+        if not exists:
+            raise ValueError(f"Element {element} is not a valid path")

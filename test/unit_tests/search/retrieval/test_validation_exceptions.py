@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -36,6 +36,7 @@ from orchestrator.search.query.validation import (
     complete_filter_validation,
     is_filter_compatible_with_field_type,
     validate_filter_tree,
+    validate_structured_order_by_element,
 )
 
 
@@ -250,3 +251,28 @@ class TestFilterTypeCompatibility:
 
         with pytest.raises(AttributeError):
             is_filter_compatible_with_field_type(unknown_filter, FieldType.STRING)
+
+
+@patch("orchestrator.search.query.validation.get_ai_search_index_by_entity_type_and_path")
+def test_validate_structured_order_by_element(mock_get_ai_search_index_by_entity_type_and_path):
+    element = "subscription.element.not.exist"
+    mock_get_ai_search_index_by_entity_type_and_path.return_value = {"path": element}
+    request_mock = MagicMock()
+    request_mock.order_by.element = element
+
+    validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock)
+
+
+def test_validate_structured_order_by_element_without_request():
+    validate_structured_order_by_element(EntityType.SUBSCRIPTION, None)
+
+
+@patch("orchestrator.search.query.validation.get_ai_search_index_by_entity_type_and_path")
+def test_validate_structured_order_by_element_not_existing_element(mock_get_ai_search_index_by_entity_type_and_path):
+    element = "subscription.element.not.exist"
+    mock_get_ai_search_index_by_entity_type_and_path.return_value = None
+    request_mock = MagicMock()
+    request_mock.order_by.element = element
+
+    with pytest.raises(ValueError, match=f"Element {element} is not a valid path"):
+        validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock)

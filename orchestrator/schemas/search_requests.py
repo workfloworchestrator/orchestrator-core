@@ -12,10 +12,11 @@
 # limitations under the License.
 
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from orchestrator.search.core.types import EntityType, RetrieverType
 from orchestrator.search.filters import FilterTree
+from orchestrator.search.query.mixins import StructuredOrderBy
 from orchestrator.search.query.queries import SelectQuery
 
 
@@ -43,6 +44,10 @@ class SearchRequest(BaseModel):
         default=None,
         description="Force a specific retriever type. If None, uses default routing logic.",
     )
+    order_by: StructuredOrderBy | None = Field(
+        default=None,
+        description="Ordering instructions for search results, only applied with structured search.",
+    )
 
     model_config = ConfigDict(extra="forbid")
 
@@ -61,4 +66,11 @@ class SearchRequest(BaseModel):
             query_text=self.query,
             limit=self.limit,
             retriever=self.retriever,
+            order_by=self.order_by,
         )
+
+    @model_validator(mode="after")
+    def validate_order_by_not_compatible_with_query(self) -> "SearchRequest":
+        if self.order_by and self.query:
+            raise ValueError("order_by can only be set when query is empty")
+        return self
