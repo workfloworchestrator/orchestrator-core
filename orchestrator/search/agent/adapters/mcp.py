@@ -97,7 +97,7 @@ class MCPApp:
     def _register_tools(self) -> None:
         worker = self.worker
 
-        @self.server.tool()  # type: ignore[misc]
+        @self.server.tool()
         async def search(query: str) -> str:
             """Find subscriptions, products, workflows, or processes.
 
@@ -106,7 +106,7 @@ class MCPApp:
             """
             return await worker.run_skill(query, TaskAction.SEARCH)
 
-        @self.server.tool()  # type: ignore[misc]
+        @self.server.tool()
         async def aggregate(query: str) -> str:
             """Count, sum, or average data with grouping.
 
@@ -115,7 +115,7 @@ class MCPApp:
             """
             return await worker.run_skill(query, TaskAction.AGGREGATION)
 
-        @self.server.tool()  # type: ignore[misc]
+        @self.server.tool()
         async def get_entity_details(entity_type: EntityType, entity_id: uuid.UUID) -> str:
             """Fetch full details for a specific entity.
 
@@ -126,7 +126,7 @@ class MCPApp:
             query = f"Get details for {entity_type.value} {entity_id}"
             return await worker.run_skill(query, TaskAction.RESULT_ACTIONS)
 
-        @self.server.tool()  # type: ignore[misc]
+        @self.server.tool()
         async def ask(query: str) -> str:
             """Ask any question about the orchestration system.
 

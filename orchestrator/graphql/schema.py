@@ -118,8 +118,8 @@ class CustomerQuery:
     )
 
 
-Query = merge_types("Query", (OrchestratorQuery, CustomerQuery))
-Mutation = merge_types("Mutation", (SettingsMutation, CustomerSubscriptionDescriptionMutation, ProcessMutation))
+Query: type = merge_types("Query", (OrchestratorQuery, CustomerQuery))
+Mutation: type = merge_types("Mutation", (SettingsMutation, CustomerSubscriptionDescriptionMutation, ProcessMutation))
 
 OrchestratorGraphqlRouter = GraphQLRouter
 
