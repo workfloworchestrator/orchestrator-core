@@ -35,7 +35,7 @@ class TestSelectQueryConstruction:
 
     def test_minimal_select_query(self, select_query_minimal: SelectQuery):
         """Test creating a minimal SelectQuery with only required fields."""
-        assert select_query_minimal.query_type == QueryOperation.SELECT
+        assert select_query_minimal.query_type == "select"
         assert select_query_minimal.limit == 10  # default
         assert select_query_minimal.query_text is None
         assert select_query_minimal.filters is None
@@ -85,7 +85,7 @@ class TestCountQueryConstruction:
 
     def test_minimal_count_query(self, count_query_simple: CountQuery):
         """Test creating a minimal CountQuery (simple count)."""
-        assert count_query_simple.query_type == QueryOperation.COUNT
+        assert count_query_simple.query_type == "count"
         assert count_query_simple.group_by is None
         assert count_query_simple.temporal_group_by is None
 
