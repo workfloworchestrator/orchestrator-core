@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from enum import Enum
 
 import pytest
 from pydantic import ValidationError
@@ -22,13 +22,22 @@ from orchestrator.search.aggregations import (
     TemporalGrouping,
     TemporalPeriod,
 )
-from orchestrator.search.core.types import ActionType, EntityType
+from orchestrator.search.core.types import EntityType
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.query.builder import build_aggregation_query, build_candidate_query
 from orchestrator.search.query.mixins import OrderBy, OrderDirection
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, ExportQuery, Query, SelectQuery
 
 pytestmark = pytest.mark.search
+
+
+# Probably not needed anymore but re-adding to solve the issue in tests
+class ActionType(str, Enum):
+    """Defines the explicit, safe actions the agent can request."""
+
+    SELECT = "select"  # Retrieve a list of matching records.
+    COUNT = "count"  # Count matching records, optionally grouped.
+    AGGREGATE = "aggregate"  # Compute aggregations (sum, avg, etc.) over matching records.
 
 
 class TestSelectQueryConstruction:
