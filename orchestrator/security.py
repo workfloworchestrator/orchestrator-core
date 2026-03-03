@@ -87,6 +87,8 @@ class AgentAuthMiddleware:
             user = await self.auth_manager.authentication.authenticate(request, token)
             if user:
                 await self.auth_manager.authorization.authorize(request, user)
+            else:
+                raise HTTPException(status_code=401, detail="Unauthorized")
         except HTTPException as exc:
             response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
             await response(scope, receive, send)
