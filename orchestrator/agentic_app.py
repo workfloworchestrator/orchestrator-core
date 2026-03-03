@@ -60,15 +60,16 @@ class LLMOrchestratorCore(OrchestratorCore):
         if self.llm_settings.AGENT_ENABLED:
             from orchestrator.search.agent.adapters import A2AApp, MCPApp
             from orchestrator.search.agent.agent import AgentAdapter
+            from orchestrator.security import AgentAuthMiddleware
             from orchestrator.settings import app_settings
 
             a2a_path = "/api/agent/a2a"
             a2a_url = f"{app_settings.BASE_URL}{a2a_path}/"
             a2a = A2AApp(AgentAdapter(self.agent_model, debug=self.llm_settings.AGENT_DEBUG), url=a2a_url)
-            self.mount(a2a_path, a2a.app)
+            self.mount(a2a_path, AgentAuthMiddleware(a2a.app, self.auth_manager))
 
             mcp_app = MCPApp(AgentAdapter(self.agent_model, debug=self.llm_settings.AGENT_DEBUG))
-            self.mount("/api/agent", mcp_app.app)
+            self.mount("/api/agent", AgentAuthMiddleware(mcp_app.app, self.auth_manager))
 
             # Sub-app lifespans don't run when mounted, so we manage
             # the A2A and MCP lifecycles via host app startup/shutdown.
