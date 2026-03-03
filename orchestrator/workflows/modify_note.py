@@ -10,7 +10,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Annotated
+
+from pydantic import Field
+
 from orchestrator.db import db
+from orchestrator.db.models import NOTE_LENGTH
 from orchestrator.forms import SubmitFormPage
 from orchestrator.services import subscriptions
 from orchestrator.settings import get_authorizers
@@ -31,7 +36,7 @@ def initial_input_form(subscription_id: UUIDstr) -> FormGenerator:
     old_note = subscription.note
 
     class ModifyNoteForm(SubmitFormPage):
-        note: LongText = old_note
+        note: Annotated[LongText, Field(max_length=NOTE_LENGTH)] = old_note
 
     user_input = yield ModifyNoteForm
 

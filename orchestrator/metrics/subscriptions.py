@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import desc, func
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
+from orchestrator.metrics.dbutils import handle_missing_tables
 from orchestrator.types import SubscriptionLifecycle
 from pydantic_forms.types import UUIDstr
 
@@ -41,24 +42,29 @@ def _get_subscriptions() -> list[SubscriptionTableQueryResult]:
     ;
     ```
     """
-    subscription_count = func.count(SubscriptionTable.subscription_id).label("subscription_count")
-    return (
-        db.session.query(
-            SubscriptionTable.status.label("lifecycle_state"),
-            SubscriptionTable.customer_id,
-            SubscriptionTable.insync,
-            ProductTable.name.label("product_name"),
-            subscription_count,
-        )
-        .outerjoin(ProductTable, ProductTable.product_id == SubscriptionTable.product_id)
-        .group_by(
-            SubscriptionTable.status,
-            SubscriptionTable.customer_id,
-            SubscriptionTable.insync,
-            ProductTable.name,
-        )
-        .order_by(desc(subscription_count))
-    ).all()
+
+    result: list[SubscriptionTableQueryResult] | None = None
+    with handle_missing_tables():
+        subscription_count = func.count(SubscriptionTable.subscription_id).label("subscription_count")
+        result = (
+            db.session.query(
+                SubscriptionTable.status.label("lifecycle_state"),
+                SubscriptionTable.customer_id,
+                SubscriptionTable.insync,
+                ProductTable.name.label("product_name"),
+                subscription_count,
+            )
+            .outerjoin(ProductTable, ProductTable.product_id == SubscriptionTable.product_id)
+            .group_by(
+                SubscriptionTable.status,
+                SubscriptionTable.customer_id,
+                SubscriptionTable.insync,
+                ProductTable.name,
+            )
+            .order_by(desc(subscription_count))
+        ).all()
+
+    return result or []
 
 
 class SubscriptionCollector(Collector):

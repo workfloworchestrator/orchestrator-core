@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import threading
 from collections.abc import Callable, Sequence
 from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
@@ -30,6 +31,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.distlock import distlock_manager
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.services.input_state import store_input_state
@@ -38,14 +40,17 @@ from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.types import BroadcastFunc
 from orchestrator.utils.datetime import nowtz
-from orchestrator.utils.errors import error_state_to_dict
+from orchestrator.utils.errors import StartPredicateError, error_state_to_dict
 from orchestrator.websocket import broadcast_invalidate_status_counts, broadcast_process_update_to_websocket
 from orchestrator.workflow import (
     CALLBACK_TOKEN_KEY,
     DEFAULT_CALLBACK_PROGRESS_KEY,
     Failed,
+    PredicateContext,
     ProcessStat,
     ProcessStatus,
+    RunPredicateFail,
+    RunPredicatePass,
     Step,
     StepList,
     Success,
@@ -66,6 +71,8 @@ StateMerger = Merger([(dict, ["merge"])], ["override"], ["override"])
 SYSTEM_USER = "SYSTEM"
 
 _workflow_executor = None
+_active_threadpool_jobs = 0
+_active_jobs_lock = threading.Lock()
 
 START_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be started because it has been removed"
 RESUME_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be resumed because it has been removed"
@@ -80,6 +87,46 @@ def get_execution_context() -> dict[str, Callable]:
     from orchestrator.services.executors.threadpool import THREADPOOL_EXECUTION_CONTEXT
 
     return THREADPOOL_EXECUTION_CONTEXT
+
+
+def _increment_active_jobs() -> None:
+    """Increment the count of active threadpool jobs."""
+    global _active_threadpool_jobs
+    with _active_jobs_lock:
+        _active_threadpool_jobs += 1
+
+
+def _decrement_active_jobs() -> None:
+    """Decrement the count of active threadpool jobs."""
+    global _active_threadpool_jobs
+    with _active_jobs_lock:
+        _active_threadpool_jobs = max(0, _active_threadpool_jobs - 1)
+
+
+def get_active_threadpool_jobs_count() -> int:
+    """Get the current count of active threadpool jobs.
+
+    Returns:
+        Number of jobs currently being executed by the threadpool
+    """
+    with _active_jobs_lock:
+        return _active_threadpool_jobs
+
+
+class _ActiveJobTracker:
+    """Context manager to track active jobs for ThreadPool executor."""
+
+    def __init__(self) -> None:
+        self.is_threadpool = app_settings.EXECUTOR == ExecutorType.THREADPOOL
+
+    def __enter__(self) -> "_ActiveJobTracker":
+        if self.is_threadpool:
+            _increment_active_jobs()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if self.is_threadpool:
+            _decrement_active_jobs()
 
 
 def get_thread_pool() -> ThreadPoolExecutor:
@@ -139,8 +186,9 @@ def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> P
         # pop also removes the traceback from the dict
         traceback = step_state.pop("traceback", None)
 
-        p.failed_reason = failed_reason
-        p.traceback = traceback
+        # Truncate failed_reason (from end) and traceback (from start) to fit database constraints
+        p.failed_reason = failed_reason[:FAILED_REASON_LENGTH] if failed_reason else failed_reason
+        p.traceback = traceback[-TRACEBACK_LENGTH:] if traceback else traceback
 
         if process_state.isfailed() and p.is_task:
             # Check if we need a special failed status:
@@ -341,8 +389,11 @@ def _db_log_process_ex(process_id: UUID, ex: Exception) -> None:
     p.last_step = "Unknown"
     if p.last_status != ProcessStatus.WAITING:
         p.last_status = ProcessStatus.FAILED
-    p.failed_reason = str(ex)
-    p.traceback = show_ex(ex)
+    failed_reason = str(ex)
+    traceback = show_ex(ex)
+    # Truncate failed_reason (from end) and traceback (from start) to fit database constraints
+    p.failed_reason = failed_reason[:FAILED_REASON_LENGTH] if failed_reason else failed_reason
+    p.traceback = traceback[-TRACEBACK_LENGTH:] if traceback else traceback
     db.session.add(p)
     try:
         db.session.commit()
@@ -387,23 +438,24 @@ def _run_process_async(process_id: UUID, f: Callable) -> UUID:
         db.session.commit()
 
     def run() -> WFProcess:
-        try:
-            with db.database_scope():
-                try:
-                    logger.new(process_id=str(process_id))
-                    result = f()
-                except Exception as ex:
-                    # We still have access to the database, so we can log at least something
-                    _db_log_process_ex(process_id, ex)
-                    raise
-                finally:
-                    _update_running_processes("-")
-        except Exception as ex:
-            # We lost access to database here, so we can only log
-            logger.exception("Unknown workflow failure", process_id=process_id)
-            result = Failed(ex)
+        with _ActiveJobTracker():
+            try:
+                with db.database_scope():
+                    try:
+                        logger.new(process_id=str(process_id))
+                        result = f()
+                    except Exception as ex:
+                        # We still have access to the database, so we can log at least something
+                        _db_log_process_ex(process_id, ex)
+                        raise
+                    finally:
+                        _update_running_processes("-")
+            except Exception as ex:
+                # We lost access to database here, so we can only log
+                logger.exception("Unknown workflow failure", process_id=process_id)
+                result = Failed(ex)
 
-        return result
+            return result
 
     _update_running_processes("+")
     if app_settings.EXECUTOR == ExecutorType.THREADPOOL:
@@ -437,6 +489,14 @@ def create_process(
 
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
+    if workflow.run_predicate is not None:
+        context = PredicateContext(workflow=workflow, workflow_key=workflow_key)
+        match workflow.run_predicate(context):
+            case RunPredicateFail(message=message):
+                raise StartPredicateError(workflow_key, message)
+            case RunPredicatePass():
+                pass
 
     initial_state = {
         "process_id": process_id,
@@ -854,4 +914,4 @@ class ThreadPoolWorkerStatus(WorkerStatus):
         thread_pool = get_thread_pool()
         self.number_of_workers_online = getattr(thread_pool, "_max_workers", -1)
         self.number_of_queued_jobs = thread_pool._work_queue.qsize() if hasattr(thread_pool, "_work_queue") else 0
-        self.number_of_running_jobs = len(getattr(thread_pool, "_threads", []))
+        self.number_of_running_jobs = get_active_threadpool_jobs_count()

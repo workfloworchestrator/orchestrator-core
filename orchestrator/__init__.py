@@ -13,7 +13,7 @@
 
 """This is the orchestrator workflow engine."""
 
-__version__ = "4.7.0"
+__version__ = "4.8.0"
 
 
 from structlog import get_logger
@@ -31,7 +31,17 @@ if llm_settings.SEARCH_ENABLED or llm_settings.AGENT_ENABLED:
 else:
     from orchestrator.app import OrchestratorCore  # type: ignore[assignment]
 
-from orchestrator.workflow import begin, conditional, done, focussteps, inputstep, retrystep, step, steplens, workflow
+from orchestrator.workflow import (
+    begin,
+    conditional,
+    done,
+    focussteps,
+    inputstep,
+    retrystep,
+    step,
+    steplens,
+    workflow,
+)
 
 __all__ = [
     "OrchestratorCore",

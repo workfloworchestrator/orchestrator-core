@@ -29,8 +29,9 @@ from orchestrator.utils.auth import Authorizer
 from orchestrator.utils.errors import StaleDataError
 from orchestrator.utils.state import form_inject_args
 from orchestrator.utils.validate_data_version import validate_data_version
-from orchestrator.workflow import Step, StepList, Workflow, begin, done, init, make_workflow, step
+from orchestrator.workflow import RunPredicate, Step, StepList, Workflow, begin, done, init, make_workflow, step
 from orchestrator.workflows.steps import (
+    refresh_process_search_index,
     refresh_subscription_search_index,
     resync,
     set_status,
@@ -203,6 +204,7 @@ def create_workflow(
     additional_steps: StepList | None = None,
     authorize_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
+    run_predicate: RunPredicate | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow with a target=Target.CREATE.
 
@@ -225,6 +227,7 @@ def create_workflow(
             >> set_status(status)
             >> resync
             >> refresh_subscription_search_index
+            >> refresh_process_search_index
             >> done
         )
 
@@ -236,6 +239,7 @@ def create_workflow(
             steplist,
             authorize_callback=authorize_callback,
             retry_auth_callback=retry_auth_callback,
+            run_predicate=run_predicate,
         )
 
     return _create_workflow
@@ -247,6 +251,7 @@ def modify_workflow(
     additional_steps: StepList | None = None,
     authorize_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
+    run_predicate: RunPredicate | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -271,6 +276,7 @@ def modify_workflow(
             >> (additional_steps or StepList())
             >> resync
             >> refresh_subscription_search_index
+            >> refresh_process_search_index
             >> done
         )
 
@@ -282,6 +288,7 @@ def modify_workflow(
             steplist,
             authorize_callback=authorize_callback,
             retry_auth_callback=retry_auth_callback,
+            run_predicate=run_predicate,
         )
 
     return _modify_workflow
@@ -293,6 +300,7 @@ def terminate_workflow(
     additional_steps: StepList | None = None,
     authorize_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
+    run_predicate: RunPredicate | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -318,6 +326,7 @@ def terminate_workflow(
             >> set_status(SubscriptionLifecycle.TERMINATED)
             >> resync
             >> refresh_subscription_search_index
+            >> refresh_process_search_index
             >> done
         )
 
@@ -329,12 +338,16 @@ def terminate_workflow(
             steplist,
             authorize_callback=authorize_callback,
             retry_auth_callback=retry_auth_callback,
+            run_predicate=run_predicate,
         )
 
     return _terminate_workflow
 
 
-def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Workflow]:
+def validate_workflow(
+    description: str,
+    run_predicate: RunPredicate | None = None,
+) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
     Use this for subscription validate workflows.
@@ -350,7 +363,14 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
     def _validate_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = init >> store_process_subscription() >> unsync_unchecked >> f() >> resync >> done
 
-        return make_workflow(f, description, validate_initial_input_form_generator, Target.VALIDATE, steplist)
+        return make_workflow(
+            f,
+            description,
+            validate_initial_input_form_generator,
+            Target.VALIDATE,
+            steplist,
+            run_predicate=run_predicate,
+        )
 
     return _validate_workflow
 
@@ -360,6 +380,7 @@ def reconcile_workflow(
     additional_steps: StepList | None = None,
     authorize_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
+    run_predicate: RunPredicate | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Similar to a modify_workflow but without required input user input to perform a sync with external systems based on the subscriptions existing configuration.
 
@@ -386,6 +407,7 @@ def reconcile_workflow(
             >> (additional_steps or StepList())
             >> resync
             >> refresh_subscription_search_index
+            >> refresh_process_search_index
             >> done
         )
 
@@ -397,6 +419,7 @@ def reconcile_workflow(
             steplist,
             authorize_callback=authorize_callback,
             retry_auth_callback=retry_auth_callback,
+            run_predicate=run_predicate,
         )
 
     return _reconcile_workflow

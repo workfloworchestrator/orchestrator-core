@@ -12,10 +12,12 @@
 # limitations under the License.
 
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
+from orchestrator.db.models import DESCRIPTION_LENGTH
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.fixed_input import FixedInputSchema
@@ -44,4 +46,4 @@ class ProductSchema(ProductBaseSchema):
 
 
 class ProductPatchSchema(OrchestratorBaseModel):
-    description: str | None = None
+    description: Annotated[str, Field(max_length=DESCRIPTION_LENGTH)] | None = None

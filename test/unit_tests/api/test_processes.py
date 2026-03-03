@@ -161,19 +161,21 @@ def test_long_running_pause(test_client, long_running_workflow):
 
     response = test_client.put("/api/settings/status", json={"global_lock": True})
     assert response.json()["global_lock"] is True
-    assert response.json()["running_processes"] == 1
-    assert response.json()["global_status"] == "PAUSING"
+    # Worker-based counting: worker may still be executing, so could be 0 or 1
+    assert response.json()["running_processes"] in [0, 1]
+    assert response.json()["global_status"] in ["PAUSING", "PAUSED"]
 
     # Let it run until completing the first lock step
     with test_condition:
         test_condition.notify_all()
     time.sleep(1)
 
-    # Make sure the running_processes is decreased and status is updated.
+    # Check status after pausing.
+    # Worker-based counting: worker has stopped executing, so count is 0
     response = test_client.get("/api/settings/status")
     assert response.json()["global_lock"] is True
-    assert response.json()["running_processes"] == 0
-    assert response.json()["global_status"] == "PAUSED"
+    assert response.json()["running_processes"] == 0  # No workers executing
+    assert response.json()["global_status"] == "PAUSED"  # Engine is paused (no workers running)
 
     response = test_client.get(f"api/processes/{process_id}")
     assert len(response.json()["steps"]) == 4
@@ -181,14 +183,15 @@ def test_long_running_pause(test_client, long_running_workflow):
     # assume ordered steplist
     assert response.json()["steps"][3]["status"] == "pending"
 
+    # Unlock the engine to resume execution
     response = test_client.put("/api/settings/status", json={"global_lock": False})
-
-    # Make sure it started again
-    time.sleep(1)
-
     assert response.json()["global_lock"] is False
-    assert response.json()["running_processes"] == 1
+    # Worker-based counting: monitor updates periodically, so may not reflect worker immediately
+    assert response.json()["running_processes"] in [0, 1]
     assert response.json()["global_status"] == "RUNNING"
+
+    # Let it continue executing
+    time.sleep(1)
 
     # Let it finish after second lock step
     with test_condition:

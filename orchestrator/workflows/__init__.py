@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,8 +14,12 @@
 
 from importlib import import_module
 
+import structlog
+
 from orchestrator.utils.docs import make_workflow_index_doc
 from orchestrator.workflow import Workflow
+
+logger = structlog.get_logger(__name__)
 
 DEFAULT_PKG = "orchestrator.workflows"
 
@@ -98,6 +102,7 @@ def get_workflow(name: str) -> Workflow | None:
     wi = ALL_WORKFLOWS.get(name)
 
     if not wi:
+        logger.debug("LazyWorkflowInstance not found with this name", name=name)
         return None
 
     return wi.instantiate()

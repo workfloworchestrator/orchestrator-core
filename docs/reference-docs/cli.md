@@ -702,6 +702,7 @@ Options
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
 --config-file - The configuration file [default: None]  
 --python-version - Python version for generated code [default: 3.11]  
+--skip-existing-blocks - If set, the migration will not contain product blocks for which a python implementation exists [default: False]  
 
 ### product
 

@@ -89,7 +89,7 @@ class Retriever(ABC):
                 return ProcessHybridRetriever(None, fuzzy_term, cursor)
             return FuzzyRetriever(fuzzy_term, cursor)
 
-        return StructuredRetriever(cursor)
+        return StructuredRetriever(cursor, query.order_by)
 
     @abstractmethod
     def apply(self, candidate_query: Select) -> Select:
