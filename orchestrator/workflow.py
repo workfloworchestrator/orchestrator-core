@@ -19,6 +19,7 @@ import functools
 import inspect
 import secrets
 from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from itertools import dropwhile
 from typing import (
@@ -189,12 +190,33 @@ class StepList(list[Step]):
             retval = type(self)(retval)
         return retval
 
-    def __rshift__(self, other: StepList | Step) -> StepList:
+    def __rshift__(self, other: StepList | Step | ParallelStepList | dict) -> StepList:
         if isinstance(other, Step):
             return StepList([*self, other])
 
         if isinstance(other, StepList):
             return StepList([*self, *other])
+
+        # Unnamed parallel: ... >> ((begin >> a) | (begin >> b)) >> ...
+        if isinstance(other, ParallelStepList):
+            name = other.name or _auto_parallel_name(other)
+            par_step = _make_parallel_step(name, other.branches)
+            return StepList([*self, par_step])
+
+        # Named parallel via dict: ... >> {"Name": (begin >> a) | (begin >> b)} >> ...
+        if isinstance(other, dict):
+            if len(other) != 1:
+                raise ValueError("Parallel dict must have exactly one key (the name)")
+            name, value = next(iter(other.items()))
+            if not isinstance(name, str):
+                raise ValueError(f"Parallel dict key must be a string, got {type(name)}")
+            if isinstance(value, ParallelStepList):
+                par_step = _make_parallel_step(name, value.branches)
+                return StepList([*self, par_step])
+            if isinstance(value, list) and all(isinstance(v, StepList) for v in value):
+                par_step = _make_parallel_step(name, value)
+                return StepList([*self, par_step])
+            raise ValueError(f"Parallel dict value must be ParallelStepList or list[StepList], got {type(value)}")
 
         if hasattr(other, "__name__"):  # type:ignore
             raise ValueError(
@@ -205,8 +227,38 @@ class StepList(list[Step]):
     def __str__(self) -> str:
         return f"StepList [{', '.join(x.name for x in self)}]"
 
+    def __or__(self, other: StepList | ParallelStepList) -> ParallelStepList:
+        if isinstance(other, ParallelStepList):
+            return ParallelStepList([self, *other.branches])
+        if isinstance(other, StepList):
+            return ParallelStepList([self, other])
+        raise ValueError(f"Cannot use | with {type(other)}")
+
     def __repr__(self) -> str:
         return f"StepList [{', '.join(repr(x) for x in self)}]"
+
+
+class ParallelStepList:
+    """Container for parallel branches, created by the | operator on StepList."""
+
+    def __init__(self, branches: list[StepList], name: str | None = None) -> None:
+        if len(branches) < 2:
+            raise ValueError("ParallelStepList requires at least 2 branches")
+        self.branches = branches
+        self.name = name
+
+    def __or__(self, other: StepList | ParallelStepList) -> ParallelStepList:
+        if isinstance(other, ParallelStepList):
+            return ParallelStepList([*self.branches, *other.branches], self.name)
+        if isinstance(other, StepList):
+            return ParallelStepList([*self.branches, other], self.name)
+        raise ValueError(f"Cannot use | with {type(other)}")
+
+    def __repr__(self) -> str:
+        branch_strs = ", ".join(str(b) for b in self.branches)
+        if self.name:
+            return f"ParallelStepList '{self.name}' [{branch_strs}]"
+        return f"ParallelStepList [{branch_strs}]"
 
 
 def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputFormGenerator:
@@ -443,6 +495,155 @@ def step_group(
     # Make sure we return a form is a sub step has a form
     form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
     return make_step_function(func, name, form, retry_auth_callback=retry_auth_callback)
+
+
+def _auto_parallel_name(par: ParallelStepList) -> str:
+    """Generate an auto name from branch step names."""
+    branch_names = []
+    for branch in par.branches:
+        names = [s.name for s in branch]
+        branch_names.append(" + ".join(names) if names else "empty")
+    return f"Parallel({', '.join(branch_names)})"
+
+
+_STATUS_PRIORITY: list[str] = ["isfailed", "iswaiting", "issuspend", "isawaitingcallback"]
+
+
+def _worst_status(branch_results: list[Process], fallback: Process) -> Process | None:
+    """Return the branch with the worst non-success status, or None if all succeeded."""
+    for check in _STATUS_PRIORITY:
+        for result in branch_results:
+            if getattr(result, check)():
+                return result
+    return None
+
+
+def _join_results(initial_state: State, branch_results: list[Process]) -> Process:
+    """Merge branch results with priority: Failed > Waiting > Suspend > AwaitingCallback > Success.
+
+    On key conflict: raise ValueError with descriptive message listing conflicting keys.
+    """
+    worst = _worst_status(branch_results, Success(initial_state))
+    if worst is not None:
+        return worst
+
+    # Merge states from all successful branches
+    merged_state = dict(initial_state)
+    keys_written: dict[str, int] = {}  # key -> branch index that first wrote it
+
+    for branch_idx, result in enumerate(branch_results):
+        branch_state = result.unwrap()
+        conflicts = [
+            key
+            for key in branch_state
+            if not key.startswith("__")
+            and key in keys_written
+            and keys_written[key] != branch_idx
+            and branch_state[key] != initial_state.get(key)
+        ]
+        if conflicts:
+            raise ValueError(
+                f"Parallel branch key conflict: branches wrote to the same keys {conflicts}. "
+                f"Each branch must write to distinct state keys."
+            )
+        for key in branch_state:
+            if not key.startswith("__") and branch_state[key] != initial_state.get(key):
+                keys_written[key] = branch_idx
+        merged_state.update(branch_state)
+
+    return Success(merged_state)
+
+
+def _exec_parallel_branches(
+    branches: list[StepList],
+    initial_state: State,
+    dblogstep: StepLogFuncInternal,
+    name: str,
+    max_workers: int | None = None,
+) -> Process:
+    """Execute branches sequentially (Phase 1), each with an isolated state copy."""
+    branch_results: list[Process] = []
+
+    for branch in branches:
+        branch_state = deepcopy(initial_state)
+        process: Process = Success(branch_state)
+        process = _exec_steps(branch, process, dblogstep)
+        branch_results.append(process)
+
+    parallel_start_time = nowtz().timestamp()
+    result = _join_results(initial_state, branch_results)
+    return result.map(lambda s: s | {"__replace_last_state": True, "__last_step_started_at": parallel_start_time})
+
+
+def _make_parallel_step(
+    name: str,
+    branches: list[StepList],
+    retry_auth_callback: Authorizer | None = None,
+    max_workers: int | None = None,
+) -> Step:
+    """Create a parallel step from a list of branches (internal implementation)."""
+    if len(branches) < 2:
+        raise ValueError("parallel() requires at least 2 branches")
+
+    # Validate no inputsteps in branches
+    for branch_idx, branch in enumerate(branches):
+        for s in branch:
+            if s.form is not None:
+                raise ValueError(
+                    f"Parallel branches must not contain inputsteps. "
+                    f"Found inputstep '{s.name}' in branch {branch_idx}."
+                )
+
+    def func(initial_state: State) -> Process:
+        step_log_fn = step_log_fn_var.get()
+
+        def dblogstep(step_: Step, p: Process) -> Process:
+            p = p.map(lambda s: s | {"__step_name_override": name})
+            return step_log_fn(step_, p)
+
+        return _exec_parallel_branches(branches, initial_state, dblogstep, name, max_workers)
+
+    return make_step_function(func, name, retry_auth_callback=retry_auth_callback)
+
+
+def parallel(
+    name: str,
+    *branches: StepList,
+    retry_auth_callback: Authorizer | None = None,
+    max_workers: int | None = None,
+) -> Step:
+    """Execute multiple step sequences in parallel.
+
+    Each branch receives a deep copy of the current state. Branch results are merged
+    left-to-right at the join point. Branches must write to distinct state keys.
+
+    This function provides explicit control over parallel execution. For simpler cases,
+    use the | operator syntax instead:
+
+        # Using | operator (preferred for simple cases)
+        init >> ((begin >> step_a) | (begin >> step_b)) >> done
+
+        # Using | with dict naming
+        init >> {"My parallel": (begin >> step_a) | (begin >> step_b)} >> done
+
+        # Using parallel() for advanced options
+        init >> parallel("My parallel", begin >> step_a, begin >> step_b,
+                         retry_auth_callback=my_callback) >> done
+
+    Args:
+        name: Name for this parallel group (shown in logs/UI)
+        *branches: Two or more StepList sequences to execute concurrently
+        retry_auth_callback: Authorization callback for retrying on failure
+        max_workers: Max concurrent threads (None = number of branches)
+
+    Returns:
+        A Step that can be composed with >> operator
+
+    Raises:
+        ValueError: If fewer than 2 branches provided
+        ValueError: If any branch contains an inputstep
+    """
+    return _make_parallel_step(name, list(branches), retry_auth_callback=retry_auth_callback, max_workers=max_workers)
 
 
 def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
