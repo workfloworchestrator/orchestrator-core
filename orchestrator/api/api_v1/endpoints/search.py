@@ -51,6 +51,7 @@ async def _perform_search_and_fetch(
         request: Search request for new search
         cursor: Pagination cursor (loads saved query state)
         query_id: Saved query ID to retrieve and execute
+        include_columns: Whether to include response columns in the results (default: True)
 
     Returns:
         Search results with entity_id, score, and matching_field.

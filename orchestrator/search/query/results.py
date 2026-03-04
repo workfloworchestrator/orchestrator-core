@@ -247,6 +247,7 @@ def format_search_response(
         total_items: total items of the query (only with structured search).
         start_cursor: start cursor of the db_rows (only with structured search).
         end_cursor: end cursor of the db_rows (only with structured search).
+        column_data: Optional mapping of entity_id to additional column data for the response.
 
     Returns:
         SearchResponse: A list of `SearchResult` objects containing entity IDs, scores,

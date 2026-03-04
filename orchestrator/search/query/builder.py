@@ -333,14 +333,15 @@ def build_response_columns_query(
     Returns:
         Select statement with entity_id + one column per requested path.
     """
-    pivot_columns: list = [AiSearchIndex.entity_id.label("entity_id")]
-
-    for field_path in response_columns:
-        pivot_columns.append(
+    pivot_columns = [
+        AiSearchIndex.entity_id.label("entity_id"),
+        *[
             func.max(case((AiSearchIndex.path == Ltree(field_path), AiSearchIndex.value), else_=None)).label(
                 BaseAggregation.field_to_alias(field_path)
             )
-        )
+            for field_path in response_columns
+        ],
+    ]
 
     return (
         select(*pivot_columns)
@@ -367,17 +368,14 @@ def process_response_columns(
         Dict mapping entity_id to a dict of path -> value (or None).
     """
     alias_to_path = {BaseAggregation.field_to_alias(path): path for path in response_columns}
-    result: dict[str, dict[str, str | None]] = {}
 
-    for row in rows:
-        entity_id = str(row.entity_id)
-        columns: dict[str, str | None] = {}
-        for alias, path in alias_to_path.items():
-            value = getattr(row, alias, None)
-            columns[path] = str(value) if value is not None else None
-        result[entity_id] = columns
-
-    return result
+    return {
+        str(row.entity_id): {
+            path: str(value) if (value := getattr(row, alias, None)) is not None else None
+            for alias, path in alias_to_path.items()
+        }
+        for row in rows
+    }
 
 
 def build_simple_count_query(base_query: Select) -> Select:
