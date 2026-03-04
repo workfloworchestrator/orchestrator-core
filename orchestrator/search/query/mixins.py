@@ -154,7 +154,7 @@ class AggregationMixin(BaseModel):
     """
 
     aggregations: list[Aggregation] = Field(
-        default_factory=list,
+        min_length=1,
         description="Aggregations to compute (SUM, AVG, MIN, MAX, COUNT). Must be set before execution.",
     )
 
