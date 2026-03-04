@@ -1,10 +1,13 @@
 """Tests for parallel step execution in the workflow engine."""
 
+import threading
+import time
 from uuid import uuid4
 
 import pytest
 
 from orchestrator.config.assignee import Assignee
+from orchestrator.db import db
 from orchestrator.services.processes import SYSTEM_USER
 from orchestrator.workflow import (
     ParallelStepList,
@@ -641,3 +644,116 @@ class TestParallelKeyConflictError:
         state = result.unwrap()
         assert state["a_saw"] == 42
         assert state["b_saw"] == 42
+
+
+class TestParallelThreadExecution:
+    """Test that parallel branches execute concurrently using threads."""
+
+    def test_branches_execute_concurrently(self):
+        """Two branches each sleeping 0.1s should complete in ~0.1s, not ~0.2s."""
+
+        @step("Slow A")
+        def slow_a():
+            time.sleep(0.1)
+            return {"slow_a": "done"}
+
+        @step("Slow B")
+        def slow_b():
+            time.sleep(0.1)
+            return {"slow_b": "done"}
+
+        wf = workflow("Concurrent WF")(lambda: init >> ((begin >> slow_a) | (begin >> slow_b)) >> done)
+
+        log = []
+        pstat = create_new_process_stat(wf, {})
+
+        start = time.monotonic()
+        result = runwf(pstat, store(log))
+        elapsed = time.monotonic() - start
+
+        assert_complete(result)
+        state = result.unwrap()
+        assert state["slow_a"] == "done"
+        assert state["slow_b"] == "done"
+        # If sequential, would take ~0.2s. With threads, should be ~0.1s.
+        assert elapsed < 0.18, f"Expected concurrent execution (<0.18s), but took {elapsed:.3f}s"
+
+    def test_branch_exception_does_not_crash_other_branches(self):
+        """One branch raising does not prevent other branches from completing."""
+        side_effects: list[str] = []
+
+        @step("Good branch")
+        def good_branch():
+            time.sleep(0.05)  # Ensure this runs after the exception
+            side_effects.append("good_completed")
+            return {"good": True}
+
+        @step("Bad branch")
+        def bad_branch():
+            raise RuntimeError("boom")
+
+        wf = workflow("Exception WF")(lambda: init >> ((begin >> good_branch) | (begin >> bad_branch)) >> done)
+
+        log = []
+        pstat = create_new_process_stat(wf, {})
+        result = runwf(pstat, store(log))
+
+        assert_failed(result)
+        assert "good_completed" in side_effects, "Good branch should have completed despite other branch failing"
+
+    def test_each_branch_has_own_db_session(self):
+        """Each branch thread should get its own database session via database_scope."""
+        session_ids: list[int] = []
+        lock = threading.Lock()
+
+        @step("Record session A")
+        def record_session_a():
+            with lock:
+                session_ids.append(id(db.session))
+            return {"session_a": True}
+
+        @step("Record session B")
+        def record_session_b():
+            with lock:
+                session_ids.append(id(db.session))
+            return {"session_b": True}
+
+        wf = workflow("Session WF")(lambda: init >> ((begin >> record_session_a) | (begin >> record_session_b)) >> done)
+
+        log = []
+        pstat = create_new_process_stat(wf, {})
+        result = runwf(pstat, store(log))
+
+        assert_complete(result)
+        assert len(session_ids) == 2
+        assert session_ids[0] != session_ids[1], "Each branch should have a distinct database session"
+
+    def test_deepcopy_isolation_with_threads(self):
+        """Branches mutating copied state don't affect each other under threading."""
+
+        @step("Mutate list A")
+        def mutate_list_a(items):
+            items.append("a_added")
+            return {"a_items": list(items), "a_len": len(items)}
+
+        @step("Mutate list B")
+        def mutate_list_b(items):
+            items.append("b_added")
+            return {"b_items": list(items), "b_len": len(items)}
+
+        wf = workflow("Deepcopy WF")(lambda: init >> ((begin >> mutate_list_a) | (begin >> mutate_list_b)) >> done)
+
+        log = []
+        pstat = create_new_process_stat(wf, {"items": [1, 2, 3]})
+        result = runwf(pstat, store(log))
+
+        assert_complete(result)
+        state = result.unwrap()
+        # Each branch should have seen original list of length 3, then added one item
+        assert state["a_len"] == 4
+        assert state["b_len"] == 4
+        assert "a_added" in state["a_items"]
+        assert "b_added" in state["b_items"]
+        # Cross-contamination check
+        assert "b_added" not in state["a_items"]
+        assert "a_added" not in state["b_items"]

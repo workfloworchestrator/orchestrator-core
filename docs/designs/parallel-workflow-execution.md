@@ -608,14 +608,150 @@ The `ProcessTable.last_step` field will show the parallel group name during exec
    - Detect which branches need re-execution
    - Merge resumed results with stored results
 
-### Phase 3: True parallel execution (optional)
+### Phase 3: True parallel execution with ThreadPoolExecutor
 
-7. **Add `ThreadPoolExecutor` execution mode**
-   - Thread-safe state isolation
-   - Thread-safe database logging
-   - Configurable `max_workers`
+7. **Replace sequential branch execution with `ThreadPoolExecutor`-based threading**
 
-### Phase 4: Documentation and examples
+   #### Threading Strategy
+
+   Each `_exec_parallel_branches` call creates a **dedicated `ThreadPoolExecutor`** (via context manager) with `max_workers` equal to the number of branches (or a user-specified limit). This gives each parallel block its own thread pool with clean lifecycle management — no contention with the global workflow executor or other parallel blocks.
+
+   ```python
+   def _exec_parallel_branches(branches, initial_state, dblogstep, name, max_workers=None):
+       workers = max_workers if max_workers is not None else len(branches)
+       branch_results: list[Process | None] = [None] * len(branches)
+
+       with ThreadPoolExecutor(max_workers=workers) as executor:
+           futures = {executor.submit(_run_branch, branch, initial_state): idx
+                      for idx, branch in enumerate(branches)}
+           for future in as_completed(futures):
+               idx = futures[future]
+               try:
+                   branch_results[idx] = future.result()
+               except Exception as e:
+                   branch_results[idx] = Failed(error_state_to_dict(e))
+
+       results = [r for r in branch_results if r is not None]
+       result = _join_results(initial_state, results)
+       return result.map(lambda s: s | {"__replace_last_state": True, ...})
+   ```
+
+   #### DB Session Isolation via `db.database_scope()`
+
+   The `Database` class uses `ContextVar`-scoped sessions (`db/database.py`). `ThreadPoolExecutor` threads inherit the parent's `ContextVar` values, meaning they would share the parent's session. Each branch thread calls `db.database_scope()` to create a new UUID token, giving it an isolated session for any DB reads that step functions perform internally.
+
+   ```python
+   def _run_branch(branch: StepList, initial_state: State) -> Process:
+       with db.database_scope():
+           branch_state = deepcopy(initial_state)
+           process: Process = Success(branch_state)
+           return _exec_steps(branch, process, _noop_dblogstep)
+   ```
+
+   #### No-op Branch Logging
+
+   The `_db_log_step` function in `services/processes.py` uses `__replace_last_state` to modify `p.steps[-1]`, which creates race conditions if multiple threads write concurrently to the same `ProcessTable` row. Solution: branch threads use `_noop_dblogstep` — a no-op that returns the process unchanged. Only the final merged result is persisted by the parent thread after all branches complete.
+
+   This is consistent with `step_group` behavior: the parallel block presents as a single step in the process log.
+
+   #### Thread Safety Analysis
+
+   | Resource | Thread-safe? | Why |
+   |----------|-------------|-----|
+   | `db.session` | YES (with `database_scope`) | Each thread creates own ContextVar scope → own session |
+   | `step_log_fn_var` | YES | Inherited from parent, read-only in branches |
+   | `ProcessStat` (`pstat`) | YES | Captured in closure, only read during parallel |
+   | `get_engine_settings()` | YES | Each thread has own session, read-only check |
+   | structlog contextvars | YES | `bound_contextvars` in `@step` scopes per-step |
+   | `_join_results` | YES | Runs in parent thread after all branches complete |
+
+   #### Thread Lifecycle
+
+   - Threads are created when `_exec_parallel_branches` is called
+   - The `with ThreadPoolExecutor(...)` context manager ensures all threads are joined before returning
+   - `as_completed` collects results as branches finish; exceptions are wrapped in `Failed`
+   - All branches run to completion — no early termination on first failure
+   - After all futures resolve, `_join_results` merges results in the parent thread
+
+### Phase 4: Celery per-step re-queue (future sketch)
+
+This phase is a future enhancement that would replace intra-workflow threading with Celery task distribution for true distributed parallelism.
+
+#### Concept
+
+After each step completes, the workflow re-queues the next step as a new Celery task instead of continuing in the same worker. This enables:
+
+- **Distributed parallelism**: parallel branches become independent Celery tasks on different workers
+- **Better resource utilization**: workers aren't blocked waiting for slow branches
+- **Fault isolation**: a worker crash only affects one branch
+
+#### Fork: Parallel branches as Celery tasks
+
+When the engine encounters a parallel block, it spawns N Celery tasks (one per branch) instead of using threads:
+
+```python
+# Conceptual — not yet implemented
+def _exec_parallel_celery(branches, initial_state, name):
+    group_id = str(uuid4())
+    for idx, branch in enumerate(branches):
+        branch_state = deepcopy(initial_state)
+        execute_branch.delay(
+            workflow_key=current_workflow_key,
+            branch_steps=serialize_steps(branch),
+            state=branch_state,
+            group_id=group_id,
+            branch_idx=idx,
+            total_branches=len(branches),
+        )
+```
+
+#### Join: Atomic counter for branch completion
+
+The last branch to complete triggers the continuation. Two approaches:
+
+1. **DB-based** (`UPDATE ... RETURNING`):
+   ```sql
+   UPDATE parallel_join SET completed = completed + 1
+   WHERE group_id = :gid RETURNING completed;
+   -- If returned value == total_branches, this branch triggers the join
+   ```
+
+2. **Redis-based** (`INCR`):
+   ```python
+   count = redis.incr(f"parallel:{group_id}:completed")
+   if count == total_branches:
+       # This branch is the last one — trigger join
+       trigger_join.delay(group_id)
+   ```
+
+#### New `ParallelJoinTable` schema
+
+```python
+class ParallelJoinTable(BaseModel):
+    __tablename__ = "parallel_joins"
+    group_id: Mapped[UUID] = mapped_column(primary_key=True)
+    process_id: Mapped[UUID] = mapped_column(ForeignKey("processes.pid"))
+    total_branches: Mapped[int]
+    completed: Mapped[int] = mapped_column(default=0)
+    branch_results: Mapped[dict] = mapped_column(JSONB, default={})
+    workflow_key: Mapped[str]
+    continuation_step_index: Mapped[int]
+```
+
+#### Challenges
+
+- **Step serialization**: Steps are Python functions — cannot be pickled. Must reference via `workflow_key + step_index` and reconstruct the step list on the worker side.
+- **Step group flattening**: `step_group` and nested parallel blocks need flattening into a linear step index for re-queue.
+- **Atomic join**: The join counter must be strictly atomic to avoid double-triggering.
+- **Transaction boundaries**: Each step runs in its own transaction, so partial state must be persisted between steps.
+
+#### Migration path
+
+- New `ExecutorType.CELERY_PER_STEP` enum value, opt-in per workflow
+- Existing `ExecutorType.THREADPOOL` and `ExecutorType.WORKER` modes remain unchanged
+- Phase 3 threading continues to work as the default for parallel blocks
+
+### Phase 5: Documentation and examples
 
 8. **Add example workflows**
 9. **Update workflow documentation**
@@ -1267,7 +1403,7 @@ Integration tests should cover:
 
 ## 8. Future Enhancements
 
-1. **True threading**: Replace sequential branch execution with `ThreadPoolExecutor`
+1. ~~**True threading**: Replace sequential branch execution with `ThreadPoolExecutor`~~ (Done — Phase 3)
 2. **Nested parallelism**: Support `parallel()` inside `parallel()`
 3. **Partial retry**: Only re-execute failed branches on resume
 4. **Branch-level timeout**: Per-branch timeout with cancellation
@@ -1278,7 +1414,7 @@ Integration tests should cover:
 
 ## 9. Open Questions
 
-1. **Key conflicts**: Should we error on key conflicts, or just warn? (Recommendation: warn + log)
-2. **Max branches**: Should we limit the number of branches? (Recommendation: no hard limit, but document performance implications)
-3. **Thread safety**: When enabling true parallelism, how do we handle SQLAlchemy session safety? (Recommendation: each branch gets its own session from a scoped session factory)
+1. **Key conflicts**: Resolved — we error on key conflicts via `_join_results` (raises `ValueError`)
+2. **Max branches**: No hard limit; `max_workers` parameter controls thread pool size
+3. **Thread safety**: Resolved — each branch gets its own session via `db.database_scope()` (see Phase 3 thread safety analysis)
 4. **Abort during parallel**: If a user aborts while parallel branches are executing, how do we cancel in-flight branches? (Recommendation: check abort flag between steps, same as `global_lock` pattern)

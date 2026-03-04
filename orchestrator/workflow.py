@@ -19,6 +19,7 @@ import functools
 import inspect
 import secrets
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from itertools import dropwhile
@@ -554,6 +555,23 @@ def _join_results(initial_state: State, branch_results: list[Process]) -> Proces
     return Success(merged_state)
 
 
+def _noop_dblogstep(step_: Step, p: Process) -> Process:
+    """No-op step logger for parallel branch threads.
+
+    During parallel execution, individual branch sub-steps are not written to the DB.
+    Only the final merged result is persisted by the parent thread after all branches complete.
+    """
+    return p
+
+
+def _run_branch(branch: StepList, initial_state: State) -> Process:
+    """Execute a single parallel branch in its own database scope."""
+    with db.database_scope():
+        branch_state = deepcopy(initial_state)
+        process: Process = Success(branch_state)
+        return _exec_steps(branch, process, _noop_dblogstep)
+
+
 def _exec_parallel_branches(
     branches: list[StepList],
     initial_state: State,
@@ -561,17 +579,29 @@ def _exec_parallel_branches(
     name: str,
     max_workers: int | None = None,
 ) -> Process:
-    """Execute branches sequentially (Phase 1), each with an isolated state copy."""
-    branch_results: list[Process] = []
+    """Execute branches in parallel using ThreadPoolExecutor, each with an isolated state copy.
 
-    for branch in branches:
-        branch_state = deepcopy(initial_state)
-        process: Process = Success(branch_state)
-        process = _exec_steps(branch, process, dblogstep)
-        branch_results.append(process)
+    Each branch runs in its own thread with its own database session scope.
+    Individual branch sub-steps are NOT logged to the DB during execution.
+    Only the final merged result is persisted after all branches complete.
+    """
+    workers = max_workers if max_workers is not None else len(branches)
+    branch_results: list[Process | None] = [None] * len(branches)
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_run_branch, branch, initial_state): idx for idx, branch in enumerate(branches)}
+        for future in as_completed(futures):
+            idx = futures[future]
+            try:
+                branch_results[idx] = future.result()
+            except Exception as e:
+                logger.error("Parallel branch exception", branch_idx=idx, parallel_group=name)
+                branch_results[idx] = Failed(error_state_to_dict(e))
+
+    results: list[Process] = [r for r in branch_results if r is not None]
 
     parallel_start_time = nowtz().timestamp()
-    result = _join_results(initial_state, branch_results)
+    result = _join_results(initial_state, results)
     return result.map(lambda s: s | {"__replace_last_state": True, "__last_step_started_at": parallel_start_time})
 
 

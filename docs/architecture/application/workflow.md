@@ -125,6 +125,57 @@ For a practical example of how to define reusable workflow steps—and how to le
 👉 [Reusable step functions and singledispatch usage]
 
 
+### Parallel Steps
+
+The workflow engine supports executing independent branches in parallel using the `|` operator or the `parallel()` function. Parallel execution is implemented as a fork/join pattern: the engine forks the state into isolated copies for each branch, executes them, and joins the results back into a single state.
+
+#### Syntax
+
+There are three ways to express parallel execution:
+
+**Pipe operator (unnamed)**:
+```python
+@workflow("Dual Provisioning", target=Target.CREATE)
+def create_dual_port():
+    return init >> (
+        (begin >> provision_port_a)
+        | (begin >> provision_port_b)
+    ) >> link_ports >> done
+```
+
+**Dict naming (named)**:
+```python
+@workflow("Dual Provisioning", target=Target.CREATE)
+def create_dual_port():
+    return init >> {
+        "Provision ports": (begin >> provision_port_a)
+                           | (begin >> provision_port_b)
+    } >> link_ports >> done
+```
+
+**Explicit `parallel()` function** (for advanced options like `retry_auth_callback`):
+```python
+from orchestrator.workflow import parallel
+
+@workflow("Dual Provisioning", target=Target.CREATE)
+def create_dual_port():
+    par = parallel("Provision ports",
+                   begin >> provision_port_a,
+                   begin >> provision_port_b,
+                   retry_auth_callback=my_callback)
+    return init >> par >> link_ports >> done
+```
+
+#### Behavior
+
+- **State isolation**: Each branch receives a deep copy of the input state. Mutations in one branch do not affect other branches.
+- **State merging**: After all branches complete, their output states are merged. Each branch must write to **distinct** state keys — writing to the same key from multiple branches raises a `ValueError`.
+- **Error propagation**: If any branch fails, the entire parallel group fails. Status priority is: Failed > Waiting > Suspend > AwaitingCallback > Success.
+- **No inputsteps**: Parallel branches must not contain `inputstep` steps. This is validated at workflow definition time.
+- **Logging**: The parallel group appears as a single step in the process log (similar to `step_group`). Named groups use the provided name; unnamed groups get an auto-generated name from the branch step names.
+- **Three or more branches**: The `|` operator chains naturally: `a | b | c` creates three parallel branches.
+
+
 ### Execution parameters
 
 You can fine-tune workflow execution behavior using a set of configuration parameters.
