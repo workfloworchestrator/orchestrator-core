@@ -22,6 +22,7 @@ from .mixins import (
     AggregationMixin,
     GroupingMixin,
     SearchMixin,
+    StructuredOrderByMixin,
 )
 
 
@@ -61,7 +62,7 @@ class BaseQuery(BaseModel):
         return cls.model_validate(data)
 
 
-class SelectQuery(BaseQuery, SearchMixin):
+class SelectQuery(BaseQuery, SearchMixin, StructuredOrderByMixin):
     """Query for SELECT operations.
 
     Composes BaseQuery with SearchMixin for text search, with strict result limits.
@@ -78,7 +79,7 @@ class SelectQuery(BaseQuery, SearchMixin):
     )
 
 
-class ExportQuery(BaseQuery, SearchMixin):
+class ExportQuery(BaseQuery, SearchMixin, StructuredOrderByMixin):
     """Query for EXPORT operations .
 
     Similar to SelectQuery but with higher limits for bulk exports.

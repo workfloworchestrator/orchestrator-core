@@ -30,7 +30,7 @@ from orchestrator.search.query import QueryState, engine
 from orchestrator.search.query.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
 from orchestrator.search.query.queries import ExportQuery, SelectQuery
 from orchestrator.search.query.results import SearchResult
-from orchestrator.search.query.validation import is_lquery_syntactically_valid
+from orchestrator.search.query.validation import is_lquery_syntactically_valid, validate_structured_order_by_element
 from orchestrator.search.retrieval.pagination import PageCursor, encode_next_page_cursor
 
 router = APIRouter()
@@ -56,6 +56,8 @@ async def _perform_search_and_fetch(
         Search results with entity_id, score, and matching_field.
     """
     try:
+        validate_structured_order_by_element(entity_type, request)
+
         page_cursor: PageCursor | None = None
         query: SelectQuery
 

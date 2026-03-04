@@ -11,19 +11,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sqlalchemy import Select, literal, select
+from sqlalchemy import Select, Subquery, literal, select
+from sqlalchemy_utils import Ltree
 
+from orchestrator.db.models import AiSearchIndex
 from orchestrator.search.core.types import SearchMetadata
+from orchestrator.search.query.mixins import OrderDirection, StructuredOrderBy
 
 from ..pagination import PageCursor
 from .base import Retriever
 
 
+def _apply_structured_ordering(stmt: Select, cand: Subquery, order_by: StructuredOrderBy | None = None) -> Select:
+    if not order_by:
+        return stmt.order_by(cand.c.entity_id.asc())
+
+    path_subquery = (
+        select(AiSearchIndex.value.label("order_value"))
+        .where(AiSearchIndex.entity_id == cand.c.entity_id, AiSearchIndex.path == Ltree(order_by.element))
+        .correlate(cand)
+    ).scalar_subquery()
+
+    _is_asc = order_by.direction == OrderDirection.ASC
+    order_direction = path_subquery.asc() if _is_asc else path_subquery.desc()
+    return stmt.order_by(order_direction)
+
+
 class StructuredRetriever(Retriever):
     """Applies a dummy score for purely structured searches with no text query."""
 
-    def __init__(self, cursor: PageCursor | None) -> None:
+    def __init__(self, cursor: PageCursor | None, order_by: StructuredOrderBy | None = None) -> None:
         self.cursor = cursor
+        self.order_by = order_by
 
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()
@@ -32,7 +51,7 @@ class StructuredRetriever(Retriever):
         if self.cursor is not None:
             stmt = stmt.where(cand.c.entity_id > self.cursor.id)
 
-        return stmt.order_by(cand.c.entity_id.asc())
+        return _apply_structured_ordering(stmt, cand, self.order_by)
 
     @property
     def metadata(self) -> SearchMetadata:
