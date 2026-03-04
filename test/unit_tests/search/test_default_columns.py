@@ -91,7 +91,7 @@ def _make_column_row(entity_id: str, columns: dict[str, str | None]) -> SimpleNa
     attrs = {"entity_id": entity_id}
     for path, value in columns.items():
         alias = BaseAggregation.field_to_alias(path)
-        attrs[alias] = value
+        attrs[alias] = value  # type: ignore[assignment]
     return SimpleNamespace(**attrs)
 
 
