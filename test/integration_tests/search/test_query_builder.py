@@ -133,7 +133,7 @@ class TestAggregationQueryBuilder:
         response = await engine.execute_aggregation(query, db.session)
 
         assert len(response.results) == 2, "Should have 2 status groups"
-        assert response.total_groups == 2, "Should report 2 total groups"
+        assert response.total_results == 2, "Should report 2 total groups"
 
         # Verify exact counts for each status
         results_by_status = {g.group_values["status"]: g.aggregations["count"] for g in response.results}

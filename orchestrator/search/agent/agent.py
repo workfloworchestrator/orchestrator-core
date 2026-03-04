@@ -11,48 +11,115 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, AsyncIterator, Sequence
 
 import structlog
+from pydantic_ai import Agent, AgentRunResult, ModelSettings
 from pydantic_ai.ag_ui import StateDeps
-from pydantic_ai.agent import Agent
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.settings import ModelSettings
-from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai.messages import (
+    AgentStreamEvent,
+    UserContent,
+)
+from pydantic_ai.run import AgentRunResultEvent
+from pydantic_ai.toolsets import AbstractToolset
 
-from orchestrator.search.agent.prompts import get_base_instructions, get_dynamic_instructions
-from orchestrator.search.agent.state import SearchState
-from orchestrator.search.agent.tools import search_toolset
+if TYPE_CHECKING:
+    from pydantic_ai.models import KnownModelName, Model
+else:
+    KnownModelName = str
+    Model = Any
+
+from orchestrator.search.agent.events import RunContext
+from orchestrator.search.agent.planner import Planner
+from orchestrator.search.agent.skills import SKILLS, Skill
+from orchestrator.search.agent.state import SearchState, TaskAction
 
 logger = structlog.get_logger(__name__)
 
 
-def build_agent_instance(
-    model: str | OpenAIChatModel, agent_tools: list[FunctionToolset[Any]] | None = None
-) -> Agent[StateDeps[SearchState], str]:
-    """Build and configure the search agent instance.
+class AgentAdapter(Agent[StateDeps[SearchState], str]):
+    """Overrides run_stream_events to execute plans and stream events.
 
-    Args:
-        model: The LLM model to use (string or OpenAIChatModel instance)
-        agent_tools: Optional list of additional toolsets to include
+    Custom AG-UI events (e.g. AGENT_STEP_ACTIVE) are yielded directly from the planner
+    and skill runners into the event stream. AGUIEventStream (in ag_ui.py) passes
+    them through to the frontend — pydantic-ai's default handler would drop them.
 
-    Returns:
-        Configured Agent instance with StateDeps[SearchState] dependencies
-
-    Raises:
-        Exception: If agent initialization fails
+    The model/toolsets are required by Agent's constructor but unused here;
+    the agents in Planner and SkillRunner handle actual LLM calls.
     """
-    toolsets = agent_tools + [search_toolset] if agent_tools else [search_toolset]
 
-    agent = Agent(
-        model=model,
-        deps_type=StateDeps[SearchState],
-        model_settings=ModelSettings(
-            parallel_tool_calls=False,
-        ),  # https://github.com/pydantic/pydantic-ai/issues/562
-        toolsets=toolsets,
-    )
-    agent.instructions(get_base_instructions)
-    agent.instructions(get_dynamic_instructions)
+    def __init__(
+        self,
+        model: "Model | KnownModelName | str",  # type: ignore[valid-type]
+        skills: dict[TaskAction, Skill] = SKILLS,
+        *,
+        deps_type: type[StateDeps[SearchState]] = StateDeps[SearchState],
+        model_settings: "ModelSettings | None" = None,
+        toolsets: Sequence[AbstractToolset[Any]] | None = None,
+        instructions: Any = None,
+        debug: bool = False,
+    ):
+        super().__init__(
+            model=model,
+            deps_type=deps_type,
+            model_settings=model_settings or ModelSettings(),
+            toolsets=toolsets or [],
+            instructions=instructions or [],
+        )
+        self.skills = skills
+        self.model_name = model if isinstance(model, str) else str(model)
+        self._persistence: Any | None = None
+        self.debug = debug
 
-    return agent
+    async def _prepare_state(self, deps: StateDeps[SearchState]) -> SearchState:
+        """Load persisted state (if any) and start a new turn."""
+        initial_state = deps.state
+        user_input = initial_state.user_input
+
+        if self._persistence:
+            loaded = await self._persistence.load_state()
+            if loaded:
+                logger.debug("AgentAdapter: Resuming from previous state", run_id=self._persistence.run_id)
+                initial_state = loaded
+                initial_state.user_input = user_input
+
+        if not initial_state.memory.current_turn or initial_state.memory.current_turn.user_question != user_input:
+            initial_state.memory.start_turn(user_input)
+
+        return initial_state
+
+    async def run_stream_events(  # type: ignore[override]
+        self,
+        user_prompt: str | Sequence[UserContent] | None = None,
+        *,
+        deps: StateDeps[SearchState] | None = None,
+        target_action: TaskAction | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[AgentStreamEvent | AgentRunResultEvent[str] | Any]:
+        """Execute the plan and stream events in real-time.
+
+        Custom events (AGENT_STEP_ACTIVE) are yielded directly from the planner
+        and skill runners, then passed through by AGUIEventStream.handle_event().
+        """
+        if deps is None:
+            deps = StateDeps(SearchState())
+
+        try:
+            initial_state = await self._prepare_state(deps)
+            ctx = RunContext(state=initial_state)
+            planner = Planner(model=self.model_name, skills=self.skills, debug=self.debug)
+
+            async for event in planner.execute(ctx, target_action=target_action):
+                yield event
+
+            ctx.state.memory.complete_turn(assistant_answer="Complete")
+            deps.state = ctx.state
+
+            if self._persistence:
+                await self._persistence.snapshot(ctx.state)
+
+            yield AgentRunResultEvent(result=AgentRunResult(output="Execution completed"))
+
+        except Exception as e:
+            logger.error("AgentAdapter: Execution failed", error=str(e), exc_info=True)
+            raise

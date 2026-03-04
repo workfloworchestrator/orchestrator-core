@@ -17,11 +17,11 @@ from uuid import UUID
 
 import structlog
 
-from orchestrator.db import AgentRunTable, SearchQueryTable
+from orchestrator.db import SearchQueryTable
 from orchestrator.db.database import WrappedSession
 from orchestrator.search.query import engine
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
-from orchestrator.search.query.results import AggregationResponse, SearchResponse
+from orchestrator.search.query.results import QueryResultsResponse, SearchResponse
 from orchestrator.search.query.state import QueryState
 
 logger = structlog.get_logger(__name__)
@@ -42,17 +42,9 @@ async def execute_search_with_persistence(
     Returns:
         Tuple of (search_response, run_id, query_id)
     """
-    # Create agent run
-    if not run_id:
-        agent_run = AgentRunTable(agent_type="search")
-        db_session.add(agent_run)
-        db_session.commit()
-        db_session.expire_all()
-        run_id = agent_run.run_id
-        logger.debug("Created new agent run", run_id=str(run_id))
-
+    # run_id must be provided when called from agent (endpoint creates the run)
     if run_id is None:
-        raise ValueError("run_id should not be None here")
+        raise ValueError("run_id is required - agent run must be created by endpoint with thread_id")
 
     # Execute search
     search_response = await engine.execute_search(query, db_session)
@@ -71,14 +63,6 @@ async def execute_search_with_persistence(
     db_session.expire_all()
 
     logger.debug("Saved search query", query_id=str(search_query.query_id), query_number=query_number)
-
-    logger.debug(
-        "Search results",
-        results=[r.model_dump() for r in search_response.results],
-        total_count=len(search_response.results),
-        search_type=search_response.metadata.search_type,
-    )
-
     return search_response, run_id, search_query.query_id
 
 
@@ -86,7 +70,7 @@ async def execute_aggregation_with_persistence(
     query: CountQuery | AggregateQuery,
     db_session: WrappedSession,
     run_id: UUID | None,
-) -> tuple[AggregationResponse, UUID, UUID]:
+) -> tuple[QueryResultsResponse, UUID, UUID]:
     """Execute aggregation, persist to DB, return response and IDs.
 
     Args:
@@ -97,17 +81,9 @@ async def execute_aggregation_with_persistence(
     Returns:
         Tuple of (aggregation_response, run_id, query_id)
     """
-    # Create agent run if needed
-    if not run_id:
-        agent_run = AgentRunTable(agent_type="search")
-        db_session.add(agent_run)
-        db_session.commit()
-        db_session.expire_all()
-        run_id = agent_run.run_id
-        logger.debug("Created new agent run", run_id=str(run_id))
-
+    # run_id must be provided when called from agent (endpoint creates the run)
     if run_id is None:
-        raise ValueError("run_id should not be None here")
+        raise ValueError("run_id is required - agent run must be created by endpoint with thread_id")
 
     # Execute aggregation
     aggregation_response = await engine.execute_aggregation(query, db_session)

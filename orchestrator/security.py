@@ -13,13 +13,16 @@
 from typing import Annotated
 
 from authlib.integrations.starlette_client import OAuth
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials
+from starlette.datastructures import Headers
 from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocket
 
 from nwastdlib.url import URL
-from oauth2_lib.fastapi import HTTPX_SSL_CONTEXT, HttpBearerExtractor, OIDCUserModel
+from oauth2_lib.fastapi import HTTPX_SSL_CONTEXT, AuthManager, HttpBearerExtractor, OIDCUserModel
 from oauth2_lib.settings import oauth2lib_settings
 
 oauth_client_credentials = OAuth()
@@ -56,3 +59,39 @@ async def authorize_websocket(
     websocket: WebSocket, user: Annotated[OIDCUserModel | None, Depends(authenticate)]
 ) -> bool | None:
     return await websocket.app.auth_manager.authorization.authorize(websocket, user)
+
+
+class AgentAuthMiddleware:
+    """ASGI wrapper that enforces authn/authz on mounted agent sub-apps.
+
+    Mounted sub-apps bypass FastAPI's dependency injection, so we enforce
+    the same authenticate → authorize flow used by all other endpoints via
+    a thin raw-ASGI layer that delegates to the parent app's auth_manager.
+    """
+
+    def __init__(self, app: ASGIApp, auth_manager: AuthManager) -> None:
+        self.app = app
+        self.auth_manager = auth_manager
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+
+        headers = Headers(scope=scope)
+        auth_header = headers.get("authorization", "")
+        token = auth_header.removeprefix("Bearer ") if auth_header.startswith("Bearer ") else None
+
+        request = Request(scope, receive)
+        try:
+            user = await self.auth_manager.authentication.authenticate(request, token)
+            if user:
+                await self.auth_manager.authorization.authorize(request, user)
+            else:
+                raise HTTPException(status_code=401, detail="Unauthorized")
+        except HTTPException as exc:
+            response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+            await response(scope, receive, send)
+            return
+
+        await self.app(scope, receive, send)

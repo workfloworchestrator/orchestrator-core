@@ -10,12 +10,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# This module requires: pydantic-ai==0.7.0, ag-ui-protocol>=0.1.8
-
-
-from orchestrator.search.agent.agent import AgentAdapter
-
-__all__ = [
-    "AgentAdapter",
-]
