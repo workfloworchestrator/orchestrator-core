@@ -4,12 +4,14 @@ from orchestrator.search.agent.planner import Planner
 from orchestrator.search.agent.skill_runner import SkillRunner
 from orchestrator.search.agent.skills import SKILLS
 
+
 @pytest.mark.search
 def test_planner_creation():
     """Test that Planner can be created."""
     planner = Planner(model="openai:gpt-4", skills=SKILLS, debug=False)
     assert planner.model == "openai:gpt-4"
     assert planner.skills == SKILLS
+
 
 @pytest.mark.search
 def test_skill_runner_creation():
