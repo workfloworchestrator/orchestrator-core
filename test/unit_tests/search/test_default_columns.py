@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.search.core.types import BooleanOperator, EntityType, FilterOp
+from orchestrator.search.core.types import BooleanOperator, EntityType, FilterOp, SearchMetadata
 from orchestrator.search.filters import EqualityFilter, FilterTree, PathFilter
 from orchestrator.search.query.default_columns import DEFAULT_RESPONSE_COLUMNS
 from orchestrator.search.query.queries import SelectQuery
@@ -199,3 +199,172 @@ class TestIncludeColumnsToggle:
         """When include_columns=True (default), response_columns should be untouched."""
         query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=10, response_columns=["subscription.status"])
         assert query.response_columns == ["subscription.status"]
+
+
+class TestResponseColumnsEndToEnd:
+    """Tests verifying column data flows through to SearchResult.response_columns.
+
+    Mirrors the 3 API example scenarios:
+    1. No response_columns in request → returns default columns for entity type
+    2. Custom response_columns in request → returns only those columns
+    3. include_columns=false → returns null response_columns
+    """
+
+    @pytest.fixture
+    def mock_result_row(self):
+        row = MagicMock()
+        row.entity_id = "test-id-123"
+        row.entity_title = "my-service-production"
+        row.score = 0.92
+        row.get = lambda key, default=None: {
+            "entity_title": "my-service-production",
+            "perfect_match": 0,
+        }.get(key, default)
+        return row
+
+    @pytest.fixture
+    def simple_filter(self):
+        return FilterTree(
+            op=BooleanOperator.AND,
+            children=[
+                PathFilter(
+                    path="subscription.status",
+                    condition=EqualityFilter(op=FilterOp.EQ, value="active"),
+                    value_kind="string",
+                ),
+            ],
+        )
+
+    @pytest.mark.asyncio
+    @patch("orchestrator.search.query.engine.build_response_columns_query")
+    @patch("orchestrator.search.query.engine.process_response_columns")
+    @patch("orchestrator.search.query.engine.build_candidate_query")
+    @patch("orchestrator.search.query.engine.Retriever")
+    async def test_no_response_columns_returns_defaults_on_result(
+        self,
+        mock_retriever_cls,
+        _mock_build_candidate,
+        mock_process_cols,
+        mock_build_cols,
+        mock_result_row,
+        simple_filter,
+    ):
+        """Scenario 1: No response_columns in request → default columns appear on SearchResult."""
+        from orchestrator.search.query.engine import _execute_search
+
+        query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=10, filters=simple_filter)
+
+        mock_session = MagicMock()
+        mock_retriever = MagicMock()
+        mock_retriever.metadata = SearchMetadata(search_type="hybrid", description="RRF hybrid search")
+        mock_retriever_cls.route.return_value = mock_retriever
+        mock_retriever.apply.return_value = MagicMock()
+
+        mock_session.execute.return_value.mappings.return_value.all.return_value = [mock_result_row]
+
+        default_col_data = {
+            "test-id-123": {
+                "subscription.description": "my-service-production",
+                "subscription.status": "active",
+                "subscription.insync": "true",
+                "subscription.start_date": "2024-06-15T00:00:00+00:00",
+                "subscription.product.name": "IP Transit",
+                "subscription.product.tag": "IPT",
+                "subscription.customer_id": "cust-001",
+            }
+        }
+        mock_process_cols.return_value = default_col_data
+
+        response = await _execute_search(query, mock_session, limit=10)
+
+        mock_build_cols.assert_called_once()
+        actual_cols = mock_build_cols.call_args[0][2]
+        assert actual_cols == DEFAULT_RESPONSE_COLUMNS[EntityType.SUBSCRIPTION]
+
+        result = response.results[0]
+        assert result.response_columns is not None
+        assert result.response_columns == default_col_data["test-id-123"]
+
+    @pytest.mark.asyncio
+    @patch("orchestrator.search.query.engine.build_response_columns_query")
+    @patch("orchestrator.search.query.engine.process_response_columns")
+    @patch("orchestrator.search.query.engine.build_candidate_query")
+    @patch("orchestrator.search.query.engine.Retriever")
+    async def test_custom_response_columns_returns_only_requested_on_result(
+        self,
+        mock_retriever_cls,
+        _mock_build_candidate,
+        mock_process_cols,
+        mock_build_cols,
+        mock_result_row,
+        simple_filter,
+    ):
+        """Scenario 2: Custom response_columns in request → only those columns on SearchResult."""
+        from orchestrator.search.query.engine import _execute_search
+
+        custom_cols = ["subscription.status", "subscription.product.name", "subscription.customer_id"]
+        query = SelectQuery(
+            entity_type=EntityType.SUBSCRIPTION, limit=10, filters=simple_filter, response_columns=custom_cols
+        )
+
+        mock_session = MagicMock()
+        mock_retriever = MagicMock()
+        mock_retriever.metadata = SearchMetadata(search_type="hybrid", description="RRF hybrid search")
+        mock_retriever_cls.route.return_value = mock_retriever
+        mock_retriever.apply.return_value = MagicMock()
+
+        mock_session.execute.return_value.mappings.return_value.all.return_value = [mock_result_row]
+
+        custom_col_data = {
+            "test-id-123": {
+                "subscription.status": "active",
+                "subscription.product.name": "IP Transit",
+                "subscription.customer_id": "cust-001",
+            }
+        }
+        mock_process_cols.return_value = custom_col_data
+
+        response = await _execute_search(query, mock_session, limit=10)
+
+        mock_build_cols.assert_called_once()
+        actual_cols = mock_build_cols.call_args[0][2]
+        assert actual_cols == custom_cols
+
+        result = response.results[0]
+        assert result.response_columns is not None
+        assert set(result.response_columns.keys()) == set(custom_cols)
+        assert "subscription.description" not in result.response_columns
+
+    @pytest.mark.asyncio
+    @patch("orchestrator.search.query.engine.build_response_columns_query")
+    @patch("orchestrator.search.query.engine.build_candidate_query")
+    @patch("orchestrator.search.query.engine.Retriever")
+    async def test_include_columns_false_returns_null_on_result(
+        self,
+        mock_retriever_cls,
+        _mock_build_candidate,
+        mock_build_cols,
+        mock_result_row,
+        simple_filter,
+    ):
+        """Scenario 3: include_columns=false → response_columns is null on SearchResult."""
+        from orchestrator.search.query.engine import _execute_search
+
+        query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=10, filters=simple_filter)
+        # Simulate what _perform_search_and_fetch does when include_columns=False
+        query = query.model_copy(update={"response_columns": []})
+
+        mock_session = MagicMock()
+        mock_retriever = MagicMock()
+        mock_retriever.metadata = SearchMetadata(search_type="hybrid", description="RRF hybrid search")
+        mock_retriever_cls.route.return_value = mock_retriever
+        mock_retriever.apply.return_value = MagicMock()
+
+        mock_session.execute.return_value.mappings.return_value.all.return_value = [mock_result_row]
+
+        response = await _execute_search(query, mock_session, limit=10)
+
+        mock_build_cols.assert_not_called()
+
+        result = response.results[0]
+        assert result.response_columns is None
