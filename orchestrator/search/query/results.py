@@ -57,6 +57,7 @@ class SearchResult(BaseModel):
     score: float
     perfect_match: int = 0
     matching_field: MatchingField | None = None
+    response_columns: dict[str, str | None] | None = None
 
 
 class SearchResponse(BaseModel):
@@ -229,6 +230,7 @@ def format_search_response(
     total_items: int | None,
     start_cursor: int | None,
     end_cursor: int | None,
+    column_data: dict[str, dict[str, str | None]] | None = None,
 ) -> SearchResponse:
     """Format database query results into a `SearchResponse`.
 
@@ -243,6 +245,7 @@ def format_search_response(
         total_items: total items of the query (only with structured search).
         start_cursor: start cursor of the db_rows (only with structured search).
         end_cursor: end cursor of the db_rows (only with structured search).
+        column_data: Optional mapping of entity_id to additional column data for the response.
 
     Returns:
         SearchResponse: A list of `SearchResult` objects containing entity IDs, scores,
@@ -281,14 +284,18 @@ def format_search_response(
         if not isinstance(entity_title, str):
             entity_title = str(entity_title) if entity_title is not None else ""
 
+        entity_id_str = str(row.entity_id)
+        columns = column_data.get(entity_id_str) if column_data else None
+
         results.append(
             SearchResult(
-                entity_id=str(row.entity_id),
+                entity_id=entity_id_str,
                 entity_type=query.entity_type,
                 entity_title=entity_title,
                 score=row.score,
                 perfect_match=row.get("perfect_match", 0),
                 matching_field=matching_field,
+                response_columns=columns,
             )
         )
     return SearchResponse(

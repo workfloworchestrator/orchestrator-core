@@ -58,6 +58,10 @@ class SearchMixin(BaseModel):
         default=None,
         description="Override retriever type (fuzzy/semantic/hybrid). If None, uses default routing logic.",
     )
+    response_columns: list[str] | None = Field(
+        default=None,
+        description="Field paths to return as inline columns on each search result (e.g. ['subscription.status', 'subscription.product.name']).",
+    )
 
     @property
     def vector_query(self) -> str | None:
