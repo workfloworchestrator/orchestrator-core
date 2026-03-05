@@ -57,7 +57,7 @@ dependencies = [
     "pydantic[email]~=2.12.4",
     "python-dateutil==2.9.0.post0",
     "python-rapidjson>=1.23,<1.24",
-    "pytz==2025.2",
+    "pytz==2026.1.post1",
     "redis==7.2.1",
     "semver==3.0.4",
     "sentry-sdk[fastapi]>=2.29.1",
