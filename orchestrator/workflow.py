@@ -564,10 +564,19 @@ def _noop_dblogstep(step_: Step, p: Process) -> Process:
     return p
 
 
-def _run_branch(branch: StepList, initial_state: State) -> Process:
-    """Execute a single parallel branch in its own database scope."""
+def _run_branch(branch: StepList, initial_state: State, state_seed: State | None = None) -> Process:
+    """Execute a single parallel branch in its own database scope.
+
+    Args:
+        branch: The step list to execute.
+        initial_state: The base state to deep-copy for this branch.
+        state_seed: Optional per-branch state overrides merged on top of the deep copy.
+            Used by ``foreach_parallel`` to inject per-item state into each branch.
+    """
     with db.database_scope():
         branch_state = deepcopy(initial_state)
+        if state_seed is not None:
+            branch_state.update(state_seed)
         process: Process = Success(branch_state)
         return _exec_steps(branch, process, _noop_dblogstep)
 
@@ -674,6 +683,104 @@ def parallel(
         ValueError: If any branch contains an inputstep
     """
     return _make_parallel_step(name, list(branches), retry_auth_callback=retry_auth_callback, max_workers=max_workers)
+
+
+def foreach_parallel(
+    name: str,
+    items_key: str,
+    branch: StepList,
+    max_workers: int | None = None,
+) -> Step:
+    """Execute one parallel branch per item in ``state[items_key]``.
+
+    At runtime the step reads ``state[items_key]`` and spawns one thread per item.
+    Each thread runs a deep copy of *branch* with the item merged into its initial state:
+
+    - **Dict items** are merged directly: ``initial_state | item``.
+      The item's keys become available as ordinary step arguments in that branch.
+    - **Non-dict items** are injected under ``{"item": <value>, "item_index": <int>}``.
+
+    Seed keys injected from each item are stripped from the branch's output before the
+    join so they cannot cause spurious key-conflict errors across branches.  Branches
+    should write their results to **distinct** output keys (e.g. use the item's natural
+    identifier in the key name).
+
+    Example::
+
+        @step("Fetch ports")
+        def fetch_ports():
+            return {"ports": [{"port_id": "p1", "vlan": 100},
+                               {"port_id": "p2", "vlan": 200}]}
+
+        @step("Provision port")
+        def provision_port(port_id, vlan):
+            result = call_provisioning_api(port_id, vlan)
+            return {f"port_{port_id}_result": result}
+
+        @workflow("Provision dual port", target=Target.CREATE)
+        def provision_dual():
+            return (
+                init
+                >> fetch_ports
+                >> foreach_parallel("Provision ports", "ports", begin >> provision_port)
+                >> link_ports
+                >> done
+            )
+
+    Args:
+        name: Name for the parallel group (shown in logs/UI).
+        items_key: Key in the workflow state whose value is the list to iterate over.
+        branch: StepList executed once per item, with the item merged into state.
+        max_workers: Max concurrent threads. Defaults to the number of items.
+
+    Returns:
+        A Step that can be composed with the ``>>`` operator.
+
+    Raises:
+        ValueError: If ``state[items_key]`` is not iterable at runtime.
+    """
+
+    def func(initial_state: State) -> Process:
+        raw = initial_state.get(items_key)
+        if raw is None:
+            raise ValueError(f"foreach_parallel: key '{items_key}' not found in state")
+        items = list(raw)
+
+        if not items:
+            return Success(initial_state)
+
+        # Build per-item seeds — dict items are used as-is; scalars get a wrapper.
+        seeds: list[State] = [
+            item if isinstance(item, dict) else {"item": item, "item_index": idx} for idx, item in enumerate(items)
+        ]
+
+        workers = max_workers if max_workers is not None else len(items)
+        branch_results: list[Process | None] = [None] * len(items)
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {executor.submit(_run_branch, branch, initial_state, seed): idx for idx, seed in enumerate(seeds)}
+            for future in as_completed(futures):
+                idx = futures[future]
+                try:
+                    branch_results[idx] = future.result()
+                except Exception as e:
+                    logger.error("foreach_parallel branch exception", branch_idx=idx, parallel_group=name)
+                    branch_results[idx] = Failed(error_state_to_dict(e))
+
+        results: list[Process] = [r for r in branch_results if r is not None]
+
+        # Strip per-branch seed keys from successful results so they don't trigger
+        # key-conflict errors in _join_results (seeds are input-only, not output).
+        def _strip(result: Process, seed: State) -> Process:
+            return result.map(lambda s: {k: v for k, v in s.items() if k not in seed})
+
+        clean_results = [_strip(result, seed) for result, seed in zip(results, seeds)]
+
+        parallel_start_time = nowtz().timestamp()
+        result = _join_results(initial_state, clean_results)
+        return result.map(lambda s: s | {"__replace_last_state": True, "__last_step_started_at": parallel_start_time})
+
+    return make_step_function(func, name)
 
 
 def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:

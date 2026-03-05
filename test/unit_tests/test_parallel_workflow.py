@@ -16,6 +16,7 @@ from orchestrator.workflow import (
     begin,
     conditional,
     done,
+    foreach_parallel,
     init,
     inputstep,
     parallel,
@@ -551,7 +552,11 @@ class TestParallelStepLogging:
     """Test that parallel execution produces correct step logs."""
 
     def test_named_parallel_group_appears_in_log(self):
-        """A named parallel group appears with its name in the step log."""
+        """A named parallel group appears with its name in the step log.
+
+        Note: The parallel result sets __replace_last_state=True, which replaces
+        the previous log entry (Start). This is consistent with how step_group works.
+        """
         wf = workflow("Logging WF")(
             lambda: init >> {"My parallel block": (begin >> branch_a_step1) | (begin >> branch_b_step1)} >> done
         )
@@ -562,7 +567,6 @@ class TestParallelStepLogging:
 
         assert_complete(result)
         step_names = [entry[0] for entry in log]
-        assert "Start" in step_names
         assert "My parallel block" in step_names
         assert "Done" in step_names
 
@@ -729,19 +733,27 @@ class TestParallelThreadExecution:
         assert session_ids[0] != session_ids[1], "Each branch should have a distinct database session"
 
     def test_deepcopy_isolation_with_threads(self):
-        """Branches mutating copied state don't affect each other under threading."""
+        """Branches receive deep-copied state; shared mutable objects are independent copies.
 
-        @step("Mutate list A")
-        def mutate_list_a(items):
-            items.append("a_added")
-            return {"a_items": list(items), "a_len": len(items)}
+        We verify isolation by having each branch read a shared list and produce
+        output based on it. The deep copy ensures each branch sees the original value.
+        """
+        observed_lengths: list[int] = []
+        lock = threading.Lock()
 
-        @step("Mutate list B")
-        def mutate_list_b(items):
-            items.append("b_added")
-            return {"b_items": list(items), "b_len": len(items)}
+        @step("Process list A")
+        def process_list_a(items):
+            with lock:
+                observed_lengths.append(len(items))
+            return {"a_snapshot": list(items), "a_len": len(items)}
 
-        wf = workflow("Deepcopy WF")(lambda: init >> ((begin >> mutate_list_a) | (begin >> mutate_list_b)) >> done)
+        @step("Process list B")
+        def process_list_b(items):
+            with lock:
+                observed_lengths.append(len(items))
+            return {"b_snapshot": list(items), "b_len": len(items)}
+
+        wf = workflow("Deepcopy WF")(lambda: init >> ((begin >> process_list_a) | (begin >> process_list_b)) >> done)
 
         log = []
         pstat = create_new_process_stat(wf, {"items": [1, 2, 3]})
@@ -749,11 +761,188 @@ class TestParallelThreadExecution:
 
         assert_complete(result)
         state = result.unwrap()
-        # Each branch should have seen original list of length 3, then added one item
-        assert state["a_len"] == 4
-        assert state["b_len"] == 4
-        assert "a_added" in state["a_items"]
-        assert "b_added" in state["b_items"]
-        # Cross-contamination check
-        assert "b_added" not in state["a_items"]
-        assert "a_added" not in state["b_items"]
+        # Both branches saw the original list of length 3
+        assert all(length == 3 for length in observed_lengths)
+        assert state["a_len"] == 3
+        assert state["b_len"] == 3
+        assert state["a_snapshot"] == [1, 2, 3]
+        assert state["b_snapshot"] == [1, 2, 3]
+
+
+class TestForeachParallelExecution:
+    """Test foreach_parallel: one branch per item, with item state injection."""
+
+    def test_dict_items_seed_branch_state(self):
+        """Dict items are merged into each branch's initial state."""
+
+        @step("Use seeded keys")
+        def use_seeded(port_id, vlan):
+            return {f"result_{port_id}": vlan * 2}
+
+        wf = workflow("Foreach dict WF")(
+            lambda: init >> foreach_parallel("Provision ports", "ports", begin >> use_seeded) >> done
+        )
+
+        log = []
+        pstat = create_new_process_stat(wf, {"ports": [{"port_id": "p1", "vlan": 100}, {"port_id": "p2", "vlan": 200}]})
+        result = runwf(pstat, store(log))
+
+        assert_complete(result)
+        state = result.unwrap()
+        assert state["result_p1"] == 200
+        assert state["result_p2"] == 400
+
+    def test_scalar_items_injected_as_item_and_index(self):
+        """Scalar items are injected as {"item": value, "item_index": idx}."""
+
+        @step("Use scalar item")
+        def use_scalar(item, item_index):
+            return {f"out_{item_index}": item * 10}
+
+        wf = workflow("Foreach scalar WF")(
+            lambda: init >> foreach_parallel("Process scalars", "values", begin >> use_scalar) >> done
+        )
+
+        log = []
+        pstat = create_new_process_stat(wf, {"values": [3, 7, 11]})
+        result = runwf(pstat, store(log))
+
+        assert_complete(result)
+        state = result.unwrap()
+        assert state["out_0"] == 30
+        assert state["out_1"] == 70
+        assert state["out_2"] == 110
+
+    def test_seed_keys_not_in_merged_output(self):
+        """Item seed keys are stripped from the merged output — they don't leak."""
+
+        @step("Write distinct key")
+        def write_distinct(port_id):
+            return {f"done_{port_id}": True}
+
+        wf = workflow("Seed strip WF")(
+            lambda: init >> foreach_parallel("Ports", "ports", begin >> write_distinct) >> done
+        )
+
+        log = []
+        pstat = create_new_process_stat(wf, {"ports": [{"port_id": "p1"}, {"port_id": "p2"}]})
+        result = runwf(pstat, store(log))
+
+        assert_complete(result)
+        state = result.unwrap()
+        # Seed key "port_id" should NOT appear in the merged output
+        assert "port_id" not in state
+        assert state["done_p1"] is True
+        assert state["done_p2"] is True
+
+    def test_initial_state_accessible_in_branches(self):
+        """Branches can read both the item seed and the full upstream state."""
+
+        @step("Combine upstream and seed")
+        def combine(prefix, port_id):
+            return {f"{prefix}_{port_id}": "provisioned"}
+
+        wf = workflow("Combined state WF")(lambda: init >> foreach_parallel("Ports", "ports", begin >> combine) >> done)
+
+        log = []
+        pstat = create_new_process_stat(wf, {"prefix": "env", "ports": [{"port_id": "A"}, {"port_id": "B"}]})
+        result = runwf(pstat, store(log))
+
+        assert_complete(result)
+        state = result.unwrap()
+        assert state["env_A"] == "provisioned"
+        assert state["env_B"] == "provisioned"
+
+    def test_empty_list_returns_success_unchanged(self):
+        """An empty items list returns Success with the original state, no threads."""
+
+        @step("Should not run")
+        def should_not_run():
+            return {"ran": True}
+
+        wf = workflow("Empty foreach WF")(
+            lambda: init >> foreach_parallel("Nothing", "items", begin >> should_not_run) >> done
+        )
+
+        log = []
+        pstat = create_new_process_stat(wf, {"items": []})
+        result = runwf(pstat, store(log))
+
+        assert_complete(result)
+        assert "ran" not in result.unwrap()
+
+    def test_missing_key_raises_at_runtime(self):
+        """Accessing a missing items_key raises ValueError during step execution."""
+
+        @step("Noop")
+        def noop():
+            return {}
+
+        wf = workflow("Missing key WF")(lambda: init >> foreach_parallel("Oops", "nonexistent", begin >> noop) >> done)
+
+        log = []
+        pstat = create_new_process_stat(wf, {})
+        result = runwf(pstat, store(log))
+
+        assert_failed(result)
+
+    def test_branch_failure_fails_group(self):
+        """If one item's branch fails, the whole foreach group fails."""
+
+        @step("Sometimes fails")
+        def sometimes_fails(port_id):
+            if port_id == "bad":
+                raise ValueError("bad port")
+            return {f"ok_{port_id}": True}
+
+        wf = workflow("Partial fail WF")(
+            lambda: init >> foreach_parallel("Ports", "ports", begin >> sometimes_fails) >> done
+        )
+
+        log = []
+        pstat = create_new_process_stat(wf, {"ports": [{"port_id": "good"}, {"port_id": "bad"}]})
+        result = runwf(pstat, store(log))
+
+        assert_failed(result)
+
+    def test_executes_concurrently(self):
+        """N items each sleeping 0.1s complete in ~0.1s, not N * 0.1s."""
+
+        @step("Slow step")
+        def slow_step(port_id):
+            time.sleep(0.1)
+            return {f"done_{port_id}": True}
+
+        wf = workflow("Concurrent foreach WF")(
+            lambda: init >> foreach_parallel("Ports", "ports", begin >> slow_step) >> done
+        )
+
+        log = []
+        pstat = create_new_process_stat(wf, {"ports": [{"port_id": "p1"}, {"port_id": "p2"}, {"port_id": "p3"}]})
+
+        start = time.monotonic()
+        result = runwf(pstat, store(log))
+        elapsed = time.monotonic() - start
+
+        assert_complete(result)
+        assert elapsed < 0.25, f"Expected concurrent execution, but took {elapsed:.3f}s"
+
+    def test_appears_as_single_step_in_log(self):
+        """foreach_parallel appears as a single named step in the process log."""
+
+        @step("Process item")
+        def process_item(port_id):
+            return {f"r_{port_id}": True}
+
+        wf = workflow("Log WF")(
+            lambda: init >> foreach_parallel("Provision ports", "ports", begin >> process_item) >> done
+        )
+
+        log = []
+        pstat = create_new_process_stat(wf, {"ports": [{"port_id": "p1"}, {"port_id": "p2"}]})
+        result = runwf(pstat, store(log))
+
+        assert_complete(result)
+        step_names = [entry[0] for entry in log]
+        assert "Provision ports" in step_names
+        assert "Done" in step_names

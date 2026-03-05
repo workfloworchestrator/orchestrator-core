@@ -127,11 +127,11 @@ For a practical example of how to define reusable workflow steps—and how to le
 
 ### Parallel Steps
 
-The workflow engine supports executing independent branches in parallel using the `|` operator or the `parallel()` function. Parallel execution is implemented as a fork/join pattern: the engine forks the state into isolated copies for each branch, executes them, and joins the results back into a single state.
+The workflow engine supports two kinds of parallel execution, both implemented as a fork/join pattern: the engine forks the state into isolated copies for each branch, executes them concurrently using a `ThreadPoolExecutor`, and joins the results back into a single state.
 
-#### Syntax
+#### Static parallel — fixed branches
 
-There are three ways to express parallel execution:
+Use when the set of branches is known at definition time (e.g., always provision port A and port B together).
 
 **Pipe operator (unnamed)**:
 ```python
@@ -166,14 +166,51 @@ def create_dual_port():
     return init >> par >> link_ports >> done
 ```
 
-#### Behavior
+#### Dynamic parallel — one branch per item
+
+Use when the number of branches depends on a runtime list in the workflow state (e.g., provision one port per item in `state["ports"]`).
+
+```python
+from orchestrator.workflow import foreach_parallel
+
+@step("Fetch ports")
+def fetch_ports():
+    return {"ports": [{"port_id": "p1", "vlan": 100},
+                      {"port_id": "p2", "vlan": 200}]}
+
+@step("Provision port")
+def provision_port(port_id, vlan):          # injected from each item
+    result = call_provisioning_api(port_id, vlan)
+    return {f"port_{port_id}_result": result}  # distinct key per item
+
+@workflow("Provision N ports", target=Target.CREATE)
+def provision_n_ports():
+    return (
+        init
+        >> fetch_ports
+        >> foreach_parallel("Provision ports", "ports", begin >> provision_port)
+        >> link_ports
+        >> done
+    )
+```
+
+Each item in the list becomes the seed state for one branch:
+
+- **Dict items** are merged directly into the branch's initial state: `initial_state | {"port_id": "p1", "vlan": 100}`.
+- **Scalar items** are injected as `{"item": <value>, "item_index": <int>}`.
+
+Seed keys are stripped from the branch output before the join — they are input-only and cannot cause key-conflict errors.
+
+#### Behavior (both kinds)
 
 - **State isolation**: Each branch receives a deep copy of the input state. Mutations in one branch do not affect other branches.
-- **State merging**: After all branches complete, their output states are merged. Each branch must write to **distinct** state keys — writing to the same key from multiple branches raises a `ValueError`.
-- **Error propagation**: If any branch fails, the entire parallel group fails. Status priority is: Failed > Waiting > Suspend > AwaitingCallback > Success.
-- **No inputsteps**: Parallel branches must not contain `inputstep` steps. This is validated at workflow definition time.
+- **True parallel execution**: Branches execute concurrently using a `ThreadPoolExecutor`. Each branch runs in its own thread with an isolated database session (via `db.database_scope()`). Individual branch sub-steps are not logged to the DB — only the final merged result is persisted by the parent thread.
+- **State merging**: After all branches complete, their output states are merged. Each branch must write to **distinct** output keys — writing to the same key from multiple branches raises a `ValueError`.
+- **Error propagation**: If any branch fails, the entire parallel group fails. All branches run to completion before results are joined. Status priority is: Failed > Waiting > Suspend > AwaitingCallback > Success.
+- **No inputsteps**: Parallel branches must not contain `inputstep` steps. This is validated at definition time for static parallel; raised at runtime for `foreach_parallel`.
 - **Logging**: The parallel group appears as a single step in the process log (similar to `step_group`). Named groups use the provided name; unnamed groups get an auto-generated name from the branch step names.
 - **Three or more branches**: The `|` operator chains naturally: `a | b | c` creates three parallel branches.
+- **Empty list** (`foreach_parallel`): An empty `items_key` list returns `Success` with the unchanged state — no threads are created.
 
 
 ### Execution parameters

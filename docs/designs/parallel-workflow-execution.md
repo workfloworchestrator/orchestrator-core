@@ -4,17 +4,26 @@
 
 All workflow steps currently execute sequentially via `_exec_steps()` which iterates a flat `StepList`. There is no way to express that certain steps are independent and could execute concurrently. This limits throughput for workflows that perform multiple independent external calls (e.g., provisioning two ports simultaneously).
 
+Two patterns are needed:
+
+1. **Static parallel** — a fixed set of independent branches known at definition time (e.g., always provision port A and port B together).
+2. **Dynamic parallel** — a variable number of branches driven by a runtime iterable (e.g., provision one port per item in `state["ports"]`).
+
 ## 2. Goals
 
 - Enable parallel execution of independent steps within a workflow
-- Extend the workflow DSL with fork/join semantics
+- Extend the workflow DSL with fork/join semantics for both static and dynamic branching
 - Remain **fully backwards compatible** — existing workflows, APIs, and database schema unchanged
 - Handle errors, retries, and suspension in parallel branches
 - Ensure the engine waits for all branches to complete before continuing sequentially
 
 ## 3. Design Overview
 
-### 3.1 New DSL Syntax: `|` Operator and Dict Naming
+### 3.1 New DSL Syntax
+
+Two complementary primitives cover both patterns.
+
+#### 3.1.1 Static parallel: `|` Operator, Dict Naming, and `parallel()`
 
 Parallel execution is expressed using the `|` (pipe) operator between `StepList` branches, with an optional name via dict syntax. It is implemented as a special `step_group` variant — from the outside it looks like a single step.
 
@@ -93,7 +102,7 @@ def create_dual_port():
     )
 ```
 
-**Key properties:**
+**Key properties (static parallel):**
 - The `|` operator on `StepList` creates a `ParallelStepList` — a container of branches
 - `StepList.__rshift__` recognizes both `ParallelStepList` and `dict[str, ParallelStepList]`
 - `parallel()` function remains available for advanced options
@@ -101,14 +110,60 @@ def create_dual_port():
 - Branch results are **merged** into a single state at the join point
 - Existing workflows that don't use `|` or `parallel()` are completely unaffected
 
+#### 3.1.2 Dynamic parallel: `foreach_parallel()`
+
+`foreach_parallel` runs the **same branch template** once per item in a runtime list, with each item's data injected as the branch's seed state. The number of branches is not known until the workflow executes.
+
+```python
+from orchestrator.workflow import foreach_parallel
+
+@step("Fetch ports")
+def fetch_ports():
+    # produces a list at runtime
+    return {"ports": [
+        {"port_id": "p1", "vlan": 100},
+        {"port_id": "p2", "vlan": 200},
+    ]}
+
+@step("Provision port")
+def provision_port(port_id, vlan):          # injected from each item
+    result = call_provisioning_api(port_id, vlan)
+    return {f"port_{port_id}_result": result}  # distinct key per item
+
+@step("Link ports")
+def link_ports(port_p1_result, port_p2_result):
+    return {"link_id": create_link(port_p1_result, port_p2_result)}
+
+@workflow("Provision N ports", target=Target.CREATE)
+def provision_n_ports():
+    return (
+        init
+        >> fetch_ports
+        >> foreach_parallel("Provision ports", "ports", begin >> provision_port)
+        >> link_ports
+        >> done
+    )
+```
+
+**Key properties (dynamic parallel):**
+- The branch template (`StepList`) is defined at workflow definition time
+- The number of branches and their seed states come from `state[items_key]` at runtime
+- **Dict items**: each item dict is merged into the branch's initial state (`initial_state | item`)
+- **Scalar items**: injected as `{"item": <value>, "item_index": <int>}`
+- **Seed keys are stripped from output** before the join — they are input-only and cannot cause key-conflict errors
+- Branches must still write to **distinct output keys**; use the item's natural identifier in the key name
+- An empty list returns `Success` with unchanged state (no threads spawned)
+
 ### 3.2 Visual Representation
+
+**Static parallel** (`parallel()` / `|` operator) — fixed branches, defined at definition time:
 
 ```
     ┌──────────────────────┐
     │   sequential steps   │
     └──────────┬───────────┘
                │
-         ┌─────┴─────┐          FORK
+         ┌─────┴─────┐          FORK (static — 2 branches)
          │           │
     ┌────▼────┐ ┌────▼────┐
     │branch 0 │ │branch 1 │     PARALLEL
@@ -117,6 +172,28 @@ def create_dual_port():
     └────┬────┘ └────┬────┘
          │           │
          └─────┬─────┘          JOIN (barrier)
+               │
+    ┌──────────▼───────────┐
+    │   sequential steps   │
+    └──────────────────────┘
+```
+
+**Dynamic parallel** (`foreach_parallel()`) — N branches from a runtime list:
+
+```
+    ┌──────────────────────┐
+    │   sequential steps   │
+    │  (produces items=[…])│
+    └──────────┬───────────┘
+               │  items = [item_0, item_1, …, item_N-1]
+      ┌────────┼────────┐       FORK (dynamic — N branches)
+      │        │        │
+ ┌────▼──┐ ┌───▼──┐ ┌───▼──┐
+ │item_0 │ │item_1│ │item_N│   PARALLEL (same branch template)
+ │ seed  │ │ seed │ │ seed │   each seeded with its item
+ └────┬──┘ └───┬──┘ └───┬──┘
+      │        │        │
+      └────────┼────────┘       JOIN (strip seeds, merge output keys)
                │
     ┌──────────▼───────────┐
     │   sequential steps   │
@@ -144,6 +221,13 @@ The parallel group itself is logged as a single step in `ProcessStepTable`, exac
 #### Fork (input to branches)
 Each branch receives a **deep copy** of the state at the fork point. This prevents race conditions between branches modifying shared state.
 
+For `foreach_parallel`, the deep copy is further enriched with the item's seed data before the branch runs:
+
+```python
+branch_state = deepcopy(initial_state)
+branch_state.update(seed)   # seed = item dict, or {"item": value, "item_index": idx}
+```
+
 #### Join (merging branch results)
 Branch results are merged left-to-right (branch 0 first, then branch 1, etc.):
 
@@ -153,7 +237,16 @@ for branch_result in branch_results:
     merged_state.update(branch_result.unwrap())
 ```
 
-**Conflict resolution:** Later branches overwrite earlier branches for the same key. This is by design — users must ensure branches write to distinct keys. A warning is logged if key conflicts are detected.
+**Conflict resolution:** Branches must write to **distinct output keys**. Writing to the same key from multiple branches raises a `ValueError`.
+
+**`foreach_parallel` seed stripping:** Before the join, seed keys (the keys that were injected per-item) are stripped from each branch's result state. This prevents spurious key-conflict errors when all items share the same structure (e.g., every item has a `port_id` key). Seed keys are **input-only** — branches should produce their output under new, distinct keys.
+
+```python
+# Strip seed keys before join so they don't cause conflicts
+clean_result = branch_result.map(
+    lambda s: {k: v for k, v in s.items() if k not in seed}
+)
+```
 
 #### Reserved parallel metadata keys in state
 ```python
@@ -540,7 +633,68 @@ def _make_parallel_step(
     return make_step_function(func, name, retry_auth_callback=retry_auth_callback)
 ```
 
-### 4.7 Database Impact
+### 4.7 `foreach_parallel` — Internal Design
+
+`foreach_parallel` is built on the same threading infrastructure as `parallel`, with two additions: per-branch state seeding via `_run_branch(state_seed=...)` and seed-key stripping before the join.
+
+#### Signature
+
+```python
+def foreach_parallel(
+    name: str,
+    items_key: str,
+    branch: StepList,
+    max_workers: int | None = None,
+) -> Step:
+```
+
+#### Execution flow
+
+```
+foreach_parallel("Provision ports", "ports", begin >> provision_port)
+│
+├─ At runtime reads state["ports"] = [item_0, item_1, …, item_N-1]
+│
+├─ For each item, submits _run_branch(branch, initial_state, seed=item) to ThreadPoolExecutor
+│   ├─ _run_branch deepcopies initial_state, merges seed on top, calls _exec_steps
+│   └─ each thread has its own db.database_scope() session
+│
+├─ Collects results via as_completed(); wraps exceptions in Failed
+│
+├─ Strips seed keys from each Success result
+│   └─ result.map(lambda s: {k: v for k, v in s.items() if k not in seed})
+│
+└─ Calls _join_results(initial_state, clean_results) → merged state
+```
+
+#### State seeding rules
+
+| Item type | Keys injected into branch state |
+|---|---|
+| `dict` | All keys in the dict: `{"port_id": "p1", "vlan": 100}` → branch sees `port_id` and `vlan` |
+| Non-dict (scalar, etc.) | `{"item": <value>, "item_index": <int>}` |
+
+#### Output key contract
+
+Since all branches run the **same step template**, they must write results to **distinct keys**. The recommended pattern is to include the item's natural identifier in the output key:
+
+```python
+@step("Provision port")
+def provision_port(port_id, vlan):
+    result = call_api(port_id, vlan)
+    return {f"port_{port_id}_result": result}   # ✅ distinct per item
+
+@step("Provision port")
+def provision_port_bad(port_id, vlan):
+    result = call_api(port_id, vlan)
+    return {"port_result": result}               # ❌ same key for every item → conflict
+```
+
+#### Empty list behaviour
+
+If `state[items_key]` is an empty list, `foreach_parallel` immediately returns `Success(initial_state)` — no threads are created, and the step is effectively a no-op.
+
+### 4.8 Database Impact
 
 **No schema changes required.** The parallel group uses the existing `ProcessStepTable` structure:
 
@@ -751,10 +905,18 @@ class ParallelJoinTable(BaseModel):
 - Existing `ExecutorType.THREADPOOL` and `ExecutorType.WORKER` modes remain unchanged
 - Phase 3 threading continues to work as the default for parallel blocks
 
+### Phase 3b: Dynamic parallel — `foreach_parallel` (done)
+
+8. **Add `foreach_parallel` function**
+   - Reads `state[items_key]` at runtime to determine branch count
+   - Seeds each branch state with its item (`dict` → direct merge; scalar → `{item, item_index}`)
+   - Reuses `_run_branch(state_seed=...)` infrastructure from Phase 3
+   - Strips seed keys from branch outputs before join to prevent spurious conflicts
+
 ### Phase 5: Documentation and examples
 
-8. **Add example workflows**
-9. **Update workflow documentation**
+9. **Add example workflows**
+10. **Update workflow documentation** (done)
 
 ## 6. Test Design
 
@@ -1360,6 +1522,8 @@ class TestParallelStepLogging:
 
 ### 6.2 Test Categories
 
+**Static parallel (`parallel()` / `|` operator):**
+
 | Category | What it validates |
 |----------|------------------|
 | Pipe operator syntax | `\|` creates `ParallelStepList`, chaining, operator precedence |
@@ -1372,6 +1536,21 @@ class TestParallelStepLogging:
 | Composition | With step_group, multiple parallel blocks, `parallel()` function |
 | Input state | Branches see correct upstream state |
 | Step logging | Named vs auto-named parallel groups in log |
+| Threading | Concurrent execution timing, per-thread DB session, exception isolation |
+
+**Dynamic parallel (`foreach_parallel`):**
+
+| Category | What it validates |
+|----------|------------------|
+| Dict item seeding | Dict items merged into branch state; step args injected correctly |
+| Scalar item seeding | Scalars injected as `{item, item_index}` |
+| Seed key stripping | Seed keys absent from merged output; no spurious conflicts |
+| Upstream state access | Branches see both seed keys and original upstream state |
+| Empty list | Returns `Success` unchanged, no threads |
+| Missing key | Raises at runtime, result is `Failed` |
+| Branch failure | One failing item fails the whole group |
+| Concurrent execution | N items with sleep complete in ~1× sleep time |
+| Step logging | Appears as a single named step in the process log |
 
 ### 6.3 Integration Tests
 
@@ -1394,9 +1573,11 @@ Integration tests should cover:
 | `ProcessTable` schema | None | No new columns |
 | `ProcessStepTable` schema | None | No new columns |
 | `_exec_steps()` | None | Not modified |
+| `_run_branch()` | Additive | New optional `state_seed` parameter; default is `None` (existing behaviour) |
 | `runwf()` | None | Not modified |
 | `step()` / `retrystep()` / `inputstep()` | None | Not modified |
 | `step_group()` | None | Not modified |
+| `foreach_parallel()` | New | New public function; no existing code affected |
 | REST API | None | No new endpoints |
 | GraphQL API | None | No schema changes |
 | Existing workflows | None | No changes needed |
@@ -1404,7 +1585,8 @@ Integration tests should cover:
 ## 8. Future Enhancements
 
 1. ~~**True threading**: Replace sequential branch execution with `ThreadPoolExecutor`~~ (Done — Phase 3)
-2. **Nested parallelism**: Support `parallel()` inside `parallel()`
+2. ~~**Dynamic parallel**: `foreach_parallel` for runtime-driven branch count~~ (Done — Phase 3b)
+3. **Nested parallelism**: Support `parallel()` inside `parallel()`
 3. **Partial retry**: Only re-execute failed branches on resume
 4. **Branch-level timeout**: Per-branch timeout with cancellation
 5. **Dynamic branching**: Generate branches from state (e.g., one branch per subscription)
