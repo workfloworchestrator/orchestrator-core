@@ -15,6 +15,7 @@ import pytest
 
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.query.default_columns import DEFAULT_RESPONSE_COLUMNS
+from orchestrator.search.query.engine import execute_search
 from orchestrator.search.query.queries import SelectQuery
 
 from .conftest import SIMPLE_SUBSCRIPTION_FILTER, make_column_row, make_search_row
@@ -76,7 +77,6 @@ class TestResponseColumns:
     @pytest.mark.asyncio
     async def test_no_response_columns_returns_defaults(self, mock_db_session):
         """Scenario 1: No response_columns → default columns appear on SearchResult."""
-        from orchestrator.search.query.engine import _execute_search
 
         search_row = make_search_row("id-1", "my-service")
         default_cols = DEFAULT_RESPONSE_COLUMNS[EntityType.SUBSCRIPTION]
@@ -88,7 +88,7 @@ class TestResponseColumns:
 
         query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=10, filters=SIMPLE_SUBSCRIPTION_FILTER)
 
-        response = await _execute_search(query, mock_db_session, limit=10)
+        response = await execute_search(query, mock_db_session)
 
         result = response.results[0]
         assert result.response_columns is not None
@@ -99,7 +99,6 @@ class TestResponseColumns:
     @pytest.mark.asyncio
     async def test_custom_response_columns_returns_only_requested(self, mock_db_session):
         """Scenario 2: Custom response_columns → only those columns on SearchResult."""
-        from orchestrator.search.query.engine import _execute_search
 
         custom_cols = ["subscription.status", "subscription.product.name"]
         col_values = {"subscription.status": "active", "subscription.product.name": "IP Transit"}
@@ -117,7 +116,7 @@ class TestResponseColumns:
             response_columns=custom_cols,
         )
 
-        response = await _execute_search(query, mock_db_session, limit=10)
+        response = await execute_search(query, mock_db_session)
 
         result = response.results[0]
         assert result.response_columns is not None
@@ -129,7 +128,6 @@ class TestResponseColumns:
     @pytest.mark.asyncio
     async def test_empty_response_columns_returns_null(self, mock_db_session):
         """Scenario 3: Empty response_columns (include_columns=false) → null on SearchResult."""
-        from orchestrator.search.query.engine import _execute_search
 
         search_row = make_search_row("id-1", "my-service")
         mock_db_session.execute.return_value.mappings.return_value.all.return_value = [search_row]
@@ -138,7 +136,7 @@ class TestResponseColumns:
             entity_type=EntityType.SUBSCRIPTION, limit=10, filters=SIMPLE_SUBSCRIPTION_FILTER, response_columns=[]
         )
 
-        response = await _execute_search(query, mock_db_session, limit=10)
+        response = await execute_search(query, mock_db_session)
 
         result = response.results[0]
         assert result.response_columns is None
