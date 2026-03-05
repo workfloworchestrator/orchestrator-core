@@ -19,6 +19,8 @@ import functools
 import inspect
 import secrets
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from itertools import dropwhile
 from typing import (
@@ -189,12 +191,33 @@ class StepList(list[Step]):
             retval = type(self)(retval)
         return retval
 
-    def __rshift__(self, other: StepList | Step) -> StepList:
+    def __rshift__(self, other: StepList | Step | ParallelStepList | dict) -> StepList:
         if isinstance(other, Step):
             return StepList([*self, other])
 
         if isinstance(other, StepList):
             return StepList([*self, *other])
+
+        # Unnamed parallel: ... >> ((begin >> a) | (begin >> b)) >> ...
+        if isinstance(other, ParallelStepList):
+            name = other.name or _auto_parallel_name(other)
+            par_step = _make_parallel_step(name, other.branches)
+            return StepList([*self, par_step])
+
+        # Named parallel via dict: ... >> {"Name": (begin >> a) | (begin >> b)} >> ...
+        if isinstance(other, dict):
+            if len(other) != 1:
+                raise ValueError("Parallel dict must have exactly one key (the name)")
+            name, value = next(iter(other.items()))
+            if not isinstance(name, str):
+                raise ValueError(f"Parallel dict key must be a string, got {type(name)}")
+            if isinstance(value, ParallelStepList):
+                par_step = _make_parallel_step(name, value.branches)
+                return StepList([*self, par_step])
+            if isinstance(value, list) and all(isinstance(v, StepList) for v in value):
+                par_step = _make_parallel_step(name, value)
+                return StepList([*self, par_step])
+            raise ValueError(f"Parallel dict value must be ParallelStepList or list[StepList], got {type(value)}")
 
         if hasattr(other, "__name__"):  # type:ignore
             raise ValueError(
@@ -205,8 +228,38 @@ class StepList(list[Step]):
     def __str__(self) -> str:
         return f"StepList [{', '.join(x.name for x in self)}]"
 
+    def __or__(self, other: StepList | ParallelStepList) -> ParallelStepList:
+        if isinstance(other, ParallelStepList):
+            return ParallelStepList([self, *other.branches])
+        if isinstance(other, StepList):
+            return ParallelStepList([self, other])
+        raise ValueError(f"Cannot use | with {type(other)}")
+
     def __repr__(self) -> str:
         return f"StepList [{', '.join(repr(x) for x in self)}]"
+
+
+class ParallelStepList:
+    """Container for parallel branches, created by the | operator on StepList."""
+
+    def __init__(self, branches: list[StepList], name: str | None = None) -> None:
+        if len(branches) < 2:
+            raise ValueError("ParallelStepList requires at least 2 branches")
+        self.branches = branches
+        self.name = name
+
+    def __or__(self, other: StepList | ParallelStepList) -> ParallelStepList:
+        if isinstance(other, ParallelStepList):
+            return ParallelStepList([*self.branches, *other.branches], self.name)
+        if isinstance(other, StepList):
+            return ParallelStepList([*self.branches, other], self.name)
+        raise ValueError(f"Cannot use | with {type(other)}")
+
+    def __repr__(self) -> str:
+        branch_strs = ", ".join(str(b) for b in self.branches)
+        if self.name:
+            return f"ParallelStepList '{self.name}' [{branch_strs}]"
+        return f"ParallelStepList [{branch_strs}]"
 
 
 def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputFormGenerator:
@@ -443,6 +496,291 @@ def step_group(
     # Make sure we return a form is a sub step has a form
     form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
     return make_step_function(func, name, form, retry_auth_callback=retry_auth_callback)
+
+
+def _auto_parallel_name(par: ParallelStepList) -> str:
+    """Generate an auto name from branch step names."""
+    branch_names = []
+    for branch in par.branches:
+        names = [s.name for s in branch]
+        branch_names.append(" + ".join(names) if names else "empty")
+    return f"Parallel({', '.join(branch_names)})"
+
+
+_STATUS_PRIORITY: list[str] = ["isfailed", "iswaiting", "issuspend", "isawaitingcallback"]
+
+
+def _worst_status(branch_results: list[Process], fallback: Process) -> Process | None:
+    """Return the branch with the worst non-success status, or None if all succeeded."""
+    for check in _STATUS_PRIORITY:
+        for result in branch_results:
+            if getattr(result, check)():
+                return result
+    return None
+
+
+def _join_results(initial_state: State, branch_results: list[Process]) -> Process:
+    """Merge branch results with priority: Failed > Waiting > Suspend > AwaitingCallback > Success.
+
+    On key conflict: raise ValueError with descriptive message listing conflicting keys.
+    """
+    worst = _worst_status(branch_results, Success(initial_state))
+    if worst is not None:
+        return worst
+
+    # Merge states from all successful branches
+    merged_state = dict(initial_state)
+    keys_written: dict[str, int] = {}  # key -> branch index that first wrote it
+
+    for branch_idx, result in enumerate(branch_results):
+        branch_state = result.unwrap()
+        conflicts = [
+            key
+            for key in branch_state
+            if not key.startswith("__")
+            and key in keys_written
+            and keys_written[key] != branch_idx
+            and branch_state[key] != initial_state.get(key)
+        ]
+        if conflicts:
+            raise ValueError(
+                f"Parallel branch key conflict: branches wrote to the same keys {conflicts}. "
+                f"Each branch must write to distinct state keys."
+            )
+        for key in branch_state:
+            if not key.startswith("__") and branch_state[key] != initial_state.get(key):
+                keys_written[key] = branch_idx
+        merged_state.update(branch_state)
+
+    return Success(merged_state)
+
+
+def _noop_dblogstep(step_: Step, p: Process) -> Process:
+    """No-op step logger for parallel branch threads.
+
+    During parallel execution, individual branch sub-steps are not written to the DB.
+    Only the final merged result is persisted by the parent thread after all branches complete.
+    """
+    return p
+
+
+def _run_branch(branch: StepList, initial_state: State, state_seed: State | None = None) -> Process:
+    """Execute a single parallel branch in its own database scope.
+
+    Args:
+        branch: The step list to execute.
+        initial_state: The base state to deep-copy for this branch.
+        state_seed: Optional per-branch state overrides merged on top of the deep copy.
+            Used by ``foreach_parallel`` to inject per-item state into each branch.
+    """
+    with db.database_scope():
+        branch_state = deepcopy(initial_state)
+        if state_seed is not None:
+            branch_state.update(state_seed)
+        process: Process = Success(branch_state)
+        return _exec_steps(branch, process, _noop_dblogstep)
+
+
+def _exec_parallel_branches(
+    branches: list[StepList],
+    initial_state: State,
+    dblogstep: StepLogFuncInternal,
+    name: str,
+    max_workers: int | None = None,
+) -> Process:
+    """Execute branches in parallel using ThreadPoolExecutor, each with an isolated state copy.
+
+    Each branch runs in its own thread with its own database session scope.
+    Individual branch sub-steps are NOT logged to the DB during execution.
+    Only the final merged result is persisted after all branches complete.
+    """
+    workers = max_workers if max_workers is not None else len(branches)
+    branch_results: list[Process | None] = [None] * len(branches)
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_run_branch, branch, initial_state): idx for idx, branch in enumerate(branches)}
+        for future in as_completed(futures):
+            idx = futures[future]
+            try:
+                branch_results[idx] = future.result()
+            except Exception as e:
+                logger.error("Parallel branch exception", branch_idx=idx, parallel_group=name)
+                branch_results[idx] = Failed(error_state_to_dict(e))
+
+    results: list[Process] = [r for r in branch_results if r is not None]
+
+    parallel_start_time = nowtz().timestamp()
+    result = _join_results(initial_state, results)
+    return result.map(lambda s: s | {"__replace_last_state": True, "__last_step_started_at": parallel_start_time})
+
+
+def _make_parallel_step(
+    name: str,
+    branches: list[StepList],
+    retry_auth_callback: Authorizer | None = None,
+    max_workers: int | None = None,
+) -> Step:
+    """Create a parallel step from a list of branches (internal implementation)."""
+    if len(branches) < 2:
+        raise ValueError("parallel() requires at least 2 branches")
+
+    # Validate no inputsteps in branches
+    for branch_idx, branch in enumerate(branches):
+        for s in branch:
+            if s.form is not None:
+                raise ValueError(
+                    f"Parallel branches must not contain inputsteps. "
+                    f"Found inputstep '{s.name}' in branch {branch_idx}."
+                )
+
+    def func(initial_state: State) -> Process:
+        step_log_fn = step_log_fn_var.get()
+
+        def dblogstep(step_: Step, p: Process) -> Process:
+            p = p.map(lambda s: s | {"__step_name_override": name})
+            return step_log_fn(step_, p)
+
+        return _exec_parallel_branches(branches, initial_state, dblogstep, name, max_workers)
+
+    return make_step_function(func, name, retry_auth_callback=retry_auth_callback)
+
+
+def parallel(
+    name: str,
+    *branches: StepList,
+    retry_auth_callback: Authorizer | None = None,
+    max_workers: int | None = None,
+) -> Step:
+    """Execute multiple step sequences in parallel.
+
+    Each branch receives a deep copy of the current state. Branch results are merged
+    left-to-right at the join point. Branches must write to distinct state keys.
+
+    This function provides explicit control over parallel execution. For simpler cases,
+    use the | operator syntax instead:
+
+        # Using | operator (preferred for simple cases)
+        init >> ((begin >> step_a) | (begin >> step_b)) >> done
+
+        # Using | with dict naming
+        init >> {"My parallel": (begin >> step_a) | (begin >> step_b)} >> done
+
+        # Using parallel() for advanced options
+        init >> parallel("My parallel", begin >> step_a, begin >> step_b,
+                         retry_auth_callback=my_callback) >> done
+
+    Args:
+        name: Name for this parallel group (shown in logs/UI)
+        *branches: Two or more StepList sequences to execute concurrently
+        retry_auth_callback: Authorization callback for retrying on failure
+        max_workers: Max concurrent threads (None = number of branches)
+
+    Returns:
+        A Step that can be composed with >> operator
+
+    Raises:
+        ValueError: If fewer than 2 branches provided
+        ValueError: If any branch contains an inputstep
+    """
+    return _make_parallel_step(name, list(branches), retry_auth_callback=retry_auth_callback, max_workers=max_workers)
+
+
+def foreach_parallel(
+    name: str,
+    items_key: str,
+    branch: StepList,
+    max_workers: int | None = None,
+) -> Step:
+    """Execute one parallel branch per item in ``state[items_key]``.
+
+    At runtime the step reads ``state[items_key]`` and spawns one thread per item.
+    Each thread runs a deep copy of *branch* with the item merged into its initial state:
+
+    - **Dict items** are merged directly: ``initial_state | item``.
+      The item's keys become available as ordinary step arguments in that branch.
+    - **Non-dict items** are injected under ``{"item": <value>, "item_index": <int>}``.
+
+    Seed keys injected from each item are stripped from the branch's output before the
+    join so they cannot cause spurious key-conflict errors across branches.  Branches
+    should write their results to **distinct** output keys (e.g. use the item's natural
+    identifier in the key name).
+
+    Example::
+
+        @step("Fetch ports")
+        def fetch_ports():
+            return {"ports": [{"port_id": "p1", "vlan": 100},
+                               {"port_id": "p2", "vlan": 200}]}
+
+        @step("Provision port")
+        def provision_port(port_id, vlan):
+            result = call_provisioning_api(port_id, vlan)
+            return {f"port_{port_id}_result": result}
+
+        @workflow("Provision dual port", target=Target.CREATE)
+        def provision_dual():
+            return (
+                init
+                >> fetch_ports
+                >> foreach_parallel("Provision ports", "ports", begin >> provision_port)
+                >> link_ports
+                >> done
+            )
+
+    Args:
+        name: Name for the parallel group (shown in logs/UI).
+        items_key: Key in the workflow state whose value is the list to iterate over.
+        branch: StepList executed once per item, with the item merged into state.
+        max_workers: Max concurrent threads. Defaults to the number of items.
+
+    Returns:
+        A Step that can be composed with the ``>>`` operator.
+
+    Raises:
+        ValueError: If ``state[items_key]`` is not iterable at runtime.
+    """
+
+    def func(initial_state: State) -> Process:
+        raw = initial_state.get(items_key)
+        if raw is None:
+            raise ValueError(f"foreach_parallel: key '{items_key}' not found in state")
+        items = list(raw)
+
+        if not items:
+            return Success(initial_state)
+
+        # Build per-item seeds — dict items are used as-is; scalars get a wrapper.
+        seeds: list[State] = [
+            item if isinstance(item, dict) else {"item": item, "item_index": idx} for idx, item in enumerate(items)
+        ]
+
+        workers = max_workers if max_workers is not None else len(items)
+        branch_results: list[Process | None] = [None] * len(items)
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {executor.submit(_run_branch, branch, initial_state, seed): idx for idx, seed in enumerate(seeds)}
+            for future in as_completed(futures):
+                idx = futures[future]
+                try:
+                    branch_results[idx] = future.result()
+                except Exception as e:
+                    logger.error("foreach_parallel branch exception", branch_idx=idx, parallel_group=name)
+                    branch_results[idx] = Failed(error_state_to_dict(e))
+
+        results: list[Process] = [r for r in branch_results if r is not None]
+
+        # Strip per-branch seed keys from successful results so they don't trigger
+        # key-conflict errors in _join_results (seeds are input-only, not output).
+        def _strip(result: Process, seed: State) -> Process:
+            return result.map(lambda s: {k: v for k, v in s.items() if k not in seed})
+
+        clean_results = [_strip(result, seed) for result, seed in zip(results, seeds)]
+
+        parallel_start_time = nowtz().timestamp()
+        result = _join_results(initial_state, clean_results)
+        return result.map(lambda s: s | {"__replace_last_state": True, "__last_step_started_at": parallel_start_time})
+
+    return make_step_function(func, name)
 
 
 def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
