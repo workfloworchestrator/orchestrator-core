@@ -20,17 +20,18 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.db import EngineSettingsTable, db
 from orchestrator.schemas.engine_settings import EngineSettingsSchema, GlobalStatusEnum
+from orchestrator.services.worker_status_monitor import get_worker_status_monitor
 from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
 
 
-def get_engine_settings() -> EngineSettingsTable:
+def get_engine_settings_table() -> EngineSettingsTable:
     """Returns the EngineSettingsTable object. Raises an exception if the query does not return exactly one row."""
     return db.session.execute(select(EngineSettingsTable)).scalar_one()
 
 
-def get_engine_settings_for_update() -> EngineSettingsTable:
+def get_engine_settings_table_for_update() -> EngineSettingsTable:
     """Same as get_engine_settings but blocks until transactions on engine_settings table are committed."""
     return db.session.execute(select(EngineSettingsTable).with_for_update()).scalar_one()
 
@@ -88,3 +89,22 @@ def reset_search_index(*, tx_commit: bool = False) -> None:
         if tx_commit:
             db.session.commit()
     return
+
+
+def generate_engine_settings_schema(
+    engine_settings: EngineSettingsTable,
+) -> EngineSettingsSchema:
+    """Generate the correct engine status schema.
+
+    Args:
+        engine_settings: Engine settings database object
+    """
+    monitor = get_worker_status_monitor()
+    running_count = monitor.get_running_jobs_count()
+    global_status = generate_engine_global_status(engine_settings, running_count)
+
+    return EngineSettingsSchema(
+        global_lock=engine_settings.global_lock,
+        global_status=global_status,
+        running_processes=running_count,
+    )

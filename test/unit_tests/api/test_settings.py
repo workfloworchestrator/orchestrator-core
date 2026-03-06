@@ -7,12 +7,12 @@ from pydantic_settings import BaseSettings
 from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.db import db
-from orchestrator.services.settings import get_engine_settings
+from orchestrator.services.settings import get_engine_settings_table
 from orchestrator.services.settings_env_variables import expose_settings, get_all_exposed_settings
 
 
 def test_get_engine_status(test_client):
-    engine_settings = get_engine_settings()
+    engine_settings = get_engine_settings_table()
     response = test_client.get("/api/settings/status")
     assert response.status_code == HTTPStatus.OK
     # Worker-based counting: no actual workers executing in test environment

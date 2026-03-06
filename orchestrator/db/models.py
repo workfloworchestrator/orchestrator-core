@@ -26,7 +26,6 @@ from sqlalchemy import (
     TEXT,
     TIMESTAMP,
     Boolean,
-    CheckConstraint,
     Column,
     Enum,
     Float,
@@ -813,8 +812,6 @@ class GraphSnapshotTable(BaseModel):
 class EngineSettingsTable(BaseModel):
     __tablename__ = "engine_settings"
     global_lock = mapped_column(Boolean(), default=False, nullable=False, primary_key=True)
-    running_processes = mapped_column(Integer(), default=0, nullable=False)
-    __table_args__: tuple = (CheckConstraint(running_processes >= 0, name="check_running_processes_positive"), {})
 
 
 class SubscriptionInstanceAsJsonFunction(GenericFunction):
