@@ -13,6 +13,8 @@ from pydantic_ai.run import AgentRunResultEvent
 
 from orchestrator.search.agent.artifacts import ToolArtifact
 
+NO_RESULTS = "No results"
+
 
 async def collect_stream_output(event_stream: AsyncIterator[Any]) -> str:
     """Consume an agent event stream and return a combined result string.
@@ -35,4 +37,4 @@ async def collect_stream_output(event_stream: AsyncIterator[Any]) -> str:
     if artifact_results:
         return "\n\n".join(part.model_response_str() for part in artifact_results)
 
-    return final_output or "No results"
+    return final_output or NO_RESULTS
