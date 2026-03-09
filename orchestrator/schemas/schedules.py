@@ -15,6 +15,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, TypeAdapter
 
+from pydantic_forms.types import State
+
 SCHEDULER_Q_CREATE = "create"
 SCHEDULER_Q_UPDATE = "update"
 SCHEDULER_Q_DELETE = "delete"
@@ -35,6 +37,7 @@ class APSchedulerJobCreate(APSchedulerJob):
         description="Arguments passed to the trigger on job creation",
         examples=[{"hours": 12}, {"minutes": 30}, {"days": 1, "hours": 2}],
     )
+    user_inputs: list[State] = Field(..., description="user inputs for the task")
 
     scheduled_type: Literal["create"] = Field("create", frozen=True)
 
