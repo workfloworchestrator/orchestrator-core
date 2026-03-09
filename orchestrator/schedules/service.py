@@ -18,6 +18,7 @@ from apscheduler.schedulers.base import BaseScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+from pydantic import ValidationError
 from sqlalchemy import delete
 
 from orchestrator import app_settings
@@ -34,6 +35,7 @@ from orchestrator.services.processes import start_process
 from orchestrator.services.workflows import get_workflow_by_workflow_id
 from orchestrator.utils.errors import StartPredicateError
 from orchestrator.utils.redis_client import create_redis_client
+from pydantic_forms.types import State
 
 redis_connection = create_redis_client(app_settings.CACHE_URI.get_secret_value())
 
@@ -149,18 +151,21 @@ def _delete_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
     db.session.commit()
 
 
-def run_start_workflow_scheduler_task(workflow_name: str) -> None:
+def run_start_workflow_scheduler_task(workflow_name: str, user_inputs: list[State] | None = None) -> None:
     """Function to start a workflow from the scheduler.
 
     Args:
         workflow_name: str The name of the workflow to start.
+        user_inputs: user inputs for the workflow to start.
     """
     log = logger.bind(workflow_name=workflow_name)
     try:
         with db.database_scope():
             log.info("Starting workflow")
-            process_id = start_process(workflow_name)
+            process_id = start_process(workflow_name, user_inputs)
             log.info("Started workflow", process_id=process_id)
+    except ValidationError:
+        logger.info(f"Skipping {workflow_name} -> the user inputs have become invalid")
     except StartPredicateError:
         logger.info(f"Skipping {workflow_name} -> start predicate not satisfied")
     except Exception as e:
@@ -196,7 +201,7 @@ def _add_scheduled_task(payload: APSchedulerJobCreate, scheduler_connection: Bas
         trigger=payload.trigger,
         id=schedule_id,
         name=payload.name or workflow_description,
-        kwargs={"workflow_name": payload.workflow_name},
+        kwargs={"workflow_name": payload.workflow_name, "user_inputs": payload.user_inputs},
         **(payload.trigger_kwargs or {}),
     )
 
