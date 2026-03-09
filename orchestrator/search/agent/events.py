@@ -44,6 +44,25 @@ def make_step_active_event(step_name: str, reasoning: str | None = None) -> Agen
     return AgentStepActiveEvent(timestamp=current_timestamp_ms(), value=value)
 
 
+class PlanCreatedTaskValue(TypedDict):
+    """Single task in a PLAN_CREATED event."""
+
+    skill_name: str
+    reasoning: str
+
+
+class PlanCreatedEvent(CustomEvent):
+    """Event emitted after the planner creates an execution plan."""
+
+    name: str = Field(default="PLAN_CREATED", frozen=True)
+    value: list[PlanCreatedTaskValue]
+
+
+def make_plan_created_event(tasks: list[PlanCreatedTaskValue]) -> PlanCreatedEvent:
+    """Create a PLAN_CREATED event for yielding into the event stream."""
+    return PlanCreatedEvent(timestamp=current_timestamp_ms(), value=tasks)
+
+
 @dataclass
 class RunContext:
     """Execution context passed to Planner and SkillRunner."""
