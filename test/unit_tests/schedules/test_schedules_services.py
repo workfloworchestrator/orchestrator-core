@@ -139,7 +139,7 @@ def test_run_start_workflow_scheduler_task_calls_start_process_once(mock_start):
 
     run_start_workflow_scheduler_task(workflow_name)
 
-    mock_start.assert_called_once_with(workflow_name)
+    mock_start.assert_called_once_with(workflow_name, None)
 
 
 @patch("orchestrator.schedules.service.start_process")
@@ -152,7 +152,7 @@ def test_run_start_workflow_scheduler_task_skips_on_start_predicate_error(mock_s
     # Should not raise — the exception is caught and logged
     run_start_workflow_scheduler_task(workflow_name)
 
-    mock_start.assert_called_once_with(workflow_name)
+    mock_start.assert_called_once_with(workflow_name, None)
 
 
 @patch("orchestrator.schedules.service._add_linker_entry", return_value=None)
