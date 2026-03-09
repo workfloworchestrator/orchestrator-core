@@ -21,7 +21,12 @@ import structlog
 from pydantic_ai import Agent
 from pydantic_ai.ag_ui import StateDeps
 
-from orchestrator.search.agent.events import RunContext, make_step_active_event
+from orchestrator.search.agent.events import (
+    PlanCreatedTaskValue,
+    RunContext,
+    make_plan_created_event,
+    make_step_active_event,
+)
 from orchestrator.search.agent.memory import MemoryScope, ToolStep
 from orchestrator.search.agent.prompts import get_planning_prompt
 from orchestrator.search.agent.skill_runner import SkillRunner
@@ -123,6 +128,14 @@ class Planner:
         else:
             yield make_step_active_event("Planner")
             tasks = (await self._create_plan(ctx)).tasks
+
+            # Yield full plan so frontend can render all steps as pending
+            plan_tasks = [
+                PlanCreatedTaskValue(skill_name=skill.name, reasoning=task.reasoning)
+                for task in tasks
+                if (skill := self.skills.get(task.action_type))
+            ]
+            yield make_plan_created_event(plan_tasks)
 
         async for event in self._run_tasks(ctx, tasks):
             yield event
