@@ -14,6 +14,8 @@ import json
 from http import HTTPStatus
 from unittest import mock
 
+from test.unit_tests.config import GRAPHQL_ENDPOINT
+
 
 def build_simple_query(process_id):
     q = """
@@ -38,11 +40,13 @@ def build_simple_query(process_id):
     ).encode("utf-8")
 
 
-def test_process(test_client, mocked_processes):
+def test_process(test_client_graphql, mocked_processes):
     process_id = mocked_processes[0]
     test_query = build_simple_query(process_id)
 
-    response = test_client.post("/api/graphql", content=test_query, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=test_query, headers={"Content-Type": "application/json"}
+    )
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {
         "data": {
@@ -53,13 +57,15 @@ def test_process(test_client, mocked_processes):
 
 @mock.patch("orchestrator.graphql.schemas.process.get_workflow")
 def test_process_is_allowed_with_historic_workflow_only_left_in_db(
-    mock_get_workflow, test_client, mocked_processes, test_workflow_soft_deleted
+    mock_get_workflow, test_client_graphql, mocked_processes, test_workflow_soft_deleted
 ):
     mock_get_workflow.return_value = None
     process_id = mocked_processes[0]
     test_query = build_simple_query(process_id)
 
-    response = test_client.post("/api/graphql", content=test_query, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=test_query, headers={"Content-Type": "application/json"}
+    )
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {
         "data": {

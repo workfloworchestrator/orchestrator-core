@@ -3,7 +3,8 @@ import datetime
 import os
 import typing
 import uuid
-from contextlib import closing
+from contextlib import closing, contextmanager
+from copy import copy
 from typing import Any, cast
 from unittest.mock import patch
 from uuid import uuid4
@@ -330,43 +331,87 @@ def db_session(database):
                 trans.rollback()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def fastapi_app(database, db_uri):
+@contextmanager
+def make_orchestrator_app():
     from oauth2_lib.settings import oauth2lib_settings
 
     with (
         patch.multiple(
-            oauth2lib_settings, OAUTH2_ACTIVE=False, ENVIRONMENT_IGNORE_MUTATION_DISABLED=["local", "TESTING"]
+            oauth2lib_settings,
+            OAUTH2_ACTIVE=False,
+            ENVIRONMENT_IGNORE_MUTATION_DISABLED=["local", "TESTING"],
         ),
-        patch.multiple(app_settings, ENABLE_PROMETHEUS_METRICS_ENDPOINT=True),
+        patch.multiple(
+            app_settings,
+            ENABLE_PROMETHEUS_METRICS_ENDPOINT=True,
+            ENVIRONMENT="TESTING",
+        ),
     ):
         app = OrchestratorCore(base_settings=app_settings)
         app.broadcast_thread.start()
+
+        try:
+            yield app
+        finally:
+            app.broadcast_thread.stop()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def fastapi_app(database, db_uri):
+    with make_orchestrator_app() as app:
         yield app
-        app.broadcast_thread.stop()
+
+
+@pytest.fixture
+def fastapi_app_graphql(fastapi_app):
+    """Patches the session-level fastapi_app to be used for graphql queries."""
+
+    # Keep references to the fastapi routes and graphql router objects prior to registering
+    original_routes = copy(fastapi_app.router.routes)
+    original_router = fastapi_app.graphql_router
+
+    # Register the graphql router; this needs to be done for every testcase.
+    # This is because the product fixtures (e.g. generic_product_type_1) are function-level fixtures which change the
+    # definitions in SUBSCRIPTION_MODEL_REGISTRY.
+    # These models need to be updated in the graphql schema.
+    fastapi_app.register_graphql()
+
+    yield fastapi_app
+
+    # Restore old routes and router object
+    fastapi_app.router.routes = original_routes
+    fastapi_app.graphql_router = original_router
+
+
+class JsonTestClient(TestClient):
+    def request(  # type: ignore
+        self,
+        method: str,
+        url: str,
+        data: Any | None = None,
+        headers: typing.MutableMapping[str, str] | None = None,
+        json: typing.Any = None,
+        **kwargs: Any,
+    ) -> requests.Response:
+        if json is not None:
+            if headers is None:
+                headers = {}
+            data = json_dumps(json).encode()
+            headers["Content-Type"] = "application/json"
+
+        return super().request(method, url, data=data, headers=headers, **kwargs)  # type: ignore
 
 
 @pytest.fixture(scope="session")
 def test_client(fastapi_app):
-    class JsonTestClient(TestClient):
-        def request(  # type: ignore
-            self,
-            method: str,
-            url: str,
-            data: Any | None = None,
-            headers: typing.MutableMapping[str, str] | None = None,
-            json: typing.Any = None,
-            **kwargs: Any,
-        ) -> requests.Response:
-            if json is not None:
-                if headers is None:
-                    headers = {}
-                data = json_dumps(json).encode()
-                headers["Content-Type"] = "application/json"
-
-            return super().request(method, url, data=data, headers=headers, **kwargs)  # type: ignore
-
+    """Client to test REST calls."""
     return JsonTestClient(fastapi_app)
+
+
+@pytest.fixture
+def test_client_graphql(fastapi_app_graphql):
+    """Client to test GraphQL queries."""
+    return JsonTestClient(fastapi_app_graphql)
 
 
 @pytest.fixture(autouse=True)

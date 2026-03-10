@@ -4,6 +4,8 @@ from http import HTTPStatus
 import pytest
 from fastapi import Response
 
+from test.unit_tests.config import GRAPHQL_ENDPOINT
+
 
 def get_product_query(
     first: int = 10,
@@ -204,10 +206,12 @@ query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sor
     ],
 )
 def test_product_query(
-    test_client, generic_product_1, generic_product_2, generic_product_3, query_args, num_results, total
+    test_client_graphql, generic_product_1, generic_product_2, generic_product_3, query_args, num_results, total
 ):
     data = get_product_query(**query_args)
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -226,10 +230,12 @@ def test_product_query(
     }
 
 
-def test_all_product_block_names(test_client, test_product_one_nested):
+def test_all_product_block_names(test_client_graphql, test_product_one_nested):
     filter_by = {"filter_by": {"field": "name", "value": "TestProductOneNested"}}
     data = get_all_product_names_query(**filter_by)
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -240,9 +246,11 @@ def test_all_product_block_names(test_client, test_product_one_nested):
     assert names == ["PB_Chained_1", "PB_Chained_2", "ProductBlockOneNestedForTest"]
 
 
-def test_product_has_previous_page(test_client, generic_product_1, generic_product_2, generic_product_3):
+def test_product_has_previous_page(test_client_graphql, generic_product_1, generic_product_2, generic_product_3):
     data = get_product_query(after=1, sort_by=[{"field": "name", "order": "ASC"}])
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -272,10 +280,12 @@ def test_product_has_previous_page(test_client, generic_product_1, generic_produ
     ],
 )
 def test_products_filter_by_product_block(
-    test_client, generic_product_1, generic_product_2, generic_product_3, query_args
+    test_client_graphql, generic_product_1, generic_product_2, generic_product_3, query_args
 ):
     data = get_product_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     products_data = result["data"]["products"]
@@ -293,9 +303,11 @@ def test_products_filter_by_product_block(
     assert products[1]["name"] == "Product 2"
 
 
-def test_products_sort_by_tag(test_client, generic_product_1, generic_product_2, generic_product_3):
+def test_products_sort_by_tag(test_client_graphql, generic_product_1, generic_product_2, generic_product_3):
     data = get_product_query(sort_by=[{"field": "tag", "order": "DESC"}])
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
     assert HTTPStatus.OK == response.status_code
     result = response.json()
 
@@ -322,13 +334,13 @@ def test_products_sort_by_tag(test_client, generic_product_1, generic_product_2,
     ],
 )
 def test_single_product_with_subscriptions(
-    test_client, mocked_processes, generic_product_1, generic_subscription_2, generic_subscription_1, query_args
+    test_client_graphql, mocked_processes, generic_product_1, generic_subscription_2, generic_subscription_1, query_args
 ):
     product_id = str(generic_product_1.product_id)
     # when
 
     data = get_products_with_related_subscriptions_query(**query_args(product_id))
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 

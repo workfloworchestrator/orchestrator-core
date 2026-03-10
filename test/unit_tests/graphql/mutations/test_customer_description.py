@@ -76,7 +76,7 @@ mutation CustomerDescriptionRemoveMutation ($customerId: String!, $subscriptionI
     ).encode("utf-8")
 
 
-def test_customer_description_create(httpx_mock, test_client, product_sub_list_union_subscription_1):
+def test_customer_description_create(httpx_mock, test_client_graphql, product_sub_list_union_subscription_1):
     # given
 
     subscription_id = str(product_sub_list_union_subscription_1)
@@ -88,7 +88,7 @@ def test_customer_description_create(httpx_mock, test_client, product_sub_list_u
     query = get_customer_description_upsert_mutation(customer_id, subscription_id, description)
 
     with mutation_authorization():
-        response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+        response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
 
     # then
 
@@ -104,7 +104,7 @@ def test_customer_description_create(httpx_mock, test_client, product_sub_list_u
     }
 
 
-def test_customer_description_create_not_found_error(httpx_mock, test_client):
+def test_customer_description_create_not_found_error(httpx_mock, test_client_graphql):
     # given
 
     subscription_id = "50b44ca0-25f6-40d4-b2af-f0418bf2e81a"
@@ -116,7 +116,7 @@ def test_customer_description_create_not_found_error(httpx_mock, test_client):
     query = get_customer_description_upsert_mutation(customer_id, subscription_id, description)
 
     with mutation_authorization():
-        response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+        response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
 
     # then
 
@@ -129,7 +129,7 @@ def test_customer_description_create_not_found_error(httpx_mock, test_client):
     }
 
 
-def test_customer_description_update(httpx_mock, test_client, product_sub_list_union_subscription_1):
+def test_customer_description_update(httpx_mock, test_client_graphql, product_sub_list_union_subscription_1):
     # given
 
     subscription_id = str(product_sub_list_union_subscription_1)
@@ -148,7 +148,7 @@ def test_customer_description_update(httpx_mock, test_client, product_sub_list_u
     query = get_customer_description_upsert_mutation(customer_id, subscription_id, description)
 
     with mutation_authorization():
-        response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+        response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
 
     # then
 
@@ -164,7 +164,9 @@ def test_customer_description_update(httpx_mock, test_client, product_sub_list_u
     }
 
 
-def test_customer_description_update_with_version(httpx_mock, test_client, product_sub_list_union_subscription_1):
+def test_customer_description_update_with_version(
+    httpx_mock, test_client_graphql, product_sub_list_union_subscription_1
+):
     # given
 
     subscription_id = str(product_sub_list_union_subscription_1)
@@ -185,7 +187,7 @@ def test_customer_description_update_with_version(httpx_mock, test_client, produ
     query = get_customer_description_upsert_mutation(customer_id, subscription_id, description, version)
 
     with mutation_authorization():
-        response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+        response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
 
     # then
 
@@ -202,7 +204,7 @@ def test_customer_description_update_with_version(httpx_mock, test_client, produ
 
 
 def test_customer_description_update_with_incorrect_version(
-    httpx_mock, test_client, product_sub_list_union_subscription_1
+    httpx_mock, test_client_graphql, product_sub_list_union_subscription_1
 ):
     # given
 
@@ -224,7 +226,7 @@ def test_customer_description_update_with_incorrect_version(
     query = get_customer_description_upsert_mutation(customer_id, subscription_id, description, version)
 
     with mutation_authorization():
-        response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+        response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
 
     # then
 
@@ -237,7 +239,7 @@ def test_customer_description_update_with_incorrect_version(
     }
 
 
-def test_customer_description_delete(httpx_mock, test_client, product_sub_list_union_subscription_1):
+def test_customer_description_delete(httpx_mock, test_client_graphql, product_sub_list_union_subscription_1):
     # given
 
     subscription_id = str(product_sub_list_union_subscription_1)
@@ -256,7 +258,7 @@ def test_customer_description_delete(httpx_mock, test_client, product_sub_list_u
     query = get_customer_description_remove_mutation(customer_id, subscription_id)
 
     with mutation_authorization():
-        response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+        response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
 
     # then
 
@@ -272,7 +274,9 @@ def test_customer_description_delete(httpx_mock, test_client, product_sub_list_u
     }
 
 
-def test_customer_description_delete_not_found_error(httpx_mock, test_client, product_sub_list_union_subscription_1):
+def test_customer_description_delete_not_found_error(
+    httpx_mock, test_client_graphql, product_sub_list_union_subscription_1
+):
     # given
 
     subscription_id = str(product_sub_list_union_subscription_1)
@@ -283,7 +287,7 @@ def test_customer_description_delete_not_found_error(httpx_mock, test_client, pr
     query = get_customer_description_remove_mutation(customer_id, subscription_id)
 
     with mutation_authorization():
-        response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+        response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
 
     # then
 

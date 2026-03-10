@@ -23,6 +23,7 @@ from orchestrator.db import SubscriptionMetadataTable, db
 from orchestrator.db.models import SubscriptionCustomerDescriptionTable, SubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
+from test.unit_tests.config import GRAPHQL_ENDPOINT
 from test.unit_tests.conftest import do_refresh_subscriptions_search_view
 
 subscription_fields = [
@@ -62,6 +63,19 @@ query SubscriptionQuery(
     {body}
 }}
 """
+
+
+@pytest.fixture(autouse=True)
+def patch_metadata_dict():
+    from pydantic import BaseModel
+
+    from orchestrator.graphql.schemas.subscription import MetadataDict
+
+    class Metadata(BaseModel):
+        some_metadata_prop: list[str]
+
+    with patch.dict(MetadataDict, {"metadata": Metadata}):
+        yield
 
 
 def get_subscriptions_query(
@@ -413,7 +427,9 @@ def get_subscriptions_with_metadata_and_schema_query(
     ).encode("utf-8")
 
 
-def test_subscriptions_single_page(test_client, product_type_1_subscriptions_factory, benchmark, monitor_sqlalchemy):
+def test_subscriptions_single_page(
+    test_client_graphql, product_type_1_subscriptions_factory, benchmark, monitor_sqlalchemy
+):
     # when
 
     product_type_1_subscriptions_factory(4)
@@ -423,7 +439,9 @@ def test_subscriptions_single_page(test_client, product_type_1_subscriptions_fac
 
         @benchmark
         def response():
-            return test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+            return test_client_graphql.post(
+                GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+            )
 
     # then
 
@@ -450,12 +468,12 @@ def test_subscriptions_single_page(test_client, product_type_1_subscriptions_fac
             assert field in subscription["product"]
 
 
-def test_subscriptions_has_next_page(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_has_next_page(test_client_graphql, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
     data = get_subscriptions_query()
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -480,12 +498,12 @@ def test_subscriptions_has_next_page(test_client, product_type_1_subscriptions_f
             assert field in subscription
 
 
-def test_subscriptions_has_previous_page(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_has_previous_page(test_client_graphql, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
     data = get_subscriptions_query(after=1)
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -508,12 +526,12 @@ def test_subscriptions_has_previous_page(test_client, product_type_1_subscriptio
     }
 
 
-def test_subscriptions_sorting_asc(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_asc(test_client_graphql, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
     data = get_subscriptions_query(sort_by=[{"field": "startDate", "order": "ASC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -537,12 +555,12 @@ def test_subscriptions_sorting_asc(test_client, product_type_1_subscriptions_fac
         assert subscriptions[i]["startDate"] < subscriptions[i + 1]["startDate"]
 
 
-def test_subscriptions_sorting_desc(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_desc(test_client_graphql, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
     data = get_subscriptions_query(sort_by=[{"field": "startDate", "order": "DESC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -566,11 +584,11 @@ def test_subscriptions_sorting_desc(test_client, product_type_1_subscriptions_fa
         assert subscriptions[i + 1]["startDate"] < subscriptions[i]["startDate"]
 
 
-def test_subscriptions_sorting_product_tag_asc(test_client, generic_subscription_1, generic_subscription_2):
+def test_subscriptions_sorting_product_tag_asc(test_client_graphql, generic_subscription_1, generic_subscription_2):
     # when
 
     data = get_subscriptions_query(sort_by=[{"field": "tag", "order": "ASC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -594,11 +612,11 @@ def test_subscriptions_sorting_product_tag_asc(test_client, generic_subscription
     assert product_tag_list == ["GEN1", "GEN2", "Sub", "Sub", "UnionSub"]
 
 
-def test_subscriptions_sorting_product_tag_desc(test_client, generic_subscription_1, generic_subscription_2):
+def test_subscriptions_sorting_product_tag_desc(test_client_graphql, generic_subscription_1, generic_subscription_2):
     # when
 
     data = get_subscriptions_query(sort_by=[{"field": "tag", "order": "DESC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -622,12 +640,12 @@ def test_subscriptions_sorting_product_tag_desc(test_client, generic_subscriptio
     assert product_tag_list == ["UnionSub", "Sub", "Sub", "GEN2", "GEN1"]
 
 
-def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_invalid_field(test_client_graphql, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
     data = get_subscriptions_query(sort_by=[{"field": "start_date", "order": "DESC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -661,12 +679,12 @@ def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscri
     ]
 
 
-def test_subscriptions_sorting_invalid_order(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_invalid_order(test_client_graphql, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
     data = get_subscriptions_query(sort_by=[{"field": "start_date", "order": "test"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -686,7 +704,7 @@ def test_subscriptions_sorting_invalid_order(test_client, product_type_1_subscri
     ],
 )
 def test_subscriptions_filtering_on_status(
-    test_client, product_type_1_subscriptions_factory, generic_product_type_1, query_args
+    test_client_graphql, product_type_1_subscriptions_factory, generic_product_type_1, query_args
 ):
     # when
 
@@ -703,8 +721,8 @@ def test_subscriptions_filtering_on_status(
 
     subscription_query = get_subscriptions_query(**query_args)
 
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
+    response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=subscription_query, headers={"Content-Type": "application/json"}
     )
 
     # then
@@ -732,14 +750,16 @@ def test_subscriptions_filtering_on_status(
     assert subscriptions[1]["status"] == "TERMINATED"
 
 
-def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_range_filtering_on_start_date(test_client_graphql, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
 
     with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
         data = get_subscriptions_query(first=1, filter_by=[{"field": "startDate", "value": "2023-05-24"}])
-        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+        response = test_client_graphql.post(
+            GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+        )
         first_subscription = response.json()["data"]["subscriptions"]["page"][0]
 
     first_subscription_date = datetime.datetime.fromisoformat(first_subscription["startDate"])
@@ -752,7 +772,7 @@ def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1
             {"field": "startDate", "value": f"<={lower_than_date}"},
         ]
     )
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -775,14 +795,16 @@ def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1
         assert higher_than_date <= subscription["startDate"] <= lower_than_date
 
 
-def test_subscriptions_with_exact_filter_by(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_with_exact_filter_by(test_client_graphql, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(20)
 
     with patch.object(app_settings, "FILTER_BY_MODE", "exact"):
         data = get_subscriptions_query(filter_by=[{"field": "description", "value": "Subscription 1"}])
-        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+        response = test_client_graphql.post(
+            GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+        )
 
     # then
 
@@ -803,13 +825,13 @@ def test_subscriptions_with_exact_filter_by(test_client, product_type_1_subscrip
     }
 
 
-def test_subscriptions_range_filtering_on_type(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_range_filtering_on_type(test_client_graphql, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(15)
 
     data = get_subscriptions_query(filter_by=[{"field": "type", "value": "Test"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -833,7 +855,7 @@ def test_subscriptions_range_filtering_on_type(test_client, product_type_1_subsc
 
 
 def test_subscriptions_filtering_with_invalid_filter(
-    test_client, product_type_1_subscriptions_factory, generic_product_type_1
+    test_client_graphql, product_type_1_subscriptions_factory, generic_product_type_1
 ):
     # when
 
@@ -853,7 +875,7 @@ def test_subscriptions_filtering_with_invalid_filter(
             {"field": "test", "value": "invalid"},
         ]
     )
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -899,7 +921,9 @@ def test_subscriptions_filtering_with_invalid_filter(
         lambda sid: {"query_string": CUSTOMER_ID.split("-")[0]},
     ],
 )
-def test_single_subscription(test_client, product_type_1_subscriptions_factory, generic_product_type_1, query_args):
+def test_single_subscription(
+    test_client_graphql, product_type_1_subscriptions_factory, generic_product_type_1, query_args
+):
     # given
 
     _, GenericProductOne = generic_product_type_1
@@ -925,7 +949,9 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
     # when
     with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
         data = get_subscriptions_query(**query_args(subscription_id))
-        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+        response = test_client_graphql.post(
+            GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+        )
 
     subscription = GenericProductOne.from_subscription(subscription_id)
 
@@ -994,7 +1020,7 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
     ],
 )
 def test_multiple_subscriptions(
-    test_client, product_type_1_subscriptions_factory, generic_product_type_1, query_args, total_items
+    test_client_graphql, product_type_1_subscriptions_factory, generic_product_type_1, query_args, total_items
 ):
     # given
 
@@ -1005,7 +1031,7 @@ def test_multiple_subscriptions(
 
     # when
     data = get_subscriptions_query(first=100, **query_args(subscription_ids))
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -1034,8 +1060,8 @@ def test_multiple_subscriptions(
     ],
 )
 def test_single_subscription_with_processes(
-    fastapi_app_graphql,
-    test_client,
+    fastapi_app,
+    test_client_graphql,
     product_type_1_subscriptions_factory,
     mocked_processes,
     mocked_processes_resumeall,  # noqa: F811
@@ -1051,7 +1077,7 @@ def test_single_subscription_with_processes(
     do_refresh_subscriptions_search_view()
 
     data = get_subscriptions_query_with_relations(**query_args(subscription_id))
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -1075,8 +1101,8 @@ def test_single_subscription_with_processes(
 
 
 def test_single_subscription_with_depends_on_subscriptions(
-    fastapi_app_graphql,
-    test_client,
+    fastapi_app,
+    test_client_graphql,
     product_type_1_subscriptions_factory,
     sub_one_subscription_1,
     sub_two_subscription_1,
@@ -1094,7 +1120,7 @@ def test_single_subscription_with_depends_on_subscriptions(
 
     @benchmark
     def response():
-        return test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+        return test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     expected_depends_on_ids = {
         str(subscription.subscription_id) for subscription in [sub_one_subscription_1, sub_two_subscription_1]
@@ -1125,8 +1151,8 @@ def test_single_subscription_with_depends_on_subscriptions(
 
 
 def test_single_subscription_with_in_use_by_subscriptions(
-    fastapi_app_graphql,
-    test_client,
+    fastapi_app,
+    test_client_graphql,
     product_type_1_subscriptions_factory,
     sub_one_subscription_1,
     product_sub_list_union_subscription_1,
@@ -1140,8 +1166,8 @@ def test_single_subscription_with_in_use_by_subscriptions(
         filter_by=[{"field": "subscriptionId", "value": subscription_id}]
     )
 
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
+    response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=subscription_query, headers={"Content-Type": "application/json"}
     )
 
     expected_in_use_by_ids = [str(product_sub_list_union_subscription_1)]
@@ -1186,8 +1212,8 @@ def test_single_subscription_with_in_use_by_subscriptions(
 
 
 def test_single_subscription_schema(
-    fastapi_app_graphql,
-    test_client,
+    fastapi_app,
+    test_client_graphql,
     product_type_1_subscriptions_factory,
     sub_one_subscription_1,
     sub_two_subscription_1,
@@ -1204,7 +1230,7 @@ def test_single_subscription_schema(
 
     @benchmark
     def response():
-        return test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+        return test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -1366,8 +1392,8 @@ def test_single_subscription_schema(
 
 
 def test_single_subscription_metadata_and_schema(
-    fastapi_app_graphql,
-    test_client,
+    fastapi_app,
+    test_client_graphql,
     sub_one_subscription_1,
 ):
     # when
@@ -1380,7 +1406,7 @@ def test_single_subscription_metadata_and_schema(
     data = get_subscriptions_with_metadata_and_schema_query(
         filter_by=[{"field": "subscriptionId", "value": subscription_id}]
     )
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
     # then
 
     assert HTTPStatus.OK == response.status_code
@@ -1402,8 +1428,8 @@ def test_single_subscription_metadata_and_schema(
 
 
 def test_subscriptions_product_generic_one(
-    fastapi_app_graphql,
-    test_client,
+    load_fixtures,
+    test_client_graphql,
     product_type_1_subscriptions_factory,
 ):
     # when
@@ -1420,7 +1446,7 @@ def test_subscriptions_product_generic_one(
     db.session.commit()
 
     data = get_subscriptions_product_generic_one(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -1453,15 +1479,15 @@ def test_subscriptions_product_generic_one(
 
 
 def test_single_subscription_product_list_union_type(
-    fastapi_app_graphql,
-    test_client,
+    fastapi_app,
+    test_client_graphql,
     product_sub_list_union_subscription_1,
 ):
     # when
 
     subscription_id = str(product_sub_list_union_subscription_1)
     data = get_subscriptions_product_sub_list_union(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -1494,8 +1520,8 @@ def test_single_subscription_product_list_union_type(
 
 
 def test_single_subscription_product_list_union_type_provisioning_subscription(
-    fastapi_app_graphql,
-    test_client,
+    fastapi_app,
+    test_client_graphql,
     product_sub_list_union_subscription_1,
 ):
     # when
@@ -1506,7 +1532,7 @@ def test_single_subscription_product_list_union_type_provisioning_subscription(
 
     subscription_id = str(product_sub_list_union_subscription_1)
     data = get_subscriptions_product_sub_list_union(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -1538,8 +1564,8 @@ def test_single_subscription_product_list_union_type_provisioning_subscription(
 
 
 def test_single_subscription_product_list_union_type_terminated_subscription(
-    fastapi_app_graphql,
-    test_client,
+    fastapi_app,
+    test_client_graphql,
     product_sub_list_union_subscription_1,
 ):
     # when
@@ -1550,7 +1576,7 @@ def test_single_subscription_product_list_union_type_terminated_subscription(
 
     subscription_id = str(product_sub_list_union_subscription_1)
     data = get_subscriptions_product_sub_list_union(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 

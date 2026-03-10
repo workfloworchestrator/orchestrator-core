@@ -6,6 +6,7 @@ import pytest
 from fastapi import Response
 
 from orchestrator import app_settings
+from test.unit_tests.config import GRAPHQL_ENDPOINT
 from test.unit_tests.helpers import assert_no_diff
 
 
@@ -85,9 +86,11 @@ query ProductBlocksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!]
         ({"query_string": "tag:pb3"}, 1),
     ],
 )
-def test_product_blocks_query(test_client, query_args, num_results):
+def test_product_blocks_query(test_client_graphql, query_args, num_results):
     data = get_product_blocks_query(**query_args)
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -108,9 +111,11 @@ def test_product_blocks_query(test_client, query_args, num_results):
     }
 
 
-def test_product_blocks_payload(test_client):
+def test_product_blocks_payload(test_client_graphql):
     data = get_product_blocks_query(first=2, sort_by=[{"field": "name", "order": "ASC"}])
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -169,11 +174,11 @@ def test_product_blocks_payload(test_client):
         {"query_string": "name:(SubBlock* | ProductBlock*)"},
     ],
 )
-def test_product_block_query_with_relations(test_client, query_args):
+def test_product_block_query_with_relations(test_client_graphql, query_args):
     with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
         data = get_product_blocks_query(**query_args)
-        response: Response = test_client.post(
-            "/api/graphql", content=data, headers={"Content-Type": "application/json"}
+        response: Response = test_client_graphql.post(
+            GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
         )
 
     assert HTTPStatus.OK == response.status_code
@@ -243,9 +248,11 @@ def test_product_block_query_with_relations(test_client, query_args):
     assert_no_diff(expected_product_blocks, actual_product_blocks, exclude_paths=exclude_paths)
 
 
-def test_product_blocks_has_previous_page(test_client):
+def test_product_blocks_has_previous_page(test_client_graphql):
     data = get_product_blocks_query(after=1, sort_by=[{"field": "name", "order": "ASC"}])
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -273,9 +280,11 @@ def test_product_blocks_has_previous_page(test_client):
         {"query_string": "resourceType:rt_1"},
     ],
 )
-def test_product_blocks_filter_by_resource_types(test_client, query_args):
+def test_product_blocks_filter_by_resource_types(test_client_graphql, query_args):
     data = get_product_blocks_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     product_blocks_data = result["data"]["productBlocks"]
@@ -292,12 +301,14 @@ def test_product_blocks_filter_by_resource_types(test_client, query_args):
     assert actual_product_blocks[0]["name"] == "PB_1"
 
 
-def test_product_blocks_filter_by_products(test_client):
+def test_product_blocks_filter_by_products(test_client_graphql):
     data = get_product_blocks_query(
         filter_by=[{"field": "product", "value": "Product 1|Product 3"}],
         sort_by=[{"field": "name", "order": "ASC"}],
     )
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     product_blocks_data = result["data"]["productBlocks"]
@@ -316,9 +327,11 @@ def test_product_blocks_filter_by_products(test_client):
     assert actual_product_blocks[1]["name"] == "PB_2"
 
 
-def test_product_blocks_sort_by_tag(test_client):
+def test_product_blocks_sort_by_tag(test_client_graphql):
     data = get_product_blocks_query(sort_by=[{"field": "tag", "order": "DESC"}])
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
     assert HTTPStatus.OK == response.status_code
     result = response.json()
 
