@@ -5,6 +5,7 @@ import typing
 import uuid
 from contextlib import closing
 from typing import Any, cast
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -152,6 +153,8 @@ CUSTOMER_ID: str = "2f47f65a-0911-e511-80d0-005056956c1a"
 
 CLI_OPT_MONITOR_SQLALCHEMY = "--monitor-sqlalchemy"
 
+DEFAULT_DATABASE_URI = "postgresql://nwa:nwa@localhost/orchestrator-core-test"
+
 
 def pytest_addoption(parser):
     """Define custom pytest commandline options."""
@@ -192,6 +195,30 @@ def run_migrations(db_uri: str) -> None:
     command.upgrade(alembic_cfg, "heads")
 
 
+def make_db_uri(worker_id):
+    if env_database_uri := os.environ.get("DATABASE_URI"):
+        print(f"Start with DATABASE_URI {env_database_uri!r} from environment")
+        database_uri = env_database_uri
+    else:
+        print(f"Start with default DATABASE_URI {DEFAULT_DATABASE_URI!r}")
+        database_uri = DEFAULT_DATABASE_URI
+
+    if worker_id == "master":
+        # pytest is being run without any workers
+        print(f"No workers, final DATABASE_URI is {database_uri!r}")
+        return database_uri
+
+    url = make_url(database_uri)
+    if hasattr(url, "set"):
+        url = url.set(database=f"{url.database}-{worker_id}")
+    else:
+        url.database = f"{url.database}-{worker_id}"
+
+    worker_database_uri = url.render_as_string(hide_password=False)
+    print(f"Final DATABASE_URI for worker {worker_id!r} is {worker_database_uri!r}")
+    return worker_database_uri
+
+
 @pytest.fixture(scope="session")
 def db_uri(worker_id):
     """Ensure each pytest thread has its database.
@@ -205,16 +232,10 @@ def db_uri(worker_id):
         Database uri to be used in the test thread
 
     """
-    database_uri = os.environ.get("DATABASE_URI", "postgresql://nwa:nwa@localhost/orchestrator-core-test")
-    if worker_id == "master":
-        # pytest is being run without any workers
-        return database_uri
-    url = make_url(database_uri)
-    if hasattr(url, "set"):
-        url = url.set(database=f"{url.database}-{worker_id}")
-    else:
-        url.database = f"{url.database}-{worker_id}"
-    return url.render_as_string(hide_password=False)
+    session_db_uri = make_db_uri(worker_id)
+
+    with patch.object(app_settings, "DATABASE_URI", session_db_uri):
+        yield session_db_uri
 
 
 @pytest.fixture(scope="session")
@@ -313,16 +334,16 @@ def db_session(database):
 def fastapi_app(database, db_uri):
     from oauth2_lib.settings import oauth2lib_settings
 
-    oauth2lib_settings.OAUTH2_ACTIVE = False
-    oauth2lib_settings.ENVIRONMENT_IGNORE_MUTATION_DISABLED = ["local", "TESTING"]
-    app_settings.DATABASE_URI = db_uri
-    app_settings.ENABLE_PROMETHEUS_METRICS_ENDPOINT = True
-    app = OrchestratorCore(base_settings=app_settings)
-    # Start ProcessDataBroadcastThread to test websocket_manager with memory backend
-    app.broadcast_thread.start()
-    yield app
-    app.broadcast_thread.stop()
-    oauth2lib_settings.OAUTH2_ACTIVE = True
+    with (
+        patch.multiple(
+            oauth2lib_settings, OAUTH2_ACTIVE=False, ENVIRONMENT_IGNORE_MUTATION_DISABLED=["local", "TESTING"]
+        ),
+        patch.multiple(app_settings, ENABLE_PROMETHEUS_METRICS_ENDPOINT=True),
+    ):
+        app = OrchestratorCore(base_settings=app_settings)
+        app.broadcast_thread.start()
+        yield app
+        app.broadcast_thread.stop()
 
 
 @pytest.fixture(scope="session")
