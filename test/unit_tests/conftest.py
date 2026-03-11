@@ -43,7 +43,7 @@ from orchestrator.schedules.scheduler import get_scheduler
 from orchestrator.schedules.service import run_start_workflow_scheduler_task
 from orchestrator.services.translations import generate_translations
 from orchestrator.services.workflows import get_workflow_by_name
-from orchestrator.settings import app_settings
+from orchestrator.settings import SecretPostgresDsn, app_settings
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis_client import create_redis_client
@@ -187,7 +187,7 @@ def run_migrations(db_uri: str) -> None:
     """
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)))
     os.environ["DATABASE_URI"] = db_uri
-    app_settings.DATABASE_URI = db_uri  # type: ignore
+    app_settings.DATABASE_URI = SecretPostgresDsn(db_uri)  # type: ignore
     alembic_cfg = Config(file_=os.path.join(path, "../../orchestrator/migrations/alembic.ini"))
     alembic_cfg.set_main_option("script_location", os.path.join(path, "../../orchestrator/migrations"))
     alembic_cfg.set_main_option(
@@ -237,7 +237,7 @@ def db_uri(worker_id):
     """
     session_db_uri = make_db_uri(worker_id)
 
-    with patch.object(app_settings, "DATABASE_URI", session_db_uri):
+    with patch.object(app_settings, "DATABASE_URI", SecretPostgresDsn(session_db_uri)):
         yield session_db_uri
 
 
@@ -904,7 +904,7 @@ def make_customer_description():
 def cache_fixture(monkeypatch):
     """Fixture to enable domain model caching and cleanup keys added to the list."""
     with monkeypatch.context():
-        cache = create_redis_client(app_settings.CACHE_URI)
+        cache = create_redis_client(app_settings.CACHE_URI.get_secret_value())
         # Clear cache before using this fixture
         cache.flushdb()
 

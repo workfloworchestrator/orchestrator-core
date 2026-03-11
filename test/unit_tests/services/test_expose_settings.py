@@ -1,20 +1,19 @@
-from pydantic import PostgresDsn, RedisDsn
-from pydantic import SecretStr as PydanticSecretStr
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 
-from orchestrator.services.settings_env_variables import MASK, expose_settings, get_all_exposed_settings
-from orchestrator.utils.expose_settings import SecretStr as OrchSecretStr
+from orchestrator.services.settings_env_variables import expose_settings, get_all_exposed_settings
+from orchestrator.settings import SecretPostgresDsn, SecretRedisDsn
 
 
 def test_expose_settings():
 
     class MySettings(BaseSettings):
-        api_key: OrchSecretStr = "test_api_key"
-        db_password: PydanticSecretStr = "test_password"  # noqa: S105
+        api_key: SecretStr = "test_api_key"
+        db_password: SecretStr = "test_password"  # noqa: S105
         debug_mode: bool = True
-        secret_test: str = "test_secret"  # noqa: S105
-        uri: PostgresDsn = "postgresql://user:password@localhost/dbname"
-        cache_uri: RedisDsn = "rediss://user:password@localhost/dbname"
+        secret_test: SecretStr = "test_secret"  # noqa: S105
+        uri: SecretPostgresDsn = "postgresql://user:password@localhost/dbname"
+        cache_uri: SecretRedisDsn = "rediss://user:password@localhost/dbname"
 
     my_settings = MySettings()
     expose_settings("my_settings", my_settings)
@@ -28,10 +27,14 @@ def test_expose_settings():
 
     assert len(exposed_settings[my_settings_index].variables) == 6
 
-    # Assert that sensitive values are masked
-    assert exposed_settings[my_settings_index].variables[0].env_value == MASK  # api_key
-    assert exposed_settings[my_settings_index].variables[1].env_value == MASK  # db_password
-    assert exposed_settings[my_settings_index].variables[2].env_value is True  # debug_mode
-    assert exposed_settings[my_settings_index].variables[3].env_value == MASK  # secret_test
-    assert exposed_settings[my_settings_index].variables[4].env_value == MASK  # uri
-    assert exposed_settings[my_settings_index].variables[5].env_value == MASK  # cache_uri
+    # Assert that sensitive values are masked (Note that the order is different because get_all_exposed_settings() sorts the setting names)
+    assert exposed_settings[my_settings_index].variables[0].env_value.__repr__() == "SecretStr('**********')"  # api_key
+    assert exposed_settings[my_settings_index].variables[1].env_value.__repr__() == "Secret('**********')"  # cache_uri
+    assert (
+        exposed_settings[my_settings_index].variables[2].env_value.__repr__() == "SecretStr('**********')"
+    )  # db_password
+    assert exposed_settings[my_settings_index].variables[3].env_value is True  # debug_mode
+    assert (
+        exposed_settings[my_settings_index].variables[4].env_value.__repr__() == "SecretStr('**********')"
+    )  # secret_test
+    assert exposed_settings[my_settings_index].variables[5].env_value.__repr__() == "Secret('**********')"  # uri
