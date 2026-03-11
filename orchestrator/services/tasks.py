@@ -123,10 +123,14 @@ class CeleryJobWorkerStatus(WorkerStatus):
 
         inspection: Inspect = _celery.control.inspect()
         stats = inspection.stats()
-        self.number_of_workers_online = len(stats)
+        scheduled = inspection.scheduled()
+        reserved = inspection.reserved()
+        active = inspection.active()
 
-        def sum_items(d: dict) -> int:
+        self.number_of_workers_online = len(stats) if stats else 0
+
+        def sum_items(d: dict | None) -> int:
             return sum(len(lines) for _, lines in d.items()) if d else 0
 
-        self.number_of_queued_jobs = sum_items(inspection.scheduled()) + sum_items(inspection.reserved())
-        self.number_of_running_jobs = sum(len(tasks) for w, tasks in inspection.active().items())
+        self.number_of_queued_jobs = sum_items(scheduled) + sum_items(reserved)
+        self.number_of_running_jobs = sum(len(tasks) for w, tasks in active.items()) if active else 0
