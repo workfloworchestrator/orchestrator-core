@@ -6,6 +6,7 @@ import pytest
 from fastapi import Response
 
 from orchestrator import app_settings
+from test.unit_tests.config import GRAPHQL_ENDPOINT
 
 
 def get_resource_types_query(
@@ -48,9 +49,11 @@ query ResourceTypesQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!]
     ).encode("utf-8")
 
 
-def test_resource_types_query(test_client):
+def test_resource_types_query(test_client_graphql):
     data = get_resource_types_query(first=2)
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -70,9 +73,11 @@ def test_resource_types_query(test_client):
     }
 
 
-def test_resource_types_has_previous_page(test_client):
+def test_resource_types_has_previous_page(test_client_graphql):
     data = get_resource_types_query(after=3, sort_by=[{"field": "resourceType", "order": "ASC"}])
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -101,10 +106,10 @@ def test_resource_types_has_previous_page(test_client):
         {"query_string": "resourceType:rt_*"},
     ],
 )
-def test_resource_types_filter_by_resource_type(test_client, query_args):
+def test_resource_types_filter_by_resource_type(test_client_graphql, query_args):
     with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
         data = get_resource_types_query(**query_args, sort_by=[{"field": "resourceType", "order": "ASC"}])
-        response: Response = test_client.post(
+        response: Response = test_client_graphql.post(
             "/api/graphql", content=data, headers={"Content-Type": "application/json"}
         )
 
@@ -133,9 +138,11 @@ def test_resource_types_filter_by_resource_type(test_client, query_args):
         # {"query_string": "PB_1"}, Trouble comparing arbitrary text with UUID columns
     ],
 )
-def test_resource_types_filter_by_product_blocks(test_client, query_args):
+def test_resource_types_filter_by_product_blocks(test_client_graphql, query_args):
     data = get_resource_types_query(**query_args, sort_by=[{"field": "resourceType", "order": "ASC"}])
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     resource_types_data = result["data"]["resourceTypes"]
@@ -153,9 +160,11 @@ def test_resource_types_filter_by_product_blocks(test_client, query_args):
     assert resource_types[0]["resourceType"] == "rt_1"
 
 
-def test_resource_types_sort_by_resource_type_desc(test_client):
+def test_resource_types_sort_by_resource_type_desc(test_client_graphql):
     data = get_resource_types_query(sort_by=[{"field": "resourceType", "order": "DESC"}])
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+    )
     assert HTTPStatus.OK == response.status_code
     result = response.json()
 

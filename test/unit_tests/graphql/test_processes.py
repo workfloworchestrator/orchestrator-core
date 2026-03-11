@@ -17,6 +17,7 @@ from unittest.mock import patch
 import pytest
 
 from orchestrator import app_settings
+from test.unit_tests.config import GRAPHQL_ENDPOINT
 from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 
 
@@ -214,14 +215,14 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
 
 
 def test_processes_has_next_page(
-    test_client,
+    test_client_graphql,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
     generic_subscription_1,
 ):
     data = get_processes_query()
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     processes_data = result["data"]["processes"]
@@ -244,14 +245,14 @@ def test_processes_has_next_page(
 
 
 def test_process_has_previous_page(
-    test_client,
+    test_client_graphql,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
     generic_subscription_1,
 ):
     data = get_processes_query(after=1)
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -271,7 +272,7 @@ def test_process_has_previous_page(
 
 
 def test_processes_sorting_asc(
-    test_client,
+    test_client_graphql,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
@@ -280,7 +281,7 @@ def test_processes_sorting_asc(
     # when
 
     data = get_processes_query(sort_by=[{"field": "startedAt", "order": "ASC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -304,7 +305,7 @@ def test_processes_sorting_asc(
 
 
 def test_processes_sorting_desc(
-    test_client,
+    test_client_graphql,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
@@ -313,7 +314,7 @@ def test_processes_sorting_desc(
     # when
 
     data = get_processes_query(sort_by=[{"field": "startedAt", "order": "DESC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -347,7 +348,7 @@ def test_processes_sorting_desc(
     ],
 )
 def test_processes_has_filtering(
-    test_client,
+    test_client_graphql,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
@@ -357,7 +358,7 @@ def test_processes_has_filtering(
     # when
 
     data = get_processes_query(**query_args)
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
     # then
 
     assert HTTPStatus.OK == response.status_code
@@ -383,7 +384,7 @@ def test_processes_has_filtering(
 
 
 def test_processes_filtering_with_invalid_filter(
-    test_client,
+    test_client_graphql,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
@@ -394,7 +395,7 @@ def test_processes_filtering_with_invalid_filter(
     data = get_processes_query(
         filter_by=[{"field": "lastStatus", "value": "completed"}, {"field": "test", "value": "invalid"}]
     )
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -450,7 +451,7 @@ def test_processes_filtering_with_invalid_filter(
     ],
 )
 def test_processes_various_filterings(
-    test_client,
+    test_client_graphql,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
@@ -461,7 +462,9 @@ def test_processes_various_filterings(
     # when
     with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
         data = get_processes_query(**query_args)
-        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+        response = test_client_graphql.post(
+            GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+        )
 
     # then
 
@@ -481,7 +484,7 @@ def test_processes_various_filterings(
     ],
 )
 def test_single_process(
-    test_client,
+    test_client_graphql,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
@@ -492,7 +495,7 @@ def test_single_process(
     # when
 
     data = get_processes_query(**query_args(process_pid))
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -514,7 +517,7 @@ def test_single_process(
 
 
 def test_single_process_with_form(
-    test_client,
+    test_client_graphql,
     mocked_processes,
     generic_subscription_2,
     generic_subscription_1,
@@ -523,7 +526,7 @@ def test_single_process_with_form(
     # when
 
     data = get_processes_query(filter_by=[{"field": "process_id", "value": process_pid}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -560,7 +563,7 @@ def test_single_process_with_form(
     ],
 )
 def test_single_process_with_subscriptions(
-    test_client,
+    test_client_graphql,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
@@ -571,7 +574,7 @@ def test_single_process_with_subscriptions(
     # when
 
     data = get_processes_query_with_subscriptions(**query_args(process_pid))
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
     assert HTTPStatus.OK == response.status_code
@@ -593,7 +596,7 @@ def test_single_process_with_subscriptions(
 
 
 def test_processes_sorting_product_tag_asc(
-    test_client,
+    test_client_graphql,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
@@ -602,7 +605,7 @@ def test_processes_sorting_product_tag_asc(
     # when
 
     data = get_processes_query(sort_by=[{"field": "productTag", "order": "ASC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -643,7 +646,7 @@ def test_processes_sorting_product_tag_asc(
     ],
 )
 def test_processes_state_updates_and_delta(
-    test_client,
+    test_client_graphql,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
@@ -654,7 +657,7 @@ def test_processes_state_updates_and_delta(
 
     process_pid = str(mocked_processes[0])
     data = get_processes_state_updates_and_delta(**query_args(process_pid))
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 

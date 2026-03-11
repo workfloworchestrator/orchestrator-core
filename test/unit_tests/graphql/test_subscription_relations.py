@@ -15,6 +15,7 @@ from http import HTTPStatus
 
 import pytest
 
+from test.unit_tests.config import GRAPHQL_ENDPOINT
 from test.unit_tests.conftest import do_refresh_subscriptions_search_view
 
 
@@ -201,8 +202,7 @@ def get_subscriptions_query_with_relations(
     ],
 )
 def test_single_subscription_with_processes(
-    fastapi_app_graphql,
-    test_client,
+    test_client_graphql,
     product_type_1_subscriptions_factory,
     mocked_processes,
     mocked_processes_resumeall,  # noqa: F811
@@ -218,7 +218,7 @@ def test_single_subscription_with_processes(
     do_refresh_subscriptions_search_view()
 
     data = get_subscriptions_query_with_processes(**query_args(subscription_id))
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -242,8 +242,7 @@ def test_single_subscription_with_processes(
 
 
 def test_single_subscription_with_depends_on_subscriptions(
-    fastapi_app_graphql,
-    test_client,
+    test_client_graphql,
     product_type_1_subscriptions_factory,
     sub_one_subscription_1,
     sub_two_subscription_1,
@@ -257,7 +256,7 @@ def test_single_subscription_with_depends_on_subscriptions(
 
     subscription_id = str(product_sub_list_union_subscription_1)
     data = get_subscriptions_query_with_relations(query_string=subscription_id)
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     expected_depends_on_ids = {
         str(subscription.subscription_id) for subscription in [sub_one_subscription_1, sub_two_subscription_1]
@@ -287,8 +286,7 @@ def test_single_subscription_with_depends_on_subscriptions(
 
 
 def test_single_subscription_with_in_use_by_subscriptions(
-    fastapi_app_graphql,
-    test_client,
+    test_client_graphql,
     product_type_1_subscriptions_factory,
     sub_one_subscription_1,
     product_sub_list_union_subscription_1,
@@ -302,8 +300,8 @@ def test_single_subscription_with_in_use_by_subscriptions(
         filter_by=[{"field": "subscriptionId", "value": subscription_id}]
     )
 
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
+    response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=subscription_query, headers={"Content-Type": "application/json"}
     )
 
     expected_in_use_by_ids = [str(product_sub_list_union_subscription_1)]
@@ -431,8 +429,7 @@ in_use_by_recurse_only_product_type_test_ids = [
     ],
 )
 def test_single_subscription_with_in_use_by_subscriptions_recurse(
-    fastapi_app_graphql,
-    test_client,
+    test_client_graphql,
     factory_subscription_with_nestings_in_use_by,
     in_use_by_filter,
     in_use_by_subscription_filter,
@@ -450,8 +447,8 @@ def test_single_subscription_with_in_use_by_subscriptions_recurse(
         in_use_by_subscription_filter=in_use_by_subscription_filter,
     )
 
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
+    response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=subscription_query, headers={"Content-Type": "application/json"}
     )
 
     expected_relation_ids = [all_ids[sub_id] for sub_id in subscription_ids]
@@ -573,8 +570,7 @@ depends_on_recurse_only_product_type_test_ids = [
     ],
 )
 def test_single_subscription_with_depends_on_subscriptions_recurse(
-    fastapi_app_graphql,
-    test_client,
+    test_client_graphql,
     factory_subscription_with_nestings_depends_on,
     depends_on_filter,
     depends_on_subscription_filter,
@@ -592,8 +588,8 @@ def test_single_subscription_with_depends_on_subscriptions_recurse(
         depends_on_subscription_filter=depends_on_subscription_filter,
     )
 
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
+    response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=subscription_query, headers={"Content-Type": "application/json"}
     )
 
     expected_relation_ids = [all_ids[sub_id] for sub_id in subscription_ids]
