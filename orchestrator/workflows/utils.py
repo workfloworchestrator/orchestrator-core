@@ -11,11 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
 from collections.abc import Callable
 from inspect import isgeneratorfunction
 from typing import Self, cast
 from uuid import UUID
 
+import structlog
 from more_itertools import first_true
 from pydantic import field_validator, model_validator
 from sqlalchemy import select
@@ -41,6 +43,8 @@ from orchestrator.workflows.steps import (
 )
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, State, StateInputStepFunc
+
+logger = structlog.get_logger(__name__)
 
 
 def _generate_new_subscription_form(_workflow_target: str, workflow_name: str) -> InputForm:
@@ -198,7 +202,7 @@ validate_initial_input_form_generator = wrap_modify_initial_input_form(modify_in
 
 
 def create_workflow(
-    description: str,
+    description: str = "",
     initial_input_form: InputStepFunc | None = None,
     status: SubscriptionLifecycle = SubscriptionLifecycle.ACTIVE,
     additional_steps: StepList | None = None,
@@ -210,13 +214,31 @@ def create_workflow(
 
     Use this for create workflows only.
 
+    .. deprecated::
+        The `description` parameter is deprecated and will be removed in a future version.
+        Workflow descriptions should now be managed in the database via the UI or API endpoint.
+        You can safely remove this parameter from the decorator.
+
     Example::
 
-        @create_workflow("create service port")
+        @create_workflow(initial_input_form=initial_input_form_generator)
         def create_service_port() -> StepList:
             do_something
             >> do_something_else
     """
+    if description:
+        warnings.warn(
+            "The 'description' parameter in @create_workflow is deprecated. "
+            "Workflow descriptions should be managed in the database via the UI or API endpoint. "
+            "Please remove the 'description' parameter from your decorator.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        logger.warning(
+            "Workflow decorator description is deprecated",
+            workflow_description=description,
+            hint="Remove the description parameter and manage it via database/UI instead",
+        )
     create_initial_input_form_generator = wrap_create_initial_input_form(initial_input_form)
 
     def _create_workflow(f: Callable[[], StepList]) -> Workflow:
@@ -246,7 +268,7 @@ def create_workflow(
 
 
 def modify_workflow(
-    description: str,
+    description: str = "",
     initial_input_form: InputStepFunc | None = None,
     additional_steps: StepList | None = None,
     authorize_callback: Authorizer | None = None,
@@ -257,13 +279,31 @@ def modify_workflow(
 
     Use this for modify workflows.
 
+    .. deprecated::
+        The `description` parameter is deprecated and will be removed in a future version.
+        Workflow descriptions should now be managed in the database via the UI or API endpoint.
+        You can safely remove this parameter from the decorator.
+
     Example::
 
-        @modify_workflow("modify service port") -> StepList:
-        def modify_service_port():
+        @modify_workflow(initial_input_form=initial_input_form_generator)
+        def modify_service_port() -> StepList:
             do_something
             >> do_something_else
     """
+    if description:
+        warnings.warn(
+            "The 'description' parameter in @modify_workflow is deprecated. "
+            "Workflow descriptions should be managed in the database via the UI or API endpoint. "
+            "Please remove the 'description' parameter from your decorator.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        logger.warning(
+            "Workflow decorator description is deprecated",
+            workflow_description=description,
+            hint="Remove the description parameter and manage it via database/UI instead",
+        )
 
     wrapped_modify_initial_input_form_generator = wrap_modify_initial_input_form(initial_input_form)
 
@@ -295,7 +335,7 @@ def modify_workflow(
 
 
 def terminate_workflow(
-    description: str,
+    description: str = "",
     initial_input_form: InputStepFunc | None = None,
     additional_steps: StepList | None = None,
     authorize_callback: Authorizer | None = None,
@@ -306,13 +346,31 @@ def terminate_workflow(
 
     Use this for terminate workflows.
 
+    .. deprecated::
+        The `description` parameter is deprecated and will be removed in a future version.
+        Workflow descriptions should now be managed in the database via the UI or API endpoint.
+        You can safely remove this parameter from the decorator.
+
     Example::
 
-        @terminate_workflow("terminate service port") -> StepList:
-        def terminate_service_port():
+        @terminate_workflow(initial_input_form=terminate_initial_input_form_generator)
+        def terminate_service_port() -> StepList:
             do_something
             >> do_something_else
     """
+    if description:
+        warnings.warn(
+            "The 'description' parameter in @terminate_workflow is deprecated. "
+            "Workflow descriptions should be managed in the database via the UI or API endpoint. "
+            "Please remove the 'description' parameter from your decorator.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        logger.warning(
+            "Workflow decorator description is deprecated",
+            workflow_description=description,
+            hint="Remove the description parameter and manage it via database/UI instead",
+        )
 
     wrapped_terminate_initial_input_form_generator = wrap_modify_initial_input_form(initial_input_form)
 
@@ -345,20 +403,38 @@ def terminate_workflow(
 
 
 def validate_workflow(
-    description: str,
+    description: str = "",
     run_predicate: RunPredicate | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
     Use this for subscription validate workflows.
 
+    .. deprecated::
+        The `description` parameter is deprecated and will be removed in a future version.
+        Workflow descriptions should now be managed in the database via the UI or API endpoint.
+        You can safely remove this parameter from the decorator.
+
     Example::
 
-        @validate_workflow("create service port")
-        def create_service_port():
+        @validate_workflow()
+        def validate_service_port() -> StepList:
             do_something
             >> do_something_else
     """
+    if description:
+        warnings.warn(
+            "The 'description' parameter in @validate_workflow is deprecated. "
+            "Workflow descriptions should be managed in the database via the UI or API endpoint. "
+            "Please remove the 'description' parameter from your decorator.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        logger.warning(
+            "Workflow decorator description is deprecated",
+            workflow_description=description,
+            hint="Remove the description parameter and manage it via database/UI instead",
+        )
 
     def _validate_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = init >> store_process_subscription() >> unsync_unchecked >> f() >> resync >> done
@@ -376,7 +452,7 @@ def validate_workflow(
 
 
 def reconcile_workflow(
-    description: str,
+    description: str = "",
     additional_steps: StepList | None = None,
     authorize_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
@@ -386,15 +462,33 @@ def reconcile_workflow(
 
     Use this for subscription reconcile workflows.
 
+    .. deprecated::
+        The `description` parameter is deprecated and will be removed in a future version.
+        Workflow descriptions should now be managed in the database via the UI or API endpoint.
+        You can safely remove this parameter from the decorator.
+
     Example::
 
-        @reconcile_workflow("Reconcile l2vpn")
+        @reconcile_workflow()
         def reconcile_l2vpn() -> StepList:
             return (
                 begin
                 >> update_l2vpn_in_external_systems
             )
     """
+    if description:
+        warnings.warn(
+            "The 'description' parameter in @reconcile_workflow is deprecated. "
+            "Workflow descriptions should be managed in the database via the UI or API endpoint. "
+            "Please remove the 'description' parameter from your decorator.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        logger.warning(
+            "Workflow decorator description is deprecated",
+            workflow_description=description,
+            hint="Remove the description parameter and manage it via database/UI instead",
+        )
 
     wrapped_reconcile_initial_input_form_generator = wrap_modify_initial_input_form(None)
 

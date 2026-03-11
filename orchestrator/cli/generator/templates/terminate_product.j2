@@ -44,7 +44,7 @@ def delete_subscription_from_oss_bss(subscription: {{ product.type }}) -> State:
 {% include 'additional_terminate_steps.j2' %}
 
 
-@terminate_workflow("Terminate {{ product.name }}", initial_input_form=terminate_initial_input_form_generator, additional_steps=additional_steps)
+@terminate_workflow(initial_input_form=terminate_initial_input_form_generator, additional_steps=additional_steps)
 def terminate_{{ product.variable }}() -> StepList:
     return (
         begin

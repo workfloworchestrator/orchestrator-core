@@ -65,20 +65,17 @@ def check_workflows_for_matching_targets_and_descriptions() -> State:
         db_workflow = get_workflow_by_name(key)
         if db_workflow:
             # Test workflows might not exist in the database
-            if (
-                wf.target != db_workflow.target
-                or wf.name != db_workflow.name
-                or wf.description != db_workflow.description
-            ):
+            # Note: description is no longer validated here as it can be changed via UI/API
+            if wf.target != db_workflow.target or wf.name != db_workflow.name:
                 message = (
                     f"Workflow {wf.name}: {wf.target} <=> {db_workflow.target}, "
-                    f"{wf.name} <=> {db_workflow.name} and {wf.description} <=> {db_workflow.description}. "
+                    f"{wf.name} <=> {db_workflow.name}. "
                 )
                 workflow_assertions.append(message)
 
     if workflow_assertions:
         workflow_message = "\n".join(workflow_assertions)
-        raise ProcessFailureError("Workflows with none matching targets and descriptions", workflow_message)
+        raise ProcessFailureError("Workflows with none matching targets and names", workflow_message)
 
     # Check translations
     translations = generate_translations("en-GB")["workflow"]
