@@ -78,6 +78,6 @@ def construct_subscription_model(
     }
 
 
-@workflow("Create a test product", initial_input_form=wrap_create_initial_input_form(initial_input_form_generator))
+@workflow(initial_input_form=wrap_create_initial_input_form(initial_input_form_generator))
 def create_test_product() -> StepList:
     return begin >> construct_subscription_model >> store_process_subscription() >> done
