@@ -308,6 +308,33 @@ if [ $status -ne 0 ]; then
 fi
 ```
 
+### Decorator vs API
+Tasks can be scheduled using the `@scheduler.scheduled_job()` decorator, but this is not recommended for new schedules because it does not create a Linker Table join between schedules and workflows/tasks.
+Instead, it is recommended to use the API to create schedules, as described above in the [new scheduling system](#the-schedule-api) section.
+
+From the Frontend, you will not be able to see schedules that were created using the `@scheduler.scheduled_job()` decorator, because we actively filter those out of the GraphQL response. This is because they do not have a Linker Table join between schedules and workflows/tasks, which is necessary for the frontend to display them properly.
+If you want to see all schedules, you can:
+
+1. Directly query the database for schedules
+2. Run the `python main.py scheduler show-schedule` command to see all schedules, including those created with the `@scheduler.scheduled_job()` decorator.
+   3. > This command will effectively run a Database query to list all schedules, including those created with the `@scheduler.scheduled_job()` decorator. It will print the schedule id, name, trigger, and trigger kwargs for each schedule.
+
+
+Example result for running `python main.py scheduler show-schedule`:
+
+```
+                                                                                Scheduled Tasks  
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
+┃ id                                             ┃ name                                                           ┃ source    ┃ next run time             ┃ trigger           ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
+│ 5feb3845-08aa-497e-a475-a4fff8b9aa5f           │ Task Resume Workflows                                          │ API       │ 2026-02-11 13:21:09+00:00 │ interval[1:00:00] │          │
+│ 6a00c713-d8e5-46df-9e37-18790c3412ac           │ Task Validate Subscriptions                                    │ API       │ 2026-02-12 00:10:00+00:00 │ cron              │          │
+│ import-come-workflow                           │ Import Some Workflow                                           │ decorator │ 2026-02-12 12:00:00+00:00 │ cron              │
+└────────────────────────────────────────────────┴────────────────────────────────────────────────────────────────┴───────────┴───────────────────────────┴───────────────────┘
+
+```
+
+
 <!-- link definitions -->
 
 [schedule]: https://pypi.org/project/schedule/
