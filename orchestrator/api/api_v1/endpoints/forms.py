@@ -18,8 +18,10 @@ from fastapi import Depends
 from fastapi.routing import APIRouter
 
 from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator.api.error_handling import raise_status
 from orchestrator.security import authenticate
 from pydantic_forms.core.asynchronous import start_form
+from pydantic_forms.exceptions import FormException
 
 logger = structlog.get_logger(__name__)
 
@@ -30,7 +32,12 @@ router: APIRouter = APIRouter()
 async def new_form(
     form_key: str,
     json_data: list[dict[str, Any]],
-    user: Annotated[OIDCUserModel | None, Depends(authenticate)],
+    user_model: Annotated[OIDCUserModel | None, Depends(authenticate)],
 ) -> dict[str, Any]:
-    username = user.user_name if user else ""
-    return await start_form(form_key, user_inputs=json_data, user=username)
+    username = user_model.user_name if user_model else ""
+    try:
+        return await start_form(form_key, user_inputs=json_data, user=username)
+    except FormException as exc:
+        if "does not exist" in str(exc):
+            return raise_status(HTTPStatus.NOT_FOUND, str(exc))
+        raise exc
