@@ -118,7 +118,7 @@ class Workflow(Protocol):
     description: str
     authorize_callback: Authorizer
     retry_auth_callback: Authorizer
-    initial_input_form: InputFormGenerator | None = None
+    initial_input_form: InputFormGenerator
     target: Target
     steps: StepList
     run_predicate: RunPredicate | None = None

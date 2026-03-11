@@ -1,7 +1,7 @@
 import asyncio
 import re
 from datetime import datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 from annotated_types import Predicate
 from sqlalchemy import select
@@ -9,6 +9,7 @@ from sqlalchemy import select
 from orchestrator.db import db
 from orchestrator.db.models import WorkflowTable
 from orchestrator.forms.validators import Choice
+from orchestrator.workflow import Workflow
 from orchestrator.workflows import get_workflow
 from pydantic_forms.core.shared import register_form
 from pydantic_forms.types import FormGenerator, FormGeneratorAsync, State
@@ -55,7 +56,20 @@ def get_tasks() -> dict[str, WorkflowTable]:
     return {workflow.name: workflow for workflow in workflows}
 
 
-def safe_send(form_generator: FormGenerator, data: dict) -> tuple[bool, dict]:
+def has_initial_form(task: Workflow) -> bool:
+    try:
+        gen = task.initial_input_form({})
+        form = next(gen)
+        if form.model_fields:
+            return True
+    except StopIteration:
+        return False
+    except Exception:
+        return True
+    return False
+
+
+def form_generator_send(form_generator: FormGenerator, data: dict | None) -> tuple[bool, dict]:
     try:
         return False, form_generator.send(data)  # type: ignore
     except StopIteration as e:
@@ -63,18 +77,19 @@ def safe_send(form_generator: FormGenerator, data: dict) -> tuple[bool, dict]:
 
 
 async def configure_schedule_form(state: State) -> FormGeneratorAsync:
-    from orchestrator.forms import SubmitFormPage
+    from orchestrator.forms import FormPage
 
     tasks = get_tasks()
+    task_choices = {name: workflow.description for name, workflow in tasks.items()}
 
-    class ScheduleTypeForm(SubmitFormPage):
-        task: Choice.__call__("TaskChoices", {name: name for name in tasks.keys()})  # type: ignore
+    class ScheduleTypeForm(FormPage):
+        task: Choice.__call__("TaskChoices", task_choices)  # type: ignore
         schedule_type: ScheduleTypeEnum
 
     schedule_type_form = yield ScheduleTypeForm
     schedule_type_data = schedule_type_form.model_dump()
 
-    class ScheduleDateForm(SubmitFormPage):
+    class ScheduleDateForm(FormPage):
         task: read_only_field(schedule_type_form.task)  # type: ignore
         schedule_type: read_only_field(schedule_type_form.schedule_type)  # type: ignore
 
@@ -91,37 +106,32 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
     task_table_row = tasks[task_name]
     task = get_workflow(task_name)
 
-    form_state = []
     user_inputs = []
-    if task and task.initial_input_form:
+    if task and has_initial_form(task):
         form_state = {"workflow_target": task.target.value, "workflow_name": task.name} | state
         loop = asyncio.get_event_loop()
         sync_gen = task.initial_input_form(form_state)
         data = None
         while True:
-            done, result = await loop.run_in_executor(None, safe_send, sync_gen, data)
+            done, result = await loop.run_in_executor(None, form_generator_send, sync_gen, data)
             if done:
                 form_state = result
                 break
             data = yield result
             user_inputs.append(data)
 
-    trigger_kwargs = {}
+    trigger_kwargs: dict[str, Any] = {}
     if schedule_date_form.schedule_type == ScheduleTypeEnum.INTERVAL:
-        trigger_kwargs = INTERVAL_MAPPING.get(schedule_date_form.interval)
+        trigger_kwargs = INTERVAL_MAPPING[schedule_date_form.interval]
     if schedule_date_form.schedule_type == ScheduleTypeEnum.CRON:
         trigger_kwargs = {"cron": schedule_date_form.cron}
 
-    yield {
-        "schedule_config": schedule_type_data
-        | {
-            "workflow_id": task_table_row.workflow_id,
-            "workflow_name": task_name,
-            "trigger": schedule_type_data["schedule_type"],
-            "trigger_kwargs": trigger_kwargs,
-            "user_inputs": user_inputs,
-            "form_state": form_state,
-        },
+    yield schedule_type_data | {
+        "workflow_id": task_table_row.workflow_id,
+        "workflow_name": task_name,
+        "trigger": schedule_type_data["schedule_type"],
+        "trigger_kwargs": trigger_kwargs,
+        "user_inputs": user_inputs,
     }
 
 
