@@ -6,6 +6,7 @@ from typing import Annotated, Any
 from annotated_types import Predicate
 from sqlalchemy import select
 
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import db
 from orchestrator.db.models import WorkflowTable
 from orchestrator.forms.validators import Choice
@@ -51,9 +52,13 @@ def is_valid_cron(expression: str) -> bool:
     return bool(re.match(cron_regex, expression))
 
 
-def get_tasks() -> dict[str, WorkflowTable]:
-    workflows = db.session.scalars(select(WorkflowTable).filter(WorkflowTable.is_task))
-    return {workflow.name: workflow for workflow in workflows}
+def get_tasks(user_model: OIDCUserModel | None) -> dict[str, WorkflowTable]:
+    def is_allowed(task_row: WorkflowTable) -> bool:
+        task = get_workflow(task_row.name)
+        return bool(task and task.authorize_callback(user_model))
+
+    tasks = db.session.scalars(select(WorkflowTable).filter(WorkflowTable.is_task))
+    return {task.name: task for task in tasks if is_allowed(task)}
 
 
 def has_initial_form(task: Workflow) -> bool:
@@ -79,7 +84,8 @@ def form_generator_send(form_generator: FormGenerator, data: dict | None) -> tup
 async def configure_schedule_form(state: State) -> FormGeneratorAsync:
     from orchestrator.forms import FormPage
 
-    tasks = get_tasks()
+    user_model = OIDCUserModel(**_user_model) if (_user_model := state.get("user_model")) else None
+    tasks = get_tasks(user_model)
     task_choices = {name: workflow.description for name, workflow in tasks.items()}
 
     class ScheduleTypeForm(FormPage):

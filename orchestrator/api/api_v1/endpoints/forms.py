@@ -36,7 +36,7 @@ async def new_form(
 ) -> dict[str, Any]:
     username = user_model.user_name if user_model else ""
     try:
-        return await start_form(form_key, user_inputs=json_data, user=username)
+        return await start_form(form_key, user_inputs=json_data, user=username, user_model=user_model)
     except FormException as exc:
         if "does not exist" in str(exc):
             return raise_status(HTTPStatus.NOT_FOUND, str(exc))
