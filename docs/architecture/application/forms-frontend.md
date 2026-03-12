@@ -10,8 +10,12 @@ The steps that happen to initiate a workflow on the frontend are:
 
 -   A `POST` request to `/processes/<workflow_name>` with an empty payload
 -   The backend determines what input values are missing and sends a response with http status code `510` and a payload containing a [JSON6Schema definition][2] describing the form to display. See [Example JSON6Schema response](#example-json6schema-response)
--   The frontend uses the [Uniforms library][1] to parse the JSON response into a form to display
+-   The frontend uses the [pydantic-forms library][1] to parse the JSON response into a form to display
 -   The [AutofieldLoader function][3] is called for each of the form.properties in the JSON response. This function uses the properties `type` and `format` to determine what kind of field will be displayed.
+
+!!! info
+    The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
+    Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
 
 ```
 
@@ -226,6 +230,6 @@ The type specified for each property (eg divider_1: Divider) determines what `ty
 }
 ```
 
-[1]: (https://www.npmjs.com/package/uniforms)
-[2]: (https://json-schema.org/draft-06/json-schema-release-notes)
-[3]: (https://github.com/workfloworchestrator/orchestrator-ui-library/blob/main/packages/orchestrator-ui-components/src/components/WfoForms/AutoFieldLoader.tsx)
+[1]: https://www.npmjs.com/package/pydantic-forms
+[2]: https://json-schema.org/draft-06/json-schema-release-notes
+[3]: https://github.com/workfloworchestrator/orchestrator-ui-library/blob/main/packages/orchestrator-ui-components/src/components/WfoForms/AutoFieldLoader.tsx
