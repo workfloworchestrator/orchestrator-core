@@ -33,7 +33,14 @@ from orchestrator.search.retrieval.retrievers import (
 )
 from orchestrator.search.retrieval.retrievers.structured import StructuredRetriever
 
-from .builder import build_aggregation_query, build_candidate_query, build_simple_count_query
+from .builder import (
+    build_aggregation_query,
+    build_candidate_query,
+    build_response_columns_query,
+    build_simple_count_query,
+    process_response_columns,
+)
+from .default_columns import DEFAULT_RESPONSE_COLUMNS
 from .export import fetch_export_data
 from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
 
@@ -165,8 +172,20 @@ async def _execute_search(
             final_stmt, db_session, cursor, query, query_embedding, candidate_query, row_count
         )
 
+    column_data: dict[str, dict[str, str | None]] | None = None
+    response_columns = (
+        query.response_columns
+        if query.response_columns is not None
+        else DEFAULT_RESPONSE_COLUMNS.get(query.entity_type)
+    )
+    if response_columns and result_rows:
+        entity_ids = [str(row.entity_id) for row in result_rows]
+        col_stmt = build_response_columns_query(entity_ids, query.entity_type, response_columns)
+        col_rows = db_session.execute(col_stmt).all()
+        column_data = process_response_columns(col_rows, response_columns)
+
     return format_search_response(
-        result_rows, query, retriever.metadata, query_embedding, total_items, start_cursor, end_cursor
+        result_rows, query, retriever.metadata, query_embedding, total_items, start_cursor, end_cursor, column_data
     )
 
 
