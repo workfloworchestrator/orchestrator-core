@@ -23,7 +23,7 @@ jobs:
           version: "0.10.8"
 
       - name: Ensure there is 1 migration head
-        run: >
+        run: |
           NUM_HEADS=$(uv run alembic -c orchestrator/migrations/alembic.ini history | grep -cF '(head)')
           echo "Found '$NUM_HEADS' alembic heads"
           if [ "$NUM_HEADS" != "1" ]; then
