@@ -37,6 +37,7 @@ from orchestrator.workflow import (
     done,
     focussteps,
     inputstep,
+    parallel,
     retrystep,
     step,
     steplens,
@@ -55,5 +56,6 @@ __all__ = [
     "done",
     "conditional",
     "focussteps",
+    "parallel",
     "steplens",
 ]
