@@ -77,8 +77,8 @@ When you would like to change the core database schema, first ensure you have th
 Then execute the following steps to create and test your schema change.
 
 ```shell
-# Change to the migrations dir
-cd orchestrator/migrations
+# Point alembic to the right config file
+export ALEMBIC_CONFIG=orchestrator/migrations/alembic.ini
 
 # Run all current migrations
 alembic upgrade heads
