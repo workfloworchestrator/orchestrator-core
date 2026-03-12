@@ -69,6 +69,7 @@ This should make the docs available on your local machine here: [http://127.0.0.
 ## Changing the Core database schema
 
 When you would like to change the core database schema, first ensure you have the following:
+
 * An up-to-date development environment
 * A postgres instance and `orchestrator-core-test` database setup as described in [Running tests](#running-tests)
 * Venv activated with `source .venv/bin/activate` (or prefix alembic commands with `uv run`)
