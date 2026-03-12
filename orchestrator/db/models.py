@@ -133,7 +133,7 @@ class InputStateTable(BaseModel):
         initial_state = "initial_state"
 
     input_state_id = mapped_column(UUIDType, primary_key=True, server_default=text("uuid_generate_v4()"), index=True)
-    process_id = mapped_column("pid", UUIDType, ForeignKey("processes.pid"), nullable=False)
+    process_id = mapped_column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False)
     input_state = mapped_column(pg.JSONB(), nullable=False)
     input_time = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
     input_type = mapped_column(Enum(InputType), nullable=False)
@@ -869,13 +869,13 @@ class WorkflowApschedulerJob(BaseModel):
     __tablename__ = "workflows_apscheduler_jobs"
 
     workflow_id = mapped_column(
-        UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), primary_key=True, nullable=False
+        UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), primary_key=True, nullable=False, index=True
     )
 
     # Notice the VARCHAR(512) for schedule_id to accommodate longer IDs so
     # that if APScheduler changes its ID format in the future, we are covered.
     schedule_id = mapped_column(
-        String(512), ForeignKey("apscheduler_jobs.id", ondelete="CASCADE"), primary_key=True, nullable=False
+        String(512), ForeignKey("apscheduler_jobs.id", ondelete="CASCADE"), primary_key=True, nullable=False, index=True
     )
 
     __table_args__ = (UniqueConstraint("workflow_id", "schedule_id", name="uq_workflow_schedule"),)
