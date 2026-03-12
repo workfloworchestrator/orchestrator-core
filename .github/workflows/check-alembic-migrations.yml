@@ -3,7 +3,7 @@ name: Check alembic migrations
 on:
   pull_request:
     paths:
-      - 'orchestrator/migrations'
+      - 'orchestrator/migrations/**'
 
 env:
   UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
