@@ -45,5 +45,8 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_workflows_apscheduler_jobs_workflow_id"), table_name="workflows_apscheduler_jobs")
     op.drop_index(op.f("ix_input_states_input_state_id"), table_name="input_states")
     op.create_index(op.f("ix_input_state_input_state_id"), "input_states", ["input_state_id"], unique=False)
-    op.add_column("engine_settings", sa.Column("running_processes", sa.INTEGER(), autoincrement=False, nullable=False))
+    op.add_column(
+        "engine_settings",
+        sa.Column("running_processes", sa.INTEGER(), autoincrement=False, nullable=False, server_default="0"),
+    )
     # ### end Alembic commands ###
