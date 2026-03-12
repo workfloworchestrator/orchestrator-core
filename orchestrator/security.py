@@ -78,6 +78,10 @@ class AgentAuthMiddleware:
             await self.app(scope, receive, send)
             return
 
+        if not oauth2lib_settings.OAUTH2_ACTIVE:
+            await self.app(scope, receive, send)
+            return
+
         headers = Headers(scope=scope)
         auth_header = headers.get("authorization", "")
         token = auth_header.removeprefix("Bearer ") if auth_header.startswith("Bearer ") else None
