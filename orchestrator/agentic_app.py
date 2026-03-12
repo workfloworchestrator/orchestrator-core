@@ -68,6 +68,15 @@ class LLMOrchestratorCore(OrchestratorCore):
             a2a = A2AApp(AgentAdapter(self.agent_model, debug=self.llm_settings.AGENT_DEBUG), url=a2a_url)
             self.mount(a2a_path, AgentAuthMiddleware(a2a.app, self.auth_manager))
 
+            # Expose the agent card at the root well-known URL required by the A2A spec.
+            # This route is intentionally unauthenticated — agent card discovery must be public.
+            self.add_api_route(
+                "/.well-known/agent-card.json",
+                a2a.app._agent_card_endpoint,
+                methods=["GET", "HEAD"],
+                include_in_schema=False,
+            )
+
             mcp_app = MCPApp(AgentAdapter(self.agent_model, debug=self.llm_settings.AGENT_DEBUG))
             self.mount("/api/agent", AgentAuthMiddleware(mcp_app.app, self.auth_manager))
 
