@@ -52,6 +52,30 @@ def is_valid_cron(expression: str) -> bool:
     return bool(re.match(cron_regex, expression))
 
 
+def get_interval_kwargs(form_data: dict) -> dict:
+    return {"start_date": form_data["start_date"]} | INTERVAL_MAPPING[form_data["interval"]]
+
+
+def parse_cron_field(value: str) -> int | None:
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def get_cron_kwargs(form_data: dict) -> dict:
+    minute, hour, day, month, day_of_week = form_data["cron"].split(" ")
+
+    return {
+        "start_date": form_data["start_date"],
+        "minute": parse_cron_field(minute),
+        "hour": parse_cron_field(hour),
+        "day": parse_cron_field(day),
+        "month": parse_cron_field(month),
+        "day_of_week": parse_cron_field(day_of_week),
+    }
+
+
 def get_tasks(user_model: OIDCUserModel | None) -> dict[str, WorkflowTable]:
     def is_allowed(task_row: WorkflowTable) -> bool:
         task = get_workflow(task_row.name)
@@ -82,33 +106,18 @@ def form_generator_send(form_generator: FormGenerator, data: dict | None) -> tup
 
 
 async def configure_schedule_form(state: State) -> FormGeneratorAsync:
-    from orchestrator.forms import FormPage
+    from orchestrator.forms import FormPage, SubmitScheduleFormPage
 
     user_model = OIDCUserModel(**_user_model) if (_user_model := state.get("user_model")) else None
     tasks = get_tasks(user_model)
     task_choices = {name: workflow.description for name, workflow in tasks.items()}
 
-    class ScheduleTypeForm(FormPage):
+    class ScheduleTaskChoiceForm(FormPage):
         task: Choice.__call__("TaskChoices", task_choices)  # type: ignore
-        schedule_type: ScheduleTypeEnum
 
-    schedule_type_form = yield ScheduleTypeForm
-    schedule_type_data = schedule_type_form.model_dump()
+    schedule_task_form = yield ScheduleTaskChoiceForm
 
-    class ScheduleDateForm(FormPage):
-        task: read_only_field(schedule_type_form.task)  # type: ignore
-        schedule_type: read_only_field(schedule_type_form.schedule_type)  # type: ignore
-
-        start_date: datetime = datetime.now() + timedelta(hours=1)
-        if schedule_type_form.schedule_type == ScheduleTypeEnum.INTERVAL:
-            interval: Intervals
-        if schedule_type_form.schedule_type == ScheduleTypeEnum.CRON:
-            cron: Annotated[str, Predicate(is_valid_cron)]
-
-    schedule_date_form = yield ScheduleDateForm
-    schedule_type_data = schedule_date_form.model_dump()
-
-    task_name = schedule_type_form.task.name
+    task_name = schedule_task_form.task.name
     task_table_row = tasks[task_name]
     task = get_workflow(task_name)
 
@@ -126,18 +135,39 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
             data = yield result
             user_inputs.append(data)
 
-    trigger_kwargs: dict[str, Any] = {}
-    if schedule_date_form.schedule_type == ScheduleTypeEnum.INTERVAL:
-        trigger_kwargs = INTERVAL_MAPPING[schedule_date_form.interval]
-    if schedule_date_form.schedule_type == ScheduleTypeEnum.CRON:
-        trigger_kwargs = {"cron": schedule_date_form.cron}
+    class ScheduleTypeForm(FormPage):
+        task: read_only_field(schedule_task_form.task)  # type: ignore
+        schedule_type: ScheduleTypeEnum
 
-    yield schedule_type_data | {
+    schedule_type_form = yield ScheduleTypeForm
+
+    class ScheduleDateForm(SubmitScheduleFormPage):
+        task: read_only_field(schedule_type_form.task)  # type: ignore
+        schedule_type: read_only_field(schedule_type_form.schedule_type)  # type: ignore
+
+        start_date: datetime = datetime.now() + timedelta(hours=1)
+        if schedule_type_form.schedule_type == ScheduleTypeEnum.INTERVAL:
+            interval: Intervals
+        if schedule_type_form.schedule_type == ScheduleTypeEnum.CRON:
+            cron: Annotated[str, Predicate(is_valid_cron)]
+
+    schedule_date_form = yield ScheduleDateForm
+    schedule_type_data = schedule_date_form.model_dump()
+
+    trigger_kwargs: dict[str, Any] = {"run_date": schedule_date_form["start_date"]}
+    if schedule_date_form.schedule_type == ScheduleTypeEnum.INTERVAL:
+        trigger_kwargs = get_interval_kwargs(schedule_type_data)
+    if schedule_date_form.schedule_type == ScheduleTypeEnum.CRON:
+        trigger_kwargs = get_cron_kwargs(schedule_type_data)
+
+    yield {
         "workflow_id": task_table_row.workflow_id,
         "workflow_name": task_name,
-        "trigger": schedule_type_data["schedule_type"],
+        "trigger": schedule_type_data["schedule_type"].name.lower(),
         "trigger_kwargs": trigger_kwargs,
         "user_inputs": user_inputs,
+        "scheduled_type": "create",
+        "name": None,
     }
 
 
