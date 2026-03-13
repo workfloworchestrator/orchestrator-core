@@ -355,6 +355,7 @@ def make_orchestrator_app():
         try:
             yield app
         finally:
+            app.worker_status_monitor.stop()
             app.broadcast_thread.stop()
 
 
