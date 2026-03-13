@@ -1,7 +1,8 @@
 import asyncio
 import re
 from datetime import datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated
+from uuid import UUID
 
 from annotated_types import Predicate
 from sqlalchemy import select
@@ -12,7 +13,6 @@ from orchestrator.db.models import WorkflowTable
 from orchestrator.forms.validators import Choice
 from orchestrator.workflow import Workflow
 from orchestrator.workflows import get_workflow
-from pydantic_forms.core.shared import register_form
 from pydantic_forms.types import FormGenerator, FormGeneratorAsync, State
 from pydantic_forms.validators.components.read_only import read_only_field
 
@@ -28,7 +28,7 @@ class Intervals(Choice):
     TWO_HOURS = "2 hours"
     FOUR_HOURS = "4 hours"
     TWELVE_HOURS = "12 hours"
-    TWENTY4_HOURS = "24 hours"
+    TWENTY_FOUR_HOURS = "24 hours"
     ONE_WEEK = "1 week"
     TWO_WEEKS = "2 weeks"
     ONE_MONTH = "1 months"
@@ -39,7 +39,7 @@ INTERVAL_MAPPING = {
     Intervals.TWO_HOURS: {"hours": 2},
     Intervals.FOUR_HOURS: {"hours": 4},
     Intervals.TWELVE_HOURS: {"hours": 12},
-    Intervals.TWENTY4_HOURS: {"hours": 24},
+    Intervals.TWENTY_FOUR_HOURS: {"hours": 24},
     Intervals.ONE_WEEK: {"weeks": 1},
     Intervals.TWO_WEEKS: {"weeks": 2},
     Intervals.ONE_MONTH: {"weeks": 4},
@@ -76,13 +76,13 @@ def get_cron_kwargs(form_data: dict) -> dict:
     }
 
 
-def get_tasks(user_model: OIDCUserModel | None) -> dict[str, WorkflowTable]:
-    def is_allowed(task_row: WorkflowTable) -> bool:
-        task = get_workflow(task_row.name)
-        return bool(task and task.authorize_callback(user_model))
-
-    tasks = db.session.scalars(select(WorkflowTable).filter(WorkflowTable.is_task))
-    return {task.name: task for task in tasks if is_allowed(task)}
+def get_tasks(user_model: OIDCUserModel | None) -> dict[str, tuple[Workflow, UUID]]:
+    tasks = db.session.scalars(select(WorkflowTable))
+    return {
+        task_row.name: (workflow, task_row.workflow_id)
+        for task_row in tasks
+        if (workflow := get_workflow(task_row.name)) and workflow.authorize_callback(user_model)
+    }
 
 
 def has_initial_form(task: Workflow) -> bool:
@@ -110,19 +110,18 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
 
     user_model = OIDCUserModel(**_user_model) if (_user_model := state.get("user_model")) else None
     tasks = get_tasks(user_model)
-    task_choices = {name: workflow.description for name, workflow in tasks.items()}
+    task_choices = {name: task[0].description for name, task in tasks.items()}
 
     class ScheduleTaskChoiceForm(FormPage):
-        task: Choice.__call__("TaskChoices", task_choices)  # type: ignore
+        task: Choice("TaskChoices", task_choices)  # type: ignore
 
     schedule_task_form = yield ScheduleTaskChoiceForm
 
     task_name = schedule_task_form.task.name
-    task_table_row = tasks[task_name]
-    task = get_workflow(task_name)
+    task, workflow_id = tasks[task_name]
 
     user_inputs = []
-    if task and has_initial_form(task):
+    if has_initial_form(task):
         form_state = {"workflow_target": task.target.value, "workflow_name": task.name} | state
         loop = asyncio.get_event_loop()
         sync_gen = task.initial_input_form(form_state)
@@ -154,14 +153,16 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
     schedule_date_form = yield ScheduleDateForm
     schedule_type_data = schedule_date_form.model_dump()
 
-    trigger_kwargs: dict[str, Any] = {"run_date": schedule_date_form["start_date"]}
-    if schedule_date_form.schedule_type == ScheduleTypeEnum.INTERVAL:
-        trigger_kwargs = get_interval_kwargs(schedule_type_data)
-    if schedule_date_form.schedule_type == ScheduleTypeEnum.CRON:
-        trigger_kwargs = get_cron_kwargs(schedule_type_data)
+    match schedule_date_form.schedule_type:
+        case ScheduleTypeEnum.INTERVAL:
+            trigger_kwargs = get_interval_kwargs(schedule_type_data)
+        case ScheduleTypeEnum.CRON:
+            trigger_kwargs = get_cron_kwargs(schedule_type_data)
+        case _:
+            trigger_kwargs = {"run_date": schedule_type_data["start_date"]}
 
     yield {
-        "workflow_id": task_table_row.workflow_id,
+        "workflow_id": workflow_id,
         "workflow_name": task_name,
         "trigger": schedule_type_data["schedule_type"].name.lower(),
         "trigger_kwargs": trigger_kwargs,
@@ -169,6 +170,3 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
         "scheduled_type": "create",
         "name": None,
     }
-
-
-register_form("configure_schedule", configure_schedule_form)

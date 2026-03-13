@@ -16,7 +16,7 @@ def test_forms_endpoint_scheduler_config_without_initial_form_input(test_client)
     ]
     response = test_client.post("/api/forms/configure_schedule", json=user_input)
 
-    assert response.status_code == HTTPStatus.CREATED
+    assert response.status_code == HTTPStatus.OK
     response_data = response.json()
     assert response_data == snapshot(
         {
@@ -44,7 +44,7 @@ def test_forms_endpoint_scheduler_config_with_initial_form_input(test_client, ge
     ]
     response = test_client.post("/api/forms/configure_schedule", json=user_input)
 
-    assert response.status_code == HTTPStatus.CREATED
+    assert response.status_code == HTTPStatus.OK
     response_data = response.json()
     assert response_data == snapshot(
         {
@@ -72,7 +72,7 @@ def test_forms_endpoint_scheduler_config_interval_type(test_client):
     ]
     response = test_client.post("/api/forms/configure_schedule", json=user_input)
 
-    assert response.status_code == HTTPStatus.CREATED
+    assert response.status_code == HTTPStatus.OK
     response_data = response.json()
     assert response_data == snapshot(
         {
@@ -100,7 +100,7 @@ def test_forms_endpoint_scheduler_config_cron_type(test_client):
     ]
     response = test_client.post("/api/forms/configure_schedule", json=user_input)
 
-    assert response.status_code == HTTPStatus.CREATED
+    assert response.status_code == HTTPStatus.OK
     response_data = response.json()
     assert response_data == snapshot(
         {
