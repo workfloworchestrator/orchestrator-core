@@ -18,7 +18,6 @@ from apscheduler.schedulers.base import BaseScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from pydantic import ValidationError
 from sqlalchemy import delete
 
 from orchestrator import app_settings
@@ -35,6 +34,7 @@ from orchestrator.services.processes import start_process
 from orchestrator.services.workflows import get_workflow_by_workflow_id
 from orchestrator.utils.errors import StartPredicateError
 from orchestrator.utils.redis_client import create_redis_client
+from pydantic_forms.exceptions import FormValidationError
 from pydantic_forms.types import State
 
 redis_connection = create_redis_client(app_settings.CACHE_URI.get_secret_value())
@@ -164,12 +164,12 @@ def run_start_workflow_scheduler_task(workflow_name: str, user_inputs: list[Stat
             log.info("Starting workflow")
             process_id = start_process(workflow_name, user_inputs)
             log.info("Started workflow", process_id=process_id)
-    except ValidationError:
-        logger.info(f"Skipping {workflow_name} -> the user inputs have become invalid")
+    except FormValidationError:
+        log.info("Skipping scheduled task -> the user inputs have become invalid")
     except StartPredicateError:
-        logger.info(f"Skipping {workflow_name} -> start predicate not satisfied")
+        log.info("Skipping scheduled task -> start predicate not satisfied")
     except Exception as e:
-        log.exception(f"Failed to start {workflow_name} - unexpected error: {e}")
+        log.exception("Failed to start scheduled task - unexpected error", error=e)
 
 
 def _add_scheduled_task(payload: APSchedulerJobCreate, scheduler_connection: BaseScheduler) -> None:

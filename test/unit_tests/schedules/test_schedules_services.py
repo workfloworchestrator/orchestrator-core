@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -142,17 +142,52 @@ def test_run_start_workflow_scheduler_task_calls_start_process_once(mock_start):
     mock_start.assert_called_once_with(workflow_name, None)
 
 
+@patch("orchestrator.schedules.service.logger")
 @patch("orchestrator.schedules.service.start_process")
-def test_run_start_workflow_scheduler_task_skips_on_start_predicate_error(mock_start):
+def test_run_start_workflow_scheduler_task_skips_on_start_predicate_error(mock_start, mock_logger):
     from orchestrator.utils.errors import StartPredicateError
 
     workflow_name = "task_validate_products"
-    mock_start.side_effect = StartPredicateError(workflow_name, "predicate not satisfied")
 
-    # Should not raise — the exception is caught and logged
+    mock_start.side_effect = StartPredicateError(workflow_name, "predicate not satisfied")
+    mock_log = MagicMock()
+    mock_logger.bind.return_value = mock_log
+
+    run_start_workflow_scheduler_task("my_workflow")
+
+    mock_start.assert_called_once_with("my_workflow", None)
+    mock_log.info.assert_called_with("Skipping scheduled task -> start predicate not satisfied")
+
+
+@patch("orchestrator.schedules.service.logger")
+@patch("orchestrator.schedules.service.start_process")
+def test_run_start_workflow_scheduler_task_skips_on_unexpected_error(mock_start, mock_logger):
+    workflow_name = "task_validate_products"
+
+    mock_start.side_effect = Exception("Unexpected error")
+    mock_log = MagicMock()
+    mock_logger.bind.return_value = mock_log
+
     run_start_workflow_scheduler_task(workflow_name)
 
     mock_start.assert_called_once_with(workflow_name, None)
+    mock_log.exception.assert_called_once_with(
+        "Failed to start scheduled task - unexpected error",
+        error=mock_start.side_effect,
+    )
+
+
+@patch("orchestrator.schedules.service.logger")
+def test_run_start_workflow_scheduler_task_skips_on_invalid_user_inputs_error(mock_logger):
+    workflow_name = "task_validate_product_type"
+    user_inputs = [{"incorrect": "input"}]
+
+    mock_log = MagicMock()
+    mock_logger.bind.return_value = mock_log
+
+    run_start_workflow_scheduler_task(workflow_name, user_inputs=user_inputs)
+
+    mock_log.info.assert_called_with("Skipping scheduled task -> the user inputs have become invalid")
 
 
 @patch("orchestrator.schedules.service._add_linker_entry", return_value=None)
