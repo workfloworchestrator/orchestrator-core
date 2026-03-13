@@ -28,7 +28,7 @@ logger = structlog.get_logger(__name__)
 router: APIRouter = APIRouter()
 
 
-@router.post("/{form_key}", status_code=HTTPStatus.CREATED)
+@router.post("/{form_key}", status_code=HTTPStatus.OK)
 async def new_form(
     form_key: str,
     json_data: list[dict[str, Any]],

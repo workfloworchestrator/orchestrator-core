@@ -12,9 +12,10 @@
 # limitations under the License.
 from typing import ClassVar
 
-import orchestrator.forms.scheduler_form  # noqa: F401
+from orchestrator.forms.scheduler_form import configure_schedule_form
 from pydantic_forms.core import DisplayOnlyFieldType, generate_form, post_form
 from pydantic_forms.core import FormPage as PydanticFormsFormPage
+from pydantic_forms.core.shared import register_form
 from pydantic_forms.types import JSON, InputForm, StateInputFormGenerator
 
 __all__ = [
@@ -39,3 +40,6 @@ class SubmitFormPage(FormPage):
 
 class SubmitScheduleFormPage(FormPage):
     meta__: ClassVar[JSON] = {"hasNext": False, "buttons": {"next": {"text": "Create Schedule"}}}
+
+
+register_form("configure_schedule", configure_schedule_form)
