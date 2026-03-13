@@ -35,3 +35,7 @@ class FormPage(PydanticFormsFormPage):
 
 class SubmitFormPage(FormPage):
     meta__: ClassVar[JSON] = {"hasNext": False}
+
+
+class SubmitScheduleFormPage(FormPage):
+    meta__: ClassVar[JSON] = {"hasNext": False, "buttons": {"next": {"text": "Create Schedule"}}}

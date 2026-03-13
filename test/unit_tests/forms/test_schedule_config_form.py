@@ -2,9 +2,12 @@ from http import HTTPStatus
 
 from inline_snapshot import snapshot
 
+from orchestrator.schemas.schedules import APSchedulerJobCreate
+
 
 def test_forms_endpoint_scheduler_config_without_initial_form_input(test_client):
     user_input = [
+        {"task": "Validate subscriptions"},
         {"task": "Validate subscriptions", "schedule_type": "Once"},
         {
             "task": "Validate subscriptions",
@@ -17,26 +20,27 @@ def test_forms_endpoint_scheduler_config_without_initial_form_input(test_client)
     response_data = response.json()
     assert response_data == snapshot(
         {
+            "scheduled_type": "create",
+            "name": None,
             "workflow_id": response_data["workflow_id"],
-            "task": "Validate subscriptions",
-            "schedule_type": "Once",
-            "start_date": response_data["start_date"],
             "workflow_name": "task_validate_subscriptions",
-            "trigger": "Once",
-            "trigger_kwargs": {},
+            "trigger": "date",
+            "trigger_kwargs": {"run_date": response_data["trigger_kwargs"]["run_date"]},
             "user_inputs": [],
         }
     )
+    assert APSchedulerJobCreate(**response_data)
 
 
 def test_forms_endpoint_scheduler_config_with_initial_form_input(test_client, generic_subscription_1):
     user_input = [
+        {"task": "Validate all subscriptions of Product Type"},
+        {"product_type": "Generic"},
         {"task": "Validate all subscriptions of Product Type", "schedule_type": "Once"},
         {
             "task": "Validate all subscriptions of Product Type",
             "schedule_type": "Once",
         },
-        {"product_type": "Generic"},
     ]
     response = test_client.post("/api/forms/configure_schedule", json=user_input)
 
@@ -45,19 +49,20 @@ def test_forms_endpoint_scheduler_config_with_initial_form_input(test_client, ge
     assert response_data == snapshot(
         {
             "workflow_id": response_data["workflow_id"],
-            "task": "Validate all subscriptions of Product Type",
-            "schedule_type": "Once",
-            "start_date": response_data["start_date"],
             "workflow_name": "task_validate_product_type",
-            "trigger": "Once",
-            "trigger_kwargs": {},
+            "trigger": "date",
+            "trigger_kwargs": {"run_date": response_data["trigger_kwargs"]["run_date"]},
             "user_inputs": [{"product_type": "Generic"}],
+            "scheduled_type": "create",
+            "name": None,
         }
     )
+    assert APSchedulerJobCreate(**response_data)
 
 
 def test_forms_endpoint_scheduler_config_interval_type(test_client):
     user_input = [
+        {"task": "Validate subscriptions"},
         {"task": "Validate subscriptions", "schedule_type": "Interval"},
         {
             "task": "Validate subscriptions",
@@ -71,21 +76,21 @@ def test_forms_endpoint_scheduler_config_interval_type(test_client):
     response_data = response.json()
     assert response_data == snapshot(
         {
+            "scheduled_type": "create",
+            "name": None,
             "workflow_id": response_data["workflow_id"],
-            "task": "Validate subscriptions",
-            "schedule_type": "Interval",
-            "interval": "1 hour",
-            "start_date": response_data["start_date"],
             "workflow_name": "task_validate_subscriptions",
-            "trigger": "Interval",
-            "trigger_kwargs": {"hours": 1},
+            "trigger": "interval",
+            "trigger_kwargs": {"start_date": response_data["trigger_kwargs"]["start_date"], "hours": 1},
             "user_inputs": [],
         }
     )
+    assert APSchedulerJobCreate(**response_data)
 
 
 def test_forms_endpoint_scheduler_config_cron_type(test_client):
     user_input = [
+        {"task": "Validate subscriptions"},
         {"task": "Validate subscriptions", "schedule_type": "Cron"},
         {
             "task": "Validate subscriptions",
@@ -99,14 +104,20 @@ def test_forms_endpoint_scheduler_config_cron_type(test_client):
     response_data = response.json()
     assert response_data == snapshot(
         {
+            "scheduled_type": "create",
+            "name": None,
             "workflow_id": response_data["workflow_id"],
-            "task": "Validate subscriptions",
-            "schedule_type": "Cron",
-            "cron": "0 9 * * 1-5",
-            "start_date": response_data["start_date"],
             "workflow_name": "task_validate_subscriptions",
-            "trigger": "Cron",
-            "trigger_kwargs": {"cron": "0 9 * * 1-5"},
+            "trigger": "cron",
+            "trigger_kwargs": {
+                "start_date": response_data["trigger_kwargs"]["start_date"],
+                "minute": 0,
+                "hour": 9,
+                "day": None,
+                "month": None,
+                "day_of_week": None,
+            },
             "user_inputs": [],
         }
     )
+    assert APSchedulerJobCreate(**response_data)
