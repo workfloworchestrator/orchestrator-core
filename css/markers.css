@@ -1,0 +1,54 @@
+/**
+ * Styles for adding markers to headings that do not change the URL anchor.
+ * This works thanks to the mkdocs-material plugin.
+ *
+ * Example usage:
+ *
+ * ## Feature X {: .beta }
+ *
+ * ## Feature Y {: .deprecated }
+ *
+*/
+
+.experimental::after {
+    content: "EXPERIMENTAL";
+    background-color: #e91e63;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7em;
+    margin-left: 10px;
+    font-weight: bold;
+}
+
+.beta::after {
+    content: "BETA";
+    background-color: #ffc107;
+    color: black;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    margin-left: 10px;
+}
+
+.new::after {
+    content: "NEW";
+    background-color: #2196f3;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7em;
+    margin-left: 10px;
+    font-weight: bold;
+}
+
+.deprecated::after {
+    content: "DEPRECATED";
+    background-color: #757575;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7em;
+    margin-left: 10px;
+    font-weight: bold;
+}
