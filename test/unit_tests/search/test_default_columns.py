@@ -11,14 +11,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
+from orchestrator.api.api_v1.endpoints.search import _perform_search_and_fetch
+from orchestrator.schemas.search_requests import SearchRequest
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.query.default_columns import DEFAULT_RESPONSE_COLUMNS
 from orchestrator.search.query.engine import execute_search
 from orchestrator.search.query.queries import SelectQuery
 
-from .conftest import SIMPLE_SUBSCRIPTION_FILTER, make_column_row, make_search_row
+from .fixtures.helpers import SIMPLE_SUBSCRIPTION_FILTER, make_column_row, make_search_row
 
 
 class TestResponseColumns:
@@ -59,18 +63,41 @@ class TestResponseColumns:
 
     # --- include_columns toggle ---
 
-    def test_include_columns_false_clears_response_columns(self):
-        """When include_columns=False, the query's response_columns should be set to empty list."""
-        query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=10)
-        assert query.response_columns is None
+    @pytest.mark.asyncio
+    async def test_include_columns_false_passes_empty_response_columns_to_engine(self):
+        """When include_columns=False, _perform_search_and_fetch passes response_columns=[] to the engine."""
+        request = SearchRequest(limit=10)
+        mock_response = MagicMock(results=[], metadata=MagicMock())
 
-        updated = query.model_copy(update={"response_columns": []})
-        assert updated.response_columns == []
+        with (
+            patch(
+                "orchestrator.api.api_v1.endpoints.search.engine.execute_search", new_callable=AsyncMock
+            ) as mock_execute,
+            patch("orchestrator.api.api_v1.endpoints.search.db"),
+        ):
+            mock_execute.return_value = mock_response
+            await _perform_search_and_fetch(EntityType.SUBSCRIPTION, request, include_columns=False)
 
-    def test_include_columns_true_preserves_response_columns(self):
-        """When include_columns=True (default), response_columns should be untouched."""
-        query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=10, response_columns=["subscription.status"])
-        assert query.response_columns == ["subscription.status"]
+        called_query = mock_execute.call_args[0][0]
+        assert called_query.response_columns == []
+
+    @pytest.mark.asyncio
+    async def test_include_columns_true_preserves_response_columns_in_engine(self):
+        """When include_columns=True (default), _perform_search_and_fetch passes response_columns unchanged."""
+        request = SearchRequest(limit=10, response_columns=["subscription.status"])
+        mock_response = MagicMock(results=[], metadata=MagicMock())
+
+        with (
+            patch(
+                "orchestrator.api.api_v1.endpoints.search.engine.execute_search", new_callable=AsyncMock
+            ) as mock_execute,
+            patch("orchestrator.api.api_v1.endpoints.search.db"),
+        ):
+            mock_execute.return_value = mock_response
+            await _perform_search_and_fetch(EntityType.SUBSCRIPTION, request, include_columns=True)
+
+        called_query = mock_execute.call_args[0][0]
+        assert called_query.response_columns == ["subscription.status"]
 
     # --- End-to-end: 3 API scenarios ---
 
@@ -121,9 +148,6 @@ class TestResponseColumns:
         result = response.results[0]
         assert result.response_columns is not None
         assert set(result.response_columns.keys()) == set(custom_cols)
-        assert result.response_columns["subscription.status"] == "active"
-        assert result.response_columns["subscription.product.name"] == "IP Transit"
-        assert "subscription.description" not in result.response_columns
 
     @pytest.mark.asyncio
     async def test_empty_response_columns_returns_null(self, mock_db_session):

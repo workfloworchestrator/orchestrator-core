@@ -157,18 +157,19 @@ def process_path_rows(rows: Sequence[Row]) -> tuple[list[LeafInfo], list[Compone
     return leaves, components
 
 
+def _build_pivot_columns(field_paths: list[str]) -> list:
+    """Build MAX(CASE ...) pivot column expressions for the given field paths."""
+    return [
+        func.max(case((AiSearchIndex.path == Ltree(field_path), AiSearchIndex.value), else_=None)).label(
+            BaseAggregation.field_to_alias(field_path)
+        )
+        for field_path in field_paths
+    ]
+
+
 def _build_pivot_cte(base_query: Select, pivot_fields: list[str]) -> CTE:
     """Build CTE that pivots EAV rows into columns using CASE WHEN."""
-    from orchestrator.search.aggregations import BaseAggregation
-
-    pivot_columns = [AiSearchIndex.entity_id.label("entity_id")]
-
-    for field_path in pivot_fields:
-        pivot_columns.append(
-            func.max(case((AiSearchIndex.path == Ltree(field_path), AiSearchIndex.value), else_=None)).label(
-                BaseAggregation.field_to_alias(field_path)
-            )
-        )
+    pivot_columns = [AiSearchIndex.entity_id.label("entity_id")] + _build_pivot_columns(pivot_fields)
 
     return (
         select(*pivot_columns)
@@ -333,15 +334,7 @@ def build_response_columns_query(
     Returns:
         Select statement with entity_id + one column per requested path.
     """
-    pivot_columns = [
-        AiSearchIndex.entity_id.label("entity_id"),
-        *[
-            func.max(case((AiSearchIndex.path == Ltree(field_path), AiSearchIndex.value), else_=None)).label(
-                BaseAggregation.field_to_alias(field_path)
-            )
-            for field_path in response_columns
-        ],
-    ]
+    pivot_columns = [AiSearchIndex.entity_id.label("entity_id")] + _build_pivot_columns(response_columns)
 
     return (
         select(*pivot_columns)
@@ -367,13 +360,15 @@ def process_response_columns(
     Returns:
         Dict mapping entity_id to a dict of path -> value (or None).
     """
+
+    def convert_value_to_str_or_none(row: Row, alias: str) -> str | None:
+        value = getattr(row, alias, None)
+        return str(value) if value is not None else None
+
     alias_to_path = {BaseAggregation.field_to_alias(path): path for path in response_columns}
 
     return {
-        str(row.entity_id): {
-            path: str(value) if (value := getattr(row, alias, None)) is not None else None
-            for alias, path in alias_to_path.items()
-        }
+        str(row.entity_id): {path: convert_value_to_str_or_none(row, alias) for alias, path in alias_to_path.items()}
         for row in rows
     }
 
