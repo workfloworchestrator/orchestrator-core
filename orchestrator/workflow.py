@@ -560,6 +560,21 @@ def focussteps(key: str) -> Callable[[Step | StepList], StepList]:
     return zoom
 
 
+def _warn_description_deprecated() -> None:
+    """Emit a deprecation warning when a workflow decorator `description` parameter is used."""
+    warnings.warn(
+        "The 'description' parameter in workflow decorators is deprecated. "
+        "Workflow descriptions should be managed in the database via the UI or API endpoint. "
+        "Please remove the 'description' parameter from your decorator.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+    logger.warning(
+        "Workflow decorator description is deprecated",
+        hint="Remove the description parameter and manage it via database/UI instead",
+    )
+
+
 def workflow(
     description: str = "",
     initial_input_form: InputStepFunc | None = None,
@@ -586,18 +601,7 @@ def workflow(
             << done
     """
     if description:
-        warnings.warn(
-            "The 'description' parameter in @workflow is deprecated. "
-            "Workflow descriptions should be managed in the database via the UI or API endpoint. "
-            "Please remove the 'description' parameter from your decorator.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        logger.warning(
-            "Workflow decorator description is deprecated",
-            workflow_description=description,
-            hint="Remove the description parameter and manage it via database/UI instead",
-        )
+        _warn_description_deprecated()
     if initial_input_form is None:
         initial_input_form_in_form_inject_args = None
     else:

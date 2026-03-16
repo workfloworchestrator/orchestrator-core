@@ -46,10 +46,6 @@ In this example:
 
 Each step should be defined using the `@step` decorator and can access and update the shared subscription model.
 
-!!! note "Workflow descriptions"
-    Workflow descriptions are no longer hardcoded in decorators. Instead, they are managed exclusively in the database
-    via the UI or API endpoint. This allows you to change workflow descriptions without modifying code.
-    See the [Workflows documentation](workflows.md) for more information.
 
 ---
 

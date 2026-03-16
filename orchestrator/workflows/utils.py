@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import warnings
 from collections.abc import Callable
 from inspect import isgeneratorfunction
 from typing import Self, cast
@@ -31,7 +30,7 @@ from orchestrator.utils.auth import Authorizer
 from orchestrator.utils.errors import StaleDataError
 from orchestrator.utils.state import form_inject_args
 from orchestrator.utils.validate_data_version import validate_data_version
-from orchestrator.workflow import RunPredicate, Step, StepList, Workflow, begin, done, init, make_workflow, step
+from orchestrator.workflow import RunPredicate, Step, StepList, Workflow, _warn_description_deprecated, begin, done, init, make_workflow, step
 from orchestrator.workflows.steps import (
     refresh_process_search_index,
     refresh_subscription_search_index,
@@ -227,18 +226,7 @@ def create_workflow(
             >> do_something_else
     """
     if description:
-        warnings.warn(
-            "The 'description' parameter in @create_workflow is deprecated. "
-            "Workflow descriptions should be managed in the database via the UI or API endpoint. "
-            "Please remove the 'description' parameter from your decorator.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        logger.warning(
-            "Workflow decorator description is deprecated",
-            workflow_description=description,
-            hint="Remove the description parameter and manage it via database/UI instead",
-        )
+        _warn_description_deprecated()
     create_initial_input_form_generator = wrap_create_initial_input_form(initial_input_form)
 
     def _create_workflow(f: Callable[[], StepList]) -> Workflow:
@@ -292,18 +280,7 @@ def modify_workflow(
             >> do_something_else
     """
     if description:
-        warnings.warn(
-            "The 'description' parameter in @modify_workflow is deprecated. "
-            "Workflow descriptions should be managed in the database via the UI or API endpoint. "
-            "Please remove the 'description' parameter from your decorator.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        logger.warning(
-            "Workflow decorator description is deprecated",
-            workflow_description=description,
-            hint="Remove the description parameter and manage it via database/UI instead",
-        )
+        _warn_description_deprecated()
 
     wrapped_modify_initial_input_form_generator = wrap_modify_initial_input_form(initial_input_form)
 
@@ -359,18 +336,7 @@ def terminate_workflow(
             >> do_something_else
     """
     if description:
-        warnings.warn(
-            "The 'description' parameter in @terminate_workflow is deprecated. "
-            "Workflow descriptions should be managed in the database via the UI or API endpoint. "
-            "Please remove the 'description' parameter from your decorator.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        logger.warning(
-            "Workflow decorator description is deprecated",
-            workflow_description=description,
-            hint="Remove the description parameter and manage it via database/UI instead",
-        )
+        _warn_description_deprecated()
 
     wrapped_terminate_initial_input_form_generator = wrap_modify_initial_input_form(initial_input_form)
 
@@ -423,18 +389,7 @@ def validate_workflow(
             >> do_something_else
     """
     if description:
-        warnings.warn(
-            "The 'description' parameter in @validate_workflow is deprecated. "
-            "Workflow descriptions should be managed in the database via the UI or API endpoint. "
-            "Please remove the 'description' parameter from your decorator.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        logger.warning(
-            "Workflow decorator description is deprecated",
-            workflow_description=description,
-            hint="Remove the description parameter and manage it via database/UI instead",
-        )
+        _warn_description_deprecated()
 
     def _validate_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = init >> store_process_subscription() >> unsync_unchecked >> f() >> resync >> done
@@ -477,18 +432,7 @@ def reconcile_workflow(
             )
     """
     if description:
-        warnings.warn(
-            "The 'description' parameter in @reconcile_workflow is deprecated. "
-            "Workflow descriptions should be managed in the database via the UI or API endpoint. "
-            "Please remove the 'description' parameter from your decorator.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        logger.warning(
-            "Workflow decorator description is deprecated",
-            workflow_description=description,
-            hint="Remove the description parameter and manage it via database/UI instead",
-        )
+        _warn_description_deprecated()
 
     wrapped_reconcile_initial_input_form_generator = wrap_modify_initial_input_form(None)
 
