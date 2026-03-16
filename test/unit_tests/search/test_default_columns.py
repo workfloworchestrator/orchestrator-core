@@ -17,7 +17,7 @@ import pytest
 
 from orchestrator.api.api_v1.endpoints.search import _perform_search_and_fetch
 from orchestrator.schemas.search_requests import SearchRequest
-from orchestrator.search.core.types import EntityType
+from orchestrator.search.core.types import EntityType, SearchMetadata
 from orchestrator.search.query.default_columns import DEFAULT_RESPONSE_COLUMNS
 from orchestrator.search.query.engine import execute_search
 from orchestrator.search.query.queries import SelectQuery
@@ -67,7 +67,7 @@ class TestResponseColumns:
     async def test_include_columns_false_passes_empty_response_columns_to_engine(self):
         """When include_columns=False, _perform_search_and_fetch passes response_columns=[] to the engine."""
         request = SearchRequest(limit=10)
-        mock_response = MagicMock(results=[], metadata=MagicMock())
+        mock_response = MagicMock(results=[], metadata=SearchMetadata.empty())
 
         with (
             patch(
@@ -85,7 +85,7 @@ class TestResponseColumns:
     async def test_include_columns_true_preserves_response_columns_in_engine(self):
         """When include_columns=True (default), _perform_search_and_fetch passes response_columns unchanged."""
         request = SearchRequest(limit=10, response_columns=["subscription.status"])
-        mock_response = MagicMock(results=[], metadata=MagicMock())
+        mock_response = MagicMock(results=[], metadata=SearchMetadata.empty())
 
         with (
             patch(

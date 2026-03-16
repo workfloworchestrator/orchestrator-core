@@ -15,7 +15,6 @@ import structlog
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
-from orchestrator.search.core.embedding import QueryEmbedder
 from orchestrator.search.core.types import EntityType, RetrieverType, SearchMetadata
 from orchestrator.search.query.results import (
     QueryResultsResponse,
@@ -148,6 +147,8 @@ async def _execute_search(
     candidate_query = build_candidate_query(query)
 
     if query.vector_query and not query_embedding:
+        from orchestrator.search.core.embedding import QueryEmbedder
+
         query_embedding = await QueryEmbedder.generate_for_text_async(query.vector_query)
 
     # Get retriever (from override or automatic routing)
