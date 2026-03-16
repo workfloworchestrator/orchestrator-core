@@ -125,8 +125,8 @@ async def discover_filter_paths(
     Returns a dictionary where each key is a field_name from the input list and
     the value is its discovery result.
     """
-    if entity_type is None:
-        if ctx.deps.state.query is not None:
+    if entity_type:
+        if ctx.deps.state.query:
             entity_type = ctx.deps.state.query.entity_type
         else:
             raise ModelRetry("Entity type not specified and no query in state. Pass entity_type.")
