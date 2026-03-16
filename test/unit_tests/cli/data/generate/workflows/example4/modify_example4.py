@@ -59,7 +59,7 @@ def update_subscription_description(subscription: Example4) -> State:
 additional_steps = begin
 
 
-@modify_workflow("Modify example4", initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
+@modify_workflow(initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
 def modify_example4() -> StepList:
     return (
         begin

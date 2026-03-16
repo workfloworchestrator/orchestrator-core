@@ -70,7 +70,7 @@ def construct_example2_model(
 additional_steps = begin
 
 
-@create_workflow("Create example2", initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
+@create_workflow(initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
 def create_example2() -> StepList:
     return (
         begin >> construct_example2_model >> store_process_subscription()
