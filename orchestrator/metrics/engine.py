@@ -17,7 +17,7 @@ def _get_engine_status() -> tuple[GlobalStatusEnum, int]:
     monitor = get_worker_status_monitor()
     running_count = monitor.get_running_jobs_count()
 
-    engine_settings = settings.get_engine_settings()
+    engine_settings = settings.get_engine_settings_table()
     engine_status = settings.generate_engine_global_status(engine_settings, running_count)
 
     return engine_status, running_count

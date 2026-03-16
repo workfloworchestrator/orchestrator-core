@@ -69,6 +69,7 @@ This should make the docs available on your local machine here: [http://127.0.0.
 ## Changing the Core database schema
 
 When you would like to change the core database schema, first ensure you have the following:
+
 * An up-to-date development environment
 * A postgres instance and `orchestrator-core-test` database setup as described in [Running tests](#running-tests)
 * Venv activated with `source .venv/bin/activate` (or prefix alembic commands with `uv run`)
@@ -76,8 +77,8 @@ When you would like to change the core database schema, first ensure you have th
 Then execute the following steps to create and test your schema change.
 
 ```shell
-# Change to the migrations dir
-cd orchestrator/migrations
+# Point alembic to the right config file
+export ALEMBIC_CONFIG=orchestrator/migrations/alembic.ini
 
 # Run all current migrations
 alembic upgrade heads

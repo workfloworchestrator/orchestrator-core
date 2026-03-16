@@ -1,0 +1,32 @@
+name: Check alembic migrations
+
+on:
+  pull_request:
+    paths:
+      - 'orchestrator/migrations/**'
+
+env:
+  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
+
+jobs:
+  build:
+    name: Check alembic migrations
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v7
+        with:
+          # It is considered best practice to pin to a specific uv version.
+          version: "0.10.8"
+
+      - name: Ensure there is 1 migration head
+        run: |
+          NUM_HEADS=$(uv run alembic -c orchestrator/migrations/alembic.ini history | grep -cF '(head)')
+          echo "Found '$NUM_HEADS' alembic heads"
+          if [ "$NUM_HEADS" != "1" ]; then
+            echo "There should be exactly 1 alembic head and no branchpoints"
+            exit 1
+          fi

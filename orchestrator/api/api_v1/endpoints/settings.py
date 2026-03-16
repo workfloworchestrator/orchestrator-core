@@ -21,7 +21,6 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
-from orchestrator.db import EngineSettingsTable
 from orchestrator.schemas import (
     EngineSettingsBaseSchema,
     EngineSettingsSchema,
@@ -29,9 +28,8 @@ from orchestrator.schemas import (
 )
 from orchestrator.security import authenticate
 from orchestrator.services import processes, settings
-from orchestrator.services.settings import generate_engine_global_status
+from orchestrator.services.settings import generate_engine_settings_schema
 from orchestrator.services.settings_env_variables import get_all_exposed_settings
-from orchestrator.services.worker_status_monitor import get_worker_status_monitor
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.expose_settings import SettingsExposedSchema
 from orchestrator.utils.json import json_dumps
@@ -86,27 +84,25 @@ async def set_global_status(
 
     """
 
-    engine_settings = settings.get_engine_settings_for_update()
+    current_engine_settings = settings.get_engine_settings_table_for_update()
 
-    result = processes.marshall_processes(engine_settings, body.global_lock)
-    if not result:
+    if not (updated_engine_settings := processes.marshall_processes(current_engine_settings, body.global_lock)):
         raise_status(
             status=HTTPStatus.INTERNAL_SERVER_ERROR,
             detail="Something went wrong while updating the database aborting, possible manual intervention required",
         )
+    engine_settings_schema = generate_engine_settings_schema(updated_engine_settings)
+
     if app_settings.SLACK_ENGINE_SETTINGS_HOOK_ENABLED:
         user_name = user.user_name if user else processes.SYSTEM_USER
-        settings.post_update_to_slack(EngineSettingsSchema.model_validate(result), user_name)
+        settings.post_update_to_slack(engine_settings_schema, user_name)
 
-    status_response = generate_engine_status_response(result)
     if websocket_manager.enabled:
         # send engine status to socket.
-        await websocket_manager.broadcast_data(
-            [WS_CHANNELS.ENGINE_SETTINGS],
-            {"engine-status": generate_engine_status_response(result)},
-        )
+        await websocket_manager.broadcast_data([WS_CHANNELS.ENGINE_SETTINGS], {"engine-status": engine_settings_schema})
         await broadcast_invalidate_cache({"type": "engineStatus"})
-    return status_response
+
+    return engine_settings_schema
 
 
 @router.get("/worker-status", response_model=WorkerStatus)
@@ -135,8 +131,8 @@ def get_global_status() -> EngineSettingsSchema:
         The global status of the engine
 
     """
-    engine_settings = settings.get_engine_settings()
-    return generate_engine_status_response(engine_settings)
+    engine_settings = settings.get_engine_settings_table()
+    return generate_engine_settings_schema(engine_settings)
 
 
 ws_router = APIRouter()
@@ -153,33 +149,12 @@ if app_settings.ENABLE_WEBSOCKETS:
             await websocket_manager.disconnect(websocket, reason=error)
             return
 
-        engine_settings = settings.get_engine_settings()
+        engine_settings = settings.get_engine_settings_table()
 
-        await websocket.send_text(json_dumps({"engine-status": generate_engine_status_response(engine_settings)}))
+        await websocket.send_text(json_dumps({"engine-status": generate_engine_settings_schema(engine_settings)}))
 
         channel = WS_CHANNELS.ENGINE_SETTINGS
         await websocket_manager.connect(websocket, channel)
-
-
-def generate_engine_status_response(
-    engine_settings: EngineSettingsTable,
-) -> EngineSettingsSchema:
-    """Generate the correct engine status response.
-
-    Args:
-        engine_settings: Engine settings database object
-
-    Returns:
-        Engine StatusEnum
-
-    """
-    monitor = get_worker_status_monitor()
-    running_count = monitor.get_running_jobs_count()
-
-    result = EngineSettingsSchema.model_validate(engine_settings)
-    result.global_status = generate_engine_global_status(engine_settings, running_count)
-    result.running_processes = running_count
-    return result
 
 
 @router.get("/overview", response_model=list[SettingsExposedSchema])
