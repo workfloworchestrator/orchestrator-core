@@ -591,6 +591,7 @@ def workflow(
         The `description` parameter is deprecated and will be removed in a future version.
         Workflow descriptions should now be managed in the database via the UI or API endpoint.
         You can safely remove this parameter from the decorator.
+        Removal is tracked in issue #1463.
 
     Example::
 

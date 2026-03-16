@@ -217,6 +217,7 @@ def create_workflow(
         The `description` parameter is deprecated and will be removed in a future version.
         Workflow descriptions should now be managed in the database via the UI or API endpoint.
         You can safely remove this parameter from the decorator.
+        Removal is tracked in issue #1463.
 
     Example::
 
@@ -271,6 +272,7 @@ def modify_workflow(
         The `description` parameter is deprecated and will be removed in a future version.
         Workflow descriptions should now be managed in the database via the UI or API endpoint.
         You can safely remove this parameter from the decorator.
+        Removal is tracked in issue #1463.
 
     Example::
 
@@ -327,6 +329,7 @@ def terminate_workflow(
         The `description` parameter is deprecated and will be removed in a future version.
         Workflow descriptions should now be managed in the database via the UI or API endpoint.
         You can safely remove this parameter from the decorator.
+        Removal is tracked in issue #1463.
 
     Example::
 
@@ -380,6 +383,7 @@ def validate_workflow(
         The `description` parameter is deprecated and will be removed in a future version.
         Workflow descriptions should now be managed in the database via the UI or API endpoint.
         You can safely remove this parameter from the decorator.
+        Removal is tracked in issue #1463.
 
     Example::
 
@@ -421,6 +425,7 @@ def reconcile_workflow(
         The `description` parameter is deprecated and will be removed in a future version.
         Workflow descriptions should now be managed in the database via the UI or API endpoint.
         You can safely remove this parameter from the decorator.
+        Removal is tracked in issue #1463.
 
     Example::
 
