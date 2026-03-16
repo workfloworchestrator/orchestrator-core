@@ -125,7 +125,7 @@ async def discover_filter_paths(
     Returns a dictionary where each key is a field_name from the input list and
     the value is its discovery result.
     """
-    if entity_type:
+    if not entity_type:
         if ctx.deps.state.query:
             entity_type = ctx.deps.state.query.entity_type
         else:
