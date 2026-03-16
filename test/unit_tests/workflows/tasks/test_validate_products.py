@@ -44,7 +44,7 @@ def test_check_workflows_validation_fails_on_target_mismatch(mock_get_workflow_b
         def instantiate(self):
             return type("Wf", (), {"name": workflow_name, "target": "CREATE", "description": "code desc"})()
 
-    db_workflow = type("DbWf", (), {"name": workflow_name, "target": "MODIFY"})()
+    db_workflow = WorkflowTable(name=workflow_name, target="MODIFY")
 
     monkeypatch.setattr(validate_products.orchestrator.workflows, "ALL_WORKFLOWS", {workflow_name: DummyLazyWorkflow()})
     mock_get_workflow_by_name.return_value = db_workflow
