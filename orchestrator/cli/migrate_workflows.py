@@ -83,7 +83,7 @@ def _add_workflow(workflows: dict[str, LazyWorkflowInstance], state: dict) -> di
     # Prompt user for description
     noqa_print("\nPlease provide a description for this workflow.")
     noqa_print("This description will be managed in the database and can be updated via the UI/API endpoint.")
-    wf_description = get_user_input("Workflow description: ", None)
+    wf_description = get_user_input("Workflow description: ")
     if not wf_description:
         noqa_print("Description is required. Cancelling workflow addition.")
         return state
