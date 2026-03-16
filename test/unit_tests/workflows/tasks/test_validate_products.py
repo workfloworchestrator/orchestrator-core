@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -15,7 +16,7 @@ def test_check_subscriptions(generic_subscription_1, generic_subscription_2):
 
 
 @mock.patch("orchestrator.workflows.tasks.validate_products.get_workflow_by_name")
-def test_check_workflows_validation_ignores_description_mismatch(mock_get_workflow_by_name, monkeypatch):
+def test_check_workflows_validation_ignores_description_mismatch(mock_get_workflow_by_name):
     workflow_name = "dummy_workflow"
 
     class DummyLazyWorkflow:
@@ -24,20 +25,23 @@ def test_check_workflows_validation_ignores_description_mismatch(mock_get_workfl
 
     db_workflow = WorkflowTable(name=workflow_name, target="CREATE", description="db desc")
 
-    monkeypatch.setattr(validate_products.orchestrator.workflows, "ALL_WORKFLOWS", {workflow_name: DummyLazyWorkflow()})
-    monkeypatch.setattr(
-        validate_products, "generate_translations", lambda _lang: {"workflow": {workflow_name: "Dummy Workflow"}}
-    )
-    mock_get_workflow_by_name.return_value = db_workflow
-
-    result = validate_products.check_workflows_for_matching_targets_and_descriptions({})
+    with (
+        mock.patch.object(
+            validate_products.orchestrator.workflows, "ALL_WORKFLOWS", {workflow_name: DummyLazyWorkflow()}
+        ),
+        mock.patch.object(
+            validate_products, "generate_translations", return_value={"workflow": {workflow_name: "Dummy Workflow"}}
+        ),
+    ):
+        mock_get_workflow_by_name.return_value = db_workflow
+        result = validate_products.check_workflows_for_matching_targets_and_descriptions({})
 
     assert result.issuccess()
     assert result.unwrap() == {"check_workflows_for_matching_targets_and_descriptions": True}
 
 
 @mock.patch("orchestrator.workflows.tasks.validate_products.get_workflow_by_name")
-def test_check_workflows_validation_fails_on_target_mismatch(mock_get_workflow_by_name, monkeypatch):
+def test_check_workflows_validation_fails_on_target_mismatch(mock_get_workflow_by_name):
     workflow_name = "dummy_workflow"
 
     class DummyLazyWorkflow:
@@ -46,11 +50,46 @@ def test_check_workflows_validation_fails_on_target_mismatch(mock_get_workflow_b
 
     db_workflow = WorkflowTable(name=workflow_name, target="MODIFY")
 
-    monkeypatch.setattr(validate_products.orchestrator.workflows, "ALL_WORKFLOWS", {workflow_name: DummyLazyWorkflow()})
-    mock_get_workflow_by_name.return_value = db_workflow
-
-    result = validate_products.check_workflows_for_matching_targets_and_descriptions({})
+    with mock.patch.object(
+        validate_products.orchestrator.workflows, "ALL_WORKFLOWS", {workflow_name: DummyLazyWorkflow()}
+    ):
+        mock_get_workflow_by_name.return_value = db_workflow
+        result = validate_products.check_workflows_for_matching_targets_and_descriptions({})
 
     assert result.isfailed()
     assert isinstance(result.unwrap(), ProcessFailureError)
     assert "none matching targets and names" in str(result.unwrap())
+
+
+@mock.patch("orchestrator.workflows.tasks.validate_products.get_workflow_by_name")
+def test_check_workflows_validation_fails_on_missing_translation(mock_get_workflow_by_name):
+    workflow_name = "dummy_workflow"
+
+    class DummyLazyWorkflow:
+        def instantiate(self):
+            return type("Wf", (), {"name": workflow_name, "target": "CREATE", "description": "code desc"})()
+
+    with (
+        mock.patch.object(
+            validate_products.orchestrator.workflows, "ALL_WORKFLOWS", {workflow_name: DummyLazyWorkflow()}
+        ),
+        mock.patch.object(validate_products, "generate_translations", return_value={"workflow": {}}),
+    ):
+        mock_get_workflow_by_name.return_value = WorkflowTable(name=workflow_name, target="CREATE")
+        result = validate_products.check_workflows_for_matching_targets_and_descriptions({})
+
+    assert result.isfailed()
+    assert isinstance(result.unwrap(), ProcessFailureError)
+    assert "missing translations" in str(result.unwrap())
+
+
+def test_check_all_workflows_are_in_db_fails_on_mismatch():
+    with (
+        mock.patch.object(validate_products.orchestrator.workflows, "ALL_WORKFLOWS", {"wf_code": object()}),
+        mock.patch.object(validate_products, "get_workflows", return_value=[SimpleNamespace(name="wf_db")]),
+    ):
+        result = validate_products.check_all_workflows_are_in_db({})
+
+    assert result.isfailed()
+    assert isinstance(result.unwrap(), ProcessFailureError)
+    assert "missing workflows" in str(result.unwrap())
