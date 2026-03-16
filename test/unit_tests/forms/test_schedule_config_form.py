@@ -21,7 +21,7 @@ def test_forms_endpoint_scheduler_config_without_initial_form_input(test_client)
     assert response_data == snapshot(
         {
             "scheduled_type": "create",
-            "name": None,
+            "name": "Validate subscriptions",
             "workflow_id": response_data["workflow_id"],
             "workflow_name": "task_validate_subscriptions",
             "trigger": "date",
@@ -54,7 +54,7 @@ def test_forms_endpoint_scheduler_config_with_initial_form_input(test_client, ge
             "trigger_kwargs": {"run_date": response_data["trigger_kwargs"]["run_date"]},
             "user_inputs": [{"product_type": "Generic"}],
             "scheduled_type": "create",
-            "name": None,
+            "name": "Validate all subscriptions of Product Type",
         }
     )
     assert APSchedulerJobCreate(**response_data)
@@ -77,7 +77,7 @@ def test_forms_endpoint_scheduler_config_interval_type(test_client):
     assert response_data == snapshot(
         {
             "scheduled_type": "create",
-            "name": None,
+            "name": "Validate subscriptions",
             "workflow_id": response_data["workflow_id"],
             "workflow_name": "task_validate_subscriptions",
             "trigger": "interval",
@@ -105,7 +105,7 @@ def test_forms_endpoint_scheduler_config_cron_type(test_client):
     assert response_data == snapshot(
         {
             "scheduled_type": "create",
-            "name": None,
+            "name": "Validate subscriptions",
             "workflow_id": response_data["workflow_id"],
             "workflow_name": "task_validate_subscriptions",
             "trigger": "cron",

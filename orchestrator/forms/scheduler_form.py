@@ -6,6 +6,7 @@ from uuid import UUID
 
 from annotated_types import Predicate
 from sqlalchemy import select
+from typing_extensions import TypedDict
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import db
@@ -32,6 +33,15 @@ class Intervals(Choice):
     ONE_WEEK = "1 week"
     TWO_WEEKS = "2 weeks"
     ONE_MONTH = "1 months"
+
+
+class ButtonConfig(TypedDict, total=False):
+    text: str
+
+
+class Buttons(TypedDict):
+    previous: ButtonConfig
+    next: ButtonConfig
 
 
 INTERVAL_MAPPING = {
@@ -106,7 +116,7 @@ def form_generator_send(form_generator: FormGenerator, data: dict | None) -> tup
 
 
 async def configure_schedule_form(state: State) -> FormGeneratorAsync:
-    from orchestrator.forms import FormPage, SubmitScheduleFormPage
+    from orchestrator.forms import FormPage, SubmitFormPage
 
     user_model = OIDCUserModel(**_user_model) if (_user_model := state.get("user_model")) else None
     tasks = get_tasks(user_model)
@@ -140,7 +150,7 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
 
     schedule_type_form = yield ScheduleTypeForm
 
-    class ScheduleDateForm(SubmitScheduleFormPage):
+    class ScheduleDateForm(SubmitFormPage):
         task: read_only_field(schedule_type_form.task)  # type: ignore
         schedule_type: read_only_field(schedule_type_form.schedule_type)  # type: ignore
 
@@ -149,6 +159,8 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
             interval: Intervals
         if schedule_type_form.schedule_type == ScheduleTypeEnum.CRON:
             cron: Annotated[str, Predicate(is_valid_cron)]
+
+        buttons: Buttons = {"previous": {}, "next": {"text": "Create Schedule"}}
 
     schedule_date_form = yield ScheduleDateForm
     schedule_type_data = schedule_date_form.model_dump()
@@ -168,5 +180,5 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
         "trigger_kwargs": trigger_kwargs,
         "user_inputs": user_inputs,
         "scheduled_type": "create",
-        "name": None,
+        "name": task.description,
     }

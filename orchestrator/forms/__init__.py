@@ -38,8 +38,4 @@ class SubmitFormPage(FormPage):
     meta__: ClassVar[JSON] = {"hasNext": False}
 
 
-class SubmitScheduleFormPage(FormPage):
-    meta__: ClassVar[JSON] = {"hasNext": False, "buttons": {"next": {"text": "Create Schedule"}}}
-
-
 register_form("configure_schedule", configure_schedule_form)

@@ -12,7 +12,8 @@
             "schedule_type": "What type of schedule do you need?",
             "start_date": "Start date",
             "interval": "Choose the schedule interval",
-            "cron": "Cron"
+            "cron": "Cron",
+            "buttons": "buttons"
         }
     },
     "workflow": {
