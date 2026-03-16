@@ -75,7 +75,7 @@ def ensure_query_initialized(
 filter_building_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
 
 
-@filter_building_toolset.tool  # type: ignore[misc]
+@filter_building_toolset.tool
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
     filters: FilterTree | None,
@@ -114,7 +114,7 @@ async def set_filter_tree(
     return filters
 
 
-@filter_building_toolset.tool  # type: ignore[misc]
+@filter_building_toolset.tool
 async def discover_filter_paths(
     ctx: RunContext[StateDeps[SearchState]],
     field_names: list[str],
@@ -176,7 +176,7 @@ async def discover_filter_paths(
     return all_results
 
 
-@filter_building_toolset.tool  # type: ignore[misc]
+@filter_building_toolset.tool
 async def get_valid_operators() -> dict[str, list[FilterOp]]:
     """Gets the mapping of field types to their valid filter operators."""
     definitions = await get_definitions()
