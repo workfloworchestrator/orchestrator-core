@@ -1,3 +1,5 @@
+import warnings
+
 import pytest
 
 from orchestrator.workflow import StepList, Workflow, begin, done, step, workflow
@@ -135,3 +137,27 @@ def test_deprecated_description_emits_warning(decorator_factory):
             return begin >> done
 
     assert test_workflow.description == description
+
+
+@pytest.mark.parametrize(
+    "decorator_factory",
+    [
+        create_workflow,
+        modify_workflow,
+        terminate_workflow,
+        validate_workflow,
+        reconcile_workflow,
+        workflow,
+    ],
+)
+def test_empty_description_does_not_emit_warning(decorator_factory):
+    with warnings.catch_warnings(record=True) as warnings_record:
+        warnings.simplefilter("always")
+
+        @decorator_factory("")  # type: ignore[misc]
+        def test_workflow() -> StepList:
+            return begin >> done
+
+    description_warnings = [w for w in warnings_record if issubclass(w.category, DeprecationWarning)]
+    assert description_warnings == []
+    assert test_workflow.description == ""
