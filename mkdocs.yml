@@ -190,6 +190,7 @@ nav:
                 - v4.x: guides/upgrading/4.0.md
                 - v4.7: guides/upgrading/4.7.md
                 - v4.8: guides/upgrading/4.8.md
+                # - v5.0: guides/upgrading/5.0.md  # TODO: uncomment for final 5.0 release
     - Reference Documentation:
           - TL;DR: reference-docs/tldr.md
           - API docs:

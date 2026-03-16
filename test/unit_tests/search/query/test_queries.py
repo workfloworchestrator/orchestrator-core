@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import pytest
 from pydantic import ValidationError
 
@@ -22,7 +21,7 @@ from orchestrator.search.aggregations import (
     TemporalGrouping,
     TemporalPeriod,
 )
-from orchestrator.search.core.types import ActionType, EntityType
+from orchestrator.search.core.types import EntityType, QueryOperation
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.query.builder import build_aggregation_query, build_candidate_query
 from orchestrator.search.query.mixins import OrderBy, OrderDirection
@@ -36,7 +35,7 @@ class TestSelectQueryConstruction:
 
     def test_minimal_select_query(self, select_query_minimal: SelectQuery):
         """Test creating a minimal SelectQuery with only required fields."""
-        assert select_query_minimal.action == ActionType.SELECT
+        assert select_query_minimal.query_type == "select"
         assert select_query_minimal.limit == 10  # default
         assert select_query_minimal.query_text is None
         assert select_query_minimal.filters is None
@@ -86,7 +85,7 @@ class TestCountQueryConstruction:
 
     def test_minimal_count_query(self, count_query_simple: CountQuery):
         """Test creating a minimal CountQuery (simple count)."""
-        assert count_query_simple.action == ActionType.COUNT
+        assert count_query_simple.query_type == "count"
         assert count_query_simple.group_by is None
         assert count_query_simple.temporal_group_by is None
 
@@ -143,7 +142,7 @@ class TestAggregateQueryConstruction:
         agg = CountAggregation(type=AggregationType.COUNT, alias="total")
         query = AggregateQuery(entity_type=EntityType.SUBSCRIPTION, aggregations=[agg])
 
-        assert query.action == ActionType.AGGREGATE
+        assert query.query_type == QueryOperation.AGGREGATE
         assert query.aggregations is not None
 
     def test_aggregate_query_with_grouping(self, aggregate_query_with_grouping: AggregateQuery):

@@ -130,6 +130,28 @@ def run_migration(connection: Connection) -> None:
         )
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_runs_created_at ON agent_runs (created_at);"))
 
+        # Add thread_id column to agent_runs (backwards compatible)
+        connection.execute(
+            text(
+                """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'agent_runs' AND column_name = 'thread_id'
+                ) THEN
+                    ALTER TABLE agent_runs ADD COLUMN thread_id VARCHAR(255);
+                    -- Set default value for existing rows
+                    UPDATE agent_runs SET thread_id = run_id::text WHERE thread_id IS NULL;
+                    ALTER TABLE agent_runs ALTER COLUMN thread_id SET NOT NULL;
+                END IF;
+            END $$;
+        """
+            )
+        )
+        # Create index after ensuring column exists
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_runs_thread_id ON agent_runs (thread_id);"))
+
         # Create search_queries table
         connection.execute(
             text(
@@ -151,6 +173,28 @@ def run_migration(connection: Connection) -> None:
             text("CREATE INDEX IF NOT EXISTS ix_search_queries_executed_at ON search_queries (executed_at);")
         )
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_search_queries_query_id ON search_queries (query_id);"))
+
+        # Create graph_snapshots table for pydantic-graph state persistence
+        connection.execute(
+            text(
+                """
+            CREATE TABLE IF NOT EXISTS graph_snapshots (
+                snapshot_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                run_id UUID NOT NULL,
+                sequence_number INTEGER NOT NULL,
+                snapshot_data JSONB NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                CONSTRAINT fk_graph_snapshots_run_id FOREIGN KEY (run_id) REFERENCES agent_runs(run_id) ON DELETE CASCADE,
+                CONSTRAINT uq_graph_snapshots_run_sequence UNIQUE (run_id, sequence_number)
+            );
+        """
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_graph_snapshots_run_id_sequence ON graph_snapshots (run_id, sequence_number);"
+            )
+        )
 
         connection.commit()
         logger.info("LLM migration completed successfully")

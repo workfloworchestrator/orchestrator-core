@@ -46,7 +46,7 @@ mutation StartProcessMutation ($name: String!, $payload: Payload!) {
     ).encode("utf-8")
 
 
-def test_process_not_found(httpx_mock, test_client):
+def test_process_not_found(httpx_mock, test_client_graphql):
     # given
 
     unknown_wf = "unknown_wf"
@@ -56,7 +56,7 @@ def test_process_not_found(httpx_mock, test_client):
     query = get_start_process_mutation(name=unknown_wf, payload={"payload": {}})
 
     with mutation_authorization():
-        response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+        response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
 
     # then
 
@@ -68,7 +68,7 @@ def test_process_not_found(httpx_mock, test_client):
     assert response.json() == expected
 
 
-def test_process_started(httpx_mock, test_client, generic_product_type_1):
+def test_process_started(httpx_mock, test_client_graphql, generic_product_type_1):
     # given
 
     known_wf = "task_validate_products"
@@ -78,7 +78,7 @@ def test_process_started(httpx_mock, test_client, generic_product_type_1):
     query = get_start_process_mutation(name=known_wf, payload={"payload": [{}]})
 
     with mutation_authorization():
-        response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+        response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
 
     # then
     assert response.status_code == HTTPStatus.OK

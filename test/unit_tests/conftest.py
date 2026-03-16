@@ -3,8 +3,10 @@ import datetime
 import os
 import typing
 import uuid
-from contextlib import closing
+from contextlib import closing, contextmanager
+from copy import copy
 from typing import Any, cast
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -34,12 +36,14 @@ from orchestrator.db import (
     db,
 )
 from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
+from orchestrator.db.models import WorkflowApschedulerJob
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.schedules.scheduler import get_scheduler
 from orchestrator.schedules.service import run_start_workflow_scheduler_task
 from orchestrator.services.translations import generate_translations
-from orchestrator.settings import app_settings
+from orchestrator.services.workflows import get_workflow_by_name
+from orchestrator.settings import SecretPostgresDsn, app_settings
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis_client import create_redis_client
@@ -152,6 +156,8 @@ CUSTOMER_ID: str = "2f47f65a-0911-e511-80d0-005056956c1a"
 
 CLI_OPT_MONITOR_SQLALCHEMY = "--monitor-sqlalchemy"
 
+DEFAULT_DATABASE_URI = "postgresql://nwa:nwa@localhost/orchestrator-core-test"
+
 
 def pytest_addoption(parser):
     """Define custom pytest commandline options."""
@@ -181,7 +187,7 @@ def run_migrations(db_uri: str) -> None:
     """
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)))
     os.environ["DATABASE_URI"] = db_uri
-    app_settings.DATABASE_URI = db_uri  # type: ignore
+    app_settings.DATABASE_URI = SecretPostgresDsn(db_uri)  # type: ignore
     alembic_cfg = Config(file_=os.path.join(path, "../../orchestrator/migrations/alembic.ini"))
     alembic_cfg.set_main_option("script_location", os.path.join(path, "../../orchestrator/migrations"))
     alembic_cfg.set_main_option(
@@ -190,6 +196,30 @@ def run_migrations(db_uri: str) -> None:
     )
     alembic_cfg.set_main_option("sqlalchemy.url", db_uri)
     command.upgrade(alembic_cfg, "heads")
+
+
+def make_db_uri(worker_id):
+    if env_database_uri := os.environ.get("DATABASE_URI"):
+        print(f"Start with DATABASE_URI {env_database_uri!r} from environment")
+        database_uri = env_database_uri
+    else:
+        print(f"Start with default DATABASE_URI {DEFAULT_DATABASE_URI!r}")
+        database_uri = DEFAULT_DATABASE_URI
+
+    if worker_id == "master":
+        # pytest is being run without any workers
+        print(f"No workers, final DATABASE_URI is {database_uri!r}")
+        return database_uri
+
+    url = make_url(database_uri)
+    if hasattr(url, "set"):
+        url = url.set(database=f"{url.database}-{worker_id}")
+    else:
+        url.database = f"{url.database}-{worker_id}"
+
+    worker_database_uri = url.render_as_string(hide_password=False)
+    print(f"Final DATABASE_URI for worker {worker_id!r} is {worker_database_uri!r}")
+    return worker_database_uri
 
 
 @pytest.fixture(scope="session")
@@ -205,16 +235,10 @@ def db_uri(worker_id):
         Database uri to be used in the test thread
 
     """
-    database_uri = os.environ.get("DATABASE_URI", "postgresql://nwa:nwa@localhost/orchestrator-core-test")
-    if worker_id == "master":
-        # pytest is being run without any workers
-        return database_uri
-    url = make_url(database_uri)
-    if hasattr(url, "set"):
-        url = url.set(database=f"{url.database}-{worker_id}")
-    else:
-        url.database = f"{url.database}-{worker_id}"
-    return url.render_as_string(hide_password=False)
+    session_db_uri = make_db_uri(worker_id)
+
+    with patch.object(app_settings, "DATABASE_URI", SecretPostgresDsn(session_db_uri)):
+        yield session_db_uri
 
 
 @pytest.fixture(scope="session")
@@ -309,43 +333,88 @@ def db_session(database):
                 trans.rollback()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def fastapi_app(database, db_uri):
+@contextmanager
+def make_orchestrator_app():
     from oauth2_lib.settings import oauth2lib_settings
 
-    oauth2lib_settings.OAUTH2_ACTIVE = False
-    oauth2lib_settings.ENVIRONMENT_IGNORE_MUTATION_DISABLED = ["local", "TESTING"]
-    app_settings.DATABASE_URI = db_uri
-    app_settings.ENABLE_PROMETHEUS_METRICS_ENDPOINT = True
-    app = OrchestratorCore(base_settings=app_settings)
-    # Start ProcessDataBroadcastThread to test websocket_manager with memory backend
-    app.broadcast_thread.start()
-    yield app
-    app.broadcast_thread.stop()
-    oauth2lib_settings.OAUTH2_ACTIVE = True
+    with (
+        patch.multiple(
+            oauth2lib_settings,
+            OAUTH2_ACTIVE=False,
+            ENVIRONMENT_IGNORE_MUTATION_DISABLED=["local", "TESTING"],
+        ),
+        patch.multiple(
+            app_settings,
+            ENABLE_PROMETHEUS_METRICS_ENDPOINT=True,
+            ENVIRONMENT="TESTING",
+        ),
+    ):
+        app = OrchestratorCore(base_settings=app_settings)
+        app.broadcast_thread.start()
+
+        try:
+            yield app
+        finally:
+            app.worker_status_monitor.stop()
+            app.broadcast_thread.stop()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def fastapi_app(database, db_uri):
+    with make_orchestrator_app() as app:
+        yield app
+
+
+@pytest.fixture
+def fastapi_app_graphql(fastapi_app):
+    """Patches the session-level fastapi_app to be used for graphql queries."""
+
+    # Keep references to the fastapi routes and graphql router objects prior to registering
+    original_routes = copy(fastapi_app.router.routes)
+    original_router = fastapi_app.graphql_router
+
+    # Register the graphql router; this needs to be done for every testcase.
+    # This is because the product fixtures (e.g. generic_product_type_1) are function-level fixtures which change the
+    # definitions in SUBSCRIPTION_MODEL_REGISTRY.
+    # These models need to be updated in the graphql schema.
+    fastapi_app.register_graphql()
+
+    yield fastapi_app
+
+    # Restore old routes and router object
+    fastapi_app.router.routes = original_routes
+    fastapi_app.graphql_router = original_router
+
+
+class JsonTestClient(TestClient):
+    def request(  # type: ignore
+        self,
+        method: str,
+        url: str,
+        data: Any | None = None,
+        headers: typing.MutableMapping[str, str] | None = None,
+        json: typing.Any = None,
+        **kwargs: Any,
+    ) -> requests.Response:
+        if json is not None:
+            if headers is None:
+                headers = {}
+            data = json_dumps(json).encode()
+            headers["Content-Type"] = "application/json"
+
+        return super().request(method, url, data=data, headers=headers, **kwargs)  # type: ignore
 
 
 @pytest.fixture(scope="session")
 def test_client(fastapi_app):
-    class JsonTestClient(TestClient):
-        def request(  # type: ignore
-            self,
-            method: str,
-            url: str,
-            data: Any | None = None,
-            headers: typing.MutableMapping[str, str] | None = None,
-            json: typing.Any = None,
-            **kwargs: Any,
-        ) -> requests.Response:
-            if json is not None:
-                if headers is None:
-                    headers = {}
-                data = json_dumps(json).encode()
-                headers["Content-Type"] = "application/json"
-
-            return super().request(method, url, data=data, headers=headers, **kwargs)  # type: ignore
-
+    """Client to test REST calls."""
     return JsonTestClient(fastapi_app)
+
+
+@pytest.fixture
+def test_client_graphql(fastapi_app_graphql):
+    """Client to test GraphQL queries."""
+    return JsonTestClient(fastapi_app_graphql)
 
 
 @pytest.fixture(autouse=True)
@@ -836,7 +905,7 @@ def make_customer_description():
 def cache_fixture(monkeypatch):
     """Fixture to enable domain model caching and cleanup keys added to the list."""
     with monkeypatch.context():
-        cache = create_redis_client(app_settings.CACHE_URI)
+        cache = create_redis_client(app_settings.CACHE_URI.get_secret_value())
         # Clear cache before using this fixture
         cache.flushdb()
 
@@ -944,3 +1013,31 @@ def clear_all_scheduler_jobs():
                 scheduler.remove_job(job.id)
 
     return _clear
+
+
+@pytest.fixture
+def create_schedules_via_api(test_client, scheduler_with_jobs):
+    def _create(
+        job_name: str = "Test Job",
+        workflow_name: str = "task_resume_workflows",
+        schedule_id: str = str(uuid.uuid4()),
+        trigger: str = "interval",
+        trigger_kwargs: dict | None = None,
+    ):
+        workflow = get_workflow_by_name(workflow_name)
+        if not workflow:
+            return
+
+        scheduler_with_jobs(
+            job_name=job_name,
+            workflow_name=workflow_name,
+            schedule_id=schedule_id,
+            trigger=trigger,
+            trigger_kwargs=trigger_kwargs,
+        )
+
+        workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow.workflow_id, schedule_id=schedule_id)
+        db.session.add(workflows_apscheduler_job)
+        db.session.commit()
+
+    return _create

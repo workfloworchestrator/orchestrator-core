@@ -27,6 +27,7 @@ from orchestrator.db.sorting.product_block import product_block_sort_fields
 from orchestrator.db.sorting.resource_type import resource_type_sort_fields
 from orchestrator.db.sorting.subscription import subscription_sort_fields
 from orchestrator.db.sorting.workflow import workflow_sort_fields
+from test.unit_tests.config import GRAPHQL_ENDPOINT
 
 
 def get_page_info_sort_and_filter_fields(type_name) -> bytes:
@@ -59,9 +60,9 @@ query PageInfoSortAndFilterQuery {{
         ("resourceTypes", resource_type_sort_fields(), resource_type_filter_fields()),
     ],
 )
-def test_process_sort_and_filter_fields_in_page_info(test_client, type_name, sort_fields, filter_fields):
+def test_process_sort_and_filter_fields_in_page_info(test_client_graphql, type_name, sort_fields, filter_fields):
     data = get_page_info_sort_and_filter_fields(type_name)
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()

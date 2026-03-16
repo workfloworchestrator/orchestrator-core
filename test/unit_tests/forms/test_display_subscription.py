@@ -64,6 +64,7 @@ def test_display_only_schema():
                 "default": None,
                 "type": "string",
                 "uniforms": {"data": {"headers": ["one"]}},
+                "extraProperties": {"data": {"headers": ["one"]}},
             },
         },
         "title": "unknown",

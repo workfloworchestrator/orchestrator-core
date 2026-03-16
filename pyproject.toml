@@ -41,31 +41,31 @@ dependencies = [
     "click==8.*",
     "deepmerge==2.0",
     "deprecated>=1.2.18",
-    "fastapi~=0.134.0",
+    "fastapi~=0.135.1",
     "fastapi-etag==0.4.0",
     "itsdangerous>=2.2.0",
     "jinja2==3.1.6",
     "more-itertools~=10.8.0",
     "nwa-stdlib~=1.11.0",
-    "oauth2-lib>=2.5.0",
+    "oauth2-lib>=2.6.1",
     "orjson==3.11.7",
     "pgvector>=0.4.1",
     "prometheus-client==0.24.1",
     "psycopg2-binary==2.9.11",
-    "pydantic-forms>=1.4.0",
+    "pydantic-forms>=2.4.0",
     "pydantic-settings~=2.13.0",
     "pydantic[email]~=2.12.4",
     "python-dateutil==2.9.0.post0",
     "python-rapidjson>=1.23,<1.24",
-    "pytz==2025.2",
-    "redis==7.2.1",
+    "pytz==2026.1.post1",
+    "redis==7.3.0",
     "semver==3.0.4",
     "sentry-sdk[fastapi]>=2.29.1",
     "sqlalchemy==2.0.48",
     "sqlalchemy-utils==0.42.1",
     "strawberry-graphql>=0.281.0,<0.285.0",
     "structlog>=25.4.0",
-    "tabulate==0.9.0",
+    "tabulate==0.10.0",
     "typer==0.24.1",
     "uvicorn[standard]~=0.41.0",
 ]
@@ -87,6 +87,8 @@ agent = [
     "pydantic-ai-slim >=1.56.0",
     "ag-ui-protocol>=0.1.10",
     "litellm>=1.75.7",
+    "fasta2a>=0.1.0",
+    "mcp>=1.9.0",
 ]
 
 # Local dependencies for development
@@ -232,6 +234,7 @@ ban-relative-imports = "all"
 "test/*" = ["S101", "B033", "N816", "N802", "T201"]
 "orchestrator/__init__.py" = ["E402"]
 "orchestrator/search/llm_migration.py" = ["S608"]
+"demos/*" = ["S101", "T201"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

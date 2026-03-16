@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "wfo-search": {
+      "type": "http",
+      "url": "http://localhost:8080/api/agent/mcp"
+    }
+  }
+}

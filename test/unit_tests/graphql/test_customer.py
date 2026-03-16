@@ -38,8 +38,8 @@ query CustomerQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $so
     ).encode("utf-8")
 
 
-def test_customers(fastapi_app_graphql, test_client):
-    response = test_client.post(GRAPHQL_ENDPOINT, content=get_customers_query(), headers=GRAPHQL_HEADERS)
+def test_customers(test_client_graphql):
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=get_customers_query(), headers=GRAPHQL_HEADERS)
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     customer_data = result["data"]["customers"]["page"][0]
@@ -50,14 +50,14 @@ def test_customers(fastapi_app_graphql, test_client):
     }
 
 
-def test_change_customer_env_vars(fastapi_app_graphql, test_client):
+def test_change_customer_env_vars(test_client_graphql):
     with pytest.MonkeyPatch.context() as mp:
         mp.setenv("DEFAULT_CUSTOMER_FULLNAME", "Custom Default Customer")
         mp.setenv("DEFAULT_CUSTOMER_SHORTCODE", "shortcode")
         mp.setenv("DEFAULT_CUSTOMER_IDENTIFIER", "123456")
         new_app_settings = AppSettings()
         mp.setattr("orchestrator.graphql.resolvers.customer.app_settings", new_app_settings)
-        response = test_client.post(GRAPHQL_ENDPOINT, content=get_customers_query(), headers=GRAPHQL_HEADERS)
+        response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=get_customers_query(), headers=GRAPHQL_HEADERS)
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()

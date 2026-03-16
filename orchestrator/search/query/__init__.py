@@ -38,9 +38,9 @@ from .exceptions import (
 )
 from .queries import AggregateQuery, CountQuery, ExportQuery, Query, SelectQuery
 from .results import (
-    AggregationResponse,
-    AggregationResult,
     MatchingField,
+    QueryResultsResponse,
+    ResultRow,
     SearchResponse,
     SearchResult,
     VisualizationType,
@@ -80,8 +80,8 @@ __all__ = [
     "SelectQuery",
     "TemporalGrouping",
     # Results
-    "AggregationResponse",
-    "AggregationResult",
+    "QueryResultsResponse",
+    "ResultRow",
     "MatchingField",
     "SearchResponse",
     "SearchResult",

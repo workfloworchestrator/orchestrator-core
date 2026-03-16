@@ -26,7 +26,6 @@ from sqlalchemy import (
     TEXT,
     TIMESTAMP,
     Boolean,
-    CheckConstraint,
     Column,
     Enum,
     Float,
@@ -134,7 +133,7 @@ class InputStateTable(BaseModel):
         initial_state = "initial_state"
 
     input_state_id = mapped_column(UUIDType, primary_key=True, server_default=text("uuid_generate_v4()"), index=True)
-    process_id = mapped_column("pid", UUIDType, ForeignKey("processes.pid"), nullable=False)
+    process_id = mapped_column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False)
     input_state = mapped_column(pg.JSONB(), nullable=False)
     input_time = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
     input_type = mapped_column(Enum(InputType), nullable=False)
@@ -711,17 +710,26 @@ class SubscriptionSearchView(BaseModel):
 
 
 class AgentRunTable(BaseModel):
-    """Agent conversation/session tracking."""
+    """Agent conversation/session tracking.
+
+    Each run represents a single turn in a conversation thread.
+    Multiple runs can belong to the same thread_id for multi-turn conversations.
+    """
 
     __tablename__ = "agent_runs"
 
     run_id = mapped_column("run_id", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    thread_id = mapped_column(String(255), nullable=False, index=True)  # Conversation thread ID
     agent_type = mapped_column(String(50), nullable=False)
     created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
 
     queries = relationship("SearchQueryTable", back_populates="run", cascade="delete", passive_deletes=True)
+    snapshots = relationship("GraphSnapshotTable", back_populates="run", cascade="delete", passive_deletes=True)
 
-    __table_args__ = (Index("ix_agent_runs_created_at", "created_at"),)
+    __table_args__ = (
+        Index("ix_agent_runs_created_at", "created_at"),
+        Index("ix_agent_runs_thread_id", "thread_id"),
+    )
 
 
 class SearchQueryTable(BaseModel):
@@ -780,11 +788,30 @@ class SearchQueryTable(BaseModel):
         )
 
 
+class GraphSnapshotTable(BaseModel):
+    """Pydantic-graph state snapshots for resumable agent conversations."""
+
+    __tablename__ = "graph_snapshots"
+
+    snapshot_id = mapped_column("snapshot_id", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    run_id = mapped_column(
+        "run_id", UUIDType, ForeignKey("agent_runs.run_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sequence_number = mapped_column(Integer, nullable=False)
+    snapshot_data = mapped_column(pg.JSONB, nullable=False)
+    created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+
+    run = relationship("AgentRunTable", back_populates="snapshots")
+
+    __table_args__ = (
+        Index("ix_graph_snapshots_run_id_sequence", "run_id", "sequence_number"),
+        UniqueConstraint("run_id", "sequence_number", name="uq_graph_snapshots_run_sequence"),
+    )
+
+
 class EngineSettingsTable(BaseModel):
     __tablename__ = "engine_settings"
     global_lock = mapped_column(Boolean(), default=False, nullable=False, primary_key=True)
-    running_processes = mapped_column(Integer(), default=0, nullable=False)
-    __table_args__: tuple = (CheckConstraint(running_processes >= 0, name="check_running_processes_positive"), {})
 
 
 class SubscriptionInstanceAsJsonFunction(GenericFunction):
@@ -842,13 +869,13 @@ class WorkflowApschedulerJob(BaseModel):
     __tablename__ = "workflows_apscheduler_jobs"
 
     workflow_id = mapped_column(
-        UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), primary_key=True, nullable=False
+        UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), primary_key=True, nullable=False, index=True
     )
 
     # Notice the VARCHAR(512) for schedule_id to accommodate longer IDs so
     # that if APScheduler changes its ID format in the future, we are covered.
     schedule_id = mapped_column(
-        String(512), ForeignKey("apscheduler_jobs.id", ondelete="CASCADE"), primary_key=True, nullable=False
+        String(512), ForeignKey("apscheduler_jobs.id", ondelete="CASCADE"), primary_key=True, nullable=False, index=True
     )
 
     __table_args__ = (UniqueConstraint("workflow_id", "schedule_id", name="uq_workflow_schedule"),)

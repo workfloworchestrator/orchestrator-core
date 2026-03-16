@@ -216,7 +216,7 @@ def test_start_predicate_passes_via_rest(test_client):
 # --- GraphQL mutation tests ---
 
 
-def test_start_predicate_returns_mutation_error_via_graphql(httpx_mock, test_client):
+def test_start_predicate_returns_mutation_error_via_graphql(test_client_graphql):
     @step("Test step")
     def test_step_fn():
         return {"result": True}
@@ -233,7 +233,7 @@ def test_start_predicate_returns_mutation_error_via_graphql(httpx_mock, test_cli
         query = get_start_process_mutation(name="test_wf_blocked_gql", payload={"payload": [{}]})
 
         with mutation_authorization():
-            response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+            response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
 
         assert response.status_code == HTTPStatus.OK
         data = response.json()["data"]["startProcess"]
@@ -241,7 +241,7 @@ def test_start_predicate_returns_mutation_error_via_graphql(httpx_mock, test_cli
         assert "is not satisfied" in data["details"]
 
 
-def test_start_predicate_reason_in_graphql_error(httpx_mock, test_client):
+def test_start_predicate_reason_in_graphql_error(test_client_graphql):
     @step("Test step")
     def test_step_fn():
         return {"result": True}
@@ -258,7 +258,7 @@ def test_start_predicate_reason_in_graphql_error(httpx_mock, test_client):
         query = get_start_process_mutation(name="test_wf_reason_gql", payload={"payload": [{}]})
 
         with mutation_authorization():
-            response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+            response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
 
         assert response.status_code == HTTPStatus.OK
         data = response.json()["data"]["startProcess"]
@@ -266,7 +266,7 @@ def test_start_predicate_reason_in_graphql_error(httpx_mock, test_client):
         assert "Already running" in data["details"]
 
 
-def test_start_predicate_passes_via_graphql(httpx_mock, test_client):
+def test_start_predicate_passes_via_graphql(test_client_graphql):
     @step("Test step")
     def test_step_fn():
         return {"result": True}
@@ -279,7 +279,7 @@ def test_start_predicate_passes_via_graphql(httpx_mock, test_client):
         query = get_start_process_mutation(name="test_wf_allowed_gql", payload={"payload": [{}]})
 
         with mutation_authorization():
-            response = test_client.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
+            response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=query, headers=GRAPHQL_HEADERS)
 
         assert response.status_code == HTTPStatus.OK
         data = response.json()["data"]["startProcess"]

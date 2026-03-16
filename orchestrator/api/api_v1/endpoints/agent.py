@@ -14,36 +14,47 @@
 from functools import cache
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
-from pydantic_ai.ag_ui import StateDeps, handle_ag_ui_request
-from pydantic_ai.agent import Agent
-from starlette.responses import Response
+from ag_ui.core import RunAgentInput
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import ValidationError
+from pydantic_ai.ag_ui import SSE_CONTENT_TYPE
+from starlette.responses import Response, StreamingResponse
 from structlog import get_logger
 
-from orchestrator.search.agent import build_agent_instance
-from orchestrator.search.agent.state import SearchState
+from orchestrator.db import db
+from orchestrator.search.agent.adapters import AGUIWorker
+from orchestrator.search.agent.agent import AgentAdapter
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 
 @cache
-def get_agent(request: Request) -> Agent[StateDeps[SearchState], str]:
+def get_agent(request: Request) -> AgentAdapter:
     """Dependency to provide the agent instance.
 
     The agent is built once and cached for the lifetime of the application.
     """
-    return build_agent_instance(request.app.agent_model)
+    from orchestrator.llm_settings import llm_settings
+
+    model = request.app.agent_model
+    debug = llm_settings.AGENT_DEBUG
+
+    return AgentAdapter(model, debug=debug)
 
 
 @router.post("/")
 async def agent_conversation(
     request: Request,
-    agent: Annotated[Agent[StateDeps[SearchState], str], Depends(get_agent)],
+    agent: Annotated[AgentAdapter, Depends(get_agent)],
 ) -> Response:
-    """Agent conversation endpoint using pydantic-ai ag_ui protocol.
+    """Agent conversation endpoint using pydantic-ai AG-UI protocol."""
+    try:
+        body = await request.json()
+        run_input = RunAgentInput(**body)
+    except ValidationError as e:
+        logger.error("Invalid request body", error=str(e))
+        raise HTTPException(status_code=400, detail=f"Invalid request body: {e}")
 
-    This endpoint handles the interactive agent conversation for search.
-    """
-    initial_state = SearchState()
-    return await handle_ag_ui_request(agent, request, deps=StateDeps(initial_state))
+    stream = await AGUIWorker.run_request(agent=agent, run_input=run_input, db_session=db.session)
+    return StreamingResponse(stream, media_type=SSE_CONTENT_TYPE)
