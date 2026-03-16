@@ -75,7 +75,7 @@ def ensure_query_initialized(
 filter_building_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
 
 
-@filter_building_toolset.tool
+@filter_building_toolset.tool  # type: ignore[misc]
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
     filters: FilterTree | None,
@@ -114,7 +114,7 @@ async def set_filter_tree(
     return filters
 
 
-@filter_building_toolset.tool
+@filter_building_toolset.tool  # type: ignore[misc]
 async def discover_filter_paths(
     ctx: RunContext[StateDeps[SearchState]],
     field_names: list[str],
@@ -125,8 +125,8 @@ async def discover_filter_paths(
     Returns a dictionary where each key is a field_name from the input list and
     the value is its discovery result.
     """
-    if not entity_type:
-        if ctx.deps.state.query:
+    if entity_type is None:
+        if ctx.deps.state.query is not None:
             entity_type = ctx.deps.state.query.entity_type
         else:
             raise ModelRetry("Entity type not specified and no query in state. Pass entity_type.")
@@ -176,7 +176,7 @@ async def discover_filter_paths(
     return all_results
 
 
-@filter_building_toolset.tool
+@filter_building_toolset.tool  # type: ignore[misc]
 async def get_valid_operators() -> dict[str, list[FilterOp]]:
     """Gets the mapping of field types to their valid filter operators."""
     definitions = await get_definitions()

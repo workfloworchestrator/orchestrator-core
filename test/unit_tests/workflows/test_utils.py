@@ -1,7 +1,13 @@
 import pytest
 
-from orchestrator.workflow import StepList, Workflow, begin, done, step
-from orchestrator.workflows.utils import reconcile_workflow
+from orchestrator.workflow import StepList, Workflow, begin, done, step, workflow
+from orchestrator.workflows.utils import (
+    create_workflow,
+    modify_workflow,
+    reconcile_workflow,
+    terminate_workflow,
+    validate_workflow,
+)
 
 
 @step("Extra Step")
@@ -106,3 +112,26 @@ def test_reconcile_workflow_non_callable():
 
     with pytest.raises(TypeError):
         _ = reconcile_workflow(workflow_description)(None)
+
+
+@pytest.mark.parametrize(
+    "decorator_factory",
+    [
+        create_workflow,
+        modify_workflow,
+        terminate_workflow,
+        validate_workflow,
+        reconcile_workflow,
+        workflow,
+    ],
+)
+def test_deprecated_description_emits_warning(decorator_factory):
+    description = "Deprecated description"
+
+    with pytest.warns(DeprecationWarning):
+
+        @decorator_factory(description)  # type: ignore[misc]
+        def test_workflow() -> StepList:
+            return begin >> done
+
+    assert test_workflow.description == description
