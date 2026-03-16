@@ -68,8 +68,7 @@ def check_workflows_for_matching_targets_and_descriptions() -> State:
             # Note: description is no longer validated here as it can be changed via UI/API
             if wf.target != db_workflow.target or wf.name != db_workflow.name:
                 message = (
-                    f"Workflow {wf.name}: {wf.target} <=> {db_workflow.target}, "
-                    f"{wf.name} <=> {db_workflow.name}. "
+                    f"Workflow {wf.name}: {wf.target} <=> {db_workflow.target}, " f"{wf.name} <=> {db_workflow.name}. "
                 )
                 workflow_assertions.append(message)
 

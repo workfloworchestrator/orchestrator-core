@@ -30,7 +30,18 @@ from orchestrator.utils.auth import Authorizer
 from orchestrator.utils.errors import StaleDataError
 from orchestrator.utils.state import form_inject_args
 from orchestrator.utils.validate_data_version import validate_data_version
-from orchestrator.workflow import RunPredicate, Step, StepList, Workflow, _warn_description_deprecated, begin, done, init, make_workflow, step
+from orchestrator.workflow import (
+    RunPredicate,
+    Step,
+    StepList,
+    Workflow,
+    _warn_description_deprecated,
+    begin,
+    done,
+    init,
+    make_workflow,
+    step,
+)
 from orchestrator.workflows.steps import (
     refresh_process_search_index,
     refresh_subscription_search_index,
