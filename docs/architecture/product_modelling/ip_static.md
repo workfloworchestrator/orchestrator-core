@@ -15,7 +15,7 @@ For this example, we chose to bundle the IP settings in a separate product
 block to make it possible to be reused by other products, but we could also
 just have extended the Ip_static_virtual_circuit product block.
 
-<img height="75%" src="../ip_static.png" title="IP Static Product Model" width="75%"/>
+<img height="75%" src="../ip_static.drawio.png" title="IP Static Product Model" width="75%"/>
 
 * **ip_routing_type**: either Static or BGP, for this product set to Static
 * **customer_prefixes**: list of IPAM ID’s of the customer IP prefixes
