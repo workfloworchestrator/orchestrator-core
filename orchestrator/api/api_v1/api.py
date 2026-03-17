@@ -22,6 +22,7 @@ from orchestrator.api.api_v1.endpoints import (
     product_blocks,
     products,
     resource_types,
+    schedules,
     settings,
     subscription_customer_descriptions,
     subscriptions,
@@ -88,10 +89,18 @@ api_router.include_router(
 api_router.include_router(
     ws.router, prefix="/ws", tags=["Core", "Events"]
 )  # Auth on the websocket is handled in the Websocket Manager
+api_router.include_router(
+    schedules.router, prefix="/schedules", tags=["Core", "Schedules"], dependencies=[Depends(authorize)]
+)
 
-if llm_settings.LLM_ENABLED:
+if llm_settings.SEARCH_ENABLED:
     from orchestrator.api.api_v1.endpoints import search
 
     api_router.include_router(
         search.router, prefix="/search", tags=["Core", "Search"], dependencies=[Depends(authorize)]
     )
+
+if llm_settings.AGENT_ENABLED:
+    from orchestrator.api.api_v1.endpoints import agent
+
+    api_router.include_router(agent.router, prefix="/agent", tags=["Core", "Agent"], dependencies=[Depends(authorize)])

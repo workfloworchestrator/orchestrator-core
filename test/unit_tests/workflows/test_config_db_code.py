@@ -20,7 +20,6 @@ def test_all_workflows_have_matching_targets_and_descriptions():
             # Test workflows might not exist in the database
             assert workflow.target == db_workflow.target
             assert workflow.name == db_workflow.name
-            assert workflow.description == db_workflow.description
 
 
 def test_all_products_have_at_least_one_workflow():

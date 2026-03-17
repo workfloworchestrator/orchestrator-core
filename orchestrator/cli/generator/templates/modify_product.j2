@@ -115,7 +115,7 @@ def update_subscription_description(subscription: {{ product.type }}) -> State:
 {% include 'additional_create_steps.j2' %}
 
 
-@modify_workflow("Modify {{ product.name }}", initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
+@modify_workflow(initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
 def modify_{{ product.variable }}() -> StepList:
     return (
         begin

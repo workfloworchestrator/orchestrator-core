@@ -1,0 +1,22 @@
+{
+  "models": [
+    {
+      "name": "OpenAI Large",
+      "model": "openai/text-embedding-3-large",
+      "dimension": 3072,
+      "description": "Compare against baseline (text-embedding-3-small). Vectors >2000 dims will be truncated due to HNSW index limit."
+    },
+    {
+      "name": "OpenAI Ada v2",
+      "model": "openai/text-embedding-ada-002",
+      "dimension": 1536,
+      "description": "Previous generation OpenAI embedding model for comparison."
+    },
+    {
+      "name": "OpenAI Ada v 2 truncated embeddings (500)",
+      "model": "openai/text-embedding-ada-002",
+      "dimension": 500,
+      "description": "Previous generation OpenAI embedding model for comparison."
+    }
+  ]
+}

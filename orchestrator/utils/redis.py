@@ -28,7 +28,7 @@ from orchestrator.utils.redis_client import (
 
 logger = get_logger(__name__)
 
-cache = create_redis_client(app_settings.CACHE_URI)
+cache = create_redis_client(app_settings.CACHE_URI.get_secret_value())
 
 ONE_WEEK = 3600 * 24 * 7
 

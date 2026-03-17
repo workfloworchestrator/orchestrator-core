@@ -19,7 +19,7 @@ pip install orchestrator-core
 PYTHONPATH=. python main.py db init
 cp -av examples/*add_user_and_usergroup* migrations/versions/schema
 PYTHONPATH=. python main.py db upgrade heads
-ENABLE_WEBSOCKETS=True uvicorn --host 127.0.0.1 --port 8080 main:app
+ENABLE_WEBSOCKETS=True uvicorn --host 127.0.0.1 --port 8080 wsgi:app
 ```
 
 ## Explore

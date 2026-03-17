@@ -23,7 +23,11 @@ F = TypeVar("F", bound=Callable[..., object])
 
 
 @deprecated(
-    reason="We changed from scheduler to apscheduler which has its own decoractor, use `@scheduler.scheduled_job()` from `from orchestrator.scheduling.scheduler import scheduler`"
+    reason=(
+        "Scheduling tasks with a decorator is deprecated in favor of using the API. "
+        "This decorator will be removed in 5.0.0. "
+        "For more details, please consult https://workfloworchestrator.org/orchestrator-core/guides/upgrading/4.7/"
+    )
 )
 def scheduler(
     name: str,

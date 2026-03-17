@@ -1,6 +1,12 @@
 # agentic_app.py
 
-The agentic_app.py module is used in `orchestrator-core` for actually running the entire Agentic WFO FastAPI backend and the CLI.
+The agentic_app.py module is used in `orchestrator-core` for running the LLM enabled orchestrator.
+Functionality in this class is toggled by two different environment variables:
+
+- `SEARCH_ENABLED`: When set to `True` the orchestrator will enable the LLM Based search
+- `AGENT_ENABLED`: When set to `True` the orchestrator will activate the Agent module of the orchestrator.
+
+
 
 ## FastAPI Backend
 

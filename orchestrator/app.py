@@ -5,7 +5,7 @@ This module contains the main `OrchestratorCore` class for the `FastAPI` backend
 provides the ability to run the CLI.
 """
 
-# Copyright 2019-2020 SURF, ESnet, GÉANT.
+# Copyright 2019-2025 SURF, ESnet, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -57,7 +57,9 @@ from orchestrator.graphql.types import ScalarOverrideType, StrawberryModelType
 from orchestrator.log_config import LOGGER_OVERRIDES
 from orchestrator.metrics import ORCHESTRATOR_METRICS_REGISTRY, initialize_default_metrics
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
-from orchestrator.settings import AppSettings, ExecutorType, app_settings
+from orchestrator.services.worker_status_monitor import get_worker_status_monitor
+from orchestrator.settings import AppSettings, ExecutorType, app_settings, get_authorizers
+from orchestrator.utils.auth import Authorizer
 from orchestrator.version import GIT_COMMIT_HASH
 from orchestrator.websocket import init_websocket_manager
 from pydantic_forms.exception_handlers.fastapi import form_error_handler
@@ -121,6 +123,10 @@ class OrchestratorCore(FastAPI):
         if websocket_manager.enabled:
             startup_functions.append(websocket_manager.connect_redis)
             shutdown_functions.extend([websocket_manager.disconnect_all, websocket_manager.disconnect_redis])
+
+        # Initialize worker status monitor for accurate running process counts
+        self.worker_status_monitor = get_worker_status_monitor()
+        shutdown_functions.append(self.worker_status_monitor.stop)
 
         if base_settings.EXECUTOR == ExecutorType.THREADPOOL:
             # Only need broadcast thread when using threadpool executor
@@ -240,9 +246,8 @@ class OrchestratorCore(FastAPI):
 
     def register_graphql(
         self: "OrchestratorCore",
-        # mypy 1.9 cannot properly inspect these, fixed in 1.15
-        query: Any = Query,  # type: ignore
-        mutation: Any = Mutation,  # type: ignore
+        query: Any = Query,
+        mutation: Any = Mutation,
         register_models: bool = True,
         subscription_interface: Any = SubscriptionInterface,
         graphql_models: StrawberryModelType | None = None,
@@ -310,6 +315,38 @@ class OrchestratorCore(FastAPI):
             None
         """
         self.auth_manager.graphql_authorization = graphql_authorization_instance
+
+    def register_internal_authorize_callback(self, callback: Authorizer) -> None:
+        """Registers the authorize_callback for WFO's internal workflows and tasks.
+
+        Since RBAC policies are applied to workflows via decorator, this enables registration of callbacks
+        for workflows defined in orchestrator-core itself.
+        However, this assignment MUST be made before any workflows are run.
+
+        Args:
+            callback (Authorizer): The async Authorizer to run for the `authorize_callback` argument of internal workflows.
+
+        Returns:
+            None
+        """
+        authorizers = get_authorizers()
+        authorizers.internal_authorize_callback = callback
+
+    def register_internal_retry_auth_callback(self, callback: Authorizer) -> None:
+        """Registers the retry_auth_callback for WFO's internal workflows and tasks.
+
+        Since RBAC policies are applied to workflows via decorator, this enables registration of callbacks
+        for workflows defined in orchestrator-core itself.
+        However, this assignment MUST be made before any workflows are run.
+
+        Args:
+            callback (Authorizer): The async Authorizer to run for the `retry_auth_callback` argument of internal workflows.
+
+        Returns:
+            None
+        """
+        authorizers = get_authorizers()
+        authorizers.internal_retry_auth_callback = callback
 
 
 main_typer_app = typer.Typer()

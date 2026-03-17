@@ -25,7 +25,7 @@ from orchestrator.db import (
     WorkflowTable,
 )
 from orchestrator.db.database import BaseModel
-from orchestrator.search.core.types import EntityType
+from orchestrator.search.core.types import EntityType, ExtractedField
 
 from .traverse import (
     BaseTraverser,
@@ -48,9 +48,33 @@ class EntityConfig(Generic[ModelT]):
     traverser: "type[BaseTraverser]"
     pk_name: str
     root_name: str
+    title_paths: list[str]  # List of field paths to check for title (with fallback)
 
     def get_all_query(self, entity_id: str | None = None) -> Query | Select:
         query = self.table.query
+        if entity_id:
+            pk_column = getattr(self.table, self.pk_name)
+            query = query.filter(pk_column == UUID(entity_id))
+        return query
+
+    def get_title_from_fields(self, fields: list[ExtractedField]) -> str:
+        """Extract title from fields using configured paths."""
+        for title_path in self.title_paths:
+            for field in fields:
+                if field.path == title_path and field.value:
+                    return str(field.value)
+        return "UNKNOWN"
+
+
+@dataclass(frozen=True)
+class ProcessConfig(EntityConfig[ProcessTable]):
+    """Processes need to eager load workflow for workflow_name field."""
+
+    def get_all_query(self, entity_id: str | None = None) -> Query | Select:
+        from sqlalchemy.orm import selectinload
+
+        # Only load workflow, not subscriptions (keeps it lightweight)
+        query = self.table.query.options(selectinload(ProcessTable.workflow))
         if entity_id:
             pk_column = getattr(self.table, self.pk_name)
             query = query.filter(pk_column == UUID(entity_id))
@@ -76,6 +100,7 @@ ENTITY_CONFIG_REGISTRY: dict[EntityType, EntityConfig] = {
         traverser=SubscriptionTraverser,
         pk_name="subscription_id",
         root_name="subscription",
+        title_paths=["subscription.description"],
     ),
     EntityType.PRODUCT: EntityConfig(
         entity_kind=EntityType.PRODUCT,
@@ -83,13 +108,15 @@ ENTITY_CONFIG_REGISTRY: dict[EntityType, EntityConfig] = {
         traverser=ProductTraverser,
         pk_name="product_id",
         root_name="product",
+        title_paths=["product.description", "product.name"],
     ),
-    EntityType.PROCESS: EntityConfig(
+    EntityType.PROCESS: ProcessConfig(
         entity_kind=EntityType.PROCESS,
         table=ProcessTable,
         traverser=ProcessTraverser,
         pk_name="process_id",
         root_name="process",
+        title_paths=["process.workflow_name"],
     ),
     EntityType.WORKFLOW: WorkflowConfig(
         entity_kind=EntityType.WORKFLOW,
@@ -97,5 +124,6 @@ ENTITY_CONFIG_REGISTRY: dict[EntityType, EntityConfig] = {
         traverser=WorkflowTraverser,
         pk_name="workflow_id",
         root_name="workflow",
+        title_paths=["workflow.description", "workflow.name"],
     ),
 }

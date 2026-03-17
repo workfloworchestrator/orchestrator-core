@@ -8,6 +8,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator import app_settings, workflow
 from orchestrator.targets import Target
 from orchestrator.workflow import done, init
+from test.unit_tests.config import GRAPHQL_ENDPOINT
 from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
@@ -73,9 +74,9 @@ query WorkflowsQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $s
     ).encode("utf-8")
 
 
-def test_workflows_query(test_client):
+def test_workflows_query(test_client_graphql):
     data = get_workflows_query(first=2)
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -94,13 +95,13 @@ def test_workflows_query(test_client):
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 1,
-        "totalItems": 5,
+        "totalItems": 6,
     }
 
 
-def test_workflows_has_previous_page(test_client):
+def test_workflows_has_previous_page(test_client_graphql):
     data = get_workflows_query(after=1, sort_by=[{"field": "name", "order": "ASC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -113,16 +114,17 @@ def test_workflows_has_previous_page(test_client):
         "hasNextPage": False,
         "hasPreviousPage": True,
         "startCursor": 1,
-        "endCursor": 4,
-        "totalItems": 5,
+        "endCursor": 5,
+        "totalItems": 6,
     }
 
-    assert len(workflows) == 4
+    assert len(workflows) == 5
     assert [workflow["name"] for workflow in workflows] == [
         "task_clean_up_tasks",
         "task_resume_workflows",
         "task_validate_product_type",
         "task_validate_products",
+        "task_validate_subscriptions",
     ]
 
 
@@ -133,10 +135,12 @@ def test_workflows_has_previous_page(test_client):
         {"query_string": "name:task_*"},
     ],
 )
-def test_workflows_filter_by_name(test_client, query_args):
+def test_workflows_filter_by_name(test_client_graphql, query_args):
     with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
         data = get_workflows_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
-        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+        response = test_client_graphql.post(
+            GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+        )
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -146,17 +150,18 @@ def test_workflows_filter_by_name(test_client, query_args):
 
     assert "errors" not in result
     assert pageinfo == {
-        "endCursor": 3,
+        "endCursor": 4,
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "totalItems": 4,
+        "totalItems": 5,
     }
     expected_workflows = [
         "task_clean_up_tasks",
         "task_resume_workflows",
         "task_validate_product_type",
         "task_validate_products",
+        "task_validate_subscriptions",
     ]
     assert [rt["name"] for rt in workflows] == expected_workflows
 
@@ -168,9 +173,9 @@ def test_workflows_filter_by_name(test_client, query_args):
         {"query_string": 'product:"Product 1"'},
     ],
 )
-def test_workflows_filter_by_product(test_client, query_args):
+def test_workflows_filter_by_product(test_client_graphql, query_args):
     data = get_workflows_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     workflows_data = result["data"]["workflows"]
@@ -191,10 +196,12 @@ def test_workflows_filter_by_product(test_client, query_args):
     "query_args",
     [{"query_string": "tag:gen1"}, {"query_string": "tag:gen2"}, {"query_string": "product:Product"}],
 )
-def test_workflows_filter_by_tag(test_client, query_args):
+def test_workflows_filter_by_tag(test_client_graphql, query_args):
     with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
         data = get_workflows_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
-        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+        response = test_client_graphql.post(
+            GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+        )
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -213,9 +220,9 @@ def test_workflows_filter_by_tag(test_client, query_args):
     assert workflows[0]["name"] == "modify_note"
 
 
-def test_workflows_sort_by_resource_type_desc(test_client):
+def test_workflows_sort_by_resource_type_desc(test_client_graphql):
     data = get_workflows_query(sort_by=[{"field": "name", "order": "DESC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
 
@@ -227,10 +234,11 @@ def test_workflows_sort_by_resource_type_desc(test_client):
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "endCursor": 4,
-        "totalItems": 5,
+        "endCursor": 5,
+        "totalItems": 6,
     }
     expected_workflows = [
+        "task_validate_subscriptions",
         "task_validate_products",
         "task_validate_product_type",
         "task_resume_workflows",
@@ -240,10 +248,10 @@ def test_workflows_sort_by_resource_type_desc(test_client):
     assert [rt["name"] for rt in workflows] == expected_workflows
 
 
-def test_workflows_not_allowed(test_client):
+def test_workflows_not_allowed(test_client_graphql):
     forbidden_workflow_name = "unauthorized_workflow"
 
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
     @workflow(forbidden_workflow_name, target=Target.CREATE, authorize_callback=disallow)
@@ -252,7 +260,9 @@ def test_workflows_not_allowed(test_client):
 
     with WorkflowInstanceForTests(unauthorized_workflow, forbidden_workflow_name):
         data = get_workflows_query(filter_by=[{"field": "name", "value": forbidden_workflow_name}])
-        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+        response = test_client_graphql.post(
+            GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"}
+        )
         assert HTTPStatus.OK == response.status_code
         result = response.json()
 

@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -25,17 +25,18 @@ from orchestrator.search.filters import (
     PathFilter,
     StringFilter,
 )
-from orchestrator.search.retrieval.exceptions import (
+from orchestrator.search.query.exceptions import (
     EmptyFilterPathError,
     IncompatibleFilterTypeError,
     InvalidEntityPrefixError,
     InvalidLtreePatternError,
     PathNotFoundError,
 )
-from orchestrator.search.retrieval.validation import (
+from orchestrator.search.query.validation import (
     complete_filter_validation,
     is_filter_compatible_with_field_type,
     validate_filter_tree,
+    validate_structured_order_by_element,
 )
 
 
@@ -54,7 +55,7 @@ class TestFilterValidationExceptions:
             await complete_filter_validation(filter_with_empty_path, EntityType.SUBSCRIPTION)
 
     @pytest.mark.asyncio
-    @patch("orchestrator.search.retrieval.validation.validate_filter_path")
+    @patch("orchestrator.search.query.validation.validate_filter_path")
     async def test_path_not_found_error(self, mock_validate_path):
         """Test that non-existent paths raise PathNotFoundError."""
         mock_validate_path.return_value = None
@@ -69,7 +70,7 @@ class TestFilterValidationExceptions:
             await complete_filter_validation(filter_with_invalid_path, EntityType.SUBSCRIPTION)
 
     @pytest.mark.asyncio
-    @patch("orchestrator.search.retrieval.validation.validate_filter_path")
+    @patch("orchestrator.search.query.validation.validate_filter_path")
     async def test_incompatible_filter_type_error(self, mock_validate_path):
         """Test that incompatible filter types raise IncompatibleFilterTypeError."""
         mock_validate_path.return_value = FieldType.STRING.value
@@ -84,7 +85,7 @@ class TestFilterValidationExceptions:
             await complete_filter_validation(filter_with_wrong_type, EntityType.SUBSCRIPTION)
 
     @pytest.mark.asyncio
-    @patch("orchestrator.search.retrieval.validation.validate_filter_path")
+    @patch("orchestrator.search.query.validation.validate_filter_path")
     async def test_invalid_entity_prefix_error(self, mock_validate_path):
         """Test that wrong entity prefixes raise InvalidEntityPrefixError."""
         mock_validate_path.return_value = FieldType.STRING.value
@@ -97,7 +98,7 @@ class TestFilterValidationExceptions:
             await complete_filter_validation(filter_with_wrong_prefix, EntityType.SUBSCRIPTION)
 
     @pytest.mark.asyncio
-    @patch("orchestrator.search.retrieval.validation.is_lquery_syntactically_valid")
+    @patch("orchestrator.search.query.validation.is_lquery_syntactically_valid")
     async def test_invalid_ltree_pattern_error(self, mock_is_valid):
         """Test that invalid ltree patterns raise InvalidLtreePatternError."""
         mock_is_valid.return_value = False
@@ -121,7 +122,7 @@ class TestFilterTreeValidation:
         await validate_filter_tree(None, EntityType.SUBSCRIPTION)
 
     @pytest.mark.asyncio
-    @patch("orchestrator.search.retrieval.validation.validate_filter_path")
+    @patch("orchestrator.search.query.validation.validate_filter_path")
     async def test_validate_filter_tree_propagates_exceptions(self, mock_validate_path):
         """Test that validate_filter_tree propagates specific exceptions from individual filters."""
         mock_validate_path.return_value = None
@@ -141,7 +142,7 @@ class TestFilterCompatibilityPaths:
     """Test successful validation paths for different filter types."""
 
     @pytest.mark.asyncio
-    @patch("orchestrator.search.retrieval.validation.validate_filter_path")
+    @patch("orchestrator.search.query.validation.validate_filter_path")
     @pytest.mark.parametrize(
         "field_type,filter_condition,value_kind",
         [
@@ -163,7 +164,7 @@ class TestFilterCompatibilityPaths:
         await complete_filter_validation(path_filter, EntityType.SUBSCRIPTION)
 
     @pytest.mark.asyncio
-    @patch("orchestrator.search.retrieval.validation.validate_filter_path")
+    @patch("orchestrator.search.query.validation.validate_filter_path")
     async def test_wildcard_path_bypasses_entity_prefix_check(self, mock_validate_path):
         """Test that wildcard paths ('*') bypass entity prefix validation."""
         mock_validate_path.return_value = FieldType.STRING.value
@@ -176,7 +177,7 @@ class TestFilterCompatibilityPaths:
         mock_validate_path.assert_called_once_with("*.name")
 
     @pytest.mark.asyncio
-    @patch("orchestrator.search.retrieval.validation.validate_filter_path")
+    @patch("orchestrator.search.query.validation.validate_filter_path")
     async def test_ltree_filter_takes_special_path(self, mock_validate_path):
         """Test that LtreeFilter takes special validation path."""
         # mock_validate_path should not be called for LtreeFilter
@@ -250,3 +251,28 @@ class TestFilterTypeCompatibility:
 
         with pytest.raises(AttributeError):
             is_filter_compatible_with_field_type(unknown_filter, FieldType.STRING)
+
+
+@patch("orchestrator.search.query.validation.get_ai_search_index_by_entity_type_and_path")
+def test_validate_structured_order_by_element(mock_get_ai_search_index_by_entity_type_and_path):
+    element = "subscription.element.not.exist"
+    mock_get_ai_search_index_by_entity_type_and_path.return_value = {"path": element}
+    request_mock = MagicMock()
+    request_mock.order_by.element = element
+
+    validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock)
+
+
+def test_validate_structured_order_by_element_without_request():
+    validate_structured_order_by_element(EntityType.SUBSCRIPTION, None)
+
+
+@patch("orchestrator.search.query.validation.get_ai_search_index_by_entity_type_and_path")
+def test_validate_structured_order_by_element_not_existing_element(mock_get_ai_search_index_by_entity_type_and_path):
+    element = "subscription.element.not.exist"
+    mock_get_ai_search_index_by_entity_type_and_path.return_value = None
+    request_mock = MagicMock()
+    request_mock.order_by.element = element
+
+    with pytest.raises(ValueError, match=f"Element {element} is not a valid path"):
+        validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock)

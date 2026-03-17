@@ -3,6 +3,7 @@ import structlog
 from orchestrator.db.filters import Filter
 from orchestrator.db.sorting import Sort
 from orchestrator.graphql.pagination import Connection
+from orchestrator.graphql.resolvers.helpers import make_async
 from orchestrator.graphql.schemas.scheduled_task import ScheduledTaskGraphql
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils import create_resolver_error_handler, to_graphql_result_page
@@ -12,7 +13,8 @@ from orchestrator.schedules.scheduler import get_scheduler_tasks, scheduled_task
 logger = structlog.get_logger(__name__)
 
 
-async def resolve_scheduled_tasks(
+@make_async
+def resolve_scheduled_tasks(
     info: OrchestratorInfo,
     filter_by: list[GraphqlFilter] | None = None,
     sort_by: list[GraphqlSort] | None = None,

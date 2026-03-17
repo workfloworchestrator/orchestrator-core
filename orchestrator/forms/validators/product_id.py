@@ -19,6 +19,7 @@ import structlog
 from pydantic import AfterValidator, Field
 
 from orchestrator.services.products import get_product_by_id
+from pydantic_forms.validators import constants
 
 logger = structlog.get_logger(__name__)
 
@@ -53,7 +54,15 @@ ProductId = Annotated[UUID, AfterValidator(_validate_is_product), Field(json_sch
 
 
 def product_id(product_ids: list[UUID] | None = None) -> type[ProductId]:
-    schema = {"uniforms": {"productIds": product_ids}} if product_ids else {}
+    if product_ids:
+        product_ids_schema = {"productIds": product_ids}
+        schema = {
+            "uniforms": product_ids_schema,  # Deprecated, use extra properties instead (#1416 for removal)
+            constants.EXTRA_PROPERTIES: product_ids_schema,
+        }
+    else:
+        schema = {}
+
     return Annotated[  # type: ignore[return-value]
         ProductId,
         AfterValidator(partial(_validate_in_products, set(product_ids or []))),

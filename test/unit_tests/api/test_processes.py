@@ -20,10 +20,12 @@ from orchestrator.db import (
 )
 from orchestrator.security import authenticate
 from orchestrator.services.processes import RESUME_WORKFLOW_REMOVED_ERROR_MSG, can_be_resumed, shutdown_thread_pool
-from orchestrator.services.settings import get_engine_settings
+from orchestrator.services.settings import get_engine_settings_table
+from orchestrator.services.tasks import RESUME_WORKFLOW
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.workflow import (
+    CALLBACK_TOKEN_KEY,
     ProcessStatus,
     StepList,
     StepStatus,
@@ -31,14 +33,18 @@ from orchestrator.workflow import (
     init,
     inputstep,
     make_workflow,
+    retrystep,
     step,
+    step_group,
     workflow,
 )
+from orchestrator.workflows.tasks.cleanup_tasks_log import task_clean_up_tasks
 from pydantic_forms.core import FormPage
 from test.unit_tests.helpers import URL_STR_TYPE
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
 test_condition = Condition()
+callback_key = "lgjyjNvu-C6vMbaUmjPZPxoJ1t8yS_41ottoe64qP5A"
 
 
 @pytest.fixture
@@ -155,19 +161,21 @@ def test_long_running_pause(test_client, long_running_workflow):
 
     response = test_client.put("/api/settings/status", json={"global_lock": True})
     assert response.json()["global_lock"] is True
-    assert response.json()["running_processes"] == 1
-    assert response.json()["global_status"] == "PAUSING"
+    # Worker-based counting: worker may still be executing, so could be 0 or 1
+    assert response.json()["running_processes"] in [0, 1]
+    assert response.json()["global_status"] in ["PAUSING", "PAUSED"]
 
     # Let it run until completing the first lock step
     with test_condition:
         test_condition.notify_all()
     time.sleep(1)
 
-    # Make sure the running_processes is decreased and status is updated.
+    # Check status after pausing.
+    # Worker-based counting: worker has stopped executing, so count is 0
     response = test_client.get("/api/settings/status")
     assert response.json()["global_lock"] is True
-    assert response.json()["running_processes"] == 0
-    assert response.json()["global_status"] == "PAUSED"
+    assert response.json()["running_processes"] == 0  # No workers executing
+    assert response.json()["global_status"] == "PAUSED"  # Engine is paused (no workers running)
 
     response = test_client.get(f"api/processes/{process_id}")
     assert len(response.json()["steps"]) == 4
@@ -175,14 +183,15 @@ def test_long_running_pause(test_client, long_running_workflow):
     # assume ordered steplist
     assert response.json()["steps"][3]["status"] == "pending"
 
+    # Unlock the engine to resume execution
     response = test_client.put("/api/settings/status", json={"global_lock": False})
-
-    # Make sure it started again
-    time.sleep(1)
-
     assert response.json()["global_lock"] is False
-    assert response.json()["running_processes"] == 1
+    # Worker-based counting: monitor updates periodically, so may not reflect worker immediately
+    assert response.json()["running_processes"] in [0, 1]
     assert response.json()["global_status"] == "RUNNING"
+
+    # Let it continue executing
+    time.sleep(1)
 
     # Let it finish after second lock step
     with test_condition:
@@ -198,7 +207,7 @@ def test_long_running_pause(test_client, long_running_workflow):
 
 
 def test_service_unavailable_engine_locked(test_client, test_workflow):
-    engine_settings = get_engine_settings()
+    engine_settings = get_engine_settings_table()
     engine_settings.global_lock = True
     db.session.flush()
 
@@ -539,12 +548,26 @@ def test_resume_all_processes_value_error(test_client, mocked_processes_resumeal
 )
 def test_create_process_reporter(test_client, fastapi_app, oidc_user, reporter, expected_user):
     # given
+    async def allow(_: object) -> bool:
+        return True
+
+    fake_workflow = make_workflow(
+        f=lambda _: None,
+        description="fake",
+        initial_input_form=None,
+        target=Target.CREATE,
+        steps=StepList([]),
+        authorize_callback=allow,
+        retry_auth_callback=allow,
+    )
     url_params = {"reporter": reporter} if reporter is not None else {}
     fastapi_depends = {authenticate: lambda: oidc_user}
     with (
+        mock.patch("orchestrator.api.api_v1.endpoints.processes.get_workflow") as mock_get_workflow,
         mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process,
         mock.patch.dict(fastapi_app.dependency_overrides, fastapi_depends),
     ):
+        mock_get_workflow.return_value = fake_workflow
         mock_start_process.return_value = uuid.uuid4()
         # when
         response = test_client.post("/api/processes/fake_workflow", json=[], params=url_params)
@@ -604,7 +627,7 @@ def test_new_process_higher_version_invalid(test_client, generic_subscription_1)
 
 
 def test_unauthorized_to_run_process(test_client):
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
     @workflow("unauthorized_workflow", target=Target.CREATE, authorize_callback=disallow)
@@ -618,10 +641,10 @@ def test_unauthorized_to_run_process(test_client):
 
 @pytest.fixture
 def authorize_resume_workflow():
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: OIDCUserModel | None = None) -> bool:
         return True
 
     class ConfirmForm(FormPage):
@@ -646,7 +669,7 @@ def authorize_resume_workflow():
 
 
 @pytest.fixture
-def process_on_resume(authorize_resume_workflow):
+def process_on_resumable_inputstep(authorize_resume_workflow):
     process_id = uuid4()
     process = ProcessTable(
         process_id=process_id,
@@ -664,7 +687,7 @@ def process_on_resume(authorize_resume_workflow):
 
 
 @pytest.fixture
-def process_on_retry(authorize_resume_workflow):
+def process_on_retriable_inputstep(authorize_resume_workflow):
     process_id = uuid4()
     process = ProcessTable(
         process_id=process_id,
@@ -684,45 +707,49 @@ def process_on_retry(authorize_resume_workflow):
 
 
 @pytest.fixture
-def process_on_unauthorize_resume(process_on_resume):
+def process_on_unauthorized_resume(process_on_resumable_inputstep):
     authorize_resume_step = ProcessStepTable(
-        process_id=process_on_resume, name="authorized_resume", status=StepStatus.SUCCESS, state={"confirm": True}
+        process_id=process_on_resumable_inputstep,
+        name="authorized_resume",
+        status=StepStatus.SUCCESS,
+        state={"confirm": True},
     )
 
     db.session.add(authorize_resume_step)
     db.session.commit()
 
-    return process_on_resume
+    return process_on_resumable_inputstep
 
 
-def test_authorized_resume_input_step(test_client, process_on_resume):
-    response = test_client.put(f"/api/processes/{process_on_resume}/resume", json=[{"confirm": True}])
+def test_authorized_resume_input_step(test_client, process_on_resumable_inputstep):
+    response = test_client.put(f"/api/processes/{process_on_resumable_inputstep}/resume", json=[{"confirm": True}])
     assert HTTPStatus.NO_CONTENT == response.status_code
 
 
-def test_unauthorized_resume_input_step_retry(test_client, process_on_retry):
-    response = test_client.put(f"/api/processes/{process_on_retry}/resume", json=[{"confirm": True}])
+def test_unauthorized_resume_input_step_retry(test_client, process_on_retriable_inputstep):
+    # The current inputstep should be allowing resumes but not retries, and should be FAILED.
+    response = test_client.put(f"/api/processes/{process_on_retriable_inputstep}/resume", json=[{"confirm": True}])
     assert HTTPStatus.FORBIDDEN == response.status_code
 
 
-def test_unauthorized_resume_input_step(test_client, process_on_unauthorize_resume):
-    response = test_client.put(f"/api/processes/{process_on_unauthorize_resume}/resume", json=[{"confirm": True}])
+def test_unauthorized_resume_input_step(test_client, process_on_unauthorized_resume):
+    response = test_client.put(f"/api/processes/{process_on_unauthorized_resume}/resume", json=[{"confirm": True}])
     assert HTTPStatus.FORBIDDEN == response.status_code
 
 
-def _A(_: OIDCUserModel) -> bool:
+async def _A(_: OIDCUserModel) -> bool:
     return True
 
 
-def _B(_: OIDCUserModel) -> bool:
+async def _B(_: OIDCUserModel) -> bool:
     return True
 
 
-def _C(_: OIDCUserModel) -> bool:
+async def _C(_: OIDCUserModel) -> bool:
     return True
 
 
-def _D(_: OIDCUserModel) -> bool:
+async def _D(_: OIDCUserModel) -> bool:
     return True
 
 
@@ -780,3 +807,368 @@ def test_get_auth_callbacks(policies, decisions):
     got_auth, got_retry = get_auth_callbacks(steps, workflow)
     assert got_auth == want_auth
     assert got_retry == want_retry
+
+
+@pytest.fixture
+def process_on_await_callback(authorize_resume_workflow):
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_resume_workflow.workflow_id,
+        last_status=ProcessStatus.AWAITING_CALLBACK,
+        last_step="Action step",
+    )
+    init_step = ProcessStepTable(
+        process_id=process_id, name="Action step", status=StepStatus.SUCCESS, state={CALLBACK_TOKEN_KEY: callback_key}
+    )
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.commit()
+
+    return process_id
+
+
+@mock.patch("orchestrator.services.tasks.get_celery_task")
+@mock.patch("orchestrator.db")
+@mock.patch.object(app_settings, "EXECUTOR", "celery")
+def test_continue_awaiting_process_endpoint(mock_db, mock_get_celery_task, test_client, process_on_await_callback):
+    trigger_task = mock.MagicMock()
+    trigger_task.delay.get.return_value = uuid4()
+    mock_get_celery_task.return_value = trigger_task
+
+    fake_result = mock.MagicMock()
+    fake_result.last_status = "AWAIT_CALLBACK"
+    mock_db.session.execute.return_value.scalar_one_or_none.return_value = fake_result
+
+    response = test_client.post(
+        f"/api/processes/{process_on_await_callback}/callback/{callback_key}", json={"callback_response": True}
+    )
+    assert response.status_code == HTTPStatus.OK
+    mock_get_celery_task.assert_called_once_with(RESUME_WORKFLOW)
+
+
+def test_continue_awaiting_process_endpoint_wrong_process_status(test_client, process_on_resumable_inputstep):
+    response = test_client.post(
+        f"/api/processes/{process_on_resumable_inputstep}/callback/{callback_key}", json={"callback_response": True}
+    )
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json() == {
+        "detail": "This process is not in an awaiting state.",
+        "status": 409,
+        "title": "Conflict",
+    }
+
+
+@pytest.fixture
+def authorize_step_group_retry_workflow():
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    async def allow(_: OIDCUserModel | None = None) -> bool:
+        return True
+
+    steps = StepList([])
+    authorized_retry = step_group("authorized_retry", steps, retry_auth_callback=allow)
+    unauthorized_retry = step_group("unauthorized_retry", steps, retry_auth_callback=disallow)
+
+    # Default retry is disallow so we can test that authorized_retry overrides this.
+    @workflow("test_step_group_workflow", target=Target.CREATE, retry_auth_callback=disallow)
+    def test_step_group_workflow():
+        return init >> authorized_retry >> unauthorized_retry >> done
+
+    with WorkflowInstanceForTests(test_step_group_workflow, "test_step_group_workflow") as wf:
+        yield wf
+
+
+@pytest.fixture
+def process_on_retriable_step_group(authorize_step_group_retry_workflow):
+    """A process stuck on a failed step group that CAN be retried."""
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_step_group_retry_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="authorized_retry",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="authorized_retry", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+@pytest.fixture
+def process_on_unretriable_step_group(authorize_step_group_retry_workflow):
+    """A process stuck on a failed step group that CANNOT be retried."""
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_step_group_retry_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="unauthorized_retry",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    success_step = ProcessStepTable(process_id=process_id, name="authorized_retry", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="unauthorized_retry", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(success_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+def test_authorized_step_group_retry(test_client, process_on_retriable_step_group):
+    response = test_client.put(f"/api/processes/{process_on_retriable_step_group}/resume", json=[{"confirm": True}])
+    assert HTTPStatus.NO_CONTENT == response.status_code
+
+
+def test_unauthorized_step_group_retry(test_client, process_on_unretriable_step_group):
+    response = test_client.put(f"/api/processes/{process_on_unretriable_step_group}/resume", json=[{"confirm": True}])
+    assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+@pytest.fixture
+def authorize_step_retry_workflow():
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    async def allow(_: OIDCUserModel | None = None) -> bool:
+        return True
+
+    @step("authorized_retry", retry_auth_callback=allow)
+    def authorized_retry(state):
+        return
+
+    @step("unauthorized_retry", retry_auth_callback=disallow)
+    def unauthorized_retry(state):
+        return
+
+    # Default retry is disallow so we can test that authorized_retry overrides this.
+    @workflow("test_step_retry_workflow", target=Target.CREATE, retry_auth_callback=disallow)
+    def test_step_group_workflow():
+        return init >> authorized_retry >> unauthorized_retry >> done
+
+    with WorkflowInstanceForTests(test_step_group_workflow, "test_step_group_workflow") as wf:
+        yield wf
+
+
+@pytest.fixture
+def process_on_retriable_step(authorize_step_retry_workflow):
+    """A process stuck on a failed step group that CAN be retried."""
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_step_retry_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="authorized_retry",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="authorized_retry", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+@pytest.fixture
+def process_on_unretriable_step(authorize_step_retry_workflow):
+    """A process stuck on a failed step group that CANNOT be retried."""
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_step_retry_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="unauthorized_retry",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    success_step = ProcessStepTable(process_id=process_id, name="authorized_retry", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="unauthorized_retry", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(success_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+def test_authorized_step_retry(test_client, process_on_retriable_step):
+    response = test_client.put(f"/api/processes/{process_on_retriable_step}/resume", json={})
+    assert HTTPStatus.NO_CONTENT == response.status_code
+
+
+def test_unauthorized_step_retry(test_client, process_on_unretriable_step):
+    response = test_client.put(f"/api/processes/{process_on_unretriable_step}/resume", json={})
+    assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+@pytest.fixture
+def authorize_retrystep_retry_workflow():
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    async def allow(_: OIDCUserModel | None = None) -> bool:
+        return True
+
+    @retrystep("authorized_retry", retry_auth_callback=allow)
+    def authorized_retry(state):
+        return
+
+    @retrystep("unauthorized_retry", retry_auth_callback=disallow)
+    def unauthorized_retry(state):
+        return
+
+    # Default retry is disallow so we can test that authorized_retry overrides this.
+    @workflow("test_retrystep_retry_workflow", target=Target.CREATE, retry_auth_callback=disallow)
+    def test_step_group_workflow():
+        return init >> authorized_retry >> unauthorized_retry >> done
+
+    with WorkflowInstanceForTests(test_step_group_workflow, "test_step_group_workflow") as wf:
+        yield wf
+
+
+@pytest.fixture
+def process_on_retriable_retrystep(authorize_retrystep_retry_workflow):
+    """A process stuck on a failed retrystep that CAN be retried."""
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_retrystep_retry_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="authorized_retry",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="authorized_retry", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+@pytest.fixture
+def process_on_unretriable_retrystep(authorize_retrystep_retry_workflow):
+    """A process stuck on a failed retrystep that CANNOT be retried."""
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_retrystep_retry_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="unauthorized_retry",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    success_step = ProcessStepTable(process_id=process_id, name="authorized_retry", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="unauthorized_retry", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(success_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+def test_authorized_retrystep_retry(test_client, process_on_retriable_retrystep):
+    response = test_client.put(f"/api/processes/{process_on_retriable_retrystep}/resume", json={})
+    assert HTTPStatus.NO_CONTENT == response.status_code
+
+
+def test_unauthorized_retrystep_retry(test_client, process_on_unretriable_retrystep):
+    response = test_client.put(f"/api/processes/{process_on_unretriable_retrystep}/resume", json={})
+    assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+@pytest.fixture
+def fastapi_app_for_auth_callbacks(fastapi_app):
+    """Reset auth callbacks after each fixture use.
+
+    Fixture fastapi_app has scope "session", so its cleanup won't run between tests.
+    This wraps the session fixture with a per-test fixture to ensure these callbacks are reset.
+    """
+    yield fastapi_app
+    # Clear internal RBAC settings
+    fastapi_app.register_internal_authorize_callback(None)
+    fastapi_app.register_internal_retry_auth_callback(None)
+
+
+def test_internal_authorize_callback(test_client, fastapi_app_for_auth_callbacks):
+    """Test RBAC callbacks can restrict access to internal workflows."""
+
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    with mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process:
+        # Just return a bogus UUID instead of actually starting a process.
+        mock_start_process.return_value = uuid4()
+
+        # Test that we succeed in the default case (no authorizer)
+        response = test_client.post("/api/processes/task_clean_up_tasks", json=[{}])
+        assert HTTPStatus.CREATED == response.status_code
+
+        # Test that disallow now blocks us
+        fastapi_app_for_auth_callbacks.register_internal_authorize_callback(disallow)
+        response = test_client.post("/api/processes/task_clean_up_tasks", json=[{}])
+        assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+@pytest.fixture
+def internal_process_on_retry_step():
+    """A task_clean_up_tasks process stuck on a failed step."""
+    # Don't know the UUID of task_clean_up_tasks at test time, so we temporarily register a copy of it.
+    with WorkflowInstanceForTests(task_clean_up_tasks, "task_clean_up_tasks_again") as wf:
+        process_id = uuid4()
+        process = ProcessTable(
+            process_id=process_id,
+            workflow_id=wf.workflow_id,
+            last_status=ProcessStatus.FAILED,
+            last_step="remove_tasks",
+        )
+        init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+        failed_step = ProcessStepTable(process_id=process_id, name="remove_tasks", status=StepStatus.FAILED, state={})
+
+        db.session.add(process)
+        db.session.add(init_step)
+        db.session.add(failed_step)
+        db.session.commit()
+
+        # Yield, not return, since we need the workflow to persist for the duration of the test.
+        yield process_id
+
+
+def test_internal_retry_auth_callback(test_client, fastapi_app_for_auth_callbacks, internal_process_on_retry_step):
+    """Test that RBAC callbacks can manage access to retrying internal workflows."""
+
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    async def allow(_: OIDCUserModel | None = None) -> bool:
+        return True
+
+    with mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process:
+        # Just return a bogus UUID instead of actually starting a process.
+        mock_start_process.return_value = uuid4()
+
+        # Start with disallow. This should block us.
+        fastapi_app_for_auth_callbacks.register_internal_retry_auth_callback(disallow)
+        response = test_client.put(f"/api/processes/{internal_process_on_retry_step}/resume", json={})
+        assert HTTPStatus.FORBIDDEN == response.status_code
+
+        # Update to allow. This should succeed.
+        fastapi_app_for_auth_callbacks.register_internal_retry_auth_callback(allow)
+        response = test_client.put(f"/api/processes/{internal_process_on_retry_step}/resume", json={})
+        assert HTTPStatus.NO_CONTENT == response.status_code

@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2025 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,7 +13,7 @@
 
 """This is the orchestrator workflow engine."""
 
-__version__ = "4.5.0a4"
+__version__ = "5.0.0a4"
 
 
 from structlog import get_logger
@@ -25,22 +25,23 @@ logger.info("Starting the orchestrator", version=__version__)
 from orchestrator.llm_settings import llm_settings
 from orchestrator.settings import app_settings
 
-if llm_settings.LLM_ENABLED:
-    try:
-        from importlib import import_module
+if llm_settings.SEARCH_ENABLED or llm_settings.AGENT_ENABLED:
 
-        import_module("pydantic_ai")
-        from orchestrator.agentic_app import AgenticOrchestratorCore as OrchestratorCore
-
-    except ImportError:
-        logger.error(
-            "Unable to import 'pydantic_ai' module, please install the orchestrator with llm dependencies. `pip install orchestrator-core[llm]",
-        )
-        exit(1)
+    from orchestrator.agentic_app import LLMOrchestratorCore as OrchestratorCore
 else:
     from orchestrator.app import OrchestratorCore  # type: ignore[assignment]
 
-from orchestrator.workflow import begin, conditional, done, focussteps, inputstep, retrystep, step, steplens, workflow
+from orchestrator.workflow import (
+    begin,
+    conditional,
+    done,
+    focussteps,
+    inputstep,
+    retrystep,
+    step,
+    steplens,
+    workflow,
+)
 
 __all__ = [
     "OrchestratorCore",

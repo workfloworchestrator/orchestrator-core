@@ -25,7 +25,7 @@ from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.process import process_sort_fields, sort_processes
 from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.resolvers.helpers import rows_from_statement
+from orchestrator.graphql.resolvers.helpers import make_async, rows_from_statement
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils import (
@@ -55,7 +55,8 @@ def _enrich_process(process: ProcessTable, with_details: bool = False) -> Proces
     return ProcessSchema(**process_data)
 
 
-async def resolve_process(info: OrchestratorInfo, process_id: UUID) -> ProcessType | None:
+@make_async
+def resolve_process(info: OrchestratorInfo, process_id: UUID) -> ProcessType | None:
     query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info)
     stmt = select(ProcessTable).options(*query_loaders).where(ProcessTable.process_id == process_id)
     if process := db.session.scalar(stmt):
@@ -64,7 +65,8 @@ async def resolve_process(info: OrchestratorInfo, process_id: UUID) -> ProcessTy
     return None
 
 
-async def resolve_processes(
+@make_async
+def resolve_processes(
     info: OrchestratorInfo,
     filter_by: list[GraphqlFilter] | None = None,
     sort_by: list[GraphqlSort] | None = None,

@@ -24,6 +24,6 @@ def check_validate_example_in_some_oss(subscription: Example1) -> State:
     return {}
 
 
-@validate_workflow("Validate example1")
+@validate_workflow()
 def validate_example1() -> StepList:
     return begin >> load_initial_state_example1 >> check_validate_example_in_some_oss

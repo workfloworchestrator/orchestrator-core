@@ -2,7 +2,6 @@ from unittest import mock
 
 import pytest
 
-from orchestrator import app_settings
 from orchestrator.graphql.autoregistration import register_domain_models
 from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (
     ProductBlockListNestedForTestInactiveGraphql,
@@ -10,9 +9,7 @@ from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested 
 
 
 @pytest.fixture(autouse=True)
-def fastapi_app_graphql(
-    fastapi_app,
-    test_client,
+def load_fixtures(
     generic_product_type_1,
     generic_product_type_2,
     test_product_type_sub_list_union,
@@ -23,20 +20,8 @@ def fastapi_app_graphql(
     sub_two_subscription_1,
     product_sub_list_union_subscription_1,
 ):
-    from pydantic import BaseModel
-
-    from orchestrator.graphql.schemas.subscription import MetadataDict
-
-    class Metadata(BaseModel):
-        some_metadata_prop: list[str]
-
-    MetadataDict.update({"metadata": Metadata})
-
-    actual_env = app_settings.ENVIRONMENT
-    app_settings.ENVIRONMENT = "TESTING"
-    fastapi_app.register_graphql()
-    yield fastapi_app
-    app_settings.ENVIRONMENT = actual_env
+    print("Loading fixtures")
+    pass
 
 
 @pytest.fixture(scope="session", autouse=True)

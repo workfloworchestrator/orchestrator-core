@@ -40,27 +40,28 @@ class SearchMetadata:
     @classmethod
     def structured(cls) -> "SearchMetadata":
         return cls(
-            search_type="structured", description="This search performs a filter-based search using structured queries."
+            search_type="structured",
+            description="This search performs a filter-based search using structured queries.",
         )
 
     @classmethod
     def fuzzy(cls) -> "SearchMetadata":
         return cls(
-            search_type="fuzzy",
+            search_type=RetrieverType.FUZZY.value,
             description="This search performs a trigram similarity search.",
         )
 
     @classmethod
     def semantic(cls) -> "SearchMetadata":
         return cls(
-            search_type="semantic",
+            search_type=RetrieverType.SEMANTIC.value,
             description="This search performs a vector similarity search, using L2 distance on embeddings with minimum distance scoring (normalized).",
         )
 
     @classmethod
     def hybrid(cls) -> "SearchMetadata":
         return cls(
-            search_type="hybrid",
+            search_type=RetrieverType.HYBRID.value,
             description="This search performs reciprocal rank fusion combining trigram similarity, word_similarity, and L2 vector distance.",
         )
 
@@ -101,11 +102,20 @@ class EntityType(str, Enum):
     PROCESS = "PROCESS"
 
 
-class ActionType(str, Enum):
-    """Defines the explicit, safe actions the agent can request."""
+class QueryOperation(str, Enum):
+    """Defines the type of database query operation to perform."""
 
     SELECT = "select"  # Retrieve a list of matching records.
-    # COUNT = "count"  # For phase1; the agent will not support this yet.
+    COUNT = "count"  # Count matching records, optionally grouped.
+    AGGREGATE = "aggregate"  # Compute aggregations (sum, avg, etc.) over matching records.
+
+
+class RetrieverType(str, Enum):
+    """Defines available retriever types for search operations."""
+
+    FUZZY = "fuzzy"
+    SEMANTIC = "semantic"
+    HYBRID = "hybrid"
 
 
 class UIType(str, Enum):
@@ -261,7 +271,7 @@ class FieldType(str, Enum):
 
     def is_embeddable(self, value: str | None) -> bool:
         """Check if a field should be embedded."""
-        if value is None:
+        if value is None or value == "":
             return False
 
         # If inference suggests it's not actually a string, don't embed it
@@ -289,6 +299,7 @@ class ExtractedField(NamedTuple):
 class IndexableRecord(TypedDict):
     entity_id: str
     entity_type: str
+    entity_title: str
     path: Ltree
     value: Any
     value_type: Any

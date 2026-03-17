@@ -18,6 +18,7 @@ import contextvars
 import functools
 import inspect
 import secrets
+import warnings
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from itertools import dropwhile
@@ -42,7 +43,7 @@ from nwastdlib import const, identity
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import db, transactional
-from orchestrator.services.settings import get_engine_settings
+from orchestrator.services.settings import get_engine_settings_table
 from orchestrator.targets import Target
 from orchestrator.types import ErrorDict, StepFunc
 from orchestrator.utils.auth import Authorizer
@@ -88,6 +89,28 @@ class Step(Protocol):
     def __call__(self, state: State) -> Process: ...
 
 
+@dataclass(frozen=True)
+class RunPredicatePass:
+    """Return this from a run predicate to allow the workflow to start."""
+
+    def __bool__(self) -> bool:
+        return True
+
+
+@dataclass(frozen=True)
+class RunPredicateFail:
+    """Return this from a run predicate to block the workflow from starting."""
+
+    message: str
+
+    def __bool__(self) -> bool:
+        return False
+
+
+RunPredicateResult = RunPredicatePass | RunPredicateFail
+RunPredicate = Callable[..., RunPredicateResult]
+
+
 @runtime_checkable
 class Workflow(Protocol):
     __name__: str
@@ -99,8 +122,17 @@ class Workflow(Protocol):
     initial_input_form: InputFormGenerator | None = None
     target: Target
     steps: StepList
+    run_predicate: RunPredicate | None = None
 
     def __call__(self) -> NoReturn: ...
+
+
+@dataclass(frozen=True)
+class PredicateContext:
+    """Context passed as the first argument to a workflow's run predicate."""
+
+    workflow: Workflow
+    workflow_key: str
 
 
 def make_step_function(
@@ -193,7 +225,7 @@ def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputForm
     return form_generator
 
 
-def allow(_: OIDCUserModel | None) -> bool:
+async def allow(_: OIDCUserModel | None) -> bool:
     """Default function to return True in absence of user-defined authorize function."""
     return True
 
@@ -206,6 +238,7 @@ def make_workflow(
     steps: StepList,
     authorize_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
+    run_predicate: RunPredicate | None = None,
 ) -> Workflow:
     @functools.wraps(f)
     def wrapping_function() -> NoReturn:
@@ -229,13 +262,17 @@ def make_workflow(
     wrapping_function.initial_input_form = _handle_simple_input_form_generator(initial_input_form)
     wrapping_function.target = target
     wrapping_function.steps = steps
+    wrapping_function.run_predicate = run_predicate
 
     wrapping_function.__doc__ = make_workflow_doc(wrapping_function)
 
     return wrapping_function
 
 
-def step(name: str) -> Callable[[StepFunc], Step]:
+def step(
+    name: str,
+    retry_auth_callback: Authorizer | None = None,
+) -> Callable[[StepFunc], Step]:
     """Mark a function as a workflow step."""
 
     def decorator(func: StepFunc) -> Step:
@@ -255,12 +292,19 @@ def step(name: str) -> Callable[[StepFunc], Step]:
                     logger.warning("Step failed", exc_info=ex)
                     return Failed(ex)
 
-        return make_step_function(wrapper, name)
+        return make_step_function(
+            wrapper,
+            name,
+            retry_auth_callback=retry_auth_callback,
+        )
 
     return decorator
 
 
-def retrystep(name: str) -> Callable[[StepFunc], Step]:
+def retrystep(
+    name: str,
+    retry_auth_callback: Authorizer | None = None,
+) -> Callable[[StepFunc], Step]:
     """Mark a function as a retryable workflow step.
 
     If this step fails it goes to `Waiting` were it will be retried periodically. If it `Success` it acts as a normal
@@ -283,7 +327,11 @@ def retrystep(name: str) -> Callable[[StepFunc], Step]:
                 except Exception as ex:
                     return Waiting(ex)
 
-        return make_step_function(wrapper, name)
+        return make_step_function(
+            wrapper,
+            name,
+            retry_auth_callback=retry_auth_callback,
+        )
 
     return decorator
 
@@ -349,7 +397,9 @@ def _extend_step_group_steps(name: str, steps: StepList) -> StepList:
     return enter_step >> steps >> exit_step
 
 
-def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
+def step_group(
+    name: str, steps: StepList, extract_form: bool = True, retry_auth_callback: Authorizer | None = None
+) -> Step:
     """Add a group of steps to the workflow as a single step.
 
     A step group is a sequence of steps that act as a single step.
@@ -362,6 +412,7 @@ def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
         name: The name of the step
         steps: The sub steps in the step group
         extract_form: Whether to attach the first form of the sub steps to the step group
+        retry_auth_callback: Callback to determine if user is authorized to retry this group on failure
     """
 
     steps = _extend_step_group_steps(name, steps)
@@ -392,7 +443,7 @@ def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
 
     # Make sure we return a form is a sub step has a form
     form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
-    return make_step_function(func, name, form)
+    return make_step_function(func, name, form, retry_auth_callback=retry_auth_callback)
 
 
 def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
@@ -509,25 +560,49 @@ def focussteps(key: str) -> Callable[[Step | StepList], StepList]:
     return zoom
 
 
+def _warn_description_deprecated() -> None:
+    """Emit a deprecation warning when a workflow decorator `description` parameter is used."""
+    warnings.warn(
+        "The 'description' parameter in workflow decorators is deprecated. "
+        "Workflow descriptions should be managed in the database via the UI or API endpoint. "
+        "Please remove the 'description' parameter from your decorator.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+    logger.warning(
+        "Workflow decorator description is deprecated",
+        hint="Remove the description parameter and manage it via database/UI instead",
+    )
+
+
 def workflow(
-    description: str,
+    description: str = "",
     initial_input_form: InputStepFunc | None = None,
     target: Target = Target.SYSTEM,
     authorize_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
+    run_predicate: RunPredicate | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
     Use this for other workflows. For create workflows use :func:`create_workflow`
 
+    .. deprecated::
+        The `description` parameter is deprecated and will be removed in a future version.
+        Workflow descriptions should now be managed in the database via the UI or API endpoint.
+        You can safely remove this parameter from the decorator.
+        Removal is tracked in issue #1463.
+
     Example::
 
-        @workflow("create service port")
+        @workflow()
         def create_service_port():
             init
             << do_something
             << done
     """
+    if description:
+        _warn_description_deprecated()
     if initial_input_form is None:
         initial_input_form_in_form_inject_args = None
     else:
@@ -542,6 +617,7 @@ def workflow(
             f(),
             authorize_callback=authorize_callback,
             retry_auth_callback=retry_auth_callback,
+            run_predicate=run_predicate,
         )
 
     return _workflow
@@ -1457,7 +1533,7 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
 
         # Execute step
         try:
-            engine_status = get_engine_settings()
+            engine_status = get_engine_settings_table()
             if engine_status.global_lock:
                 # Exiting from thread workflow engine is Paused or Pausing
                 consolelogger.info(

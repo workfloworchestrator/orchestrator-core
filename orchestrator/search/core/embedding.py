@@ -42,7 +42,7 @@ class EmbeddingIndexer:
                 max_retries=llm_settings.LLM_MAX_RETRIES,
             )
             data = sorted(resp.data, key=lambda e: e["index"])
-            return [row["embedding"] for row in data]
+            return [row["embedding"][: llm_settings.EMBEDDING_DIMENSION] for row in data]
         except (llm_exc.APIError, llm_exc.APIConnectionError, llm_exc.RateLimitError, llm_exc.Timeout) as e:
             logger.error("Embedding request failed", error=str(e))
             return [[] for _ in texts]
@@ -67,7 +67,7 @@ class QueryEmbedder:
                 timeout=5.0,
                 max_retries=0,  # No retries, prioritize speed.
             )
-            return resp.data[0]["embedding"]
+            return resp.data[0]["embedding"][: llm_settings.EMBEDDING_DIMENSION]
         except Exception as e:
             logger.error("Async embedding generation failed", error=str(e))
             return []

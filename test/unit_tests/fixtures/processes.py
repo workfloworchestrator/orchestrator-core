@@ -5,10 +5,11 @@ from uuid import uuid4
 
 import pytest
 import pytz
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.db.models import WorkflowTable
 from orchestrator.workflow import done, init, inputstep, step, workflow
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, UUIDstr
@@ -51,6 +52,18 @@ def test_workflow(generic_subscription_1: UUIDstr, generic_product_type_1) -> Ge
 
     with WorkflowInstanceForTests(workflow_for_testing_processes_py, "workflow_for_testing_processes_py") as wf:
         yield wf
+
+
+@pytest.fixture
+def test_workflow_soft_deleted(test_workflow) -> Generator:
+    stmt = select(WorkflowTable).where(WorkflowTable.workflow_id == test_workflow.workflow_id)
+    workflow = db.session.scalar(stmt)
+    assert workflow
+    workflow.deleted_at = datetime.now().tzinfo
+    db.session.add(workflow)
+    db.session.commit()
+
+    yield test_workflow
 
 
 @pytest.fixture

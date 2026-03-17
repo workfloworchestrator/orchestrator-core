@@ -17,6 +17,7 @@ from structlog import get_logger
 from orchestrator.db.database import BaseModel as DbBaseModel
 from orchestrator.db.database import Database, transactional
 from orchestrator.db.models import (  # noqa: F401
+    AgentRunTable,
     EngineSettingsTable,
     FixedInputTable,
     InputStateTable,
@@ -26,6 +27,7 @@ from orchestrator.db.models import (  # noqa: F401
     ProductBlockTable,
     ProductTable,
     ResourceTypeTable,
+    SearchQueryTable,
     SubscriptionCustomerDescriptionTable,
     SubscriptionInstanceRelationTable,
     SubscriptionInstanceTable,
@@ -68,12 +70,14 @@ db = cast(Database, wrapped_db)
 
 # The Global Database is set after calling this function
 def init_database(settings: AppSettings) -> Database:
-    wrapped_db.update(Database(str(settings.DATABASE_URI)))
+    wrapped_db.update(Database(str(settings.DATABASE_URI.get_secret_value())))
     return db
 
 
 __all__ = [
     "transactional",
+    "SearchQueryTable",
+    "AgentRunTable",
     "SubscriptionTable",
     "ProcessSubscriptionTable",
     "ProcessTable",
@@ -97,6 +101,8 @@ __all__ = [
 ]
 
 ALL_DB_MODELS: list[type[DbBaseModel]] = [
+    SearchQueryTable,
+    AgentRunTable,
     FixedInputTable,
     ProcessStepTable,
     ProcessSubscriptionTable,

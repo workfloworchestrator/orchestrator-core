@@ -13,6 +13,7 @@
 
 """Module that implements process related API endpoints."""
 
+import asyncio
 import struct
 import zlib
 from http import HTTPStatus
@@ -55,17 +56,20 @@ from orchestrator.services.processes import (
     start_process,
     update_awaiting_process_progress,
 )
-from orchestrator.services.settings import get_engine_settings
+from orchestrator.services.settings import get_engine_settings_table
 from orchestrator.settings import app_settings
 from orchestrator.utils.auth import Authorizer
 from orchestrator.utils.enrich_process import enrich_process
+from orchestrator.utils.errors import StartPredicateError
 from orchestrator.websocket import (
     WS_CHANNELS,
     broadcast_invalidate_status_counts,
+    broadcast_invalidate_status_counts_async,
     broadcast_process_update_to_websocket,
     websocket_manager,
 )
 from orchestrator.workflow import ProcessStat, ProcessStatus, StepList, Workflow
+from orchestrator.workflows import get_workflow
 from pydantic_forms.types import JSON, State
 
 router = APIRouter()
@@ -80,7 +84,7 @@ def check_global_lock() -> None:
         None or raises an exception
 
     """
-    engine_settings = get_engine_settings()
+    engine_settings = get_engine_settings_table()
     if engine_settings.global_lock:
         logger.info("Unable to interact with processes at this time. Engine StatusEnum is locked")
         raise_status(
@@ -101,7 +105,7 @@ def get_steps_to_evaluate_for_rbac(pstat: ProcessStat) -> StepList:
     return StepList(past_steps >> first(remaining_steps))
 
 
-def get_auth_callbacks(steps: StepList, workflow: Workflow) -> tuple[Authorizer | None, Authorizer | None]:
+def get_auth_callbacks(steps: StepList, workflow: Workflow | None) -> tuple[Authorizer | None, Authorizer | None]:
     """Iterate over workflow and prior steps to determine correct authorization callbacks for the current step.
 
     It's safest to always iterate through the steps. We could track these callbacks statefully
@@ -112,6 +116,9 @@ def get_auth_callbacks(steps: StepList, workflow: Workflow) -> tuple[Authorizer 
     - RESUME callback is explicit RESUME callback, else previous START/RESUME callback
     - RETRY callback is explicit RETRY, else explicit RESUME, else previous RETRY
     """
+    if not workflow:
+        return None, None
+
     # Default to workflow start callbacks
     auth_resume = workflow.authorize_callback
     # auth_retry defaults to the workflow start callback if not otherwise specified.
@@ -172,7 +179,7 @@ def delete(process_id: UUID) -> None:
     status_code=HTTPStatus.CREATED,
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
-def new_process(
+async def new_process(
     workflow_key: str,
     request: Request,
     json_data: list[dict[str, Any]] | None = Body(...),
@@ -180,9 +187,25 @@ def new_process(
     user_model: OIDCUserModel | None = Depends(authenticate),
 ) -> dict[str, UUID]:
     broadcast_func = api_broadcast_process_data(request)
-    process_id = start_process(
-        workflow_key, user_inputs=json_data, user_model=user_model, user=user, broadcast_func=broadcast_func
-    )
+
+    workflow = get_workflow(workflow_key)
+    if not workflow:
+        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
+    if not await workflow.authorize_callback(user_model):
+        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to execute '{workflow_key}' workflow")
+
+    try:
+        process_id = await asyncio.to_thread(
+            start_process,
+            workflow_key,
+            user_inputs=json_data,
+            user_model=user_model,
+            user=user,
+            broadcast_func=broadcast_func,
+        )
+    except StartPredicateError as e:
+        raise_status(HTTPStatus.PRECONDITION_FAILED, str(e))
 
     return {"id": process_id}
 
@@ -193,14 +216,14 @@ def new_process(
     status_code=HTTPStatus.NO_CONTENT,
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
-def resume_process_endpoint(
+async def resume_process_endpoint(
     process_id: UUID,
     request: Request,
     json_data: JSON = Body(...),
     user: str = Depends(user_name),
     user_model: OIDCUserModel | None = Depends(authenticate),
 ) -> None:
-    process = _get_process(process_id)
+    process = await asyncio.to_thread(_get_process, process_id)
 
     if not can_be_resumed(process.last_status):
         raise_status(HTTPStatus.CONFLICT, f"Resuming a {process.last_status.lower()} workflow is not possible")
@@ -208,16 +231,16 @@ def resume_process_endpoint(
     pstat = load_process(process)
     auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(pstat), pstat.workflow)
     if process.last_status == ProcessStatus.SUSPENDED:
-        if auth_resume is not None and not auth_resume(user_model):
+        if auth_resume is not None and not (await auth_resume(user_model)):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to resume step")
     elif process.last_status in (ProcessStatus.FAILED, ProcessStatus.WAITING):
-        if auth_retry is not None and not auth_retry(user_model):
+        if auth_retry is not None and not (await auth_retry(user_model)):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to retry step")
 
-    broadcast_invalidate_status_counts()
+    await broadcast_invalidate_status_counts_async()
     broadcast_func = api_broadcast_process_data(request)
 
-    resume_process(process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
+    await asyncio.to_thread(resume_process, process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
 
 
 @router.post(
@@ -244,6 +267,8 @@ def continue_awaiting_process_endpoint(
         continue_awaiting_process(process, token=token, input_data=json_data, broadcast_func=broadcast_func)
     except AssertionError as e:
         raise_status(HTTPStatus.NOT_FOUND, str(e))
+    except ValueError as e:
+        raise_status(HTTPStatus.BAD_REQUEST, str(e))
 
 
 @router.post(

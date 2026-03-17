@@ -1,7 +1,15 @@
+import warnings
+
 import pytest
 
-from orchestrator.workflow import StepList, Workflow, begin, done, step
-from orchestrator.workflows.utils import reconcile_workflow
+from orchestrator.workflow import StepList, Workflow, begin, done, step, workflow
+from orchestrator.workflows.utils import (
+    create_workflow,
+    modify_workflow,
+    reconcile_workflow,
+    terminate_workflow,
+    validate_workflow,
+)
 
 
 @step("Extra Step")
@@ -30,6 +38,7 @@ def test_reconcile_workflow_basic():
         "Done",
         "Unlock subscription",
         "Refresh subscription search index",
+        "Refresh process search index",
         "Done",
     ]
     assert step_names == expected_steps
@@ -58,6 +67,7 @@ def test_reconcile_workflow_additional_steps():
         "Extra Step",
         "Unlock subscription",
         "Refresh subscription search index",
+        "Refresh process search index",
         "Done",
     ]
     assert step_names == expected_steps
@@ -83,6 +93,7 @@ def test_reconcile_workflow_empty_function_steps():
         "Lock subscription",
         "Unlock subscription",
         "Refresh subscription search index",
+        "Refresh process search index",
         "Done",
     ]
     assert step_names == expected_steps
@@ -103,3 +114,50 @@ def test_reconcile_workflow_non_callable():
 
     with pytest.raises(TypeError):
         _ = reconcile_workflow(workflow_description)(None)
+
+
+@pytest.mark.parametrize(
+    "decorator_factory",
+    [
+        create_workflow,
+        modify_workflow,
+        terminate_workflow,
+        validate_workflow,
+        reconcile_workflow,
+        workflow,
+    ],
+)
+def test_deprecated_description_emits_warning(decorator_factory):
+    description = "Deprecated description"
+
+    with pytest.warns(DeprecationWarning):
+
+        @decorator_factory(description)  # type: ignore[misc]
+        def test_workflow() -> StepList:
+            return begin >> done
+
+    assert test_workflow.description == description
+
+
+@pytest.mark.parametrize(
+    "decorator_factory",
+    [
+        create_workflow,
+        modify_workflow,
+        terminate_workflow,
+        validate_workflow,
+        reconcile_workflow,
+        workflow,
+    ],
+)
+def test_empty_description_does_not_emit_warning(decorator_factory):
+    with warnings.catch_warnings(record=True) as warnings_record:
+        warnings.simplefilter("always")
+
+        @decorator_factory("")  # type: ignore[misc]
+        def test_workflow() -> StepList:
+            return begin >> done
+
+    description_warnings = [w for w in warnings_record if issubclass(w.category, DeprecationWarning)]
+    assert description_warnings == []
+    assert test_workflow.description == ""

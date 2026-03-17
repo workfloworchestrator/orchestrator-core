@@ -226,6 +226,38 @@ class FilterTree(BaseModel):
                 leaves.extend(child.get_all_leaves())
         return leaves
 
+    @staticmethod
+    def _build_correlates(
+        alias: Any, entity_id_col: SQLAColumn, entity_type_value: str | None
+    ) -> list[ColumnElement[bool]]:
+        """Build the correlation predicates that link the subquery to the outer query."""
+        correlates = [alias.entity_id == entity_id_col]
+        if entity_type_value is not None:
+            correlates.append(alias.entity_type == entity_type_value)
+        return correlates
+
+    @staticmethod
+    def _handle_ltree_filter(pf: PathFilter, alias: Any, correlates: list[ColumnElement[bool]]) -> ColumnElement[bool]:
+        """Handle path-only filters (has_component, not_has_component, ends_with)."""
+        # row-level predicate is always positive
+        positive = pf.condition.to_expression(alias.path, pf.path)
+        subq = select(1).select_from(alias).where(and_(*correlates, positive))
+        if pf.condition.op == FilterOp.NOT_HAS_COMPONENT:
+            return ~exists(subq)  # NOT at the entity level
+        return exists(subq)
+
+    @staticmethod
+    def _handle_value_filter(pf: PathFilter, alias: Any, correlates: list[ColumnElement[bool]]) -> ColumnElement[bool]:
+        """Handle value-based filters (equality, comparison, etc)."""
+        if "." not in pf.path:
+            path_pred = LtreeFilter(op=FilterOp.ENDS_WITH, value=pf.path).to_expression(alias.path, "")
+        else:
+            path_pred = alias.path == Ltree(pf.path)
+
+        value_pred = pf.to_expression(alias.value, alias.value_type)
+        subq = select(1).select_from(alias).where(and_(*correlates, path_pred, value_pred))
+        return exists(subq)
+
     def to_expression(
         self,
         entity_id_col: SQLAColumn,
@@ -241,35 +273,18 @@ class FilterTree(BaseModel):
         Returns:
             ColumnElement[bool]: A SQLAlchemy expression suitable for use in a WHERE clause.
         """
+        from sqlalchemy.orm import aliased
 
         alias_idx = count(1)
 
         def leaf_exists(pf: PathFilter) -> ColumnElement[bool]:
-            from sqlalchemy.orm import aliased
-
+            """Convert a PathFilter into an EXISTS subquery."""
             alias = aliased(AiSearchIndex, name=f"flt_{next(alias_idx)}")
-
-            correlates = [alias.entity_id == entity_id_col]
-            if entity_type_value is not None:
-                correlates.append(alias.entity_type == entity_type_value)
+            correlates = self._build_correlates(alias, entity_id_col, entity_type_value)
 
             if isinstance(pf.condition, LtreeFilter):
-                # row-level predicate is always positive
-                positive = pf.condition.to_expression(alias.path, pf.path)
-                subq = select(1).select_from(alias).where(and_(*correlates, positive))
-                if pf.condition.op == FilterOp.NOT_HAS_COMPONENT:
-                    return ~exists(subq)  # NOT at the entity level
-                return exists(subq)
-
-            # value leaf: path predicate + typed value compare
-            if "." not in pf.path:
-                path_pred = LtreeFilter(op=FilterOp.ENDS_WITH, value=pf.path).to_expression(alias.path, "")
-            else:
-                path_pred = alias.path == Ltree(pf.path)
-
-            value_pred = pf.to_expression(alias.value, alias.value_type)
-            subq = select(1).select_from(alias).where(and_(*correlates, path_pred, value_pred))
-            return exists(subq)
+                return self._handle_ltree_filter(pf, alias, correlates)
+            return self._handle_value_filter(pf, alias, correlates)
 
         def compile_node(node: FilterTree | PathFilter) -> ColumnElement[bool]:
             if isinstance(node, FilterTree):

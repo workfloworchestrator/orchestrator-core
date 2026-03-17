@@ -4,9 +4,10 @@ from dirty_equals import IsFloat, IsInt
 
 from orchestrator.db.listeners import disable_listeners, monitor_sqlalchemy_queries
 from orchestrator.settings import app_settings
+from test.unit_tests.config import GRAPHQL_ENDPOINT
 
 
-def test_stats_extension(fastapi_app_graphql, test_client):
+def test_stats_extension(fastapi_app_graphql, test_client_graphql):
     # given
     query = """query MyQuery {
       workflows(first: 10) {
@@ -21,7 +22,7 @@ def test_stats_extension(fastapi_app_graphql, test_client):
             fastapi_app_graphql.register_graphql()
 
             # when
-            response = test_client.post("/api/graphql", json={"query": query})
+            response = test_client_graphql.post(GRAPHQL_ENDPOINT, json={"query": query})
     finally:
         disable_listeners()
 

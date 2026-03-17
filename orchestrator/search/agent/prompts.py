@@ -11,90 +11,206 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from textwrap import dedent
 
-import structlog
-from pydantic_ai import RunContext
-from pydantic_ai.ag_ui import StateDeps
-
+from orchestrator.search.agent import tools
 from orchestrator.search.agent.state import SearchState
+from orchestrator.search.core.types import EntityType
 
-logger = structlog.get_logger(__name__)
+AGENT_CONTEXT = """You are an agent that executes tasks in a plan, one step at a time.
+When tools complete successfully, results are immediately streamed to the user's UI in real-time."""
 
-
-async def get_base_instructions() -> str:
-    return dedent(
-        """
-        You are an expert assistant designed to find relevant information by building and running database queries.
-
-        ---
-        ### 1. Your Goal and Method
-
-        Your ultimate goal is to **find information** that answers the user's request.
-
-        To do this, you will perform either a broad search or a filtered search.
-        For **filtered searches**, your primary method is to **construct a valid `FilterTree` object**.
-        To do this correctly, you must infer the exact structure, operators, and nesting rules from the Pydantic schema of the `set_filter_tree` tool itself.
-
-        ---
-        ### 2. Information-Gathering Tools
-
-        **If you determine that a `FilterTree` is needed**, use these tools to gather information first:
-
-        - **discover_filter_paths(field_names: list[str])**: Use this to discover all valid filter paths for a list of field names in a single call.
-        - **get_valid_operators()**: Use this to get the JSON map of all valid operators for each field type.
-
-        ---
-        ### 3. Execution Workflow
-
-        Follow these steps in strict order:
-
-        1.  **Set Context**: Always begin by calling `set_search_parameters`.
-        2.  **Analyze for Filters**: Based on the user's request, decide if specific filters are necessary.
-            - **If filters ARE required**, follow these sub-steps:
-                a. **Gather Intel**: Identify all needed field names, then call `discover_filter_paths` and `get_valid_operators` **once each** to get all required information.
-                b. **Construct FilterTree**: Build the `FilterTree` object.
-                c. **Set Filters**: Call `set_filter_tree`.
-        3.  **Execute**: Call `execute_search`. This is done for both filtered and non-filtered searches.
-        4.  **Report**: Answer the users' question directly and summarize when appropiate.
-
-        ---
-        ### 4. Critical Rules
-
-        - **NEVER GUESS PATHS**: You *must* verify every filter path by calling `discover_filter_paths` first. If a path does not exist, you must inform the user and not include it in the `FilterTree`.
-        - **USE FULL PATHS**: Always use the full, unambiguous path returned by the discovery tool.
-        - **MATCH OPERATORS**: Only use operators that are compatible with the field type as confirmed by `get_filter_operators`.
-        """
-    )
+FILTERING_RULES = f"""### Filtering Rules (if query requires filters)
+- Temporal constraints like "in 2025", "between X and Y" require filters on datetime fields
+- **NEVER GUESS PATHS IN THE DATABASE**: You *must* verify every filter path by calling `{tools.discover_filter_paths.__name__}` first
+- **START WITH SIMPLE NAMES**: For "active subscriptions", try "status" first, not "subscription.status" or variations
+- Common filter examples: "status", "name", "description", "start_date", "end_date", "customer_id"
+- If a path does not exist, you may attempt to map the question to existing paths that are valid
+- **USE FULL PATHS**: Always use the full, unambiguous path returned by the discovery tool
+- **MATCH OPERATORS**: Only use operators compatible with the field type as confirmed by `{tools.get_valid_operators.__name__}`"""
 
 
-async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> str:
-    """Dynamically provides 'next step' coaching based on the current state."""
-    state = ctx.deps.state
-    param_state_str = json.dumps(state.parameters, indent=2, default=str) if state.parameters else "Not set."
+def get_search_execution_prompt(state: SearchState) -> str:
+    """Get prompt for Search skill.
 
-    next_step_guidance = ""
-    if not state.parameters or not state.parameters.get("entity_type"):
-        next_step_guidance = (
-            "INSTRUCTION: The search context is not set. Your next action is to call `set_search_parameters`."
-        )
-    else:
-        next_step_guidance = (
-            "INSTRUCTION: Context is set. Now, analyze the user's request. "
-            "If specific filters ARE required, use the information-gathering tools to build a `FilterTree` and call `set_filter_tree`. "
-            "If no specific filters are needed, you can proceed directly to `execute_search`."
-        )
+    Args:
+        state: Current search state
+
+    Returns:
+        Complete prompt for executing search with optional filtering
+    """
+    context = state.memory.format_context_for_llm(state)
+
     return dedent(
         f"""
+        # Searching
+
+        {AGENT_CONTEXT}
+
+        ## Your Task
+        Execute a database search to answer the user's request.
+        **IMPORTANT**: This query starts empty - previous query filters shown in history are NOT applied unless you rebuild them.
+
+        ## Steps
+        1. Determine the entity_type for this search (SUBSCRIPTION, PRODUCT, WORKFLOW, or PROCESS)
+        2. If filters needed: Call {tools.discover_filter_paths.__name__}(field_names=[...], entity_type=...), {tools.get_valid_operators.__name__}, build FilterTree, call {tools.set_filter_tree.__name__}
+        3. Call {tools.run_search.__name__}(entity_type=...) — you MUST pass entity_type
+        4. Explain what you did in 1-2 sentences at most. DO NOT list the actual results, they are already shown to the user.
+
+        {FILTERING_RULES}
+
         ---
-        ### Current State & Next Action
 
-        **Current Search Parameters:**
-        ```json
-        {param_state_str}
-        ```
+        {context}
+    """
+    ).strip()
 
-        **{next_step_guidance}**
+
+def get_aggregation_execution_prompt(state: SearchState) -> str:
+    """Get prompt for Aggregation skill.
+
+    Args:
+        state: Current search state with query_operation and query info
+
+    Returns:
+        Complete prompt for executing aggregation with optional filtering and grouping
+    """
+    context = state.memory.format_context_for_llm(state)
+
+    return dedent(
+        f"""
+        # Aggregating
+
+        {AGENT_CONTEXT}
+
+        ## Your Task
+        Execute an aggregation query for the user's request.
+        **IMPORTANT**: This query starts empty - previous query filters/grouping shown in history are NOT applied unless you rebuild them.
+
+        ## Steps
+        1. Determine entity_type (SUBSCRIPTION, PRODUCT, WORKFLOW, or PROCESS) and query_operation (COUNT for counting, AGGREGATE for numeric calculations like SUM/AVG/MIN/MAX)
+        2. If filters needed: Call {tools.discover_filter_paths.__name__}(field_names=[...], entity_type=...), {tools.get_valid_operators.__name__}, build FilterTree, call {tools.set_filter_tree.__name__}
+        3. Set grouping: Temporal ({tools.set_temporal_grouping.__name__}) or regular ({tools.set_grouping.__name__}) — you MUST pass entity_type and query_operation
+        4. For AGGREGATE operation ONLY: Call {tools.set_aggregations.__name__}(entity_type=..., query_operation=...). For COUNT: Do NOT call (counting is automatic)
+        5. Call {tools.run_aggregation.__name__}(entity_type=..., query_operation=..., visualization_type=...)
+        6. Explain what you did in 1-2 sentences at most. DO NOT list the actual results, they are already shown to the user
+
+        {FILTERING_RULES}
+        - Filters restrict WHICH records; grouping controls HOW to aggregate
+
+        ---
+
+        {context}
+    """
+    ).strip()
+
+
+def get_text_response_prompt(state: SearchState) -> str:
+    """Get prompt for TextResponseNode agent.
+
+    Args:
+        state: Current search state
+
+    Returns:
+        Complete prompt for generating text response
+    """
+    context = state.memory.format_context_for_llm(state)
+    entity_types = ", ".join([et.value for et in EntityType])
+
+    return dedent(
+        f"""
+        # Responding
+
+        {AGENT_CONTEXT}
+
+        ## Available Capabilities
+        - Search for entities: {entity_types}
+        - Filter searches by various criteria (status, dates, custom fields)
+        - Count and aggregate data (totals, averages, grouping by fields or time periods)
+        - Return structured data with visualization hints (table, bar chart, line chart, etc.)
+        - Export search results
+        - Fetch detailed information about specific entities
+
+        ## Your Task
+        Generate a helpful response to the user's question.
+
+        ---
+
+        {context}
+    """
+    ).strip()
+
+
+def get_planning_prompt(state: SearchState) -> str:
+    """Get prompt for Planner to create execution plan.
+
+    Args:
+        state: Current search state
+
+    Returns:
+        Complete prompt for creating multi-step execution plan
+    """
+    context = state.memory.format_context_for_llm(state)
+
+    guidelines = """## Your Task & Guidelines
+        Analyze the user's request and create a sequential execution plan.
+
+        1. **Check available context**: If results already exist from previous turns, you can act on them directly
+        2. **Break into tasks**: Each task = one skill execution. Create as many tasks as needed to fulfill the request.
+
+        ## Example
+        Request: "Find X and export them"
+        Plan: {{"tasks": [{{"action_type": "search", "reasoning": "Search for X"}}, {{"action_type": "result_actions", "reasoning": "Export the results"}}]}}
+
+        Note: Getting detailed data for a single entity (by ID) or preparing an export require a RESULT_ACTIONS task, not SEARCH."""
+
+    return dedent(
+        f"""
+        # Execution Planning
+
+        {AGENT_CONTEXT}
+
+        {guidelines}
+
+        IMPORTANT: Query execution skills automatically stream results to the user.
+        Do NOT create redundant tasks just to "show" or "present" results that are already displayed.
+
+        ---
+
+        {context}
         """
-    )
+    ).strip()
+
+
+def get_result_actions_prompt(state: SearchState) -> str:
+    """Get prompt for ResultActionsNode agent.
+
+    Args:
+        state: Current search state with environment and user input
+
+    Returns:
+        Complete prompt for result actions
+    """
+    context = state.memory.format_context_for_llm(state)
+    return dedent(
+        f"""
+        # Acting on Results
+
+        {AGENT_CONTEXT}
+
+        Act on existing search/aggregation results.
+
+        ## Available Actions
+        - If user wants to EXPORT/DOWNLOAD results: Call {tools.prepare_export.__name__}() ONLY
+        - If user wants DETAILED INFORMATION about a specific entity: Call {tools.fetch_entity_details.__name__}(entity_id=..., entity_type=...)
+
+        ## Your Task
+        Execute the requested action. After calling the tool, respond with a single short confirmation.
+
+        IMPORTANT: For export requests, ONLY call prepare_export(). Do NOT fetch entity details.
+
+        ---
+
+        {context}
+        """
+    ).strip()

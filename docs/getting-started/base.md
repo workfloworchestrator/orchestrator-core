@@ -46,25 +46,43 @@ Choose a password and remember it for later steps.
 As an example, you can run these docker commands in separate shells to start a temporary postgres instance:
 
 ```shell
-docker run --rm --name temp-orch-db -e POSTGRES_PASSWORD=rootpassword -p 5432:5432 postgres:15
+docker run --rm --name temp-orch-db -e POSTGRES_PASSWORD=rootpassword -p 5432:5432 pgvector/pgvector:pg17
 
 docker exec -it temp-orch-db su - postgres -c 'createuser -sP nwa && createdb orchestrator-core -O nwa'
 ```
 
-### Step 3 - Create the main.py:
+### Step 3 - Create the main.py and wsgi.py:
 
 Create a `main.py` file.
+This provides the CLI entrypoint to your Orchestrator.
+
+```python
+import typer
+from nwastdlib.logging import initialise_logging
+from orchestrator import app_settings
+from orchestrator.cli.main import app as core_cli
+from orchestrator.db import init_database
+from orchestrator.log_config import LOGGER_OVERRIDES
+
+def init_cli_app() -> typer.Typer:
+    initialise_logging(LOGGER_OVERRIDES)
+    init_database(app_settings)
+    return core_cli()
+
+if __name__ == "__main__":
+    init_cli_app()
+```
+
+Create a `wsgi.py` file.
+This will be used to run the Orchestrator API.
 
 ```python
 from orchestrator import OrchestratorCore
-from orchestrator.cli.main import app as core_cli
 from orchestrator.settings import app_settings
 
 app = OrchestratorCore(base_settings=app_settings)
-
-if __name__ == "__main__":
-    core_cli()
 ```
+
 
 ### Step 4 - Run the database migrations:
 
@@ -89,7 +107,7 @@ python main.py db upgrade heads
 export DATABASE_URI=postgresql+psycopg://nwa:PASSWORD_FROM_STEP_2@localhost:5432/orchestrator-core
 export OAUTH2_ACTIVE=False
 
-uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
 ```
 
 </div>

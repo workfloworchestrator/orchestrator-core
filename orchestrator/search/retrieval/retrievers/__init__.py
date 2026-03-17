@@ -14,6 +14,7 @@
 from .base import Retriever
 from .fuzzy import FuzzyRetriever
 from .hybrid import RrfHybridRetriever
+from .process import ProcessHybridRetriever
 from .semantic import SemanticRetriever
 from .structured import StructuredRetriever
 
@@ -21,6 +22,7 @@ __all__ = [
     "Retriever",
     "FuzzyRetriever",
     "RrfHybridRetriever",
+    "ProcessHybridRetriever",
     "SemanticRetriever",
     "StructuredRetriever",
 ]

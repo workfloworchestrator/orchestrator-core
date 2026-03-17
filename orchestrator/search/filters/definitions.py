@@ -11,8 +11,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
+
 from orchestrator.search.core.types import FieldType, FilterOp, UIType
-from orchestrator.search.schemas.results import TypeDefinition, ValueSchema
+
+
+class ValueSchema(BaseModel):
+    """Schema describing the expected value type for a filter operator."""
+
+    kind: UIType | Literal["none", "object"] = UIType.STRING
+    fields: dict[str, "ValueSchema"] | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TypeDefinition(BaseModel):
+    """Definition of available operators and their value schemas for a field type."""
+
+    operators: list[FilterOp]
+    value_schema: dict[FilterOp, ValueSchema]
+
+    model_config = ConfigDict(use_enum_values=True)
 
 
 def operators_for(ft: FieldType) -> list[FilterOp]:

@@ -70,8 +70,8 @@ mutation UpdateStatusMutation($globalLock: Boolean = false) {
     ).encode("utf-8")
 
 
-def test_settings_query(test_client):
-    response = test_client.post(
+def test_settings_query(test_client_graphql):
+    response = test_client_graphql.post(
         GRAPHQL_ENDPOINT,
         content=get_settings_query(),
         headers=GRAPHQL_HEADERS,
@@ -89,14 +89,14 @@ def test_settings_query(test_client):
     # numberOfRunningJobs is different depending if you run the whole suite vs just the graphql tests
 
 
-def test_clear_cache_mutation_fails_auth(test_client, monkeypatch):
+def test_clear_cache_mutation_fails_auth(test_client_graphql, monkeypatch):
     from oauth2_lib.settings import oauth2lib_settings
 
     monkeypatch.setattr(oauth2lib_settings, "ENVIRONMENT_IGNORE_MUTATION_DISABLED", [])
 
     # oauth2lib_settings.ENVIRONMENT_IGNORE_MUTATION_DISABLED = []
     data = get_clear_cache_mutation()
-    response = test_client.post("/api/graphql", content=data, headers=GRAPHQL_HEADERS)
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers=GRAPHQL_HEADERS)
     assert response.status_code == HTTPStatus.OK
     result = response.json()
 
@@ -104,8 +104,8 @@ def test_clear_cache_mutation_fails_auth(test_client, monkeypatch):
     assert result["errors"][0]["message"] == "User is not authenticated"
 
 
-def test_success_clear_cache(test_client, cache_fixture):
-    cache = create_redis_client(app_settings.CACHE_URI)
+def test_success_clear_cache(test_client_graphql, cache_fixture):
+    cache = create_redis_client(app_settings.CACHE_URI.get_secret_value())
     key = "some_model_uuid"
     test_data = {key: {"data": [1, 2, 3]}}
 
@@ -120,7 +120,7 @@ def test_success_clear_cache(test_client, cache_fixture):
 
     assert len(cache.keys()) == 2
 
-    response = test_client.post("/api/graphql", content=get_clear_cache_mutation(), headers=GRAPHQL_HEADERS)
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=get_clear_cache_mutation(), headers=GRAPHQL_HEADERS)
     assert HTTPStatus.OK == response.status_code
 
     result = response.json()
@@ -130,17 +130,19 @@ def test_success_clear_cache(test_client, cache_fixture):
     assert data["deleted"] == 2
 
 
-def test_failure_clear_cache(test_client):
-    response = test_client.post(GRAPHQL_ENDPOINT, content=get_clear_cache_mutation("invalid"), headers=GRAPHQL_HEADERS)
+def test_failure_clear_cache(test_client_graphql):
+    response = test_client_graphql.post(
+        GRAPHQL_ENDPOINT, content=get_clear_cache_mutation("invalid"), headers=GRAPHQL_HEADERS
+    )
     assert HTTPStatus.OK == response.status_code
     result = response.json()
 
     assert result["data"] == {"clearCache": {"__typename": "Error", "message": "Invalid cache name"}}
 
 
-def test_mutate_engine_global_settings(test_client):
+def test_mutate_engine_global_settings(test_client_graphql):
     # Turn it off
-    response = test_client.post(
+    response = test_client_graphql.post(
         GRAPHQL_ENDPOINT, content=get_test_set_global_lock_mutation(True), headers=GRAPHQL_HEADERS
     )
     assert HTTPStatus.OK == response.status_code
@@ -153,7 +155,7 @@ def test_mutate_engine_global_settings(test_client):
     assert status_data["globalLock"] is True
 
     # Turn it back on
-    response = test_client.post(
+    response = test_client_graphql.post(
         GRAPHQL_ENDPOINT, content=get_test_set_global_lock_mutation(False), headers=GRAPHQL_HEADERS
     )
     assert HTTPStatus.OK == response.status_code

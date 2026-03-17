@@ -58,7 +58,7 @@ def check_nso(subscription: Sn8LightPath) -> State:
 {% endif -%}
 
 
-@validate_workflow("Validate {{ product.name }}")
+@validate_workflow()
 def validate_{{ product.variable }}() -> StepList:
     return (
         begin

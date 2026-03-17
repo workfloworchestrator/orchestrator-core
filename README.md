@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/workfloworchestrator/orchestrator-core/branch/main/graph/badge.svg?token=5ANQFI2DHS)](https://codecov.io/gh/workfloworchestrator/orchestrator-core)
 [![pypi_version](https://img.shields.io/pypi/v/orchestrator-core?color=%2334D058&label=pypi%20package)](https://pypi.org/project/orchestrator-core)
 [![Supported python versions](https://img.shields.io/pypi/pyversions/orchestrator-core.svg?color=%2334D058)](https://pypi.org/project/orchestrator-core)
-![Discord](https://img.shields.io/discord/1295834294270558280?style=flat&logo=discord&label=discord&link=https%3A%2F%2Fdiscord.gg%2FKNgF6gE8)
+![Discord](https://img.shields.io/discord/1295834294270558280?style=flat&logo=discord&label=discord&link=https%3A%2F%2Fdiscord.gg%fQkQn5ajFR)
 
 <p style="text-align: center"><em>Production ready Orchestration Framework to manage product lifecycle and workflows. Easy to use, built on top of FastAPI and Pydantic</em></p>
 
@@ -42,19 +42,24 @@ Configure the database URI in your local environment:
 export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core
 ```
 
-### Step 3 - Create main.py
+### Step 3 - Create main.py and wsgi.py
 
-Create a `main.py` file.
+Create a `main.py` file for running the CLI.
 
 ```python
-from orchestrator import OrchestratorCore
 from orchestrator.cli.main import app as core_cli
-from orchestrator.settings import AppSettings
-
-app = OrchestratorCore(base_settings=AppSettings())
 
 if __name__ == "__main__":
     core_cli()
+```
+
+Create a `wsgi.py` file for running the web server.
+
+```python
+from orchestrator import OrchestratorCore
+from orchestrator.settings import AppSettings
+
+app = OrchestratorCore(base_settings=AppSettings())
 ```
 
 ### Step 4 - Run the database migrations
@@ -70,7 +75,7 @@ python main.py db upgrade heads
 
 ```shell
 export OAUTH2_ACTIVE=False
-uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
 ```
 
 Visit the [ReDoc](http://127.0.0.1:8080/api/redoc) or [OpenAPI](http://127.0.0.1:8080/api/docs) page to view and interact with the API.

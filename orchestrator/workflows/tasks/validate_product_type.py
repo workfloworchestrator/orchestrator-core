@@ -16,7 +16,7 @@ from typing import Any
 import structlog
 
 from orchestrator.db import ProductTable
-from orchestrator.forms import FormPage
+from orchestrator.forms import SubmitFormPage
 from orchestrator.forms.validators import Choice
 from orchestrator.services.subscriptions import (
     get_subscriptions_on_product_table_in_sync,
@@ -25,14 +25,16 @@ from orchestrator.services.workflows import (
     get_validation_product_workflows_for_subscription,
     start_validation_workflow_for_workflows,
 )
+from orchestrator.settings import get_authorizers
 from orchestrator.targets import Target
 from orchestrator.workflow import StepList, done, init, step, workflow
 from pydantic_forms.types import FormGenerator, State
 
+authorizers = get_authorizers()
 logger = structlog.get_logger(__name__)
 
 
-def create_select_product_type_form() -> type[FormPage]:
+def create_select_product_type_form() -> type[SubmitFormPage]:
     """Get and create the choices form for the product type."""
 
     @cache
@@ -41,7 +43,7 @@ def create_select_product_type_form() -> type[FormPage]:
 
     ProductTypeChoices = Choice.__call__("Product Type", get_product_type_choices())
 
-    class SelectProductTypeForm(FormPage):
+    class SelectProductTypeForm(SubmitFormPage):
         product_type: ProductTypeChoices  # type: ignore
 
     return SelectProductTypeForm
@@ -86,7 +88,11 @@ def validate_product_type(product_type: str) -> State:
 
 
 @workflow(
-    "Validate all subscriptions of Product Type", target=Target.SYSTEM, initial_input_form=initial_input_form_generator
+    "Validate all subscriptions of Product Type",
+    target=Target.SYSTEM,
+    initial_input_form=initial_input_form_generator,
+    authorize_callback=authorizers.authorize_callback,
+    retry_auth_callback=authorizers.retry_auth_callback,
 )
 def task_validate_product_type() -> StepList:
     return init >> validate_product_type >> done

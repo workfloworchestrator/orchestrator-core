@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, ESnet.
+# Copyright 2019-2026 SURF, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,13 +14,14 @@
 # ruff: noqa: S603
 import subprocess
 from pathlib import Path
+from typing import Callable
 
 import structlog
 import typer
 import yaml
 from jinja2 import Environment, FileSystemLoader
 
-from orchestrator.cli.generator.generator.helpers import get_variable
+from orchestrator.cli.generator.generator.helpers import ProdGenContext, get_variable
 from orchestrator.cli.generator.generator.migration import generate_product_migration
 from orchestrator.cli.generator.generator.product import generate_product
 from orchestrator.cli.generator.generator.product_block import generate_product_blocks
@@ -78,7 +79,7 @@ def ruff(content: str) -> str:
     return content
 
 
-def create_context(config_file: Path, dryrun: bool, force: bool, python_version: str, tdd: bool | None = False) -> dict:
+def create_writer(dryrun: bool = False, force: bool = False) -> Callable[..., None]:
     def writer(path: Path, content: str, append: bool = False) -> None:
         content = ruff(content) if path.suffix == ".py" else content
         if dryrun:
@@ -88,9 +89,22 @@ def create_context(config_file: Path, dryrun: bool, force: bool, python_version:
         else:
             write_file(path, content, append=append, force=force)
 
-    search_path = (settings.CUSTOM_TEMPLATES, Path(__file__).parent / "generator" / "templates")
-    environment = Environment(loader=FileSystemLoader(search_path), autoescape=True, keep_trailing_newline=True)
+    return writer
 
+
+def get_template_environment() -> Environment:
+    search_path = (settings.CUSTOM_TEMPLATES, Path(__file__).parent / "generator" / "templates")
+    return Environment(loader=FileSystemLoader(search_path), autoescape=True, keep_trailing_newline=True)
+
+
+def create_context(
+    config_file: Path,
+    dryrun: bool,
+    force: bool,
+    python_version: str,
+    tdd: bool | None = False,
+    skip_existing_blocks: bool = False,
+) -> ProdGenContext:
     config = read_config(config_file)
     config["variable"] = get_variable(config)
     for pb in config["product_blocks"]:
@@ -98,10 +112,11 @@ def create_context(config_file: Path, dryrun: bool, force: bool, python_version:
 
     return {
         "config": config,
-        "environment": environment,
+        "environment": get_template_environment(),
         "python_version": python_version,
         "tdd": tdd,
-        "writer": writer,
+        "writer": create_writer(dryrun=dryrun, force=force),
+        "skip_existing_blocks": skip_existing_blocks,
     }
 
 
@@ -179,8 +194,15 @@ def unit_tests(
 @app.command(help="Create migration from configuration file")
 def migration(
     config_file: Path = ConfigFile,
+    skip_existing_blocks: bool = typer.Option(
+        False,
+        "--skip-existing-blocks",
+        help="If set, the migration will not contain product blocks for which a python implementation exists",
+    ),
     python_version: str = PythonVersion,
 ) -> None:
-    context = create_context(config_file, dryrun=False, force=True, python_version=python_version)
+    context = create_context(
+        config_file, dryrun=False, force=True, python_version=python_version, skip_existing_blocks=skip_existing_blocks
+    )
 
     generate_product_migration(context)

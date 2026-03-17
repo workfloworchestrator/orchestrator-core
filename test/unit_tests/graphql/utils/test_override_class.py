@@ -13,7 +13,7 @@ from test.unit_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
 @pytest.fixture
 def override_class_app_graphql(
     fastapi_app_graphql,
-    test_client,
+    test_client_graphql,
     sub_one_subscription_1,
 ):
     def customer_id_override(self) -> str:
@@ -159,9 +159,9 @@ query SubscriptionQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!],
     ).encode("utf-8")
 
 
-def test_customers(fastapi_app_graphql, test_client):
+def test_customers(test_client_graphql):
     # when
-    response = test_client.post(GRAPHQL_ENDPOINT, content=get_customers_query(), headers=GRAPHQL_HEADERS)
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=get_customers_query(), headers=GRAPHQL_HEADERS)
 
     # then
     assert HTTPStatus.OK == response.status_code
@@ -174,9 +174,9 @@ def test_customers(fastapi_app_graphql, test_client):
     }
 
 
-def test_customers_overriden(override_class_app_graphql, test_client):
+def test_customers_overriden(override_class_app_graphql, test_client_graphql):
     # when
-    response = test_client.post(
+    response = test_client_graphql.post(
         GRAPHQL_ENDPOINT, content=get_customers_query(override_fields=True), headers=GRAPHQL_HEADERS
     )
 
@@ -192,9 +192,9 @@ def test_customers_overriden(override_class_app_graphql, test_client):
     }
 
 
-def test_subscription_customer(fastapi_app_graphql, test_client, sub_one_subscription_1):
+def test_subscription_customer(test_client_graphql, sub_one_subscription_1):
     # when
-    response = test_client.post(
+    response = test_client_graphql.post(
         GRAPHQL_ENDPOINT,
         content=get_subscriptions_customer_query(
             filter_by=[{"field": "subscriptionId", "value": str(sub_one_subscription_1.subscription_id)}]
@@ -215,9 +215,9 @@ def test_subscription_customer(fastapi_app_graphql, test_client, sub_one_subscri
     }
 
 
-def test_subscription_customer_overriden(override_class_app_graphql, test_client, sub_one_subscription_1):
+def test_subscription_customer_overriden(override_class_app_graphql, test_client_graphql, sub_one_subscription_1):
     # when
-    response = test_client.post(
+    response = test_client_graphql.post(
         GRAPHQL_ENDPOINT,
         content=get_subscriptions_customer_query(
             filter_by=[{"field": "subscriptionId", "value": str(sub_one_subscription_1.subscription_id)}],
@@ -241,9 +241,9 @@ def test_subscription_customer_overriden(override_class_app_graphql, test_client
     }
 
 
-def test_subscription_detail_customer(fastapi_app_graphql, test_client, sub_one_subscription_1):
+def test_subscription_detail_customer(test_client_graphql, sub_one_subscription_1):
     # when
-    response = test_client.post(
+    response = test_client_graphql.post(
         GRAPHQL_ENDPOINT,
         content=get_subscriptions_detail_customer_query(
             filter_by=[{"field": "subscriptionId", "value": str(sub_one_subscription_1.subscription_id)}]
@@ -264,9 +264,11 @@ def test_subscription_detail_customer(fastapi_app_graphql, test_client, sub_one_
     }
 
 
-def test_subscription_detail_customer_overriden(override_class_app_graphql, test_client, sub_one_subscription_1):
+def test_subscription_detail_customer_overriden(
+    override_class_app_graphql, test_client_graphql, sub_one_subscription_1
+):
     # when
-    response = test_client.post(
+    response = test_client_graphql.post(
         GRAPHQL_ENDPOINT,
         content=get_subscriptions_detail_customer_query(
             filter_by=[{"field": "subscriptionId", "value": str(sub_one_subscription_1.subscription_id)}],

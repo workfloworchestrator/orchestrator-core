@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import sqlalchemy
@@ -25,17 +26,17 @@ from sqlalchemy import (
     TEXT,
     TIMESTAMP,
     Boolean,
-    CheckConstraint,
     Column,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     PrimaryKeyConstraint,
     Select,
     String,
     Table,
-    Text,
     TypeDecorator,
     UniqueConstraint,
     select,
@@ -58,10 +59,44 @@ from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.version import GIT_COMMIT_HASH
 
+if TYPE_CHECKING:
+    from orchestrator.search.query.state import QueryState
+
 logger = structlog.get_logger(__name__)
 
 TAG_LENGTH = 20
 STATUS_LENGTH = 255
+
+# Field length limits chosen based on expected usage patterns
+# These values are intended to be reasonable, but give lots of wiggle room
+# If these values are updated, they also need to be updated in a migration, as in migration d69e10434a04
+NOTE_LENGTH = 5000
+DESCRIPTION_LENGTH = 2000
+FAILED_REASON_LENGTH = 10000
+TRACEBACK_LENGTH = 50000
+RESOURCE_VALUE_LENGTH = 10000
+DOMAIN_MODEL_ATTR_LENGTH = 255
+
+
+class StringThatAutoConvertsToNullWhenEmpty(TypeDecorator):
+    """A String type that converts empty strings to NULL on save."""
+
+    impl = String
+    cache_ok = True
+    python_type = str
+
+    def __init__(self, length: int | None = None):
+        super().__init__(length)
+
+    def process_bind_param(self, value: str | None, dialect: Dialect) -> str | None:
+        """Called when saving to DB - convert empty/whitespace to NULL."""
+        if value is not None and value.strip() == "":
+            return None
+        return value
+
+    def process_result_value(self, value: str | None, dialect: Dialect) -> str | None:
+        """Called when loading from DB - return as-is."""
+        return value
 
 
 class UtcTimestampError(Exception, DontWrapMixin):
@@ -98,7 +133,7 @@ class InputStateTable(BaseModel):
         initial_state = "initial_state"
 
     input_state_id = mapped_column(UUIDType, primary_key=True, server_default=text("uuid_generate_v4()"), index=True)
-    process_id = mapped_column("pid", UUIDType, ForeignKey("processes.pid"), nullable=False)
+    process_id = mapped_column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False)
     input_state = mapped_column(pg.JSONB(), nullable=False)
     input_time = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
     input_type = mapped_column(Enum(InputType), nullable=False)
@@ -116,8 +151,8 @@ class ProcessTable(BaseModel):
     last_modified_at = mapped_column(
         UtcTimestamp, server_default=text("current_timestamp()"), onupdate=nowtz, nullable=False
     )
-    failed_reason = mapped_column(Text())
-    traceback = mapped_column(Text())
+    failed_reason = mapped_column(String(FAILED_REASON_LENGTH))
+    traceback = mapped_column(String(TRACEBACK_LENGTH))
     created_by = mapped_column(String(255), nullable=True)
     is_task = mapped_column(Boolean, nullable=False, server_default=text("false"), index=True)
 
@@ -217,7 +252,7 @@ class ProductTable(BaseModel):
 
     product_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     name = mapped_column(String(), nullable=False, unique=True)
-    description = mapped_column(Text(), nullable=False)
+    description = mapped_column(String(DESCRIPTION_LENGTH), nullable=False)
     product_type = mapped_column(String(255), nullable=False)
     tag = mapped_column(String(TAG_LENGTH), nullable=False, index=True)
     status = mapped_column(String(STATUS_LENGTH), nullable=False)
@@ -296,7 +331,7 @@ class ProductBlockTable(BaseModel):
 
     product_block_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     name = mapped_column(String(), nullable=False, unique=True)
-    description = mapped_column(Text(), nullable=False)
+    description = mapped_column(String(DESCRIPTION_LENGTH), nullable=False)
     tag = mapped_column(String(TAG_LENGTH))
     status = mapped_column(String(STATUS_LENGTH))
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
@@ -395,7 +430,7 @@ class ResourceTypeTable(BaseModel):
 
     resource_type_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     resource_type = mapped_column(String(510), nullable=False, unique=True)
-    description = mapped_column(Text())
+    description = mapped_column(String(DESCRIPTION_LENGTH))
 
     product_blocks = relationship(
         "ProductBlockTable", secondary=product_block_resource_type_association, back_populates="resource_types"
@@ -408,7 +443,7 @@ class WorkflowTable(BaseModel):
     workflow_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     name = mapped_column(String(), nullable=False, unique=True)
     target = mapped_column(String(), nullable=False)
-    description = mapped_column(Text(), nullable=False)
+    description = mapped_column(String(DESCRIPTION_LENGTH), nullable=False)
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
     deleted_at = mapped_column(UtcTimestamp, deferred=True)
 
@@ -446,7 +481,7 @@ class SubscriptionInstanceRelationTable(BaseModel):
 
     # Needed to make sure subscription instance is populated in the right domain model attribute, if more than one
     # attribute uses the same product block model.
-    domain_model_attr = Column(Text())
+    domain_model_attr = Column(String(DOMAIN_MODEL_ATTR_LENGTH))
 
     in_use_by: Mapped[SubscriptionInstanceTable] = relationship(
         "SubscriptionInstanceTable", back_populates="depends_on_block_relations", foreign_keys=[in_use_by_id]
@@ -553,7 +588,7 @@ class SubscriptionInstanceValueTable(BaseModel):
     resource_type_id = mapped_column(
         UUIDType, ForeignKey("resource_types.resource_type_id"), nullable=False, index=True
     )
-    value = mapped_column(Text(), nullable=False)
+    value = mapped_column(String(RESOURCE_VALUE_LENGTH), nullable=False)
 
     resource_type = relationship("ResourceTypeTable", lazy="subquery")
     subscription_instance = relationship("SubscriptionInstanceTable", back_populates="values")
@@ -581,7 +616,7 @@ class SubscriptionCustomerDescriptionTable(BaseModel):
         index=True,
     )
     customer_id = mapped_column(String, nullable=False, index=True)
-    description = mapped_column(Text(), nullable=False)
+    description = mapped_column(String(DESCRIPTION_LENGTH), nullable=False)
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
     version = mapped_column(Integer, nullable=False, server_default="1")
 
@@ -594,14 +629,14 @@ class SubscriptionTable(BaseModel):
     subscription_id = mapped_column(
         UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, nullable=False
     )
-    description = mapped_column(Text(), nullable=False)
+    description = mapped_column(String(DESCRIPTION_LENGTH), nullable=False)
     status = mapped_column(String(STATUS_LENGTH), nullable=False, index=True)
     product_id = mapped_column(UUIDType, ForeignKey("products.product_id"), nullable=False, index=True)
     customer_id = mapped_column(String, index=True, nullable=False)
     insync = mapped_column(Boolean(), nullable=False)
     start_date = mapped_column(UtcTimestamp, nullable=True)
     end_date = mapped_column(UtcTimestamp)
-    note = mapped_column(Text())
+    note = mapped_column(StringThatAutoConvertsToNullWhenEmpty(NOTE_LENGTH))
     version = mapped_column(Integer, nullable=False, server_default="1")
 
     product = relationship("ProductTable", foreign_keys=[product_id])
@@ -674,11 +709,109 @@ class SubscriptionSearchView(BaseModel):
     subscription = relationship("SubscriptionTable", foreign_keys=[subscription_id])
 
 
+class AgentRunTable(BaseModel):
+    """Agent conversation/session tracking.
+
+    Each run represents a single turn in a conversation thread.
+    Multiple runs can belong to the same thread_id for multi-turn conversations.
+    """
+
+    __tablename__ = "agent_runs"
+
+    run_id = mapped_column("run_id", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    thread_id = mapped_column(String(255), nullable=False, index=True)  # Conversation thread ID
+    agent_type = mapped_column(String(50), nullable=False)
+    created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+
+    queries = relationship("SearchQueryTable", back_populates="run", cascade="delete", passive_deletes=True)
+    snapshots = relationship("GraphSnapshotTable", back_populates="run", cascade="delete", passive_deletes=True)
+
+    __table_args__ = (
+        Index("ix_agent_runs_created_at", "created_at"),
+        Index("ix_agent_runs_thread_id", "thread_id"),
+    )
+
+
+class SearchQueryTable(BaseModel):
+    """Search query execution - used by both agent runs and regular API searches.
+
+    When run_id is NULL: standalone API search query
+    When run_id is NOT NULL: query belongs to an agent conversation run
+    """
+
+    __tablename__ = "search_queries"
+
+    query_id = mapped_column("query_id", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    run_id = mapped_column(
+        "run_id", UUIDType, ForeignKey("agent_runs.run_id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    query_number = mapped_column(Integer, nullable=False)
+
+    # Search parameters as JSONB (maps to BaseQuery subclasses)
+    parameters = mapped_column(pg.JSONB, nullable=False)
+
+    # Query embedding for semantic search (pgvector)
+    query_embedding = mapped_column(Vector(llm_settings.EMBEDDING_DIMENSION), nullable=True)
+
+    executed_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+
+    run = relationship("AgentRunTable", back_populates="queries")
+
+    __table_args__ = (
+        Index("ix_search_queries_run_id", "run_id"),
+        Index("ix_search_queries_executed_at", "executed_at"),
+        Index("ix_search_queries_query_id", "query_id"),
+    )
+
+    @classmethod
+    def from_state(
+        cls,
+        state: "QueryState",
+        run_id: "UUID | None" = None,
+        query_number: int = 1,
+    ) -> "SearchQueryTable":
+        """Create a SearchQueryTable instance from a QueryState.
+
+        Args:
+            state: QueryState wrapping the query and embedding
+            run_id: Optional agent run ID (NULL for regular API searches)
+            query_number: Query number within the run (default=1)
+
+        Returns:
+            SearchQueryTable instance ready to be added to the database.
+        """
+        return cls(
+            run_id=run_id,
+            query_number=query_number,
+            parameters=state.query.model_dump(),
+            query_embedding=state.query_embedding,
+        )
+
+
+class GraphSnapshotTable(BaseModel):
+    """Pydantic-graph state snapshots for resumable agent conversations."""
+
+    __tablename__ = "graph_snapshots"
+
+    snapshot_id = mapped_column("snapshot_id", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    run_id = mapped_column(
+        "run_id", UUIDType, ForeignKey("agent_runs.run_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sequence_number = mapped_column(Integer, nullable=False)
+    snapshot_data = mapped_column(pg.JSONB, nullable=False)
+    created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+
+    run = relationship("AgentRunTable", back_populates="snapshots")
+
+    __table_args__ = (
+        Index("ix_graph_snapshots_run_id_sequence", "run_id", "sequence_number"),
+        UniqueConstraint("run_id", "sequence_number", name="uq_graph_snapshots_run_sequence"),
+    )
+
+
 class EngineSettingsTable(BaseModel):
     __tablename__ = "engine_settings"
     global_lock = mapped_column(Boolean(), default=False, nullable=False, primary_key=True)
-    running_processes = mapped_column(Integer(), default=0, nullable=False)
-    __table_args__: tuple = (CheckConstraint(running_processes >= 0, name="check_running_processes_positive"), {})
 
 
 class SubscriptionInstanceAsJsonFunction(GenericFunction):
@@ -705,6 +838,7 @@ class AiSearchIndex(BaseModel):
         UUIDType,
         nullable=False,
     )
+    entity_title = mapped_column(TEXT, nullable=True)
 
     # Ltree path for hierarchical data
     path = mapped_column(LtreeType, nullable=False, index=True)
@@ -721,3 +855,27 @@ class AiSearchIndex(BaseModel):
     content_hash = mapped_column(String(64), nullable=False, index=True)
 
     __table_args__ = (PrimaryKeyConstraint("entity_id", "path", name="pk_ai_search_index"),)
+
+
+class APSchedulerJobStoreModel(BaseModel):
+    __tablename__ = "apscheduler_jobs"
+
+    id = mapped_column(String(191), primary_key=True)
+    next_run_time = mapped_column(Float, nullable=True)
+    job_state = mapped_column(LargeBinary, nullable=False)
+
+
+class WorkflowApschedulerJob(BaseModel):
+    __tablename__ = "workflows_apscheduler_jobs"
+
+    workflow_id = mapped_column(
+        UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), primary_key=True, nullable=False, index=True
+    )
+
+    # Notice the VARCHAR(512) for schedule_id to accommodate longer IDs so
+    # that if APScheduler changes its ID format in the future, we are covered.
+    schedule_id = mapped_column(
+        String(512), ForeignKey("apscheduler_jobs.id", ondelete="CASCADE"), primary_key=True, nullable=False, index=True
+    )
+
+    __table_args__ = (UniqueConstraint("workflow_id", "schedule_id", name="uq_workflow_schedule"),)

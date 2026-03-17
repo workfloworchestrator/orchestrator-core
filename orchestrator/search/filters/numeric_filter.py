@@ -14,7 +14,7 @@
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import DOUBLE_PRECISION, INTEGER, and_
+from sqlalchemy import BIGINT, DOUBLE_PRECISION, and_
 from sqlalchemy import cast as sa_cast
 from sqlalchemy.sql.elements import ColumnElement
 from typing_extensions import Self
@@ -40,7 +40,7 @@ class NumericValueFilter(BaseModel):
     value: int | float
 
     def to_expression(self, column: SQLAColumn, path: str) -> ColumnElement[bool]:
-        cast_type = INTEGER if isinstance(self.value, int) else DOUBLE_PRECISION
+        cast_type = BIGINT if isinstance(self.value, int) else DOUBLE_PRECISION
         numeric_column: ColumnElement[Any] = sa_cast(column, cast_type)
         match self.op:
 
@@ -65,7 +65,7 @@ class NumericRangeFilter(BaseModel):
     value: NumericRange
 
     def to_expression(self, column: SQLAColumn, path: str) -> ColumnElement[bool]:
-        cast_type = INTEGER if isinstance(self.value.start, int) else DOUBLE_PRECISION
+        cast_type = BIGINT if isinstance(self.value.start, int) else DOUBLE_PRECISION
         numeric_column: ColumnElement[Any] = sa_cast(column, cast_type)
         return and_(numeric_column >= self.value.start, numeric_column <= self.value.end)
 

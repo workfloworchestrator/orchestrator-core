@@ -13,6 +13,7 @@
 
 from orchestrator.cli.generator.generator.enums import get_int_enums, get_non_standard_fields, get_str_enums, to_dict
 from orchestrator.cli.generator.generator.helpers import (
+    ProdGenContext,
     create_dunder_init_files,
     get_product_path,
     get_product_types_folder,
@@ -23,7 +24,7 @@ from orchestrator.cli.generator.generator.helpers import (
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 
 
-def generate_product(context: dict) -> None:
+def generate_product(context: ProdGenContext) -> None:
     config = context["config"]
     environment = context["environment"]
     writer = context["writer"]

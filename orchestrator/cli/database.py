@@ -23,6 +23,8 @@ from structlog import get_logger
 
 import orchestrator.workflows
 from orchestrator.cli.domain_gen_helpers.types import ModelUpdates
+from orchestrator.cli.generate import create_writer, get_template_environment
+from orchestrator.cli.generator.generator.migration import create_data_head_if_not_exists
 from orchestrator.cli.helpers.print_helpers import COLOR, str_fmt
 from orchestrator.cli.migrate_domain_models import create_domain_models_migration_sql
 from orchestrator.cli.migrate_tasks import create_tasks_migration_wizard
@@ -223,6 +225,7 @@ def revision(
             --head TEXT                     Determine the head you need to add your migration to.
         ```
     """
+    create_data_head_if_not_exists({"writer": create_writer(), "environment": get_template_environment()})
     command.revision(alembic_cfg(), message, version_path=version_path, autogenerate=autogenerate, head=head)
 
 

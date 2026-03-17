@@ -26,11 +26,15 @@ from orchestrator.services import products
 from orchestrator.services.products import get_products
 from orchestrator.services.translations import generate_translations
 from orchestrator.services.workflows import get_workflow_by_name, get_workflows
+from orchestrator.settings import get_authorizers
 from orchestrator.targets import Target
 from orchestrator.utils.errors import ProcessFailureError
 from orchestrator.utils.fixed_inputs import fixed_input_configuration as fi_configuration
 from orchestrator.workflow import StepList, done, init, step, workflow
+from orchestrator.workflows.predicates import no_uncompleted_instance
 from pydantic_forms.types import State
+
+authorizers = get_authorizers()
 
 # Since these errors are probably programming failures we should not throw AssertionErrors
 
@@ -61,20 +65,16 @@ def check_workflows_for_matching_targets_and_descriptions() -> State:
         db_workflow = get_workflow_by_name(key)
         if db_workflow:
             # Test workflows might not exist in the database
-            if (
-                wf.target != db_workflow.target
-                or wf.name != db_workflow.name
-                or wf.description != db_workflow.description
-            ):
+            # Note: description is no longer validated here as it can be changed via UI/API
+            if wf.target != db_workflow.target or wf.name != db_workflow.name:
                 message = (
-                    f"Workflow {wf.name}: {wf.target} <=> {db_workflow.target}, "
-                    f"{wf.name} <=> {db_workflow.name} and {wf.description} <=> {db_workflow.description}. "
+                    f"Workflow {wf.name}: {wf.target} <=> {db_workflow.target}, " f"{wf.name} <=> {db_workflow.name}. "
                 )
                 workflow_assertions.append(message)
 
     if workflow_assertions:
         workflow_message = "\n".join(workflow_assertions)
-        raise ProcessFailureError("Workflows with none matching targets and descriptions", workflow_message)
+        raise ProcessFailureError("Workflows with none matching targets and names", workflow_message)
 
     # Check translations
     translations = generate_translations("en-GB")["workflow"]
@@ -105,7 +105,7 @@ def check_that_products_have_create_modify_and_terminate_workflows() -> State:
     product_data = get_products(filters=[ProductTable.status == "active"])
 
     workflows_not_complete: list = []
-    targets = ["CREATE", "TERMINATE", "MODIFY", "RECONCILE", "VALIDATE"]
+    targets = ["CREATE", "TERMINATE", "MODIFY", "VALIDATE"]
     for product in product_data:
         workflows = {c.target for c in product.workflows if c.target in targets and c.name != "modify_note"}
         if len(workflows) < len(targets):
@@ -187,7 +187,13 @@ def check_subscription_models() -> State:
     return {"check_subscription_models": True}
 
 
-@workflow("Validate products", target=Target.SYSTEM)
+@workflow(
+    "Validate products",
+    target=Target.SYSTEM,
+    authorize_callback=authorizers.authorize_callback,
+    retry_auth_callback=authorizers.retry_auth_callback,
+    run_predicate=no_uncompleted_instance,
+)
 def task_validate_products() -> StepList:
     return (
         init

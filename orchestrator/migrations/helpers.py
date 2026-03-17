@@ -166,47 +166,61 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
             "is_task": False,
             "description": "workflow description",
             "product_type": "product_type",
+            "product_tag": "product_tag",
         }
         >>> create_workflow(conn, workflow)
     """
-    if not workflow.get("is_task", False):
-        workflow["is_task"] = False
+    params = workflow.copy()
+    params.setdefault("is_task", False)
+    params.setdefault("product_tag", None)
+
+    query_parts = []
 
     if has_table_column(table_name="workflows", column_name="is_task", conn=conn):
-        query = """
-                WITH new_workflow AS (
-                    INSERT INTO workflows (name, target, is_task, description)
-                        VALUES (:name, :target, :is_task, :description)
-                        ON CONFLICT DO NOTHING
-                        RETURNING workflow_id)
-                INSERT
-                INTO products_workflows (product_id, workflow_id)
-                SELECT p.product_id,
-                       nw.workflow_id
-                FROM products AS p
-                         CROSS JOIN new_workflow AS nw
-                WHERE p.product_type = :product_type
-                ON CONFLICT DO NOTHING
-                """
+        query_parts.append(
+            """
+            WITH new_workflow AS (
+                INSERT INTO workflows (name, target, is_task, description)
+                    VALUES (:name, :target, :is_task, :description)
+                    ON CONFLICT DO NOTHING
+                    RETURNING workflow_id
+            )
+            """
+        )
     else:
-        # Remove is_task from workflow dict and insert SQL
-        workflow = {k: v for k, v in workflow.items() if k != "is_task"}
-        query = """
-                WITH new_workflow AS (
-                    INSERT INTO workflows (name, target, description)
-                        VALUES (:name, :target, :description)
-                        ON CONFLICT DO NOTHING
-                        RETURNING workflow_id)
-                INSERT
-                INTO products_workflows (product_id, workflow_id)
-                SELECT p.product_id, nw.workflow_id
-                FROM products AS p
-                         CROSS JOIN new_workflow AS nw
-                WHERE p.product_type = :product_type
-                ON CONFLICT DO NOTHING
-                """
+        params.pop("is_task", None)
+        query_parts.append(
+            """
+            WITH new_workflow AS (
+                INSERT INTO workflows (name, target, description)
+                    VALUES (:name, :target, :description)
+                    ON CONFLICT DO NOTHING
+                    RETURNING workflow_id
+            )
+            """
+        )
 
-    conn.execute(sa.text(query), workflow)
+    query_parts.append(
+        """
+        INSERT INTO products_workflows (product_id, workflow_id)
+        SELECT p.product_id, nw.workflow_id
+        FROM products AS p
+                 CROSS JOIN new_workflow AS nw
+        """
+    )
+
+    query_parts.append("WHERE p.product_type = :product_type")
+
+    if params.get("product_tag") is not None:
+        query_parts.append("AND p.tag = :product_tag")
+    else:
+        params.pop("product_tag", None)
+
+    query_parts.append("ON CONFLICT DO NOTHING")
+
+    query = "\n".join(query_parts)
+
+    conn.execute(sa.text(query), params)
 
 
 def create_task(conn: sa.engine.Connection, task: dict) -> None:
@@ -223,7 +237,7 @@ def create_task(conn: sa.engine.Connection, task: dict) -> None:
             "name": "task_name",
             "description": "task description",
         }
-        >>> create_workflow(conn, task)
+        >>> create_task(conn, task)
     """
     if has_table_column(table_name="workflows", column_name="is_task", conn=conn):
         query = """
