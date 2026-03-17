@@ -18,10 +18,11 @@ from typing import Any, ClassVar, cast
 from uuid import uuid4
 
 import structlog
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import Query, Session, as_declarative, scoped_session, sessionmaker
+from sqlalchemy.pool import ConnectionPoolEntry
 from sqlalchemy.sql.schema import MetaData
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -167,6 +168,7 @@ ENGINE_ARGUMENTS = {
     "connect_args": {"connect_timeout": 10, "options": "-c timezone=UTC"},
     "pool_pre_ping": True,
     "pool_size": 60,
+    "pool_reset_on_return": "rollback",
     "json_serializer": json_dumps,
     "json_deserializer": json_loads,
 }
@@ -187,12 +189,37 @@ class Database:
     def __init__(self, db_url: str) -> None:
         self.request_context: ContextVar[str] = ContextVar("request_context", default="")
         self.engine = create_engine(db_url, **ENGINE_ARGUMENTS)
+        self._register_pool_events()
         self.session_factory = sessionmaker(
             bind=self.engine, class_=WrappedSession, autocommit=False, autoflush=True, query_cls=SearchQuery
         )
 
         self.scoped_session = scoped_session(self.session_factory, self._scopefunc)
         BaseModel.set_query(cast(SearchQuery, self.scoped_session.query_property()))
+
+    def _register_pool_events(self) -> None:
+        """Register connection pool events to ensure proper transaction cleanup.
+
+        With psycopg3, connections can retain transaction state ("idle in transaction")
+        if not properly committed or rolled back. This ensures that connections returned
+        to the pool are always in a clean state, preventing lock contention between
+        concurrent workers.
+        """
+
+        @event.listens_for(self.engine, "checkin")
+        def _on_checkin(dbapi_connection: Any, connection_record: ConnectionPoolEntry) -> None:
+            try:
+                # psycopg3 exposes transaction_status via connection.info
+                tx_status = getattr(getattr(dbapi_connection, "info", None), "transaction_status", None)
+                if tx_status is not None and tx_status != 0:  # 0 = IDLE (no active transaction)
+                    logger.warning(
+                        "Connection returned to pool with active transaction, forcing rollback",
+                        transaction_status=tx_status,
+                    )
+                    dbapi_connection.rollback()
+            except Exception:
+                logger.warning("Failed to clean up connection on pool checkin, invalidating")
+                connection_record.invalidate()
 
     def _scopefunc(self) -> str | None:
         return self.request_context.get()
@@ -216,6 +243,13 @@ class Database:
         try:
             yield self
         finally:
+            try:
+                # Explicitly rollback any uncommitted transaction before closing the session.
+                # With psycopg3, Session.close() does NOT rollback, which can leave connections
+                # in "idle in transaction" state when returned to the pool, causing lock contention.
+                self.scoped_session.rollback()
+            except Exception:
+                logger.debug("Rollback during database_scope cleanup failed, session will be removed")
             self.scoped_session.remove()
             self.request_context.reset(token)
 
