@@ -14,16 +14,14 @@
 from ipaddress import IPv4Address, IPv4Interface, IPv6Address, IPv6Interface
 
 # Map some Orchestrator types to scalars
-from typing import Any, NewType, TypeVar
+from typing import Any, TypeVar
 
 import strawberry
 from graphql import GraphQLError, GraphQLNamedType
 from strawberry.dataloader import DataLoader
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
-from strawberry.scalars import JSON
 from strawberry.types import Info
 from strawberry.types.info import RootValueType
-from strawberry.types.scalar import ScalarDefinition, ScalarWrapper
 
 from nwastdlib.vlans import VlanRanges
 from oauth2_lib.fastapi import AuthManager
@@ -88,35 +86,35 @@ class GraphqlFilter:
 
 
 VlanRangesType = strawberry.scalar(
-    NewType("VlanRangesType", str),
+    name="VlanRangesType",
     description="Represent the Orchestrator VlanRanges data type",
     serialize=serialize_vlan,
     parse_value=lambda v: v,
 )
 
 IPv4AddressType = strawberry.scalar(
-    NewType("IPv4AddressType", str),
+    name="IPv4AddressType",
     description="Represent the Orchestrator IPv4Address data type",
     serialize=serialize_to_string,
     parse_value=lambda v: v,
 )
 
 IPv6AddressType = strawberry.scalar(
-    NewType("IPv6AddressType", str),
+    name="IPv6AddressType",
     description="Represent the Orchestrator IPv6Address data type",
     serialize=serialize_to_string,
     parse_value=lambda v: v,
 )
 
 IPv4InterfaceType = strawberry.scalar(
-    NewType("IPv4InterfaceType", str),
+    name="IPv4InterfaceType",
     description="Represent the Orchestrator IPv4Interface data type",
     serialize=serialize_to_string,
     parse_value=lambda v: v,
 )
 
 IPv6InterfaceType = strawberry.scalar(
-    NewType("IPv6InterfaceType", str),
+    name="IPv6InterfaceType",
     description="Represent the Orchestrator IPv6Interface data type",
     serialize=serialize_to_string,
     parse_value=lambda v: v,
@@ -125,16 +123,23 @@ IPv6InterfaceType = strawberry.scalar(
 # TODO: Remove Hack to prevent the error: `Redefinition of reserved type 'Int'`
 if hasattr(GraphQLNamedType, "reserved_types"):
     GraphQLNamedType.reserved_types.pop("Int", None)
+
 IntType = strawberry.scalar(
-    NewType("Int", int),
+    name="Int",
     description="An arbitrary precision integer",
     serialize=lambda v: v,
     parse_value=lambda v: v,
 )
 
-ScalarOverrideType = dict[object, type | ScalarWrapper | ScalarDefinition]
+JSONType = strawberry.scalar(
+    name="JSONType",
+    serialize=lambda v: v,
+    parse_value=lambda v: v,
+)
+
+ScalarOverrideType = dict
 SCALAR_OVERRIDES: ScalarOverrideType = {
-    dict: JSON,
+    dict: JSONType,
     VlanRanges: VlanRangesType,
     IPv4Address: IPv4AddressType,
     IPv6Address: IPv6AddressType,
