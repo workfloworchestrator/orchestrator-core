@@ -113,7 +113,7 @@ def construct_{{ product.variable }}_model(
 {% include 'additional_create_steps.j2' %}
 
 
-@create_workflow("Create {{ product.name }}", initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
+@create_workflow(initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
 def create_{{ product.variable }}() -> StepList:
     return (
         begin
