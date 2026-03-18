@@ -12,6 +12,8 @@
 # limitations under the License.
 
 
+from typing import Any
+
 import pytest
 
 from orchestrator.search.core.types import BooleanOperator, FilterOp, UIType
@@ -56,3 +58,55 @@ def nested_filter_tree() -> FilterTree:
             ),
         ],
     )
+
+
+@pytest.fixture
+def es_dsl_term_query() -> dict[str, Any]:
+    """Simple ES DSL term query."""
+    return {"term": {"subscription.status": "active"}}
+
+
+@pytest.fixture
+def es_dsl_bool_must_query() -> dict[str, Any]:
+    """ES DSL bool query with must clause."""
+    return {
+        "bool": {
+            "must": [
+                {"term": {"subscription.status": "active"}},
+                {"range": {"subscription.start_date": {"gte": "2025-01-01"}}},
+            ]
+        }
+    }
+
+
+@pytest.fixture
+def es_dsl_bool_should_query() -> dict[str, Any]:
+    """ES DSL bool query with should clause."""
+    return {
+        "bool": {
+            "should": [
+                {"term": {"subscription.product": "fiber"}},
+                {"term": {"subscription.product": "wireless"}},
+            ]
+        }
+    }
+
+
+@pytest.fixture
+def es_dsl_nested_query() -> dict[str, Any]:
+    """ES DSL nested bool query combining must and should."""
+    return {
+        "bool": {
+            "must": [
+                {"term": {"subscription.status": "active"}},
+                {
+                    "bool": {
+                        "should": [
+                            {"wildcard": {"subscription.description": {"value": "*fiber*"}}},
+                            {"exists": {"field": "node"}},
+                        ]
+                    }
+                },
+            ]
+        }
+    }
