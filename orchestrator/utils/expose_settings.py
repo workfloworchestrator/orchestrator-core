@@ -19,7 +19,6 @@ This is due to circular import issues with the combination of schemas/settings.
 from typing import Any
 
 from pydantic import BaseModel
-from pydantic_core import core_schema
 
 
 class SettingsEnvVariablesSchema(BaseModel):
