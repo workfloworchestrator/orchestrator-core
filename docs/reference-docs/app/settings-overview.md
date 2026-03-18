@@ -1,5 +1,3 @@
-from orchestrator.utils.expose_settings import SecretStr
-
 # Settings overview in Orchestrator
 
 You can use the `api/settings/overview` endpoint to get an overview of the settings that are used in the application.
