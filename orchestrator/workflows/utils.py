@@ -219,6 +219,63 @@ modify_initial_input_form_generator = None
 validate_initial_input_form_generator = wrap_modify_initial_input_form(modify_initial_input_form_generator)
 
 
+def task(
+    description: str,
+    initial_input_form: InputStepFunc | None = None,
+    additional_steps: StepList | None = None,
+    authorize_callback: Authorizer | None = None,
+    retry_auth_callback: Authorizer | None = None,
+    run_predicate: RunPredicate | None = None,
+) -> Callable[[Callable[[], StepList]], Workflow]:
+    """Transform an initial_input_form and a step list into a workflow with a target=Target.CREATE.
+
+    Use this for create workflows only.
+
+    .. deprecated::
+        The `description` parameter is deprecated and will be removed in a future version.
+        Workflow descriptions should now be managed in the database via the UI or API endpoint.
+        You can safely remove this parameter from the decorator.
+        Removal is tracked in issue #1463.
+
+    Example::
+
+        @create_workflow(initial_input_form=initial_input_form_generator)
+        def create_service_port() -> StepList:
+            do_something
+            >> do_something_else
+    """
+    if description:
+        _warn_description_deprecated()
+    if initial_input_form is None:
+        initial_input_form_in_form_inject_args = None
+    else:
+        initial_input_form_in_form_inject_args = form_inject_args(initial_input_form)
+
+    def _create_workflow(f: Callable[[], StepList]) -> Workflow:
+        steplist = (
+            init
+            >> f()
+            >> (additional_steps or StepList())
+            >> resync
+            >> refresh_subscription_search_index
+            >> refresh_process_search_index
+            >> done
+        )
+
+        return make_workflow(
+            f,
+            description,
+            initial_input_form_in_form_inject_args,
+            target=Target.SYSTEM,
+            steps=steplist,
+            authorize_callback=authorize_callback,
+            retry_auth_callback=retry_auth_callback,
+            run_predicate=run_predicate,
+        )
+
+    return _create_workflow
+
+
 def create_workflow(
     description: str = "",
     initial_input_form: InputStepFunc | None = None,
