@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any
+
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
@@ -26,7 +28,16 @@ from orchestrator.search.filters.elastic_dsl import (
 from orchestrator.search.filters.ltree_filters import LtreeFilter
 from orchestrator.search.filters.numeric_filter import NumericRangeFilter, NumericValueFilter
 
-ElasticQueryAdapter = TypeAdapter(ElasticQuery)
+ElasticQueryAdapter: TypeAdapter[ElasticQuery] = TypeAdapter(ElasticQuery)
+
+
+def _parse_and_get_leaf(es_dsl: dict[str, Any]) -> PathFilter:
+    """Parse ES DSL and return the first leaf as a PathFilter."""
+    es = ElasticQueryAdapter.validate_python(es_dsl)
+    tree = elastic_to_filter_tree(es)
+    leaf = tree.children[0]
+    assert isinstance(leaf, PathFilter)
+    return leaf
 
 
 # ---------------------------------------------------------------------------
@@ -35,85 +46,77 @@ ElasticQueryAdapter = TypeAdapter(ElasticQuery)
 
 
 class TestTermQuery:
-    def test_term_string_value(self) -> None:
-        es = ElasticQueryAdapter.validate_python({"term": {"subscription.status": "active"}})
-        tree = elastic_to_filter_tree(es)
-        leaf = tree.children[0]
-        assert isinstance(leaf, PathFilter)
-        assert leaf.path == "subscription.status"
+    @pytest.mark.parametrize(
+        "value, expected_value_kind",
+        [
+            ("active", UIType.STRING),
+            (True, UIType.BOOLEAN),
+            (False, UIType.BOOLEAN),
+            ("550e8400-e29b-41d4-a716-446655440000", UIType.STRING),
+        ],
+        ids=["string", "bool-true", "bool-false", "uuid"],
+    )
+    def test_term_value_kinds(self, value: Any, expected_value_kind: UIType) -> None:
+        leaf = _parse_and_get_leaf({"term": {"subscription.field": value}})
         assert isinstance(leaf.condition, EqualityFilter)
         assert leaf.condition.op == FilterOp.EQ
-        assert leaf.condition.value == "active"
-        assert leaf.value_kind == UIType.STRING
+        assert leaf.condition.value == value
+        assert leaf.value_kind == expected_value_kind
 
-    def test_term_boolean_value(self) -> None:
-        es = ElasticQueryAdapter.validate_python({"term": {"subscription.insured": True}})
-        tree = elastic_to_filter_tree(es)
-        leaf = tree.children[0]
-        assert isinstance(leaf, PathFilter)
-        assert isinstance(leaf.condition, EqualityFilter)
-        assert leaf.condition.value is True
-        assert leaf.value_kind == UIType.BOOLEAN
-
-    def test_term_uuid_value(self) -> None:
-        uid = "550e8400-e29b-41d4-a716-446655440000"
-        es = ElasticQueryAdapter.validate_python({"term": {"subscription.customer_id": uid}})
-        tree = elastic_to_filter_tree(es)
-        leaf = tree.children[0]
-        assert isinstance(leaf, PathFilter)
-        assert leaf.condition.value == uid
-        assert leaf.value_kind == UIType.STRING
+    def test_term_preserves_path(self) -> None:
+        leaf = _parse_and_get_leaf({"term": {"subscription.status": "active"}})
+        assert leaf.path == "subscription.status"
 
 
 # ---------------------------------------------------------------------------
-# range queries
+# range queries — single bound
 # ---------------------------------------------------------------------------
 
 
 class TestRangeQuery:
-    def test_range_single_gt_date(self) -> None:
-        es = ElasticQueryAdapter.validate_python({"range": {"subscription.start_date": {"gt": "2025-01-01"}}})
-        tree = elastic_to_filter_tree(es)
-        leaf = tree.children[0]
-        assert isinstance(leaf, PathFilter)
-        assert isinstance(leaf.condition, DateValueFilter)
-        assert leaf.condition.op == FilterOp.GT
-        assert leaf.condition.value == "2025-01-01"
-        assert leaf.value_kind == UIType.DATETIME
+    @pytest.mark.parametrize(
+        "es_op, value, expected_filter_type, expected_op, expected_value_kind",
+        [
+            ("gt", "2025-01-01", DateValueFilter, FilterOp.GT, UIType.DATETIME),
+            ("gte", "2025-06-15", DateValueFilter, FilterOp.GTE, UIType.DATETIME),
+            ("lt", "2025-12-31", DateValueFilter, FilterOp.LT, UIType.DATETIME),
+            ("lte", "2025-03-01", DateValueFilter, FilterOp.LTE, UIType.DATETIME),
+            ("gt", 100, NumericValueFilter, FilterOp.GT, UIType.NUMBER),
+            ("gte", 0, NumericValueFilter, FilterOp.GTE, UIType.NUMBER),
+            ("lt", 9999, NumericValueFilter, FilterOp.LT, UIType.NUMBER),
+            ("lte", 1000, NumericValueFilter, FilterOp.LTE, UIType.NUMBER),
+        ],
+        ids=["date-gt", "date-gte", "date-lt", "date-lte", "num-gt", "num-gte", "num-lt", "num-lte"],
+    )
+    def test_range_single_bound(
+        self,
+        es_op: str,
+        value: Any,
+        expected_filter_type: type,
+        expected_op: FilterOp,
+        expected_value_kind: UIType,
+    ) -> None:
+        leaf = _parse_and_get_leaf({"range": {"field": {es_op: value}}})
+        assert isinstance(leaf.condition, expected_filter_type)
+        assert leaf.condition.op == expected_op
+        assert leaf.condition.value == value
+        assert leaf.value_kind == expected_value_kind
 
-    def test_range_single_lte_number(self) -> None:
-        es = ElasticQueryAdapter.validate_python({"range": {"subscription.port_speed": {"lte": 1000}}})
-        tree = elastic_to_filter_tree(es)
-        leaf = tree.children[0]
-        assert isinstance(leaf, PathFilter)
-        assert isinstance(leaf.condition, NumericValueFilter)
-        assert leaf.condition.op == FilterOp.LTE
-        assert leaf.condition.value == 1000
-        assert leaf.value_kind == UIType.NUMBER
-
-    def test_range_between_dates(self) -> None:
-        es = ElasticQueryAdapter.validate_python(
-            {"range": {"subscription.start_date": {"gte": "2025-01-01", "lte": "2025-12-31"}}}
-        )
-        tree = elastic_to_filter_tree(es)
-        leaf = tree.children[0]
-        assert isinstance(leaf, PathFilter)
-        assert isinstance(leaf.condition, DateRangeFilter)
+    @pytest.mark.parametrize(
+        "start, end, expected_filter_type, expected_value_kind",
+        [
+            ("2025-01-01", "2025-12-31", DateRangeFilter, UIType.DATETIME),
+            (100, 10000, NumericRangeFilter, UIType.NUMBER),
+        ],
+        ids=["date-between", "numeric-between"],
+    )
+    def test_range_between(self, start: Any, end: Any, expected_filter_type: type, expected_value_kind: UIType) -> None:
+        leaf = _parse_and_get_leaf({"range": {"field": {"gte": start, "lte": end}}})
+        assert isinstance(leaf.condition, expected_filter_type)
         assert leaf.condition.op == FilterOp.BETWEEN
-        assert leaf.condition.value.start == "2025-01-01"
-        assert leaf.condition.value.end == "2025-12-31"
-        assert leaf.value_kind == UIType.DATETIME
-
-    def test_range_between_numbers(self) -> None:
-        es = ElasticQueryAdapter.validate_python({"range": {"subscription.bandwidth": {"gte": 100, "lte": 10000}}})
-        tree = elastic_to_filter_tree(es)
-        leaf = tree.children[0]
-        assert isinstance(leaf, PathFilter)
-        assert isinstance(leaf.condition, NumericRangeFilter)
-        assert leaf.condition.op == FilterOp.BETWEEN
-        assert leaf.condition.value.start == 100
-        assert leaf.condition.value.end == 10000
-        assert leaf.value_kind == UIType.NUMBER
+        assert leaf.condition.value.start == start
+        assert leaf.condition.value.end == end
+        assert leaf.value_kind == expected_value_kind
 
 
 # ---------------------------------------------------------------------------
@@ -122,22 +125,22 @@ class TestRangeQuery:
 
 
 class TestWildcardQuery:
-    def test_wildcard_pattern_conversion(self) -> None:
-        es = ElasticQueryAdapter.validate_python({"wildcard": {"subscription.description": {"value": "*fiber*"}}})
-        tree = elastic_to_filter_tree(es)
-        leaf = tree.children[0]
-        assert isinstance(leaf, PathFilter)
+    @pytest.mark.parametrize(
+        "es_pattern, expected_sql",
+        [
+            ("*fiber*", "%fiber%"),
+            ("node-?", "node-_"),
+            ("prefix*suffix", "prefix%suffix"),
+            ("?start", "_start"),
+        ],
+        ids=["star", "question", "mixed-star", "leading-question"],
+    )
+    def test_wildcard_pattern_conversion(self, es_pattern: str, expected_sql: str) -> None:
+        leaf = _parse_and_get_leaf({"wildcard": {"field": {"value": es_pattern}}})
         assert isinstance(leaf.condition, StringFilter)
         assert leaf.condition.op == FilterOp.LIKE
-        assert leaf.condition.value == "%fiber%"
+        assert leaf.condition.value == expected_sql
         assert leaf.value_kind == UIType.STRING
-
-    def test_wildcard_question_mark(self) -> None:
-        es = ElasticQueryAdapter.validate_python({"wildcard": {"subscription.name": {"value": "node-?"}}})
-        tree = elastic_to_filter_tree(es)
-        leaf = tree.children[0]
-        assert isinstance(leaf.condition, StringFilter)
-        assert leaf.condition.value == "node-_"
 
 
 # ---------------------------------------------------------------------------
@@ -147,10 +150,7 @@ class TestWildcardQuery:
 
 class TestExistsQuery:
     def test_exists_to_ltree_filter(self) -> None:
-        es = ElasticQueryAdapter.validate_python({"exists": {"field": "node"}})
-        tree = elastic_to_filter_tree(es)
-        leaf = tree.children[0]
-        assert isinstance(leaf, PathFilter)
+        leaf = _parse_and_get_leaf({"exists": {"field": "node"}})
         assert leaf.path == "*"
         assert isinstance(leaf.condition, LtreeFilter)
         assert leaf.condition.op == FilterOp.ENDS_WITH
@@ -164,11 +164,19 @@ class TestExistsQuery:
 
 
 class TestBoolQuery:
-    def test_bool_must_to_and_tree(self) -> None:
+    @pytest.mark.parametrize(
+        "clause_key, expected_op",
+        [
+            ("must", BooleanOperator.AND),
+            ("should", BooleanOperator.OR),
+        ],
+        ids=["must-and", "should-or"],
+    )
+    def test_bool_clause_to_tree(self, clause_key: str, expected_op: BooleanOperator) -> None:
         es = ElasticQueryAdapter.validate_python(
             {
                 "bool": {
-                    "must": [
+                    clause_key: [
                         {"term": {"subscription.status": "active"}},
                         {"term": {"subscription.product": "fiber"}},
                     ]
@@ -177,43 +185,19 @@ class TestBoolQuery:
         )
         tree = elastic_to_filter_tree(es)
         assert isinstance(tree, FilterTree)
-        assert tree.op == BooleanOperator.AND
-        assert len(tree.children) == 2
-
-    def test_bool_should_to_or_tree(self) -> None:
-        es = ElasticQueryAdapter.validate_python(
-            {
-                "bool": {
-                    "should": [
-                        {"term": {"subscription.status": "active"}},
-                        {"term": {"subscription.status": "provisioning"}},
-                    ]
-                }
-            }
-        )
-        tree = elastic_to_filter_tree(es)
-        assert isinstance(tree, FilterTree)
-        assert tree.op == BooleanOperator.OR
+        assert tree.op == expected_op
         assert len(tree.children) == 2
 
     def test_bool_must_not_single_term(self) -> None:
-        es = ElasticQueryAdapter.validate_python(
-            {"bool": {"must_not": [{"term": {"subscription.status": "terminated"}}]}}
-        )
-        tree = elastic_to_filter_tree(es)
-        leaf = tree.children[0]
-        assert isinstance(leaf, PathFilter)
+        leaf = _parse_and_get_leaf({"bool": {"must_not": [{"term": {"subscription.status": "terminated"}}]}})
         assert isinstance(leaf.condition, EqualityFilter)
         assert leaf.condition.op == FilterOp.NEQ
         assert leaf.condition.value == "terminated"
 
     def test_bool_must_not_single_range(self) -> None:
-        es = ElasticQueryAdapter.validate_python(
+        leaf = _parse_and_get_leaf(
             {"bool": {"must_not": [{"range": {"subscription.start_date": {"gt": "2025-01-01"}}}]}}
         )
-        tree = elastic_to_filter_tree(es)
-        leaf = tree.children[0]
-        assert isinstance(leaf, PathFilter)
         assert isinstance(leaf.condition, DateValueFilter)
         assert leaf.condition.op == FilterOp.LTE
 
@@ -230,11 +214,9 @@ class TestBoolQuery:
         assert isinstance(tree, FilterTree)
         assert tree.op == BooleanOperator.AND
         assert len(tree.children) == 2
-        # First child is the must clause
         must_leaf = tree.children[0]
         assert isinstance(must_leaf, PathFilter)
         assert must_leaf.condition.value == "fiber"
-        # Second child is the inverted must_not
         not_leaf = tree.children[1]
         assert isinstance(not_leaf, PathFilter)
         assert isinstance(not_leaf.condition, EqualityFilter)
@@ -262,7 +244,6 @@ class TestBoolQuery:
         assert isinstance(tree, FilterTree)
         assert tree.op == BooleanOperator.AND
         assert len(tree.children) == 2
-        # Second child is the nested OR
         nested = tree.children[1]
         assert isinstance(nested, FilterTree)
         assert nested.op == BooleanOperator.OR
@@ -273,12 +254,9 @@ class TestBoolQuery:
             {"bool": {"must_not": [{"range": {"subscription.bandwidth": {"gte": 100, "lte": 10000}}}]}}
         )
         tree = elastic_to_filter_tree(es)
-        # Between inversion produces an OR of < start, > end
-        # The single must_not child is unwrapped, so the tree itself is the OR
         assert isinstance(tree, FilterTree)
         assert tree.op == BooleanOperator.OR
         assert len(tree.children) == 2
-        # First child: LT start, Second child: GT end
         assert isinstance(tree.children[0], PathFilter)
         assert isinstance(tree.children[0].condition, NumericValueFilter)
         assert tree.children[0].condition.op == FilterOp.LT
@@ -293,25 +271,20 @@ class TestBoolQuery:
 
 
 class TestValueKindInference:
-    def test_infer_datetime(self) -> None:
-        es = ElasticQueryAdapter.validate_python({"term": {"field": "2025-06-15"}})
-        tree = elastic_to_filter_tree(es)
-        assert tree.children[0].value_kind == UIType.DATETIME
-
-    def test_infer_number(self) -> None:
-        es = ElasticQueryAdapter.validate_python({"term": {"field": 42}})
-        tree = elastic_to_filter_tree(es)
-        assert tree.children[0].value_kind == UIType.NUMBER
-
-    def test_infer_boolean(self) -> None:
-        es = ElasticQueryAdapter.validate_python({"term": {"field": True}})
-        tree = elastic_to_filter_tree(es)
-        assert tree.children[0].value_kind == UIType.BOOLEAN
-
-    def test_infer_string(self) -> None:
-        es = ElasticQueryAdapter.validate_python({"term": {"field": "hello"}})
-        tree = elastic_to_filter_tree(es)
-        assert tree.children[0].value_kind == UIType.STRING
+    @pytest.mark.parametrize(
+        "value, expected_kind",
+        [
+            ("2025-06-15", UIType.DATETIME),
+            (42, UIType.NUMBER),
+            (3.14, UIType.NUMBER),
+            (True, UIType.BOOLEAN),
+            ("hello", UIType.STRING),
+        ],
+        ids=["datetime", "int", "float", "boolean", "string"],
+    )
+    def test_value_kind_inference(self, value: Any, expected_kind: UIType) -> None:
+        leaf = _parse_and_get_leaf({"term": {"field": value}})
+        assert leaf.value_kind == expected_kind
 
 
 # ---------------------------------------------------------------------------
@@ -321,8 +294,7 @@ class TestValueKindInference:
 
 class TestValidation:
     def test_depth_limit_exceeded(self) -> None:
-        # Build a deeply nested bool query exceeding MAX_DEPTH
-        inner: dict = {"term": {"field": "value"}}
+        inner: dict[str, Any] = {"term": {"field": "value"}}
         for _ in range(FilterTree.MAX_DEPTH + 1):
             inner = {"bool": {"must": [inner]}}
 
@@ -341,20 +313,36 @@ class TestValidation:
 
 
 class TestSearchRequestIntegration:
-    def test_search_request_accepts_elastic_dsl(self) -> None:
-        request = SearchRequest(
-            filters={  # type: ignore[arg-type]
-                "bool": {
-                    "must": [
-                        {"term": {"subscription.status": "active"}},
-                        {"range": {"subscription.start_date": {"gte": "2025-01-01"}}},
-                    ]
-                }
-            }
-        )
+    @pytest.mark.parametrize(
+        "filters, expected_op, expected_children",
+        [
+            (
+                {
+                    "bool": {
+                        "must": [
+                            {"term": {"subscription.status": "active"}},
+                            {"range": {"subscription.start_date": {"gte": "2025-01-01"}}},
+                        ]
+                    }
+                },
+                BooleanOperator.AND,
+                2,
+            ),
+            (
+                {"term": {"subscription.status": "active"}},
+                BooleanOperator.AND,
+                1,
+            ),
+        ],
+        ids=["es-dsl-bool", "es-dsl-term"],
+    )
+    def test_search_request_accepts_elastic_dsl(
+        self, filters: dict[str, Any], expected_op: BooleanOperator, expected_children: int
+    ) -> None:
+        request = SearchRequest(filters=filters)  # type: ignore[arg-type]
         assert isinstance(request.filters, FilterTree)
-        assert request.filters.op == BooleanOperator.AND
-        assert len(request.filters.children) == 2
+        assert request.filters.op == expected_op
+        assert len(request.filters.children) == expected_children
 
     def test_search_request_accepts_filter_tree(self) -> None:
         request = SearchRequest(
@@ -375,8 +363,3 @@ class TestSearchRequestIntegration:
     def test_search_request_accepts_none_filters(self) -> None:
         request = SearchRequest()
         assert request.filters is None
-
-    def test_search_request_accepts_simple_term_dsl(self) -> None:
-        request = SearchRequest(filters={"term": {"subscription.status": "active"}})  # type: ignore[arg-type]
-        assert isinstance(request.filters, FilterTree)
-        assert len(request.filters.children) == 1
