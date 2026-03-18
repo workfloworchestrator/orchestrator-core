@@ -24,7 +24,6 @@ from oauth2_lib.fastapi import OIDCUserModel
 from oauth2_lib.settings import oauth2lib_settings
 from orchestrator.services.settings_env_variables import expose_settings
 from orchestrator.utils.auth import Authorizer
-from orchestrator.utils.expose_settings import SecretStr as OrchSecretStr
 from pydantic_forms.types import strEnum
 
 SecretRedisDsn = Secret[RedisDsn]
@@ -73,7 +72,6 @@ class AppSettings(BaseSettings):
     MAIL_PORT: int = 25
     MAIL_STARTTLS: bool = False
     CACHE_URI: SecretRedisDsn = "redis://localhost:6379/0"  # type: ignore
-    CACHE_HMAC_SECRET: SecretStr | None = None  # HMAC signing key, used when pickling results in the cache
     REDIS_RETRY_COUNT: NonNegativeInt = Field(
         2, description="Number of retries for redis connection errors/timeouts, 0 to disable"
     )  # More info: https://redis-py.readthedocs.io/en/stable/retry.html
