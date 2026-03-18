@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
+import structlog
 from annotated_types import Predicate
 from sqlalchemy import select
 from typing_extensions import TypedDict
@@ -16,6 +17,8 @@ from orchestrator.workflow import Workflow
 from orchestrator.workflows import get_workflow
 from pydantic_forms.types import FormGenerator, FormGeneratorAsync, State
 from pydantic_forms.validators.components.read_only import read_only_field
+
+logger = structlog.get_logger(__name__)
 
 
 class ScheduleTypeEnum(Choice):
@@ -103,7 +106,8 @@ def has_initial_form(task: Workflow) -> bool:
             return True
     except StopIteration:
         return False
-    except Exception:
+    except Exception as exc:
+        logger.debug("Unexpected error when trying task.initial_input_form", task=task.name, error=exc)
         return True
     return False
 
