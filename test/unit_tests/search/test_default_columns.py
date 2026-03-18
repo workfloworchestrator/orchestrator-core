@@ -18,7 +18,6 @@ import pytest
 from orchestrator.api.api_v1.endpoints.search import _perform_search_and_fetch
 from orchestrator.schemas.search_requests import SearchRequest
 from orchestrator.search.core.types import EntityType, SearchMetadata
-from orchestrator.search.query.default_columns import DEFAULT_RESPONSE_COLUMNS
 from orchestrator.search.query.engine import execute_search
 from orchestrator.search.query.queries import SelectQuery
 
@@ -26,40 +25,12 @@ from .fixtures.helpers import SIMPLE_SUBSCRIPTION_FILTER, make_column_row, make_
 
 
 class TestResponseColumns:
-    """Tests for response_columns: defaults, overrides, toggle, and end-to-end data flow.
+    """Tests for response_columns: overrides, toggle, and end-to-end data flow.
 
     Only the DB session is mocked (infrastructure).
     The real business logic runs: process_response_columns, format_search_response,
-    and the default column resolution in the engine.
+    and the column resolution in the engine.
     """
-
-    # --- DEFAULT_RESPONSE_COLUMNS mapping ---
-
-    def test_all_entity_types_have_defaults(self):
-        for entity_type in EntityType:
-            assert entity_type in DEFAULT_RESPONSE_COLUMNS, f"Missing defaults for {entity_type}"
-
-    def test_subscription_defaults(self):
-        cols = DEFAULT_RESPONSE_COLUMNS[EntityType.SUBSCRIPTION]
-        assert all(c.startswith("subscription.") for c in cols)
-        assert "subscription.status" in cols
-        assert "subscription.product.name" in cols
-
-    def test_process_defaults(self):
-        cols = DEFAULT_RESPONSE_COLUMNS[EntityType.PROCESS]
-        assert all(c.startswith("process.") for c in cols)
-        assert "process.workflow_name" in cols
-        assert "process.last_status" in cols
-
-    def test_workflow_defaults(self):
-        cols = DEFAULT_RESPONSE_COLUMNS[EntityType.WORKFLOW]
-        assert all(c.startswith("workflow.") for c in cols)
-        assert "workflow.name" in cols
-
-    def test_product_defaults(self):
-        cols = DEFAULT_RESPONSE_COLUMNS[EntityType.PRODUCT]
-        assert all(c.startswith("product.") for c in cols)
-        assert "product.name" in cols
 
     # --- include_columns toggle ---
 
@@ -102,26 +73,18 @@ class TestResponseColumns:
     # --- End-to-end: 3 API scenarios ---
 
     @pytest.mark.asyncio
-    async def test_no_response_columns_returns_defaults(self, mock_db_session):
-        """Scenario 1: No response_columns → default columns appear on SearchResult."""
+    async def test_no_response_columns_returns_null(self, mock_db_session):
+        """Scenario 1: No response_columns → null on SearchResult (FE is responsible for sending columns)."""
 
         search_row = make_search_row("id-1", "my-service")
-        default_cols = DEFAULT_RESPONSE_COLUMNS[EntityType.SUBSCRIPTION]
-        col_values = {col: f"value-{i}" for i, col in enumerate(default_cols)}
-        column_row = make_column_row("id-1", col_values)
-
         mock_db_session.execute.return_value.mappings.return_value.all.return_value = [search_row]
-        mock_db_session.execute.return_value.all.return_value = [column_row]
 
         query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=10, filters=SIMPLE_SUBSCRIPTION_FILTER)
 
         response = await execute_search(query, mock_db_session)
 
         result = response.results[0]
-        assert result.response_columns is not None
-        assert set(result.response_columns.keys()) == set(default_cols)
-        for col in default_cols:
-            assert result.response_columns[col] == col_values[col]
+        assert result.response_columns is None
 
     @pytest.mark.asyncio
     async def test_custom_response_columns_returns_only_requested(self, mock_db_session):
