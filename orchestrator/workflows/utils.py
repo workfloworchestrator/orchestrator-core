@@ -13,16 +13,16 @@
 
 from collections.abc import Callable
 from inspect import isgeneratorfunction
-from typing import Self, cast
+from typing import Annotated, Self, cast
 from uuid import UUID
 
 import structlog
 from more_itertools import first_true
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from sqlalchemy import select
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
-from orchestrator.forms.validators import ProductId
+from orchestrator.db.models import WorkflowTable
 from orchestrator.services import subscriptions
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
@@ -53,21 +53,26 @@ from orchestrator.workflows.steps import (
 )
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, State, StateInputStepFunc
+from pydantic_forms.validators.components.choice import Choice
 
 logger = structlog.get_logger(__name__)
 
 
-def _generate_new_subscription_form(_workflow_target: str, workflow_name: str) -> InputForm:
+def _generate_new_subscription_form(
+    _workflow_target: str, workflow_name: str, products_by_id: dict[str, ProductTable]
+) -> InputForm:
+    product_form_mapping = {k: (k, v.name) for k, v in products_by_id.items()}
+    ProductChoice = Choice.__call__("ProductChoice", product_form_mapping)
+    ProductSelect = Annotated[ProductChoice, Field(json_schema_extra={"format": "productId"})]  # type: ignore
+
     class NewProductPage(FormPage):
-        product: ProductId
+        product: ProductSelect
 
         @field_validator("product")
         @classmethod
-        def product_validator(cls, product_id: UUID) -> UUID:
+        def product_validator(cls, product_id: ProductChoice) -> str:  # type: ignore
             """Run validator for initial_input_forms to check if the product exists and that this workflow is valid to run for this product."""
-            product = db.session.get(ProductTable, product_id)
-            if product is None:
-                raise ValueError("Product not found")
+            product = products_by_id[product_id.name]  # type: ignore
 
             # Check if there is no reason to prevent this workflow
             current_workflow = product.create_subscription_workflow_key()
@@ -91,11 +96,14 @@ def wrap_create_initial_input_form(initial_input_form: InputStepFunc | None) -> 
         workflow_target: str = state["workflow_target"]
         workflow_name: str = state["workflow_name"]
 
-        product_user_input = yield _generate_new_subscription_form(workflow_target, workflow_name)
+        products = db.session.scalars(
+            select(ProductTable).where(ProductTable.workflows.any(WorkflowTable.name == workflow_name))
+        ).all()
+        product_mapping = {str(product.product_id): product for product in products}
 
-        product = db.session.scalars(
-            select(ProductTable).where(ProductTable.product_id == product_user_input.product)
-        ).one()
+        product_user_input = yield _generate_new_subscription_form(workflow_target, workflow_name, product_mapping)
+
+        product = product_mapping[product_user_input.product.name]
 
         begin_state = {"product": product.product_id, "product_name": product.name}
 
