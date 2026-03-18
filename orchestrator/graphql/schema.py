@@ -222,5 +222,5 @@ def create_graphql_router(
     return OrchestratorGraphqlRouter(
         schema,
         context_getter=context_getter_factory(auth_manager, models, broadcast_thread),  # type: ignore
-        graphql_ide=app_settings.SERVE_GRAPHQL_UI if app_settings.SERVE_GRAPHQL_UI else None,
+        graphql_ide=app_settings.SERVE_GRAPHQL_UI if app_settings.SERVE_GRAPHQL_UI else None,  # type: ignore
     )

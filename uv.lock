@@ -2504,7 +2504,7 @@ requires-dist = [
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.29.1" },
     { name = "sqlalchemy", specifier = "==2.0.48" },
     { name = "sqlalchemy-utils", specifier = "==0.42.1" },
-    { name = "strawberry-graphql", specifier = "==0.311.3" },
+    { name = "strawberry-graphql", specifier = ">=0.311.3" },
     { name = "structlog", specifier = ">=25.4.0" },
     { name = "tabulate", specifier = "==0.10.0" },
     { name = "typer", specifier = "==0.24.1" },
