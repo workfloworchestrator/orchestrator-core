@@ -22,19 +22,6 @@ from pydantic import BaseModel
 from pydantic_core import core_schema
 
 
-class SecretStr(str):
-    """A string that is treated as a secret, for example, passwords or API keys.
-
-    This class is used to indicate that the string should not be logged or displayed in plaintext.
-    """
-
-    @classmethod
-    def __get_pydantic_core_schema__(cls, source_type, handler):  # type: ignore
-        # This method is used to define how the SecretStr type should be handled by Pydantic.
-        # With this implementation, it will fail validation.
-        return core_schema.no_info_plain_validator_function(cls)
-
-
 class SettingsEnvVariablesSchema(BaseModel):
     env_name: str
     env_value: Any
