@@ -18,6 +18,7 @@ import contextvars
 import functools
 import inspect
 import secrets
+import warnings
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from itertools import dropwhile
@@ -559,8 +560,23 @@ def focussteps(key: str) -> Callable[[Step | StepList], StepList]:
     return zoom
 
 
+def _warn_description_deprecated() -> None:
+    """Emit a deprecation warning when a workflow decorator `description` parameter is used."""
+    warnings.warn(
+        "The 'description' parameter in workflow decorators is deprecated. "
+        "Workflow descriptions should be managed in the database via the UI or API endpoint. "
+        "Please remove the 'description' parameter from your decorator.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+    logger.warning(
+        "Workflow decorator description is deprecated",
+        hint="Remove the description parameter and manage it via database/UI instead",
+    )
+
+
 def workflow(
-    description: str,
+    description: str = "",
     initial_input_form: InputStepFunc | None = None,
     target: Target = Target.SYSTEM,
     authorize_callback: Authorizer | None = None,
@@ -571,14 +587,22 @@ def workflow(
 
     Use this for other workflows. For create workflows use :func:`create_workflow`
 
+    .. deprecated::
+        The `description` parameter is deprecated and will be removed in a future version.
+        Workflow descriptions should now be managed in the database via the UI or API endpoint.
+        You can safely remove this parameter from the decorator.
+        Removal is tracked in issue #1463.
+
     Example::
 
-        @workflow("create service port")
+        @workflow()
         def create_service_port():
             init
             << do_something
             << done
     """
+    if description:
+        _warn_description_deprecated()
     if initial_input_form is None:
         initial_input_form_in_form_inject_args = None
     else:

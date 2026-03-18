@@ -36,9 +36,7 @@ def delete_subscription_from_oss_bss(subscription: Example1) -> State:
 additional_steps = begin
 
 
-@terminate_workflow(
-    "Terminate example1", initial_input_form=terminate_initial_input_form_generator, additional_steps=additional_steps
-)
+@terminate_workflow(initial_input_form=terminate_initial_input_form_generator, additional_steps=additional_steps)
 def terminate_example1() -> StepList:
     return (
         begin >> delete_subscription_from_oss_bss

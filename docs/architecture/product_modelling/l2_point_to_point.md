@@ -9,7 +9,7 @@ that endpoint and, in the case where 802.1Q has to be enabled, the VLAN range
 used. The service can either be deployed protected or unprotected in the service
 provider network. This is administered with the fixed input protection_type.
 
-<img height="75%" src="../l2_point_to_point.drawio..png" title="L2 Point-to-Point Product Model" width="75%"/>
+<img height="75%" src="../l2_point_to_point.png" title="L2 Point-to-Point Product Model" width="75%"/>
 
 * **protection_type**: this service is either unprotected or protected
 * **ims_id**: ID of the node in the inventory management system
