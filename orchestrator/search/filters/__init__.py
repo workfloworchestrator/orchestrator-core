@@ -20,6 +20,7 @@ from .base import (
 )
 from .date_filters import DateFilter, DateRangeFilter, DateValueFilter
 from .definitions import TypeDefinition, ValueSchema
+from .elastic_dsl import ElasticQuery, elastic_to_filter_tree
 from .ltree_filters import LtreeFilter
 from .numeric_filter import NumericFilter, NumericRangeFilter, NumericValueFilter
 
@@ -38,6 +39,9 @@ __all__ = [
     "DateFilter",
     "LtreeFilter",
     "NumericFilter",
+    # Elasticsearch DSL translation
+    "ElasticQuery",
+    "elastic_to_filter_tree",
     # Schema types
     "TypeDefinition",
     "ValueSchema",

@@ -12,24 +12,47 @@
 # limitations under the License.
 
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from orchestrator.search.core.types import EntityType, RetrieverType
-from orchestrator.search.filters import FilterTree
+from orchestrator.search.filters import ElasticQuery, FilterTree, elastic_to_filter_tree
 from orchestrator.search.query.mixins import StructuredOrderBy
 from orchestrator.search.query.queries import SelectQuery
+
+# Keys that identify an ES DSL query at the top level
+_ES_DSL_KEYS = frozenset({"term", "range", "wildcard", "exists", "bool"})
 
 
 class SearchRequest(BaseModel):
     """API request model for search operations.
 
     Only supports SELECT action, used by search endpoints.
+    Accepts filters in either FilterTree format or Elasticsearch DSL format.
+    ES DSL filters are auto-converted to FilterTree before processing.
     """
 
     filters: FilterTree | None = Field(
         default=None,
-        description="Structured filters to apply to the search.",
+        description="Structured filters to apply to the search. Accepts FilterTree or Elasticsearch DSL format.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _convert_elastic_dsl_filters(cls, data: Any) -> Any:
+        """Detect and convert ES DSL filters to FilterTree before validation."""
+        if not isinstance(data, dict):
+            return data
+        filters = data.get("filters")
+        if isinstance(filters, dict) and _ES_DSL_KEYS & filters.keys():
+            from pydantic import TypeAdapter
+
+            adapter: TypeAdapter[ElasticQuery] = TypeAdapter(ElasticQuery)
+            es_query = adapter.validate_python(filters)
+            data = {**data, "filters": elastic_to_filter_tree(es_query).model_dump()}
+        return data
+
     query: str | None = Field(
         default=None,
         description="Text search query for semantic/fuzzy search.",
