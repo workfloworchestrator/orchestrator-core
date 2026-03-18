@@ -92,7 +92,7 @@ def test_create_scheduled_task_unauthorized_to_schedule_task(test_client):
     assert response.status_code == HTTPStatus.FORBIDDEN
     assert response.json() == snapshot(
         {
-            "detail": "User is not authorized to create schedule with 'unauthorized_task' task",
+            "detail": "User is not authorized to manage schedule with 'unauthorized_task' task",
             "status": 403,
             "title": "Forbidden",
         }
@@ -115,7 +115,7 @@ def test_update_scheduled_task(
     }
 
     mock_get_linker_entries_by_schedule_ids.return_value = [
-        WorkflowApschedulerJob(schedule_id=str(uuid4()), workflow_id=str(uuid4()))
+        WorkflowApschedulerJob(schedule_id=body["schedule_id"], workflow_id=str(uuid4()))
     ]
     mock_get_workflow_by_workflow_id.return_value = WorkflowTable(name=workflow_name)
 
@@ -164,7 +164,7 @@ def test_update_scheduled_task_task_not_found(mock_get_linker_entries_by_schedul
     }
 
     mock_get_linker_entries_by_schedule_ids.return_value = [
-        WorkflowApschedulerJob(schedule_id=str(uuid4()), workflow_id=str(uuid4()))
+        WorkflowApschedulerJob(schedule_id=body["schedule_id"], workflow_id=str(uuid4()))
     ]
     response = test_client.put("/api/schedules/", json=body)
 
@@ -194,7 +194,7 @@ def test_update_scheduled_task_unauthorized_to_schedule_task(
         return init >> done
 
     mock_get_linker_entries_by_schedule_ids.return_value = [
-        WorkflowApschedulerJob(schedule_id=str(uuid4()), workflow_id=str(uuid4()))
+        WorkflowApschedulerJob(schedule_id=body["schedule_id"], workflow_id=str(uuid4()))
     ]
     mock_get_workflow_by_workflow_id.return_value = WorkflowTable(name=workflow_name)
 
@@ -204,7 +204,7 @@ def test_update_scheduled_task_unauthorized_to_schedule_task(
     assert response.status_code == HTTPStatus.FORBIDDEN
     assert response.json() == snapshot(
         {
-            "detail": "User is not authorized to update schedule with 'unauthorized_task' task",
+            "detail": "User is not authorized to manage schedule with 'unauthorized_task' task",
             "status": 403,
             "title": "Forbidden",
         }

@@ -23,11 +23,19 @@ from orchestrator.schedules.service import add_scheduled_task_to_queue, get_link
 from orchestrator.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
 from orchestrator.security import authenticate
 from orchestrator.services.workflows import get_workflow_by_workflow_id
+from orchestrator.workflow import Workflow
 from orchestrator.workflows import get_workflow
 
 logger = structlog.get_logger(__name__)
 
 router: APIRouter = APIRouter()
+
+
+async def validate_schedule_authorization(task: Workflow | None, user_model: OIDCUserModel | None) -> None:
+    if not task:
+        raise_status(HTTPStatus.NOT_FOUND, "Task does not exist")
+    if not await task.authorize_callback(user_model):
+        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to manage schedule with '{task.name}' task")
 
 
 @router.post("/", status_code=HTTPStatus.CREATED)
@@ -36,13 +44,9 @@ async def create_scheduled_task(
 ) -> dict[str, str]:
     """Create a scheduled task."""
     task_key = payload.workflow_name
-    task = get_workflow(payload.workflow_name)
+    task = get_workflow(task_key)
 
-    if not task:
-        raise_status(HTTPStatus.NOT_FOUND, "Task does not exist")
-    if not await task.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to create schedule with '{task_key}' task")
-
+    await validate_schedule_authorization(task, user_model)
     add_scheduled_task_to_queue(payload)
     return {"message": "Added to Create Queue", "status": "CREATED"}
 
@@ -61,11 +65,7 @@ async def update_scheduled_task(
     task_key = workflow_table.name
     task = get_workflow(task_key)
 
-    if not task:
-        raise_status(HTTPStatus.NOT_FOUND, "Task does not exist")
-    if not await task.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to update schedule with '{task_key}' task")
-
+    await validate_schedule_authorization(task, user_model)
     add_scheduled_task_to_queue(payload)
     return {"message": "Added to Update Queue", "status": "UPDATED"}
 
