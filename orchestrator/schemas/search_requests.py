@@ -14,7 +14,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
 from orchestrator.search.core.types import EntityType, RetrieverType
 from orchestrator.search.filters import ElasticQuery, FilterTree, elastic_to_filter_tree
@@ -23,6 +23,7 @@ from orchestrator.search.query.queries import SelectQuery
 
 # Keys that identify an ES DSL query at the top level
 _ES_DSL_KEYS = frozenset({"term", "range", "wildcard", "exists", "bool"})
+_ES_QUERY_ADAPTER: TypeAdapter[ElasticQuery] = TypeAdapter(ElasticQuery)
 
 
 class SearchRequest(BaseModel):
@@ -38,20 +39,14 @@ class SearchRequest(BaseModel):
         description="Structured filters to apply to the search. Accepts FilterTree or Elasticsearch DSL format.",
     )
 
-    @model_validator(mode="before")
+    @field_validator("filters", mode="before")
     @classmethod
-    def _convert_elastic_dsl_filters(cls, data: Any) -> Any:
+    def _convert_elastic_dsl_filters(cls, value: Any) -> Any:
         """Detect and convert ES DSL filters to FilterTree before validation."""
-        if not isinstance(data, dict):
-            return data
-        filters = data.get("filters")
-        if isinstance(filters, dict) and _ES_DSL_KEYS & filters.keys():
-            from pydantic import TypeAdapter
-
-            adapter: TypeAdapter[ElasticQuery] = TypeAdapter(ElasticQuery)
-            es_query = adapter.validate_python(filters)
-            data = {**data, "filters": elastic_to_filter_tree(es_query).model_dump()}
-        return data
+        if isinstance(value, dict) and _ES_DSL_KEYS & value.keys():
+            es_query = _ES_QUERY_ADAPTER.validate_python(value)
+            return elastic_to_filter_tree(es_query).model_dump()
+        return value
 
     query: str | None = Field(
         default=None,
