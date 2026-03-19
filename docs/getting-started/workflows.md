@@ -31,22 +31,21 @@ from orchestrator.workflows.utils import create_workflow
 from orchestrator.workflow import StepList, begin
 
 
-@create_workflow(
-    "Create product subscription",
-    initial_input_form=initial_input_form_generator
-)
+@create_workflow(initial_input_form=initial_input_form_generator)
 def create_product_subscription() -> StepList:
     return begin >> create_subscription
 ```
 
 In this example:
 
-- The workflow is named **"Create product subscription"**.
+- The workflow is named **"create_product_subscription"** (derived from the function name).
 - The input form is defined by `initial_input_form_generator`.
+- The workflow description is managed in the database via the UI or API endpoint.
 - The workflow engine will execute the steps inside `create_workflow` before returned steps,
    `create_subscription`, and steps inside `create_workflow` after returned steps.
 
 Each step should be defined using the `@step` decorator and can access and update the shared subscription model.
+
 
 ---
 

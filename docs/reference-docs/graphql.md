@@ -71,7 +71,10 @@ paginated results.
 
 ### How to enable Federation in the `orchestrator-core`?
 
-- Set `FEDERATION_ENABLED=True` in your `.env` file
+Since strawberry-graphql `0.285.0` federation is turned on by default
+
+- Set `FEDERATION_VERSION` in your `.env` file with the correct version you need for your federation
+  - orchestrator-core default is `2.9` to keep compatibility with `example-orchestrator`.
 - See the [`example-orchestrator` documentation][example-orchestrator] for a detailed example of
 setting up federation with the orchestrator-core and other backend services.
 
@@ -270,7 +273,7 @@ from typing import NewType
 from orchestrator.graphql import SCALAR_OVERRIDES
 
 VlanRangesType = strawberry.scalar(
-    NewType("VlanRangesType", str),
+    name="VlanRangesType",
     description="Represent the Orchestrator VlanRanges data type",
     serialize=lambda v: v.to_list_of_tuples(),
     parse_value=lambda v: v,

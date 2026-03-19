@@ -119,7 +119,7 @@ async def get_subscription_product_blocks(
                 {"field": to_lower_camel(k), "value": value_parser(v)}
                 for k, v in product_block.items()
                 if included(k, v)
-            ],
+            ],  # type: ignore
             in_use_by_relations=product_block.get("in_use_by_relations", []),
         )
 

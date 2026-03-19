@@ -20,6 +20,7 @@ from more_itertools import one
 from strawberry import UNSET
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 from strawberry.federation.schema_directives import Key
+from strawberry.federation.types import FieldSet
 
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
@@ -76,13 +77,11 @@ def create_block_strawberry_type(
     strawberry_name: str,
     model: type[DomainModel],
 ) -> type[StrawberryTypeFromPydantic[DomainModel]]:
-    from strawberry import UNSET
-    from strawberry.federation.schema_directives import Key
 
-    federation_key_directives = [Key(fields="subscriptionInstanceId", resolvable=UNSET)]
+    federation_key_directives = [Key(fields=FieldSet("subscriptionInstanceId"), resolvable=UNSET)]
 
     if keys := [key for key in model.__annotations__.keys() if "_id" in key]:
-        federation_key_directives.extend([Key(fields=to_camel(key), resolvable=True) for key in keys])
+        federation_key_directives.extend([Key(fields=FieldSet(to_camel(key)), resolvable=True) for key in keys])
 
     base_type = type(strawberry_name, (BaseProductBlockType,), {})
     pydantic_wrapper = strawberry.experimental.pydantic.type(
@@ -97,7 +96,7 @@ def create_block_strawberry_type(
 
 def create_subscription_strawberry_type(strawberry_name: str, model: type[DomainModel], interface: type) -> type:
     base_type = type(strawberry_name, (interface,), {})
-    directives = [Key(fields="subscriptionId", resolvable=UNSET)]
+    directives = [Key(fields=FieldSet("subscriptionId"), resolvable=UNSET)]
 
     pydantic_wrapper = strawberry.experimental.pydantic.type(
         model,
