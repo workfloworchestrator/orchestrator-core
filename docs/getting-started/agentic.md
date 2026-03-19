@@ -63,7 +63,7 @@ docker exec -it orch-db createdb -U postgres orchestrator-core
 Create a `.env` file in your project root:
 
 ```env
-DATABASE_URI=postgresql://nwa:yourpassword@localhost:5432/orchestrator-core
+DATABASE_URI=postgresql+psycopg://nwa:yourpassword@localhost:5432/orchestrator-core
 OPENAI_API_KEY=your_openai_api_key
 AGENT_MODEL=gpt-4o-mini
 SEARCH_ENABLED=true
