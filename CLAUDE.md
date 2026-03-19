@@ -24,11 +24,16 @@ pre-commit run --all-files             # format, lint, type check.
 - Formatter: black + ruff
 
 ## Code Rules
+- Code shoule be as `pure` as possible with no side effects.
 - Minimize loops keep it as functional as possible
+- Use itertools and more_itertools when possible
 - Cover all code paths, not just the happy path.
 - Generate a test for every new feature
-- Use best practices of important libraries: Pydantic, FastAPI
+- Use best practices of important libraries: Pydantic (v2), FastAPI
 - Code in the same style as the code context
+- Parameterize tests as much as possible
+- Write tests for edge cases
+- Write tests for exceptions
 
 ## Key Directories
 ```

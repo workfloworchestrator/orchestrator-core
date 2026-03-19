@@ -91,8 +91,10 @@ class AppSettings(BaseSettings):
     DISABLE_INSYNC_CHECK: bool = False
     DEFAULT_PRODUCT_WORKFLOWS: list[str] = ["modify_note"]
     SKIP_MODEL_FOR_MIGRATION_DB_DIFF: list[str] = []
-    SERVE_GRAPHQL_UI: bool = True
-    FEDERATION_ENABLED: bool = False
+    SERVE_GRAPHQL_UI: str | None = "graphiql"
+    FEDERATION_VERSION: Literal[
+        "2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8", "2.9", "2.10", "2.11"
+    ] = "2.9"
     DEFAULT_CUSTOMER_FULLNAME: str = "Default::Orchestrator-Core Customer"
     DEFAULT_CUSTOMER_SHORTCODE: str = "default-cust"
     DEFAULT_CUSTOMER_IDENTIFIER: str = "59289a57-70fb-4ff5-9c93-10fe67b12434"
