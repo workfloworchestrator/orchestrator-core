@@ -212,7 +212,7 @@ validate_initial_input_form_generator = wrap_modify_initial_input_form(modify_in
 
 
 def create_workflow(
-    description: str,
+    description: str = "",
     initial_input_form: InputStepFunc | None = None,
     status: SubscriptionLifecycle = SubscriptionLifecycle.ACTIVE,
     additional_steps: StepList | None = None,
@@ -268,7 +268,7 @@ def create_workflow(
 
 
 def modify_workflow(
-    description: str,
+    description: str = "",
     initial_input_form: InputStepFunc | None = None,
     additional_steps: StepList | None = None,
     authorize_callback: Authorizer | None = None,
