@@ -1,11 +1,10 @@
 import asyncio
-import re
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
 import structlog
-from annotated_types import Predicate
+from pydantic import StringConstraints
 from sqlalchemy import select
 from typing_extensions import TypedDict
 
@@ -60,10 +59,6 @@ INTERVAL_MAPPING = {
 }
 
 cron_regex = r"^(?:(\*|([0-5]?\d))(?:/(\d+))?\s+){4}(?:(\*|([0-5]?\d))(?:/(\d+))?\s+)?(?:([0-9,/*\-?LW#]+)(?:\s+([0-9,/*\-?LW#]+))?(?:\s+([0-9,/*\-?LW#]+))?)$"
-
-
-def is_valid_cron(expression: str) -> bool:
-    return bool(re.match(cron_regex, expression))
 
 
 def get_interval_kwargs(form_data: dict) -> dict:
@@ -167,7 +162,7 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
         if schedule_type_form.schedule_type == ScheduleTypeEnum.INTERVAL:
             interval: Intervals
         if schedule_type_form.schedule_type == ScheduleTypeEnum.CRON:
-            cron: Annotated[str, Predicate(is_valid_cron)]
+            cron: Annotated[str, StringConstraints(pattern=cron_regex)]
 
         buttons: Buttons = {"previous": {}, "next": {"text": "Create Schedule"}}
 
