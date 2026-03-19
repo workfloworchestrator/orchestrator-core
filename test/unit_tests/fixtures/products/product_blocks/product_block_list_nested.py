@@ -1,7 +1,4 @@
-from typing import Annotated
-
 import pytest
-import strawberry
 
 from orchestrator.db import ProductBlockTable, db
 from orchestrator.domain.base import ProductBlockModel
@@ -25,17 +22,6 @@ class ProductBlockListNestedForTest(
     ProductBlockListNestedForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     sub_block_list: list["ProductBlockListNestedForTest"]  # type: ignore
-    int_field: int
-
-
-ProductBlockListNestedForTestType = Annotated[
-    "ProductBlockListNestedForTestInactiveGraphql", strawberry.lazy(".product_block_list_nested")
-]
-
-
-@strawberry.experimental.pydantic.type(model=ProductBlockListNestedForTestInactive)
-class ProductBlockListNestedForTestInactiveGraphql:
-    sub_block_list: list[ProductBlockListNestedForTestType]
     int_field: int
 
 
