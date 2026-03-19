@@ -2498,7 +2498,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = "~=2.13.0" },
     { name = "python-dateutil", specifier = "==2.9.0.post0" },
     { name = "python-rapidjson", specifier = ">=1.23,<1.24" },
-    { name = "pytz", specifier = "==2026.1.post1" },
+    { name = "pytz", specifier = ">=2025" },
     { name = "redis", specifier = "==7.3.0" },
     { name = "semver", specifier = "==3.0.4" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.29.1" },
