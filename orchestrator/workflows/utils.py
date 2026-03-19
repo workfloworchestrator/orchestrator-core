@@ -251,29 +251,21 @@ def task(
     else:
         initial_input_form_in_form_inject_args = form_inject_args(initial_input_form)
 
-    def _create_workflow(f: Callable[[], StepList]) -> Workflow:
-        steplist = (
-            init
-            >> f()
-            >> (additional_steps or StepList())
-            >> resync
-            >> refresh_subscription_search_index
-            >> refresh_process_search_index
-            >> done
-        )
+    def _workflow(f: Callable[[], StepList]) -> Workflow:
+        steplist = init >> f() >> (additional_steps or StepList()) >> done
 
         return make_workflow(
             f,
             description,
             initial_input_form_in_form_inject_args,
-            target=Target.SYSTEM,
+            Target.SYSTEM,
             steps=steplist,
             authorize_callback=authorize_callback,
             retry_auth_callback=retry_auth_callback,
             run_predicate=run_predicate,
         )
 
-    return _create_workflow
+    return _workflow
 
 
 def create_workflow(
