@@ -16,7 +16,7 @@ from orchestrator.services.settings_env_variables import expose_settings
 
 class AppSettings(BaseSettings):
     TESTING: bool = True
-    SESSION_SECRET: OrchSecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
+    SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
     CORS_ORIGINS: str = "*"
     ...
     EXPOSE_SETTINGS: bool = False
