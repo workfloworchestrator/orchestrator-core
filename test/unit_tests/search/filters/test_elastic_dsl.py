@@ -306,6 +306,184 @@ class TestValidation:
         with pytest.raises(ValidationError, match="at least one clause"):
             ElasticQueryAdapter.validate_python({"bool": {}})
 
+    @pytest.mark.parametrize(
+        "query_type, payload",
+        [
+            ("term", {"term": {"a": 1, "b": 2}}),
+            ("range", {"range": {"a": {"gt": 1}, "b": {"lt": 2}}}),
+            ("wildcard", {"wildcard": {"a": {"value": "*"}, "b": {"value": "?"}}}),
+        ],
+        ids=["term-multi-field", "range-multi-field", "wildcard-multi-field"],
+    )
+    def test_multi_field_query_raises(self, query_type: str, payload: dict[str, Any]) -> None:
+        with pytest.raises(ValidationError, match="exactly one field"):
+            ElasticQueryAdapter.validate_python(payload)
+
+    def test_range_no_recognised_bounds_raises(self) -> None:
+        es = ElasticQueryAdapter.validate_python({"range": {"field": {"unknown_op": 42}}})
+        with pytest.raises(ValueError, match="no recognised bounds"):
+            elastic_to_filter_tree(es)
+
+
+# ---------------------------------------------------------------------------
+# must_not edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestMustNotEdgeCases:
+    def test_must_not_date_between_inverts_to_or(self) -> None:
+        es = ElasticQueryAdapter.validate_python(
+            {"bool": {"must_not": [{"range": {"subscription.start_date": {"gte": "2025-01-01", "lte": "2025-12-31"}}}]}}
+        )
+        tree = elastic_to_filter_tree(es)
+        assert isinstance(tree, FilterTree)
+        assert tree.op == BooleanOperator.OR
+        assert len(tree.children) == 2
+        lo = tree.children[0]
+        hi = tree.children[1]
+        assert isinstance(lo, PathFilter)
+        assert isinstance(lo.condition, DateValueFilter)
+        assert lo.condition.op == FilterOp.LT
+        assert lo.condition.value == "2025-01-01"
+        assert isinstance(hi, PathFilter)
+        assert isinstance(hi.condition, DateValueFilter)
+        assert hi.condition.op == FilterOp.GT
+        assert hi.condition.value == "2025-12-31"
+
+    def test_must_not_wildcard_passes_through(self) -> None:
+        """Wildcard filters are non-invertible; must_not passes them through as-is."""
+        es = ElasticQueryAdapter.validate_python({"bool": {"must_not": [{"wildcard": {"field": {"value": "*test*"}}}]}})
+        tree = elastic_to_filter_tree(es)
+        assert len(tree.children) == 1
+        leaf = tree.children[0]
+        assert isinstance(leaf, PathFilter)
+        assert isinstance(leaf.condition, StringFilter)
+        assert leaf.condition.op == FilterOp.LIKE
+
+    def test_must_not_nested_bool_passes_through(self) -> None:
+        """Complex sub-trees in must_not are passed through as-is."""
+        es = ElasticQueryAdapter.validate_python(
+            {
+                "bool": {
+                    "must_not": [
+                        {
+                            "bool": {
+                                "must": [
+                                    {"term": {"a": "x"}},
+                                    {"term": {"b": "y"}},
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        )
+        tree = elastic_to_filter_tree(es)
+        assert isinstance(tree, FilterTree)
+        assert tree.op == BooleanOperator.AND
+
+    def test_must_not_numeric_value_inverts(self) -> None:
+        leaf = _parse_and_get_leaf({"bool": {"must_not": [{"range": {"field": {"gte": 100}}}]}})
+        assert isinstance(leaf.condition, NumericValueFilter)
+        assert leaf.condition.op == FilterOp.LT
+
+
+# ---------------------------------------------------------------------------
+# bool combination edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestBoolCombinations:
+    def test_bool_combined_must_and_should(self) -> None:
+        """When both must and should are present, should becomes OR sub-tree under AND."""
+        es = ElasticQueryAdapter.validate_python(
+            {
+                "bool": {
+                    "must": [{"term": {"status": "active"}}],
+                    "should": [
+                        {"term": {"product": "fiber"}},
+                        {"term": {"product": "wireless"}},
+                    ],
+                }
+            }
+        )
+        tree = elastic_to_filter_tree(es)
+        assert isinstance(tree, FilterTree)
+        assert tree.op == BooleanOperator.AND
+        assert len(tree.children) == 2
+        # First child is the must term
+        assert isinstance(tree.children[0], PathFilter)
+        # Second child is the OR sub-tree from should
+        nested = tree.children[1]
+        assert isinstance(nested, FilterTree)
+        assert nested.op == BooleanOperator.OR
+        assert len(nested.children) == 2
+
+    def test_bool_single_should_unwraps(self) -> None:
+        """A single should child is unwrapped (no FilterTree wrapper)."""
+        es = ElasticQueryAdapter.validate_python({"bool": {"should": [{"term": {"status": "active"}}]}})
+        tree = elastic_to_filter_tree(es)
+        assert isinstance(tree, FilterTree)
+        # elastic_to_filter_tree wraps single PathFilter in AND tree
+        assert tree.op == BooleanOperator.AND
+        assert len(tree.children) == 1
+        assert isinstance(tree.children[0], PathFilter)
+
+    def test_bool_must_not_only_multiple(self) -> None:
+        """Multiple must_not clauses are combined under AND."""
+        es = ElasticQueryAdapter.validate_python(
+            {
+                "bool": {
+                    "must_not": [
+                        {"term": {"status": "terminated"}},
+                        {"term": {"status": "provisioning"}},
+                    ]
+                }
+            }
+        )
+        tree = elastic_to_filter_tree(es)
+        assert isinstance(tree, FilterTree)
+        assert tree.op == BooleanOperator.AND
+        assert len(tree.children) == 2
+        for child in tree.children:
+            assert isinstance(child, PathFilter)
+            assert isinstance(child.condition, EqualityFilter)
+            assert child.condition.op == FilterOp.NEQ
+
+    def test_bool_all_three_clauses(self) -> None:
+        """Bool with must, should, and must_not all present."""
+        es = ElasticQueryAdapter.validate_python(
+            {
+                "bool": {
+                    "must": [{"term": {"status": "active"}}],
+                    "should": [
+                        {"term": {"product": "fiber"}},
+                        {"term": {"product": "wireless"}},
+                    ],
+                    "must_not": [{"term": {"region": "deprecated"}}],
+                }
+            }
+        )
+        tree = elastic_to_filter_tree(es)
+        assert isinstance(tree, FilterTree)
+        assert tree.op == BooleanOperator.AND
+        # must term + should OR sub-tree + must_not inverted term = 3 children
+        assert len(tree.children) == 3
+
+    def test_wildcard_empty_value_raises(self) -> None:
+        """Wildcard with empty value fails StringFilter validation (requires wildcard chars)."""
+        es = ElasticQueryAdapter.validate_python({"wildcard": {"field": {"value": ""}}})
+        with pytest.raises(ValueError, match="wildcard character"):
+            elastic_to_filter_tree(es)
+
+    def test_range_non_gte_lte_two_bound_uses_first(self) -> None:
+        """Range with gt+lt (not gte+lte) falls through to single-bound logic."""
+        leaf = _parse_and_get_leaf({"range": {"field": {"gt": 10, "lt": 100}}})
+        # Should pick first matching op from _RANGE_OPS iteration order (gt first)
+        assert isinstance(leaf.condition, NumericValueFilter)
+        assert leaf.condition.op == FilterOp.GT
+        assert leaf.condition.value == 10
+
 
 # ---------------------------------------------------------------------------
 # SearchRequest integration
