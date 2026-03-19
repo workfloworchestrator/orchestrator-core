@@ -226,16 +226,15 @@ def _translate_exists(query: ExistsQuery) -> PathFilter:
 
 def _invert_path_filter(pf: PathFilter) -> PathFilter:
     """Invert a PathFilter's operator for must_not semantics."""
-    cond = pf.condition
-    if isinstance(cond, EqualityFilter):
-        inverted = _INVERT_OP[cond.op]
-        return pf.model_copy(update={"condition": EqualityFilter(op=inverted, value=cond.value)})  # type: ignore[arg-type]
-    if isinstance(cond, (DateValueFilter, NumericValueFilter)):
-        inverted = _INVERT_OP[cond.op]
-        return pf.model_copy(update={"condition": cond.model_copy(update={"op": inverted})})
-    # For range/string/ltree filters, we cannot simply invert — wrap in a NOT-equivalent.
-    # Return as-is; the caller wraps in must_not logic at the tree level.
-    return pf
+    match pf.condition:
+        case EqualityFilter(op=op, value=value):
+            return pf.model_copy(update={"condition": EqualityFilter(op=_INVERT_OP[op], value=value)})  # type: ignore[arg-type]
+        case DateValueFilter(op=op) | NumericValueFilter(op=op):
+            return pf.model_copy(update={"condition": pf.condition.model_copy(update={"op": _INVERT_OP[op]})})
+        case _:
+            # For range/string/ltree filters, we cannot simply invert.
+            # Return as-is; the caller wraps in must_not logic at the tree level.
+            return pf
 
 
 def _invert_range_to_or(
@@ -249,15 +248,15 @@ def _invert_range_to_or(
 
 def _negate_node(node: FilterTree | PathFilter) -> FilterTree | PathFilter:
     """Negate a single translated node for must_not semantics."""
-    if isinstance(node, PathFilter) and isinstance(
-        node.condition, (EqualityFilter, DateValueFilter, NumericValueFilter)
-    ):
-        return _invert_path_filter(node)
-    if isinstance(node, PathFilter) and isinstance(node.condition, DateRangeFilter):
-        return _invert_range_to_or(node, node.condition.value, DateValueFilter)
-    if isinstance(node, PathFilter) and isinstance(node.condition, NumericRangeFilter):
-        return _invert_range_to_or(node, node.condition.value, NumericValueFilter)
-    return node
+    match node:
+        case PathFilter(condition=EqualityFilter() | DateValueFilter() | NumericValueFilter()):
+            return _invert_path_filter(node)
+        case PathFilter(condition=DateRangeFilter(value=range_val)):
+            return _invert_range_to_or(node, range_val, DateValueFilter)
+        case PathFilter(condition=NumericRangeFilter(value=range_val)):
+            return _invert_range_to_or(node, range_val, NumericValueFilter)
+        case _:
+            return node
 
 
 def _translate_must_not(queries: list[ElasticQuery], depth: int) -> list[FilterTree | PathFilter]:
@@ -270,18 +269,19 @@ def _translate_node(query: ElasticQuery, depth: int = 1) -> FilterTree | PathFil
     if depth > FilterTree.MAX_DEPTH:
         raise ValueError(f"ElasticQuery nesting exceeds MAX_DEPTH={FilterTree.MAX_DEPTH}")
 
-    if isinstance(query, TermQuery):
-        return _translate_term(query)
-    if isinstance(query, RangeQuery):
-        return _translate_range(query)
-    if isinstance(query, WildcardQuery):
-        return _translate_wildcard(query)
-    if isinstance(query, ExistsQuery):
-        return _translate_exists(query)
-    if isinstance(query, BoolQuery):
-        return _translate_bool(query, depth)
-
-    raise ValueError(f"Unsupported ES DSL query type: {type(query)}")
+    match query:
+        case TermQuery():
+            return _translate_term(query)
+        case RangeQuery():
+            return _translate_range(query)
+        case WildcardQuery():
+            return _translate_wildcard(query)
+        case ExistsQuery():
+            return _translate_exists(query)
+        case BoolQuery():
+            return _translate_bool(query, depth)
+        case _:
+            raise ValueError(f"Unsupported ES DSL query type: {type(query)}")
 
 
 def _translate_bool(query: BoolQuery, depth: int) -> FilterTree | PathFilter:
