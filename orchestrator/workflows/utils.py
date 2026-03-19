@@ -219,9 +219,9 @@ def task(
     retry_auth_callback: Authorizer | None = None,
     run_predicate: RunPredicate | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
-    """Transform an initial_input_form and a step list into a workflow with a target=Target.CREATE.
+    """Transform an initial_input_form and a step list into a workflow with a target=Target.SYSTEM.
 
-    Use this for create workflows only.
+    Use this for tasks only.
 
     .. deprecated::
         The `description` parameter is deprecated and will be removed in a future version.
@@ -231,9 +231,10 @@ def task(
 
     Example::
 
-        @create_workflow(initial_input_form=initial_input_form_generator)
-        def create_service_port() -> StepList:
-            do_something
+        @task(initial_input_form=initial_input_form_generator)
+        def run_some_task() -> StepList:
+            begin
+            >> do_something
             >> do_something_else
     """
     if description:

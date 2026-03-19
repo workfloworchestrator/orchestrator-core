@@ -7,22 +7,19 @@ A Task is just a workflow that isn't tied to a specific product.
 Tasks are created in the same way as workflows, but with the `"system"` target, i.e.
 
 ```python
-@workflow("Some task", target=Target.SYSTEM)
+@task("Some task")
 def some_task() -> StepList:
-    return init >> foo >> done
+    return begin >> foo
 ```
 
 Such a workflow will be flagged as a task in the database, and will not have a relation defined connecting it to a specific product.
-
-Note that `@workflow` is a lower-level call than, say, `@create_workflow`.
-So instead of `return begin >> foo`, we need to use `return init >> foo >> done` to instantiate a `StepList`.
 
 ## The task file
 
 Let's step through a more complete example.
 Four things need to happen to register a task:
 
-1. Defining the task via `@workflow`
+1. Defining the task via `@task`
 2. Registering the task via `LazyWorkflowInstance` in your workflows module
 3. Writing or generating a migration file
 4. Adding a translation for the frontend (necessary for the task to show in the UI)
@@ -37,9 +34,10 @@ Here is a very bare-bones task file:
 import structlog
 import time
 
-from orchestrator.targets import Target
-from orchestrator.types import State
-from orchestrator.workflow import StepList, done, init, step, workflow
+from pydantic_forms.types import State
+
+from orchestrator.workflow import StepList, step, begin
+from orchestrator.workflows.utils import task
 
 logger = structlog.get_logger(__name__)
 
@@ -51,14 +49,12 @@ def nso_calls() -> State:
     logger.info("NSO calls finished", done_at=time.time())
 
 
-@workflow("Nightly sync", target=Target.SYSTEM)
+@task("Nightly sync")
 def task_sync_from() -> StepList:
-    return init >> nso_calls >> done
+    return begin >> nso_calls
 ```
 
-Again, the task is basically a workflow with `target=Target.SYSTEM`.
-
-And like a workflow, it will need to be registered in your workflows module:
+Like a Workflow, a Task will need to be registered in your workflows module:
 
 ```python
 # workflows/__init__.py
