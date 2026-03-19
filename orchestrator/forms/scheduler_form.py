@@ -1,6 +1,6 @@
 import asyncio
 import re
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
@@ -13,6 +13,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import db
 from orchestrator.db.models import WorkflowTable
 from orchestrator.forms.validators import Choice
+from orchestrator.forms.validators.timestamp import to_timestamp_field
 from orchestrator.workflow import Workflow
 from orchestrator.workflows import get_workflow
 from pydantic_forms.types import FormGenerator, FormGeneratorAsync, State
@@ -154,11 +155,15 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
 
     schedule_type_form = yield ScheduleTypeForm
 
+    current_date = datetime.now(UTC)
+    default_timestamp = int((current_date + timedelta(hours=1)).timestamp())
+    DateTimeField = to_timestamp_field(min_date=current_date)
+
     class ScheduleDateForm(SubmitFormPage):
         task: read_only_field(schedule_type_form.task)  # type: ignore
         schedule_type: read_only_field(schedule_type_form.schedule_type)  # type: ignore
 
-        start_date: datetime = datetime.now() + timedelta(hours=1)
+        start_date: DateTimeField = default_timestamp  # type: ignore
         if schedule_type_form.schedule_type == ScheduleTypeEnum.INTERVAL:
             interval: Intervals
         if schedule_type_form.schedule_type == ScheduleTypeEnum.CRON:
@@ -167,7 +172,10 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
         buttons: Buttons = {"previous": {}, "next": {"text": "Create Schedule"}}
 
     schedule_date_form = yield ScheduleDateForm
-    schedule_type_data = schedule_date_form.model_dump()
+    _schedule_type_data = schedule_date_form.model_dump()
+    schedule_type_data = _schedule_type_data | {
+        "start_date": datetime.fromtimestamp(_schedule_type_data["start_date"], UTC)
+    }
 
     match schedule_date_form.schedule_type:
         case ScheduleTypeEnum.INTERVAL:
