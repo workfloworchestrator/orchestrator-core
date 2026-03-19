@@ -188,18 +188,26 @@ class TestBoolQuery:
         assert tree.op == expected_op
         assert len(tree.children) == 2
 
-    def test_bool_must_not_single_term(self) -> None:
-        leaf = _parse_and_get_leaf({"bool": {"must_not": [{"term": {"subscription.status": "terminated"}}]}})
-        assert isinstance(leaf.condition, EqualityFilter)
-        assert leaf.condition.op == FilterOp.NEQ
-        assert leaf.condition.value == "terminated"
-
-    def test_bool_must_not_single_range(self) -> None:
-        leaf = _parse_and_get_leaf(
-            {"bool": {"must_not": [{"range": {"subscription.start_date": {"gt": "2025-01-01"}}}]}}
-        )
-        assert isinstance(leaf.condition, DateValueFilter)
-        assert leaf.condition.op == FilterOp.LTE
+    @pytest.mark.parametrize(
+        "es_dsl, expected_type, expected_op",
+        [
+            (
+                {"bool": {"must_not": [{"term": {"subscription.status": "terminated"}}]}},
+                EqualityFilter,
+                FilterOp.NEQ,
+            ),
+            (
+                {"bool": {"must_not": [{"range": {"subscription.start_date": {"gt": "2025-01-01"}}}]}},
+                DateValueFilter,
+                FilterOp.LTE,
+            ),
+        ],
+        ids=["term-inverts-to-neq", "range-inverts-op"],
+    )
+    def test_bool_must_not_single(self, es_dsl: dict[str, Any], expected_type: type, expected_op: FilterOp) -> None:
+        leaf = _parse_and_get_leaf(es_dsl)
+        assert isinstance(leaf.condition, expected_type)
+        assert leaf.condition.op == expected_op
 
     def test_bool_combined_must_and_must_not(self) -> None:
         es = ElasticQueryAdapter.validate_python(

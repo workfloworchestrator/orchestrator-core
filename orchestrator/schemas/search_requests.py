@@ -39,14 +39,14 @@ class SearchRequest(BaseModel):
         description="Structured filters to apply to the search. Accepts FilterTree or Elasticsearch DSL format.",
     )
 
-    @field_validator("filters", mode="before")
+    @field_validator("filters", mode="wrap")
     @classmethod
-    def _convert_elastic_dsl_filters(cls, value: Any) -> Any:
-        """Detect and convert ES DSL filters to FilterTree before validation."""
+    def _convert_elastic_dsl_filters(cls, value: Any, handler: Any) -> FilterTree | None:
+        """Detect and convert ES DSL filters to FilterTree, bypassing re-parse."""
         if isinstance(value, dict) and _ES_DSL_KEYS & value.keys():
             es_query = _ES_QUERY_ADAPTER.validate_python(value)
-            return elastic_to_filter_tree(es_query).model_dump()
-        return value
+            return elastic_to_filter_tree(es_query)
+        return handler(value)
 
     query: str | None = Field(
         default=None,
