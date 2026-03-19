@@ -48,24 +48,10 @@ _INVERT_OP: dict[FilterOp, FilterOp] = {
     FilterOp.LTE: FilterOp.GT,
 }
 
-# ---------------------------------------------------------------------------
-# Value-kind inference
-# ---------------------------------------------------------------------------
-
-_FIELD_TYPE_TO_UI: dict[FieldType, UIType] = {
-    FieldType.INTEGER: UIType.NUMBER,
-    FieldType.FLOAT: UIType.NUMBER,
-    FieldType.BOOLEAN: UIType.BOOLEAN,
-    FieldType.DATETIME: UIType.DATETIME,
-    FieldType.STRING: UIType.STRING,
-    FieldType.UUID: UIType.STRING,
-}
-
 
 def _infer_value_kind(value: Any) -> UIType:
     """Infer a UIType from a raw filter value using FieldType heuristics."""
-    ft = FieldType.infer(value)
-    return _FIELD_TYPE_TO_UI.get(ft, UIType.STRING)
+    return UIType.from_field_type(FieldType.infer(value))
 
 
 # ---------------------------------------------------------------------------
@@ -199,20 +185,21 @@ def _translate_range(query: RangeQuery) -> PathFilter:
         return PathFilter(path=field, condition=condition, value_kind=value_kind)
 
     # Single bound or non-gte/lte two-bound: pick the first recognised op
-    for es_key, filter_op in _RANGE_OPS.items():
-        if es_key in bounds:
-            value = bounds[es_key]
-            value_kind = _infer_value_kind(value)
+    match = next(((es_key, _RANGE_OPS[es_key]) for es_key in _RANGE_OPS if es_key in bounds), None)
+    if match is None:
+        raise ValueError(f"range query for '{field}' has no recognised bounds: {bounds}")
 
-            single_condition: DateValueFilter | NumericValueFilter
-            if value_kind == UIType.DATETIME:
-                single_condition = DateValueFilter(op=filter_op, value=value)  # type: ignore[arg-type]
-            else:
-                single_condition = NumericValueFilter(op=filter_op, value=value)  # type: ignore[arg-type]
+    es_key, filter_op = match
+    value = bounds[es_key]
+    value_kind = _infer_value_kind(value)
 
-            return PathFilter(path=field, condition=single_condition, value_kind=value_kind)
+    single_condition: DateValueFilter | NumericValueFilter
+    if value_kind == UIType.DATETIME:
+        single_condition = DateValueFilter(op=filter_op, value=value)  # type: ignore[arg-type]
+    else:
+        single_condition = NumericValueFilter(op=filter_op, value=value)  # type: ignore[arg-type]
 
-    raise ValueError(f"range query for '{field}' has no recognised bounds: {bounds}")
+    return PathFilter(path=field, condition=single_condition, value_kind=value_kind)
 
 
 def _translate_wildcard(query: WildcardQuery) -> PathFilter:
@@ -251,48 +238,31 @@ def _invert_path_filter(pf: PathFilter) -> PathFilter:
     return pf
 
 
+def _invert_range_to_or(
+    pf: PathFilter, range_val: DateRange | NumericRange, value_filter_cls: type[DateValueFilter | NumericValueFilter]
+) -> FilterTree:
+    """Invert a BETWEEN range filter to OR of inverted bounds (< start OR > end)."""
+    lo = PathFilter(path=pf.path, condition=value_filter_cls(op=FilterOp.LT, value=range_val.start), value_kind=pf.value_kind)  # type: ignore[arg-type]
+    hi = PathFilter(path=pf.path, condition=value_filter_cls(op=FilterOp.GT, value=range_val.end), value_kind=pf.value_kind)  # type: ignore[arg-type]
+    return FilterTree(op=BooleanOperator.OR, children=[lo, hi])
+
+
+def _negate_node(node: FilterTree | PathFilter) -> FilterTree | PathFilter:
+    """Negate a single translated node for must_not semantics."""
+    if isinstance(node, PathFilter) and isinstance(
+        node.condition, (EqualityFilter, DateValueFilter, NumericValueFilter)
+    ):
+        return _invert_path_filter(node)
+    if isinstance(node, PathFilter) and isinstance(node.condition, DateRangeFilter):
+        return _invert_range_to_or(node, node.condition.value, DateValueFilter)
+    if isinstance(node, PathFilter) and isinstance(node.condition, NumericRangeFilter):
+        return _invert_range_to_or(node, node.condition.value, NumericValueFilter)
+    return node
+
+
 def _translate_must_not(queries: list[ElasticQuery], depth: int) -> list[FilterTree | PathFilter]:
     """Translate must_not clauses by inverting operators where possible."""
-    results: list[FilterTree | PathFilter] = []
-    for q in queries:
-        node = _translate_node(q, depth)
-        if isinstance(node, PathFilter) and isinstance(
-            node.condition, (EqualityFilter, DateValueFilter, NumericValueFilter)
-        ):
-            results.append(_invert_path_filter(node))
-        elif isinstance(node, PathFilter) and isinstance(node.condition, DateRangeFilter):
-            # date between → OR of inverted bounds
-            date_val = node.condition.value
-            lo: PathFilter = PathFilter(
-                path=node.path,
-                condition=DateValueFilter(op=FilterOp.LT, value=date_val.start),
-                value_kind=node.value_kind,
-            )
-            hi: PathFilter = PathFilter(
-                path=node.path,
-                condition=DateValueFilter(op=FilterOp.GT, value=date_val.end),
-                value_kind=node.value_kind,
-            )
-            results.append(FilterTree(op=BooleanOperator.OR, children=[lo, hi]))
-        elif isinstance(node, PathFilter) and isinstance(node.condition, NumericRangeFilter):
-            # numeric between → OR of inverted bounds
-            num_val = node.condition.value
-            lo = PathFilter(
-                path=node.path,
-                condition=NumericValueFilter(op=FilterOp.LT, value=num_val.start),
-                value_kind=node.value_kind,
-            )
-            hi = PathFilter(
-                path=node.path,
-                condition=NumericValueFilter(op=FilterOp.GT, value=num_val.end),
-                value_kind=node.value_kind,
-            )
-            results.append(FilterTree(op=BooleanOperator.OR, children=[lo, hi]))
-        else:
-            # For complex sub-trees or non-invertible conditions, wrap with NEQ-style
-            # We can't generically negate; raise for unsupported cases
-            results.append(node)
-    return results
+    return [_negate_node(_translate_node(q, depth)) for q in queries]
 
 
 def _translate_node(query: ElasticQuery, depth: int = 1) -> FilterTree | PathFilter:
