@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Annotated, Iterable
 import strawberry
 from strawberry import UNSET
 from strawberry.federation.schema_directives import Key
+from strawberry.federation.types import FieldSet
 
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.db import ProductBlockTable, ProductTable
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
     from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 
 
-federation_key_directives = [Key(fields="productId", resolvable=UNSET)]
+federation_key_directives = [Key(fields=FieldSet("productId"), resolvable=UNSET)]
 
 
 @strawberry.experimental.pydantic.type(model=ProductSchema, directives=federation_key_directives)

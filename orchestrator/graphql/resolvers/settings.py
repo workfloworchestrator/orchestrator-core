@@ -57,7 +57,7 @@ def resolve_settings(info: OrchestratorInfo) -> StatusType:
         settings_resp_obj.worker_status = WorkerStatusType.from_pydantic(worker_status)
 
     if "cacheNames" in selected_fields:
-        settings_resp_obj.cache_names = CACHE_FLUSH_OPTIONS
+        settings_resp_obj.cache_names = CACHE_FLUSH_OPTIONS  # type: ignore
 
     return settings_resp_obj
 
