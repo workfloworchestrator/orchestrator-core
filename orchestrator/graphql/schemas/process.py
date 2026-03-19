@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Annotated
 import strawberry
 from strawberry import UNSET
 from strawberry.federation.schema_directives import Key
+from strawberry.federation.types import FieldSet
 from strawberry.scalars import JSON
 
 from oauth2_lib.strawberry import authenticated_field
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 else:
     SubscriptionInterface = Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]
 
-federation_key_directives = [Key(fields="processId", resolvable=UNSET)]
+federation_key_directives = [Key(fields=FieldSet("processId"), resolvable=UNSET)]
 
 
 @strawberry.experimental.pydantic.type(model=ProcessStepSchema)

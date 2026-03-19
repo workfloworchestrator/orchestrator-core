@@ -32,7 +32,7 @@ async def resolve_start_process(
     user = resolve_user_name(reporter=reporter, resolved_user=current_user)
 
     try:
-        process_id = start_process(name, user_inputs=payload.payload, user=user, broadcast_func=broadcast_func)
+        process_id = start_process(name, user_inputs=payload.payload, user=user, broadcast_func=broadcast_func)  # type: ignore
     except StartPredicateError as exc:
         return MutationError(message="Start predicate not satisfied", details=str(exc))
     except Exception as exc:
