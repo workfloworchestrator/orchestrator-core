@@ -156,7 +156,7 @@ CUSTOMER_ID: str = "2f47f65a-0911-e511-80d0-005056956c1a"
 
 CLI_OPT_MONITOR_SQLALCHEMY = "--monitor-sqlalchemy"
 
-DEFAULT_DATABASE_URI = "postgresql://nwa:nwa@localhost/orchestrator-core-test"
+DEFAULT_DATABASE_URI = "postgresql+psycopg://nwa:nwa@localhost/orchestrator-core-test"
 
 
 def pytest_addoption(parser):
