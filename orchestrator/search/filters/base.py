@@ -17,7 +17,7 @@ from itertools import count
 from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import BinaryExpression, and_, cast, exists, literal, or_, select
+from sqlalchemy import BinaryExpression, and_, cast, exists, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import BOOLEAN
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy_utils.types.ltree import Ltree
@@ -39,7 +39,7 @@ class EqualityFilter(BaseModel):
             colb = cast(column, BOOLEAN)
             return colb.is_(self.value) if self.op == FilterOp.EQ else ~colb.is_(self.value)
         sv = str(self.value)
-        return (column == sv) if self.op == FilterOp.EQ else (column != sv)
+        return (func.lower(column) == sv.lower()) if self.op == FilterOp.EQ else (func.lower(column) != sv.lower())
 
 
 class StringFilter(BaseModel):
@@ -47,7 +47,7 @@ class StringFilter(BaseModel):
     value: str
 
     def to_expression(self, column: SQLAColumn, path: str) -> ColumnElement[bool]:
-        return column.like(self.value)
+        return column.ilike(self.value)
 
     @model_validator(mode="after")
     def validate_like_pattern(self) -> StringFilter:
