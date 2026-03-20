@@ -217,6 +217,7 @@ nav:
                 - Workflows: reference-docs/workflows/workflows.md
                 - Workflow Steps: reference-docs/workflows/workflow-steps.md
                 - Callback step: reference-docs/workflows/callbacks.md
+                - Run Predicates: reference-docs/workflows/run-predicates.md
                 # Recommend a non-guide doc answering "What are tasks?"
                 # - Tasks:
           - Websockets: reference-docs/websockets.md
