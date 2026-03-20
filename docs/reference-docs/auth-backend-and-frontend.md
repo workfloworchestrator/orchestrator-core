@@ -612,7 +612,7 @@ We can now construct a variety of authorization policies.
 
     Note that we could specify `authorize_callback=allow_roles("user")` if helpful, or we can omit `authorize_callback` to fail over to any logged in user.
 
-[settings-overview]: ../../reference-docs/app/settings-overview
+[settings-overview]: app/settings-overview.md
 
 [1]: https://github.com/workfloworchestrator/example-orchestrator-ui
 [2]: https://github.com/workfloworchestrator/example-orchestrator

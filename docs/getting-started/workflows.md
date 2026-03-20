@@ -96,7 +96,7 @@ def add_subscription_to_external_system(
 
 For `@modify_workflow`, `@validate_workflow` and `@terminate_workflow` the `subscription` is directly usable from the first step.
 
-Information about all usable step decorators can be found on [the architecture page on workflows](../architecture/application/workflow#workflow-steps).
+Information about all usable step decorators can be found on [the architecture page on workflows](../architecture/application/workflow.md#workflow-steps).
 
 ## Register workflows
 
@@ -335,5 +335,5 @@ This approach ensures that the workflow has all the necessary context to safely 
 [terminate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.terminate_workflow
 [validate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.validate_workflow
 [workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflow.workflow
-[workflow type]: ../architecture/application/workflow#subscription-workflow-types
+[workflow type]: ../architecture/application/workflow.md#subscription-workflow-types
 [lazy workflow instances]: https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/__init__.py
