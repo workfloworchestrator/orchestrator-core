@@ -17,10 +17,9 @@ LazyWorkflowInstance("workflows.user_group.create_user_group", "create_user_grou
 
 Add the `LazyWorkflowInstance` calls for all six workflows to `workflows/__init__. py`, and add `import workflows` to `main.py` so the instances are created as part of the workflow package.
 
-!!! example
-
-    for inspiration look at an example implementation of the [lazy
-    workflow instances ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/__init__.py)
+/// example
+For inspiration look at an example implementation of the [lazy workflow instances](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/__init__.py)
+///
 
 ## Step 2: Register workflow in database
 

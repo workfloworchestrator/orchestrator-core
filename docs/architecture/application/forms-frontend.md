@@ -13,9 +13,10 @@ The steps that happen to initiate a workflow on the frontend are:
 -   The frontend uses the [pydantic-forms library][1] to parse the JSON response into a form to display
 -   The [AutofieldLoader function][3] is called for each of the form.properties in the JSON response. This function uses the properties `type` and `format` to determine what kind of field will be displayed.
 
-!!! info
-    The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
-    Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
+/// warning
+The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
+Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
+///
 
 ```
 

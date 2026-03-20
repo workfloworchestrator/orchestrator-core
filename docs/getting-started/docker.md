@@ -3,9 +3,10 @@ As well as developing within a regular python environment it is also possible to
 This method clones our [example-orchestrator](https://github.com/workfloworchestrator/example-orchestrator) repo and
 kickstarts the development from this mono-repo setup.
 
-!!! note
-    This method of developing is meant for beginners who would like to have a very opinionated version of the
-    orchestrator that already has some pre-built integrations.
+/// note
+This method of developing is meant for beginners who would like to have a very opinionated version of the
+orchestrator that already has some pre-built integrations.
+///
 
 
 ## Shipped inside this repo

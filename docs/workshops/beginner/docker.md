@@ -71,8 +71,8 @@ http://localhost:3000/
 ```
 and have a look around.
 
-!!! note
-
-    Once opened in the browser, ignore the message about the CRM not being
-    responsive, this workshop does not include the setup of an interface to a
-    CRM, fake customers IDs will be used instead.
+/// note
+Once opened in the browser, ignore the message about the CRM not being
+responsive, this workshop does not include the setup of an interface to a
+CRM, fake customers IDs will be used instead.
+///

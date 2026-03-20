@@ -186,9 +186,10 @@ WF_USABLE_WHILE_OUT_OF_SYNC.extend(
 
 Now this particular modify workflow can be run on subscriptions that are not in sync.
 
-!!! danger
-    It is potentially dangerous to run workflows on subscriptions that are not in sync. Only use this for small and
-    specific usecases, such as editing a description that is only used within orchestrator.
+/// danger
+It is potentially dangerous to run workflows on subscriptions that are not in sync.
+Only use this for small and specific use cases, such as editing a description that is only used within orchestrator.
+///
 
 [registering workflows]: ../../getting-started/workflows.md#register-workflows
 [create_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.create_workflow

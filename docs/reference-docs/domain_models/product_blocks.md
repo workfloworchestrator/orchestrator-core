@@ -2,8 +2,10 @@
 
 ## Defining a Product Block
 
-!!! warning inline end
-    You should only have one root Product Block on your domain model!
+/// warning
+    attrs: {class: "inline end"}
+You should only have one root Product Block on your domain model!
+///
 
 A Product Block is a reusable collection of product attributes that lives under a Product Type (which we covered in the [Product Types section of these docs](./product_types.md)). A Product Block allows you to define the bulk of the attributes that you want to assign to your Product definition. At it's most basic, you will have a root product block that is stored on your Product Type, as shown in the [Product Types documentation](product_types.md). Building off of that example, let's examine a basic product block by examining the `NodeBlock` product block from the [example workflow orchestrator](https://github.com/workfloworchestrator/example-orchestrator):
 

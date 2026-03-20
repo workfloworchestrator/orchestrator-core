@@ -40,8 +40,9 @@ response = requests.put(
 status = response.json()
 ```
 
-!!! note
-    The Orchestrator Engine State should be `RUNNING` before pausing via above API call.
+/// note
+The Orchestrator Engine State should be `RUNNING` before pausing via above API call.
+///
 
 #### Resume Orchestrator
 You can send a `PUT` request to the `/api/settings/status` endpoint with the `global_lock` parameter
@@ -54,8 +55,9 @@ curl -X PUT http://localhost:8080/api/settings/status \
   -d '{"global_lock": false}'
 ```
 
-!!! note
-    The Orchestrator Engine State should be `PAUSED` before resuming via above API call.
+/// note
+The Orchestrator Engine State should be `PAUSED` before resuming via above API call.
+///
 
 #### API Docs
 You can also pause and resume the Orchestrator via the interactive [Swagger UI API docs](http://localhost:8080/api/docs).

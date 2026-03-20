@@ -14,6 +14,7 @@ topology and customer facing services:
 
 <img src="../../images/subscriptions.png" alt="Product block graph">
 
-!!! Hint
-    Take some time to explore the module described in above. It shows how the product modelling is done in Python.
-    Once you are familiar with the code. Continue with the workshop
+/// tip
+Take some time to explore the module described in above. It shows how the product modelling is done in Python.
+Once you are familiar with the code, continue with the workshop.
+///

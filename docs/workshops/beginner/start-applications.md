@@ -33,8 +33,8 @@ docker compose up
 
 And point a browser to `http://localhost:3000/`.
 
-!!! note
-
-    Once opened in the browser, ignore the message about the CRM not being
-    responsive, this workshop does not include the setup of an interface to a
-    CRM, fake customers IDs will be used instead.
+/// note
+Once opened in the browser, ignore the message about the CRM not being
+responsive, this workshop does not include the setup of an interface to a
+CRM, fake customers IDs will be used instead.
+///

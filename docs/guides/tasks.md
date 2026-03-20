@@ -144,9 +144,10 @@ Even if the task does not have any form input, an entry will still need to be ma
 
 ## The schedule file {: .deprecated }
 
-!!! Warning
-    As of [v4.7.0] this is deprecated, and it will be removed in v5.0.0.
-    Please use the [new scheduling system](#the-schedule-api) below.
+/// warning
+As of [v4.7.0] this is deprecated, and it will be removed in v5.0.0.
+Please use the [new scheduling system](#the-schedule-api) below.
+///
 
 The schedule file is essentially the crontab associated with the task.
 Continuing with our previous example:
@@ -187,16 +188,23 @@ To keep things organized and consistent (similar to how workflows are handled), 
 
 ## The schedule API
 
-!!! Info
-    In [v4.4.0] we switched from [schedule] package to [apscheduler] to allow schedules to be stored in the DB and retrieve schedule tasks from the API.
-    The apscheduler library has its own decorator to schedule tasks: `@scheduler.scheduled_job()` (from `orchestrator.schedules.scheduler`).
-    We therefore deprecated the old `@schedule` decorator (from `orchestrator.schedules.scheduling`) and made it forwards compatible.
+/// info
+In [v4.4.0] we switched from [schedule] package to [apscheduler] to allow schedules to be stored in the DB
+and retrieve schedule tasks from the API.
+The apscheduler library has its own decorator to schedule tasks: `@scheduler.scheduled_job()`
+(from `orchestrator.schedules.scheduler`).
+We therefore deprecated the old `@schedule` decorator (from `orchestrator.schedules.scheduling`)
+and made it forwards compatible.
 
-    In [v4.7.0] we deprecated `@scheduler.scheduled_job()` provided by [apscheduler] in favor of a more dynamic API based system described below.
-    Although we no longer support the `@scheduler.scheduled_job()` decorator, it is still available because it is part of [apscheduler].
-    Therefore, we do NOT recommend using it for new schedules. Because you will miss a Linker Table join between schedules and workflows/tasks.
+In [v4.7.0] we deprecated `@scheduler.scheduled_job()` provided by [apscheduler] in favor of
+a more dynamic API based system described below.
+Although we no longer support the `@scheduler.scheduled_job()` decorator, it is still available
+because it is part of [apscheduler].
+Therefore, we do NOT recommend using it for new schedules, because you will miss a Linker Table join
+between schedules and workflows/tasks.
 
-    Consult the [v4.7 upgrade guide] for more details.
+Consult the [v4.7 upgrade guide] for more details.
+///
 
 
 
@@ -262,10 +270,11 @@ For detailed configuration options, see the [APScheduler scheduling docs].
 
 The scheduler automatically loads any schedules that are imported before the scheduler starts.
 
-!!! Info
-    In previous versions, schedules needed to be explicitly added in the `ALL_SCHEDULERS` variable.
-    This is no longer required; `ALL_SCHEDULERS` is deprecated as of orchestrator-core v4.7.0 and will be removed in v5.0.0.
-    Follow-up ticket to remove deprecated code: [#1276](https://github.com/workfloworchestrator/orchestrator-core/issues/1276)
+/// info
+In previous versions, schedules needed to be explicitly added in the `ALL_SCHEDULERS` variable.
+This is no longer required; `ALL_SCHEDULERS` is deprecated as of orchestrator-core v4.7.0 and will be removed in v5.0.0.
+Follow-up ticket to remove deprecated code: [#1276](https://github.com/workfloworchestrator/orchestrator-core/issues/1276)
+///
 
 ## The scheduler
 

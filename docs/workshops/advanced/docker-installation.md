@@ -12,9 +12,9 @@ setup in our docker-compose.yml file so that you don't have to think about how t
 * Optional: [containerlab](https://containerlab.dev/): A free network topology simulator that uses containerized
   network operating systems.
 
-!!! danger
-    **To run the workshop with container lab, the host architecture must be x86_64 with virtualization
-    enabled**
+/// danger
+**To run the workshop with container lab, the host architecture must be x86_64 with virtualization enabled.**
+///
 
 
 ## Step 1 - Prepare environment
@@ -37,9 +37,10 @@ jlpicard@ncc-1701-d:~$ docker compose version
 Docker Compose version v2.17.2
 ```
 
-!!! tip
-
-    If this command does not work and produce a similar output, follow [the official Docker guide on installing the Docker Compose v2 plugin](https://docs.docker.com/compose/install/linux/).
+/// tip
+If this command does not work and produce a similar output, follow
+[the official Docker guide on installing the Docker Compose v2 plugin](https://docs.docker.com/compose/install/linux/).
+///
 
 ### Step 2 - Start environment
 
@@ -68,9 +69,10 @@ jlpicard@ncc-1701-d:~$ docker compose up -d
 
 Now point a web browser to `http://localhost:3000/` and have a look around. This is a functional orchestrator instance and represents an environment where you can perform the exercises that are part of this workshop.
 
-!!! tip
-
-    Once opened in the browser, ignore the message about the CRM not being responsive. This workshop does not include the setup of an interface to a CRM, fake customers IDs will be used instead.
+/// tip
+Once opened in the browser, ignore the message about the CRM not being responsive.
+This workshop does not include the setup of an interface to a CRM, fake customers IDs will be used instead.
+///
 
 ### Helpful Items
 

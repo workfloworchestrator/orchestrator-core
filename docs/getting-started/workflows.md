@@ -125,9 +125,9 @@ To ensure the workflows are discovered at runtime:
 - Add all `LazyWorkflowInstance(...)` calls to `workflows/__init__.py`.
 - Add `import workflows` to `main.py` so they are registered during app startup.
 
-!!! example
-
-    For inspiration look at an example implementation of the [lazy workflow instances]
+/// example
+For inspiration look at an example implementation of the [lazy workflow instances]
+///
 
 ### Step 2: Register workflows in the database
 

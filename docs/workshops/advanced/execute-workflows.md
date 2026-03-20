@@ -24,8 +24,10 @@ We do this from IPAM >> Prefixes.
 
 Now we should be able to deploy our routers using the `create node` workflow. This is going to be a new subscription of the product node - specifically a nokia node -  and we will have to fill an initial form.
 
-!!! note
-    Make sure that the node name is the same as the node name in containerlab (clab-orch-demo-ams-pe/clab-orch-demo-lon-pe/clab-orch-demo-par-p)
+/// note
+Make sure that the node name is the same as the node name in containerlab
+(clab-orch-demo-ams-pe/clab-orch-demo-lon-pe/clab-orch-demo-par-p)
+///
 
 Once the workflow has successfully ran, we can login into the node just configured and take a look at the config:
 ```

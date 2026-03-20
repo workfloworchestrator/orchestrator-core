@@ -98,7 +98,8 @@ Features:
 
 Below in the documentation these features are discussed in more detail.
 
-!!! warning "BACKUP DATABASE BEFORE USING THE MIGRATION!"
+/// warning | BACKUP DATABASE BEFORE USING THE MIGRATION!
+///
 
 Arguments
 
@@ -765,9 +766,10 @@ Options
 None]
 --custom-templates - Custom templates folder [default: None]
 
-!!! note
-    The `workflows/__init__.py` will only be extended with the needed `LazyWorkflowInstance`
-    declarations when `--force` is used.
+/// note
+The `workflows/__init__.py` will only be extended with the needed `LazyWorkflowInstance`
+declarations when `--force` is used.
+///
 
 ## scheduler
 

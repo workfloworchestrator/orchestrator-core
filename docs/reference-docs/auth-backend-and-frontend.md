@@ -273,9 +273,10 @@ app.register_graphql_authorization(graphql_authorization_instance)
 
 ## Authorization and Workflows {: .beta }
 
-!!! Warning
-    Role-based access control for workflows is currently in beta.
-    Initial support has been added to the backend, but the feature is not fully communicated through the UI yet.
+/// warning
+Role-based access control for workflows is currently in beta.
+Initial support has been added to the backend, but the feature is not fully communicated through the UI yet.
+///
 
 Certain `orchestrator-core` decorators accept authorization callbacks of type `type Authorizer = Callable[[OIDCUserModel | None], Awaitable[bool]]`, which return True when the input user is authorized, otherwise False.
 In other words, authorization callbacks are async, take a nullable OIDCUserModel (or subclass) as argument, and return a bool.
@@ -569,48 +570,59 @@ def allow_roles(*roles) -> Authorizer:
 We can now construct a variety of authorization policies.
 
 #### Rubber Stamp Model
-!!!example
-    Suppose we have a workflow W that needs to pause on inputstep `approval` for approval from finance. Ops (and only ops) should be able to start the workflow and retry any failed steps. Finance (and only finance) should be able to resume at the input step.
 
-    ```python
-    @workflow("An expensive workflow", authorize_callback=allow_roles("ops"))
-    def W(...):
-        return begin >> A >> ... >> notify_finance >> approval >> ... >> Z
+/// example
+Suppose we have a workflow `W` that needs to pause on inputstep `approval` for approval from finance.
+Ops (and only ops) should be able to start the workflow and retry any failed steps.
+Finance (and only finance) should be able to resume at the input step.
 
-    @inputstep("Approval", resume_auth_callback=allow_roles("finance"), retry_auth_callback=allow_roles("ops"))
-    def approval(...):
-        ...
-    ```
+```python
+@workflow("An expensive workflow", authorize_callback=allow_roles("ops"))
+def W(...):
+    return begin >> A >> ... >> notify_finance >> approval >> ... >> Z
+
+@inputstep("Approval", resume_auth_callback=allow_roles("finance"), retry_auth_callback=allow_roles("ops"))
+def approval(...):
+    ...
+```
+///
 
 
 #### Hand-off Model
-!!!example
-    Suppose we have two teams, Dev and Platform, and a long workflow W that should be handed off to Platform at step `approval`.
 
-    Dev can start the workflow and retry steps prior to S. Once step S is reached, Platform (and only Platform) can resume the workflow and retry later failed steps.
+/// example
+Suppose we have two teams, Dev and Platform, and a long workflow `W` that should be handed off to Platform at step `approval`.
 
-    ```python
-    @workflow("An expensive workflow", authorize_callback=allow_roles("dev"))
-    def W(...):
-        return begin >> A >> ... >> notify_platform >> handoff >> ... >> Z
+Dev can start the workflow and retry steps prior to S. Once step S is reached, Platform (and only Platform)
+can resume the workflow and retry later failed steps.
 
-    @inputstep("Hand-off", resume_auth_callback=allow_roles("platform"))
-    def handoff(...):
-        ...
-    ```
-    Notice that default behaviors let us ignore `retry_auth_callback` arguments in both decorators.
+```python
+@workflow("An expensive workflow", authorize_callback=allow_roles("dev"))
+def W(...):
+    return begin >> A >> ... >> notify_platform >> handoff >> ... >> Z
+
+@inputstep("Hand-off", resume_auth_callback=allow_roles("platform"))
+def handoff(...):
+    ...
+```
+
+Notice that default behaviors let us ignore `retry_auth_callback` arguments in both decorators.
+///
 
 #### Restricted Retries Model
-!!!example
-    Suppose we have a workflow that anyone can run, but with steps that should only be retried by users with certain backend access.
 
-    ```python
-    @workflow("A workflow for any user", retry_auth_callback=allow_roles("admin"))
-    def W(...):
-        return begin >> A >> ... >> S >> ... >> Z
-    ```
+/// example
+Suppose we have a workflow that anyone can run, but with steps that should only be retried by users with certain backend access.
 
-    Note that we could specify `authorize_callback=allow_roles("user")` if helpful, or we can omit `authorize_callback` to fail over to any logged in user.
+```python
+@workflow("A workflow for any user", retry_auth_callback=allow_roles("admin"))
+def W(...):
+    return begin >> A >> ... >> S >> ... >> Z
+```
+
+Note that we could specify `authorize_callback=allow_roles("user")` if helpful,
+or we can omit `authorize_callback` to fail over to any logged in user.
+///
 
 [settings-overview]: ../../reference-docs/app/settings-overview
 

@@ -21,42 +21,45 @@ This has a number of benefits as it saves the user the effort of casting the dat
 the developer to be more `Type safe` whilst developing.
 
 #### Example
-!!! example
-    The main reason for developing domain models was to make sure bugs like this occurred less.
-    ##### Pre domain models
+/// example
+The main reason for developing domain models was to make sure bugs like this occurred less.
 
-    ```python
-    >>> some_subscription_instance_value = SubscriptionInstanceValueTable.get("ID")
-    >>> instance_value_from_db = some_subscription_instance_value.value
-    >>> instance_value_from_db
-    "False"
-    >>> if instance_value_from_db is True:
-    ...    print("True")
-    ... else:
-    ...    print("False")
-    "True"
-    ```
+##### Pre domain models
 
-    ##### Post domain models
-    ```python
-    >>> some_subscription_instance_value = SubscriptionInstanceValueTable.get("ID")
-    >>> instance_value_from_db = some_subscription_instance_value.value
-    >>> type(instance_value_from_db)
-    <class str>
-    >>>
-    >>> subscription_model = SubscriptionModel.from_subscription("ID")
-    >>> type(subscription_model.product_block.instance_from_db)
-    <class bool>
-    >>>
-    >>> subscription_model.product_block.instance_from_db
-    False
-    >>>
-    >>> if subscription_model.product_block.instance_from_db is True:
-    ...    print("True")
-    ... else:
-    ...    print("False")
-    "False"
-    ```
+```python
+>>> some_subscription_instance_value = SubscriptionInstanceValueTable.get("ID")
+>>> instance_value_from_db = some_subscription_instance_value.value
+>>> instance_value_from_db
+"False"
+>>> if instance_value_from_db is True:
+...    print("True")
+... else:
+...    print("False")
+"True"
+```
+
+##### Post domain models
+
+```python
+>>> some_subscription_instance_value = SubscriptionInstanceValueTable.get("ID")
+>>> instance_value_from_db = some_subscription_instance_value.value
+>>> type(instance_value_from_db)
+<class str>
+>>>
+>>> subscription_model = SubscriptionModel.from_subscription("ID")
+>>> type(subscription_model.product_block.instance_from_db)
+<class bool>
+>>>
+>>> subscription_model.product_block.instance_from_db
+False
+>>>
+>>> if subscription_model.product_block.instance_from_db is True:
+...    print("True")
+... else:
+...    print("False")
+"False"
+```
+///
 
 ### Lifecycle transitions
 When transitioning from `Initial` -> `Provisioning` -> `Active` -> `Terminated` in the Subscription Lifecycle
@@ -95,10 +98,11 @@ They are defined in lifecycle state and can be setup to be very restrictive or l
 supports hierarchy in the way product block models reference each other. In other words, a product block model, may have
 a property that references one or more other product block models.
 
-!!! info
-    The Product block model should be modeled as though it is a resource that can be re-used in multiple products.
-    In networking the analogy would be: A physical interface may be used in a Layer 2 service and Layer 3 service
-    It is not necessary to define two different physical interface types.
+/// info
+The Product block model should be modeled as though it is a resource that can be re-used in multiple products.
+In networking the analogy would be: a physical interface may be used in a Layer 2 service and a Layer 3 service.
+It is not necessary to define two different physical interface types.
+///
 
 ##### Product Block Model - Inactive
 ```python hl_lines="1 4"
@@ -152,9 +156,10 @@ class ServicePortBlock(ServicePortBlockProvisioning, lifecycle=[SubscriptionLife
 The Class is now defined in its most strict form, in other words in the Active lifecycle of a subscription,
 this product block model must have all resource_types filled in except for `auto_negotiation` to function correctly.
 
-!!! Tip
-    The stricter you are in defining your product block models the more you are able to leverage the built in validation
-    of`Pydantic`.
+/// tip
+The stricter you are in defining your product block models, the more you are able to leverage the built-in validation
+of `Pydantic`.
+///
 
 #### Product Model a.k.a SubscriptionModel
 Product models are very similar to Product Block Models in that they adhere to the same principles as explained above. However
@@ -201,22 +206,23 @@ to the `port` property in `SubscriptionLifecycle.ACTIVE` compared to `Subscripti
 #### Crossing the subscription boundary
 As mentioned before an advanced use case would be to use `ProductBlockModels` from other Subscriptions.
 
-!!! Example
-    ```python
-    >>> first_service_port = ServicePort.from_subscription(subscription_id="ID")
-    >>> first_service_port.customer_id
-    "Y"
-    >>>
-    >>> second_service_port = ServicePort.from_product(product_id="ID", customer_id="ID")
-    >>> second_service_port.port = first_service_port.port
-    >>> second_service_port.save()
-    >>>
-    >>> second_service_port.port.subscription == first_service_port.subscription
-    True
-    >>>
-    >>> second_service_port.port.subscription == second_service_port.subscription
-    False
-    ```
+/// example
+```python
+>>> first_service_port = ServicePort.from_subscription(subscription_id="ID")
+>>> first_service_port.customer_id
+"Y"
+>>>
+>>> second_service_port = ServicePort.from_product(product_id="ID", customer_id="ID")
+>>> second_service_port.port = first_service_port.port
+>>> second_service_port.save()
+>>>
+>>> second_service_port.port.subscription == first_service_port.subscription
+True
+>>>
+>>> second_service_port.port.subscription == second_service_port.subscription
+False
+```
+///
 This is valid use of the domain models. The code will detect that `port` is part of `first_service_port` and respect
 ownership. It basically will treat it as a `read-only` property.
 
@@ -224,9 +230,10 @@ ownership. It basically will treat it as a `read-only` property.
 There may also be a case where a user would like to define two different types to a `ProductBlockModel` property.
 This can be achieved by using the `Union` type decorator.
 
-!!! danger
-    When using this method be sure as to declare the **Most** specific type first. This is how Pydantic attempts to cast
-    types to the property. For more background as to why, [read here](https://pydantic-docs.helpmanual.io/usage/types/#unions)
+/// danger
+When using this method be sure to declare the **most** specific type first. This is how Pydantic attempts to cast
+types to the property. For more background as to why, [read here](https://pydantic-docs.helpmanual.io/usage/types/#unions).
+///
 
 ```python hl_lines="4"
 class ServicePort(ServicePortProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):

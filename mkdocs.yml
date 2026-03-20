@@ -104,7 +104,20 @@ markdown_extensions:
               - includes/abbreviations.md
     - pymdownx.keys
     - pymdownx.inlinehilite
-    - pymdownx.blocks.admonition
+    # https://squidfunk.github.io/mkdocs-material/reference/admonitions/#supported-types
+    - pymdownx.blocks.admonition:
+          types:
+              - note
+              - attention
+              - caution
+              - danger
+              - error
+              - tip
+              - hint
+              - warning
+              - important
+              - info
+              - example
     - pymdownx.tabbed:
           alternate_style: true
     - attr_list

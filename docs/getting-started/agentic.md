@@ -13,10 +13,11 @@ __Enhance the Orchestrator's functionality by enabling LLM features, which unloc
 - Enables natural language interaction with the Orchestrator
 - Supports complex queries and operations through conversational interfaces
 
-!!! danger "Experimental Features"
-    The features and APIs described in this section are under active development and may change.
+/// danger | Experimental Features
+The features and APIs described in this section are under active development and may change.
 
-    **Note:** While these features are experimental, they unlock significant potential for advanced use cases.
+**Note:** While these features are experimental, they unlock significant potential for advanced use cases.
+///
 
 ## Quick Start
 
@@ -124,8 +125,9 @@ uvicorn --reload --host 0.0.0.0 --port 8080 wsgi:app
 
 ### 7. Index Your Data
 
-!!! warning "API Costs"
-    This step makes API calls to your LLM provider and may incur costs.
+/// warning | API Costs
+This step makes API calls to your LLM provider and may incur costs.
+///
 
 ```bash
 # Index all available data

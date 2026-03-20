@@ -39,12 +39,13 @@ TRACE_SAMPLE_RATE = 0.1 # should be a float between 0 and 1
 ```
 Setting ``TRACING_ENABLED`` to ``True`` will enable tracing for the application, allowing you to monitor
 performance and errors more effectively.
-!!! note
-    - **SENTRY_DSN**: The Data Source Name (DSN) is a unique URL provided by Sentry. It connects your
-    application to your Sentry project so errors and performance data are sent to the correct place.
-    - **TRACE_SAMPLE_RATE**: A float between 0 and 1 that controls what percentage of transactions
-    are sent to Sentry for performance monitoring (e.g., 0.5 means 50% of traces are sampled). See
-    Sentry documentation for more details on [sampling](https://docs.sentry.io/concepts/key-terms/sample-rates/).
+/// note
+- **SENTRY_DSN**: The Data Source Name (DSN) is a unique URL provided by Sentry. It connects your
+  application to your Sentry project so errors and performance data are sent to the correct place.
+- **TRACE_SAMPLE_RATE**: A float between 0 and 1 that controls what percentage of transactions
+  are sent to Sentry for performance monitoring (e.g., 0.5 means 50% of traces are sampled). See
+  Sentry documentation for more details on [sampling](https://docs.sentry.io/concepts/key-terms/sample-rates/).
+///
 
 **3. Update `main.py` file**
 
@@ -74,12 +75,13 @@ if __name__ == "__main__":
     core_cli()
 ```
 
-!!! note
-    - It's recommended to use separate Sentry projects for different environments (production,
-    staging, etc.) to *avoid cluttering production error tracking with development errors*. Many teams
-     skip Sentry integration in local development environments.
-    - Make sure to adjust the `TRACE_SAMPLE_RATE` according to your needs and test the integration
-    in a development environment before deploying it to production.
+/// note
+- It's recommended to use separate Sentry projects for different environments (production,
+  staging, etc.) to *avoid cluttering production error tracking with development errors*.
+  Many teams skip Sentry integration in local development environments.
+- Make sure to adjust the `TRACE_SAMPLE_RATE` according to your needs and test the integration
+  in a development environment before deploying it to production.
+///
 
 **4. Test the Sentry integration**
 
@@ -96,8 +98,9 @@ def debug_sentry():
     division_by_zero = 1 / 0
 ```
 
-!!! warning
-    Make sure your environment variable ``ENVIRONMENT`` is **NOT** set to ``local`` when testing the Sentry integration.
+/// warning
+Make sure your environment variable `ENVIRONMENT` is **NOT** set to `local` when testing the Sentry integration.
+///
 
 **See also**
 

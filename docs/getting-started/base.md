@@ -9,9 +9,10 @@ Flask and Django, you install the core library, initialise it with configuration
 * Database
 
 
-!!! note
-    The Orchestrator-core is designed to be installed and extended just like a FastAPI or Flask application. For more
-    information about how this works read the [Reference documentation](../reference-docs/app/app.md).
+/// note
+The Orchestrator-core is designed to be installed and extended just like a FastAPI or Flask application.
+For more information about how this works read the [Reference documentation](../reference-docs/app/app.md).
+///
 
 
 ### Step 1 - Install the package:

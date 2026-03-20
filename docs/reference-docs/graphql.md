@@ -64,10 +64,11 @@ paginated results.
 * **Federation:** Some types use Strawberry’s federation features
 (e.g., `@strawberry.federation.interface`) to support a federated GraphQL architecture.
 
-!!! info "Federation"
-    Federation allows you to combine multiple, distributed GraphQL services into one unified API. This is extremely
-    useful when working with multiple services, as it enables you to develop, deploy, and scale GraphQL
-    services independently while presenting a single schema to clients.
+/// info | Federation
+Federation allows you to combine multiple, distributed GraphQL services into one unified API.
+This is extremely useful when working with multiple services, as it enables you to develop, deploy, and scale
+GraphQL services independently while presenting a single schema to clients.
+///
 
 ### How to enable Federation in the `orchestrator-core`?
 
@@ -297,8 +298,10 @@ By using scalar types for auto registration, you can seamlessly incorporate spec
 
 To enable federation, set the `FEDERATION_ENABLED` environment variable to `True`.
 
-!!! info
-    The dockerized [example-orchestrator](../getting-started/docker.md) contains a working Federation setup that demonstrates how the below works in practice.
+/// info
+The dockerized [example-orchestrator](../getting-started/docker.md) contains a working Federation setup
+that demonstrates how the below works in practice.
+///
 
 Federation allows you to federate with subscriptions using the `subscriptionId` and with product blocks inside the subscription by utilizing any property that includes `_id` in its name.
 

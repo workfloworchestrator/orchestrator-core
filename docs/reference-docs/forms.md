@@ -139,9 +139,10 @@ For multistep forms especially, it can be useful to use the `orchestrator.forms.
 
 ### Custom Form Fields
 
-!!! info
-    The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
-    Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
+/// warning
+The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
+Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
+///
 
 You can create a custom field component in the frontend. The components in `orchestrator-gui/src/lib/uniforms-surfnet/src` can be used to study reference implementations for a couple of custom form field types.
 
@@ -152,9 +153,10 @@ as an example I will create a custom field with name field and group select fiel
 
 #### Pydantic Type/Class In Backend
 
-!!! info
-    The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
-    Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
+/// warning
+The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
+Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
+///
 
 Create a pydantic type/class.
 
@@ -210,9 +212,10 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
 
 #### Auto Field Loader
 
-!!! info
-    The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
-    Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
+/// warning
+The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
+Development ticket [orchestrator-ui-library#2381](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2381) will update this.
+///
 
 The auto field loader is for loading the correct field component in the form.
 It has switches that check the field type and the field format.

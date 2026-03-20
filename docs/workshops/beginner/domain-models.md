@@ -69,10 +69,9 @@ from orchestrator.types import SubscriptionLifecycle
 ...
 ```
 
-!!! example
-
-    for inspiration look at an example implementation of the [user group product block
-    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_blocks/user_group.py)
+/// example
+For inspiration look at an example implementation of the [user group product block](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_blocks/user_group.py)
+///
 
 ## Exercise 2: create UserGroup product
 
@@ -105,10 +104,9 @@ from products.product_blocks.user_group import (
 ...
 ```
 
-!!! example
-
-    for inspiration look at an example implementation of the [user group product
-    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_types/user_group.py)
+/// example
+For inspiration look at an example implementation of the [user group product](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_types/user_group.py)
+///
 
 ## Exercise 3: create User product block
 
@@ -139,10 +137,9 @@ from products.product_blocks.user_group import (
 ...
 ```
 
-!!! example
-
-    for inspiration look at an example implementation of the [user product block
-    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_blocks/user.py)
+/// example
+For inspiration look at an example implementation of the [user product block](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_blocks/user.py)
+///
 
 ## Exercise 4: create User product
 
@@ -181,7 +178,6 @@ class Affiliation(strEnum):
 ...
 ```
 
-!!! example
-
-    for inspiration look at an example implementation of the [user product
-    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_types/user.py)
+/// example
+For inspiration look at an example implementation of the [user product](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_types/user.py)
+///

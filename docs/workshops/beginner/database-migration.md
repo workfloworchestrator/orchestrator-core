@@ -98,43 +98,43 @@ PYTHONPATH=. python main.py db migrate-domain-models "Add User and UserGroup pro
 When finished have a look at the migration created in the folder
 `migrations/versions/schema`.
 
-!!! note
+/// note
+While creating the migration, the order of the questions/answers may be
+different from the order in the overview below. Therefore do not blindly
+copy/paste the answers.
+///
 
-    While creating the migration, the order of the questions/answers may be
-    different from the order in the overview below. Therefore do not blindly
-    copy/paste the answers.
+/// example
+**<u>Create new products</u>**<br>
+Product: UserGroup **User Group**<br>
+Supply the product description: *user group administration*<br>
+Supply the product tag: *GROUP*<br>
+Product: User **User internal**<br>
+Supply the product description: *user administration - internal*<br>
+Supply the product tag: *USER_INT*<br>
+Product: User **User external**<br>
+Supply the product description: *user administration - external*<br>
+Supply the product tag: *USER_EXT*<br>
 
-!!! example
+**<u>Create fixed inputs</u>**<br>
+Supply fixed input value for product **User internal** and fixed input <span style="color:magenta">affiliation</span>: *internal*<br>
+Supply fixed input value for product **User external** and fixed input <span style="color:magenta">affiliation</span>: *external*<br>
 
-    **<u>Create new products</u>**<br>
-    Product: UserGroup **User Group**<br>
-    Supply the product description: *user group administration*<br>
-    Supply the product tag: *GROUP*<br>
-    Product: User **User internal**<br>
-    Supply the product description: *user administration - internal*<br>
-    Supply the product tag: *USER_INT*<br>
-    Product: User **User external**<br>
-    Supply the product description: *user administration - external*<br>
-    Supply the product tag: *USER_EXT*<br>
+**<u>Create product blocks</u>**<br>
+Product block: **UserGroupBlock**<br>
+Supply the product block description: *user group block*<br>
+Supply the product block tag: *UGB*<br>
+Product block: **UserBlock**<br>
+Supply the product block description: *user block*<br>
+Supply the product block tag: *UB*<br>
 
-    **<u>Create fixed inputs</u>**<br>
-    Supply fixed input value for product **User internal** and fixed input <span style="color:magenta">affiliation</span>: *internal*<br>
-    Supply fixed input value for product **User external** and fixed input <span style="color:magenta">affiliation</span>: *external*<br>
-
-    **<u>Create product blocks</u>**<br>
-    Product block: **UserGroupBlock**<br>
-    Supply the product block description: *user group block*<br>
-    Supply the product block tag: *UGB*<br>
-    Product block: **UserBlock**<br>
-    Supply the product block description: *user block*<br>
-    Supply the product block tag: *UB*<br>
-
-    **<u>Create resource types</u>**<br>
-    Supply description for new resource type <span style="color:magenta">group_name</span>: *name of the user group*<br>
-    Supply description for new resource type <span style="color:magenta">group_id</span>: *id of the user group*<br>
-    Supply description for new resource type <span style="color:magenta">username</span>: *name of the user*<br>
-    Supply description for new resource type <span style="color:magenta">age</span>: *age of the user*<br>
-    Supply description for new resource type <span style="color:magenta">user_id</span>: *id of the user*<br>
+**<u>Create resource types</u>**<br>
+Supply description for new resource type <span style="color:magenta">group_name</span>: *name of the user group*<br>
+Supply description for new resource type <span style="color:magenta">group_id</span>: *id of the user group*<br>
+Supply description for new resource type <span style="color:magenta">username</span>: *name of the user*<br>
+Supply description for new resource type <span style="color:magenta">age</span>: *age of the user*<br>
+Supply description for new resource type <span style="color:magenta">user_id</span>: *id of the user*<br>
+///
 
 
 ## Exercise 3: perform database migration
@@ -184,9 +184,8 @@ The metadata/products page should look as following:
 
 ![Metadata products page](../images/metadata_products.png "Metadata products page")
 
-!!! example
-
-    if the database migration is incorrect, use this example
-    [Add User and UserGroup products
-    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/examples/2022-11-11_45984f4b8010_add_user_and_usergroup_products.py)
-    migration
+/// example
+If the database migration is incorrect, use this example
+[Add User and UserGroup products](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/examples/2022-11-11_45984f4b8010_add_user_and_usergroup_products.py)
+migration.
+///

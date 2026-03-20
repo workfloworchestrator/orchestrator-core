@@ -13,9 +13,9 @@ setup in our docker-compose.yml file so that you don't have to think about how t
 * Optional: [containerlab](https://containerlab.dev/): A free network topology simulator that uses containerized
   network operating systems.
 
-!!! danger
-    **To run the workshop with container lab, the host architecture must be x86_64 with virtualization
-    enabled**
+/// danger
+**To run the workshop with container lab, the host architecture must be x86_64 with virtualization enabled.**
+///
 
 ## Step 1 - Cloning the repo
 The fist step is to clone the Example orchestrator repository using:
@@ -122,9 +122,10 @@ If you are using a remote machine:
    Graphql API: http://<$IP_ADDRESS_OF_THE_MACHINE>:8080/api/graphql
 3. Netbox (admin|admin): Netbox: http://<$IP_ADDRESS_OF_THE_MACHINE>:8000
 
-!!! note
-    Take your time to familiarise with the applications and make sure they are working correctly. You can then
-    continue with the following steps.
+/// note
+Take your time to familiarise with the applications and make sure they are working correctly.
+You can then continue with the following steps.
+///
 
 ## Optional: Step 4 Containerlab
 Now that we have our orchestrator stack running, we can spin up the containerlab topology:
