@@ -7,7 +7,13 @@
             "version": "Version",
             "subscription_id_info": "The subscription for this action",
             "vlan_info": "The vlan id for this service port",
-            "product_type": "Product Type"
+            "product_type": "Product Type",
+            "task": "Select the task you want to schedule",
+            "schedule_type": "What type of schedule do you need?",
+            "start_date": "Start date",
+            "interval": "Choose the schedule interval",
+            "cron": "Cron",
+            "buttons": "buttons"
         }
     },
     "workflow": {

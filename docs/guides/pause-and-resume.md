@@ -61,7 +61,7 @@ curl -X PUT http://localhost:8080/api/settings/status \
 You can also pause and resume the Orchestrator via the interactive [Swagger UI API docs](http://localhost:8080/api/docs).
 
 ### 2. Using the UI
-If you have access to the WFO UI (e.g. when running the [`example-orchestrator`](https://github.com/workfloworchestrator/example-orchestrator) or when running both the `orchestrator-core` and [`orchestrator-ui`](../../getting-started/orchestration-ui.md)), you can pause the Orchestrator from there.
+If you have access to the WFO UI (e.g. when running the [`example-orchestrator`](https://github.com/workfloworchestrator/example-orchestrator) or when running both the `orchestrator-core` and [`orchestrator-ui`](../getting-started/orchestration-ui.md)), you can pause the Orchestrator from there.
 
 1. Navigate to the "Settings" page in the left sidebar.
 2. Click the "Pause workflow engine" button.
