@@ -201,6 +201,6 @@ Now this particular modify workflow can be run on subscriptions that are not in 
 [functional docs for inputstep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.inputstep
 [functional docs for conditional]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.conditional
 [functional docs for callback_step]: ../../reference-docs/workflows/callbacks.md
-[Reusable step functions and singledispatch usage]: ../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps-in-orchestrator-core
-[registering-workflows]: ../../../getting-started/workflows#register-workflows
+[Reusable step functions and singledispatch usage]: ../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps
+[registering-workflows]: ../../getting-started/workflows.md#register-workflows
 [tasks-and-scheduling]: ../../guides/tasks.md
