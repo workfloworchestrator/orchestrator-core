@@ -212,7 +212,7 @@ validate_initial_input_form_generator = wrap_modify_initial_input_form(modify_in
 
 
 def task(
-    description: str,
+    description: str = "",
     initial_input_form: InputStepFunc | None = None,
     additional_steps: StepList | None = None,
     authorize_callback: Authorizer | None = None,
