@@ -343,8 +343,8 @@ Example result for running `python main.py scheduler show-schedule`:
 [OrTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.combining.OrTrigger
 [APScheduler scheduling docs]: https://apscheduler.readthedocs.io/en/master/userguide.html#scheduling-tasks
 [trigger docs]: https://apscheduler.readthedocs.io/en/master/api.html#triggers
-[registering-workflows]: ../../../getting-started/workflows#register-workflows
-[cli-docs]: ../../../reference-docs/cli/#orchestrator.cli.scheduler.show_schedule
+[registering-workflows]: ../getting-started/workflows.md#register-workflows
+[cli-docs]: ../reference-docs/cli.md#orchestrator.cli.scheduler.show_schedule
 [v4.4.0]: https://github.com/workfloworchestrator/orchestrator-core/releases/tag/4.4.0
 [v4.7.0]: https://github.com/workfloworchestrator/orchestrator-core/releases/tag/4.7.0
 [v4.7 upgrade guide]: ../guides/upgrading/4.7.md
