@@ -17,6 +17,7 @@ from fastapi.param_functions import Depends
 from fastapi.routing import APIRouter
 
 from orchestrator.api.api_v1.endpoints import (
+    forms,
     health,
     processes,
     product_blocks,
@@ -92,6 +93,7 @@ api_router.include_router(
 api_router.include_router(
     schedules.router, prefix="/schedules", tags=["Core", "Schedules"], dependencies=[Depends(authorize)]
 )
+api_router.include_router(forms.router, prefix="/forms", tags=["Core", "Forms"], dependencies=[Depends(authorize)])
 
 if llm_settings.SEARCH_ENABLED:
     from orchestrator.api.api_v1.endpoints import search

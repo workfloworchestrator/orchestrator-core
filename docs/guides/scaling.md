@@ -265,8 +265,8 @@ All step statuses are shown in UPPERCASE for clarity.
 
 ![Celery Workflow/Task flow](celery-flow.drawio.png)
 
-[registering-workflows]: ../../../getting-started/workflows#register-workflows
+[registering-workflows]: ../getting-started/workflows.md#register-workflows
 
-[use-a-scheduler]: orchestrator-core/architecture/application/tasks/#the-schedule-file
+[use-a-scheduler]: tasks.md#the-scheduler
 [celery-intro]: https://docs.celeryq.dev/en/stable/getting-started/introduction.html
 [celery-backends-and-brokers]: https://docs.celeryq.dev/en/stable/getting-started/backends-and-brokers/index.html

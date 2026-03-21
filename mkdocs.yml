@@ -168,9 +168,7 @@ nav:
                       - Preparing source folder: getting-started/prepare-source-folder.md
                       - Base application: getting-started/base.md
                       - Agentic application: getting-started/agentic.md
-                - Workflows:
-                      - Creating a workflow: getting-started/workflows.md
-                      - Registering a workflow: getting-started/workflows#register-workflows
+                - Workflows: getting-started/workflows.md
                 - Docker: getting-started/docker.md
                 - Orchestrator UI: getting-started/orchestration-ui.md
           - Product Modeling:
@@ -199,7 +197,6 @@ nav:
           - Auth(n|z): reference-docs/auth-backend-and-frontend.md
           - CLI Tools: reference-docs/cli.md
           - Database: reference-docs/database.md
-          # - Serialization: reference-docs/serialization.md
           - Domain Models:
                 - Overview: reference-docs/domain_models/overview.md
                 - Domain Model Types:
@@ -208,25 +205,17 @@ nav:
                       - Model Attributes: reference-docs/domain_models/model_attributes.md
                 - Helpers:
                       - Generator: reference-docs/domain_models/generator.md
-          #      - Advanced Features:
-          #        - Properties: reference-docs/domain_models/properties.md
-          #        - Union Types: reference-docs/domain_models/union_types.md
-          #        - Pydantic hooks: reference-docs/domain_models/pydantic_hooks.md
-          #      - Instantiating Domain Models: reference-docs/domain_models/instantiating.md
-          #      - Validation: reference-docs/domain_models/validation.md
-          #      - Type Casting and Serialisation: reference-docs/domain_models/type_casting.md
           - Forms: reference-docs/forms.md
           - Running the App:
                 - App.py: reference-docs/app/app.md
                 - Agentic App.py: reference-docs/app/agentic-app.md
                 - Python Version: reference-docs/python.md
                 - Settings: reference-docs/app/settings-overview.md
-          # - Tasks:  reference-docs/tasks.md
-          # - Tests: reference-docs/tests.md
           - Workflows:
                 - Workflows: reference-docs/workflows/workflows.md
                 - Workflow Steps: reference-docs/workflows/workflow-steps.md
                 - Callback step: reference-docs/workflows/callbacks.md
+                - Run Predicates: reference-docs/workflows/run-predicates.md
                 # Recommend a non-guide doc answering "What are tasks?"
                 # - Tasks:
           - Websockets: reference-docs/websockets.md
