@@ -28,31 +28,65 @@ Four things need to happen to register a task:
 
 Here is a very bare-bones task file:
 
-```python
-# workflows/tasks/nightly_sync.py
 
-import structlog
-import time
+=== "2.x - 4.x"
 
-from pydantic_forms.types import State
+    /// attention
+    This syntax will continue to work, but there is a new syntax available from 5.0.
+    ///
 
-from orchestrator.workflow import StepList, step, begin
-from orchestrator.workflows.utils import task
+    ```python
+    # workflows/tasks/nightly_sync.py
 
-logger = structlog.get_logger(__name__)
+    import structlog
+    import time
+
+    from orchestrator.targets import Target
+    from orchestrator.types import State
+    from orchestrator.workflow import StepList, done, init, step, workflow
+
+    logger = structlog.get_logger(__name__)
 
 
-@step("NSO calls")
-def nso_calls() -> State:
-    logger.info("Start NSO calls", ran_at=time.time())
-    time.sleep(5)  # Do stuff
-    logger.info("NSO calls finished", done_at=time.time())
+    @step("NSO calls")
+    def nso_calls() -> State:
+        logger.info("Start NSO calls", ran_at=time.time())
+        time.sleep(5)  # Do stuff
+        logger.info("NSO calls finished", done_at=time.time())
 
 
-@task("Nightly sync")
-def task_sync_from() -> StepList:
-    return begin >> nso_calls
-```
+    @workflow("Nightly sync", target=Target.SYSTEM)
+    def task_sync_from() -> StepList:
+        return init >> nso_calls >> done
+    ```
+
+=== ":material-new-box: 5.0 +"
+
+    ```python
+    # workflows/tasks/nightly_sync.py
+
+    import structlog
+    import time
+
+    from pydantic_forms.types import State
+
+    from orchestrator.workflow import StepList, step, begin
+    from orchestrator.workflows.utils import task
+
+    logger = structlog.get_logger(__name__)
+
+
+    @step("NSO calls")
+    def nso_calls() -> State:
+        logger.info("Start NSO calls", ran_at=time.time())
+        time.sleep(5)  # Do stuff
+        logger.info("NSO calls finished", done_at=time.time())
+
+
+    @task("Nightly sync")
+    def task_sync_from() -> StepList:
+        return begin >> nso_calls
+    ```
 
 Like a Workflow, a Task will need to be registered in your workflows module:
 
@@ -343,8 +377,8 @@ Example result for running `python main.py scheduler show-schedule`:
 [OrTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.combining.OrTrigger
 [APScheduler scheduling docs]: https://apscheduler.readthedocs.io/en/master/userguide.html#scheduling-tasks
 [trigger docs]: https://apscheduler.readthedocs.io/en/master/api.html#triggers
-[registering-workflows]: ../getting-started/workflows.md#register-workflows
-[cli-docs]: ../reference-docs/cli.md#orchestrator.cli.scheduler.show_schedule
+[registering-workflows]: ../../../getting-started/workflows#register-workflows
+[cli-docs]: ../../../reference-docs/cli/#orchestrator.cli.scheduler.show_schedule
 [v4.4.0]: https://github.com/workfloworchestrator/orchestrator-core/releases/tag/4.4.0
 [v4.7.0]: https://github.com/workfloworchestrator/orchestrator-core/releases/tag/4.7.0
 [v4.7 upgrade guide]: ../guides/upgrading/4.7.md
