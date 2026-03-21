@@ -44,6 +44,7 @@ async def _perform_search_and_fetch(
     request: SearchRequest | None = None,
     cursor: str | None = None,
     query_id: str | None = None,
+    include_columns: bool = True,
 ) -> SearchResultsSchema[SearchResult]:
     """Execute search with optional pagination.
 
@@ -52,6 +53,7 @@ async def _perform_search_and_fetch(
         request: Search request for new search
         cursor: Pagination cursor (loads saved query state)
         query_id: Saved query ID to retrieve and execute
+        include_columns: Whether to include response columns in the results (default: True)
 
     Returns:
         Search results with entity_id, score, and matching_field.
@@ -79,6 +81,9 @@ async def _perform_search_and_fetch(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Either (request + entity_type), cursor, or query_id must be provided",
             )
+
+        if not include_columns:
+            query = query.model_copy(update={"response_columns": []})
 
         search_response = await engine.execute_search(query, db.session, page_cursor, query_state.query_embedding)
         if not search_response.results:
@@ -120,32 +125,36 @@ async def _perform_search_and_fetch(
 async def search_subscriptions(
     request: SearchRequest,
     cursor: str | None = None,
+    include_columns: bool = True,
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(EntityType.SUBSCRIPTION, request, cursor)
+    return await _perform_search_and_fetch(EntityType.SUBSCRIPTION, request, cursor, include_columns=include_columns)
 
 
 @router.post("/workflows", response_model=SearchResultsSchema[SearchResult])
 async def search_workflows(
     request: SearchRequest,
     cursor: str | None = None,
+    include_columns: bool = True,
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(EntityType.WORKFLOW, request, cursor)
+    return await _perform_search_and_fetch(EntityType.WORKFLOW, request, cursor, include_columns=include_columns)
 
 
 @router.post("/products", response_model=SearchResultsSchema[SearchResult])
 async def search_products(
     request: SearchRequest,
     cursor: str | None = None,
+    include_columns: bool = True,
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(EntityType.PRODUCT, request, cursor)
+    return await _perform_search_and_fetch(EntityType.PRODUCT, request, cursor, include_columns=include_columns)
 
 
 @router.post("/processes", response_model=SearchResultsSchema[SearchResult])
 async def search_processes(
     request: SearchRequest,
     cursor: str | None = None,
+    include_columns: bool = True,
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(EntityType.PROCESS, request, cursor)
+    return await _perform_search_and_fetch(EntityType.PROCESS, request, cursor, include_columns=include_columns)
 
 
 @router.get(

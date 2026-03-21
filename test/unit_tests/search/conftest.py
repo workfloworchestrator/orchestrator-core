@@ -191,3 +191,8 @@ def complex_product_instance(product_uuid: UUID) -> ProductModel:
 @pytest.fixture
 def computed_product_instance(product_uuid: UUID) -> ProductModel:
     return create_computed_product_instance(product_uuid)
+
+
+@pytest.fixture
+def mock_db_session() -> MagicMock:
+    return MagicMock()
