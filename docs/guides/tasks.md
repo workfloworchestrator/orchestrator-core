@@ -7,22 +7,19 @@ A Task is just a workflow that isn't tied to a specific product.
 Tasks are created in the same way as workflows, but with the `"system"` target, i.e.
 
 ```python
-@workflow("Some task", target=Target.SYSTEM)
+@task("Some task")
 def some_task() -> StepList:
-    return init >> foo >> done
+    return begin >> foo
 ```
 
 Such a workflow will be flagged as a task in the database, and will not have a relation defined connecting it to a specific product.
-
-Note that `@workflow` is a lower-level call than, say, `@create_workflow`.
-So instead of `return begin >> foo`, we need to use `return init >> foo >> done` to instantiate a `StepList`.
 
 ## The task file
 
 Let's step through a more complete example.
 Four things need to happen to register a task:
 
-1. Defining the task via `@workflow`
+1. Defining the task via `@task`
 2. Registering the task via `LazyWorkflowInstance` in your workflows module
 3. Writing or generating a migration file
 4. Adding a translation for the frontend (necessary for the task to show in the UI)
@@ -31,34 +28,67 @@ Four things need to happen to register a task:
 
 Here is a very bare-bones task file:
 
-```python
-# workflows/tasks/nightly_sync.py
 
-import structlog
-import time
+=== "2.x - 4.x"
 
-from orchestrator.targets import Target
-from orchestrator.types import State
-from orchestrator.workflow import StepList, done, init, step, workflow
+    /// attention
+    This syntax will continue to work, but there is a new syntax available from 5.0.
+    ///
 
-logger = structlog.get_logger(__name__)
+    ```python
+    # workflows/tasks/nightly_sync.py
+
+    import structlog
+    import time
+
+    from orchestrator.targets import Target
+    from orchestrator.types import State
+    from orchestrator.workflow import StepList, done, init, step, workflow
+
+    logger = structlog.get_logger(__name__)
 
 
-@step("NSO calls")
-def nso_calls() -> State:
-    logger.info("Start NSO calls", ran_at=time.time())
-    time.sleep(5)  # Do stuff
-    logger.info("NSO calls finished", done_at=time.time())
+    @step("NSO calls")
+    def nso_calls() -> State:
+        logger.info("Start NSO calls", ran_at=time.time())
+        time.sleep(5)  # Do stuff
+        logger.info("NSO calls finished", done_at=time.time())
 
 
-@workflow("Nightly sync", target=Target.SYSTEM)
-def task_sync_from() -> StepList:
-    return init >> nso_calls >> done
-```
+    @workflow("Nightly sync", target=Target.SYSTEM)
+    def task_sync_from() -> StepList:
+        return init >> nso_calls >> done
+    ```
 
-Again, the task is basically a workflow with `target=Target.SYSTEM`.
+=== ":material-new-box: 5.0 +"
 
-And like a workflow, it will need to be registered in your workflows module:
+    ```python
+    # workflows/tasks/nightly_sync.py
+
+    import structlog
+    import time
+
+    from pydantic_forms.types import State
+
+    from orchestrator.workflow import StepList, step, begin
+    from orchestrator.workflows.utils import task
+
+    logger = structlog.get_logger(__name__)
+
+
+    @step("NSO calls")
+    def nso_calls() -> State:
+        logger.info("Start NSO calls", ran_at=time.time())
+        time.sleep(5)  # Do stuff
+        logger.info("NSO calls finished", done_at=time.time())
+
+
+    @task("Nightly sync")
+    def task_sync_from() -> StepList:
+        return begin >> nso_calls
+    ```
+
+Like a Workflow, a Task will need to be registered in your workflows module:
 
 ```python
 # workflows/__init__.py
@@ -347,8 +377,8 @@ Example result for running `python main.py scheduler show-schedule`:
 [OrTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.combining.OrTrigger
 [APScheduler scheduling docs]: https://apscheduler.readthedocs.io/en/master/userguide.html#scheduling-tasks
 [trigger docs]: https://apscheduler.readthedocs.io/en/master/api.html#triggers
-[registering-workflows]: ../getting-started/workflows.md#register-workflows
-[cli-docs]: ../reference-docs/cli.md#orchestrator.cli.scheduler.show_schedule
+[registering-workflows]: ../../../getting-started/workflows#register-workflows
+[cli-docs]: ../../../reference-docs/cli/#orchestrator.cli.scheduler.show_schedule
 [v4.4.0]: https://github.com/workfloworchestrator/orchestrator-core/releases/tag/4.4.0
 [v4.7.0]: https://github.com/workfloworchestrator/orchestrator-core/releases/tag/4.7.0
 [v4.7 upgrade guide]: ../guides/upgrading/4.7.md

@@ -68,6 +68,7 @@ def quick_task():
 `run_predicate` is available on all workflow decorators:
 
 - `@workflow`
+- `@task`
 - `@create_workflow`
 - `@modify_workflow`
 - `@terminate_workflow`

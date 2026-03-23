@@ -7,6 +7,7 @@ from orchestrator.workflows.utils import (
     create_workflow,
     modify_workflow,
     reconcile_workflow,
+    task,
     terminate_workflow,
     validate_workflow,
 )
@@ -118,14 +119,7 @@ def test_reconcile_workflow_non_callable():
 
 @pytest.mark.parametrize(
     "decorator_factory",
-    [
-        create_workflow,
-        modify_workflow,
-        terminate_workflow,
-        validate_workflow,
-        reconcile_workflow,
-        workflow,
-    ],
+    [create_workflow, modify_workflow, terminate_workflow, validate_workflow, reconcile_workflow, workflow, task],
 )
 def test_deprecated_description_emits_warning(decorator_factory):
     description = "Deprecated description"
@@ -141,14 +135,7 @@ def test_deprecated_description_emits_warning(decorator_factory):
 
 @pytest.mark.parametrize(
     "decorator_factory",
-    [
-        create_workflow,
-        modify_workflow,
-        terminate_workflow,
-        validate_workflow,
-        reconcile_workflow,
-        workflow,
-    ],
+    [create_workflow, modify_workflow, terminate_workflow, validate_workflow, reconcile_workflow, workflow, task],
 )
 def test_empty_description_does_not_emit_warning(decorator_factory):
     with warnings.catch_warnings(record=True) as warnings_record:
