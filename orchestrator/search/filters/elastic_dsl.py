@@ -75,37 +75,19 @@ def _convert_wildcard_pattern(es_pattern: str) -> str:
 class TermQuery(BaseModel):
     """``{"term": {"field": value}}``."""
 
-    term: dict[str, Any]
-
-    @model_validator(mode="after")
-    def _validate_single_field(self) -> TermQuery:
-        if len(self.term) != 1:
-            raise ValueError("term query must have exactly one field")
-        return self
+    term: dict[str, Any] = Field(min_length=1, max_length=1)
 
 
 class RangeQuery(BaseModel):
     """``{"range": {"field": {"gt": v, ...}}}``."""
 
-    range: dict[str, dict[str, Any]]
-
-    @model_validator(mode="after")
-    def _validate_single_field(self) -> RangeQuery:
-        if len(self.range) != 1:
-            raise ValueError("range query must have exactly one field")
-        return self
+    range: dict[str, dict[str, Any]] = Field(min_length=1, max_length=1)
 
 
 class WildcardQuery(BaseModel):
     """``{"wildcard": {"field": {"value": "pattern"}}}``."""
 
-    wildcard: dict[str, dict[str, str]]
-
-    @model_validator(mode="after")
-    def _validate_single_field(self) -> WildcardQuery:
-        if len(self.wildcard) != 1:
-            raise ValueError("wildcard query must have exactly one field")
-        return self
+    wildcard: dict[str, dict[str, str]] = Field(min_length=1, max_length=1)
 
 
 class ExistsQuery(BaseModel):
@@ -145,12 +127,7 @@ BoolQuery.model_rebuild()
 # Translation: ES DSL → FilterTree / PathFilter
 # ---------------------------------------------------------------------------
 
-_RANGE_OPS: dict[str, FilterOp] = {
-    "gt": FilterOp.GT,
-    "gte": FilterOp.GTE,
-    "lt": FilterOp.LT,
-    "lte": FilterOp.LTE,
-}
+_RANGE_KEYS = frozenset({"gt", "gte", "lt", "lte"})
 
 
 def _translate_term(query: TermQuery) -> PathFilter:
@@ -167,13 +144,9 @@ def _translate_range(query: RangeQuery) -> PathFilter:
     """Convert a range query to a PathFilter with date/numeric value or range filter."""
     field, bounds = next(iter(query.range.items()))
 
-    # Determine if this is a two-bound (between) or single-bound query
-    lower_key = next((k for k in ("gte", "gt") if k in bounds), None)
-    upper_key = next((k for k in ("lte", "lt") if k in bounds), None)
-
-    if lower_key and upper_key and lower_key == "gte" and upper_key == "lte":
+    if "gte" in bounds and "lte" in bounds:
         # Two-bound → BETWEEN range filter
-        start_val, end_val = bounds[lower_key], bounds[upper_key]
+        start_val, end_val = bounds["gte"], bounds["lte"]
         value_kind = _infer_value_kind(start_val)
 
         condition: DateRangeFilter | NumericRangeFilter
@@ -184,13 +157,13 @@ def _translate_range(query: RangeQuery) -> PathFilter:
 
         return PathFilter(path=field, condition=condition, value_kind=value_kind)
 
-    # Single bound or non-gte/lte two-bound: pick the first recognised op
-    match = next(((es_key, _RANGE_OPS[es_key]) for es_key in _RANGE_OPS if es_key in bounds), None)
-    if match is None:
+    # Single bound: pick the first recognised op
+    es_key = next((k for k in bounds if k in _RANGE_KEYS), None)
+    if es_key is None:
         raise ValueError(f"range query for '{field}' has no recognised bounds: {bounds}")
 
-    es_key, filter_op = match
     value = bounds[es_key]
+    filter_op = FilterOp(es_key)
     value_kind = _infer_value_kind(value)
 
     single_condition: DateValueFilter | NumericValueFilter
@@ -259,16 +232,13 @@ def _negate_node(node: FilterTree | PathFilter) -> FilterTree | PathFilter:
             return node
 
 
-def _translate_must_not(queries: list[ElasticQuery], depth: int) -> list[FilterTree | PathFilter]:
+def _translate_must_not(queries: list[ElasticQuery]) -> list[FilterTree | PathFilter]:
     """Translate must_not clauses by inverting operators where possible."""
-    return [_negate_node(_translate_node(q, depth)) for q in queries]
+    return [_negate_node(_translate_node(q)) for q in queries]
 
 
-def _translate_node(query: ElasticQuery, depth: int = 1) -> FilterTree | PathFilter:
+def _translate_node(query: ElasticQuery) -> FilterTree | PathFilter:
     """Recursively translate a single ES DSL node."""
-    if depth > FilterTree.MAX_DEPTH:
-        raise ValueError(f"ElasticQuery nesting exceeds MAX_DEPTH={FilterTree.MAX_DEPTH}")
-
     match query:
         case TermQuery():
             return _translate_term(query)
@@ -279,19 +249,19 @@ def _translate_node(query: ElasticQuery, depth: int = 1) -> FilterTree | PathFil
         case ExistsQuery():
             return _translate_exists(query)
         case BoolQuery():
-            return _translate_bool(query, depth)
+            return _translate_bool(query)
         case _:
             raise ValueError(f"Unsupported ES DSL query type: {type(query)}")
 
 
-def _translate_bool(query: BoolQuery, depth: int) -> FilterTree | PathFilter:
+def _translate_bool(query: BoolQuery) -> FilterTree | PathFilter:
     """Translate a bool query into a FilterTree."""
     clause = query.bool
     children: list[FilterTree | PathFilter] = []
 
-    must_children = [_translate_node(q, depth + 1) for q in clause.must]
-    should_children = [_translate_node(q, depth + 1) for q in clause.should]
-    must_not_children = _translate_must_not(clause.must_not, depth + 1)
+    must_children = [_translate_node(q) for q in clause.must]
+    should_children = [_translate_node(q) for q in clause.should]
+    must_not_children = _translate_must_not(clause.must_not)
 
     # Build sub-trees for each clause type
     if clause.must and clause.should:
@@ -331,7 +301,7 @@ def elastic_to_filter_tree(es_query: ElasticQuery) -> FilterTree:
     Raises:
         ValueError: If the query structure is invalid or exceeds MAX_DEPTH.
     """
-    result = _translate_node(es_query, depth=1)
+    result = _translate_node(es_query)
     if isinstance(result, PathFilter):
         return FilterTree(op=BooleanOperator.AND, children=[result])
     return result
