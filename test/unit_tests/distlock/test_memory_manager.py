@@ -10,6 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from threading import Lock
+from time import sleep
+
 import pytest
 
 from orchestrator.distlock.managers.memory_distlock_manager import MemoryDistLockManager
@@ -110,3 +113,39 @@ class TestMemoryDistLockManagerReleaseSync:
         manager.release_sync(lock)
         new_lock = asyncio.run(manager.get_lock("resource-k", 60))
         assert new_lock is not None
+
+
+class TestMemoryDistLockManagerExpiration:
+    async def test_expired_lock_is_removed_by_background_thread(self, manager):
+        lock = await manager.get_lock("short-lived", 0)
+        assert lock is not None
+        sleep(0.2)
+        assert "short-lived" not in MemoryDistLockManager.locks
+
+    async def test_non_expired_lock_is_not_removed(self, manager):
+        lock = await manager.get_lock("long-lived", 60)
+        assert lock is not None
+        sleep(0.2)
+        assert "long-lived" in MemoryDistLockManager.locks
+
+    async def test_multiple_locks_only_expired_ones_removed(self, manager):
+        await manager.get_lock("expires-soon", 0)
+        await manager.get_lock("stays-alive", 60)
+        sleep(0.2)
+        assert "expires-soon" not in MemoryDistLockManager.locks
+        assert "stays-alive" in MemoryDistLockManager.locks
+
+    async def test_lock_can_be_reacquired_after_expiration(self, manager):
+        lock = await manager.get_lock("reacquire-me", 0)
+        assert lock is not None
+        sleep(0.2)
+        new_lock = await manager.get_lock("reacquire-me", 60)
+        assert new_lock is not None
+
+
+class TestMemoryDistLockManagerReleaseLockUnknown:
+    async def test_release_lock_unknown_lock_raises(self, manager):
+        unknown_lock = Lock()
+        unknown_lock.acquire()
+        with pytest.raises(UnboundLocalError):
+            await manager.release_lock(unknown_lock)

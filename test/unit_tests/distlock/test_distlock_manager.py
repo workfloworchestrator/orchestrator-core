@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -113,6 +114,13 @@ class TestWrappedDistLockManagerNoWrappee:
         wrapped = WrappedDistLockManager()
         result = wrapped.connect_redis
         assert result is None
+
+    def test_attr_with_underscore_logs_warning_when_no_wrappee(self, caplog):
+        wrapped = WrappedDistLockManager()
+        with caplog.at_level(logging.WARNING, logger="orchestrator.distlock"):
+            result = wrapped.some_method
+        assert result is None
+        assert "No DistLockManager configured" in caplog.text
 
     def test_attr_without_underscore_raises_runtime_warning_when_no_wrappee(self):
         wrapped = WrappedDistLockManager()
