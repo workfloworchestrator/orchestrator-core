@@ -228,6 +228,7 @@ class TestMapToType:
         with caplog.at_level(logging.WARNING, logger="orchestrator.utils.helpers"):
             result = map_to_type(Foo, {"x": 1, "unknown": 99}, warn_if_missing=False)
         assert result.x == 1
+        assert caplog.records == []
 
 
 class TestMapValue:

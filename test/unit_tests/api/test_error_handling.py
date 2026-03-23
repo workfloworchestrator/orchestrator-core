@@ -86,10 +86,6 @@ class TestRaiseStatus:
         assert exc_info.value.status_code == status_code
         assert exc_info.value.title == expected_phrase
 
-    def test_raises_problem_detail_exception(self):
-        with pytest.raises(ProblemDetailException):
-            raise_status(400)
-
     def test_detail_passed_through(self):
         with pytest.raises(ProblemDetailException) as exc_info:
             raise_status(404, detail="Resource not found")

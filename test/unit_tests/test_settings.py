@@ -61,7 +61,7 @@ class TestLifecycleValidationMode:
 
 
 class TestAppSettings:
-    def setup_method(self, monkeypatch: pytest.MonkeyPatch | None = None) -> None:
+    def setup_method(self) -> None:
         self.settings = AppSettings()
 
     def test_default_testing_is_true(self) -> None:

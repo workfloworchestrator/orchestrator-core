@@ -28,6 +28,12 @@ from orchestrator.db.database import (
 from orchestrator.utils.json import json_dumps, json_loads
 
 
+def _make_db(disabled: bool = False) -> MagicMock:
+    db = MagicMock()
+    db.session.info = {"disabled": disabled}
+    return db
+
+
 class TestSearchQuery:
     def test_search_query_is_subclass_of_query(self):
         assert issubclass(SearchQuery, Query)
@@ -120,39 +126,34 @@ class TestWrappedSession:
 
 
 class TestDisableCommit:
-    def _make_db(self, disabled: bool = False) -> MagicMock:
-        db = MagicMock()
-        db.session.info = {"disabled": disabled}
-        return db
-
     def test_disable_commit_sets_disabled_true(self):
-        db = self._make_db(disabled=False)
+        db = _make_db(disabled=False)
         log = MagicMock()
         with disable_commit(db, log):
             assert db.session.info["disabled"] is True
 
     def test_disable_commit_restores_disabled_false_after_exit(self):
-        db = self._make_db(disabled=False)
+        db = _make_db(disabled=False)
         log = MagicMock()
         with disable_commit(db, log):
             pass
         assert db.session.info["disabled"] is False
 
     def test_disable_commit_sets_logger_in_session_info(self):
-        db = self._make_db(disabled=False)
+        db = _make_db(disabled=False)
         log = MagicMock()
         with disable_commit(db, log):
             assert db.session.info["logger"] is log
 
     def test_disable_commit_clears_logger_after_exit(self):
-        db = self._make_db(disabled=False)
+        db = _make_db(disabled=False)
         log = MagicMock()
         with disable_commit(db, log):
             pass
         assert db.session.info["logger"] is None
 
     def test_disable_commit_logs_debug_on_entry_and_exit(self):
-        db = self._make_db(disabled=False)
+        db = _make_db(disabled=False)
         log = MagicMock()
         with disable_commit(db, log):
             pass
@@ -160,7 +161,7 @@ class TestDisableCommit:
 
     def test_disable_commit_nested_already_disabled_does_not_restore(self):
         """When commit is already disabled (nested), we must not re-enable it on exit."""
-        db = self._make_db(disabled=True)
+        db = _make_db(disabled=True)
         log = MagicMock()
         with disable_commit(db, log):
             assert db.session.info["disabled"] is True
@@ -168,14 +169,14 @@ class TestDisableCommit:
         assert db.session.info["disabled"] is True
 
     def test_disable_commit_nested_does_not_log(self):
-        db = self._make_db(disabled=True)
+        db = _make_db(disabled=True)
         log = MagicMock()
         with disable_commit(db, log):
             pass
         log.debug.assert_not_called()
 
     def test_disable_commit_restores_on_exception(self):
-        db = self._make_db(disabled=False)
+        db = _make_db(disabled=False)
         log = MagicMock()
         with pytest.raises(ValueError):
             with disable_commit(db, log):
@@ -183,7 +184,7 @@ class TestDisableCommit:
         assert db.session.info["disabled"] is False
 
     def test_disable_commit_clears_logger_on_exception(self):
-        db = self._make_db(disabled=False)
+        db = _make_db(disabled=False)
         log = MagicMock()
         with pytest.raises(RuntimeError):
             with disable_commit(db, log):
@@ -192,27 +193,22 @@ class TestDisableCommit:
 
 
 class TestTransactional:
-    def _make_db(self, disabled: bool = False) -> MagicMock:
-        db = MagicMock()
-        db.session.info = {"disabled": disabled}
-        return db
-
     def test_transactional_commits_on_success(self):
-        db = self._make_db()
+        db = _make_db()
         log = MagicMock()
         with transactional(db, log):
             pass
         db.session.commit.assert_called_once()
 
     def test_transactional_always_calls_rollback_in_finally(self):
-        db = self._make_db()
+        db = _make_db()
         log = MagicMock()
         with transactional(db, log):
             pass
         db.session.rollback.assert_called_once()
 
     def test_transactional_rollback_called_on_exception(self):
-        db = self._make_db()
+        db = _make_db()
         log = MagicMock()
         with pytest.raises(RuntimeError):
             with transactional(db, log):
@@ -220,7 +216,7 @@ class TestTransactional:
         db.session.rollback.assert_called_once()
 
     def test_transactional_does_not_commit_on_exception(self):
-        db = self._make_db()
+        db = _make_db()
         log = MagicMock()
         with pytest.raises(RuntimeError):
             with transactional(db, log):
@@ -228,14 +224,14 @@ class TestTransactional:
         db.session.commit.assert_not_called()
 
     def test_transactional_reraises_exception(self):
-        db = self._make_db()
+        db = _make_db()
         log = MagicMock()
         with pytest.raises(ValueError, match="original error"):
             with transactional(db, log):
                 raise ValueError("original error")
 
     def test_transactional_logs_warning_on_exception(self):
-        db = self._make_db()
+        db = _make_db()
         log = MagicMock()
         with pytest.raises(RuntimeError):
             with transactional(db, log):
@@ -243,7 +239,7 @@ class TestTransactional:
         log.warning.assert_called_once()
 
     def test_transactional_logs_debug_commit_on_success(self):
-        db = self._make_db()
+        db = _make_db()
         log = MagicMock()
         with transactional(db, log):
             pass
@@ -253,7 +249,7 @@ class TestTransactional:
         assert any("ommit" in msg for msg in debug_messages)
 
     def test_transactional_disables_commit_inside_block(self):
-        db = self._make_db()
+        db = _make_db()
         log = MagicMock()
         captured = {}
         with transactional(db, log):
@@ -261,7 +257,7 @@ class TestTransactional:
         assert captured["disabled"] is True
 
     def test_transactional_reenables_commit_after_block(self):
-        db = self._make_db()
+        db = _make_db()
         log = MagicMock()
         with transactional(db, log):
             pass
