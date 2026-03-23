@@ -436,7 +436,6 @@ def create_product_blocks(conn: sa.engine.Connection, new: dict) -> dict[str, UU
     Args:
         conn: DB connection as available in migration main file
         new: an dict of your workflow data
-        products: list of product block ids to link these product blocks to
 
     Example:
         >>> new = {

@@ -30,7 +30,7 @@ Run the unit-test suite to verify a correct setup.
 
 ### Step 1 - Create a database
 
-Setup a postgres database (see [Getting Started](../getting-started/base.md#step-2---setup-the-database)).
+Setup a postgres database (see [Getting Started](../getting-started/base.md#step-2-setup-the-database)).
 
 Create a database and user:
 

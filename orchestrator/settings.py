@@ -24,7 +24,6 @@ from oauth2_lib.fastapi import OIDCUserModel
 from oauth2_lib.settings import oauth2lib_settings
 from orchestrator.services.settings_env_variables import expose_settings
 from orchestrator.utils.auth import Authorizer
-from orchestrator.utils.expose_settings import SecretStr as OrchSecretStr
 from pydantic_forms.types import strEnum
 
 SecretRedisDsn = Secret[RedisDsn]
@@ -44,7 +43,7 @@ class LifecycleValidationMode(strEnum):
 
 class AppSettings(BaseSettings):
     TESTING: bool = True
-    SESSION_SECRET: OrchSecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
+    SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
     CORS_ORIGINS: str = "*"
     CORS_ALLOW_METHODS: list[str] = ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS", "HEAD"]
     CORS_ALLOW_HEADERS: list[str] = ["If-None-Match", "Authorization", "If-Match", "Content-Type"]
@@ -73,7 +72,6 @@ class AppSettings(BaseSettings):
     MAIL_PORT: int = 25
     MAIL_STARTTLS: bool = False
     CACHE_URI: SecretRedisDsn = "redis://localhost:6379/0"  # type: ignore
-    CACHE_HMAC_SECRET: OrchSecretStr | None = None  # HMAC signing key, used when pickling results in the cache
     REDIS_RETRY_COUNT: NonNegativeInt = Field(
         2, description="Number of retries for redis connection errors/timeouts, 0 to disable"
     )  # More info: https://redis-py.readthedocs.io/en/stable/retry.html
@@ -93,8 +91,10 @@ class AppSettings(BaseSettings):
     DISABLE_INSYNC_CHECK: bool = False
     DEFAULT_PRODUCT_WORKFLOWS: list[str] = ["modify_note"]
     SKIP_MODEL_FOR_MIGRATION_DB_DIFF: list[str] = []
-    SERVE_GRAPHQL_UI: bool = True
-    FEDERATION_ENABLED: bool = False
+    SERVE_GRAPHQL_UI: str | None = "graphiql"
+    FEDERATION_VERSION: Literal[
+        "2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8", "2.9", "2.10", "2.11"
+    ] = "2.9"
     DEFAULT_CUSTOMER_FULLNAME: str = "Default::Orchestrator-Core Customer"
     DEFAULT_CUSTOMER_SHORTCODE: str = "default-cust"
     DEFAULT_CUSTOMER_IDENTIFIER: str = "59289a57-70fb-4ff5-9c93-10fe67b12434"

@@ -63,25 +63,9 @@ Interact with the application database. By default, does nothing, specify `main.
         - upgrade
       heading_level: 3
 
-### migrate-domain-models
+### `migrate-domain-models`
 
-The `main.py db migrate-domain-models` command creates a revision based on the
-difference between domain models in the source code and those that are defined
-in the database.
-
-Arguments
-
-message - Migration name [default: None] [required]
-
-Options
-
---test | --no-test - Optional boolean if you don't want to generate a
-migration file [default: no-test]
---inputs -  stringified dict to prefill inputs [default: {}]
---updates - stringified dict to map updates instead of
-using inputs [default: {}]
-
-The `python main.py db migrate-domain-model` CLI command is used to
+The `migrate-domain-models` CLI command is used to
 automatically generate the data migrations that you'll need when you add or
 change a Domain Model.  It will inspect your DB and the existing domain models,
 analyse the differences and it will generate an Alembic data migration in the
