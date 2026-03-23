@@ -49,7 +49,8 @@ class ProductType:
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
-        filter_by_with_related_subscriptions = (filter_by or []) + [GraphqlFilter(field="product", value=self.name)]
+        filter_by_with_related_subscriptions = (filter_by or []) + [
+            GraphqlFilter(field="productId", value=str(self.product_id))]
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
 
     @strawberry.field(description="Returns list of all nested productblock names")  # type: ignore
