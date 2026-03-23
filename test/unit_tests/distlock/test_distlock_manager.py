@@ -181,6 +181,15 @@ class TestWrappedDistLockManagerUpdate:
 
 
 class TestInitDistLockManager:
+    @pytest.fixture(autouse=True)
+    def _save_restore_wrapped_manager(self):
+        """Preserve the global wrapped_distlock_manager state across tests."""
+        from orchestrator.distlock import wrapped_distlock_manager
+
+        original = wrapped_distlock_manager.wrapped_distlock_manager
+        yield
+        wrapped_distlock_manager.wrapped_distlock_manager = original
+
     def test_init_distlock_manager_returns_distlock_manager(self):
         from orchestrator.distlock import init_distlock_manager
 
