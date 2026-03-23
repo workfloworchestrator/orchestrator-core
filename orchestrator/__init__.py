@@ -22,10 +22,9 @@ logger = get_logger(__name__)
 
 logger.info("Starting the orchestrator", version=__version__)
 
+from orchestrator.app import OrchestratorCore
 from orchestrator.llm_settings import llm_settings
 from orchestrator.settings import app_settings
-
-from orchestrator.app import OrchestratorCore
 from orchestrator.workflow import (
     begin,
     conditional,
