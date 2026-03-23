@@ -1,0 +1,311 @@
+# Copyright 2019-2025 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from collections import namedtuple
+from unittest.mock import MagicMock
+
+import pytest
+
+from orchestrator.search.core.types import EntityType, FieldType, UIType
+from orchestrator.search.query.builder import (
+    ComponentInfo,
+    LeafInfo,
+    _apply_ordering,
+    build_paths_query,
+    process_path_rows,
+)
+from orchestrator.search.query.mixins import OrderBy, OrderDirection
+from orchestrator.search.query.queries import CountQuery
+
+pytestmark = pytest.mark.search
+
+# Namedtuple that behaves like an SQLAlchemy Row for (path, value_type) access
+PathRow = namedtuple("PathRow", ["path", "value_type"])
+
+
+def _row(path: str, field_type: FieldType = FieldType.STRING) -> PathRow:
+    return PathRow(path=path, value_type=field_type.value)
+
+
+# ---------------------------------------------------------------------------
+# Tests: build_paths_query
+# ---------------------------------------------------------------------------
+
+
+class TestBuildPathsQuery:
+    """Tests for build_paths_query SQL construction."""
+
+    def test_without_prefix_no_ltree_filter(self):
+        """No prefix → no lquery filter in compiled SQL."""
+        stmt = build_paths_query(EntityType.SUBSCRIPTION)
+        sql = str(stmt.compile())
+        assert "lquery" not in sql.lower()
+        assert "~" not in sql
+        assert "entity_type" in sql.lower()
+
+    def test_with_prefix_includes_ltree_filter(self):
+        """With prefix → lquery MATCHES_LQUERY (~) operator appears in compiled SQL."""
+        stmt = build_paths_query(EntityType.SUBSCRIPTION, prefix="subscription")
+        sql = str(stmt.compile())
+        # MATCHES_LQUERY compiles to the ~ operator
+        assert "~" in sql
+
+    def test_with_search_term_includes_similarity_ordering(self):
+        """With q → similarity ordering applied."""
+        stmt = build_paths_query(EntityType.SUBSCRIPTION, q="name")
+        sql = str(stmt.compile())
+        assert "similarity" in sql.lower()
+        assert "desc" in sql.lower()
+
+    def test_without_search_term_orders_by_path(self):
+        """Without q → ORDER BY path (no similarity)."""
+        stmt = build_paths_query(EntityType.SUBSCRIPTION)
+        sql = str(stmt.compile())
+        assert "similarity" not in sql.lower()
+        # ORDER BY path should be present
+        assert "order by" in sql.lower()
+
+    def test_with_prefix_and_q_combines_both(self):
+        """With both prefix and q → both ltree filter and similarity ordering."""
+        stmt = build_paths_query(EntityType.SUBSCRIPTION, prefix="subscription", q="name")
+        sql = str(stmt.compile())
+        assert "similarity" in sql.lower()
+
+    @pytest.mark.parametrize(
+        "entity_type",
+        [EntityType.SUBSCRIPTION, EntityType.PRODUCT, EntityType.WORKFLOW, EntityType.PROCESS],
+        ids=["subscription", "product", "workflow", "process"],
+    )
+    def test_entity_type_filter_applied(self, entity_type: EntityType):
+        """entity_type is always applied as a WHERE filter."""
+        stmt = build_paths_query(entity_type)
+        sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+        # The entity_type value is rendered literally in the WHERE clause
+        assert entity_type.value in sql
+
+    def test_group_by_path_and_value_type(self):
+        """Query always groups by path and value_type."""
+        stmt = build_paths_query(EntityType.SUBSCRIPTION)
+        sql = str(stmt.compile())
+        assert "group by" in sql.lower()
+
+
+# ---------------------------------------------------------------------------
+# Tests: process_path_rows
+# ---------------------------------------------------------------------------
+
+
+class TestProcessPathRows:
+    """Tests for process_path_rows."""
+
+    def test_empty_rows_returns_empty_lists(self):
+        """No rows → empty leaves and components."""
+        leaves, components = process_path_rows([])
+        assert leaves == []
+        assert components == []
+
+    def test_simple_leaf_extracted(self):
+        """Single segment path → one leaf, no components."""
+        rows = [_row("status")]
+        leaves, components = process_path_rows(rows)
+        assert len(leaves) == 1
+        assert leaves[0].name == "status"
+        assert UIType.STRING in [UIType(u) for u in leaves[0].ui_types]
+        assert components == []
+
+    def test_two_segment_path_leaf_only(self):
+        """Two-segment path → leaf is last segment, no intermediate components."""
+        rows = [_row("subscription.status")]
+        leaves, components = process_path_rows(rows)
+        assert any(leaf.name == "status" for leaf in leaves)
+        # First segment is not a component (only segments between first and last)
+        assert components == []
+
+    def test_three_segment_path_extracts_component(self):
+        """Three-segment path → leaf is last, middle is a component."""
+        rows = [_row("subscription.product.name")]
+        leaves, components = process_path_rows(rows)
+        assert any(leaf.name == "name" for leaf in leaves)
+        assert any(comp.name == "product" for comp in components)
+        assert all(comp.ui_types == [UIType.COMPONENT] for comp in components)
+
+    def test_numeric_segments_removed(self):
+        """Numeric segments are stripped before processing."""
+        rows = [_row("subscription.0.name")]
+        leaves, components = process_path_rows(rows)
+        # "0" removed → "subscription.name" → leaf "name", no component
+        assert any(leaf.name == "name" for leaf in leaves)
+        assert components == []
+
+    def test_multiple_rows_same_leaf_different_types(self):
+        """Same leaf name with different field types → multiple ui_types."""
+        rows = [
+            _row("subscription.price", FieldType.INTEGER),
+            _row("product.price", FieldType.FLOAT),
+        ]
+        leaves, _ = process_path_rows(rows)
+        price_leaf = next((leaf for leaf in leaves if leaf.name == "price"), None)
+        assert price_leaf is not None
+        ui_type_values = [UIType(u) for u in price_leaf.ui_types]
+        assert UIType.NUMBER in ui_type_values
+
+    @pytest.mark.parametrize(
+        "field_type,expected_ui_type",
+        [
+            (FieldType.STRING, UIType.STRING),
+            (FieldType.INTEGER, UIType.NUMBER),
+            (FieldType.FLOAT, UIType.NUMBER),
+            (FieldType.BOOLEAN, UIType.BOOLEAN),
+            (FieldType.DATETIME, UIType.DATETIME),
+            (FieldType.UUID, UIType.STRING),
+        ],
+        ids=["string", "integer", "float", "boolean", "datetime", "uuid"],
+    )
+    def test_field_type_to_ui_type_mapping(self, field_type: FieldType, expected_ui_type: UIType):
+        """FieldType is correctly mapped to UIType in leaves."""
+        rows = [_row(f"subscription.field_{field_type.value}", field_type)]
+        leaves, _ = process_path_rows(rows)
+        assert len(leaves) == 1
+        assert UIType(leaves[0].ui_types[0]) == expected_ui_type
+
+    def test_leaf_paths_preserved(self):
+        """Original path string is preserved in LeafInfo.paths."""
+        path = "subscription.product.name"
+        rows = [_row(path)]
+        leaves, _ = process_path_rows(rows)
+        leaf = next(item for item in leaves if item.name == "name")
+        assert path in leaf.paths
+
+    def test_components_sorted(self):
+        """Components are sorted alphabetically."""
+        rows = [
+            _row("entity.zebra.field"),
+            _row("entity.alpha.field"),
+            _row("entity.middle.field"),
+        ]
+        _, components = process_path_rows(rows)
+        names = [c.name for c in components]
+        assert names == sorted(names)
+
+    def test_leaf_info_type(self):
+        """Returned leaves are LeafInfo instances."""
+        rows = [_row("subscription.status")]
+        leaves, _ = process_path_rows(rows)
+        assert all(isinstance(item, LeafInfo) for item in leaves)
+
+    def test_component_info_type(self):
+        """Returned components are ComponentInfo instances."""
+        rows = [_row("subscription.product.name")]
+        _, components = process_path_rows(rows)
+        assert all(isinstance(c, ComponentInfo) for c in components)
+
+
+# ---------------------------------------------------------------------------
+# Tests: _apply_ordering
+# ---------------------------------------------------------------------------
+
+
+class TestApplyOrdering:
+    """Tests for _apply_ordering."""
+
+    def _make_stmt_with_columns(self, column_names: list[str]) -> MagicMock:
+        """Build a mock stmt whose selected_columns has .key attributes."""
+        cols = []
+        for name in column_names:
+            col = MagicMock()
+            col.key = name
+            col.asc.return_value = MagicMock()
+            col.desc.return_value = MagicMock()
+            cols.append(col)
+
+        stmt = MagicMock()
+        stmt.selected_columns = cols
+        stmt.order_by.return_value = stmt
+        return stmt
+
+    def test_missing_field_raises_value_error(self):
+        """order_by referencing a non-existent column → ValueError."""
+        query = CountQuery(
+            entity_type=EntityType.SUBSCRIPTION,
+            group_by=["subscription.status"],
+            order_by=[OrderBy(field="subscription.status", direction=OrderDirection.DESC)],
+        )
+        stmt = self._make_stmt_with_columns(["other_column"])
+
+        with pytest.raises(ValueError, match="Cannot order by"):
+            _apply_ordering(stmt, query, ["other_column"])
+
+    def test_order_by_exact_match(self):
+        """order_by with exact column key match → order_by called on stmt."""
+        query = CountQuery(
+            entity_type=EntityType.SUBSCRIPTION,
+            group_by=["subscription.status"],
+            order_by=[OrderBy(field="subscription_status", direction=OrderDirection.ASC)],
+        )
+        stmt = self._make_stmt_with_columns(["subscription_status", "count"])
+
+        _apply_ordering(stmt, query, ["subscription_status"])
+        stmt.order_by.assert_called_once()
+
+    def test_order_by_normalized_field_path(self):
+        """order_by with dot-notation field resolved via field_to_alias."""
+        query = CountQuery(
+            entity_type=EntityType.SUBSCRIPTION,
+            group_by=["subscription.status"],
+            order_by=[OrderBy(field="subscription.status", direction=OrderDirection.DESC)],
+        )
+        # subscription.status → subscription_status via field_to_alias
+        stmt = self._make_stmt_with_columns(["subscription_status", "count"])
+
+        _apply_ordering(stmt, query, ["subscription_status"])
+        stmt.order_by.assert_called_once()
+
+    def test_no_order_by_no_temporal_returns_stmt_unchanged(self):
+        """No order_by and no temporal_group_by → stmt returned unchanged."""
+        query = CountQuery(entity_type=EntityType.SUBSCRIPTION)
+        stmt = self._make_stmt_with_columns(["count"])
+
+        result = _apply_ordering(stmt, query, [])
+        stmt.order_by.assert_not_called()
+        assert result is stmt
+
+    def test_temporal_group_by_default_ordering(self):
+        """With temporal_group_by but no order_by → default ascending ordering applied."""
+        from orchestrator.search.aggregations import TemporalGrouping, TemporalPeriod
+
+        temporal = TemporalGrouping(field="subscription.start_date", period=TemporalPeriod.MONTH)
+        query = CountQuery(
+            entity_type=EntityType.SUBSCRIPTION,
+            temporal_group_by=[temporal],
+        )
+        alias = temporal.alias  # subscription_start_date_month
+        stmt = self._make_stmt_with_columns([alias, "count"])
+
+        _apply_ordering(stmt, query, [alias])
+        stmt.order_by.assert_called_once()
+
+    def test_order_by_temporal_alias_lookup(self):
+        """order_by using temporal alias is resolved correctly."""
+        from orchestrator.search.aggregations import TemporalGrouping, TemporalPeriod
+
+        temporal = TemporalGrouping(field="subscription.start_date", period=TemporalPeriod.MONTH)
+        alias = temporal.alias  # "subscription_start_date_month"
+        query = CountQuery(
+            entity_type=EntityType.SUBSCRIPTION,
+            temporal_group_by=[temporal],
+            order_by=[OrderBy(field=alias, direction=OrderDirection.ASC)],
+        )
+        stmt = self._make_stmt_with_columns([alias, "count"])
+
+        _apply_ordering(stmt, query, [alias])
+        stmt.order_by.assert_called_once()

@@ -11,11 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest.mock import MagicMock
+
 import pytest
 from pydantic import ValidationError
 
 from orchestrator.search.aggregations import (
     AggregationType,
+    BaseAggregation,
     CountAggregation,
     FieldAggregation,
     TemporalGrouping,
@@ -348,3 +351,153 @@ class TestQueryDiscriminator:
         with pytest.raises(ValidationError) as exc:
             adapter.validate_python(data)
         assert "query_type" in str(exc.value)
+
+
+class TestAggregationBase:
+    """Test aggregation base classes from aggregations/base.py."""
+
+    # -----------------------------------------------------------------------
+    # BaseAggregation.create
+    # -----------------------------------------------------------------------
+
+    def test_create_count_aggregation(self):
+        """BaseAggregation.create with type=count returns CountAggregation."""
+        result = BaseAggregation.create({"type": "count", "alias": "total"})
+        assert isinstance(result, CountAggregation)
+        assert result.alias == "total"
+        assert result.type == AggregationType.COUNT
+
+    @pytest.mark.parametrize(
+        "agg_type",
+        [AggregationType.SUM, AggregationType.AVG, AggregationType.MIN, AggregationType.MAX],
+        ids=["sum", "avg", "min", "max"],
+    )
+    def test_create_field_aggregation(self, agg_type: AggregationType):
+        """BaseAggregation.create with field aggregation types returns FieldAggregation."""
+        result = BaseAggregation.create({"type": agg_type.value, "alias": "result", "field": "subscription.price"})
+        assert isinstance(result, FieldAggregation)
+        assert result.type == agg_type
+        assert result.field == "subscription.price"
+
+    def test_create_invalid_type_raises(self):
+        """BaseAggregation.create with unknown type raises ValidationError."""
+        from pydantic import ValidationError as PydanticValidationError
+
+        with pytest.raises(PydanticValidationError):
+            BaseAggregation.create({"type": "unknown", "alias": "x"})
+
+    # -----------------------------------------------------------------------
+    # BaseAggregation.field_to_alias
+    # -----------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        "field_path,expected_alias",
+        [
+            ("subscription.name", "subscription_name"),
+            ("product.serial-number", "product_serial_number"),
+            ("subscription.product.name", "subscription_product_name"),
+            ("simple", "simple"),
+            ("a.b-c.d", "a_b_c_d"),
+        ],
+        ids=["dot", "dash", "multi-dot", "no-separator", "mixed"],
+    )
+    def test_field_to_alias(self, field_path: str, expected_alias: str):
+        """field_to_alias replaces dots and dashes with underscores."""
+        assert BaseAggregation.field_to_alias(field_path) == expected_alias
+
+    # -----------------------------------------------------------------------
+    # CountAggregation.to_expression
+    # -----------------------------------------------------------------------
+
+    def test_count_aggregation_to_expression(self):
+        """CountAggregation.to_expression returns a labeled func.count expression."""
+        agg = CountAggregation(type=AggregationType.COUNT, alias="total")
+        mock_col = MagicMock()
+        label = agg.to_expression(mock_col)
+        # The label key matches the alias
+        assert label.key == "total"
+
+    # -----------------------------------------------------------------------
+    # FieldAggregation.to_expression
+    # -----------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        "agg_type,expected_func",
+        [
+            (AggregationType.SUM, "sum"),
+            (AggregationType.AVG, "avg"),
+            (AggregationType.MIN, "min"),
+            (AggregationType.MAX, "max"),
+        ],
+        ids=["sum", "avg", "min", "max"],
+    )
+    def test_field_aggregation_to_expression(self, agg_type: AggregationType, expected_func: str):
+        """FieldAggregation.to_expression returns a labeled expression for each agg type."""
+        agg = FieldAggregation(type=agg_type, field="subscription.price", alias="result")  # type: ignore[arg-type]
+        pivot_cols = MagicMock()
+        # hasattr returns True for the alias
+        pivot_cols.subscription_price = MagicMock()
+
+        label = agg.to_expression(pivot_cols)
+        # The label key matches the alias
+        assert label.key == "result"
+
+    def test_field_aggregation_missing_field_raises_value_error(self):
+        """FieldAggregation.to_expression raises ValueError when field not in pivot CTE."""
+        agg = FieldAggregation(type=AggregationType.SUM, field="subscription.price", alias="result")
+        # Use a plain object with no matching attribute
+        pivot_cols = object()
+
+        with pytest.raises(ValueError, match="not found in pivot CTE columns"):
+            agg.to_expression(pivot_cols)
+
+    # -----------------------------------------------------------------------
+    # TemporalGrouping.alias
+    # -----------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        "field,period,expected_alias",
+        [
+            ("subscription.start_date", TemporalPeriod.MONTH, "subscription_start_date_month"),
+            ("subscription.end_date", TemporalPeriod.YEAR, "subscription_end_date_year"),
+            ("process.created_at", TemporalPeriod.DAY, "process_created_at_day"),
+            ("subscription.start_date", TemporalPeriod.QUARTER, "subscription_start_date_quarter"),
+        ],
+        ids=["month", "year", "day", "quarter"],
+    )
+    def test_temporal_grouping_alias(self, field: str, period: TemporalPeriod, expected_alias: str):
+        """TemporalGrouping.alias returns field_to_alias(field) + '_' + period.value."""
+        tg = TemporalGrouping(field=field, period=period)
+        assert tg.alias == expected_alias
+
+    # -----------------------------------------------------------------------
+    # TemporalGrouping.to_expression
+    # -----------------------------------------------------------------------
+
+    def test_temporal_grouping_to_expression_returns_3_tuple(self):
+        """TemporalGrouping.to_expression returns (select_col, group_col, col_name) tuple."""
+        tg = TemporalGrouping(field="subscription.start_date", period=TemporalPeriod.MONTH)
+        pivot_cols = MagicMock()
+        pivot_cols.subscription_start_date = MagicMock()
+
+        result = tg.to_expression(pivot_cols)
+        assert isinstance(result, tuple)
+        assert len(result) == 3
+
+    def test_temporal_grouping_to_expression_col_name_matches_alias(self):
+        """Third element of to_expression tuple is the alias string."""
+        tg = TemporalGrouping(field="subscription.start_date", period=TemporalPeriod.MONTH)
+        pivot_cols = MagicMock()
+        pivot_cols.subscription_start_date = MagicMock()
+
+        select_col, group_col, col_name = tg.to_expression(pivot_cols)
+        assert col_name == tg.alias
+
+    def test_temporal_grouping_to_expression_select_col_labeled(self):
+        """First element of to_expression tuple has the alias as its label key."""
+        tg = TemporalGrouping(field="subscription.start_date", period=TemporalPeriod.MONTH)
+        pivot_cols = MagicMock()
+        pivot_cols.subscription_start_date = MagicMock()
+
+        select_col, _, col_name = tg.to_expression(pivot_cols)
+        assert select_col.key == col_name
