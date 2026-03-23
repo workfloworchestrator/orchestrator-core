@@ -877,6 +877,7 @@ def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bo
                 global_lock=engine_settings.global_lock,
                 new_status=new_global_lock,
             )
+            db.session.rollback()
 
         return engine_settings
 
