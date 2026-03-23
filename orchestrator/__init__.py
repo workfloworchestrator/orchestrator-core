@@ -13,6 +13,8 @@
 
 """This is the orchestrator workflow engine."""
 
+# ruff: noqa: I001  (import order matters — app_settings must resolve before app.py)
+
 __version__ = "5.0.0a7"
 
 
@@ -22,9 +24,9 @@ logger = get_logger(__name__)
 
 logger.info("Starting the orchestrator", version=__version__)
 
-from orchestrator.app import OrchestratorCore
 from orchestrator.llm_settings import llm_settings
 from orchestrator.settings import app_settings
+from orchestrator.app import OrchestratorCore
 from orchestrator.workflow import (
     begin,
     conditional,

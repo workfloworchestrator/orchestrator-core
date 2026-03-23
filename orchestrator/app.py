@@ -54,7 +54,6 @@ from orchestrator.graphql import Mutation, Query, create_graphql_router
 from orchestrator.graphql.schema import ContextGetterFactory
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.types import ScalarOverrideType, StrawberryModelType
-from orchestrator.llm_settings import llm_settings
 from orchestrator.log_config import LOGGER_OVERRIDES
 from orchestrator.metrics import ORCHESTRATOR_METRICS_REGISTRY, initialize_default_metrics
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
@@ -151,6 +150,8 @@ class OrchestratorCore(FastAPI):
         self.include_router(api_router, prefix="/api")
 
         init_database(base_settings)
+
+        from orchestrator.llm_settings import llm_settings
 
         if llm_settings.SEARCH_ENABLED:
             logger.info("Running search migration")
