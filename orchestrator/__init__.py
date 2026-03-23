@@ -25,12 +25,7 @@ logger.info("Starting the orchestrator", version=__version__)
 from orchestrator.llm_settings import llm_settings
 from orchestrator.settings import app_settings
 
-if llm_settings.SEARCH_ENABLED or llm_settings.AGENT_ENABLED:
-
-    from orchestrator.agentic_app import LLMOrchestratorCore as OrchestratorCore
-else:
-    from orchestrator.app import OrchestratorCore  # type: ignore[assignment]
-
+from orchestrator.app import OrchestratorCore
 from orchestrator.workflow import (
     begin,
     conditional,

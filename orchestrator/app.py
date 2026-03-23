@@ -54,6 +54,7 @@ from orchestrator.graphql import Mutation, Query, create_graphql_router
 from orchestrator.graphql.schema import ContextGetterFactory
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.types import ScalarOverrideType, StrawberryModelType
+from orchestrator.llm_settings import llm_settings
 from orchestrator.log_config import LOGGER_OVERRIDES
 from orchestrator.metrics import ORCHESTRATOR_METRICS_REGISTRY, initialize_default_metrics
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
@@ -150,6 +151,21 @@ class OrchestratorCore(FastAPI):
         self.include_router(api_router, prefix="/api")
 
         init_database(base_settings)
+
+        if llm_settings.SEARCH_ENABLED:
+            logger.info("Running search migration")
+            try:
+                from orchestrator.search.llm_migration import run_migration
+
+                with db.engine.begin() as connection:
+                    run_migration(connection)
+            except ImportError as e:
+                logger.error(
+                    "Unable to run search migration. Please install search dependencies: "
+                    "`pip install orchestrator-core[search]`",
+                    error=str(e),
+                )
+                raise
 
         self.add_middleware(ClearStructlogContextASGIMiddleware)
         self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET.get_secret_value())

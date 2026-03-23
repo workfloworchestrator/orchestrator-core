@@ -167,7 +167,6 @@ nav:
                 - Application:
                       - Preparing source folder: getting-started/prepare-source-folder.md
                       - Base application: getting-started/base.md
-                      - Agentic application: getting-started/agentic.md
                 - Workflows: getting-started/workflows.md
                 - Docker: getting-started/docker.md
                 - Orchestrator UI: getting-started/orchestration-ui.md
@@ -208,7 +207,6 @@ nav:
           - Forms: reference-docs/forms.md
           - Running the App:
                 - App.py: reference-docs/app/app.md
-                - Agentic App.py: reference-docs/app/agentic-app.md
                 - Python Version: reference-docs/python.md
                 - Settings: reference-docs/app/settings-overview.md
           - Workflows:

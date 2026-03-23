@@ -36,13 +36,7 @@ EMBEDDING_DIMENSION_FIELD = Annotated[
 class LLMSettings(BaseSettings):
     # Feature flags for LLM functionality
     SEARCH_ENABLED: bool = False  # Enable search/indexing with embeddings
-    AGENT_ENABLED: bool = False  # Enable agentic functionality
 
-    # Pydantic-ai Agent settings
-    AGENT_MODEL: str = "gpt-4o-mini"  # See pydantic-ai docs for supported models.
-    AGENT_MODEL_VERSION: str = "2025-01-01-preview"
-    AGENT_DEBUG: bool = False  # Enable debug logging for agent execution (prints LLM requests and execution plans)
-    OPENAI_API_KEY: str = ""  # Change per provider (Azure, etc).
     # Embedding settings
     EMBEDDING_DIMENSION: EMBEDDING_DIMENSION_FIELD = 1536
     EMBEDDING_MODEL: str = "openai/text-embedding-3-small"  # See litellm docs for supported models.
