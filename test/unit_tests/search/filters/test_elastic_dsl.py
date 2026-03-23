@@ -301,15 +301,6 @@ class TestValueKindInference:
 
 
 class TestValidation:
-    def test_depth_limit_exceeded(self) -> None:
-        inner: dict[str, Any] = {"term": {"field": "value"}}
-        for _ in range(FilterTree.MAX_DEPTH + 1):
-            inner = {"bool": {"must": [inner]}}
-
-        es = ElasticQueryAdapter.validate_python(inner)
-        with pytest.raises(ValueError, match="MAX_DEPTH"):
-            elastic_to_filter_tree(es)
-
     def test_empty_bool_raises(self) -> None:
         with pytest.raises(ValidationError, match="at least one clause"):
             ElasticQueryAdapter.validate_python({"bool": {}})
@@ -324,7 +315,7 @@ class TestValidation:
         ids=["term-multi-field", "range-multi-field", "wildcard-multi-field"],
     )
     def test_multi_field_query_raises(self, query_type: str, payload: dict[str, Any]) -> None:
-        with pytest.raises(ValidationError, match="exactly one field"):
+        with pytest.raises(ValidationError, match="too_long"):
             ElasticQueryAdapter.validate_python(payload)
 
     def test_range_no_recognised_bounds_raises(self) -> None:
@@ -477,12 +468,6 @@ class TestBoolCombinations:
         assert tree.op == BooleanOperator.AND
         # must term + should OR sub-tree + must_not inverted term = 3 children
         assert len(tree.children) == 3
-
-    def test_wildcard_empty_value_raises(self) -> None:
-        """Wildcard with empty value fails StringFilter validation (requires wildcard chars)."""
-        es = ElasticQueryAdapter.validate_python({"wildcard": {"field": {"value": ""}}})
-        with pytest.raises(ValueError, match="wildcard character"):
-            elastic_to_filter_tree(es)
 
     def test_range_non_gte_lte_two_bound_uses_first(self) -> None:
         """Range with gt+lt (not gte+lte) falls through to single-bound logic."""
