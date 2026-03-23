@@ -46,6 +46,7 @@ class LLMSettings(BaseSettings):
 
     # The following settings are only needed for local models or system constraints.
     # By default, they are set conservative assuming a small model like All-MiniLM-L6-V2.
+    OPENAI_API_KEY: str = ""  # Change per provider (Azure, etc).
     OPENAI_BASE_URL: str | None = None
     EMBEDDING_FALLBACK_MAX_TOKENS: int | None = 512
     EMBEDDING_MAX_BATCH_SIZE: int | None = None
