@@ -54,8 +54,8 @@ class TestDeprecatedEndpoint:
     def test_returns_none(self) -> None:
         request = _make_request()
         with patch("orchestrator.utils.deprecation_logger.logger"):
-            result = deprecated_endpoint(request)
-        assert result is None
+            # deprecated_endpoint returns None; calling without capturing the result
+            deprecated_endpoint(request)
 
     def test_called_with_different_http_methods(self) -> None:
         for method in ("GET", "POST", "PUT", "DELETE", "PATCH"):

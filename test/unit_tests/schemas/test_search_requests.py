@@ -18,6 +18,7 @@ pytest.importorskip("orchestrator.search.core.types", reason="search extra not i
 
 from orchestrator.schemas.search_requests import SearchRequest  # noqa: E402
 from orchestrator.search.core.types import EntityType, RetrieverType  # noqa: E402
+from orchestrator.search.query.mixins import StructuredOrderBy  # noqa: E402
 
 
 class TestSearchRequestInstantiation:
@@ -75,10 +76,10 @@ class TestSearchRequestValidation:
 
     def test_order_by_with_query_raises(self) -> None:
         with pytest.raises(ValidationError, match="order_by can only be set when query is empty"):
-            SearchRequest(query="hello", order_by={"element": "name"})
+            SearchRequest(query="hello", order_by=StructuredOrderBy(element="name"))
 
     def test_order_by_without_query_succeeds(self) -> None:
-        schema = SearchRequest(order_by={"element": "name"})
+        schema = SearchRequest(order_by=StructuredOrderBy(element="name"))
         assert schema.order_by is not None
 
     def test_query_without_order_by_succeeds(self) -> None:

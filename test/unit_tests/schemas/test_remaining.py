@@ -62,10 +62,10 @@ class TestFixedInputBaseSchema:
 
     def test_instantiate_with_uuids(self) -> None:
         schema = FixedInputBaseSchema(
-            fixed_input_id=str(FIXED_INPUT_ID),
+            fixed_input_id=FIXED_INPUT_ID,
             name="speed",
             value="100",
-            product_id=str(PRODUCT_ID),
+            product_id=PRODUCT_ID,
         )
         assert schema.fixed_input_id == FIXED_INPUT_ID
         assert schema.product_id == PRODUCT_ID
@@ -82,11 +82,11 @@ class TestFixedInputBaseSchema:
 class TestFixedInputSchema:
     def test_instantiate_valid_data_succeeds(self) -> None:
         schema = FixedInputSchema(
-            fixed_input_id=str(FIXED_INPUT_ID),
+            fixed_input_id=FIXED_INPUT_ID,
             name="speed",
             value="1000",
-            created_at=NOW.isoformat(),
-            product_id=str(PRODUCT_ID),
+            created_at=NOW,
+            product_id=PRODUCT_ID,
         )
         assert schema.fixed_input_id == FIXED_INPUT_ID
         assert isinstance(schema.created_at, datetime)
@@ -96,26 +96,26 @@ class TestFixedInputSchema:
             FixedInputSchema(  # type: ignore[call-arg]
                 name="speed",
                 value="100",
-                created_at=NOW.isoformat(),
-                product_id=str(PRODUCT_ID),
+                created_at=NOW,
+                product_id=PRODUCT_ID,
             )
 
     def test_instantiate_missing_product_id_raises(self) -> None:
         with pytest.raises(ValidationError):
             FixedInputSchema(  # type: ignore[call-arg]
-                fixed_input_id=str(FIXED_INPUT_ID),
+                fixed_input_id=FIXED_INPUT_ID,
                 name="speed",
                 value="100",
-                created_at=NOW.isoformat(),
+                created_at=NOW,
             )
 
     def test_fixed_input_id_is_uuid_type(self) -> None:
         schema = FixedInputSchema(
-            fixed_input_id=str(FIXED_INPUT_ID),
+            fixed_input_id=FIXED_INPUT_ID,
             name="x",
             value="y",
-            created_at=NOW.isoformat(),
-            product_id=str(PRODUCT_ID),
+            created_at=NOW,
+            product_id=PRODUCT_ID,
         )
         assert isinstance(schema.fixed_input_id, UUID)
 
@@ -166,7 +166,7 @@ class TestResourceTypeBaseSchema:
         schema = ResourceTypeBaseSchema(
             resource_type="vlan_id",
             description="A VLAN identifier",
-            resource_type_id=str(RESOURCE_TYPE_ID),
+            resource_type_id=RESOURCE_TYPE_ID,
         )
         assert schema.resource_type_id == RESOURCE_TYPE_ID
         assert schema.description == "A VLAN identifier"
@@ -180,7 +180,7 @@ class TestResourceTypeSchema:
     def test_instantiate_valid_data_succeeds(self) -> None:
         schema = ResourceTypeSchema(
             resource_type="ip_prefix",
-            resource_type_id=str(RESOURCE_TYPE_ID),
+            resource_type_id=RESOURCE_TYPE_ID,
         )
         assert schema.resource_type_id == RESOURCE_TYPE_ID
 
@@ -191,7 +191,7 @@ class TestResourceTypeSchema:
     def test_resource_type_id_is_uuid_type(self) -> None:
         schema = ResourceTypeSchema(
             resource_type="x",
-            resource_type_id=str(RESOURCE_TYPE_ID),
+            resource_type_id=RESOURCE_TYPE_ID,
         )
         assert isinstance(schema.resource_type_id, UUID)
 
@@ -248,32 +248,32 @@ class TestProductBlockBaseSchema:
 class TestProductBlockSchema:
     def test_instantiate_valid_data_succeeds(self) -> None:
         schema = ProductBlockSchema(
-            product_block_id=str(PRODUCT_BLOCK_ID),
+            product_block_id=PRODUCT_BLOCK_ID,
             name="VlanBlock",
             description="A VLAN block",
             status=ProductLifecycle.ACTIVE,
-            created_at=NOW.isoformat(),
+            created_at=NOW,
         )
         assert schema.product_block_id == PRODUCT_BLOCK_ID
         assert schema.status == ProductLifecycle.ACTIVE
 
     def test_end_date_defaults_to_none(self) -> None:
         schema = ProductBlockSchema(
-            product_block_id=str(PRODUCT_BLOCK_ID),
+            product_block_id=PRODUCT_BLOCK_ID,
             name="Block",
             description="desc",
             status=ProductLifecycle.ACTIVE,
-            created_at=NOW.isoformat(),
+            created_at=NOW,
         )
         assert schema.end_date is None
 
     def test_resource_types_defaults_to_none(self) -> None:
         schema = ProductBlockSchema(
-            product_block_id=str(PRODUCT_BLOCK_ID),
+            product_block_id=PRODUCT_BLOCK_ID,
             name="Block",
             description="desc",
             status=ProductLifecycle.ACTIVE,
-            created_at=NOW.isoformat(),
+            created_at=NOW,
         )
         assert schema.resource_types is None
 
@@ -283,7 +283,7 @@ class TestProductBlockSchema:
                 name="Block",
                 description="desc",
                 status=ProductLifecycle.ACTIVE,
-                created_at=NOW.isoformat(),
+                created_at=NOW,
             )
 
     @pytest.mark.parametrize(
@@ -293,11 +293,11 @@ class TestProductBlockSchema:
     )
     def test_instantiate_all_lifecycle_statuses_succeeds(self, status: ProductLifecycle) -> None:
         schema = ProductBlockSchema(
-            product_block_id=str(PRODUCT_BLOCK_ID),
+            product_block_id=PRODUCT_BLOCK_ID,
             name="Block",
             description="desc",
             status=status,
-            created_at=NOW.isoformat(),
+            created_at=NOW,
         )
         assert schema.status == status
 
@@ -368,7 +368,7 @@ class TestSubscriptionDescriptionBaseSchema:
         schema = SubscriptionDescriptionBaseSchema(
             description="Custom description",
             customer_id="customer-abc",
-            subscription_id=str(SUBSCRIPTION_ID),
+            subscription_id=SUBSCRIPTION_ID,
         )
         assert schema.description == "Custom description"
         assert schema.customer_id == "customer-abc"
@@ -378,14 +378,14 @@ class TestSubscriptionDescriptionBaseSchema:
         with pytest.raises(ValidationError):
             SubscriptionDescriptionBaseSchema(  # type: ignore[call-arg]
                 customer_id="cust",
-                subscription_id=str(SUBSCRIPTION_ID),
+                subscription_id=SUBSCRIPTION_ID,
             )
 
     def test_instantiate_missing_customer_id_raises(self) -> None:
         with pytest.raises(ValidationError):
             SubscriptionDescriptionBaseSchema(  # type: ignore[call-arg]
                 description="desc",
-                subscription_id=str(SUBSCRIPTION_ID),
+                subscription_id=SUBSCRIPTION_ID,
             )
 
     def test_instantiate_missing_subscription_id_raises(self) -> None:
@@ -399,7 +399,7 @@ class TestSubscriptionDescriptionBaseSchema:
         schema = SubscriptionDescriptionBaseSchema(
             description="desc",
             customer_id="cust",
-            subscription_id=str(SUBSCRIPTION_ID),
+            subscription_id=SUBSCRIPTION_ID,
         )
         assert isinstance(schema.subscription_id, UUID)
 
@@ -409,8 +409,8 @@ class TestSubscriptionDescriptionSchema:
         schema = SubscriptionDescriptionSchema(
             description="My description",
             customer_id="cust-1",
-            subscription_id=str(SUBSCRIPTION_ID),
-            id=str(DESCRIPTION_ID),
+            subscription_id=SUBSCRIPTION_ID,
+            id=DESCRIPTION_ID,
             version=1,
         )
         assert schema.id == DESCRIPTION_ID
@@ -420,8 +420,8 @@ class TestSubscriptionDescriptionSchema:
         schema = SubscriptionDescriptionSchema(
             description="desc",
             customer_id="cust",
-            subscription_id=str(SUBSCRIPTION_ID),
-            id=str(DESCRIPTION_ID),
+            subscription_id=SUBSCRIPTION_ID,
+            id=DESCRIPTION_ID,
             version=0,
         )
         assert schema.created_at is None
@@ -430,9 +430,9 @@ class TestSubscriptionDescriptionSchema:
         schema = SubscriptionDescriptionSchema(
             description="desc",
             customer_id="cust",
-            subscription_id=str(SUBSCRIPTION_ID),
-            id=str(DESCRIPTION_ID),
-            created_at=NOW.isoformat(),
+            subscription_id=SUBSCRIPTION_ID,
+            id=DESCRIPTION_ID,
+            created_at=NOW,
             version=2,
         )
         assert isinstance(schema.created_at, datetime)
@@ -442,7 +442,7 @@ class TestSubscriptionDescriptionSchema:
             SubscriptionDescriptionSchema(  # type: ignore[call-arg]
                 description="desc",
                 customer_id="cust",
-                subscription_id=str(SUBSCRIPTION_ID),
+                subscription_id=SUBSCRIPTION_ID,
                 version=1,
             )
 
@@ -451,8 +451,8 @@ class TestSubscriptionDescriptionSchema:
             SubscriptionDescriptionSchema(  # type: ignore[call-arg]
                 description="desc",
                 customer_id="cust",
-                subscription_id=str(SUBSCRIPTION_ID),
-                id=str(DESCRIPTION_ID),
+                subscription_id=SUBSCRIPTION_ID,
+                id=DESCRIPTION_ID,
             )
 
 
@@ -461,8 +461,8 @@ class TestUpdateSubscriptionDescriptionSchema:
         schema = UpdateSubscriptionDescriptionSchema(
             description="Updated",
             customer_id="cust",
-            subscription_id=str(SUBSCRIPTION_ID),
-            id=str(DESCRIPTION_ID),
+            subscription_id=SUBSCRIPTION_ID,
+            id=DESCRIPTION_ID,
         )
         assert schema.version is None
 
@@ -470,8 +470,8 @@ class TestUpdateSubscriptionDescriptionSchema:
         schema = UpdateSubscriptionDescriptionSchema(
             description="desc",
             customer_id="cust",
-            subscription_id=str(SUBSCRIPTION_ID),
-            id=str(DESCRIPTION_ID),
+            subscription_id=SUBSCRIPTION_ID,
+            id=DESCRIPTION_ID,
             version=5,
         )
         assert schema.version == 5
@@ -480,9 +480,9 @@ class TestUpdateSubscriptionDescriptionSchema:
         schema = UpdateSubscriptionDescriptionSchema(
             description="desc",
             customer_id="cust",
-            subscription_id=str(SUBSCRIPTION_ID),
-            id=str(DESCRIPTION_ID),
-            created_at=NOW.isoformat(),
+            subscription_id=SUBSCRIPTION_ID,
+            id=DESCRIPTION_ID,
+            created_at=NOW,
         )
         assert isinstance(schema.created_at, datetime)
 
@@ -491,5 +491,5 @@ class TestUpdateSubscriptionDescriptionSchema:
             UpdateSubscriptionDescriptionSchema(  # type: ignore[call-arg]
                 description="desc",
                 customer_id="cust",
-                subscription_id=str(SUBSCRIPTION_ID),
+                subscription_id=SUBSCRIPTION_ID,
             )

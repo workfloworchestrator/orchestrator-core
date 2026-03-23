@@ -25,7 +25,7 @@ PRODUCT_ID = uuid4()
 NOW = datetime.now(tz=timezone.utc)
 
 
-def make_product_base_data(**overrides) -> dict:  # type: ignore[no-untyped-def]
+def make_product_base_data(**overrides) -> dict:
     return {
         "name": "Test Product",
         "description": "A test product",
@@ -36,7 +36,7 @@ def make_product_base_data(**overrides) -> dict:  # type: ignore[no-untyped-def]
     }
 
 
-def make_product_schema_data(**overrides) -> dict:  # type: ignore[no-untyped-def]
+def make_product_schema_data(**overrides) -> dict:
     return {
         **make_product_base_data(),
         "product_id": str(PRODUCT_ID),

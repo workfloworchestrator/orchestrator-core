@@ -34,11 +34,11 @@ class TestFilter:
 
     def test_filter_requires_field(self):
         with pytest.raises(ValidationError):
-            Filter(value="active")  # type: ignore[call-arg]
+            Filter(value="active")
 
     def test_filter_requires_value(self):
         with pytest.raises(ValidationError):
-            Filter(field="status")  # type: ignore[call-arg]
+            Filter(field="status")
 
     def test_filter_field_and_value_are_strings(self):
         f = Filter(field="myField", value="myValue")
