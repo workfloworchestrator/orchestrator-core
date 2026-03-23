@@ -15,14 +15,6 @@ import pytest
 from orchestrator.distlock.managers.memory_distlock_manager import MemoryDistLockManager
 
 
-@pytest.fixture(autouse=True)
-def clear_locks():
-    """Clear the class-level shared locks dict before and after each test."""
-    MemoryDistLockManager.locks.clear()
-    yield
-    MemoryDistLockManager.locks.clear()
-
-
 @pytest.fixture
 def manager():
     return MemoryDistLockManager()

@@ -20,14 +20,6 @@ from orchestrator.distlock.managers.memory_distlock_manager import MemoryDistLoc
 from orchestrator.distlock.managers.redis_distlock_manager import RedisDistLockManager
 
 
-@pytest.fixture(autouse=True)
-def clear_memory_locks():
-    """Prevent class-level lock state leaking between tests."""
-    MemoryDistLockManager.locks.clear()
-    yield
-    MemoryDistLockManager.locks.clear()
-
-
 class TestDistLockManagerInit:
     def test_no_backend_uses_memory_manager(self):
         mgr = DistLockManager(enabled=True)

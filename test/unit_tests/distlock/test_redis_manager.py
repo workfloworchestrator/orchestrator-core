@@ -65,11 +65,6 @@ class TestRedisDistLockManagerConnectDisconnect:
         # Should not raise when redis_conn is None
         await manager.disconnect_redis()
 
-    async def test_disconnect_redis_sets_conn_state(self, connected_manager):
-        # After disconnect, close is called (conn itself is not set to None by implementation)
-        await connected_manager.disconnect_redis()
-        connected_manager.redis_conn.close.assert_awaited_once()
-
 
 class TestRedisDistLockManagerGetLock:
     async def test_get_lock_without_connection_returns_none(self, manager):

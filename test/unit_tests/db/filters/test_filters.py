@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import column, select, table
 
 from orchestrator.db.filters.filters import (
     Filter,
@@ -229,8 +229,6 @@ class TestGenericFilterFromClauses:
         column_mappings = self._make_column_mapping(["status"])
 
         # Build a real sqlalchemy select to pass as query
-        from sqlalchemy import column, table
-
         t = table("test", column("status"))
         query = select(t)
 
@@ -242,8 +240,6 @@ class TestGenericFilterFromClauses:
     def test_invalid_filter_calls_error_handler(self):
         error_handler = MagicMock()
         column_mappings = self._make_column_mapping(["status"])
-
-        from sqlalchemy import column, table
 
         t = table("test", column("status"))
         query = select(t)
@@ -260,8 +256,6 @@ class TestGenericFilterFromClauses:
         error_handler = MagicMock()
         column_mappings = self._make_column_mapping(["my_status", "my_tag"])
 
-        from sqlalchemy import column, table
-
         t = table("test", column("my_status"))
         query = select(t)
 
@@ -276,8 +270,6 @@ class TestGenericFilterFromClauses:
     def test_empty_filter_list_returns_query_unchanged(self):
         error_handler = MagicMock()
         column_mappings = self._make_column_mapping(["status"])
-
-        from sqlalchemy import column, table
 
         t = table("test", column("status"))
         query = select(t)

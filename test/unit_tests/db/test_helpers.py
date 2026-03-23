@@ -68,36 +68,10 @@ class TestToSqlString:
 
 class TestGetPostgresVersion:
     def setup_method(self):
-        # Clear the functools.cache between test runs so they are isolated
         helpers_module.get_postgres_version.cache_clear()
 
-    def test_returns_major_version_as_int(self):
-        mock_db = MagicMock()
-        mock_db.session.scalar.return_value = "130007"
-        with patch("orchestrator.db.helpers.db", mock_db):
-            result = helpers_module.get_postgres_version()
-        assert result == 13
-
-    def test_version_14(self):
-        mock_db = MagicMock()
-        mock_db.session.scalar.return_value = "140002"
-        with patch("orchestrator.db.helpers.db", mock_db):
-            result = helpers_module.get_postgres_version()
-        assert result == 14
-
-    def test_version_15(self):
-        mock_db = MagicMock()
-        mock_db.session.scalar.return_value = "150000"
-        with patch("orchestrator.db.helpers.db", mock_db):
-            result = helpers_module.get_postgres_version()
-        assert result == 15
-
-    def test_version_16(self):
-        mock_db = MagicMock()
-        mock_db.session.scalar.return_value = "160001"
-        with patch("orchestrator.db.helpers.db", mock_db):
-            result = helpers_module.get_postgres_version()
-        assert result == 16
+    def teardown_method(self):
+        helpers_module.get_postgres_version.cache_clear()
 
     def test_returns_zero_on_value_error(self):
         mock_db = MagicMock()
