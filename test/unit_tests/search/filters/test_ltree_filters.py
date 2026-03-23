@@ -51,7 +51,7 @@ class TestLtreeFilterConstruction:
         ],
     )
     def test_valid_ops_construct_successfully(self, op: FilterOp) -> None:
-        f = LtreeFilter(op=op, value="some.path")
+        f = LtreeFilter(op=op, value="some.path")  # type: ignore[arg-type]
         assert f.op == op
         assert f.value == "some.path"
 
@@ -71,7 +71,7 @@ class TestLtreeFilterConstruction:
     )
     def test_invalid_ops_raise_validation_error(self, op: FilterOp) -> None:
         with pytest.raises(ValidationError):
-            LtreeFilter(op=op, value="some.path")
+            LtreeFilter(op=op, value="some.path")  # type: ignore[arg-type]
 
     def test_value_field_stored(self) -> None:
         f = LtreeFilter(op=FilterOp.ENDS_WITH, value="leaf")
@@ -129,7 +129,7 @@ class TestLtreeFilterToExpression:
     def test_path_match_uses_path_argument_not_value(self) -> None:
         col = MagicMock()
         expected = MagicMock()
-        col.__eq__ = MagicMock(return_value=expected)
+        col.__eq__ = MagicMock(return_value=expected)  # type: ignore[method-assign]
 
         f = LtreeFilter(op=FilterOp.PATH_MATCH, value="filter.value")
         result = f.to_expression(col, "actual.path")
@@ -150,7 +150,7 @@ class TestLtreeFilterToExpression:
         expected = MagicMock()
         col.op.return_value.return_value = expected
 
-        f = LtreeFilter(op=op, value="segment")
+        f = LtreeFilter(op=op, value="segment")  # type: ignore[arg-type]
         result = f.to_expression(col, "ignored")
 
         col.op.assert_called_once_with("~")
@@ -185,6 +185,6 @@ class TestLtreeFilterToExpression:
     )
     def test_to_expression_returns_value(self, op: FilterOp, value: str, path: str) -> None:
         col = MagicMock()
-        f = LtreeFilter(op=op, value=value)
+        f = LtreeFilter(op=op, value=value)  # type: ignore[arg-type]
         result = f.to_expression(col, path)
         assert result is not None

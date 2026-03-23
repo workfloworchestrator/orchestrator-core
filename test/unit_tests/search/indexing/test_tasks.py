@@ -45,7 +45,7 @@ def _make_mock_stmt() -> MagicMock:
     return stmt
 
 
-def _make_mock_registry_config(query_return: MagicMock) -> MagicMock:
+def _make_mock_registry_config(query_return: MagicMock) -> dict[EntityType, MagicMock]:
     """Return a mock ENTITY_CONFIG_REGISTRY dict with a single SUBSCRIPTION entry."""
     config = MagicMock()
     config.get_all_query.return_value = query_return
