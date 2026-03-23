@@ -127,6 +127,13 @@ class CeleryJobWorkerStatus(WorkerStatus):
         reserved = inspection.reserved()
         active = inspection.active()
 
+        log = logger.bind(stats=stats, scheduled=scheduled, reserver=reserved, active=active)
+
+        if any(i is None for i in [stats, scheduled, reserved, active]):
+            log.warning("Celery inspect results incomplete, missing values will default to 0")
+        else:
+            log.debug("Celery inspect results complete")
+
         self.number_of_workers_online = len(stats) if stats else 0
 
         def sum_items(d: dict | None) -> int:
