@@ -47,7 +47,7 @@ def mock_fields() -> list[ExtractedField]:
 
 
 @pytest.fixture
-def mock_entity(mock_fields: list[ExtractedField]) -> MagicMock:
+def mock_entity() -> MagicMock:
     entity = MagicMock()
     entity.subscription_id = UUID(ENTITY_ID)
     return entity
@@ -90,12 +90,6 @@ class TestMaybeBegin:
         with _maybe_begin(None):
             pass  # must not raise
 
-    def test_session_none_does_not_call_begin(self) -> None:
-        mock_session = MagicMock()
-        # Verify that passing None does NOT call session.begin()
-        with _maybe_begin(None):
-            mock_session.begin.assert_not_called()
-
     def test_session_not_none_calls_begin(self) -> None:
         """When a session is provided, begin() must be used as a context manager."""
         mock_session = MagicMock()
@@ -118,12 +112,9 @@ class TestMaybeBegin:
 
 
 class TestMaybeProgress:
-    def test_show_progress_false_yields_none(self) -> None:
-        with _maybe_progress(False, total_count=10, label="Test") as progress:
-            assert progress is None
-
-    def test_show_progress_false_with_none_count_yields_none(self) -> None:
-        with _maybe_progress(False, total_count=None, label="Test") as progress:
+    @pytest.mark.parametrize("total_count", [10, None], ids=["with_count", "none_count"])
+    def test_show_progress_false_yields_none(self, total_count: int | None) -> None:
+        with _maybe_progress(False, total_count=total_count, label="Test") as progress:
             assert progress is None
 
     def test_show_progress_true_yields_progress_bar(self) -> None:
@@ -218,10 +209,7 @@ class TestIndexerRun:
         ):
             indexer.run(entities)
 
-        # update(chunk_size=2) for the full chunk
         mock_progress.update.assert_any_call(2)
-        # For the remainder, flush() clears chunk before update(len(chunk)) is called,
-        # so the remainder update is called with 0
         assert mock_progress.update.call_count == 2
 
     def test_progress_none_does_not_update(self, mock_config: MagicMock, mock_entity: MagicMock) -> None:
@@ -466,18 +454,6 @@ class TestGetAllExistingHashes:
 
 
 class TestGenerateUpsertBatches:
-    def _make_indexer_with_budget(
-        self, mock_config: MagicMock, max_tokens: int = 100, safe_margin: float = 0.1, max_batch_size: int | None = None
-    ) -> Indexer:
-        inst = Indexer(config=mock_config, dry_run=True, force_index=False, chunk_size=10)
-        inst._entity_titles[ENTITY_ID] = ENTITY_TITLE
-        with (patch("orchestrator.search.indexing.indexer.llm_settings") as mock_llm,):
-            mock_llm.EMBEDDING_SAFE_MARGIN_PERCENT = safe_margin
-            mock_llm.EMBEDDING_MAX_BATCH_SIZE = max_batch_size
-            mock_llm.EMBEDDING_MODEL = EMBEDDING_MODEL
-            mock_llm.EMBEDDING_FALLBACK_MAX_TOKENS = 512
-        return inst
-
     def test_non_embeddable_field_accumulated_directly(self, indexer: Indexer) -> None:
         field = _non_embeddable_field()
         fields = [(ENTITY_ID, field)]
@@ -722,28 +698,28 @@ class TestGetMaxTokens:
         with patch("orchestrator.search.indexing.indexer.get_max_tokens", return_value=8191):
             assert indexer._get_max_tokens() == 8191
 
-    def test_litellm_returns_non_int_falls_back(self, indexer: Indexer) -> None:
-        """If litellm returns a non-int (e.g. float or None), fall back to settings."""
+    @pytest.mark.parametrize(
+        "get_max_tokens_rv,get_max_tokens_se,fallback,expected",
+        [
+            ("not-an-int", None, 4096, 4096),
+            (None, None, 2048, 2048),
+            (None, Exception("unknown model"), 512, 512),
+        ],
+        ids=["non_int_return", "none_return", "exception_raised"],
+    )
+    def test_litellm_invalid_falls_back_to_settings(
+        self, indexer: Indexer, get_max_tokens_rv, get_max_tokens_se, fallback: int, expected: int
+    ) -> None:
+        kwargs = {"side_effect": get_max_tokens_se} if get_max_tokens_se else {"return_value": get_max_tokens_rv}
         with (
-            patch("orchestrator.search.indexing.indexer.get_max_tokens", return_value="not-an-int"),
+            patch("orchestrator.search.indexing.indexer.get_max_tokens", **kwargs),
             patch("orchestrator.search.indexing.indexer.llm_settings") as mock_llm,
         ):
-            mock_llm.EMBEDDING_FALLBACK_MAX_TOKENS = 4096
+            mock_llm.EMBEDDING_FALLBACK_MAX_TOKENS = fallback
             mock_llm.EMBEDDING_MODEL = EMBEDDING_MODEL
             result = indexer._get_max_tokens()
 
-        assert result == 4096
-
-    def test_litellm_raises_falls_back_to_settings(self, indexer: Indexer) -> None:
-        with (
-            patch("orchestrator.search.indexing.indexer.get_max_tokens", side_effect=Exception("unknown model")),
-            patch("orchestrator.search.indexing.indexer.llm_settings") as mock_llm,
-        ):
-            mock_llm.EMBEDDING_FALLBACK_MAX_TOKENS = 512
-            mock_llm.EMBEDDING_MODEL = EMBEDDING_MODEL
-            result = indexer._get_max_tokens()
-
-        assert result == 512
+        assert result == expected
 
     def test_fallback_not_set_raises_runtime_error(self, indexer: Indexer) -> None:
         with (
@@ -754,17 +730,6 @@ class TestGetMaxTokens:
             mock_llm.EMBEDDING_MODEL = EMBEDDING_MODEL
             with pytest.raises(RuntimeError, match="EMBEDDING_FALLBACK_MAX_TOKENS"):
                 indexer._get_max_tokens()
-
-    def test_litellm_returns_none_falls_back(self, indexer: Indexer) -> None:
-        with (
-            patch("orchestrator.search.indexing.indexer.get_max_tokens", return_value=None),
-            patch("orchestrator.search.indexing.indexer.llm_settings") as mock_llm,
-        ):
-            mock_llm.EMBEDDING_FALLBACK_MAX_TOKENS = 2048
-            mock_llm.EMBEDDING_MODEL = EMBEDDING_MODEL
-            result = indexer._get_max_tokens()
-
-        assert result == 2048
 
 
 # ---------------------------------------------------------------------------
@@ -834,15 +799,11 @@ class TestMakeIndexableRecord:
         assert len(record["content_hash"]) == 64
         assert record["embedding"] == embedding
 
-    def test_empty_embedding_stored_as_none(self, indexer: Indexer) -> None:
-        """embedding=[] is falsy and must be stored as None."""
+    @pytest.mark.parametrize("embedding", [[], None], ids=["empty_list", "none"])
+    def test_falsy_embedding_stored_as_none(self, indexer: Indexer, embedding: list | None) -> None:
+        """Falsy embeddings ([] or None) are stored as None."""
         field = ExtractedField(path="root.description", value="Hello", value_type=FieldType.STRING)
-        record = indexer._make_indexable_record(field, ENTITY_ID, [])
-        assert record["embedding"] is None
-
-    def test_none_embedding_stored_as_none(self, indexer: Indexer) -> None:
-        field = ExtractedField(path="root.status", value="active", value_type=FieldType.STRING)
-        record = indexer._make_indexable_record(field, ENTITY_ID, None)
+        record = indexer._make_indexable_record(field, ENTITY_ID, embedding)
         assert record["embedding"] is None
 
     def test_path_wrapped_in_ltree(self, indexer: Indexer) -> None:

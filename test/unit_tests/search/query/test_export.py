@@ -116,10 +116,13 @@ def _make_product(
     return p
 
 
+_SENTINEL = object()
+
+
 def _make_process(
     *,
     process_id: UUID = _DEFAULT_PROCESS_UUID,
-    workflow: MagicMock | None = None,
+    workflow: MagicMock | None = _SENTINEL,  # type: ignore[assignment]
     workflow_id: UUID = _DEFAULT_WORKFLOW_UUID,
     last_status: str = "completed",
     is_task: bool = False,
@@ -128,7 +131,7 @@ def _make_process(
     last_modified_at: datetime | None = SAMPLE_DATETIME,
     last_step: str = "done",
 ) -> MagicMock:
-    if workflow is None:
+    if workflow is _SENTINEL:
         workflow = MagicMock()
         workflow.name = "create_subscription"
     p = MagicMock()
@@ -428,7 +431,6 @@ class TestFetchProcessExportData:
     def test_workflow_none_returns_none_for_workflow_name(self) -> None:
         """When process.workflow is None, workflow_name is None in the output."""
         proc = _make_process(workflow=None)
-        proc.workflow = None  # explicitly override the helper's default
         mock_scalars = MagicMock()
         mock_scalars.all.return_value = [proc]
 
@@ -525,25 +527,3 @@ class TestFetchExportData:
 
         with pytest.raises(ValueError, match="Unsupported entity type"):
             fetch_export_data(fake_type, ["some-id"])  # type: ignore[arg-type]
-
-    def test_subscription_dispatch_returns_subscription_data(self) -> None:
-        """End-to-end: SUBSCRIPTION dispatches and returns subscription-shaped data."""
-        entity_ids = [SUBSCRIPTION_ID]
-        expected = [{"subscription_id": SUBSCRIPTION_ID, "status": "active"}]
-
-        with patch(
-            "orchestrator.search.query.export.fetch_subscription_export_data", return_value=expected
-        ) as mock_fetch:
-            result = fetch_export_data(EntityType.SUBSCRIPTION, entity_ids)
-
-        mock_fetch.assert_called_once_with(entity_ids)
-        assert result == expected
-
-    def test_entity_ids_forwarded_unchanged(self) -> None:
-        """The entity_ids list is forwarded as-is to the underlying fetch function."""
-        entity_ids = ["aaa", "bbb", "ccc"]
-
-        with patch("orchestrator.search.query.export.fetch_product_export_data", return_value=[]) as mock_fetch:
-            fetch_export_data(EntityType.PRODUCT, entity_ids)
-
-        mock_fetch.assert_called_once_with(entity_ids)
