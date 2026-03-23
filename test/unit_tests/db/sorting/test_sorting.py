@@ -54,14 +54,14 @@ class TestSort:
 
     def test_sort_requires_field(self):
         with pytest.raises(ValidationError):
-            Sort(order=SortOrder.ASC)  # type: ignore[call-arg]
+            Sort(order=SortOrder.ASC)
 
     def test_sort_requires_order(self):
         with pytest.raises(ValidationError):
-            Sort(field="status")  # type: ignore[call-arg]
+            Sort(field="status")
 
     def test_sort_order_from_string(self):
-        s = Sort(field="tag", order="asc")  # type: ignore[arg-type]
+        s = Sort(field="tag", order="asc")
         assert s.order == SortOrder.ASC
 
 

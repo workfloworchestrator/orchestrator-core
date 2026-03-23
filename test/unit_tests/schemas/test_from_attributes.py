@@ -216,7 +216,7 @@ class TestResourceTypeSchemaFromAttributes:
 
 class TestSearchProductSchemaFromAttributes:
     def _make_orm_obj(self, **overrides: object) -> types.SimpleNamespace:
-        data = {
+        data: dict[str, object] = {
             "name": "Search Product",
             "tag": "SP",
             "product_type": "L2VPN",
@@ -308,7 +308,7 @@ class TestProcessBaseSchemaFromAttributes:
 
 class TestEngineSettingsSchemaFromAttributes:
     def _make_orm_obj(self, **overrides: object) -> types.SimpleNamespace:
-        data = {
+        data: dict[str, object] = {
             "global_lock": False,
             "running_processes": 3,
             "global_status": None,

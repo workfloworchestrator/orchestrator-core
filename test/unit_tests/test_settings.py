@@ -18,8 +18,8 @@ from orchestrator.settings import AppSettings, Authorizers, ExecutorType, Lifecy
 
 class TestExecutorType:
     def test_values_exist(self) -> None:
-        assert ExecutorType.WORKER == "celery"
-        assert ExecutorType.THREADPOOL == "threadpool"
+        assert str(ExecutorType.WORKER) == "celery"
+        assert str(ExecutorType.THREADPOOL) == "threadpool"
 
     @pytest.mark.parametrize(
         "raw,expected",
@@ -39,9 +39,9 @@ class TestExecutorType:
 
 class TestLifecycleValidationMode:
     def test_values_exist(self) -> None:
-        assert LifecycleValidationMode.STRICT == "strict"
-        assert LifecycleValidationMode.LOOSE == "loose"
-        assert LifecycleValidationMode.IGNORED == "ignored"
+        assert str(LifecycleValidationMode.STRICT) == "strict"
+        assert str(LifecycleValidationMode.LOOSE) == "loose"
+        assert str(LifecycleValidationMode.IGNORED) == "ignored"
 
     @pytest.mark.parametrize(
         "raw,expected",
@@ -61,14 +61,16 @@ class TestLifecycleValidationMode:
 
 
 class TestAppSettings:
-    def setup_method(self) -> None:
+    def setup_method(self, monkeypatch: pytest.MonkeyPatch | None = None) -> None:
         self.settings = AppSettings()
 
     def test_default_testing_is_true(self) -> None:
         assert self.settings.TESTING is True
 
-    def test_default_environment_is_local(self) -> None:
-        assert self.settings.ENVIRONMENT == "local"
+    def test_default_environment_is_local(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        settings = AppSettings()
+        assert settings.ENVIRONMENT == "local"
 
     def test_default_executor_is_threadpool(self) -> None:
         assert self.settings.EXECUTOR == ExecutorType.THREADPOOL

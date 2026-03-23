@@ -35,7 +35,7 @@ WORKFLOW_ID = uuid4()
 NOW = datetime.now(tz=timezone.utc)
 
 
-def make_process_base_data(**overrides) -> dict:  # type: ignore[no-untyped-def]
+def make_process_base_data(**overrides) -> dict:
     return {
         "process_id": str(PROCESS_ID),
         "workflow_id": str(WORKFLOW_ID),
@@ -51,7 +51,7 @@ def make_process_base_data(**overrides) -> dict:  # type: ignore[no-untyped-def]
 
 class TestProcessIdSchema:
     def test_instantiate_valid_uuid_succeeds(self) -> None:
-        schema = ProcessIdSchema(id=str(PROCESS_ID))
+        schema = ProcessIdSchema(id=PROCESS_ID)
         assert schema.id == PROCESS_ID
 
     def test_instantiate_missing_id_raises(self) -> None:
@@ -60,7 +60,7 @@ class TestProcessIdSchema:
 
     def test_instantiate_invalid_uuid_raises(self) -> None:
         with pytest.raises(ValidationError):
-            ProcessIdSchema(id="not-a-uuid")
+            ProcessIdSchema(id="not-a-uuid")  # type: ignore[arg-type]
 
 
 class TestProcessBaseSchema:
@@ -145,12 +145,12 @@ class TestProcessStepSchema:
     def test_instantiate_with_all_fields(self) -> None:
         step_id = uuid4()
         schema = ProcessStepSchema(
-            step_id=str(step_id),
+            step_id=step_id,
             name="step_2",
             status="completed",
             created_by="user",
-            started=NOW.isoformat(),
-            completed=NOW.isoformat(),
+            started=NOW,
+            completed=NOW,
             commit_hash="abc123",
             state={"key": "val"},
             state_delta={"changed": True},
@@ -192,7 +192,7 @@ class TestProcessSchema:
         assert schema.workflow_target == target
 
     def test_instantiate_with_steps_succeeds(self) -> None:
-        steps = [{"name": "s1", "status": "success"}, {"name": "s2", "status": "running"}]
+        steps = [ProcessStepSchema(name="s1", status="success"), ProcessStepSchema(name="s2", status="running")]
         schema = ProcessSchema(**make_process_base_data(), subscriptions=[], steps=steps)
         assert schema.steps is not None
         assert len(schema.steps) == 2

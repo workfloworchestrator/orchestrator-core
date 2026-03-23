@@ -124,5 +124,5 @@ class TestProblemDetailHandler:
     async def test_request_argument_is_not_used(self):
         """Handler should work regardless of the request object passed."""
         exc = make_exc(500, detail="Server Error")
-        response = await problem_detail_handler(None, exc)  # type: ignore[arg-type]
+        response = await problem_detail_handler(None, exc)
         assert response.status_code == 500

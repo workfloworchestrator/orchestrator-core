@@ -31,7 +31,7 @@ class TestAPSchedulerJobCreate:
     def test_instantiate_minimal_valid_data_succeeds(self) -> None:
         schema = APSchedulerJobCreate(
             workflow_name="create_sub",
-            workflow_id=str(WORKFLOW_ID),
+            workflow_id=WORKFLOW_ID,
             trigger="interval",
         )
         assert schema.workflow_name == "create_sub"
@@ -42,7 +42,7 @@ class TestAPSchedulerJobCreate:
     def test_trigger_kwargs_defaults_to_empty_dict(self) -> None:
         schema = APSchedulerJobCreate(
             workflow_name="wf",
-            workflow_id=str(WORKFLOW_ID),
+            workflow_id=WORKFLOW_ID,
             trigger="cron",
         )
         assert schema.trigger_kwargs == {}
@@ -50,7 +50,7 @@ class TestAPSchedulerJobCreate:
     def test_user_inputs_defaults_to_empty_list(self) -> None:
         schema = APSchedulerJobCreate(
             workflow_name="wf",
-            workflow_id=str(WORKFLOW_ID),
+            workflow_id=WORKFLOW_ID,
             trigger="date",
         )
         assert schema.user_inputs == []
@@ -58,7 +58,7 @@ class TestAPSchedulerJobCreate:
     def test_name_defaults_to_none(self) -> None:
         schema = APSchedulerJobCreate(
             workflow_name="wf",
-            workflow_id=str(WORKFLOW_ID),
+            workflow_id=WORKFLOW_ID,
             trigger="interval",
         )
         assert schema.name is None
@@ -67,7 +67,7 @@ class TestAPSchedulerJobCreate:
         schema = APSchedulerJobCreate(
             name="my_job",
             workflow_name="wf",
-            workflow_id=str(WORKFLOW_ID),
+            workflow_id=WORKFLOW_ID,
             trigger="interval",
             trigger_kwargs={"seconds": 30},
             user_inputs=[{"key": "value"}],
@@ -80,7 +80,7 @@ class TestAPSchedulerJobCreate:
     def test_valid_trigger_values_succeed(self, trigger: str) -> None:
         schema = APSchedulerJobCreate(
             workflow_name="wf",
-            workflow_id=str(WORKFLOW_ID),
+            workflow_id=WORKFLOW_ID,
             trigger=trigger,  # type: ignore[arg-type]
         )
         assert schema.trigger == trigger
@@ -89,14 +89,14 @@ class TestAPSchedulerJobCreate:
         with pytest.raises(ValidationError):
             APSchedulerJobCreate(
                 workflow_name="wf",
-                workflow_id=str(WORKFLOW_ID),
+                workflow_id=WORKFLOW_ID,
                 trigger="unknown",  # type: ignore[arg-type]
             )
 
     def test_scheduled_type_is_frozen_as_create(self) -> None:
         schema = APSchedulerJobCreate(
             workflow_name="wf",
-            workflow_id=str(WORKFLOW_ID),
+            workflow_id=WORKFLOW_ID,
             trigger="interval",
         )
         assert schema.scheduled_type == "create"
@@ -104,7 +104,7 @@ class TestAPSchedulerJobCreate:
     def test_missing_workflow_name_raises(self) -> None:
         with pytest.raises(ValidationError):
             APSchedulerJobCreate(  # type: ignore[call-arg]
-                workflow_id=str(WORKFLOW_ID),
+                workflow_id=WORKFLOW_ID,
                 trigger="interval",
             )
 
@@ -119,25 +119,25 @@ class TestAPSchedulerJobCreate:
         with pytest.raises(ValidationError):
             APSchedulerJobCreate(  # type: ignore[call-arg]
                 workflow_name="wf",
-                workflow_id=str(WORKFLOW_ID),
+                workflow_id=WORKFLOW_ID,
             )
 
 
 class TestAPSchedulerJobUpdate:
     def test_instantiate_minimal_valid_data_succeeds(self) -> None:
-        schema = APSchedulerJobUpdate(schedule_id=str(SCHEDULE_ID))
+        schema = APSchedulerJobUpdate(schedule_id=SCHEDULE_ID)
         assert schema.schedule_id == SCHEDULE_ID
         assert schema.scheduled_type == "update"
 
     def test_optional_fields_default_to_none(self) -> None:
-        schema = APSchedulerJobUpdate(schedule_id=str(SCHEDULE_ID))
+        schema = APSchedulerJobUpdate(schedule_id=SCHEDULE_ID)
         assert schema.name is None
         assert schema.trigger is None
         assert schema.trigger_kwargs is None
 
     def test_instantiate_with_trigger_update(self) -> None:
         schema = APSchedulerJobUpdate(
-            schedule_id=str(SCHEDULE_ID),
+            schedule_id=SCHEDULE_ID,
             trigger="cron",
             trigger_kwargs={"hour": 1},
         )
@@ -149,22 +149,22 @@ class TestAPSchedulerJobUpdate:
             APSchedulerJobUpdate()  # type: ignore[call-arg]
 
     def test_scheduled_type_is_update(self) -> None:
-        schema = APSchedulerJobUpdate(schedule_id=str(SCHEDULE_ID))
+        schema = APSchedulerJobUpdate(schedule_id=SCHEDULE_ID)
         assert schema.scheduled_type == "update"
 
 
 class TestAPSchedulerJobDelete:
     def test_instantiate_minimal_valid_data_succeeds(self) -> None:
-        schema = APSchedulerJobDelete(workflow_id=str(WORKFLOW_ID))
+        schema = APSchedulerJobDelete(workflow_id=WORKFLOW_ID)
         assert schema.workflow_id == WORKFLOW_ID
         assert schema.scheduled_type == "delete"
 
     def test_schedule_id_defaults_to_none(self) -> None:
-        schema = APSchedulerJobDelete(workflow_id=str(WORKFLOW_ID))
+        schema = APSchedulerJobDelete(workflow_id=WORKFLOW_ID)
         assert schema.schedule_id is None
 
     def test_instantiate_with_schedule_id(self) -> None:
-        schema = APSchedulerJobDelete(workflow_id=str(WORKFLOW_ID), schedule_id=str(SCHEDULE_ID))
+        schema = APSchedulerJobDelete(workflow_id=WORKFLOW_ID, schedule_id=SCHEDULE_ID)
         assert schema.schedule_id == SCHEDULE_ID
 
     def test_missing_workflow_id_raises(self) -> None:
@@ -172,7 +172,7 @@ class TestAPSchedulerJobDelete:
             APSchedulerJobDelete()  # type: ignore[call-arg]
 
     def test_scheduled_type_is_delete(self) -> None:
-        schema = APSchedulerJobDelete(workflow_id=str(WORKFLOW_ID))
+        schema = APSchedulerJobDelete(workflow_id=WORKFLOW_ID)
         assert schema.scheduled_type == "delete"
 
 

@@ -32,7 +32,7 @@ WORKFLOW_ID = uuid4()
 NOW = datetime.now(tz=timezone.utc)
 
 
-def make_workflow_base_data(**overrides) -> dict:  # type: ignore[no-untyped-def]
+def make_workflow_base_data(**overrides) -> dict:
     return {
         "name": "create_subscription",
         "target": Target.CREATE,
@@ -65,7 +65,7 @@ class TestWorkflowBaseSchema:
             target=Target.MODIFY,
             is_task=True,
             description="Modify a subscription",
-            created_at=NOW.isoformat(),
+            created_at=NOW,
         )
         assert schema.is_task is True
         assert schema.description == "Modify a subscription"
@@ -81,7 +81,7 @@ class TestWorkflowBaseSchema:
 
     def test_instantiate_invalid_target_raises(self) -> None:
         with pytest.raises(ValidationError):
-            WorkflowBaseSchema(name="wf", target="INVALID")
+            WorkflowBaseSchema(name="wf", target="INVALID")  # type: ignore[arg-type]
 
 
 class TestStepSchema:
@@ -98,8 +98,8 @@ class TestWorkflowSchema:
     def test_instantiate_valid_data_succeeds(self) -> None:
         schema = WorkflowSchema(
             **make_workflow_base_data(),
-            workflow_id=str(WORKFLOW_ID),
-            created_at=NOW.isoformat(),
+            workflow_id=WORKFLOW_ID,
+            created_at=NOW,
         )
         assert schema.workflow_id == WORKFLOW_ID
         assert isinstance(schema.created_at, datetime)
@@ -107,17 +107,17 @@ class TestWorkflowSchema:
     def test_steps_defaults_to_none(self) -> None:
         schema = WorkflowSchema(
             **make_workflow_base_data(),
-            workflow_id=str(WORKFLOW_ID),
-            created_at=NOW.isoformat(),
+            workflow_id=WORKFLOW_ID,
+            created_at=NOW,
         )
         assert schema.steps is None
 
     def test_instantiate_with_steps(self) -> None:
         schema = WorkflowSchema(
             **make_workflow_base_data(),
-            workflow_id=str(WORKFLOW_ID),
-            created_at=NOW.isoformat(),
-            steps=[{"name": "step_a"}, {"name": "step_b"}],
+            workflow_id=WORKFLOW_ID,
+            created_at=NOW,
+            steps=[StepSchema(name="step_a"), StepSchema(name="step_b")],
         )
         assert schema.steps is not None
         assert len(schema.steps) == 2
@@ -125,13 +125,13 @@ class TestWorkflowSchema:
 
     def test_instantiate_missing_workflow_id_raises(self) -> None:
         with pytest.raises(ValidationError):
-            WorkflowSchema(**make_workflow_base_data(), created_at=NOW.isoformat())  # type: ignore[call-arg]
+            WorkflowSchema(**make_workflow_base_data(), created_at=NOW)
 
     def test_workflow_id_is_uuid_type(self) -> None:
         schema = WorkflowSchema(
             **make_workflow_base_data(),
-            workflow_id=str(WORKFLOW_ID),
-            created_at=NOW.isoformat(),
+            workflow_id=WORKFLOW_ID,
+            created_at=NOW,
         )
         assert isinstance(schema.workflow_id, UUID)
 
@@ -154,7 +154,7 @@ class TestWorkflowListItemSchema:
 
     def test_instantiate_with_locked_relations(self) -> None:
         sub_id = uuid4()
-        schema = WorkflowListItemSchema(name="wf", locked_relations=[str(sub_id)])
+        schema = WorkflowListItemSchema(name="wf", locked_relations=[sub_id])
         assert schema.locked_relations is not None
         assert schema.locked_relations[0] == sub_id
 
@@ -164,8 +164,8 @@ class TestWorkflowListItemSchema:
 
 
 class TestSubscriptionWorkflowListsSchema:
-    def _make_wf_item(self, name: str) -> dict:
-        return {"name": name}
+    def _make_wf_item(self, name: str) -> WorkflowListItemSchema:
+        return WorkflowListItemSchema(name=name)
 
     def test_instantiate_valid_data_succeeds(self) -> None:
         schema = SubscriptionWorkflowListsSchema(
@@ -233,7 +233,8 @@ class TestWorkflowPatchSchema:
     def test_description_at_max_length_succeeds(self) -> None:
         description = "d" * DESCRIPTION_LENGTH
         schema = WorkflowPatchSchema(description=description)
-        assert len(schema.description) == DESCRIPTION_LENGTH  # type: ignore[arg-type]
+        assert schema.description is not None
+        assert len(schema.description) == DESCRIPTION_LENGTH
 
     def test_description_exceeding_max_length_raises(self) -> None:
         with pytest.raises(ValidationError):

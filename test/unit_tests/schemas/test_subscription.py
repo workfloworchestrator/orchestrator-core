@@ -17,6 +17,8 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 
+from orchestrator.domain.lifecycle import ProductLifecycle
+from orchestrator.schemas.product import ProductBaseSchema
 from orchestrator.schemas.subscription import (
     PortMode,
     SubscriptionBaseSchema,
@@ -145,7 +147,7 @@ class TestSubscriptionInstanceBase:
             "depends_on_block_relations": [],
             "product_block": make_product_block_schema(),
         }
-        schema = SubscriptionInstanceBase(**data)
+        schema = SubscriptionInstanceBase(**data)  # type: ignore[arg-type]
         assert isinstance(schema.subscription_id, UUID)
         assert schema.label is None
 
@@ -162,7 +164,7 @@ class TestSubscriptionInstanceBase:
             "depends_on_block_relations": [],
             "product_block": make_product_block_schema(),
         }
-        schema = SubscriptionInstanceBase(**data)
+        schema = SubscriptionInstanceBase(**data)  # type: ignore[arg-type]
         assert schema.label == "my-label"
 
 
@@ -228,7 +230,7 @@ class TestSubscriptionSchema:
 
     def test_instantiate_valid_data_succeeds(self) -> None:
         schema = SubscriptionSchema(
-            subscription_id=str(SUB_ID),
+            subscription_id=SUB_ID,
             description="my sub",
             status=SubscriptionLifecycle.ACTIVE,
             customer_id="cust-1",
@@ -240,7 +242,7 @@ class TestSubscriptionSchema:
 
     def test_optional_fields_are_none_by_default(self) -> None:
         schema = SubscriptionSchema(
-            subscription_id=str(SUB_ID),
+            subscription_id=SUB_ID,
             description="sub",
             status=SubscriptionLifecycle.INITIAL,
             customer_id="cust",
@@ -255,13 +257,13 @@ class TestSubscriptionSchema:
 
     def test_instantiate_with_product(self) -> None:
         schema = SubscriptionSchema(
-            subscription_id=str(SUB_ID),
+            subscription_id=SUB_ID,
             description="sub",
             status=SubscriptionLifecycle.ACTIVE,
             customer_id="cust",
             insync=True,
             version=2,
-            product=self._make_product_base(),
+            product=ProductBaseSchema(**self._make_product_base()),
         )
         assert schema.product is not None
         assert schema.product.name == "prod"
@@ -280,7 +282,7 @@ class TestSubscriptionSchema:
 class TestSubscriptionWithMetadata:
     def test_instantiate_with_metadata_alias(self) -> None:
         schema = SubscriptionWithMetadata(
-            subscription_id=str(SUB_ID),
+            subscription_id=SUB_ID,
             description="sub",
             status=SubscriptionLifecycle.ACTIVE,
             customer_id="cust",
@@ -292,7 +294,7 @@ class TestSubscriptionWithMetadata:
 
     def test_instantiate_with_metadata_none(self) -> None:
         schema = SubscriptionWithMetadata(
-            subscription_id=str(SUB_ID),
+            subscription_id=SUB_ID,
             description="sub",
             status=SubscriptionLifecycle.ACTIVE,
             customer_id="cust",
@@ -305,7 +307,7 @@ class TestSubscriptionWithMetadata:
 
 class TestSubscriptionIdSchema:
     def test_instantiate_valid_uuid_succeeds(self) -> None:
-        schema = SubscriptionIdSchema(subscription_id=str(SUB_ID))
+        schema = SubscriptionIdSchema(subscription_id=SUB_ID)
         assert schema.subscription_id == SUB_ID
 
     def test_instantiate_missing_uuid_raises(self) -> None:
@@ -314,20 +316,20 @@ class TestSubscriptionIdSchema:
 
     def test_instantiate_invalid_uuid_raises(self) -> None:
         with pytest.raises(ValidationError):
-            SubscriptionIdSchema(subscription_id="not-a-uuid")
+            SubscriptionIdSchema(subscription_id="not-a-uuid")  # type: ignore[arg-type]
 
 
 class TestSubscriptionDomainModelSchema:
     def test_instantiate_with_product_required(self) -> None:
-        product = {
-            "name": "prod",
-            "description": "desc",
-            "product_type": "Type",
-            "status": "active",
-            "tag": "T",
-        }
+        product = ProductBaseSchema(
+            name="prod",
+            description="desc",
+            product_type="Type",
+            status=ProductLifecycle.ACTIVE,
+            tag="T",
+        )
         schema = SubscriptionDomainModelSchema(
-            subscription_id=str(SUB_ID),
+            subscription_id=SUB_ID,
             description="sub",
             status=SubscriptionLifecycle.ACTIVE,
             customer_id="cust",
@@ -339,15 +341,15 @@ class TestSubscriptionDomainModelSchema:
         assert schema.customer_descriptions == []
 
     def test_allows_extra_fields(self) -> None:
-        product = {
-            "name": "prod",
-            "description": "desc",
-            "product_type": "Type",
-            "status": "active",
-            "tag": "T",
-        }
-        schema = SubscriptionDomainModelSchema(
-            subscription_id=str(SUB_ID),
+        product = ProductBaseSchema(
+            name="prod",
+            description="desc",
+            product_type="Type",
+            status=ProductLifecycle.ACTIVE,
+            tag="T",
+        )
+        schema = SubscriptionDomainModelSchema(  # type: ignore[call-arg]
+            subscription_id=SUB_ID,
             description="sub",
             status=SubscriptionLifecycle.ACTIVE,
             customer_id="cust",
