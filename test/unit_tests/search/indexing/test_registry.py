@@ -112,7 +112,7 @@ class TestEntityConfigGetAllQuery:
         base_query = MagicMock()
         mock_table.query = base_query
 
-        config = EntityConfig(
+        config: EntityConfig = EntityConfig(
             entity_kind=EntityType.SUBSCRIPTION,
             table=mock_table,
             traverser=MagicMock(),
@@ -135,7 +135,7 @@ class TestEntityConfigGetAllQuery:
         mock_table.query = base_query
         mock_table.subscription_id = pk_column
 
-        config = EntityConfig(
+        config: EntityConfig = EntityConfig(
             entity_kind=EntityType.SUBSCRIPTION,
             table=mock_table,
             traverser=MagicMock(),

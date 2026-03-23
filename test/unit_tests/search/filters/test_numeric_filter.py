@@ -73,7 +73,7 @@ class TestNumericValueFilterConstruction:
         ids=["eq", "neq", "lt", "lte", "gt", "gte"],
     )
     def test_valid_ops_construct(self, op: FilterOp) -> None:
-        f = NumericValueFilter(op=op, value=42)
+        f = NumericValueFilter(op=op, value=42)  # type: ignore[arg-type]
         assert f.op == op
         assert f.value == 42
 
@@ -84,7 +84,7 @@ class TestNumericValueFilterConstruction:
     )
     def test_invalid_ops_raise(self, op: FilterOp) -> None:
         with pytest.raises(ValidationError):
-            NumericValueFilter(op=op, value=42)
+            NumericValueFilter(op=op, value=42)  # type: ignore[arg-type]
 
 
 class TestNumericValueFilterToExpression:
@@ -122,7 +122,7 @@ class TestNumericValueFilterToExpression:
     def test_to_expression_returns_column_element(
         self, op: FilterOp, value: int | float, cast_type_fragment: str
     ) -> None:
-        f = NumericValueFilter(op=op, value=value)
+        f = NumericValueFilter(op=op, value=value)  # type: ignore[arg-type]
         expr = f.to_expression(_col, "path")
         assert isinstance(expr, ColumnElement)
 
@@ -139,7 +139,7 @@ class TestNumericValueFilterToExpression:
         ids=["eq", "neq", "lt", "lte", "gt", "gte"],
     )
     def test_to_expression_int_uses_bigint_cast(self, op: FilterOp, value: int, sql_op: str) -> None:
-        f = NumericValueFilter(op=op, value=value)
+        f = NumericValueFilter(op=op, value=value)  # type: ignore[arg-type]
         expr = f.to_expression(_col, "path")
         sql = str(expr.compile(compile_kwargs={"literal_binds": True}))
         assert "BIGINT" in sql.upper()
@@ -158,7 +158,7 @@ class TestNumericValueFilterToExpression:
         ids=["eq", "neq", "lt", "lte", "gt", "gte"],
     )
     def test_to_expression_float_uses_double_precision_cast(self, op: FilterOp, value: float, sql_op: str) -> None:
-        f = NumericValueFilter(op=op, value=value)
+        f = NumericValueFilter(op=op, value=value)  # type: ignore[arg-type]
         expr = f.to_expression(_col, "path")
         sql = str(expr.compile(compile_kwargs={"literal_binds": True}))
         assert "DOUBLE" in sql.upper()
@@ -172,13 +172,13 @@ class TestNumericValueFilterToExpression:
 
 class TestNumericRangeFilterConstruction:
     def test_valid_int_range_constructs(self) -> None:
-        f = NumericRangeFilter(op=FilterOp.BETWEEN, value={"start": 1, "end": 10})
+        f = NumericRangeFilter(op=FilterOp.BETWEEN, value=NumericRange(start=1, end=10))
         assert f.op == FilterOp.BETWEEN
         assert f.value.start == 1
         assert f.value.end == 10
 
     def test_valid_float_range_constructs(self) -> None:
-        f = NumericRangeFilter(op=FilterOp.BETWEEN, value={"start": 1.5, "end": 9.9})
+        f = NumericRangeFilter(op=FilterOp.BETWEEN, value=NumericRange(start=1.5, end=9.9))
         assert f.value.start == 1.5
         assert f.value.end == 9.9
 
@@ -188,7 +188,7 @@ class TestNumericRangeFilterConstruction:
 
     def test_invalid_range_order_raises(self) -> None:
         with pytest.raises(ValidationError):
-            NumericRangeFilter(op=FilterOp.BETWEEN, value={"start": 10, "end": 1})
+            NumericRangeFilter(op=FilterOp.BETWEEN, value=NumericRange(start=10, end=1))
 
 
 class TestNumericRangeFilterToExpression:

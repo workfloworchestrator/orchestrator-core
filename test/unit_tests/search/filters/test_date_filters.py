@@ -138,7 +138,7 @@ class TestDateValueFilterConstruction:
         ids=["eq", "neq", "lt", "lte", "gt", "gte"],
     )
     def test_valid_ops_construct(self, op: FilterOp) -> None:
-        f = DateValueFilter(op=op, value="2025-06-15")
+        f = DateValueFilter(op=op, value="2025-06-15")  # type: ignore[arg-type]
         assert f.op == op
         assert f.value == "2025-06-15"
 
@@ -170,7 +170,7 @@ class TestDateValueFilterToExpression:
         ids=["eq", "neq", "lt", "lte", "gt", "gte"],
     )
     def test_to_expression_returns_column_element(self, op: FilterOp, sql_op: str) -> None:
-        f = DateValueFilter(op=op, value="2025-06-15")
+        f = DateValueFilter(op=op, value="2025-06-15")  # type: ignore[arg-type]
         expr = f.to_expression(_col, "path")
         assert isinstance(expr, ColumnElement)
 
@@ -187,7 +187,7 @@ class TestDateValueFilterToExpression:
         ids=["eq", "neq", "lt", "lte", "gt", "gte"],
     )
     def test_to_expression_uses_timestamp_cast(self, op: FilterOp, sql_op: str) -> None:
-        f = DateValueFilter(op=op, value="2025-06-15")
+        f = DateValueFilter(op=op, value="2025-06-15")  # type: ignore[arg-type]
         expr = f.to_expression(_col, "path")
         sql = str(expr.compile(compile_kwargs={"literal_binds": True}))
         assert "TIMESTAMP" in sql.upper()
@@ -201,18 +201,18 @@ class TestDateValueFilterToExpression:
 
 class TestDateRangeFilterConstruction:
     def test_valid_range_constructs(self) -> None:
-        f = DateRangeFilter(op=FilterOp.BETWEEN, value={"start": "2025-01-01", "end": "2025-12-31"})
+        f = DateRangeFilter(op=FilterOp.BETWEEN, value=DateRange(start="2025-01-01", end="2025-12-31"))
         assert f.op == FilterOp.BETWEEN
         assert f.value.start == "2025-01-01"
         assert f.value.end == "2025-12-31"
 
     def test_invalid_op_raises(self) -> None:
         with pytest.raises(ValidationError):
-            DateRangeFilter(op=FilterOp.EQ, value={"start": "2025-01-01", "end": "2025-12-31"})  # type: ignore[arg-type]
+            DateRangeFilter(op=FilterOp.EQ, value=DateRange(start="2025-01-01", end="2025-12-31"))  # type: ignore[arg-type]
 
     def test_reversed_range_raises(self) -> None:
         with pytest.raises(ValidationError):
-            DateRangeFilter(op=FilterOp.BETWEEN, value={"start": "2025-12-31", "end": "2025-01-01"})
+            DateRange(start="2025-12-31", end="2025-01-01")
 
 
 class TestDateRangeFilterToExpression:

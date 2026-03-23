@@ -12,9 +12,11 @@
 # limitations under the License.
 
 from collections import namedtuple
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy import Row
 
 from orchestrator.search.core.types import EntityType, FieldType, UIType
 from orchestrator.search.query.builder import (
@@ -33,8 +35,8 @@ pytestmark = pytest.mark.search
 PathRow = namedtuple("PathRow", ["path", "value_type"])
 
 
-def _row(path: str, field_type: FieldType = FieldType.STRING) -> PathRow:
-    return PathRow(path=path, value_type=field_type.value)
+def _row(path: str, field_type: FieldType = FieldType.STRING) -> Row[Any]:
+    return PathRow(path=path, value_type=field_type.value)  # type: ignore[return-value]
 
 
 # ---------------------------------------------------------------------------
