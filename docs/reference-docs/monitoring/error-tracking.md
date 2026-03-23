@@ -102,4 +102,4 @@ def debug_sentry():
 **See also**
 
 - [Running the app](../../getting-started/base.md)
-- [General info on app settings](../app/settings_overview.md)
+- [General info on app settings](../app/settings-overview.md)

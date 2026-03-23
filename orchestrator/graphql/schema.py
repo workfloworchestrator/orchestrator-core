@@ -22,6 +22,7 @@ from graphql import GraphQLError
 from httpx import HTTPStatusError
 from strawberry.extensions import SchemaExtension
 from strawberry.fastapi import GraphQLRouter
+from strawberry.schema.config import StrawberryConfig
 from strawberry.tools import merge_types
 from strawberry.types import ExecutionContext
 from strawberry.utils.logging import StrawberryLogger
@@ -209,15 +210,17 @@ def create_graphql_router(
     schema = OrchestratorSchema(
         query=query,
         mutation=mutation,
-        enable_federation_2=app_settings.FEDERATION_ENABLED,
+        federation_version=app_settings.FEDERATION_VERSION,
         types=tuple(models.values()),
         extensions=extensions,
-        scalar_overrides=scalar_overrides,
+        config=StrawberryConfig(
+            scalar_map=scalar_overrides,
+        ),
     )
 
     context_getter_factory = custom_context_getter or default_context_getter
     return OrchestratorGraphqlRouter(
         schema,
         context_getter=context_getter_factory(auth_manager, models, broadcast_thread),  # type: ignore
-        graphiql=app_settings.SERVE_GRAPHQL_UI,
+        graphql_ide=app_settings.SERVE_GRAPHQL_UI if app_settings.SERVE_GRAPHQL_UI else None,  # type: ignore
     )

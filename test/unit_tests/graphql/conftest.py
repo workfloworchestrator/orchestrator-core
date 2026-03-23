@@ -3,9 +3,6 @@ from unittest import mock
 import pytest
 
 from orchestrator.graphql.autoregistration import register_domain_models
-from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (
-    ProductBlockListNestedForTestInactiveGraphql,
-)
 
 
 @pytest.fixture(autouse=True)
@@ -29,7 +26,7 @@ def fix_graphql_model_registration():
     # This block caches the "ProductBlockListNestedForTestInactive" model to avoid re-instantiation in each test case.
     # This is necessary because this product block has a self referencing property, which strawberry can't handle correctly,
     # and lead to an error expecting the `ProductBlockListNestedForTestInactive` strawberry type to already exist.
-    internal_graphql_models = {"ProductBlockListNestedForTestInactive": ProductBlockListNestedForTestInactiveGraphql}
+    internal_graphql_models = {}
 
     def patched_register_domain_models(*args, **kwargs):
         graphql_models = register_domain_models(*args, **kwargs)

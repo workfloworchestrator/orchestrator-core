@@ -21,7 +21,7 @@ An example of the `Workflow Orchestrator` using the `orchestrator-core` with som
 The Workflow Orchestrator UI can also be split into 2 major components. A frontend library called the `components orchestrator-ui` library as available on [npm](https://www.npmjs.com/package/@orchestrator-ui/orchestrator-ui-components). And the out-of-the-box `Workflow Orchestrator UI`, which uses the npm library in it's pages. The example of this frontend is the `example-orchestrator-ui` and can be found [here](https://github.com/workfloworchestrator/example-orchestrator-ui) and running instance can be found [here](https://demo.workfloworchestrator.org/). In most cases the example orchestrator is the best deployment model to start with, as is contains a fully functional userinterface, while you can focus your effort on developing products, workflows and tasks.
 
 ### More advanced UI deployment models
-By tweaking the `example-orchestrator-ui` it is possible to easily add extra pages, cards on dashboard page, or change the rending of certain resource type. Examples of the possible changes is shown [here](architecture/orchestration/orchestration-ui) . This will leverage the default architecture, like shown below:
+By tweaking the `example-orchestrator-ui` it is possible to easily add extra pages, cards on dashboard page, or change the rending of certain resource type. Examples of the possible changes is shown [here](orchestration/orchestrator-ui.md) . This will leverage the default architecture, like shown below:
 
 ![Screenshot](img/custom-orchestrator-setup.png)
 

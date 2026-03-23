@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from strawberry import UNSET
 from strawberry.federation.schema_directives import Key
+from strawberry.federation.types import FieldSet
 
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, db
@@ -32,7 +33,7 @@ from orchestrator.services.subscriptions import (
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
 
-federation_key_directives = [Key(fields="subscriptionId", resolvable=UNSET)]
+federation_key_directives = [Key(fields=FieldSet("subscriptionId"), resolvable=UNSET)]
 
 MetadataDict: dict[str, type[BaseModel] | None] = {"metadata": None}
 static_metadata_schema = {"title": "SubscriptionMetadata", "type": "object", "properties": {}, "definitions": {}}
@@ -106,7 +107,7 @@ class SubscriptionInterface:
         return await get_subscription_product_blocks(info, self.subscription_id, tags, resource_types)
 
     @strawberry.field(description="Return fixed inputs")  # type: ignore
-    async def fixed_inputs(self) -> strawberry.scalars.JSON:
+    async def fixed_inputs(self) -> list[dict]:
         model = get_original_model(self, SubscriptionTable)
 
         fixed_inputs = get_fixed_inputs(filters=[FixedInputTable.product_id == model.product.product_id])

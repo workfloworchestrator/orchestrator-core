@@ -66,6 +66,10 @@ class SearchRequest(BaseModel):
         default=None,
         description="Ordering instructions for search results, only applied with structured search.",
     )
+    response_columns: list[str] | None = Field(
+        default=None,
+        description="Field paths to return as inline columns on each search result.",
+    )
 
     model_config = ConfigDict(extra="forbid")
 
@@ -85,6 +89,7 @@ class SearchRequest(BaseModel):
             limit=self.limit,
             retriever=self.retriever,
             order_by=self.order_by,
+            response_columns=self.response_columns,
         )
 
     @model_validator(mode="after")
