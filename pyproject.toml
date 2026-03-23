@@ -68,7 +68,7 @@ dependencies = [
     "tabulate==0.10.0",
     "typer==0.24.1",
     "uvicorn[standard]~=0.42.0",
-    "starlette==0.52.1",
+    "starlette<1.0.0",
 ]
 
 [project.urls]
