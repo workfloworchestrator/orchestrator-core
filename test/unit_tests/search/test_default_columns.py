@@ -1,3 +1,5 @@
+"""Tests for response_columns: include_columns toggle and end-to-end data flow through search engine."""
+
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,107 +25,81 @@ from orchestrator.search.query.queries import SelectQuery
 
 from .fixtures.helpers import SIMPLE_SUBSCRIPTION_FILTER, make_column_row, make_search_row
 
+# --- include_columns toggle ---
 
-class TestResponseColumns:
-    """Tests for response_columns: overrides, toggle, and end-to-end data flow.
 
-    Only the DB session is mocked (infrastructure).
-    The real business logic runs: process_response_columns, format_search_response,
-    and the column resolution in the engine.
-    """
+@pytest.mark.parametrize(
+    "include_columns,input_cols,expected_cols",
+    [
+        pytest.param(False, None, [], id="false-passes-empty"),
+        pytest.param(True, ["subscription.status"], ["subscription.status"], id="true-preserves"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_include_columns_toggle(include_columns, input_cols, expected_cols):
+    kwargs = {"limit": 10}
+    if input_cols is not None:
+        kwargs["response_columns"] = input_cols
+    request = SearchRequest(**kwargs)
+    mock_response = MagicMock(results=[], metadata=SearchMetadata.empty())
 
-    # --- include_columns toggle ---
+    with (
+        patch("orchestrator.api.api_v1.endpoints.search.engine.execute_search", new_callable=AsyncMock) as mock_execute,
+        patch("orchestrator.api.api_v1.endpoints.search.db"),
+    ):
+        mock_execute.return_value = mock_response
+        await _perform_search_and_fetch(EntityType.SUBSCRIPTION, request, include_columns=include_columns)
 
-    @pytest.mark.asyncio
-    async def test_include_columns_false_passes_empty_response_columns_to_engine(self):
-        """When include_columns=False, _perform_search_and_fetch passes response_columns=[] to the engine."""
-        request = SearchRequest(limit=10)
-        mock_response = MagicMock(results=[], metadata=SearchMetadata.empty())
+    called_query = mock_execute.call_args[0][0]
+    assert called_query.response_columns == expected_cols
 
-        with (
-            patch(
-                "orchestrator.api.api_v1.endpoints.search.engine.execute_search", new_callable=AsyncMock
-            ) as mock_execute,
-            patch("orchestrator.api.api_v1.endpoints.search.db"),
-        ):
-            mock_execute.return_value = mock_response
-            await _perform_search_and_fetch(EntityType.SUBSCRIPTION, request, include_columns=False)
 
-        called_query = mock_execute.call_args[0][0]
-        assert called_query.response_columns == []
+# --- End-to-end scenarios ---
 
-    @pytest.mark.asyncio
-    async def test_include_columns_true_preserves_response_columns_in_engine(self):
-        """When include_columns=True (default), _perform_search_and_fetch passes response_columns unchanged."""
-        request = SearchRequest(limit=10, response_columns=["subscription.status"])
-        mock_response = MagicMock(results=[], metadata=SearchMetadata.empty())
 
-        with (
-            patch(
-                "orchestrator.api.api_v1.endpoints.search.engine.execute_search", new_callable=AsyncMock
-            ) as mock_execute,
-            patch("orchestrator.api.api_v1.endpoints.search.db"),
-        ):
-            mock_execute.return_value = mock_response
-            await _perform_search_and_fetch(EntityType.SUBSCRIPTION, request, include_columns=True)
+@pytest.mark.parametrize(
+    "response_columns,has_column_rows,expect_response_columns",
+    [
+        pytest.param(None, False, False, id="no-columns-returns-null"),
+        pytest.param([], False, False, id="empty-columns-returns-null"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_response_columns_null_scenarios(
+    mock_db_session, response_columns, has_column_rows, expect_response_columns
+):
+    search_row = make_search_row("id-1", "my-service")
+    mock_db_session.execute.return_value.mappings.return_value.all.return_value = [search_row]
 
-        called_query = mock_execute.call_args[0][0]
-        assert called_query.response_columns == ["subscription.status"]
+    query_kwargs = {"entity_type": EntityType.SUBSCRIPTION, "limit": 10, "filters": SIMPLE_SUBSCRIPTION_FILTER}
+    if response_columns is not None:
+        query_kwargs["response_columns"] = response_columns
+    query = SelectQuery(**query_kwargs)
 
-    # --- End-to-end: 3 API scenarios ---
+    response = await execute_search(query, mock_db_session)
+    assert response.results[0].response_columns is None
 
-    @pytest.mark.asyncio
-    async def test_no_response_columns_returns_null(self, mock_db_session):
-        """Scenario 1: No response_columns → null on SearchResult (FE is responsible for sending columns)."""
 
-        search_row = make_search_row("id-1", "my-service")
-        mock_db_session.execute.return_value.mappings.return_value.all.return_value = [search_row]
+@pytest.mark.asyncio
+async def test_custom_response_columns_returns_only_requested(mock_db_session):
+    custom_cols = ["subscription.status", "subscription.product.name"]
+    col_values = {"subscription.status": "active", "subscription.product.name": "IP Transit"}
 
-        query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=10, filters=SIMPLE_SUBSCRIPTION_FILTER)
+    search_row = make_search_row("id-1", "my-service")
+    column_row = make_column_row("id-1", col_values)
 
-        response = await execute_search(query, mock_db_session)
+    mock_db_session.execute.return_value.mappings.return_value.all.return_value = [search_row]
+    mock_db_session.execute.return_value.all.return_value = [column_row]
 
-        result = response.results[0]
-        assert result.response_columns is None
+    query = SelectQuery(
+        entity_type=EntityType.SUBSCRIPTION,
+        limit=10,
+        filters=SIMPLE_SUBSCRIPTION_FILTER,
+        response_columns=custom_cols,
+    )
 
-    @pytest.mark.asyncio
-    async def test_custom_response_columns_returns_only_requested(self, mock_db_session):
-        """Scenario 2: Custom response_columns → only those columns on SearchResult."""
+    response = await execute_search(query, mock_db_session)
 
-        custom_cols = ["subscription.status", "subscription.product.name"]
-        col_values = {"subscription.status": "active", "subscription.product.name": "IP Transit"}
-
-        search_row = make_search_row("id-1", "my-service")
-        column_row = make_column_row("id-1", col_values)
-
-        mock_db_session.execute.return_value.mappings.return_value.all.return_value = [search_row]
-        mock_db_session.execute.return_value.all.return_value = [column_row]
-
-        query = SelectQuery(
-            entity_type=EntityType.SUBSCRIPTION,
-            limit=10,
-            filters=SIMPLE_SUBSCRIPTION_FILTER,
-            response_columns=custom_cols,
-        )
-
-        response = await execute_search(query, mock_db_session)
-
-        result = response.results[0]
-        assert result.response_columns is not None
-        assert set(result.response_columns.keys()) == set(custom_cols)
-
-    @pytest.mark.asyncio
-    async def test_empty_response_columns_returns_null(self, mock_db_session):
-        """Scenario 3: Empty response_columns (include_columns=false) → null on SearchResult."""
-
-        search_row = make_search_row("id-1", "my-service")
-        mock_db_session.execute.return_value.mappings.return_value.all.return_value = [search_row]
-
-        query = SelectQuery(
-            entity_type=EntityType.SUBSCRIPTION, limit=10, filters=SIMPLE_SUBSCRIPTION_FILTER, response_columns=[]
-        )
-
-        response = await execute_search(query, mock_db_session)
-
-        result = response.results[0]
-        assert result.response_columns is None
+    result = response.results[0]
+    assert result.response_columns is not None
+    assert set(result.response_columns.keys()) == set(custom_cols)

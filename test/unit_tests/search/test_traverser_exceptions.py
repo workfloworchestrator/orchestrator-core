@@ -1,3 +1,5 @@
+"""Tests for traverser exception handling: ProductNotInRegistryError, ModelLoadError, computed property failures."""
+
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,137 +23,133 @@ from orchestrator.search.core.exceptions import ModelLoadError, ProductNotInRegi
 from orchestrator.search.indexing.traverse import ProcessTraverser, ProductTraverser, SubscriptionTraverser
 
 
-class TestTraverserExceptions:
+def test_subscription_traverser_product_not_in_registry():
+    mock_subscription = MagicMock(spec=SubscriptionTable)
+    mock_product = MagicMock()
+    mock_product.name = "NonExistentProduct"
+    mock_subscription.product = mock_product
 
-    def test_subscription_traverser_product_not_in_registry(self):
-        """Test SubscriptionTraverser raises ProductNotInRegistryError when product not in registry."""
-        mock_subscription = MagicMock(spec=SubscriptionTable)
-        mock_product = MagicMock()
-        mock_product.name = "NonExistentProduct"
-        mock_subscription.product = mock_product
+    with pytest.raises(ProductNotInRegistryError, match="Product 'NonExistentProduct' not in registry"):
+        SubscriptionTraverser._load_model(mock_subscription)
 
-        with pytest.raises(ProductNotInRegistryError, match="Product 'NonExistentProduct' not in registry"):
-            SubscriptionTraverser._load_model(mock_subscription)
 
-    def test_subscription_traverser_model_load_error(self):
-        """Test SubscriptionTraverser raises ModelLoadError when model creation fails."""
-        mock_subscription = MagicMock(spec=SubscriptionTable)
-        mock_subscription.subscription_id = UUID("550e8400-e29b-41d4-a716-446655440000")
-        mock_product = MagicMock()
-        mock_product.name = "ExistingProduct"
-        mock_subscription.product = mock_product
-        mock_subscription.status = "active"
+def test_subscription_traverser_model_load_error():
+    mock_subscription = MagicMock(spec=SubscriptionTable)
+    mock_subscription.subscription_id = UUID("550e8400-e29b-41d4-a716-446655440000")
+    mock_product = MagicMock()
+    mock_product.name = "ExistingProduct"
+    mock_subscription.product = mock_product
+    mock_subscription.status = "active"
 
-        mock_model_class = MagicMock()
+    mock_model_class = MagicMock()
 
-        with patch("orchestrator.search.indexing.traverse.SUBSCRIPTION_MODEL_REGISTRY") as mock_registry:
-            mock_registry.get.return_value = mock_model_class
+    with patch("orchestrator.search.indexing.traverse.SUBSCRIPTION_MODEL_REGISTRY") as mock_registry:
+        mock_registry.get.return_value = mock_model_class
+        with patch("orchestrator.search.indexing.traverse.lookup_specialized_type") as mock_lookup:
+            mock_specialized_class = MagicMock()
+            mock_lookup.return_value = mock_specialized_class
+            mock_specialized_class.from_subscription.side_effect = ValueError("Some error")
 
-            with patch("orchestrator.search.indexing.traverse.lookup_specialized_type") as mock_lookup:
-                mock_specialized_class = MagicMock()
-                mock_lookup.return_value = mock_specialized_class
-                mock_specialized_class.from_subscription.side_effect = ValueError("Some error")
+            with pytest.raises(ModelLoadError, match="Failed to load model for subscription_id"):
+                SubscriptionTraverser._load_model(mock_subscription)
 
-                with pytest.raises(ModelLoadError, match="Failed to load model for subscription_id"):
-                    SubscriptionTraverser._load_model(mock_subscription)
 
-    def test_process_traverser_model_load_error(self):
-        """Test ProcessTraverser raises ModelLoadError when ProcessBaseSchema validation fails."""
-        # Create an invalid process that will fail validation
-        mock_process = MagicMock(spec=ProcessTable)
-        mock_process.process_id = "invalid-uuid"
+def test_process_traverser_model_load_error():
+    mock_process = MagicMock(spec=ProcessTable)
+    mock_process.process_id = "invalid-uuid"
 
-        with pytest.raises(ModelLoadError, match="Failed to load ProcessBaseSchema for process_id"):
-            ProcessTraverser._load_model(mock_process)
+    with pytest.raises(ModelLoadError, match="Failed to load ProcessBaseSchema for process_id"):
+        ProcessTraverser._load_model(mock_process)
 
-    def test_get_fields_handles_product_not_in_registry(self, caplog):
-        """get_fields should catch ProductNotInRegistryError and return []."""
-        mock_entity = MagicMock()
-        mock_entity.subscription_id = UUID("550e8400-e29b-41d4-a716-446655440000")
 
-        with patch.object(SubscriptionTraverser, "_load_model", side_effect=ProductNotInRegistryError("not found")):
-            result = SubscriptionTraverser.get_fields(mock_entity, "subscription_id", "root")
+@pytest.mark.parametrize(
+    "traverser_cls,entity_attr,entity_id,error_cls",
+    [
+        pytest.param(
+            SubscriptionTraverser,
+            "subscription_id",
+            UUID("550e8400-e29b-41d4-a716-446655440000"),
+            ProductNotInRegistryError("not found"),
+            id="subscription-product-not-in-registry",
+        ),
+        pytest.param(
+            ProductTraverser,
+            "product_id",
+            "test-123",
+            ProductNotInRegistryError("Product not found"),
+            id="product-not-in-registry",
+        ),
+        pytest.param(
+            ProductTraverser,
+            "product_id",
+            "test-456",
+            ModelLoadError("Failed to load model"),
+            id="product-model-load-error",
+        ),
+    ],
+)
+def test_get_fields_handles_expected_errors(caplog, traverser_cls, entity_attr, entity_id, error_cls):
+    mock_entity = MagicMock()
+    setattr(mock_entity, entity_attr, entity_id)
 
-        assert result == []
-        assert "Failed to extract fields" in caplog.text
+    with patch.object(traverser_cls, "_load_model", side_effect=error_cls):
+        result = traverser_cls.get_fields(
+            mock_entity, entity_attr, traverser_cls.__name__.replace("Traverser", "").lower()
+        )
 
-    def test_get_fields_handles_load_model_returns_none(self):
-        """get_fields should return [] when _load_model returns None."""
-        mock_entity = MagicMock()
-        mock_entity.subscription_id = UUID("550e8400-e29b-41d4-a716-446655440000")
+    assert result == []
+    assert "Failed to extract fields" in caplog.text
 
-        with patch.object(SubscriptionTraverser, "_load_model", return_value=None):
-            result = SubscriptionTraverser.get_fields(mock_entity, "subscription_id", "root")
 
-        assert result == []
+@pytest.mark.parametrize(
+    "traverser_cls,entity_attr,entity_id",
+    [
+        pytest.param(
+            SubscriptionTraverser, "subscription_id", UUID("550e8400-e29b-41d4-a716-446655440000"), id="subscription"
+        ),
+        pytest.param(ProductTraverser, "product_id", "test-123", id="product"),
+    ],
+)
+def test_get_fields_returns_empty_when_load_model_returns_none(traverser_cls, entity_attr, entity_id):
+    mock_entity = MagicMock()
+    setattr(mock_entity, entity_attr, entity_id)
 
-    def test_product_get_fields_handles_load_model_returns_none(self):
-        """ProductTraverser.get_fields should return [] when _load_model returns None."""
-        mock_product = MagicMock()
-        mock_product.product_id = "test-123"
+    with patch.object(traverser_cls, "_load_model", return_value=None):
+        result = traverser_cls.get_fields(
+            mock_entity, entity_attr, traverser_cls.__name__.replace("Traverser", "").lower()
+        )
 
-        with patch.object(ProductTraverser, "_load_model", return_value=None):
-            result = ProductTraverser.get_fields(mock_product, "product_id", "product")
+    assert result == []
 
-        assert result == []
 
-    def test_get_fields_handles_product_not_in_registry_error(self, caplog):
-        """Test that ProductNotInRegistryError is caught and logged properly."""
-        mock_product = MagicMock()
-        mock_product.product_id = "test-123"
+def test_get_fields_unexpected_exception_propagates():
+    mock_product = MagicMock()
+    mock_product.product_id = "test-789"
 
-        with patch.object(ProductTraverser, "_load_model", side_effect=ProductNotInRegistryError("Product not found")):
-            result = ProductTraverser.get_fields(mock_product, "product_id", "product")
+    with patch.object(ProductTraverser, "_load_model", side_effect=ValueError("Unexpected error")):
+        with pytest.raises(ValueError, match="Unexpected error"):
+            ProductTraverser.get_fields(mock_product, "product_id", "product")
 
-        assert result == []
-        assert "Failed to extract fields from" in caplog.text
-        assert "Product not found" in caplog.text
 
-    def test_get_fields_handles_model_load_error(self, caplog):
-        """Test that ModelLoadError is caught and logged properly."""
-        mock_product = MagicMock()
-        mock_product.product_id = "test-456"
+def test_traverse_handles_computed_property_exception(caplog):
+    from pydantic import BaseModel, computed_field
 
-        with patch.object(ProductTraverser, "_load_model", side_effect=ModelLoadError("Failed to load model")):
-            result = ProductTraverser.get_fields(mock_product, "product_id", "product")
+    from orchestrator.search.indexing.traverse import BaseTraverser
 
-        assert result == []
-        assert "Failed to extract fields from" in caplog.text
-        assert "Failed to load model" in caplog.text
+    class TestModel(BaseModel):
+        normal_field: str = "test_value"
 
-    def test_get_fields_unexpected_exception_propagates(self):
-        """Test that unexpected exceptions are not caught and propagate up."""
-        mock_product = MagicMock()
-        mock_product.product_id = "test-789"
+        @computed_field  # type:ignore[misc]
+        @property
+        def failing_computed_field(self) -> str:
+            raise AssertionError("Computed property failed")
 
-        with patch.object(ProductTraverser, "_load_model", side_effect=ValueError("Unexpected error")):
-            with pytest.raises(ValueError, match="Unexpected error"):
-                ProductTraverser.get_fields(mock_product, "product_id", "product")
+    instance = TestModel()
+    fields = list(BaseTraverser.traverse(instance, "test"))
 
-    def test_traverse_handles_computed_property_exception(self, caplog):
-        """Test that traverse() handles computed property exceptions."""
-        from pydantic import BaseModel, computed_field
-
-        from orchestrator.search.indexing.traverse import BaseTraverser
-
-        class TestModel(BaseModel):
-            normal_field: str = "test_value"
-
-            @computed_field  # type:ignore[misc]
-            @property
-            def failing_computed_field(self) -> str:
-                raise AssertionError("Computed property failed")
-
-        instance = TestModel()
-
-        fields = list(BaseTraverser.traverse(instance, "test"))
-
-        # Should get the normal field but skip the failing computed field
-        field_paths = [field.path for field in fields]
-        assert "test.normal_field" in field_paths
-        assert "test.failing_computed_field" not in field_paths
-
-        # Should log the error
-        assert "Failed to access field 'failing_computed_field'" in caplog.text
-        assert "Computed property failed" in caplog.text
-        assert any(record.levelname == "ERROR" for record in caplog.records)
+    field_paths = [field.path for field in fields]
+    assert "test.normal_field" in field_paths
+    assert "test.failing_computed_field" not in field_paths
+    assert "Failed to access field 'failing_computed_field'" in caplog.text
+    assert "Computed property failed" in caplog.text
+    assert any(record.levelname == "ERROR" for record in caplog.records)

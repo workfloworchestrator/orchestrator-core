@@ -1,3 +1,5 @@
+"""Tests for orchestrator.search.query.engine -- retriever override selection, search pagination, export, and aggregation."""
+
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +24,7 @@ from orchestrator.search.query.engine import (
     execute_export,
     execute_search,
 )
-from orchestrator.search.query.queries import CountQuery, SelectQuery
+from orchestrator.search.query.queries import CountQuery, ExportQuery, SelectQuery
 from orchestrator.search.query.results import SearchResponse, SearchResult
 from orchestrator.search.retrieval.retrievers import (
     FuzzyRetriever,
@@ -65,86 +67,94 @@ def _empty_search_response() -> SearchResponse:
 # ---------------------------------------------------------------------------
 
 
-class TestGetRetrieverFromOverride:
-    """Unit tests for _get_retriever_from_override."""
+def test_get_retriever_no_override_returns_none():
+    """query.retriever is None -> returns None."""
+    q = _make_query(None, "hello", EntityType.SUBSCRIPTION)
+    assert _get_retriever_from_override(q, None, None) is None
 
-    def test_no_override_returns_none(self):
-        """query.retriever is None → returns None."""
-        q = _make_query(None, "hello", EntityType.SUBSCRIPTION)
-        assert _get_retriever_from_override(q, None, None) is None
 
-    @pytest.mark.parametrize(
-        "entity_type,expected_type",
-        [
-            (EntityType.SUBSCRIPTION, FuzzyRetriever),
-            (EntityType.PRODUCT, FuzzyRetriever),
-            (EntityType.WORKFLOW, FuzzyRetriever),
-            (EntityType.PROCESS, ProcessHybridRetriever),
-        ],
-        ids=["subscription-fuzzy", "product-fuzzy", "workflow-fuzzy", "process-fuzzy"],
-    )
-    def test_fuzzy_override(self, entity_type: EntityType, expected_type: type):
-        """FUZZY override selects FuzzyRetriever or ProcessHybridRetriever for PROCESS."""
-        q = _make_query(RetrieverType.FUZZY, "hello", entity_type)
-        result = _get_retriever_from_override(q, None, None)
-        assert isinstance(result, expected_type)
+@pytest.mark.parametrize(
+    "entity_type,expected_type",
+    [
+        pytest.param(EntityType.SUBSCRIPTION, FuzzyRetriever, id="subscription-fuzzy"),
+        pytest.param(EntityType.PRODUCT, FuzzyRetriever, id="product-fuzzy"),
+        pytest.param(EntityType.WORKFLOW, FuzzyRetriever, id="workflow-fuzzy"),
+        pytest.param(EntityType.PROCESS, ProcessHybridRetriever, id="process-fuzzy"),
+    ],
+)
+def test_get_retriever_fuzzy_override(entity_type: EntityType, expected_type: type):
+    """FUZZY override selects FuzzyRetriever or ProcessHybridRetriever for PROCESS."""
+    q = _make_query(RetrieverType.FUZZY, "hello", entity_type)
+    result = _get_retriever_from_override(q, None, None)
+    assert isinstance(result, expected_type)
 
-    def test_semantic_override_with_embedding(self):
-        """SEMANTIC override with embedding → SemanticRetriever."""
-        q = _make_query(RetrieverType.SEMANTIC, "hello", EntityType.SUBSCRIPTION)
-        embedding = [0.1, 0.2, 0.3]
-        result = _get_retriever_from_override(q, None, embedding)
-        assert isinstance(result, SemanticRetriever)
 
-    def test_semantic_override_without_embedding_raises(self):
-        """SEMANTIC override without embedding → ValueError."""
-        q = _make_query(RetrieverType.SEMANTIC, "hello", EntityType.SUBSCRIPTION)
-        with pytest.raises(ValueError, match="Semantic retriever requested but query embedding is not available"):
-            _get_retriever_from_override(q, None, None)
+def test_get_retriever_semantic_override_with_embedding():
+    """SEMANTIC override with embedding -> SemanticRetriever."""
+    q = _make_query(RetrieverType.SEMANTIC, "hello", EntityType.SUBSCRIPTION)
+    embedding = [0.1, 0.2, 0.3]
+    result = _get_retriever_from_override(q, None, embedding)
+    assert isinstance(result, SemanticRetriever)
 
-    @pytest.mark.parametrize(
-        "entity_type,expected_type",
-        [
-            (EntityType.SUBSCRIPTION, RrfHybridRetriever),
-            (EntityType.PRODUCT, RrfHybridRetriever),
-            (EntityType.PROCESS, ProcessHybridRetriever),
-        ],
-        ids=["subscription-hybrid", "product-hybrid", "process-hybrid"],
-    )
-    def test_hybrid_override_with_embedding(self, entity_type: EntityType, expected_type: type):
-        """HYBRID override with embedding selects RrfHybridRetriever or ProcessHybridRetriever."""
-        q = _make_query(RetrieverType.HYBRID, "hello", entity_type)
-        embedding = [0.1, 0.2, 0.3]
-        result = _get_retriever_from_override(q, None, embedding)
-        assert isinstance(result, expected_type)
 
-    def test_hybrid_override_without_embedding_raises(self):
-        """HYBRID override without embedding → ValueError."""
-        q = _make_query(RetrieverType.HYBRID, "hello", EntityType.SUBSCRIPTION)
-        with pytest.raises(ValueError, match="Hybrid retriever requested but query embedding is not available"):
-            _get_retriever_from_override(q, None, None)
+def test_get_retriever_semantic_override_without_embedding_raises():
+    """SEMANTIC override without embedding -> ValueError."""
+    q = _make_query(RetrieverType.SEMANTIC, "hello", EntityType.SUBSCRIPTION)
+    with pytest.raises(ValueError, match="Semantic retriever requested but query embedding is not available"):
+        _get_retriever_from_override(q, None, None)
 
-    @pytest.mark.parametrize(
-        "retriever_type",
-        [RetrieverType.FUZZY, RetrieverType.SEMANTIC, RetrieverType.HYBRID],
-        ids=["fuzzy-no-text", "semantic-no-text", "hybrid-no-text"],
-    )
-    def test_any_override_without_query_text_raises(self, retriever_type: RetrieverType):
-        """Any override without query_text → ValueError."""
-        q = _make_query(retriever_type, None, EntityType.SUBSCRIPTION)
-        with pytest.raises(ValueError, match="retriever requested but no query text provided"):
-            _get_retriever_from_override(q, None, [0.1, 0.2])
 
-    @pytest.mark.parametrize(
-        "retriever_type",
-        [RetrieverType.FUZZY, RetrieverType.SEMANTIC, RetrieverType.HYBRID],
-        ids=["fuzzy-empty-text", "semantic-empty-text", "hybrid-empty-text"],
-    )
-    def test_any_override_with_empty_query_text_raises(self, retriever_type: RetrieverType):
-        """Any override with empty string query_text → ValueError."""
-        q = _make_query(retriever_type, "", EntityType.SUBSCRIPTION)
-        with pytest.raises(ValueError, match="retriever requested but no query text provided"):
-            _get_retriever_from_override(q, None, [0.1, 0.2])
+@pytest.mark.parametrize(
+    "entity_type,expected_type",
+    [
+        pytest.param(EntityType.SUBSCRIPTION, RrfHybridRetriever, id="subscription-hybrid"),
+        pytest.param(EntityType.PRODUCT, RrfHybridRetriever, id="product-hybrid"),
+        pytest.param(EntityType.PROCESS, ProcessHybridRetriever, id="process-hybrid"),
+    ],
+)
+def test_get_retriever_hybrid_override_with_embedding(entity_type: EntityType, expected_type: type):
+    """HYBRID override with embedding selects RrfHybridRetriever or ProcessHybridRetriever."""
+    q = _make_query(RetrieverType.HYBRID, "hello", entity_type)
+    embedding = [0.1, 0.2, 0.3]
+    result = _get_retriever_from_override(q, None, embedding)
+    assert isinstance(result, expected_type)
+
+
+def test_get_retriever_hybrid_override_without_embedding_raises():
+    """HYBRID override without embedding -> ValueError."""
+    q = _make_query(RetrieverType.HYBRID, "hello", EntityType.SUBSCRIPTION)
+    with pytest.raises(ValueError, match="Hybrid retriever requested but query embedding is not available"):
+        _get_retriever_from_override(q, None, None)
+
+
+@pytest.mark.parametrize(
+    "retriever_type",
+    [
+        pytest.param(RetrieverType.FUZZY, id="fuzzy-no-text"),
+        pytest.param(RetrieverType.SEMANTIC, id="semantic-no-text"),
+        pytest.param(RetrieverType.HYBRID, id="hybrid-no-text"),
+    ],
+)
+def test_get_retriever_any_override_without_query_text_raises(retriever_type: RetrieverType):
+    """Any override without query_text -> ValueError."""
+    q = _make_query(retriever_type, None, EntityType.SUBSCRIPTION)
+    with pytest.raises(ValueError, match="retriever requested but no query text provided"):
+        _get_retriever_from_override(q, None, [0.1, 0.2])
+
+
+@pytest.mark.parametrize(
+    "retriever_type",
+    [
+        pytest.param(RetrieverType.FUZZY, id="fuzzy-empty-text"),
+        pytest.param(RetrieverType.SEMANTIC, id="semantic-empty-text"),
+        pytest.param(RetrieverType.HYBRID, id="hybrid-empty-text"),
+    ],
+)
+def test_get_retriever_any_override_with_empty_query_text_raises(retriever_type: RetrieverType):
+    """Any override with empty string query_text -> ValueError."""
+    q = _make_query(retriever_type, "", EntityType.SUBSCRIPTION)
+    with pytest.raises(ValueError, match="retriever requested but no query text provided"):
+        _get_retriever_from_override(q, None, [0.1, 0.2])
 
 
 # ---------------------------------------------------------------------------
@@ -152,64 +162,28 @@ class TestGetRetrieverFromOverride:
 # ---------------------------------------------------------------------------
 
 
-class TestExecuteSearch:
-    """Unit tests for execute_search (pagination trimming)."""
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "num_results,expected_has_more,expected_count",
+    [
+        pytest.param(11, True, 10, id="extra-result-has-more"),
+        pytest.param(5, False, 5, id="fewer-results-no-more"),
+        pytest.param(10, False, 10, id="exact-limit-no-more"),
+        pytest.param(1, False, 1, id="single-result-limit-1"),
+    ],
+)
+async def test_execute_search_pagination(num_results: int, expected_has_more: bool, expected_count: int):
+    """Pagination trimming: has_more is True only when results exceed limit."""
+    limit = 10 if num_results != 1 else 1
+    results = [_make_result(str(i)) for i in range(num_results)]
+    mock_response = SearchResponse(results=results, metadata=SearchMetadata.empty())
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=limit)
 
-    @pytest.mark.asyncio
-    async def test_has_more_true_when_extra_result_returned(self):
-        """When _execute_search returns limit+1 results, has_more=True and results trimmed."""
-        results = [_make_result(str(i)) for i in range(11)]
-        mock_response = SearchResponse(results=results, metadata=SearchMetadata.empty())
+    with patch("orchestrator.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)):
+        response = await execute_search(query, db_session=MagicMock())
 
-        query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=10)
-
-        with patch("orchestrator.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)):
-            response = await execute_search(query, db_session=MagicMock())
-
-        assert response.has_more is True
-        assert len(response.results) == 10
-
-    @pytest.mark.asyncio
-    async def test_has_more_false_when_fewer_results(self):
-        """When _execute_search returns fewer than limit results, has_more=False."""
-        results = [_make_result(str(i)) for i in range(5)]
-        mock_response = SearchResponse(results=results, metadata=SearchMetadata.empty())
-
-        query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=10)
-
-        with patch("orchestrator.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)):
-            response = await execute_search(query, db_session=MagicMock())
-
-        assert response.has_more is False
-        assert len(response.results) == 5
-
-    @pytest.mark.asyncio
-    async def test_has_more_false_exact_limit(self):
-        """When _execute_search returns exactly limit results, has_more=False."""
-        results = [_make_result(str(i)) for i in range(10)]
-        mock_response = SearchResponse(results=results, metadata=SearchMetadata.empty())
-
-        query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=10)
-
-        with patch("orchestrator.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)):
-            response = await execute_search(query, db_session=MagicMock())
-
-        assert response.has_more is False
-        assert len(response.results) == 10
-
-    @pytest.mark.asyncio
-    async def test_minimum_limit_single_result_no_more(self):
-        """limit=1 with exactly 1 result returned → has_more=False."""
-        results = [_make_result("abc")]
-        mock_response = SearchResponse(results=results, metadata=SearchMetadata.empty())
-
-        query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=1)
-
-        with patch("orchestrator.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)):
-            response = await execute_search(query, db_session=MagicMock())
-
-        assert response.has_more is False
-        assert len(response.results) == 1
+    assert response.has_more is expected_has_more
+    assert len(response.results) == expected_count
 
 
 # ---------------------------------------------------------------------------
@@ -217,46 +191,40 @@ class TestExecuteSearch:
 # ---------------------------------------------------------------------------
 
 
-class TestExecuteExport:
-    """Unit tests for execute_export."""
+@pytest.mark.asyncio
+async def test_execute_export_entity_ids_passed_to_fetch_export_data():
+    """entity_ids extracted from search results are forwarded to fetch_export_data."""
+    entity_ids = ["aaa", "bbb", "ccc"]
+    mock_results = [_make_result(eid) for eid in entity_ids]
+    mock_response = SearchResponse(results=mock_results, metadata=SearchMetadata.empty())
+    expected_export = [{"id": eid} for eid in entity_ids]
 
-    @pytest.mark.asyncio
-    async def test_entity_ids_passed_to_fetch_export_data(self):
-        """entity_ids extracted from search results are forwarded to fetch_export_data."""
-        from orchestrator.search.query.queries import ExportQuery
+    query = ExportQuery(entity_type=EntityType.SUBSCRIPTION)
 
-        entity_ids = ["aaa", "bbb", "ccc"]
-        mock_results = [_make_result(eid) for eid in entity_ids]
-        mock_response = SearchResponse(results=mock_results, metadata=SearchMetadata.empty())
-        expected_export = [{"id": eid} for eid in entity_ids]
+    with (
+        patch("orchestrator.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)),
+        patch("orchestrator.search.query.engine.fetch_export_data", return_value=expected_export) as mock_fetch,
+    ):
+        result = await execute_export(query, db_session=MagicMock())
 
-        query = ExportQuery(entity_type=EntityType.SUBSCRIPTION)
+    mock_fetch.assert_called_once_with(EntityType.SUBSCRIPTION, entity_ids)
+    assert result == expected_export
 
-        with (
-            patch("orchestrator.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)),
-            patch("orchestrator.search.query.engine.fetch_export_data", return_value=expected_export) as mock_fetch,
-        ):
-            result = await execute_export(query, db_session=MagicMock())
 
-        mock_fetch.assert_called_once_with(EntityType.SUBSCRIPTION, entity_ids)
-        assert result == expected_export
+@pytest.mark.asyncio
+async def test_execute_export_empty_results_returns_empty_list():
+    """No search results -> empty export list."""
+    mock_response = SearchResponse(results=[], metadata=SearchMetadata.empty())
+    query = ExportQuery(entity_type=EntityType.SUBSCRIPTION)
 
-    @pytest.mark.asyncio
-    async def test_empty_results_returns_empty_list(self):
-        """No search results → empty export list."""
-        from orchestrator.search.query.queries import ExportQuery
+    with (
+        patch("orchestrator.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)),
+        patch("orchestrator.search.query.engine.fetch_export_data", return_value=[]) as mock_fetch,
+    ):
+        result = await execute_export(query, db_session=MagicMock())
 
-        mock_response = SearchResponse(results=[], metadata=SearchMetadata.empty())
-        query = ExportQuery(entity_type=EntityType.SUBSCRIPTION)
-
-        with (
-            patch("orchestrator.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)),
-            patch("orchestrator.search.query.engine.fetch_export_data", return_value=[]) as mock_fetch,
-        ):
-            result = await execute_export(query, db_session=MagicMock())
-
-        mock_fetch.assert_called_once_with(EntityType.SUBSCRIPTION, [])
-        assert result == []
+    mock_fetch.assert_called_once_with(EntityType.SUBSCRIPTION, [])
+    assert result == []
 
 
 # ---------------------------------------------------------------------------
@@ -264,83 +232,80 @@ class TestExecuteExport:
 # ---------------------------------------------------------------------------
 
 
-class TestExecuteAggregation:
-    """Unit tests for execute_aggregation."""
+@pytest.mark.asyncio
+async def test_execute_aggregation_simple_count_uses_build_simple_count_query():
+    """Simple CountQuery (no group_by, no temporal_group_by) uses build_simple_count_query path."""
+    query = CountQuery(entity_type=EntityType.SUBSCRIPTION)
 
-    @pytest.mark.asyncio
-    async def test_simple_count_uses_build_simple_count_query(self):
-        """Simple CountQuery (no group_by, no temporal_group_by) uses build_simple_count_query path."""
-        query = CountQuery(entity_type=EntityType.SUBSCRIPTION)
+    mock_candidate = MagicMock()
+    mock_agg_query = MagicMock()
+    mock_mappings = MagicMock()
+    mock_mappings.mappings.return_value.all.return_value = []
 
-        mock_candidate = MagicMock()
-        mock_agg_query = MagicMock()
-        mock_mappings = MagicMock()
-        mock_mappings.mappings.return_value.all.return_value = []
+    mock_db = MagicMock()
+    mock_db.execute.return_value = mock_mappings
 
-        mock_db = MagicMock()
-        mock_db.execute.return_value = mock_mappings
+    with (
+        patch("orchestrator.search.query.engine.build_candidate_query", return_value=mock_candidate),
+        patch("orchestrator.search.query.engine.build_simple_count_query", return_value=mock_agg_query) as mock_simple,
+        patch("orchestrator.search.query.engine.build_aggregation_query") as mock_grouped,
+        patch("orchestrator.search.query.engine.format_aggregation_response") as mock_format,
+    ):
+        mock_format.return_value = MagicMock()
+        await execute_aggregation(query, mock_db)
 
-        with (
-            patch("orchestrator.search.query.engine.build_candidate_query", return_value=mock_candidate),
-            patch(
-                "orchestrator.search.query.engine.build_simple_count_query", return_value=mock_agg_query
-            ) as mock_simple,
-            patch("orchestrator.search.query.engine.build_aggregation_query") as mock_grouped,
-            patch("orchestrator.search.query.engine.format_aggregation_response") as mock_format,
-        ):
-            mock_format.return_value = MagicMock()
-            await execute_aggregation(query, mock_db)
+    mock_simple.assert_called_once_with(mock_candidate)
+    mock_grouped.assert_not_called()
 
-        mock_simple.assert_called_once_with(mock_candidate)
-        mock_grouped.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_grouped_count_uses_build_aggregation_query(self):
-        """CountQuery with group_by uses build_aggregation_query path."""
-        query = CountQuery(entity_type=EntityType.SUBSCRIPTION, group_by=["subscription.status"])
+@pytest.mark.asyncio
+async def test_execute_aggregation_grouped_count_uses_build_aggregation_query():
+    """CountQuery with group_by uses build_aggregation_query path."""
+    query = CountQuery(entity_type=EntityType.SUBSCRIPTION, group_by=["subscription.status"])
 
-        mock_candidate = MagicMock()
-        mock_agg_query = MagicMock()
-        mock_mappings = MagicMock()
-        mock_mappings.mappings.return_value.all.return_value = []
+    mock_candidate = MagicMock()
+    mock_agg_query = MagicMock()
+    mock_mappings = MagicMock()
+    mock_mappings.mappings.return_value.all.return_value = []
 
-        mock_db = MagicMock()
-        mock_db.execute.return_value = mock_mappings
+    mock_db = MagicMock()
+    mock_db.execute.return_value = mock_mappings
 
-        with (
-            patch("orchestrator.search.query.engine.build_candidate_query", return_value=mock_candidate),
-            patch("orchestrator.search.query.engine.build_simple_count_query") as mock_simple,
-            patch(
-                "orchestrator.search.query.engine.build_aggregation_query",
-                return_value=(mock_agg_query, ["subscription_status"]),
-            ) as mock_grouped,
-            patch("orchestrator.search.query.engine.format_aggregation_response") as mock_format,
-        ):
-            mock_format.return_value = MagicMock()
-            await execute_aggregation(query, mock_db)
+    with (
+        patch("orchestrator.search.query.engine.build_candidate_query", return_value=mock_candidate),
+        patch("orchestrator.search.query.engine.build_simple_count_query") as mock_simple,
+        patch(
+            "orchestrator.search.query.engine.build_aggregation_query",
+            return_value=(mock_agg_query, ["subscription_status"]),
+        ) as mock_grouped,
+        patch("orchestrator.search.query.engine.format_aggregation_response") as mock_format,
+    ):
+        mock_format.return_value = MagicMock()
+        await execute_aggregation(query, mock_db)
 
-        mock_grouped.assert_called_once_with(query, mock_candidate)
-        mock_simple.assert_not_called()
+    mock_grouped.assert_called_once_with(query, mock_candidate)
+    mock_simple.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_format_aggregation_response_called_with_correct_args(self):
-        """format_aggregation_response receives the db result rows and group column names."""
-        query = CountQuery(entity_type=EntityType.SUBSCRIPTION)
 
-        mock_candidate = MagicMock()
-        mock_agg_query = MagicMock()
-        fake_rows = [{"total_count": 42}]
-        mock_mappings = MagicMock()
-        mock_mappings.mappings.return_value.all.return_value = fake_rows
-        mock_db = MagicMock()
-        mock_db.execute.return_value = mock_mappings
+@pytest.mark.asyncio
+async def test_execute_aggregation_format_response_called_with_correct_args():
+    """format_aggregation_response receives the db result rows and group column names."""
+    query = CountQuery(entity_type=EntityType.SUBSCRIPTION)
 
-        with (
-            patch("orchestrator.search.query.engine.build_candidate_query", return_value=mock_candidate),
-            patch("orchestrator.search.query.engine.build_simple_count_query", return_value=mock_agg_query),
-            patch("orchestrator.search.query.engine.format_aggregation_response") as mock_format,
-        ):
-            mock_format.return_value = MagicMock()
-            await execute_aggregation(query, mock_db)
+    mock_candidate = MagicMock()
+    mock_agg_query = MagicMock()
+    fake_rows = [{"total_count": 42}]
+    mock_mappings = MagicMock()
+    mock_mappings.mappings.return_value.all.return_value = fake_rows
+    mock_db = MagicMock()
+    mock_db.execute.return_value = mock_mappings
 
-        mock_format.assert_called_once_with(fake_rows, [], query)
+    with (
+        patch("orchestrator.search.query.engine.build_candidate_query", return_value=mock_candidate),
+        patch("orchestrator.search.query.engine.build_simple_count_query", return_value=mock_agg_query),
+        patch("orchestrator.search.query.engine.format_aggregation_response") as mock_format,
+    ):
+        mock_format.return_value = MagicMock()
+        await execute_aggregation(query, mock_db)
+
+    mock_format.assert_called_once_with(fake_rows, [], query)
