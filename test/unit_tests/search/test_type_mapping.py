@@ -1,3 +1,5 @@
+"""Tests for FieldType.from_type_hint: basic types, lists, unions, literals, annotated, enums, and edge cases."""
+
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +14,7 @@
 # limitations under the License.
 
 from datetime import datetime
+from enum import Enum, IntEnum
 from typing import Annotated, List, Literal, Union
 from uuid import UUID
 
@@ -22,140 +25,74 @@ from orchestrator.search.core.types import FieldType
 from .fixtures.blocks import MTU, MTUChoice, PriorityIntEnum, RequiredIntList, StatusEnum
 
 
-class TestTypeMapping:
-    """Test _type_hint_to_field_type handles all types used in our traversal fixtures."""
+@pytest.mark.parametrize(
+    ("python_type", "expected_field_type"),
+    [
+        pytest.param(str, FieldType.STRING, id="str"),
+        pytest.param(int, FieldType.INTEGER, id="int"),
+        pytest.param(bool, FieldType.BOOLEAN, id="bool"),
+        pytest.param(float, FieldType.FLOAT, id="float"),
+        pytest.param(datetime, FieldType.DATETIME, id="datetime"),
+        pytest.param(UUID, FieldType.UUID, id="uuid"),
+        pytest.param(StatusEnum, FieldType.STRING, id="str-enum"),
+        pytest.param(PriorityIntEnum, FieldType.INTEGER, id="int-enum"),
+        pytest.param(List[int], FieldType.INTEGER, id="List-int"),
+        pytest.param(list[int], FieldType.INTEGER, id="list-int"),
+        pytest.param(list[float], FieldType.FLOAT, id="list-float"),
+        pytest.param(list[bool], FieldType.BOOLEAN, id="list-bool"),
+        pytest.param(list[StatusEnum], FieldType.STRING, id="list-str-enum"),
+        pytest.param(list[PriorityIntEnum], FieldType.INTEGER, id="list-int-enum"),
+        pytest.param(list[list[int]], FieldType.INTEGER, id="list-list-int"),
+        pytest.param(list[str], FieldType.STRING, id="list-str"),
+        pytest.param(int | None, FieldType.INTEGER, id="optional-int"),
+        pytest.param(str | int, FieldType.STRING, id="union-str-int"),
+        pytest.param(Union[int, None], FieldType.INTEGER, id="Union-int-None"),
+        pytest.param(Union[str, int], FieldType.STRING, id="Union-str-int"),
+        pytest.param(MTUChoice, FieldType.INTEGER, id="literal-int-mtu"),
+        pytest.param(Literal[1500, 9000], FieldType.INTEGER, id="literal-int"),
+        pytest.param(Literal["active", "inactive"], FieldType.STRING, id="literal-str"),
+        pytest.param(Literal[True, False], FieldType.BOOLEAN, id="literal-bool"),
+        pytest.param(Literal[1.5, 2.7], FieldType.FLOAT, id="literal-float"),
+        pytest.param(MTU, FieldType.INTEGER, id="annotated-int-mtu"),
+        pytest.param(RequiredIntList, FieldType.INTEGER, id="annotated-list-int"),
+        pytest.param(Annotated[str, "constraint"], FieldType.STRING, id="annotated-str"),
+        pytest.param(Annotated[float, "range"], FieldType.FLOAT, id="annotated-float"),
+        pytest.param(Annotated[bool, "validator"], FieldType.BOOLEAN, id="annotated-bool"),
+        pytest.param(Annotated[datetime, "timezone"], FieldType.DATETIME, id="annotated-datetime"),
+        pytest.param(Annotated[UUID, "version"], FieldType.UUID, id="annotated-uuid"),
+        pytest.param(Annotated[list[str], "min_length"], FieldType.STRING, id="annotated-list-str"),
+        pytest.param(Annotated[Union[int, None], "optional"], FieldType.INTEGER, id="annotated-optional-int"),
+        pytest.param(list[MTU], FieldType.INTEGER, id="list-annotated-mtu"),
+        pytest.param(Union[MTU, None], FieldType.INTEGER, id="optional-annotated-mtu"),
+        pytest.param(list, FieldType.STRING, id="bare-list-fallback"),
+    ],
+)
+def test_type_mapping(python_type, expected_field_type):
+    assert FieldType.from_type_hint(python_type) == expected_field_type
 
-    @pytest.mark.parametrize(
-        ("python_type", "expected_field_type"),
-        [
-            (str, FieldType.STRING),
-            (int, FieldType.INTEGER),
-            (bool, FieldType.BOOLEAN),
-            (float, FieldType.FLOAT),
-            (datetime, FieldType.DATETIME),
-            (UUID, FieldType.UUID),
-            (StatusEnum, FieldType.STRING),
-            (PriorityIntEnum, FieldType.INTEGER),
-        ],
-    )
-    def test_basic_type_mapping(self, python_type, expected_field_type):
-        """Test direct Python type to FieldType mapping for all basic types in fixtures."""
-        result = FieldType.from_type_hint(python_type)
-        assert result == expected_field_type
 
-    @pytest.mark.parametrize(
-        ("list_type", "expected_field_type"),
-        [
-            (List[int], FieldType.INTEGER),
-            (list[int], FieldType.INTEGER),
-            (list[float], FieldType.FLOAT),
-            (list[bool], FieldType.BOOLEAN),
-            (list[StatusEnum], FieldType.STRING),
-            (list[PriorityIntEnum], FieldType.INTEGER),
-            (list[list[int]], FieldType.INTEGER),
-            (list[str], FieldType.STRING),
-        ],
-    )
-    def test_list_type_mapping(self, list_type, expected_field_type):
-        """Test list types resolve to their element type for all list patterns in fixtures."""
-        result = FieldType.from_type_hint(list_type)
-        assert result == expected_field_type
+def test_unknown_type_defaults_to_string():
+    class UnknownType:
+        pass
 
-    @pytest.mark.parametrize(
-        ("union_type", "expected_field_type"),
-        [
-            (int | None, FieldType.INTEGER),  # optional_id
-            (str | int, FieldType.STRING),  # id_or_name (takes first type)
-            (Union[int, None], FieldType.INTEGER),
-            (Union[str, int], FieldType.STRING),
-        ],
-    )
-    def test_union_type_mapping(self, union_type, expected_field_type):
-        """Test Union types resolve to first non-None type as used in UnionBlock."""
-        result = FieldType.from_type_hint(union_type)
-        assert result == expected_field_type
+    assert FieldType.from_type_hint(UnknownType) == FieldType.STRING
 
-    @pytest.mark.parametrize(
-        ("literal_type", "expected_field_type"),
-        [
-            (MTUChoice, FieldType.INTEGER),
-            (Literal[1500, 9000], FieldType.INTEGER),
-            (Literal["active", "inactive"], FieldType.STRING),
-            (Literal[True, False], FieldType.BOOLEAN),
-            (Literal[1.5, 2.7], FieldType.FLOAT),
-        ],
-    )
-    def test_literal_type_mapping(self, literal_type, expected_field_type):
-        """Test Literal types resolve based on their value types as used in fixtures."""
-        result = FieldType.from_type_hint(literal_type)
-        assert result == expected_field_type
 
-    @pytest.mark.parametrize(
-        ("annotated_type", "expected_field_type"),
-        [
-            (MTU, FieldType.INTEGER),  # Annotated[int, AfterValidator(validate_mtu)]
-            (RequiredIntList, FieldType.INTEGER),  # Annotated[list[int], Len(min_length=1)]
-            (Annotated[str, "constraint"], FieldType.STRING),
-            (Annotated[float, "range"], FieldType.FLOAT),
-            (Annotated[bool, "validator"], FieldType.BOOLEAN),
-            (Annotated[datetime, "timezone"], FieldType.DATETIME),
-            (Annotated[UUID, "version"], FieldType.UUID),
-            (Annotated[list[str], "min_length"], FieldType.STRING),
-            (Annotated[Union[int, None], "optional"], FieldType.INTEGER),
-        ],
-    )
-    def test_annotated_type_mapping(self, annotated_type, expected_field_type):
-        """Test Annotated types resolve to their inner type as used in fixtures."""
-        result = FieldType.from_type_hint(annotated_type)
-        assert result == expected_field_type
+def test_product_block_model_returns_block():
+    from orchestrator.domain.base import ProductBlockModel
 
-    def test_complex_nested_types_from_fixtures(self):
-        """Test complex nested type combinations actually used in the fixtures."""
+    class TestBlock(ProductBlockModel):
+        pass
 
-        result = FieldType.from_type_hint(list[MTU])
-        assert result == FieldType.INTEGER
+    assert FieldType.from_type_hint(TestBlock) == FieldType.BLOCK
 
-        result = FieldType.from_type_hint(Union[MTU, None])
-        assert result == FieldType.INTEGER
 
-    def test_unknown_type_defaults_to_string(self):
-        """Test unknown types default to STRING."""
+def test_enum_types():
+    class TestStringEnum(Enum):
+        VALUE1 = "value1"
 
-        class UnknownType:
-            pass
+    class TestIntEnum(IntEnum):
+        VALUE1 = 1
 
-        result = FieldType.from_type_hint(UnknownType)
-        assert result == FieldType.STRING
-
-    def test_list_edge_cases(self):
-        """Test list edge cases that hit the string fallback."""
-        result = FieldType.from_type_hint(list)
-        assert result == FieldType.STRING
-
-    def test_product_block_model_type(self):
-        """Test ProductBlockModel returns BLOCK field type."""
-        from orchestrator.domain.base import ProductBlockModel
-
-        class TestBlock(ProductBlockModel):
-            pass
-
-        result = FieldType.from_type_hint(TestBlock)
-        assert result == FieldType.BLOCK
-
-    def test_enum_types(self):
-        """Test enum type detection."""
-        from enum import Enum, IntEnum
-
-        class TestStringEnum(Enum):
-            VALUE1 = "value1"
-            VALUE2 = "value2"
-
-        class TestIntEnum(IntEnum):
-            VALUE1 = 1
-            VALUE2 = 2
-
-        result = FieldType.from_type_hint(TestStringEnum)
-        assert result == FieldType.STRING
-
-        result = FieldType.from_type_hint(TestIntEnum)
-        assert result == FieldType.INTEGER
+    assert FieldType.from_type_hint(TestStringEnum) == FieldType.STRING
+    assert FieldType.from_type_hint(TestIntEnum) == FieldType.INTEGER

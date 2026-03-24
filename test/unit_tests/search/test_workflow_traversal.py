@@ -1,3 +1,5 @@
+"""Tests for WorkflowTraverser: basic field extraction from WorkflowTable entities."""
+
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,50 +21,32 @@ from orchestrator.search.core.types import EntityType, FieldType
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 from orchestrator.targets import Target
 
+_EXPECTED_FIELDS = {
+    "workflow.workflow_id": ("660e8400-e29b-41d4-a716-446655440000", FieldType.UUID),
+    "workflow.name": ("test_workflow", FieldType.STRING),
+    "workflow.target": ("CREATE", FieldType.STRING),
+    "workflow.description": ("Test workflow description", FieldType.STRING),
+    "workflow.created_at": (None, FieldType.DATETIME),
+    "workflow.is_task": ("False", FieldType.BOOLEAN),
+}
 
-class TestWorkflowTraverser:
-    """Simple test for WorkflowTraverser focusing on basic field extraction."""
 
-    def test_traverse_simple_workflow(self):
-        """Test basic workflow field extraction."""
-        # Create real WorkflowTable entity
-        workflow_id = UUID("660e8400-e29b-41d4-a716-446655440000")
+def test_traverse_simple_workflow():
+    workflow = WorkflowTable(
+        workflow_id=UUID("660e8400-e29b-41d4-a716-446655440000"),
+        name="test_workflow",
+        target=Target.CREATE,
+        description="Test workflow description",
+        created_at=datetime(2024, 1, 15, 10, 30, 0),
+        is_task=False,
+    )
 
-        workflow = WorkflowTable(
-            workflow_id=workflow_id,
-            name="test_workflow",
-            target=Target.CREATE,
-            description="Test workflow description",
-            created_at=datetime(2024, 1, 15, 10, 30, 0),
-            is_task=False,
-        )
+    config = ENTITY_CONFIG_REGISTRY[EntityType.WORKFLOW]
+    extracted_fields = config.traverser.get_fields(entity=workflow, pk_name=config.pk_name, root_name=config.root_name)
+    field_map = {field.path: field for field in extracted_fields}
 
-        config = ENTITY_CONFIG_REGISTRY[EntityType.WORKFLOW]
-        extracted_fields = config.traverser.get_fields(
-            entity=workflow, pk_name=config.pk_name, root_name=config.root_name
-        )
-
-        field_map = {field.path: field for field in extracted_fields}
-
-        assert "workflow.workflow_id" in field_map
-        assert field_map["workflow.workflow_id"].value == "660e8400-e29b-41d4-a716-446655440000"
-        assert field_map["workflow.workflow_id"].value_type == FieldType.UUID
-
-        assert "workflow.name" in field_map
-        assert field_map["workflow.name"].value == "test_workflow"
-        assert field_map["workflow.name"].value_type == FieldType.STRING
-
-        assert "workflow.target" in field_map
-        assert field_map["workflow.target"].value == "CREATE"
-        assert field_map["workflow.target"].value_type == FieldType.STRING
-
-        assert "workflow.description" in field_map
-        assert field_map["workflow.description"].value == "Test workflow description"
-        assert field_map["workflow.description"].value_type == FieldType.STRING
-
-        assert "workflow.created_at" in field_map
-        assert field_map["workflow.created_at"].value_type == FieldType.DATETIME
-
-        assert "workflow.is_task" in field_map
-        assert field_map["workflow.is_task"].value == "False"
-        assert field_map["workflow.is_task"].value_type == FieldType.BOOLEAN
+    for path, (expected_value, expected_type) in _EXPECTED_FIELDS.items():
+        assert path in field_map, f"Missing field: {path}"
+        assert field_map[path].value_type == expected_type
+        if expected_value is not None:
+            assert field_map[path].value == expected_value

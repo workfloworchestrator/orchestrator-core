@@ -1,3 +1,10 @@
+"""Tests for Retriever.route() dispatch logic and constructed retriever attributes.
+
+Verifies that the correct retriever subclass is selected based on the combination
+of fuzzy_term, entity_type, query_embedding, and vector_query/query_text inputs,
+and that constructed retrievers carry the expected attributes.
+"""
+
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -53,23 +60,26 @@ def _make_query(
 @pytest.mark.parametrize(
     "fuzzy_term,entity_type,query_embedding,vector_query,query_text,expected_type",
     [
-        # Hybrid (embedding + fuzzy) → RrfHybridRetriever
-        (FUZZY_TERM, EntityType.SUBSCRIPTION, EMBEDDING, None, None, RrfHybridRetriever),
-        # Hybrid + PROCESS entity → ProcessHybridRetriever
-        (FUZZY_TERM, EntityType.PROCESS, EMBEDDING, None, None, ProcessHybridRetriever),
-        # Semantic only (embedding, no fuzzy) → SemanticRetriever
-        (None, EntityType.SUBSCRIPTION, EMBEDDING, None, None, SemanticRetriever),
-        # Fuzzy only → FuzzyRetriever
-        (FUZZY_TERM, EntityType.SUBSCRIPTION, None, None, None, FuzzyRetriever),
-        # Fuzzy + PROCESS → ProcessHybridRetriever (None embedding, fuzzy_term set)
-        (FUZZY_TERM, EntityType.PROCESS, None, None, None, ProcessHybridRetriever),
-        # No text/embedding → StructuredRetriever
-        (None, EntityType.SUBSCRIPTION, None, None, None, StructuredRetriever),
-        # Embedding failed fallback: query_embedding=None, vector_query set, query_text set
-        # → fuzzy_term reassigned to query_text → FuzzyRetriever
-        (None, EntityType.SUBSCRIPTION, None, MagicMock(), QUERY_TEXT, FuzzyRetriever),
-        # Embedding failed fallback + PROCESS → ProcessHybridRetriever
-        (None, EntityType.PROCESS, None, MagicMock(), QUERY_TEXT, ProcessHybridRetriever),
+        pytest.param(FUZZY_TERM, EntityType.SUBSCRIPTION, EMBEDDING, None, None, RrfHybridRetriever, id="hybrid"),
+        pytest.param(
+            FUZZY_TERM, EntityType.PROCESS, EMBEDDING, None, None, ProcessHybridRetriever, id="hybrid_process"
+        ),
+        pytest.param(None, EntityType.SUBSCRIPTION, EMBEDDING, None, None, SemanticRetriever, id="semantic_only"),
+        pytest.param(FUZZY_TERM, EntityType.SUBSCRIPTION, None, None, None, FuzzyRetriever, id="fuzzy_only"),
+        pytest.param(FUZZY_TERM, EntityType.PROCESS, None, None, None, ProcessHybridRetriever, id="fuzzy_process"),
+        pytest.param(None, EntityType.SUBSCRIPTION, None, None, None, StructuredRetriever, id="structured"),
+        pytest.param(
+            None, EntityType.SUBSCRIPTION, None, MagicMock(), QUERY_TEXT, FuzzyRetriever, id="embedding_fallback_fuzzy"
+        ),
+        pytest.param(
+            None,
+            EntityType.PROCESS,
+            None,
+            MagicMock(),
+            QUERY_TEXT,
+            ProcessHybridRetriever,
+            id="embedding_fallback_process",
+        ),
     ],
 )
 def test_retriever_routing(
@@ -80,64 +90,58 @@ def test_retriever_routing(
     query_text: str | None,
     expected_type: type,
 ) -> None:
+    """Verify the correct retriever subclass is selected for given inputs."""
     query = _make_query(
         fuzzy_term=fuzzy_term,
         entity_type=entity_type,
         vector_query=vector_query,
         query_text=query_text,
     )
-    cursor = None
-
-    retriever = Retriever.route(query, cursor, query_embedding=query_embedding)
-
+    retriever = Retriever.route(query, cursor=None, query_embedding=query_embedding)
     assert isinstance(retriever, expected_type)
 
 
 # ---------------------------------------------------------------------------
-# Additional assertions on constructed retriever attributes
+# Constructed retriever attributes
 # ---------------------------------------------------------------------------
 
 
-class TestRetrieverRoutingAttributes:
-    def test_rrf_hybrid_carries_embedding_and_fuzzy_term(self) -> None:
-        query = _make_query(fuzzy_term=FUZZY_TERM)
-        retriever = Retriever.route(query, cursor=None, query_embedding=EMBEDDING)
+def test_semantic_carries_embedding() -> None:
+    """SemanticRetriever stores the query embedding."""
+    query = _make_query()
+    retriever = Retriever.route(query, cursor=None, query_embedding=EMBEDDING)
+    assert isinstance(retriever, SemanticRetriever)
+    assert retriever.vector_query == EMBEDDING
 
-        assert isinstance(retriever, RrfHybridRetriever)
 
-    def test_semantic_carries_embedding(self) -> None:
-        query = _make_query()
-        retriever = Retriever.route(query, cursor=None, query_embedding=EMBEDDING)
+def test_fuzzy_carries_fuzzy_term() -> None:
+    """FuzzyRetriever stores the fuzzy term."""
+    query = _make_query(fuzzy_term=FUZZY_TERM)
+    retriever = Retriever.route(query, cursor=None, query_embedding=None)
+    assert isinstance(retriever, FuzzyRetriever)
+    assert retriever.fuzzy_term == FUZZY_TERM
 
-        assert isinstance(retriever, SemanticRetriever)
-        assert retriever.vector_query == EMBEDDING
 
-    def test_fuzzy_carries_fuzzy_term(self) -> None:
-        query = _make_query(fuzzy_term=FUZZY_TERM)
-        retriever = Retriever.route(query, cursor=None, query_embedding=None)
+def test_structured_carries_order_by() -> None:
+    """StructuredRetriever stores the order_by from the query."""
+    order_by = MagicMock()
+    query = _make_query()
+    query.order_by = order_by
+    retriever = Retriever.route(query, cursor=None, query_embedding=None)
+    assert isinstance(retriever, StructuredRetriever)
+    assert retriever.order_by is order_by
 
-        assert isinstance(retriever, FuzzyRetriever)
-        assert retriever.fuzzy_term == FUZZY_TERM
 
-    def test_structured_carries_order_by(self) -> None:
-        order_by = MagicMock()
-        query = _make_query()
-        query.order_by = order_by
+def test_embedding_fallback_uses_query_text_as_fuzzy_term() -> None:
+    """When embedding fails, query_text is used as fuzzy_term for FuzzyRetriever."""
+    query = _make_query(vector_query=MagicMock(), query_text=QUERY_TEXT)
+    retriever = Retriever.route(query, cursor=None, query_embedding=None)
+    assert isinstance(retriever, FuzzyRetriever)
+    assert retriever.fuzzy_term == QUERY_TEXT
 
-        retriever = Retriever.route(query, cursor=None, query_embedding=None)
 
-        assert isinstance(retriever, StructuredRetriever)
-        assert retriever.order_by is order_by
-
-    def test_embedding_fallback_uses_query_text_as_fuzzy_term(self) -> None:
-        query = _make_query(vector_query=MagicMock(), query_text=QUERY_TEXT)
-        retriever = Retriever.route(query, cursor=None, query_embedding=None)
-
-        assert isinstance(retriever, FuzzyRetriever)
-        assert retriever.fuzzy_term == QUERY_TEXT
-
-    def test_process_hybrid_with_no_embedding_carries_none_embedding(self) -> None:
-        query = _make_query(fuzzy_term=FUZZY_TERM, entity_type=EntityType.PROCESS)
-        retriever = Retriever.route(query, cursor=None, query_embedding=None)
-
-        assert isinstance(retriever, ProcessHybridRetriever)
+def test_process_hybrid_with_no_embedding_carries_none_embedding() -> None:
+    """ProcessHybridRetriever with no embedding still routes correctly."""
+    query = _make_query(fuzzy_term=FUZZY_TERM, entity_type=EntityType.PROCESS)
+    retriever = Retriever.route(query, cursor=None, query_embedding=None)
+    assert isinstance(retriever, ProcessHybridRetriever)

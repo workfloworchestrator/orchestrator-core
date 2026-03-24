@@ -1,3 +1,5 @@
+"""Tests for SubscriptionTraverser: end-to-end model traversal for simple, nested, and computed property subscriptions."""
+
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,69 +13,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 from orchestrator.search.indexing.traverse import SubscriptionTraverser
 
 
-class TestSubscriptionTraverser:
-    """Integration tests that the new model-first traversal works end-to-end."""
+def _assert_traverse_fields_match(mock_load_model, mock_db_subscription, subscription_instance, expected_fields):
+    mock_load_model.return_value = subscription_instance
+    config = ENTITY_CONFIG_REGISTRY[EntityType.SUBSCRIPTION]
 
-    def _assert_traverse_fields_match(
-        self, mock_load_model, mock_db_subscription, subscription_instance, expected_fields
-    ) -> None:
-        """Helper method to test subscription traversal and field matching."""
-        mock_load_model.return_value = subscription_instance
-        config = ENTITY_CONFIG_REGISTRY[EntityType.SUBSCRIPTION]
+    model = SubscriptionTraverser._load_model(sub=mock_db_subscription)
+    extracted_fields = list(SubscriptionTraverser.traverse(model, path=config.root_name))
 
-        model = SubscriptionTraverser._load_model(sub=mock_db_subscription)
-        extracted_fields = list(SubscriptionTraverser.traverse(model, path=config.root_name))
+    expected_set = set(expected_fields)
+    actual_set = set(extracted_fields)
 
-        expected_set = set(expected_fields)
-        actual_set = set(extracted_fields)
+    missing_fields = expected_set - actual_set
+    extra_fields = actual_set - expected_set
 
-        missing_fields = expected_set - actual_set
-        extra_fields = actual_set - expected_set
+    assert not missing_fields, f"Missing fields: {missing_fields}"
+    assert not extra_fields, f"Extra fields: {extra_fields}"
+    assert len(extracted_fields) == len(expected_fields)
 
-        assert not missing_fields, f"Missing fields: {missing_fields}"
-        assert not extra_fields, f"Extra fields: {extra_fields}"
-        assert len(extracted_fields) == len(expected_fields)
 
-    def test_traverse_with_real_subscription_flow(
-        self, mock_load_model, mock_db_subscription, subscription_instance, expected_traverse_fields
-    ) -> None:
-        """Verifies that traverse() walks the Pydantic subscription model and emits the expected searchable fields and types."""
-        self._assert_traverse_fields_match(
-            mock_load_model, mock_db_subscription, subscription_instance, expected_traverse_fields
-        )
-
-    def test_traverse_simple_direct_block(
-        self, mock_load_model, mock_db_subscription, simple_subscription_instance, simple_expected_fields
-    ) -> None:
-        """Test traversing a simple subscription with direct block access (no lists)."""
-        self._assert_traverse_fields_match(
-            mock_load_model, mock_db_subscription, simple_subscription_instance, simple_expected_fields
-        )
-
-    def test_traverse_nested_blocks(
-        self, mock_load_model, mock_db_subscription, nested_subscription_instance, nested_expected_fields
-    ) -> None:
-        """Test traversing deeply nested blocks (block containing block containing block)."""
-        self._assert_traverse_fields_match(
-            mock_load_model, mock_db_subscription, nested_subscription_instance, nested_expected_fields
-        )
-
-    def test_traverse_computed_property(
-        self,
-        mock_load_model,
-        mock_db_subscription,
-        computed_property_subscription_instance,
-        computed_property_expected_fields,
-    ) -> None:
-        """Test traversing a subscription with computed property fields."""
-        self._assert_traverse_fields_match(
-            mock_load_model,
-            mock_db_subscription,
-            computed_property_subscription_instance,
-            computed_property_expected_fields,
-        )
+@pytest.mark.parametrize(
+    "instance_fixture,fields_fixture",
+    [
+        pytest.param("subscription_instance", "expected_traverse_fields", id="real-subscription"),
+        pytest.param("simple_subscription_instance", "simple_expected_fields", id="simple-direct-block"),
+        pytest.param("nested_subscription_instance", "nested_expected_fields", id="nested-blocks"),
+        pytest.param(
+            "computed_property_subscription_instance", "computed_property_expected_fields", id="computed-property"
+        ),
+    ],
+)
+def test_traverse_subscription(request, mock_load_model, mock_db_subscription, instance_fixture, fields_fixture):
+    subscription_instance = request.getfixturevalue(instance_fixture)
+    expected_fields = request.getfixturevalue(fields_fixture)
+    _assert_traverse_fields_match(mock_load_model, mock_db_subscription, subscription_instance, expected_fields)

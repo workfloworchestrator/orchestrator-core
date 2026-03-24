@@ -1,3 +1,9 @@
+"""Tests for retriever SQL structure generation and RRF score computation.
+
+Covers StructuredRetriever, FuzzyRetriever, SemanticRetriever, and RrfHybridRetriever
+query building, pagination, metadata, and the compute_rrf_hybrid_score_sql function.
+"""
+
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,278 +55,234 @@ def query_id():
     return uuid.uuid4()
 
 
-class TestStructuredRetriever:
-    """Test SQL structure for StructuredRetriever."""
-
-    def test_basic_query_structure(self, candidate_query, request):
-        """Test basic structured retrieval query structure."""
-        retriever = StructuredRetriever(cursor=None)
-
-        query = retriever.apply(candidate_query)
-        sql = compile_query_to_sql(query)
-
-        assert_sql_matches_snapshot("StructuredRetriever.test_basic_query_structure", sql, request)
-
-    def test_pagination_structure(self, candidate_query, query_id, request):
-        """Test pagination adds WHERE clause with correct comparison operator."""
-        cursor = PageCursor(score=1.0, id="test-id-123", query_id=query_id)
-        retriever = StructuredRetriever(cursor=cursor)
-
-        query = retriever.apply(candidate_query)
-        sql = compile_query_to_sql(query)
-
-        assert_sql_matches_snapshot("StructuredRetriever.test_pagination_structure", sql, request)
-
-    def test_basic_query_structure_with_order_by(self, candidate_query, query_id, request):
-        """Test basic structured retrieval query structure ordered by element."""
-        order_by = StructuredOrderBy(element="subscription.description", direction=OrderDirection.ASC)
-        retriever = StructuredRetriever(cursor=None, order_by=order_by)
-
-        query = retriever.apply(candidate_query)
-        sql = compile_query_to_sql(query)
-
-        assert_sql_matches_snapshot("StructuredRetriever.test_basic_query_structure_with_order_by", sql, request)
-
-    def test_metadata(self):
-        """Test metadata returns correct search type."""
-        retriever = StructuredRetriever(cursor=None)
-
-        metadata = retriever.metadata
-
-        assert metadata.search_type == "structured"
+# ---------------------------------------------------------------------------
+# StructuredRetriever
+# ---------------------------------------------------------------------------
 
 
-class TestFuzzyRetriever:
-    """Test SQL structure for FuzzyRetriever."""
-
-    def test_basic_query_structure(self, candidate_query, request):
-        """Test fuzzy retrieval query structure with all components."""
-        retriever = FuzzyRetriever("test query", cursor=None)
-
-        query = retriever.apply(candidate_query)
-        sql = compile_query_to_sql(query)
-
-        assert_sql_matches_snapshot("FuzzyRetriever.test_basic_query_structure", sql, request)
-
-    def test_pagination_structure(self, candidate_query, query_id, request):
-        """Test pagination with score and id adds correct WHERE clause."""
-        cursor = PageCursor(score=0.85, id="entity-123", query_id=query_id)
-        retriever = FuzzyRetriever("test", cursor=cursor)
-
-        query = retriever.apply(candidate_query)
-        sql = compile_query_to_sql(query)
-
-        assert_sql_matches_snapshot("FuzzyRetriever.test_pagination_structure", sql, request)
-
-    def test_metadata(self):
-        """Test metadata returns correct search type."""
-        retriever = FuzzyRetriever("test", cursor=None)
-
-        metadata = retriever.metadata
-
-        assert metadata.search_type == "fuzzy"
+def test_structured_retriever_basic_query_structure(candidate_query, request):
+    """Test basic structured retrieval query structure."""
+    retriever = StructuredRetriever(cursor=None)
+    query = retriever.apply(candidate_query)
+    sql = compile_query_to_sql(query)
+    assert_sql_matches_snapshot("StructuredRetriever.test_basic_query_structure", sql, request)
 
 
-class TestSemanticRetriever:
-    """Test SQL structure for SemanticRetriever."""
-
-    def test_basic_query_structure(self, candidate_query, request):
-        """Test semantic retrieval query structure with all components."""
-        query_vector = [0.1, 0.2, 0.3]
-        retriever = SemanticRetriever(query_vector, cursor=None)
-
-        query = retriever.apply(candidate_query)
-        sql = compile_query_to_sql(query)
-
-        assert_sql_matches_snapshot("SemanticRetriever.test_basic_query_structure", sql, request)
-
-    def test_pagination_structure(self, candidate_query, query_id, request):
-        """Test pagination with score and id adds correct WHERE clause."""
-        cursor = PageCursor(score=0.92, id="entity-456", query_id=query_id)
-        query_vector = [0.1, 0.2, 0.3]
-        retriever = SemanticRetriever(query_vector, cursor=cursor)
-
-        query = retriever.apply(candidate_query)
-        sql = compile_query_to_sql(query)
-
-        assert_sql_matches_snapshot("SemanticRetriever.test_pagination_structure", sql, request)
-
-    def test_metadata(self):
-        """Test metadata returns correct search type."""
-        query_vector = [0.1, 0.2, 0.3]
-        retriever = SemanticRetriever(query_vector, cursor=None)
-
-        metadata = retriever.metadata
-
-        assert metadata.search_type == "semantic"
+def test_structured_retriever_pagination_structure(candidate_query, query_id, request):
+    """Test pagination adds WHERE clause with correct comparison operator."""
+    cursor = PageCursor(score=1.0, id="test-id-123", query_id=query_id)
+    retriever = StructuredRetriever(cursor=cursor)
+    query = retriever.apply(candidate_query)
+    sql = compile_query_to_sql(query)
+    assert_sql_matches_snapshot("StructuredRetriever.test_pagination_structure", sql, request)
 
 
-class TestRrfHybridRetriever:
-    """Test SQL structure for RrfHybridRetriever (Reciprocal Rank Fusion)."""
-
-    def test_basic_query_structure(self, candidate_query, request):
-        """Test hybrid RRF query structure with all CTEs."""
-        query_vector = [0.1, 0.2, 0.3]
-        retriever = RrfHybridRetriever(query_vector, "test", cursor=None)
-
-        query = retriever.apply(candidate_query)
-        sql = compile_query_to_sql(query)
-
-        assert_sql_matches_snapshot("RrfHybridRetriever.test_basic_query_structure", sql, request)
-
-    def test_pagination_structure(self, candidate_query, query_id, request):
-        """Test that pagination adds score and entity_id comparison logic."""
-        cursor = PageCursor(score=0.95, id="entity-789", query_id=query_id)
-        query_vector = [0.1, 0.2, 0.3]
-        retriever = RrfHybridRetriever(query_vector, "test", cursor=cursor)
-
-        query = retriever.apply(candidate_query)
-        sql = compile_query_to_sql(query)
-
-        assert_sql_matches_snapshot("RrfHybridRetriever.test_pagination_structure", sql, request)
-
-    def test_metadata(self):
-        """Test metadata returns correct search type."""
-        query_vector = [0.1, 0.2, 0.3]
-        retriever = RrfHybridRetriever(query_vector, "test", cursor=None)
-
-        metadata = retriever.metadata
-
-        assert metadata.search_type == "hybrid"
+def test_structured_retriever_with_order_by(candidate_query, query_id, request):
+    """Test basic structured retrieval query structure ordered by element."""
+    order_by = StructuredOrderBy(element="subscription.description", direction=OrderDirection.ASC)
+    retriever = StructuredRetriever(cursor=None, order_by=order_by)
+    query = retriever.apply(candidate_query)
+    sql = compile_query_to_sql(query)
+    assert_sql_matches_snapshot("StructuredRetriever.test_basic_query_structure_with_order_by", sql, request)
 
 
-class TestRrfScoreComputation:
-    """Test the RRF score computation."""
+@pytest.mark.parametrize(
+    "retriever_factory,expected_search_type",
+    [
+        pytest.param(lambda: StructuredRetriever(cursor=None), "structured", id="structured"),
+        pytest.param(lambda: FuzzyRetriever("test", cursor=None), "fuzzy", id="fuzzy"),
+        pytest.param(lambda: SemanticRetriever([0.1, 0.2, 0.3], cursor=None), "semantic", id="semantic"),
+        pytest.param(lambda: RrfHybridRetriever([0.1, 0.2, 0.3], "test", cursor=None), "hybrid", id="hybrid"),
+    ],
+)
+def test_retriever_metadata_search_type(retriever_factory, expected_search_type):
+    """Test metadata returns correct search type for each retriever."""
+    retriever = retriever_factory()
+    assert retriever.metadata.search_type == expected_search_type
 
-    @pytest.mark.parametrize(
-        "avg_fuzzy_score, expected_flag",
-        [
-            (0.89, 0),  # Below threshold
-            (0.90, 1),  # At threshold
-            (0.95, 1),  # Above threshold
-        ],
-        ids=["below_threshold", "at_threshold", "above_threshold"],
+
+# ---------------------------------------------------------------------------
+# FuzzyRetriever
+# ---------------------------------------------------------------------------
+
+
+def test_fuzzy_retriever_basic_query_structure(candidate_query, request):
+    """Test fuzzy retrieval query structure with all components."""
+    retriever = FuzzyRetriever("test query", cursor=None)
+    query = retriever.apply(candidate_query)
+    sql = compile_query_to_sql(query)
+    assert_sql_matches_snapshot("FuzzyRetriever.test_basic_query_structure", sql, request)
+
+
+def test_fuzzy_retriever_pagination_structure(candidate_query, query_id, request):
+    """Test pagination with score and id adds correct WHERE clause."""
+    cursor = PageCursor(score=0.85, id="entity-123", query_id=query_id)
+    retriever = FuzzyRetriever("test", cursor=cursor)
+    query = retriever.apply(candidate_query)
+    sql = compile_query_to_sql(query)
+    assert_sql_matches_snapshot("FuzzyRetriever.test_pagination_structure", sql, request)
+
+
+# ---------------------------------------------------------------------------
+# SemanticRetriever
+# ---------------------------------------------------------------------------
+
+
+def test_semantic_retriever_basic_query_structure(candidate_query, request):
+    """Test semantic retrieval query structure with all components."""
+    retriever = SemanticRetriever([0.1, 0.2, 0.3], cursor=None)
+    query = retriever.apply(candidate_query)
+    sql = compile_query_to_sql(query)
+    assert_sql_matches_snapshot("SemanticRetriever.test_basic_query_structure", sql, request)
+
+
+def test_semantic_retriever_pagination_structure(candidate_query, query_id, request):
+    """Test pagination with score and id adds correct WHERE clause."""
+    cursor = PageCursor(score=0.92, id="entity-456", query_id=query_id)
+    retriever = SemanticRetriever([0.1, 0.2, 0.3], cursor=cursor)
+    query = retriever.apply(candidate_query)
+    sql = compile_query_to_sql(query)
+    assert_sql_matches_snapshot("SemanticRetriever.test_pagination_structure", sql, request)
+
+
+# ---------------------------------------------------------------------------
+# RrfHybridRetriever
+# ---------------------------------------------------------------------------
+
+
+def test_rrf_hybrid_retriever_basic_query_structure(candidate_query, request):
+    """Test hybrid RRF query structure with all CTEs."""
+    retriever = RrfHybridRetriever([0.1, 0.2, 0.3], "test", cursor=None)
+    query = retriever.apply(candidate_query)
+    sql = compile_query_to_sql(query)
+    assert_sql_matches_snapshot("RrfHybridRetriever.test_basic_query_structure", sql, request)
+
+
+def test_rrf_hybrid_retriever_pagination_structure(candidate_query, query_id, request):
+    """Test that pagination adds score and entity_id comparison logic."""
+    cursor = PageCursor(score=0.95, id="entity-789", query_id=query_id)
+    retriever = RrfHybridRetriever([0.1, 0.2, 0.3], "test", cursor=cursor)
+    query = retriever.apply(candidate_query)
+    sql = compile_query_to_sql(query)
+    assert_sql_matches_snapshot("RrfHybridRetriever.test_pagination_structure", sql, request)
+
+
+# ---------------------------------------------------------------------------
+# RRF score computation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "avg_fuzzy_score,expected_flag",
+    [
+        pytest.param(0.89, 0, id="below_threshold"),
+        pytest.param(0.90, 1, id="at_threshold"),
+        pytest.param(0.95, 1, id="above_threshold"),
+    ],
+)
+def test_rrf_perfect_match_detection(avg_fuzzy_score, expected_flag):
+    """Test perfect match flag evaluates correctly based on the threshold."""
+    components = compute_rrf_hybrid_score_sql(
+        sem_rank_col=literal(1),
+        fuzzy_rank_col=literal(1),
+        avg_fuzzy_score_col=literal(avg_fuzzy_score),
+        k=60,
+        perfect_threshold=0.9,
     )
-    def test_perfect_match_detection(self, avg_fuzzy_score, expected_flag):
-        """Test perfect match flag evaluates correctly based on the threshold."""
-        components = compute_rrf_hybrid_score_sql(
-            sem_rank_col=literal(1),
-            fuzzy_rank_col=literal(1),
-            avg_fuzzy_score_col=literal(avg_fuzzy_score),
-            k=60,
-            perfect_threshold=0.9,
-        )
+    result_flag = db.session.execute(select(components["perfect"])).scalar()
+    assert result_flag is not None and result_flag == expected_flag
 
-        result_flag = db.session.execute(select(components["perfect"])).scalar()
-        assert result_flag is not None and result_flag == expected_flag
 
-    @pytest.mark.parametrize(
-        "k, sem_rank, fuzzy_rank, expected_rrf",
-        [
-            (60, 1, 1, 2 / 61),
-            (10, 1, 1, 2 / 11),
-            (60, 1, 5, (1 / 61) + (1 / 65)),
-        ],
-        ids=["k=60_symmetric", "k=10_symmetric", "k=60_asymmetric"],
+@pytest.mark.parametrize(
+    "k,sem_rank,fuzzy_rank,expected_rrf",
+    [
+        pytest.param(60, 1, 1, 2 / 61, id="k=60_symmetric"),
+        pytest.param(10, 1, 1, 2 / 11, id="k=10_symmetric"),
+        pytest.param(60, 1, 5, (1 / 61) + (1 / 65), id="k=60_asymmetric"),
+    ],
+)
+def test_rrf_base_score_component(k, sem_rank, fuzzy_rank, expected_rrf):
+    """Test the base rrf_num component calculates correctly."""
+    result = compute_rrf_hybrid_score_sql(
+        sem_rank_col=literal(sem_rank),
+        fuzzy_rank_col=literal(fuzzy_rank),
+        avg_fuzzy_score_col=literal(0.5),
+        k=k,
+        perfect_threshold=0.9,
     )
-    def test_base_rrf_score_component(self, k, sem_rank, fuzzy_rank, expected_rrf):
-        """Test the base rrf_num component calculates correctly."""
-        result = compute_rrf_hybrid_score_sql(
-            sem_rank_col=literal(sem_rank),
-            fuzzy_rank_col=literal(fuzzy_rank),
-            avg_fuzzy_score_col=literal(0.5),
-            k=k,
-            perfect_threshold=0.9,
-        )
-        rrf_val = db.session.execute(select(result["rrf_num"])).scalar()
-        assert rrf_val is not None and float(rrf_val) == pytest.approx(expected_rrf, abs=0.0001)
+    rrf_val = db.session.execute(select(result["rrf_num"])).scalar()
+    assert rrf_val is not None and float(rrf_val) == pytest.approx(expected_rrf, abs=0.0001)
 
-    @pytest.mark.parametrize(
-        "sem_rank, fuzzy_rank, fuzzy_score",
-        [
-            (1, 1, 0.5),
-            (100, 100, 0.5),
-            (1, 1, 0.95),
-            (50, 50, 0.95),
-            (1, 1000, 0.5),
-        ],
-        ids=[
-            "best_ranks_no_boost",
-            "worst_ranks_no_boost",
-            "best_ranks_with_boost",
-            "mid_ranks_with_boost",
-            "extreme_rank_difference",
-        ],
+
+NORMALIZED_SCORE_PARAMS = [
+    pytest.param(1, 1, 0.5, id="best_ranks_no_boost"),
+    pytest.param(100, 100, 0.5, id="worst_ranks_no_boost"),
+    pytest.param(1, 1, 0.95, id="best_ranks_with_boost"),
+    pytest.param(50, 50, 0.95, id="mid_ranks_with_boost"),
+    pytest.param(1, 1000, 0.5, id="extreme_rank_difference"),
+]
+
+
+@pytest.mark.parametrize("sem_rank,fuzzy_rank,fuzzy_score", NORMALIZED_SCORE_PARAMS)
+def test_rrf_normalized_score_is_always_in_range(sem_rank, fuzzy_rank, fuzzy_score):
+    """Test that the normalized score is always within the [0, 1] range for various inputs."""
+    components = compute_rrf_hybrid_score_sql(
+        sem_rank_col=literal(sem_rank),
+        fuzzy_rank_col=literal(fuzzy_rank),
+        avg_fuzzy_score_col=literal(fuzzy_score),
+        k=60,
+        perfect_threshold=0.9,
     )
-    def test_normalized_score_is_always_in_range(self, sem_rank, fuzzy_rank, fuzzy_score):
-        """Test that the normalized score is always within the [0, 1] range for various inputs."""
-        components = compute_rrf_hybrid_score_sql(
-            sem_rank_col=literal(sem_rank),
-            fuzzy_rank_col=literal(fuzzy_rank),
-            avg_fuzzy_score_col=literal(fuzzy_score),
-            k=60,
-            perfect_threshold=0.9,
-        )
-        score = db.session.execute(select(components["normalized_score"])).scalar()
+    score = db.session.execute(select(components["normalized_score"])).scalar()
+    assert score is not None and 0 <= float(score) <= 1, f"Score {score} was outside the expected [0, 1] range"
 
-        assert score is not None and 0 <= float(score) <= 1, f"Score {score} was outside the expected [0, 1] range"
 
-    @pytest.mark.parametrize(
-        "n_sources, expected_numerator",
-        [
-            (2, 2),
-            (3, 3),
-            (4, 4),
-        ],
-        ids=["2_sources", "3_sources", "4_sources"],
+@pytest.mark.parametrize(
+    "n_sources,expected_numerator",
+    [
+        pytest.param(2, 2, id="2_sources"),
+        pytest.param(3, 3, id="3_sources"),
+        pytest.param(4, 4, id="4_sources"),
+    ],
+)
+def test_rrf_n_sources_affects_rrf_max(n_sources, expected_numerator):
+    """Test that the n_sources parameter correctly affects the rrf_max calculation."""
+    k = 60
+    components = compute_rrf_hybrid_score_sql(
+        sem_rank_col=literal(1),
+        fuzzy_rank_col=literal(1),
+        avg_fuzzy_score_col=literal(0.5),
+        k=k,
+        perfect_threshold=0.9,
+        n_sources=n_sources,
     )
-    def test_n_sources_parameter_affects_rrf_max(self, n_sources, expected_numerator):
-        """Test that the n_sources parameter correctly affects the rrf_max calculation."""
-        k = 60
-        components = compute_rrf_hybrid_score_sql(
-            sem_rank_col=literal(1),
-            fuzzy_rank_col=literal(1),
-            avg_fuzzy_score_col=literal(0.5),
-            k=k,
-            perfect_threshold=0.9,
-            n_sources=n_sources,
-        )
+    rrf_max_val = db.session.execute(select(components["rrf_max"])).scalar()
+    expected_value = expected_numerator / (k + 1)
+    assert rrf_max_val is not None and float(rrf_max_val) == pytest.approx(expected_value)
 
-        rrf_max_val = db.session.execute(select(components["rrf_max"])).scalar()
 
-        # Assert: Check if the value matches the formula n_sources / (k + 1)
-        expected_value = expected_numerator / (k + 1)
-        assert rrf_max_val is not None and float(rrf_max_val) == pytest.approx(expected_value)
-
-    @pytest.mark.parametrize(
-        "margin_factor, expected_multiplier",
-        [
-            (0.05, 1.05),
-            (0.1, 1.1),
-            (0.0, 1.0),
-        ],
-        ids=["5%_margin", "10%_margin", "0%_margin"],
+@pytest.mark.parametrize(
+    "margin_factor,expected_multiplier",
+    [
+        pytest.param(0.05, 1.05, id="5%_margin"),
+        pytest.param(0.1, 1.1, id="10%_margin"),
+        pytest.param(0.0, 1.0, id="0%_margin"),
+    ],
+)
+def test_rrf_margin_factor_affects_beta(margin_factor, expected_multiplier):
+    """Test that the margin_factor parameter correctly affects the beta calculation."""
+    k = 60
+    n_sources = 2
+    components = compute_rrf_hybrid_score_sql(
+        sem_rank_col=literal(1),
+        fuzzy_rank_col=literal(1),
+        avg_fuzzy_score_col=literal(0.5),
+        k=k,
+        perfect_threshold=0.9,
+        n_sources=n_sources,
+        margin_factor=margin_factor,
     )
-    def test_margin_factor_parameter_affects_beta(self, margin_factor, expected_multiplier):
-        """Test that the margin_factor parameter correctly affects the beta calculation."""
-
-        k = 60
-        n_sources = 2
-
-        components = compute_rrf_hybrid_score_sql(
-            sem_rank_col=literal(1),
-            fuzzy_rank_col=literal(1),
-            avg_fuzzy_score_col=literal(0.5),
-            k=k,
-            perfect_threshold=0.9,
-            n_sources=n_sources,
-            margin_factor=margin_factor,
-        )
-
-        beta_val = db.session.execute(select(components["beta"])).scalar()
-
-        # beta = rrf_max * (1 + margin_factor)
-        rrf_max = n_sources / (k + 1)
-        expected_beta = rrf_max * expected_multiplier
-
-        assert beta_val is not None and float(beta_val) == pytest.approx(expected_beta)
+    beta_val = db.session.execute(select(components["beta"])).scalar()
+    rrf_max = n_sources / (k + 1)
+    expected_beta = rrf_max * expected_multiplier
+    assert beta_val is not None and float(beta_val) == pytest.approx(expected_beta)

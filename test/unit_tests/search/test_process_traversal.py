@@ -1,3 +1,5 @@
+"""Tests for ProcessTraverser: basic field extraction from ProcessTable entities."""
+
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,68 +21,42 @@ from orchestrator.db import ProcessTable
 from orchestrator.search.core.types import EntityType, FieldType
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 
+_EXPECTED_FIELDS = {
+    "process.process_id": ("550e8400-e29b-41d4-a716-446655440000", FieldType.UUID),
+    "process.assignee": ("SYSTEM", FieldType.STRING),
+    "process.last_status": ("completed", FieldType.STRING),
+    "process.started_at": (None, FieldType.DATETIME),
+    "process.last_modified_at": (None, FieldType.DATETIME),
+    "process.created_by": ("admin", FieldType.STRING),
+    "process.is_task": ("True", FieldType.BOOLEAN),
+    "process.workflow_name": ("test_workflow", FieldType.STRING),
+}
 
-class TestProcessTraverser:
-    """Simple test for ProcessTraverser focusing on basic field extraction."""
 
-    def test_traverse_simple_process(self):
-        """Test basic process field extraction excluding relational fields."""
+def test_traverse_simple_process():
+    process = ProcessTable(
+        process_id=UUID("550e8400-e29b-41d4-a716-446655440000"),
+        workflow_id=UUID("880e8400-e29b-41d4-a716-446655440000"),
+        assignee="SYSTEM",
+        last_status="completed",
+        started_at=datetime(2024, 1, 15, 10, 30, 0),
+        last_modified_at=datetime(2024, 1, 15, 11, 0, 0),
+        failed_reason=None,
+        created_by="admin",
+        is_task=True,
+    )
 
-        process_id = UUID("550e8400-e29b-41d4-a716-446655440000")
-        workflow_id = UUID("880e8400-e29b-41d4-a716-446655440000")
+    mock_workflow = MagicMock()
+    mock_workflow.name = "test_workflow"
+    process.workflow = mock_workflow
+    process.subscriptions = []
 
-        process = ProcessTable(
-            process_id=process_id,
-            workflow_id=workflow_id,
-            assignee="SYSTEM",
-            last_status="completed",
-            started_at=datetime(2024, 1, 15, 10, 30, 0),
-            last_modified_at=datetime(2024, 1, 15, 11, 0, 0),
-            failed_reason=None,
-            created_by="admin",
-            is_task=True,
-        )
+    config = ENTITY_CONFIG_REGISTRY[EntityType.PROCESS]
+    extracted_fields = config.traverser.get_fields(entity=process, pk_name=config.pk_name, root_name=config.root_name)
+    field_map = {field.path: field for field in extracted_fields}
 
-        # Mock workflow relationship
-        mock_workflow = MagicMock()
-        mock_workflow.name = "test_workflow"
-        process.workflow = mock_workflow
-        process.subscriptions = []
-
-        config = ENTITY_CONFIG_REGISTRY[EntityType.PROCESS]
-        extracted_fields = config.traverser.get_fields(
-            entity=process, pk_name=config.pk_name, root_name=config.root_name
-        )
-
-        field_map = {field.path: field for field in extracted_fields}
-
-        assert "process.process_id" in field_map
-        assert field_map["process.process_id"].value == "550e8400-e29b-41d4-a716-446655440000"
-
-        assert field_map["process.process_id"].value_type == FieldType.UUID
-
-        assert "process.assignee" in field_map
-        assert field_map["process.assignee"].value == "SYSTEM"
-        assert field_map["process.assignee"].value_type == FieldType.STRING
-
-        assert "process.last_status" in field_map
-        assert field_map["process.last_status"].value == "completed"
-        assert field_map["process.last_status"].value_type == FieldType.STRING
-
-        assert "process.started_at" in field_map
-        assert field_map["process.started_at"].value_type == FieldType.DATETIME
-
-        assert "process.last_modified_at" in field_map
-        assert field_map["process.last_modified_at"].value_type == FieldType.DATETIME
-
-        assert "process.created_by" in field_map
-        assert field_map["process.created_by"].value == "admin"
-        assert field_map["process.created_by"].value_type == FieldType.STRING
-
-        assert "process.is_task" in field_map
-        assert field_map["process.is_task"].value == "True"
-        assert field_map["process.is_task"].value_type == FieldType.BOOLEAN
-
-        assert "process.workflow_name" in field_map
-        assert field_map["process.workflow_name"].value == "test_workflow"
-        assert field_map["process.workflow_name"].value_type == FieldType.STRING
+    for path, (expected_value, expected_type) in _EXPECTED_FIELDS.items():
+        assert path in field_map, f"Missing field: {path}"
+        assert field_map[path].value_type == expected_type
+        if expected_value is not None:
+            assert field_map[path].value == expected_value
