@@ -1,17 +1,12 @@
 from types import SimpleNamespace
-from typing import cast
 from unittest import mock
 
 import orchestrator.cli.migrate_tasks as migrate_tasks
-from orchestrator.workflows import LazyWorkflowInstance
+import orchestrator.workflows
 
 
 def _state():
     return {"tasks_to_add": [], "tasks_to_delete": []}
-
-
-def _tasks() -> dict[str, LazyWorkflowInstance]:
-    return cast(dict[str, LazyWorkflowInstance], {"validate_my_product": object()})
 
 
 def _mock_task_menus(*choices: str | None):
@@ -166,7 +161,7 @@ def _mock_db_tasks(tasks):
 
 def _mock_all_workflows(workflow_names: list[str]):
     return mock.patch.dict(
-        migrate_tasks.orchestrator.workflows.ALL_WORKFLOWS,
+        orchestrator.workflows.ALL_WORKFLOWS,
         {name: object() for name in workflow_names},
         clear=True,
     )
