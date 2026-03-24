@@ -18,6 +18,7 @@ from typing import Any, ClassVar, cast
 from uuid import uuid4
 
 import structlog
+from psycopg.pq import TransactionStatus
 from sqlalchemy import create_engine, event
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.declarative import DeclarativeMeta
@@ -211,7 +212,7 @@ class Database:
             try:
                 # psycopg3 exposes transaction_status via connection.info
                 tx_status = getattr(getattr(dbapi_connection, "info", None), "transaction_status", None)
-                if tx_status is not None and tx_status != 0:  # 0 = IDLE (no active transaction)
+                if tx_status is not None and tx_status != TransactionStatus.IDLE:
                     logger.warning(
                         "Connection returned to pool with active transaction, forcing rollback",
                         transaction_status=tx_status,

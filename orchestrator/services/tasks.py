@@ -122,7 +122,7 @@ class CeleryJobWorkerStatus(WorkerStatus):
             return
 
         inspection: Inspect = _celery.control.inspect()
-        stats = stats if (stats := inspection.stats()) is not None else {}
+        stats = inspection.stats() or {}
         self.number_of_workers_online = len(stats)
 
         def sum_items(d: dict) -> int:

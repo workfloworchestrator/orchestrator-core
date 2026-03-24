@@ -243,6 +243,5 @@ def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel 
                 )
         else:
             logger.info("Subscription already in sync")
-            db.session.rollback()
     except ValueError as e:
         raise_status(HTTPStatus.NOT_FOUND, str(e))
