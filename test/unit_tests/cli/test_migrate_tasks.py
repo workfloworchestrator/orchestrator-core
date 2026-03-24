@@ -1,5 +1,9 @@
+"""Tests for CLI migrate_tasks: task discovery, workflow migration, and task registration."""
+
 from types import SimpleNamespace
 from unittest import mock
+
+import pytest
 
 import orchestrator.cli.migrate_tasks as migrate_tasks
 import orchestrator.workflows
@@ -95,18 +99,17 @@ def test_delete_task_valid_selection_deletes_task():
     assert result["tasks_to_delete"][0]["name"] == "validate_my_product"
 
 
-def test_delete_task_cancel_returns_state():
+@pytest.mark.parametrize(
+    "user_input",
+    [
+        pytest.param("q", id="cancel"),
+        pytest.param("99", id="out-of-range"),
+    ],
+)
+def test_delete_task_invalid_input_returns_state(user_input: str):
     state = _state()
     tasks = [_task_row("validate_my_product", description="desc")]
-    with mock.patch.object(migrate_tasks, "get_user_input", return_value="q"):
-        result = migrate_tasks._delete_task(tasks, state)
-    assert result == state
-
-
-def test_delete_task_out_of_range_returns_state():
-    state = _state()
-    tasks = [_task_row("validate_my_product", description="desc")]
-    with mock.patch.object(migrate_tasks, "get_user_input", return_value="99"):
+    with mock.patch.object(migrate_tasks, "get_user_input", return_value=user_input):
         result = migrate_tasks._delete_task(tasks, state)
     assert result == state
 
@@ -167,24 +170,19 @@ def _mock_all_workflows(workflow_names: list[str]):
     )
 
 
-def test_create_tasks_migration_wizard_abort_returns_empty():
+@pytest.mark.parametrize(
+    "abort",
+    [
+        pytest.param(True, id="abort"),
+        pytest.param(False, id="finish"),
+    ],
+)
+def test_create_tasks_migration_wizard_returns_empty(abort: bool):
     with (
         _mock_db_tasks([]),
         _mock_all_workflows([]),
         mock.patch.object(migrate_tasks, "get_workflow", return_value=None),
-        _mock_task_menus(lambda s: {**s, "done": True, "abort": True}),
-    ):
-        tasks_to_add, tasks_to_delete = migrate_tasks.create_tasks_migration_wizard()
-    assert tasks_to_add == []
-    assert tasks_to_delete == []
-
-
-def test_create_tasks_migration_wizard_finish_returns_state():
-    with (
-        _mock_db_tasks([]),
-        _mock_all_workflows([]),
-        mock.patch.object(migrate_tasks, "get_workflow", return_value=None),
-        _mock_task_menus(lambda s: {**s, "done": True, "abort": False}),
+        _mock_task_menus(lambda s: {**s, "done": True, "abort": abort}),
     ):
         tasks_to_add, tasks_to_delete = migrate_tasks.create_tasks_migration_wizard()
     assert tasks_to_add == []

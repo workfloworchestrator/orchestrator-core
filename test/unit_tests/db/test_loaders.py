@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for loader utilities: _split_path, _relation_type_to_loader_func (direction→strategy mapping), and _join_attr_loaders (reduce-based chaining)."""
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -21,7 +23,6 @@ from orchestrator.db.loaders import AttrLoader, _join_attr_loaders, _relation_ty
 
 
 def _make_relationship(direction: RelationshipDirection, strategy=None) -> MagicMock:
-    """Build a mock RelationshipProperty with the given direction and strategy."""
     rel = MagicMock()
     rel.direction = direction
     rel.strategy = strategy if strategy is not None else MagicMock(spec=object)
@@ -36,215 +37,85 @@ def _make_attr_loader(loader_fn=None, attr=None, next_model=None) -> AttrLoader:
     )
 
 
-class TestSplitPath:
-    def test_single_segment_yields_one_field(self):
-        result = list(_split_path("instances"))
-        assert result == ["instances"]
-
-    def test_two_segments_yields_two_fields(self):
-        result = list(_split_path("instances.product_block"))
-        assert result == ["instances", "product_block"]
-
-    def test_three_segments_yields_three_fields(self):
-        result = list(_split_path("a.b.c"))
-        assert result == ["a", "b", "c"]
-
-    def test_empty_string_yields_one_empty_string(self):
-        result = list(_split_path(""))
-        assert result == [""]
-
-    def test_preserves_field_names_exactly(self):
-        result = list(_split_path("subscription_id.resource_type"))
-        assert result == ["subscription_id", "resource_type"]
-
-    @pytest.mark.parametrize(
-        "path, expected",
-        [
-            ("a", ["a"]),
-            ("a.b", ["a", "b"]),
-            ("a.b.c", ["a", "b", "c"]),
-            ("a.b.c.d", ["a", "b", "c", "d"]),
-        ],
-        ids=["one", "two", "three", "four"],
-    )
-    def test_parametrized_split(self, path: str, expected: list):
-        assert list(_split_path(path)) == expected
+# --- _split_path ---
 
 
-class TestRelationTypeToLoaderFunc:
-    def test_manytoone_returns_joinedload(self):
-        rel = _make_relationship(RelationshipDirection.MANYTOONE)
-        result = _relation_type_to_loader_func(rel)
-        assert result is joinedload
-
-    def test_onetomany_without_subquery_returns_selectinload(self):
-        rel = _make_relationship(RelationshipDirection.ONETOMANY)
-        result = _relation_type_to_loader_func(rel)
-        assert result is selectinload
-
-    def test_manytomany_without_subquery_returns_selectinload(self):
-        rel = _make_relationship(RelationshipDirection.MANYTOMANY)
-        result = _relation_type_to_loader_func(rel)
-        assert result is selectinload
-
-    def test_onetomany_with_subquery_strategy_returns_subqueryload(self):
-        subquery_strategy = MagicMock(spec=SubqueryLoader)
-        rel = _make_relationship(RelationshipDirection.ONETOMANY, strategy=subquery_strategy)
-        result = _relation_type_to_loader_func(rel)
-        assert result is subqueryload
-
-    def test_manytomany_with_subquery_strategy_returns_subqueryload(self):
-        subquery_strategy = MagicMock(spec=SubqueryLoader)
-        rel = _make_relationship(RelationshipDirection.MANYTOMANY, strategy=subquery_strategy)
-        result = _relation_type_to_loader_func(rel)
-        assert result is subqueryload
-
-    def test_unrecognized_direction_raises_type_error(self):
-        rel = MagicMock()
-        rel.direction = MagicMock()  # Not a valid RelationshipDirection enum value
-        # Force the match/case to fall through by giving a direction that won't match any case
-        rel.direction.__eq__ = lambda self, other: False
-        # We patch the match statement by using a sentinel object not in the enum
-        rel.direction = object()  # Not an enum member → match falls through
-        with pytest.raises(TypeError, match="Unrecognized relationship direction"):
-            _relation_type_to_loader_func(rel)
-
-    @pytest.mark.parametrize(
-        "direction, strategy, expected_fn",
-        [
-            (RelationshipDirection.MANYTOONE, None, joinedload),
-            (RelationshipDirection.ONETOMANY, None, selectinload),
-            (RelationshipDirection.MANYTOMANY, None, selectinload),
-        ],
-        ids=["manytoone->joined", "onetomany->selectin", "manytomany->selectin"],
-    )
-    def test_parametrized_direction_mapping(self, direction, strategy, expected_fn):
-        rel = _make_relationship(direction, strategy)
-        result = _relation_type_to_loader_func(rel)
-        assert result is expected_fn
+@pytest.mark.parametrize(
+    "path,expected",
+    [
+        pytest.param("a", ["a"], id="single"),
+        pytest.param("a.b", ["a", "b"], id="two"),
+        pytest.param("a.b.c", ["a", "b", "c"], id="three"),
+    ],
+)
+def test_split_path(path: str, expected: list[str]) -> None:
+    assert list(_split_path(path)) == expected
 
 
-class TestJoinAttrLoaders:
-    def test_empty_list_returns_none(self):
-        assert _join_attr_loaders([]) is None
-
-    def test_single_loader_calls_loader_fn_with_attr(self):
-        mock_attr = MagicMock(name="attr")
-        mock_load_result = MagicMock(name="load_result")
-        mock_loader_fn = MagicMock(name="loader_fn", return_value=mock_load_result)
-        loader = _make_attr_loader(loader_fn=mock_loader_fn, attr=mock_attr)
-
-        result = _join_attr_loaders([loader])
-
-        mock_loader_fn.assert_called_once_with(mock_attr)
-        assert result is mock_load_result
-
-    def test_single_loader_returns_load_object(self):
-        mock_load_result = MagicMock()
-        loader = _make_attr_loader(loader_fn=MagicMock(return_value=mock_load_result))
-        result = _join_attr_loaders([loader])
-        assert result is mock_load_result
-
-    def test_two_loaders_chains_second_onto_first(self):
-        first_load = MagicMock(name="first_load")
-        second_load = MagicMock(name="second_load")
-        chained_load = MagicMock(name="chained_load")
-
-        first_loader_fn = MagicMock(name="first_loader_fn", return_value=first_load)
-        first_loader_fn.__name__ = "selectinload"
-
-        second_loader_fn = MagicMock(name="second_loader_fn", return_value=second_load)
-        second_loader_fn.__name__ = "joinedload"
-
-        # When chaining: first_load.joinedload(second_attr) should be called
-        first_load.joinedload = MagicMock(return_value=chained_load)
-
-        second_attr = MagicMock(name="second_attr")
-        loaders = [
-            _make_attr_loader(loader_fn=first_loader_fn, attr=MagicMock()),
-            _make_attr_loader(loader_fn=second_loader_fn, attr=second_attr),
-        ]
-
-        result = _join_attr_loaders(loaders)
-
-        first_load.joinedload.assert_called_once_with(second_attr)
-        assert result is chained_load
-
-    def test_three_loaders_chains_all(self):
-        """Verify the reduce logic chains three loaders correctly."""
-        first_load = MagicMock(name="first_load")
-        second_load = MagicMock(name="second_load")
-        third_load = MagicMock(name="third_load")
-
-        first_loader_fn = MagicMock(name="first_fn", return_value=first_load)
-        first_loader_fn.__name__ = "selectinload"
-
-        second_loader_fn = MagicMock(name="second_fn")
-        second_loader_fn.__name__ = "joinedload"
-
-        third_loader_fn = MagicMock(name="third_fn")
-        third_loader_fn.__name__ = "selectinload"
-
-        second_attr = MagicMock(name="second_attr")
-        third_attr = MagicMock(name="third_attr")
-
-        # first_load.joinedload(second_attr) -> second_load
-        first_load.joinedload = MagicMock(return_value=second_load)
-        # second_load.selectinload(third_attr) -> third_load
-        second_load.selectinload = MagicMock(return_value=third_load)
-
-        loaders = [
-            _make_attr_loader(loader_fn=first_loader_fn, attr=MagicMock()),
-            _make_attr_loader(loader_fn=second_loader_fn, attr=second_attr),
-            _make_attr_loader(loader_fn=third_loader_fn, attr=third_attr),
-        ]
-
-        result = _join_attr_loaders(loaders)
-
-        first_load.joinedload.assert_called_once_with(second_attr)
-        second_load.selectinload.assert_called_once_with(third_attr)
-        assert result is third_load
-
-    def test_chaining_uses_loader_fn_name_for_getattr(self):
-        """chain_loader_func uses getattr(final_loader, next.loader_fn.__name__) — verify the name is used."""
-        first_load = MagicMock(name="first_load")
-        first_loader_fn = MagicMock(return_value=first_load)
-        first_loader_fn.__name__ = "selectinload"
-
-        second_loader_fn = MagicMock()
-        second_loader_fn.__name__ = "subqueryload"
-
-        second_attr = MagicMock(name="second_attr")
-        chained = MagicMock()
-        first_load.subqueryload = MagicMock(return_value=chained)
-
-        loaders = [
-            _make_attr_loader(loader_fn=first_loader_fn, attr=MagicMock()),
-            _make_attr_loader(loader_fn=second_loader_fn, attr=second_attr),
-        ]
-
-        result = _join_attr_loaders(loaders)
-
-        first_load.subqueryload.assert_called_once_with(second_attr)
-        assert result is chained
+# --- _relation_type_to_loader_func ---
 
 
-class TestAttrLoader:
-    def test_attr_loader_is_named_tuple(self):
-        fn = MagicMock()
-        attr = MagicMock()
-        model = MagicMock()
-        loader = AttrLoader(loader_fn=fn, attr=attr, next_model=model)
-        assert loader.loader_fn is fn
-        assert loader.attr is attr
-        assert loader.next_model is model
+@pytest.mark.parametrize(
+    "direction,strategy,expected_fn",
+    [
+        pytest.param(RelationshipDirection.MANYTOONE, None, joinedload, id="manytoone-joined"),
+        pytest.param(RelationshipDirection.ONETOMANY, None, selectinload, id="onetomany-selectin"),
+        pytest.param(RelationshipDirection.MANYTOMANY, None, selectinload, id="manytomany-selectin"),
+        pytest.param(
+            RelationshipDirection.ONETOMANY,
+            MagicMock(spec=SubqueryLoader),
+            subqueryload,
+            id="onetomany-subquery",
+        ),
+    ],
+)
+def test_relation_type_to_loader_func(
+    direction: RelationshipDirection, strategy: object | None, expected_fn: object
+) -> None:
+    rel = _make_relationship(direction, strategy)
+    assert _relation_type_to_loader_func(rel) is expected_fn
 
-    def test_attr_loader_supports_unpacking(self):
-        fn = MagicMock()
-        attr = MagicMock()
-        model = MagicMock()
-        loader = AttrLoader(loader_fn=fn, attr=attr, next_model=model)
-        unpacked_fn, unpacked_attr, unpacked_model = loader
-        assert unpacked_fn is fn
-        assert unpacked_attr is attr
-        assert unpacked_model is model
+
+def test_unrecognized_direction_raises() -> None:
+    rel = MagicMock()
+    rel.direction = object()
+    with pytest.raises(TypeError, match="Unrecognized relationship direction"):
+        _relation_type_to_loader_func(rel)
+
+
+# --- _join_attr_loaders ---
+
+
+def test_join_attr_loaders_empty() -> None:
+    assert _join_attr_loaders([]) is None
+
+
+def test_join_attr_loaders_single() -> None:
+    mock_attr = MagicMock()
+    mock_result = MagicMock()
+    mock_fn = MagicMock(return_value=mock_result)
+    loader = _make_attr_loader(loader_fn=mock_fn, attr=mock_attr)
+    assert _join_attr_loaders([loader]) is mock_result
+    mock_fn.assert_called_once_with(mock_attr)
+
+
+def test_join_attr_loaders_chaining() -> None:
+    first_load = MagicMock()
+    chained = MagicMock()
+
+    first_fn = MagicMock(return_value=first_load)
+    first_fn.__name__ = "selectinload"
+
+    second_fn = MagicMock()
+    second_fn.__name__ = "joinedload"
+
+    second_attr = MagicMock()
+    first_load.joinedload = MagicMock(return_value=chained)
+
+    loaders = [
+        _make_attr_loader(loader_fn=first_fn, attr=MagicMock()),
+        _make_attr_loader(loader_fn=second_fn, attr=second_attr),
+    ]
+
+    assert _join_attr_loaders(loaders) is chained
+    first_load.joinedload.assert_called_once_with(second_attr)

@@ -55,7 +55,7 @@ def long_running_workflow():
             test_condition.wait()
         return {"done": True}
 
-    @workflow("Long Running Workflow")
+    @workflow()
     def long_running_workflow_py():
         return init >> long_running_step >> long_running_step >> done
 
@@ -630,7 +630,7 @@ def test_unauthorized_to_run_process(test_client):
     async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    @workflow("unauthorized_workflow", target=Target.CREATE, authorize_callback=disallow)
+    @workflow(target=Target.CREATE, authorize_callback=disallow)
     def unauthorized_workflow():
         return init >> done
 
@@ -660,7 +660,7 @@ def authorize_resume_workflow():
         user_input = yield ConfirmForm
         return user_input.model_dump()
 
-    @workflow("test_auth_workflow", target=Target.CREATE, authorize_callback=allow, retry_auth_callback=disallow)
+    @workflow(target=Target.CREATE, authorize_callback=allow, retry_auth_callback=disallow)
     def test_auth_workflow():
         return init >> authorized_resume >> unauthorized_resume >> done
 
@@ -873,7 +873,7 @@ def authorize_step_group_retry_workflow():
     unauthorized_retry = step_group("unauthorized_retry", steps, retry_auth_callback=disallow)
 
     # Default retry is disallow so we can test that authorized_retry overrides this.
-    @workflow("test_step_group_workflow", target=Target.CREATE, retry_auth_callback=disallow)
+    @workflow(target=Target.CREATE, retry_auth_callback=disallow)
     def test_step_group_workflow():
         return init >> authorized_retry >> unauthorized_retry >> done
 
@@ -952,7 +952,7 @@ def authorize_step_retry_workflow():
         return
 
     # Default retry is disallow so we can test that authorized_retry overrides this.
-    @workflow("test_step_retry_workflow", target=Target.CREATE, retry_auth_callback=disallow)
+    @workflow(target=Target.CREATE, retry_auth_callback=disallow)
     def test_step_group_workflow():
         return init >> authorized_retry >> unauthorized_retry >> done
 
@@ -1031,7 +1031,7 @@ def authorize_retrystep_retry_workflow():
         return
 
     # Default retry is disallow so we can test that authorized_retry overrides this.
-    @workflow("test_retrystep_retry_workflow", target=Target.CREATE, retry_auth_callback=disallow)
+    @workflow(target=Target.CREATE, retry_auth_callback=disallow)
     def test_step_group_workflow():
         return init >> authorized_retry >> unauthorized_retry >> done
 

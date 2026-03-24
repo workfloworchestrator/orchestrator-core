@@ -865,7 +865,7 @@ def test_subscription_detail_with_forbidden_workflow_without_override(seed, test
     def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    @workflow("unauthorized_workflow", target=Target.MODIFY, authorize_callback=disallow)
+    @workflow(target=Target.MODIFY, authorize_callback=disallow)
     def unauthorized_workflow():
         return init >> done
 

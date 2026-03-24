@@ -1,3 +1,5 @@
+"""Tests for LazyWorkflowInstance error handling and get_workflow lookup."""
+
 import pytest
 
 from orchestrator.workflows import ALL_WORKFLOWS, LazyWorkflowInstance, get_workflow
@@ -12,27 +14,24 @@ def _clean_all_workflows():
     ALL_WORKFLOWS.update(original)
 
 
-class TestLazyWorkflowInstance:
-    def test_relative_module_not_found(self):
-        lwi = LazyWorkflowInstance(".nonexistent_module_xyz", "some_fn")
-        with pytest.raises(ValueError, match="does not exist or has invalid imports"):
-            lwi.instantiate()
-
-    def test_absolute_module_not_found(self):
-        lwi = LazyWorkflowInstance("fake.nonexistent.module.xyz", "some_fn")
-        with pytest.raises(ValueError, match="does not exist or has invalid imports"):
-            lwi.instantiate()
-
-    def test_str(self):
-        lwi = LazyWorkflowInstance(".some_pkg", "some_fn_str")
-        assert str(lwi) == ".some_pkg.some_fn_str"
-
-    def test_repr(self):
-        lwi = LazyWorkflowInstance(".some_pkg", "some_fn_repr")
-        assert repr(lwi) == "LazyWorkflowInstance('.some_pkg','some_fn_repr')"
+@pytest.mark.parametrize(
+    "module_path",
+    [
+        pytest.param(".nonexistent_module_xyz", id="relative"),
+        pytest.param("fake.nonexistent.module.xyz", id="absolute"),
+    ],
+)
+def test_lazy_workflow_instance_raises_on_missing_module(module_path: str) -> None:
+    lwi = LazyWorkflowInstance(module_path, "some_fn")
+    with pytest.raises(ValueError, match="does not exist or has invalid imports"):
+        lwi.instantiate()
 
 
-class TestGetWorkflow:
-    def test_not_found_returns_none(self):
-        result = get_workflow("nonexistent_workflow_xyz_12345")
-        assert result is None
+def test_lazy_workflow_instance_str_repr() -> None:
+    lwi = LazyWorkflowInstance(".some_pkg", "some_fn")
+    assert str(lwi) == ".some_pkg.some_fn"
+    assert repr(lwi) == "LazyWorkflowInstance('.some_pkg','some_fn')"
+
+
+def test_get_workflow_returns_none_for_unknown() -> None:
+    assert get_workflow("nonexistent_workflow_xyz_12345") is None

@@ -62,7 +62,7 @@ def initial_input_form():
     return input.model_dump()
 
 
-@workflow("Sample workflow", initial_input_form=initial_input_form)
+@workflow(initial_input_form=initial_input_form)
 def _sample_workflow():
     return init >> step1 >> step2 >> step3 >> done
 
@@ -72,7 +72,7 @@ def sample_workflow():
     return _sample_workflow
 
 
-@workflow("Sample workflow with suspend", initial_input_form=initial_input_form)
+@workflow(initial_input_form=initial_input_form)
 def _sample_workflow_with_suspend():
     return init >> step1 >> input_step >> check_input_data_step >> done
 

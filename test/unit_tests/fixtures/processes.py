@@ -46,7 +46,7 @@ def test_workflow(generic_subscription_1: UUIDstr, generic_product_type_1) -> Ge
         user_input = yield TestForm
         return user_input.model_dump()
 
-    @workflow("Workflow")
+    @workflow()
     def workflow_for_testing_processes_py():
         return init >> insert_object >> check_object >> modify >> done
 

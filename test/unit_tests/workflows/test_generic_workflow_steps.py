@@ -34,7 +34,7 @@ def test_resume_workflow():
         meer = [*steden, "Leiden"]
         return {"steden": meer}
 
-    @workflow("Test wf", target="Target.CREATE")
+    @workflow(target="Target.CREATE")
     def testwf():
         return begin >> fakestep1 >> waitforme >> fakestep3 >> done
 
@@ -74,7 +74,7 @@ def test_resume_input_state(db_session):
         meer = [*steden, "Leiden"]
         return {"steden": meer}
 
-    @workflow("Test wf", target="Target.CREATE")
+    @workflow(target="Target.CREATE")
     def testwf():
         return begin >> fakestep1 >> waitforme >> fakestep3 >> done
 

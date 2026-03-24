@@ -1,3 +1,5 @@
+"""Tests for CLI migration helpers: Alembic operations, version detection, and error handling."""
+
 from pathlib import Path
 from unittest import mock
 

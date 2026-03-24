@@ -15,7 +15,7 @@ from test.unit_tests.workflows import (
 )
 
 
-@validate_workflow("Test Validation")
+@validate_workflow()
 def validation_workflow() -> StepList:
     return StepList([])
 
@@ -40,7 +40,7 @@ def test_failed_validation(generic_subscription_1: str) -> None:
     def fail():
         raise ValueError("Failed")
 
-    @validate_workflow("Failing Validation")
+    @validate_workflow()
     def failing_validation_workflow() -> StepList:
         return begin >> fail
 

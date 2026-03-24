@@ -91,7 +91,7 @@ def fail():
     raise ValueError("Failure Message")
 
 
-@workflow("Sample workflow")
+@workflow()
 def sample_workflow():
     return begin >> step1 >> step2 >> step3
 
@@ -166,7 +166,7 @@ def test_recover():
 
 
 def test_waiting():
-    wf = workflow("Workflow with soft fail")(lambda: begin >> step1 >> soft_fail >> step2)
+    wf = workflow()(lambda: begin >> step1 >> soft_fail >> step2)
 
     log = []
 
@@ -191,7 +191,7 @@ def test_resume_waiting_workflow():
             raise ValueError("error")
         return {"some_key": True}
 
-    wf = workflow("Workflow with soft fail")(lambda: begin >> step1 >> soft_fail >> step2)
+    wf = workflow()(lambda: begin >> step1 >> soft_fail >> step2)
 
     log = []
 
@@ -209,7 +209,7 @@ def test_resume_waiting_workflow():
 
 
 def test_suspend():
-    wf = workflow("Workflow with user interaction")(lambda: begin >> step1 >> user_action >> step2)
+    wf = workflow()(lambda: begin >> step1 >> user_action >> step2)
 
     log = []
 
@@ -224,7 +224,7 @@ def test_suspend():
 
 
 def test_resume_suspended_workflow():
-    wf = workflow("Workflow with user interaction")(lambda: begin >> step1 >> user_action >> step2)
+    wf = workflow()(lambda: begin >> step1 >> user_action >> step2)
 
     log = []
 
@@ -246,7 +246,7 @@ def test_resume_suspended_workflow():
 
 
 def test_abort():
-    wf = workflow("Aborting workflow")(lambda: init >> abort)
+    wf = workflow()(lambda: init >> abort)
 
     log = []
 
@@ -257,7 +257,7 @@ def test_abort():
 
 
 def test_failed_step():
-    wf = workflow("Failing workflow")(lambda: init >> fail)
+    wf = workflow()(lambda: init >> fail)
 
     log = []
 
@@ -272,7 +272,7 @@ def test_failed_step():
 
 
 def test_failed_log_step():
-    wf = workflow("Failing workflow")(lambda: init >> done)
+    wf = workflow()(lambda: init >> done)
 
     def failing_store(stat, step, state):
         return Failed(error_state_to_dict(Exception("Failure Message")))
@@ -284,7 +284,7 @@ def test_failed_log_step():
 
 
 def test_exception_log_step():
-    wf = workflow("Failing workflow")(lambda: init >> done)
+    wf = workflow()(lambda: init >> done)
 
     def failing_store(stat, step, state):
         raise Exception("Failing store error")
@@ -296,7 +296,7 @@ def test_exception_log_step():
 
 
 def test_complete():
-    wf = workflow("WF")(lambda: init >> done)
+    wf = workflow()(lambda: init >> done)
 
     log = []
     pstat = create_new_process_stat(wf, {"name": "completion"})
@@ -306,7 +306,7 @@ def test_complete():
 
 
 def test_workflows_processes():
-    wf = workflow("WF")(lambda: init >> done)
+    wf = workflow()(lambda: init >> done)
 
     log = []
     pstat = create_new_process_stat(wf, {"name": "completion"})
@@ -316,7 +316,7 @@ def test_workflows_processes():
 
 
 def test_abort_workflow():
-    wf = workflow("Workflow with user interaction")(lambda: begin >> step1 >> user_action)
+    wf = workflow()(lambda: begin >> step1 >> user_action)
 
     log = []
     state = {"steps": [1]}
@@ -334,7 +334,7 @@ def test_focus_state():
         return {"result": "substep"}
 
     subwf = focussteps("sub")
-    wf = workflow("Workflow with sub workflow that focuses on sub state")(lambda: subwf(substep) >> done)
+    wf = workflow()(lambda: subwf(substep) >> done)
 
     log = []
     pstat = create_new_process_stat(wf, {"sub": {}})
@@ -344,7 +344,7 @@ def test_focus_state():
 
     # Test on empty key
     subwf = focussteps("sub")
-    wf = workflow("Workflow with sub workflow that focuses on sub state")(lambda: subwf(substep) >> done)
+    wf = workflow()(lambda: subwf(substep) >> done)
 
     log = []
     pstat = create_new_process_stat(wf, {})
@@ -359,7 +359,7 @@ def test_error_in_focus_state():
         raise ValueError("Error")
 
     subwf = focussteps("sub")
-    wf = workflow("Workflow with sub workflow that focuses on sub state")(lambda: subwf(substep) >> done)
+    wf = workflow()(lambda: subwf(substep) >> done)
 
     log = []
     pstat = create_new_process_stat(wf, {"sub": {}})
@@ -381,9 +381,7 @@ def test_input_in_substate() -> None:
 
         return user_input.model_dump()
 
-    wf = workflow("Workflow with user interaction")(
-        lambda: begin >> input_action >> purestep("process inputs")(Success)
-    )
+    wf = workflow()(lambda: begin >> input_action >> purestep("process inputs")(Success))
 
     log: list[tuple[str, Process]] = []
     process_id = uuid4()
@@ -401,7 +399,7 @@ def test_input_in_substate() -> None:
 
 
 def test_skip_step():
-    wf = workflow("Workflow with skipped step")(lambda: init >> purestep("Skipped")(Skipped) >> done)
+    wf = workflow()(lambda: init >> purestep("Skipped")(Skipped) >> done)
 
     log = []
     pstat = create_new_process_stat(wf, {})
@@ -420,7 +418,7 @@ def test_conditionally_skip_a_step():
     limit_to_10 = conditional(lambda s: s.get("n", 0) < 10)
 
     incs = [limit_to_10(inc_n) for _ in range(0, 25)]
-    wf = workflow("Limit the number of increments")(lambda: init >> reduce(lambda acc, e: acc >> e, incs) >> done)
+    wf = workflow()(lambda: init >> reduce(lambda acc, e: acc >> e, incs) >> done)
 
     log = []
 
@@ -456,7 +454,7 @@ def test_failing_inputstep_with_form_state_params() -> None:
     class Form(FormPage):
         subscription_id: UUID
 
-    @workflow("Workflow", initial_input_form=const(Form))
+    @workflow(initial_input_form=const(Form))
     def inject_args_test_workflow():
         return init >> modify >> done
 
@@ -498,7 +496,7 @@ def test_step_group_basic():
 
     group = step_group("Multiple steps", begin >> sub_step1 >> sub_step2 >> sub_step3)
 
-    wf = workflow("Workflow with step group step")(lambda: init >> step1 >> step2 >> group >> step3 >> done)
+    wf = workflow()(lambda: init >> step1 >> step2 >> group >> step3 >> done)
 
     log = []
 
@@ -523,7 +521,7 @@ def test_step_group_with_inputform_suspend():
 
     group = step_group("Multistep", begin >> step2 >> user_action >> validate_name)
 
-    wf = workflow("Workflow with step group step")(lambda: init >> step1 >> group >> step3 >> done)
+    wf = workflow()(lambda: init >> step1 >> group >> step3 >> done)
 
     log = []
 
@@ -561,7 +559,7 @@ def test_step_group_with_inputform_resume():
     class Form(FormPage):
         subscription_id: UUID
 
-    @workflow("Workflow with step group step", target=Target.CREATE, initial_input_form=const(Form))
+    @workflow(target=Target.CREATE, initial_input_form=const(Form))
     def test_wf():
         return init >> step1 >> group >> step3 >> done
 
@@ -598,7 +596,7 @@ def test_step_group_with_failure():
 
     group = step_group("Multistep", begin >> effect_step >> step2 >> fail)
 
-    @workflow("Workflow with step group step", target=Target.CREATE, initial_input_form=const(FormPage))
+    @workflow(target=Target.CREATE, initial_input_form=const(FormPage))
     def test_wf():
         return init >> step1 >> group >> step3 >> done
 
@@ -630,7 +628,7 @@ def test_list_any_arg_type_error() -> None:
     def test_list_any_arg_step(list_any: list[Any]):
         return {}
 
-    @workflow("Workflow error due to arg type", target=Target.CREATE, initial_input_form=const(FormPage))
+    @workflow(target=Target.CREATE, initial_input_form=const(FormPage))
     def test_wf():
         return init >> add_state >> test_list_any_arg_step >> done
 
@@ -656,7 +654,7 @@ def test_list_any_arg_type_error() -> None:
     ],
 )
 def test_get_steps_to_evaluate_for_rbac(given_steps, num_remaining_steps, expected_steps_to_evaluate):
-    wf = workflow("test_get_steps_to_evaluate_for_rbac")(lambda: given_steps)
+    wf = workflow()(lambda: given_steps)
 
     log = wf.steps[num_remaining_steps:]
     pstat = ProcessStat(process_id=1, workflow=wf, state=Success({}), log=log, current_user="john.doe")
