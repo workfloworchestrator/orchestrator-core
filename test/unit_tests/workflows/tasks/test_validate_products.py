@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import pytest
+from pydantic import ValidationError
 
 import orchestrator.workflows.tasks.validate_products as validate_products
 from orchestrator.db import WorkflowTable
@@ -93,3 +94,70 @@ def test_check_all_workflows_are_in_db_fails_on_mismatch():
     assert result.isfailed()
     assert isinstance(result.unwrap(), ProcessFailureError)
     assert "missing workflows" in str(result.unwrap())
+
+
+@mock.patch("orchestrator.workflows.tasks.validate_products.db")
+def test_check_subscription_models_validation_error(mock_db):
+    sub = SimpleNamespace(subscription_id="sub-1")
+    mock_db.session.scalars.return_value = [sub]
+
+    with mock.patch.object(
+        validate_products.SubscriptionModel,
+        "from_subscription",
+        side_effect=ValidationError.from_exception_data(title="test", line_errors=[], input_type="python"),
+    ):
+        result = validate_products.check_subscription_models({})
+
+    assert result.isfailed()
+    assert isinstance(result.unwrap(), ProcessFailureError)
+
+
+@mock.patch("orchestrator.workflows.tasks.validate_products.db")
+def test_check_subscription_models_generic_exception(mock_db):
+    sub = SimpleNamespace(subscription_id="sub-2")
+    mock_db.session.scalars.return_value = [sub]
+
+    with mock.patch.object(
+        validate_products.SubscriptionModel,
+        "from_subscription",
+        side_effect=RuntimeError("unexpected error"),
+    ):
+        result = validate_products.check_subscription_models({})
+
+    assert result.isfailed()
+    err = result.unwrap()
+    assert isinstance(err, ProcessFailureError)
+    assert "unexpected error" in str(err)
+
+
+@mock.patch("orchestrator.workflows.tasks.validate_products.db")
+def test_check_that_active_products_have_a_modify_note_failure(mock_db):
+    """Products without modify_note raise ProcessFailureError."""
+    mock_db.session.scalars.side_effect = [
+        # First call: WorkflowTable.select().filter(...).first() via scalars
+        mock.MagicMock(first=mock.MagicMock(return_value=SimpleNamespace(name="modify_note"))),
+        # Second call: select(ProductTable).filter(...)
+        [SimpleNamespace(name="ProductWithoutNote", workflows=[])],
+    ]
+
+    result = validate_products.check_that_active_products_have_a_modify_note({})
+
+    assert result.isfailed()
+    assert isinstance(result.unwrap(), ProcessFailureError)
+
+
+@mock.patch("orchestrator.workflows.tasks.validate_products.db")
+def test_check_subscription_models_success(mock_db):
+    """All subscriptions load successfully."""
+    sub = SimpleNamespace(subscription_id="sub-ok")
+    mock_db.session.scalars.return_value = [sub]
+
+    with mock.patch.object(
+        validate_products.SubscriptionModel,
+        "from_subscription",
+        return_value=mock.MagicMock(),
+    ):
+        result = validate_products.check_subscription_models({})
+
+    assert result.issuccess()
+    assert result.unwrap()["check_subscription_models"] is True
