@@ -51,9 +51,11 @@ class WrappedWebSocketManager:
 
     def __getattr__(self, attr: str) -> Any:
         if not isinstance(self.wrapped_websocket_manager, WebSocketManager):
+            if attr == "enabled":
+                return False
             if "_" in attr:
                 logger.warning("No WebSocketManager configured, but attempting to access class methods")
-                return None
+                return empty_fn
             raise RuntimeWarning(
                 "No WebSocketManager configured at this time. Please pass WebSocketManager configuration to OrchestratorCore base_settings"
             )
