@@ -27,6 +27,25 @@ def test_workflow_by_id_404(seed, test_client):
     assert HTTPStatus.NOT_FOUND == response.status_code
 
 
+def test_workflow_by_id_returns_data(seed, test_client):
+    response = test_client.get(f"/api/workflows/{WORKFLOW_ID}")
+
+    assert HTTPStatus.OK == response.status_code
+    workflow = response.json()
+
+    assert workflow["name"] == "workflow123"
+
+
+def test_workflow_by_id_correct_fields(seed, test_client):
+    response = test_client.get(f"/api/workflows/{WORKFLOW_ID}")
+
+    assert HTTPStatus.OK == response.status_code
+    workflow = response.json()
+
+    assert workflow["target"] == "CREATE"
+    assert workflow["description"] == "Original description of the workflow"
+
+
 def test_update_description(seed, test_client):
     body = {
         "description": "BLABLA",

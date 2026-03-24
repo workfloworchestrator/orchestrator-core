@@ -26,6 +26,15 @@ def test_resource_type_by_id_404(seed, test_client):
     assert HTTPStatus.NOT_FOUND == response.status_code
 
 
+def test_resource_type_by_id_returns_data(seed, test_client):
+    response = test_client.get(f"/api/resource_types/{RESOURCE_TYPE_ID}")
+
+    assert HTTPStatus.OK == response.status_code
+    resource_type = response.json()
+
+    assert resource_type["resource_type"] == "Resource type 123"
+
+
 def test_update_description(seed, test_client):
     body = {
         "description": "BLABLA",

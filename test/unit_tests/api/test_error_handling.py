@@ -118,3 +118,30 @@ class TestRaiseStatus:
         with pytest.raises(ProblemDetailException) as exc_info:
             raise_status(400)
         assert exc_info.value.detail == HTTPStatus(400).phrase
+
+    def test_raise_status_with_integer_status(self):
+        with pytest.raises(ProblemDetailException) as exc_info:
+            raise_status(404)
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.title == "Not Found"
+
+    def test_raise_status_detail_defaults_to_http_phrase_when_none(self):
+        with pytest.raises(ProblemDetailException) as exc_info:
+            raise_status(503)
+        assert exc_info.value.detail == HTTPStatus(503).phrase
+
+
+class TestProblemDetailExceptionAllParameters:
+    def test_all_parameters_set_at_once(self):
+        exc = ProblemDetailException(
+            status=403,
+            title="Forbidden",
+            detail="You do not have permission",
+            headers={"X-Reason": "forbidden"},
+            error_type="permission_denied",
+        )
+        assert exc.status_code == 403
+        assert exc.title == "Forbidden"
+        assert exc.detail == "You do not have permission"
+        assert exc.headers == {"X-Reason": "forbidden"}
+        assert exc.type == "permission_denied"

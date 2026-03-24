@@ -200,3 +200,22 @@ def test_update_description_nonexistent_product(seed, test_client):
     response = test_client.patch(f"/api/products/{random_uuid}", json=body)
 
     assert HTTPStatus.NOT_FOUND == response.status_code
+
+
+def test_fetch_products_by_product_type_only(seed, test_client):
+    response = test_client.get("/api/products?product_type=Port")
+
+    assert HTTPStatus.OK == response.status_code
+    products = response.json()
+
+    assert 3 == len(products)
+    assert all(p["product_type"] == "Port" for p in products)
+
+
+def test_product_by_id_returns_correct_data(seed, test_client):
+    response = test_client.get(f"/api/products/{PRODUCT_ID}")
+
+    assert HTTPStatus.OK == response.status_code
+    product = response.json()
+
+    assert product["name"] == "LightPath"
