@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -61,7 +62,7 @@ def test_base_block_type_with_lifecycle() -> None:
 
 
 def test_find_root_product_block_single() -> None:
-    product_blocks = [
+    product_blocks: list[dict[str, Any]] = [
         {"type": "Root", "fields": [{"name": "child", "type": "Child"}]},
         {"type": "Child", "fields": []},
     ]
@@ -70,7 +71,7 @@ def test_find_root_product_block_single() -> None:
 
 def test_find_root_product_block_none() -> None:
     # Two blocks that depend on each other — cycle, no root
-    product_blocks = [
+    product_blocks: list[dict[str, Any]] = [
         {"type": "A", "fields": [{"name": "b", "type": "B"}]},
         {"type": "B", "fields": [{"name": "a", "type": "A"}]},
     ]
@@ -80,7 +81,7 @@ def test_find_root_product_block_none() -> None:
 
 def test_find_root_product_block_multiple() -> None:
     # Two independent root blocks
-    product_blocks = [
+    product_blocks: list[dict[str, Any]] = [
         {"type": "RootA", "fields": []},
         {"type": "RootB", "fields": []},
     ]
@@ -89,7 +90,7 @@ def test_find_root_product_block_multiple() -> None:
 
 
 def test_sort_product_blocks_by_dependencies_simple() -> None:
-    product_blocks = [
+    product_blocks: list[dict[str, Any]] = [
         {"type": "Root", "fields": [{"name": "child", "type": "Child"}]},
         {"type": "Child", "fields": []},
     ]
@@ -100,7 +101,7 @@ def test_sort_product_blocks_by_dependencies_simple() -> None:
 
 
 def test_sort_product_blocks_by_dependencies_cycle() -> None:
-    product_blocks = [
+    product_blocks: list[dict[str, Any]] = [
         {"type": "A", "fields": [{"name": "b", "type": "B"}]},
         {"type": "B", "fields": [{"name": "a", "type": "A"}]},
     ]
@@ -151,7 +152,7 @@ def test_is_constrained_int_without() -> None:
 
 
 def test_get_constrained_ints() -> None:
-    fields = [
+    fields: list[dict[str, Any]] = [
         {"name": "count", "type": "int", "min_value": 0},
         {"name": "label", "type": "str"},
         {"name": "size", "type": "int", "max_value": 100},

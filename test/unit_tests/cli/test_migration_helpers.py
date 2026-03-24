@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -129,7 +130,7 @@ def test_create_migration_file_generates_revision(
 @mock.patch("orchestrator.cli.migration_helpers.command")
 @mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_with_preamble(
-    mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock, tmp_path: pytest.TempPathFactory
+    mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock, tmp_path: Path
 ) -> None:
     cfg = _make_alembic_config("/proj/versions")
     rev_file = tmp_path / "rev.py"
