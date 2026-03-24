@@ -130,3 +130,48 @@ def test_resume_workflow_non_204(mock_resume_process, waiting_process):
     }
     assert_state(result, state)
     mock_resume_process.assert_called_once()
+
+
+@mock.patch("orchestrator.services.processes.resume_process")
+@mock.patch("orchestrator.services.processes.restart_process")
+def test_restart_created_workflows_exception(mock_restart_process, mock_resume_process, stuck_created_note_process):
+    mock_restart_process.side_effect = Exception("restart failed")
+
+    result, _, _ = run_workflow("task_resume_workflows", {})
+    assert_complete(result)
+
+    res = extract_state(result)
+    # Process should have been attempted but failed, so not in started list
+    assert res["number_of_started_process_ids"] == 0
+    assert mock_restart_process.call_count == 1
+
+
+@mock.patch("orchestrator.services.processes.resume_process")
+def test_resume_process_not_found(mock_resume_process):
+    """When process_id doesn't exist in DB, resume skips it via continue."""
+    from orchestrator.workflows.tasks.resume_workflows import resume_found_workflows
+
+    nonexistent_id = str(uuid4())
+    result = resume_found_workflows(
+        {
+            "waiting_process_ids": [nonexistent_id],
+            "resumed_state_process_ids": [],
+        }
+    )
+    assert result.issuccess()
+    state = result.unwrap()
+    assert state["number_of_resumed_process_ids"] == 0
+    mock_resume_process.assert_not_called()
+
+
+@mock.patch("orchestrator.services.processes.restart_process")
+def test_restart_process_not_found(mock_restart_process):
+    """When process_id doesn't exist in DB, restart skips it via continue."""
+    from orchestrator.workflows.tasks.resume_workflows import restart_created_workflows
+
+    nonexistent_id = str(uuid4())
+    result = restart_created_workflows({"created_state_process_ids": [nonexistent_id]})
+    assert result.issuccess()
+    state = result.unwrap()
+    assert state["number_of_started_process_ids"] == 0
+    mock_restart_process.assert_not_called()
