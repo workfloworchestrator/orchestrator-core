@@ -10,6 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+"""Tests for string conversion helpers, IP type detection, annotation-based mapping, and value transformation."""
+
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 
 import pytest
@@ -27,230 +30,171 @@ from orchestrator.utils.helpers import (
     to_snake,
 )
 
-
-class TestCreateFilterString:
-    def test_returns_joined_string(self):
-        assert create_filter_string(["a", "b", "c"]) == "a,b,c"
-
-    def test_returns_empty_string_for_none(self):
-        assert create_filter_string(None) == ""
-
-    def test_returns_empty_string_for_empty_list(self):
-        assert create_filter_string([]) == ""
-
-    def test_single_element(self):
-        assert create_filter_string(["only"]) == "only"
+# --- create_filter_string ---
 
 
-class TestToCamel:
-    @pytest.mark.parametrize(
-        "snake, expected",
-        [
-            ("hello_world", "helloWorld"),
-            ("foo_bar_baz", "fooBarBaz"),
-            ("single", "single"),
-            ("already_camel_case", "alreadyCamelCase"),
-        ],
-        ids=["two_parts", "three_parts", "no_underscore", "multiple_underscores"],
-    )
-    def test_converts_snake_to_lower_camel(self, snake, expected):
-        assert to_camel(snake) == expected
+@pytest.mark.parametrize(
+    "values,expected",
+    [
+        pytest.param(["a", "b", "c"], "a,b,c", id="joined"),
+        pytest.param(None, "", id="none"),
+        pytest.param([], "", id="empty"),
+        pytest.param(["only"], "only", id="single"),
+    ],
+)
+def test_create_filter_string(values: list[str] | None, expected: str) -> None:
+    assert create_filter_string(values) == expected
 
 
-class TestToSnake:
-    @pytest.mark.parametrize(
-        "camel, expected",
-        [
-            ("helloWorld", "hello_world"),
-            ("FooBarBaz", "foo_bar_baz"),
-            ("already_snake", "already_snake"),
-            ("XMLParser", "x_m_l_parser"),
-        ],
-        ids=["lower_camel", "upper_camel", "already_snake", "all_caps_prefix"],
-    )
-    def test_converts_camel_to_snake(self, camel, expected):
-        assert to_snake(camel) == expected
+# --- to_camel ---
 
 
-class TestSnakeToCamel:
-    @pytest.mark.parametrize(
-        "snake, expected",
-        [
-            ("hello_world", "HelloWorld"),
-            ("foo_bar_baz", "FooBarBaz"),
-            ("single", "Single"),
-        ],
-        ids=["two_parts", "three_parts", "single_word"],
-    )
-    def test_converts_to_upper_camel(self, snake, expected):
-        assert snake_to_camel(snake) == expected
+@pytest.mark.parametrize(
+    "snake,expected",
+    [
+        pytest.param("hello_world", "helloWorld", id="two-parts"),
+        pytest.param("foo_bar_baz", "fooBarBaz", id="three-parts"),
+        pytest.param("single", "single", id="no-underscore"),
+    ],
+)
+def test_to_camel(snake: str, expected: str) -> None:
+    assert to_camel(snake) == expected
 
 
-class TestCamelToSnake:
-    @pytest.mark.parametrize(
-        "camel, expected",
-        [
-            ("HelloWorld", "hello_world"),
-            ("FooBarBaz", "foo_bar_baz"),
-            ("XMLParser", "xml_parser"),
-            ("getHTTPResponse", "get_http_response"),
-            ("alreadySnake", "already_snake"),
-            ("simple", "simple"),
-        ],
-        ids=["upper_camel", "three_parts", "leading_acronym", "mid_acronym", "lower_camel", "single_word"],
-    )
-    def test_converts_camel_to_snake(self, camel, expected):
-        assert camel_to_snake(camel) == expected
+# --- to_snake ---
 
 
-class TestIsIpaddressType:
-    @pytest.mark.parametrize(
-        "value",
-        [
-            IPv4Address("192.168.0.1"),
-            IPv6Address("::1"),
-            IPv4Network("10.0.0.0/8"),
-            IPv6Network("2001:db8::/32"),
-        ],
-        ids=["ipv4_address", "ipv6_address", "ipv4_network", "ipv6_network"],
-    )
-    def test_returns_true_for_ip_types(self, value):
-        assert is_ipaddress_type(value) is True
-
-    @pytest.mark.parametrize(
-        "value",
-        ["192.168.0.1", 12345, None, object()],
-        ids=["string", "int", "none", "object"],
-    )
-    def test_returns_false_for_non_ip_types(self, value):
-        assert is_ipaddress_type(value) is False
+@pytest.mark.parametrize(
+    "camel,expected",
+    [
+        pytest.param("helloWorld", "hello_world", id="lower-camel"),
+        pytest.param("FooBarBaz", "foo_bar_baz", id="upper-camel"),
+        pytest.param("already_snake", "already_snake", id="already-snake"),
+        pytest.param("XMLParser", "x_m_l_parser", id="all-caps-prefix"),
+    ],
+)
+def test_to_snake(camel: str, expected: str) -> None:
+    assert to_snake(camel) == expected
 
 
-class TestGetTargetValues:
-    def test_returns_only_annotated_keys(self):
-        class Foo:
-            x: int
-            y: str
-
-        source = {"x": 1, "y": "hello", "z": 99}
-        result = get_target_values(source, Foo)
-        assert result == {"x": 1, "y": "hello"}
-
-    def test_returns_empty_dict_when_no_match(self):
-        class Foo:
-            x: int
-
-        source = {"a": 1, "b": 2}
-        result = get_target_values(source, Foo)
-        assert result == {}
-
-    def test_returns_empty_dict_for_empty_source(self):
-        class Foo:
-            x: int
-
-        result = get_target_values({}, Foo)
-        assert result == {}
+# --- snake_to_camel ---
 
 
-class TestMapClass:
-    def test_maps_flat_class(self):
-        class Foo:
-            x: int
-
-        result = map_class({}, {"x": 1, "extra": 2}, Foo)
-        assert result == {"x": 1}
-
-    def test_includes_base_class_annotations(self):
-        class Base:
-            x: int
-
-        class Child(Base):
-            y: str
-
-        source = {"x": 1, "y": "hello", "z": 99}
-        result = map_class({}, source, Child)
-        assert result == {"x": 1, "y": "hello"}
-
-    def test_child_overrides_base_value(self):
-        class Base:
-            x: int
-
-        class Child(Base):
-            x: int  # re-declared
-
-        result = map_class({}, {"x": 42}, Child)
-        assert result == {"x": 42}
-
-    def test_skips_object_base(self):
-        class Foo:
-            x: int
-
-        # object is in Foo.__bases__ but must be skipped
-        result = map_class({}, {"x": 1}, Foo)
-        assert result == {"x": 1}
+@pytest.mark.parametrize(
+    "snake,expected",
+    [
+        pytest.param("hello_world", "HelloWorld", id="two-parts"),
+        pytest.param("single", "Single", id="single-word"),
+    ],
+)
+def test_snake_to_camel(snake: str, expected: str) -> None:
+    assert snake_to_camel(snake) == expected
 
 
-class TestMapToType:
-    def test_constructs_instance_from_source(self):
-        class Foo:
-            x: int
-            y: str
-
-            def __init__(self, x: int, y: str) -> None:
-                self.x = x
-                self.y = y
-
-        result = map_to_type(Foo, {"x": 1, "y": "hi"})
-        assert result.x == 1
-        assert result.y == "hi"
-
-    def test_warns_on_unmapped_fields(self, caplog):
-        import logging
-
-        class Foo:
-            x: int
-
-            def __init__(self, x: int) -> None:
-                self.x = x
-
-        with caplog.at_level(logging.WARNING, logger="orchestrator.utils.helpers"):
-            map_to_type(Foo, {"x": 1, "unknown": 99})
-
-    def test_no_warning_when_warn_if_missing_false(self, caplog):
-        import logging
-
-        class Foo:
-            x: int
-
-            def __init__(self, x: int) -> None:
-                self.x = x
-
-        with caplog.at_level(logging.WARNING, logger="orchestrator.utils.helpers"):
-            result = map_to_type(Foo, {"x": 1, "unknown": 99}, warn_if_missing=False)
-        assert result.x == 1
-        assert caplog.records == []
+# --- camel_to_snake ---
 
 
-class TestMapValue:
-    def test_applies_mapping_function_to_scalar(self):
-        mapping = {"x": lambda v: v * 2}
-        assert map_value(mapping, "x", 5) == ("x", 10)
+@pytest.mark.parametrize(
+    "camel,expected",
+    [
+        pytest.param("HelloWorld", "hello_world", id="upper-camel"),
+        pytest.param("XMLParser", "xml_parser", id="leading-acronym"),
+        pytest.param("getHTTPResponse", "get_http_response", id="mid-acronym"),
+        pytest.param("simple", "simple", id="single-word"),
+    ],
+)
+def test_camel_to_snake(camel: str, expected: str) -> None:
+    assert camel_to_snake(camel) == expected
 
-    def test_applies_mapping_function_to_dict(self):
-        mapping = {"x": lambda a, b: a + b}
-        assert map_value(mapping, "x", {"a": 1, "b": 2}) == ("x", 3)
 
-    def test_returns_none_when_value_is_none(self):
-        mapping = {"x": lambda v: v * 2}
-        assert map_value(mapping, "x", None) == ("x", None)
+# --- is_ipaddress_type ---
 
-    def test_returns_key_value_unchanged_when_no_mapping(self):
-        assert map_value({}, "x", 42) == ("x", 42)
 
-    def test_function_can_return_custom_tuple(self):
-        mapping = {"x": lambda v: ("renamed", v + 1)}
-        assert map_value(mapping, "x", 5) == ("renamed", 6)
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        pytest.param(IPv4Address("192.168.0.1"), True, id="ipv4-addr"),
+        pytest.param(IPv6Address("::1"), True, id="ipv6-addr"),
+        pytest.param(IPv4Network("10.0.0.0/8"), True, id="ipv4-net"),
+        pytest.param(IPv6Network("2001:db8::/32"), True, id="ipv6-net"),
+        pytest.param("192.168.0.1", False, id="string"),
+        pytest.param(12345, False, id="int"),
+        pytest.param(None, False, id="none"),
+    ],
+)
+def test_is_ipaddress_type(value: object, expected: bool) -> None:
+    assert is_ipaddress_type(value) is expected
 
-    def test_dict_function_can_return_custom_tuple(self):
-        mapping = {"x": lambda a: ("renamed", a)}
-        assert map_value(mapping, "x", {"a": 7}) == ("renamed", 7)
+
+# --- get_target_values ---
+
+
+def test_get_target_values_filters_by_annotations() -> None:
+    class Foo:
+        x: int
+        y: str
+
+    assert get_target_values({"x": 1, "y": "hi", "z": 99}, Foo) == {"x": 1, "y": "hi"}
+
+
+def test_get_target_values_empty_source() -> None:
+    class Foo:
+        x: int
+
+    assert get_target_values({}, Foo) == {}
+
+
+# --- map_class ---
+
+
+def test_map_class_includes_base_annotations() -> None:
+    class Base:
+        x: int
+
+    class Child(Base):
+        y: str
+
+    assert map_class({}, {"x": 1, "y": "hi", "z": 99}, Child) == {"x": 1, "y": "hi"}
+
+
+# --- map_to_type ---
+
+
+def test_map_to_type_constructs_instance() -> None:
+    class Foo:
+        x: int
+
+        def __init__(self, x: int) -> None:
+            self.x = x
+
+    assert map_to_type(Foo, {"x": 1}).x == 1
+
+
+def test_map_to_type_no_warning_when_disabled(caplog: pytest.LogCaptureFixture) -> None:
+    import logging
+
+    class Foo:
+        x: int
+
+        def __init__(self, x: int) -> None:
+            self.x = x
+
+    with caplog.at_level(logging.WARNING, logger="orchestrator.utils.helpers"):
+        map_to_type(Foo, {"x": 1, "unknown": 99}, warn_if_missing=False)
+    assert caplog.records == []
+
+
+# --- map_value ---
+
+
+@pytest.mark.parametrize(
+    "mapping,key,value,expected",
+    [
+        pytest.param({"x": lambda v: v * 2}, "x", 5, ("x", 10), id="scalar-transform"),
+        pytest.param({"x": lambda a, b: a + b}, "x", {"a": 1, "b": 2}, ("x", 3), id="dict-unpack"),
+        pytest.param({"x": lambda v: v * 2}, "x", None, ("x", None), id="none-passthrough"),
+        pytest.param({}, "x", 42, ("x", 42), id="no-mapping"),
+    ],
+)
+def test_map_value(mapping: dict, key: str, value: object, expected: tuple) -> None:
+    assert map_value(mapping, key, value) == expected

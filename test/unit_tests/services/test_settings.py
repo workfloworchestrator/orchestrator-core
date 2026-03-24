@@ -1,3 +1,5 @@
+"""Tests for engine settings: global status computation, Slack notification, search index refresh, and schema generation."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest

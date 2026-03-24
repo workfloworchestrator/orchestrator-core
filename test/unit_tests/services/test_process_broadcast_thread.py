@@ -1,3 +1,5 @@
+"""Tests for ProcessDataBroadcastThread: dispatch selection (queue/ws/nop), exception swallowing, and thread lifecycle."""
+
 import queue
 import time
 from functools import partial

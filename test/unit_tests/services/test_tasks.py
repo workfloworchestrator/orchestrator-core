@@ -1,3 +1,5 @@
+"""Tests for CeleryJobWorkerStatus: None handling from inspection API, valid data processing, and uninitialized Celery."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest

@@ -923,7 +923,7 @@ def test_start_process_workflow_removed(mock_get_workflow):
 @mock.patch("orchestrator.services.processes.store_input_state")
 @mock.patch("orchestrator.services.processes.get_execution_context")
 def test_resume_process(mock_get_execution_context, mock_store_input_state, mock_load_process, mock_post_form):
-    wf = workflow("Workflow")(lambda: init >> step1 >> step2)
+    wf = workflow()(lambda: init >> step1 >> step2)
     process_id = uuid4()
     state = Waiting({"steps": [1]})
     pstat = ProcessStat(process_id, wf, state, wf.steps[1:], current_user="user")
@@ -955,7 +955,7 @@ def test_resume_process(mock_get_execution_context, mock_store_input_state, mock
 @mock.patch("orchestrator.services.processes.post_form")
 @mock.patch("orchestrator.services.processes.load_process")
 def test_resume_process_form_error(mock_load_process, mock_post_form):
-    wf = workflow("Workflow")(lambda: init >> step1 >> step2)
+    wf = workflow()(lambda: init >> step1 >> step2)
     process_id = uuid4()
     state = Waiting({"steps": [1]})
     pstat = ProcessStat(process_id, wf, state, wf.steps[1:], current_user="user")
@@ -1012,7 +1012,7 @@ def get_step_names(process):
     ],
 )
 def test_load_process_with_altered_steps(num_steps_finished, step_names):
-    workflow_decorator = workflow("Test wf", initial_input_form=initial_input_form)
+    workflow_decorator = workflow(initial_input_form=initial_input_form)
 
     # Run original workflow with 3 steps
     workflow_1 = workflow_decorator(lambda: init >> step1 >> done)

@@ -254,7 +254,7 @@ def test_workflows_not_allowed(test_client_graphql):
     async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    @workflow(forbidden_workflow_name, target=Target.CREATE, authorize_callback=disallow)
+    @workflow(target=Target.CREATE, authorize_callback=disallow)
     def unauthorized_workflow():
         return init >> done
 

@@ -1,3 +1,5 @@
+"""Tests for settings exposure: registry operations, field extraction, and multi-registration behavior."""
+
 import pytest
 from pydantic_settings import BaseSettings
 

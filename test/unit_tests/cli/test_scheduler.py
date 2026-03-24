@@ -1,3 +1,5 @@
+"""Tests for CLI scheduler commands: job listing, creation, updating, and deletion via typer CLI."""
+
 from types import SimpleNamespace
 from unittest import mock
 
