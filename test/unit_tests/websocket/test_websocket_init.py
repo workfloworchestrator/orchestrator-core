@@ -35,15 +35,19 @@ class TestEmptyFn:
 
 
 class TestWrappedWebSocketManager:
-    def test_getattr_no_wrappee_underscore_returns_none(self):
+    def test_getattr_no_wrappee_underscore_returns_empty_fn(self):
         wrapped = WrappedWebSocketManager(wrappee=None)
         result = wrapped.some_method_with_underscore
-        assert result is None
+        assert result is empty_fn
+
+    def test_getattr_no_wrappee_enabled_returns_false(self):
+        wrapped = WrappedWebSocketManager(wrappee=None)
+        assert wrapped.enabled is False
 
     def test_getattr_no_wrappee_non_underscore_raises(self):
         wrapped = WrappedWebSocketManager(wrappee=None)
         with pytest.raises(RuntimeWarning, match="No WebSocketManager configured"):
-            wrapped.enabled  # noqa: B018
+            wrapped.someprop  # noqa: B018
 
     def test_getattr_disabled_returns_empty_fn(self):
         mock_wsm = create_autospec(WebSocketManager, instance=True)
