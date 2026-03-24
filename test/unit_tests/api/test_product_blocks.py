@@ -28,6 +28,15 @@ def test_product_block_by_id_404(seed, test_client):
     assert HTTPStatus.NOT_FOUND == response.status_code
 
 
+def test_product_block_by_id_returns_data(seed, test_client):
+    response = test_client.get(f"/api/product_blocks/{PRODUCT_BLOCK_ID}")
+
+    assert HTTPStatus.OK == response.status_code
+    product_block = response.json()
+
+    assert product_block["name"] == "Product block 123"
+
+
 def test_update_description(seed, test_client):
     body = {
         "description": "BLABLA",

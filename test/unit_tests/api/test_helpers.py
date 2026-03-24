@@ -1,6 +1,13 @@
 import pytest
 
-from orchestrator.api.helpers import getattr_in, product_block_paths, update_in
+from orchestrator.api.helpers import (
+    _process_text_query,
+    _quote_if_kv_pair,
+    get_in,
+    getattr_in,
+    product_block_paths,
+    update_in,
+)
 
 
 def test_product_block_paths(sub_list_union_overlap_subscription_1):
@@ -83,3 +90,81 @@ def test_update_in(input_dict, path, value, expected_result):
     # TODO fix the failing scenarios
     assert update_in(input_dict, path, value) is None
     assert input_dict == expected_result
+
+
+@pytest.mark.parametrize(
+    "token,expected",
+    [
+        ("foo:bar", '"foo:bar"'),
+        ("status:active", '"status:active"'),
+        ("plaintoken", "plaintoken"),
+        ("", ""),
+        ("no-colon-here", "no-colon-here"),
+        ("a:b:c", '"a:b:c"'),
+    ],
+)
+def test_quote_if_kv_pair(token, expected):
+    assert _quote_if_kv_pair(token) == expected
+
+
+@pytest.mark.parametrize(
+    "query,expected",
+    [
+        # plain tokens: passed through unchanged
+        ("hello world", "hello world"),
+        # quoted phrase: shlex non-posix mode preserves quotes
+        ('"exact phrase"', '"exact phrase"'),
+        # two tokens, first is quoted phrase; quotes preserved in non-posix shlex
+        ('"foo bar" baz', '"foo bar" baz'),
+        # unbalanced quote: closing quote added, then preserved
+        ('"unclosed phrase', '"unclosed phrase"'),
+        # token with colon: gets wrapped in quotes
+        ("status:active", '"status:active"'),
+        # plain token + kv pair
+        ("hello status:active", 'hello "status:active"'),
+        # kv pair inside quotes: shlex preserves quotes, colon triggers double-wrapping
+        ('"status:active"', '""status:active""'),
+        # empty query
+        ("", ""),
+    ],
+)
+def test_process_text_query(query, expected):
+    assert _process_text_query(query) == expected
+
+
+@pytest.mark.parametrize(
+    "dct,path,expected",
+    [
+        # simple key lookup
+        ({"a": 1}, "a", 1),
+        # nested dict path
+        ({"a": {"b": {"c": 42}}}, "a.b.c", 42),
+        # nested: dict then list then dict (list in the middle, final lookup is dict key)
+        ({"a": [{"b": 99}]}, "a.0.b", 99),
+    ],
+)
+def test_get_in(dct, path, expected):
+    assert get_in(dct, path) == expected
+
+
+def test_get_in_list_as_final_segment_raises_type_error():
+    # get_in uses prev[x] with string x at the end, which fails on list
+    with pytest.raises(TypeError):
+        get_in({"a": [10, 20, 30]}, "a.1")
+
+
+def test_get_in_missing_key_raises():
+    # dict.get(x) returns None, then prev[x] does a real key lookup and raises
+    with pytest.raises(KeyError):
+        get_in({"a": 1}, "b")
+
+
+def test_get_in_missing_nested_key_raises():
+    # dict.get("c") returns None, then prev["c"] raises KeyError
+    with pytest.raises(KeyError):
+        get_in({"a": {"b": 1}}, "a.c")
+
+
+def test_get_in_list_index_out_of_range():
+    with pytest.raises(IndexError):
+        get_in({"a": [1, 2, 3]}, "a.10")

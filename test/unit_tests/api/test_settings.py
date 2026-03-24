@@ -1,6 +1,6 @@
 from http import HTTPStatus
 from unittest import mock
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings
@@ -89,3 +89,28 @@ def test_get_exposed_settings(test_client):
     session_secret = next((var for var in exposed_settings[0]["variables"] if var["env_name"] == "db_password"), None)
     assert session_secret is not None
     assert session_secret["env_value"] == "**********"
+
+
+def test_get_cache_names(test_client):
+    response = test_client.get("/api/settings/cache-names")
+    assert response.status_code == HTTPStatus.OK
+    data = response.json()
+    assert isinstance(data, dict)
+    assert "all" in data
+
+
+def test_clear_cache_invalid_name(test_client):
+    with patch("orchestrator.api.api_v1.endpoints.settings.create_redis_asyncio_client") as mock_redis:
+        mock_redis.return_value = AsyncMock()
+        response = test_client.delete("/api/settings/cache/invalid")
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+
+
+def test_get_worker_status_threadpool(test_client):
+    response = test_client.get("/api/settings/worker-status")
+    assert response.status_code == HTTPStatus.OK
+    data = response.json()
+    assert "executor_type" in data
+    assert "number_of_workers_online" in data
+    assert "number_of_queued_jobs" in data
+    assert "number_of_running_jobs" in data
