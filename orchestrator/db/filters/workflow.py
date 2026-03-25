@@ -13,7 +13,12 @@ def make_product_clause(filter_generator: WhereCondGenerator) -> WhereCondGenera
     """The passed filter_generator takes a Node and returns a where clause acting on a ProductTable column."""
 
     def product_clause(node: Node) -> BinaryExpression:
-        subq = select(WorkflowTable.workflow_id).join(WorkflowTable.products).where(filter_generator(node)).subquery()
+        subq = (
+            select(WorkflowTable.workflow_id)
+            .join(WorkflowTable.products)
+            .where(filter_generator(node))
+            .scalar_subquery()
+        )
         return WorkflowTable.workflow_id.in_(subq)
 
     return product_clause

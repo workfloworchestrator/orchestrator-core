@@ -88,7 +88,6 @@ def validate_product_type(product_type: str) -> State:
 
 
 @workflow(
-    "Validate all subscriptions of Product Type",
     target=Target.SYSTEM,
     initial_input_form=initial_input_form_generator,
     authorize_callback=authorizers.authorize_callback,

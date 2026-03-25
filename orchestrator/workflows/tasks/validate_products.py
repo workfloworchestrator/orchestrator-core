@@ -188,7 +188,6 @@ def check_subscription_models() -> State:
 
 
 @workflow(
-    "Validate products",
     target=Target.SYSTEM,
     authorize_callback=authorizers.authorize_callback,
     retry_auth_callback=authorizers.retry_auth_callback,

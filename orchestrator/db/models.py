@@ -47,7 +47,7 @@ from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import Mapped, deferred, mapped_column, object_session, relationship, undefer
+from sqlalchemy.orm import Mapped, deferred, mapped_column, object_session, relationship, undefer, with_parent
 from sqlalchemy.sql.functions import GenericFunction
 from sqlalchemy_utils import LtreeType, TSVectorType, UUIDType
 
@@ -279,18 +279,20 @@ class ProductTable(BaseModel):
 
     def find_block_by_name(self, name: str) -> ProductBlockTable:
         if session := object_session(self):
-            return session.query(ProductBlockTable).with_parent(self).filter(ProductBlockTable.name == name).one()
+            return session.scalars(
+                select(ProductBlockTable).where(
+                    with_parent(self, ProductTable.product_blocks), ProductBlockTable.name == name
+                )
+            ).one()
         raise AssertionError("Session should not be None")
 
     def fixed_input_value(self, name: str) -> str:
         if session := object_session(self):
-            return (
-                session.query(FixedInputTable)
-                .with_parent(self)
-                .filter(FixedInputTable.name == name)
-                .with_entities(FixedInputTable.value)
-                .scalar()
-            )
+            return session.scalars(
+                select(FixedInputTable.value).where(
+                    with_parent(self, ProductTable.fixed_inputs), FixedInputTable.name == name
+                )
+            ).one()
         raise AssertionError("Session should not be None")
 
     def _subscription_workflow_key(self, target: Target) -> str | None:
@@ -384,9 +386,11 @@ class ProductBlockTable(BaseModel):
 
     def find_resource_type_by_name(self, name: str) -> ResourceTypeTable:
         if session := object_session(self):
-            return (
-                session.query(ResourceTypeTable).with_parent(self).filter(ResourceTypeTable.resource_type == name).one()
-            )
+            return session.scalars(
+                select(ResourceTypeTable).where(
+                    with_parent(self, ProductBlockTable.resource_types), ResourceTypeTable.resource_type == name
+                )
+            ).one()
         raise AssertionError("Session should not be None")
 
 
@@ -691,9 +695,11 @@ class SubscriptionMetadataTable(BaseModel):
     )
     metadata_ = mapped_column("metadata", pg.JSONB(), nullable=False)
 
-    @staticmethod
-    def find_by_subscription_id(subscription_id: str) -> SubscriptionMetadataTable | None:
-        return SubscriptionMetadataTable.query.get(subscription_id)
+    @classmethod
+    def find_by_subscription_id(cls, subscription_id: str) -> SubscriptionMetadataTable | None:
+        from orchestrator.db import db
+
+        return db.session.get(cls, subscription_id)
 
 
 class SubscriptionSearchView(BaseModel):

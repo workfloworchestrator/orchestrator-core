@@ -13,11 +13,9 @@
 
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
-
-TIMESTAMP_REGEX = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+TIMESTAMP_REGEX = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[+-]\d{2}:\d{2})?")
 
 
 def isoformat(dt: datetime) -> str:
@@ -45,7 +43,7 @@ def timestamp() -> str:
         iso formatted UTC timestamp.
 
     """
-    return isoformat(datetime.utcnow())
+    return isoformat(datetime.now(UTC))
 
 
 def nowtz() -> datetime:
@@ -55,4 +53,4 @@ def nowtz() -> datetime:
         Datetime object
 
     """
-    return datetime.now(tz=pytz.utc)
+    return datetime.now(tz=UTC)
