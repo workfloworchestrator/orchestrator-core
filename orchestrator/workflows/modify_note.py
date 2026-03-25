@@ -60,7 +60,6 @@ def store_subscription_note(subscription_id: UUIDstr, note: str) -> State:
 
 
 @workflow(
-    "Modify Note",
     initial_input_form=wrap_modify_initial_input_form(initial_input_form),
     target=Target.MODIFY,
     authorize_callback=authorizers.authorize_callback,

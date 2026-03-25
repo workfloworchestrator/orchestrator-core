@@ -189,7 +189,9 @@ def wrap_modify_initial_input_form(initial_input_form: InputStepFunc | None) -> 
 
         user_input = yield _generate_modify_form(workflow_target, workflow_name)
 
-        subscription = SubscriptionTable.query.get(user_input.subscription_id)
+        subscription = db.session.get(SubscriptionTable, user_input.subscription_id)
+        if subscription is None:
+            raise ValueError(f"Subscription {user_input.subscription_id} not found")
         begin_state = {
             "subscription_id": str(subscription.subscription_id),
             "product": str(subscription.product_id),
