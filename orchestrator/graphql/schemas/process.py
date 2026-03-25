@@ -17,6 +17,7 @@ from orchestrator.graphql.types import FormUserPermissionsType, GraphqlFilter, G
 from orchestrator.schemas.process import ProcessSchema, ProcessStepSchema
 from orchestrator.services.processes import load_process
 from orchestrator.settings import app_settings
+from orchestrator.utils.auth import AuthContext
 from orchestrator.workflows import get_workflow
 
 if TYPE_CHECKING:
@@ -85,13 +86,24 @@ class ProcessType:
     @strawberry.field(description="Returns user permissions for operations on this process")  # type: ignore
     async def user_permissions(self, info: OrchestratorInfo) -> FormUserPermissionsType:
         oidc_user = await info.context.get_current_user
+
+        # Note that workflow and pstat.workflow can differ here!
         workflow = get_workflow(self.workflow_name)
-        process = load_process(db.session.get(ProcessTable, self.process_id))  # type: ignore[arg-type]
-        auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(process), workflow)
+        pstat = load_process(db.session.get(ProcessTable, self.process_id))  # type: ignore[arg-type]
+
+        steps = get_steps_to_evaluate_for_rbac(pstat)
+        auth_resume, auth_retry = get_auth_callbacks(steps, workflow)
+
+        # TODO is this a safe way to get the current step? What if there are substeps?
+        context = AuthContext(
+            user=oidc_user,
+            workflow=pstat.workflow,
+            step=steps[-1],
+        )
 
         return FormUserPermissionsType(
-            retryAllowed=bool(auth_retry and await auth_retry(oidc_user)),
-            resumeAllowed=bool(auth_resume and await auth_resume(oidc_user)),
+            retryAllowed=bool(auth_retry and await auth_retry(context)),
+            resumeAllowed=bool(auth_resume and await auth_resume(context)),
         )
 
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore

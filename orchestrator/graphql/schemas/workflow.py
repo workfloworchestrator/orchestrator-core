@@ -7,6 +7,7 @@ from orchestrator.db import WorkflowTable
 from orchestrator.graphql.schemas.helpers import get_original_model
 from orchestrator.graphql.types import OrchestratorInfo
 from orchestrator.schemas import StepSchema, WorkflowSchema
+from orchestrator.utils.auth import AuthContext
 from orchestrator.workflows import get_workflow
 
 if TYPE_CHECKING:
@@ -37,5 +38,9 @@ class Workflow:
         oidc_user = await info.context.get_current_user
         workflow_table = get_original_model(self, WorkflowTable)
         workflow = get_workflow(workflow_table.name)
+        context = AuthContext(
+            workflow=workflow,
+            user=oidc_user,
+        )
 
-        return await workflow.authorize_callback(oidc_user)  # type: ignore
+        return await workflow.authorize_callback(context)  # type: ignore
