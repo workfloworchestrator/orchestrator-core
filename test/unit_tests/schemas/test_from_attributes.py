@@ -136,7 +136,7 @@ _ORM_FIXTURES: dict[type, dict] = {
 )
 def test_from_attributes_succeeds(schema_cls: type) -> None:
     obj = types.SimpleNamespace(**_ORM_FIXTURES[schema_cls])
-    result = schema_cls.model_validate(obj, from_attributes=True)
+    result = schema_cls.model_validate(obj, from_attributes=True)  # type: ignore[attr-defined]
     assert result is not None
 
 
@@ -152,4 +152,5 @@ def test_product_block_schema_includes_nested_resource_types() -> None:
     rt_obj = types.SimpleNamespace(resource_type_id=uuid4(), resource_type="rt_name", description=None)
     data = {**_ORM_FIXTURES[ProductBlockSchema], "resource_types": [rt_obj]}
     schema = ProductBlockSchema.model_validate(types.SimpleNamespace(**data), from_attributes=True)
+    assert schema.resource_types is not None
     assert schema.resource_types[0].resource_type == "rt_name"

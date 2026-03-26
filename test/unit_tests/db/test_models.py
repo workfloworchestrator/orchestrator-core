@@ -72,6 +72,7 @@ def test_utc_timestamp_result_value(value: datetime | None, expected_hour: int |
     if expected_hour is None:
         assert result is None
     else:
+        assert result is not None
         assert result.tzinfo == timezone.utc
         assert result.hour == expected_hour
 

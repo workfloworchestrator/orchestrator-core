@@ -51,8 +51,10 @@ async def test_connect_creates_client(manager: RedisDistLockManager) -> None:
 
 
 async def test_disconnect_closes_connection(connected_manager: RedisDistLockManager) -> None:
+    mock_conn = connected_manager.redis_conn
+    assert isinstance(mock_conn, AsyncMock)
     await connected_manager.disconnect_redis()
-    connected_manager.redis_conn.close.assert_awaited_once()
+    mock_conn.close.assert_awaited_once()
 
 
 async def test_disconnect_noop_when_not_connected(manager: RedisDistLockManager) -> None:

@@ -182,7 +182,9 @@ def test_create_tasks_migration_wizard_returns_empty(abort: bool):
         _mock_db_tasks([]),
         _mock_all_workflows([]),
         mock.patch.object(migrate_tasks, "get_workflow", return_value=None),
-        _mock_task_menus(lambda s: {**s, "done": True, "abort": abort}),
+        mock.patch.object(
+            migrate_tasks, "_prompt_user_menu", side_effect=lambda s, **kw: {**s, "done": True, "abort": abort}
+        ),
     ):
         tasks_to_add, tasks_to_delete = migrate_tasks.create_tasks_migration_wizard()
     assert tasks_to_add == []

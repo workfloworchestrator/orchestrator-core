@@ -73,8 +73,12 @@ def test_disable_commit_sets_and_restores_state() -> None:
     with disable_commit(db, log):
         assert db.session.info["disabled"] is True
         assert db.session.info["logger"] is log
-    assert db.session.info["disabled"] is False
-    assert db.session.info["logger"] is None
+    _assert_state(db, disabled=False, logger=None)
+
+
+def _assert_state(db: MagicMock, *, disabled: bool, logger: object) -> None:
+    assert db.session.info["disabled"] is disabled
+    assert db.session.info["logger"] is logger
 
 
 def test_disable_commit_nested_does_not_reenable() -> None:

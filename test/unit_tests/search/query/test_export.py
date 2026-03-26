@@ -542,7 +542,7 @@ def test_fetch_export_data_dispatches_to_correct_function(entity_type: EntityTyp
 def test_fetch_export_data_unsupported_entity_type_raises_value_error():
     """An entity type not handled by the match statement raises ValueError."""
     fake_type = MagicMock(spec=EntityType)
-    fake_type.__class__ = EntityType  # type: ignore[assignment]
+    fake_type.__class__ = EntityType
 
     with pytest.raises(ValueError, match="Unsupported entity type"):
         fetch_export_data(fake_type, ["some-id"])

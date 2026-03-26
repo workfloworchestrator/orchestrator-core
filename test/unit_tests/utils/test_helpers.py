@@ -167,7 +167,9 @@ def test_map_to_type_constructs_instance() -> None:
         def __init__(self, x: int) -> None:
             self.x = x
 
-    assert map_to_type(Foo, {"x": 1}).x == 1
+    result: Foo = map_to_type(Foo, {"x": 1})
+    assert isinstance(result, Foo)
+    assert result.x == 1
 
 
 def test_map_to_type_no_warning_when_disabled(caplog: pytest.LogCaptureFixture) -> None:

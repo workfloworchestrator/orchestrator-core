@@ -68,7 +68,7 @@ def test_decrypt_with_explicit_salt_round_trip(cryptic: Cryptic) -> None:
     ],
 )
 def test_decrypt_returns_none_for_invalid_input(cryptic: Cryptic, value: object) -> None:
-    assert cryptic.decrypt(value) is None
+    assert cryptic.decrypt(value) is None  # type: ignore[arg-type]
 
 
 def test_decrypt_without_magic_prefix_raises(cryptic: Cryptic) -> None:

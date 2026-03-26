@@ -13,6 +13,7 @@
 
 """Tests for sorting: generic_sorts_validate (field partitioning), generic_apply_sorting (chaining, error handling), generic_sort (validation+application), and generic_column_sort (SQL compilation)."""
 
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -30,7 +31,7 @@ from orchestrator.db.sorting.sorting import (
 
 
 def test_sorts_validate_partitions_valid_and_invalid() -> None:
-    sort_fns = {"status": MagicMock(), "tag": MagicMock()}
+    sort_fns: dict[str, Any] = {"status": MagicMock(), "tag": MagicMock()}
     validate = generic_sorts_validate(sort_fns)
     sorts = [
         Sort(field="status", order=SortOrder.ASC),
