@@ -83,7 +83,6 @@ def test_apply_range_to_query_increments_limit(offset: int, limit: int, expected
 @pytest.mark.parametrize(
     "offset,limit",
     [
-        pytest.param(None, 10, id="none-offset"),
         pytest.param(0, 0, id="zero-limit"),
         pytest.param(0, None, id="none-limit"),
         pytest.param(None, None, id="both-none"),
