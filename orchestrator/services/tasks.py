@@ -19,6 +19,7 @@ from celery.app.control import Inspect
 from celery.utils.log import get_task_logger
 from kombu.serialization import registry
 
+from orchestrator.db import db
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.services.executors.threadpool import thread_resume_process, thread_start_process
 from orchestrator.services.processes import _get_process, ensure_correct_process_status, load_process
@@ -69,10 +70,14 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     def start_process(process_id: UUID, user: str) -> UUID | None:
         try:
-            process = _get_process(process_id)
-            pstat = load_process(process)
-            ensure_correct_process_status(process_id, ProcessStatus.CREATED)
-            thread_start_process(pstat, user=user, broadcast_func=process_broadcast_fn)
+            # Setup a database scope to ensure the worker can recover from failed transactions.
+            # With psycopg3, Session.close() does NOT rollback, so without a scope the connection
+            # can be returned to the pool in "idle in transaction" state, causing lock contention.
+            with db.database_scope():
+                process = _get_process(process_id)
+                pstat = load_process(process)
+                ensure_correct_process_status(process_id, ProcessStatus.CREATED)
+                thread_start_process(pstat, user=user, broadcast_func=process_broadcast_fn)
 
         except Exception as exc:
             local_logger.error("Worker failed to execute workflow", process_id=process_id, details=str(exc))
@@ -82,9 +87,10 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     def resume_process(process_id: UUID, user: str) -> UUID | None:
         try:
-            process = _get_process(process_id)
-            ensure_correct_process_status(process_id, ProcessStatus.RESUMED)
-            thread_resume_process(process, user=user, broadcast_func=process_broadcast_fn)
+            with db.database_scope():
+                process = _get_process(process_id)
+                ensure_correct_process_status(process_id, ProcessStatus.RESUMED)
+                thread_resume_process(process, user=user, broadcast_func=process_broadcast_fn)
         except Exception as exc:
             local_logger.error("Worker failed to resume workflow", process_id=process_id, details=str(exc))
             return None
