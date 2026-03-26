@@ -91,6 +91,6 @@ def test_apply_range_to_query_increments_limit(offset: int, limit: int, expected
 )
 def test_apply_range_to_query_skips_when_falsy(offset: int | None, limit: int | None) -> None:
     query, _, _ = _make_query()
-    result = apply_range_to_query(query, offset=offset, limit=limit)
+    result = apply_range_to_query(query, offset=offset or 0, limit=limit or 0)
     query.offset.assert_not_called()
     assert result == query

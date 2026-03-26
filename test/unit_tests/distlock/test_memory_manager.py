@@ -55,12 +55,14 @@ async def test_get_lock_sets_expiry(manager: MemoryDistLockManager) -> None:
 
 async def test_release_allows_reacquire(manager: MemoryDistLockManager) -> None:
     lock = await manager.get_lock("resource-h", 60)
+    assert lock is not None
     await manager.release_lock(lock)
     assert await manager.get_lock("resource-h", 60) is not None
 
 
 def test_release_sync(manager: MemoryDistLockManager) -> None:
     lock = asyncio.run(manager.get_lock("resource-j", 60))
+    assert lock is not None
     manager.release_sync(lock)
     assert "resource-j" not in MemoryDistLockManager.locks
 

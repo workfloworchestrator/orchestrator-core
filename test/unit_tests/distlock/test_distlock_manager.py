@@ -109,7 +109,7 @@ def test_wrapped_enabled_delegates() -> None:
 
 
 async def test_empty_fn_returns_none() -> None:
-    assert await empty_fn("arg") is None
+    assert await empty_fn(("arg",)) is None  # type: ignore[func-returns-value]
 
 
 def test_wrapped_update_replaces_wrappee() -> None:
@@ -142,4 +142,6 @@ def test_init_distlock_manager_redis_backend() -> None:
     mock_settings.CACHE_URI.get_secret_value.return_value = "redis://localhost:6379/0"
 
     init_distlock_manager(mock_settings)
-    assert isinstance(wrapped_distlock_manager.wrapped_distlock_manager._backend, RedisDistLockManager)
+    mgr = wrapped_distlock_manager.wrapped_distlock_manager
+    assert mgr is not None
+    assert isinstance(mgr._backend, RedisDistLockManager)

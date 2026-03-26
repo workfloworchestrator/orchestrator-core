@@ -40,7 +40,7 @@ from orchestrator.db.helpers import to_sql_string
     ],
 )
 def test_to_sql_string_renders_expected_fragments(stmt: object, expected_fragments: list[str]) -> None:
-    result = to_sql_string(stmt)
+    result = to_sql_string(stmt)  # type: ignore[arg-type]
     assert isinstance(result, str)
     for fragment in expected_fragments:
         assert fragment in result
