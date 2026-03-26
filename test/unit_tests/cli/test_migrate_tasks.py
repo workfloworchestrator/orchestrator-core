@@ -183,7 +183,9 @@ def test_create_tasks_migration_wizard_returns_empty(abort: bool):
         _mock_all_workflows([]),
         mock.patch.object(migrate_tasks, "get_workflow", return_value=None),
         mock.patch.object(
-            migrate_tasks, "_prompt_user_menu", side_effect=lambda s, **kw: {**s, "done": True, "abort": abort}
+            migrate_tasks,
+            "_prompt_user_menu",
+            side_effect=lambda s, **kw: (lambda state: {**state, "done": True, "abort": abort}),
         ),
     ):
         tasks_to_add, tasks_to_delete = migrate_tasks.create_tasks_migration_wizard()

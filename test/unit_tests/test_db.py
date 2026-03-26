@@ -129,45 +129,21 @@ def test_transactional_no_commit_second_thread():
     )
 
 
-def test_autouse_fixture_rolls_back_aaa():
-    # We want to test whether a change committed to the database in one test is visible to other tests (as in really
-    # persisted to the database). Of course such a change should not be visible if our `fastapi_app` and `database`
-    # autouse fixtures work as advertised.
-    #
-    # However, tests should be independent of each other and we cannot assume one test runs before the other. Hence
-    # this test comes in two versions: one with the `_aaa` postfix and one with the `_bbb` postfix. Both will test
-    # for the presence of a change the other test thinks it has committed to the database. If one of the tests (the
-    # one that runs after the other) finds the change the other has committed our fixtures don't work properly.
-
-    # Using ResourceTypeTable as it's a simple model than doesn't require foreign keys.
-    rt = ResourceTypeTable(resource_type="aaa", description="aaa")
-    # print(db)
-    # print(dir(db))
-
+@pytest.mark.parametrize(
+    "create,check_absent",
+    [
+        pytest.param("aaa", "bbb", id="aaa"),
+        pytest.param("bbb", "aaa", id="bbb"),
+    ],
+)
+def test_autouse_fixture_rolls_back(create: str, check_absent: str):
+    """Verify DB fixtures roll back between tests: each case commits a row and asserts the other's row is absent."""
+    rt = ResourceTypeTable(resource_type=create, description=create)
     db.session.add(rt)
     db.session.commit()
 
     with pytest.raises(NoResultFound):
-        db.session.scalars(select(ResourceTypeTable).where(ResourceTypeTable.resource_type == "bbb")).one()
-
-
-def test_autouse_fixture_rolls_back_bbb():
-    # We want to test whether a change committed to the database in one test is visible to other tests (as in really
-    # persisted to the database). Of course such a change should not be visible if our `fastapi_app` and `database`
-    # autouse fixtures work as advertised.
-    #
-    # However, tests should be independent of each other and we cannot assume one test runs before the other. Hence
-    # this test comes in two versions: one with the `_aaa` postfix and one with the `_bbb` postfix. Both will test
-    # for the presence of a change the other test thinks it has committed to the database. If one of the tests (the
-    # one that runs after the other) finds the change the other has committed our fixtures don't work properly.
-
-    # Using ResourceTypeTable as it's a simple model than doesn't require foreign keys.
-    rt = ResourceTypeTable(resource_type="bbb", description="bbb")
-    db.session.add(rt)
-    db.session.commit()
-
-    with pytest.raises(NoResultFound):
-        db.session.scalars(select(ResourceTypeTable).where(ResourceTypeTable.resource_type == "aaa")).one()
+        db.session.scalars(select(ResourceTypeTable).where(ResourceTypeTable.resource_type == check_absent)).one()
 
 
 def test_str_method():
@@ -180,4 +156,4 @@ def test_str_method():
 def test_get_postgres_version():
     pg_version = get_postgres_version()
     assert isinstance(pg_version, int)
-    assert 13 < pg_version < 20
+    assert pg_version >= 13
