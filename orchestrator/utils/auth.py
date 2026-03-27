@@ -1,37 +1,62 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, TypeAlias, TypeVar
+from typing import Protocol, TypeAlias, TypeVar, runtime_checkable
 
-if TYPE_CHECKING:
-    # Only import for static analysis to avoid circular import
-    from orchestrator.workflow import Step, Workflow
+from pydantic import BaseModel, ConfigDict
+
+from orchestrator.config.assignee import Assignee
+from orchestrator.targets import Target
 
 
+@runtime_checkable
 class AuthUserModel(Protocol):
-    @property
-    def user_name(self) -> str:
-        return ""
+    """This Protocol models the user data the core provides to authorization callbacks.
+
+    AuthUserModel was designed for compatibility oauth2_lib.OIDCUserModel, but allows
+    users to define their own classes satisfying the protocol to accomodate other
+    identity backends.
+    """
+
+    user_name: str
 
     # TODO should I also enforce a "name"? I think things might break otherwise
     # e.g. settings.py::set_status does
     # user_name = oidc_user.name if oidc_user else SYSTEM_USER
-    # Or perhaps that should use user_name instead.
+    # Or perhaps that should instead be updated to use user_name instead.
 
 
-# This can't be a Pydantic model while we have circular imports in workflow.py.
-@dataclass
-class AuthContext:
-    # TODO user or user_name?
+@runtime_checkable
+class AuthStep(Protocol):
+    """This Protocol models the Step data the core provides for authorization."""
+
+    name: str
+    assignee: Assignee | None
+
+
+@runtime_checkable
+class AuthWorkflow(Protocol):
+    """This Protocol models the Workflow data the core provides for authorization."""
+
+    name: str
+    description: str
+    target: Target
+    # Here be dragons: StepList isn't just a list[Step]. It adds extra machinery.
+    steps: list[AuthStep]
+
+
+class AuthContext(BaseModel):
+    """A context object passed to Authorizer callbacks; contains all information available for authorization purposes.
+
+    Attaching the actual models (e.g. Workflow) to AuthContext creates a circular import
+    issue that Pydantic doesn't support. Using a Protocol instead allows for AuthContext
+    to benefit from Pydantic at runtime.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     user: AuthUserModel | None = None
-    workflow: "Workflow | None" = None
-    step: "Step | None" = None
-    # TODO decide which of these to include
-    # request_method: str | None # or a more specific type
-    # request_path: str | None
-    # request_headers: dict | None
-    # request_payload: str | bytes | None
+    workflow: AuthWorkflow | None = None
+    step: AuthStep | None = None
 
 
 # Can instead use "type Authorizer = ..." in later Python versions.
