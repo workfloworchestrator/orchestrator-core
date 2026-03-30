@@ -39,6 +39,7 @@ theme:
         - content.code.copy
         - content.code.annotate
         - content.tooltips
+        - content.tabs.link
         - header.autohide
 plugins:
     - external-markdown
@@ -103,6 +104,7 @@ markdown_extensions:
               - includes/abbreviations.md
     - pymdownx.keys
     - pymdownx.inlinehilite
+    - pymdownx.blocks.admonition
     - pymdownx.tabbed:
           alternate_style: true
     - attr_list
