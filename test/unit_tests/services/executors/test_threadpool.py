@@ -2,7 +2,9 @@ from unittest import mock
 from unittest.mock import MagicMock, call
 from uuid import uuid4
 
+import psycopg.errors
 import pytest
+import sqlalchemy.exc
 
 from orchestrator.db import ProcessTable
 from orchestrator.services.executors.threadpool import (
@@ -12,6 +14,7 @@ from orchestrator.services.executors.threadpool import (
 )
 from orchestrator.services.processes import RESUME_WORKFLOW_REMOVED_ERROR_MSG, START_WORKFLOW_REMOVED_ERROR_MSG
 from orchestrator.targets import Target
+from orchestrator.utils.errors import ProcessAlreadyRunningError
 from orchestrator.workflow import (
     ProcessStat,
     ProcessStatus,
@@ -71,10 +74,9 @@ def test_set_process_status_running_errors_if_already_running(mock_db):
     mock_result.scalar_one_or_none.return_value = mock_process
     mock_db.session.execute.return_value = mock_result
 
-    with pytest.raises(Exception, match="Process is already running"):
+    with pytest.raises(ProcessAlreadyRunningError):
         _set_process_status_running(uuid4())
 
-    mock_db.session.rollback.assert_called_once()
     mock_db.session.commit.assert_not_called()
 
 
@@ -89,7 +91,36 @@ def test_set_process_status_running_errors_if_not_found(mock_db):
     with pytest.raises(Exception, match=f"Process not found: {process_id}"):
         _set_process_status_running(process_id)
 
-    mock_db.session.rollback.assert_called_once()
+    mock_db.session.commit.assert_not_called()
+
+
+@mock.patch("orchestrator.services.executors.threadpool.db")
+def test_set_process_status_running_raises_on_lock_contention(mock_db: MagicMock) -> None:
+    """When SELECT FOR UPDATE NOWAIT raises LockNotAvailable the function must re-raise a clear exception.
+
+    The fix wraps the SELECT in a SAVEPOINT via db.session.begin_nested() and catches
+    sqlalchemy.exc.OperationalError whose orig is psycopg.errors.LockNotAvailable.
+    """
+    lock_not_available = psycopg.errors.LockNotAvailable()
+    operational_error = sqlalchemy.exc.OperationalError(
+        statement="SELECT ... FOR UPDATE NOWAIT",
+        params={},
+        orig=lock_not_available,
+    )
+
+    # Simulate the SAVEPOINT context manager raising on __exit__ (i.e. during execute inside the nested block)
+    nested_ctx = MagicMock()
+    nested_ctx.__enter__ = MagicMock(return_value=nested_ctx)
+    nested_ctx.__exit__ = MagicMock(return_value=False)
+    mock_db.session.begin_nested.return_value = nested_ctx
+    mock_db.session.execute.side_effect = operational_error
+
+    process_id = uuid4()
+
+    with pytest.raises(ProcessAlreadyRunningError, match="already being executed by another worker"):
+        _set_process_status_running(process_id)
+
+    # Must not have committed — the process is locked by another worker
     mock_db.session.commit.assert_not_called()
 
 
