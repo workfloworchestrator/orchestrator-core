@@ -21,6 +21,7 @@ from sqlalchemy.exc import OperationalError
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import ProcessTable, db
+from orchestrator.utils.errors import ProcessAlreadyRunningError
 from orchestrator.services.input_state import InputType, retrieve_input_state
 from orchestrator.services.processes import (
     RESUME_WORKFLOW_REMOVED_ERROR_MSG,
@@ -33,7 +34,6 @@ from orchestrator.services.processes import (
     safe_logstep,
 )
 from orchestrator.types import BroadcastFunc
-from orchestrator.utils.errors import ProcessAlreadyRunningError
 from orchestrator.workflow import (
     ProcessStat,
     ProcessStatus,
