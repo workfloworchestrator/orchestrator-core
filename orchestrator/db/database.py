@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -212,14 +213,31 @@ class Database:
                 # psycopg3 exposes transaction_status via connection.info
                 tx_status = getattr(getattr(dbapi_connection, "info", None), "transaction_status", None)
                 if tx_status is not None and tx_status != TransactionStatus.IDLE:
+                    # Try to get the last query for context
+                    last_query = None
+                    try:
+                        last_query = getattr(dbapi_connection, "status", None)
+                    except Exception:
+                        pass
                     logger.warning(
                         "Connection returned to pool with active transaction, forcing rollback",
-                        transaction_status=tx_status,
+                        transaction_status=tx_status.name if hasattr(tx_status, "name") else str(tx_status),
+                        last_query_hint=last_query,
                     )
                     dbapi_connection.rollback()
+                    logger.debug("Forced rollback completed on checkin")
             except Exception:
                 logger.warning("Failed to clean up connection on pool checkin, invalidating")
                 connection_record.invalidate()
+
+        @event.listens_for(self.engine, "checkout")
+        def _on_checkout(dbapi_connection: Any, connection_record: ConnectionPoolEntry, connection_proxy: Any) -> None:
+            tx_status = getattr(getattr(dbapi_connection, "info", None), "transaction_status", None)
+            if tx_status is not None and tx_status != TransactionStatus.IDLE:
+                logger.warning(
+                    "Connection checked out from pool with active transaction",
+                    transaction_status=tx_status.name if hasattr(tx_status, "name") else str(tx_status),
+                )
 
     def _scopefunc(self) -> str | None:
         return self.request_context.get()
@@ -240,9 +258,19 @@ class Database:
         """
         token = self.request_context.set(str(uuid4()))
         self.scoped_session(**kwargs)
+        scope_start = time.monotonic()
+        logger.debug("Database scope opened")
         try:
             yield self
         finally:
+            elapsed = time.monotonic() - scope_start
+            if elapsed > 5.0:
+                logger.warning(
+                    "Database scope was open for extended period",
+                    elapsed_seconds=round(elapsed, 3),
+                )
+            else:
+                logger.debug("Database scope closing", elapsed_seconds=round(elapsed, 3))
             try:
                 # Explicitly rollback any uncommitted transaction before closing the session.
                 # With psycopg3, Session.close() does NOT rollback, which can leave connections

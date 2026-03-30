@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
+import structlog
 from pydantic_i18n import PydanticI18n
 from sqlalchemy import select
 
@@ -1041,6 +1042,63 @@ def test_load_process_with_altered_steps(num_steps_finished, step_names):
     with WorkflowInstanceForTests(workflow_3, "test_wf"):
         process = load_process(process_table)
         assert get_step_names(process) == step_names[2]
+
+
+def test_db_log_step_uses_savepoint_when_commit_disabled(simple_workflow):
+    """When _db_log_step is called while commit is disabled (disable_commit context),
+    it should use a savepoint/flush instead of a full commit, leaving no idle-in-transaction.
+
+    This covers the scenario where _db_log_step is called from inside a step_group substep
+    whose outer transactional() context has disabled commits on the session.
+    """
+    from orchestrator.db.database import disable_commit
+
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
+    )
+    db.session.add(p)
+    db.session.commit()
+
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
+    test_step = make_step_function(lambda: None, "step", None, "assignee")
+    state_data = {"foo": "bar"}
+    state = Success(state_data)
+
+    commit_calls: list[str] = []
+    original_commit = db.session.__class__.commit
+
+    def tracking_commit(self: object) -> None:
+        commit_calls.append("commit")
+        original_commit(self)  # type: ignore[call-arg]
+
+    with mock.patch.object(db.session.__class__, "commit", tracking_commit):
+        with disable_commit(db, structlog.get_logger()):
+            result = _db_log_step(pstat, test_step, state)
+
+    # The step record must be visible (flushed via savepoint) even though no full commit was issued
+    # from within _db_log_step itself.
+    assert not result.isfailed()
+
+    # Verify no commit was issued by _db_log_step — the disable_commit wrapper should have
+    # intercepted any attempt (the WrappedSession.commit logs a warning and skips the real commit).
+    # After the with-block the outer code would normally commit; here we just verify the step
+    # data is present after we manually commit.
+    db.session.commit()
+
+    psteps = _get_process_steps(process_id)
+    assert len(psteps) == 1
+    assert psteps[0].status == "success"
+    assert psteps[0].state == state_data
+
+    # No full commit should have been called from within _db_log_step while disabled.
+    # The only commit in commit_calls must be the one we explicitly issued above.
+    assert len(commit_calls) == 1, (
+        f"Expected exactly 1 explicit commit (ours), but got {len(commit_calls)}: {commit_calls}"
+    )
 
 
 def run_sync(process_id, fn):
