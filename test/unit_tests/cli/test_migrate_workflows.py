@@ -27,7 +27,7 @@ def _mock_product_types(product_types: list[str]):
 def _mock_workflow_menus(*choices: str | None):
     menu_choices = iter(choices)
     return mock.patch.object(
-        migrate_workflows, "prompt_user_menu", side_effect=lambda *_args, **_kwargs: next(menu_choices)
+        migrate_workflows, "_prompt_user_menu", side_effect=lambda *_args, **_kwargs: next(menu_choices)
     )
 
 
@@ -169,9 +169,9 @@ def _make_wizard_exit(abort: bool):
     return exit_choice
 
 
-@mock.patch("orchestrator.cli.migrate_workflows.prompt_user_menu")
-def test_create_workflows_migration_wizard_abort_returns_empty_lists(mock_prompt_user_menu):
-    mock_prompt_user_menu.return_value = _make_wizard_exit(abort=True)
+@mock.patch("orchestrator.cli.migrate_workflows._prompt_user_menu")
+def test_create_workflows_migration_wizard_abort_returns_empty_lists(mock__prompt_user_menu):
+    mock__prompt_user_menu.return_value = _make_wizard_exit(abort=True)
     fake_db = SimpleNamespace(session=SimpleNamespace(scalars=lambda *_args, **_kwargs: []))
 
     with (
@@ -184,9 +184,9 @@ def test_create_workflows_migration_wizard_abort_returns_empty_lists(mock_prompt
     assert to_delete == []
 
 
-@mock.patch("orchestrator.cli.migrate_workflows.prompt_user_menu")
-def test_create_workflows_migration_wizard_finish_returns_state_lists(mock_prompt_user_menu):
-    mock_prompt_user_menu.return_value = _make_wizard_exit(abort=False)
+@mock.patch("orchestrator.cli.migrate_workflows._prompt_user_menu")
+def test_create_workflows_migration_wizard_finish_returns_state_lists(mock__prompt_user_menu):
+    mock__prompt_user_menu.return_value = _make_wizard_exit(abort=False)
     fake_db = SimpleNamespace(session=SimpleNamespace(scalars=lambda *_args, **_kwargs: []))
 
     with (

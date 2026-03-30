@@ -19,13 +19,13 @@ def get_user_input(text: str, default: str = "", optional: bool = False) -> str:
             return default
 
 
-def enumerate_menu_keys(items: list | set) -> list[str]:
+def _enumerate_menu_keys(items: list | set) -> list[str]:
     return [str(i + 1) for i in range(len(items))]
 
 
-def prompt_user_menu(options: Iterable[tuple[str, T]], keys: list[str] | None = None, repeat: bool = True) -> T | None:
+def _prompt_user_menu(options: Iterable[tuple[str, T]], keys: list[str] | None = None, repeat: bool = True) -> T | None:
     options_list = list(options)
-    keys = keys or enumerate_menu_keys(options_list)
+    keys = keys or _enumerate_menu_keys(options_list)
     done = False
     while not done:
         for k, txt_v in zip(keys, options_list):
