@@ -18,7 +18,9 @@ from uuid import UUID
 import structlog
 from celery.result import AsyncResult
 from kombu.exceptions import ConnectionError, OperationalError
+from psycopg import errors as psycopg_errors
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError as SQLAlchemyOperationalError
 
 from orchestrator import app_settings
 from orchestrator.api.error_handling import raise_status
@@ -31,6 +33,7 @@ from orchestrator.services.processes import (
     set_process_status,
 )
 from orchestrator.services.workflows import get_workflow_by_name
+from orchestrator.utils.errors import ProcessAlreadyRunningError
 from orchestrator.workflow import ProcessStat, ProcessStatus
 from pydantic_forms.types import State
 
@@ -99,26 +102,37 @@ def _celery_resume_process(
 def _celery_set_process_status_resumed(process_id: UUID) -> None:
     """Set the process status to RESUMED to show its waiting to be picked up by a worker.
 
-    uses with_for_update to lock the subscription in a transaction, preventing other changes.
-    rolls back transation and raises an exception when it can't change to RESUMED to prevent it from being added to the queue.
+    Uses SELECT FOR UPDATE NOWAIT wrapped in a SAVEPOINT so that lock contention does not abort
+    an outer transaction. Raises ProcessAlreadyRunningError when the row is locked by another
+    session; raises ValueError when the process cannot be found or has an incorrect status.
 
     Args:
         process_id: Process ID to fetch process from DB
+
+    Raises:
+        ValueError: When the process row cannot be found or has an incorrect status to resume.
+        ProcessAlreadyRunningError: When the row is locked by another worker.
     """
-    stmt = select(ProcessTable).where(ProcessTable.process_id == process_id).with_for_update()
+    stmt = select(ProcessTable).where(ProcessTable.process_id == process_id).with_for_update(nowait=True)
 
-    result = db.session.execute(stmt)
-    locked_process = result.scalar_one_or_none()
+    try:
+        with db.session.begin_nested():
+            result = db.session.execute(stmt)
+            locked_process = result.scalar_one_or_none()
 
-    if not locked_process:
-        raise ValueError(f"Process not found: {process_id}")
+            if not locked_process:
+                raise ValueError(f"Process not found: {process_id}")
 
-    if can_be_resumed(locked_process.last_status):
-        locked_process.last_status = ProcessStatus.RESUMED
-        db.session.commit()
+            if can_be_resumed(locked_process.last_status):
+                locked_process.last_status = ProcessStatus.RESUMED
+            else:
+                raise ValueError(f"Process has incorrect status to resume: {locked_process.last_status}")
+    except SQLAlchemyOperationalError as e:
+        if isinstance(e.orig, psycopg_errors.LockNotAvailable):
+            raise ProcessAlreadyRunningError(process_id, reason="already being executed by another worker") from e
+        raise
     else:
-        db.session.rollback()
-        raise ValueError(f"Process has incorrect status to resume: {locked_process.last_status}")
+        db.session.commit()
 
 
 def _celery_validate(validation_workflow: str, json: list[State] | None) -> None:
