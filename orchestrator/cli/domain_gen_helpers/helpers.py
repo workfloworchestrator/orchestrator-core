@@ -8,7 +8,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.sql.dml import UpdateBase
 
 from orchestrator.cli.domain_gen_helpers.types import BlockRelationDict
-from orchestrator.cli.helpers.input_helpers import prompt_user_menu
+from orchestrator.cli.helpers.input_helpers import _prompt_user_menu
 from orchestrator.cli.helpers.print_helpers import noqa_print
 from orchestrator.domain.base import ProductBlockModel, SubscriptionModel
 
@@ -71,7 +71,7 @@ def format_block_relation_to_dict(
         noqa_print(f"Attributes the block ('{block_to_find_in_props}') has been related with: {', '.join(props)}")
         noqa_print(f"The relation will only be added to the first attribute ('{first(props)}') want to continue?")
 
-        if prompt_user_menu([("yes", "yes"), ("no", "no")]) == "no":
+        if _prompt_user_menu([("yes", "yes"), ("no", "no")]) == "no":
             typer.echo("Aborted.")
             raise typer.Exit(code=1)
 

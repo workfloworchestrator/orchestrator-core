@@ -16,7 +16,7 @@ def _state():
 def _mock_task_menus(*choices: str | None):
     menu_choices = iter(choices)
     return mock.patch.object(
-        migrate_tasks, "prompt_user_menu", side_effect=lambda *_args, **_kwargs: next(menu_choices)
+        migrate_tasks, "_prompt_user_menu", side_effect=lambda *_args, **_kwargs: next(menu_choices)
     )
 
 
@@ -71,7 +71,7 @@ def test_add_task_skips_already_used_tasks():
     state = {**_state(), "tasks_to_add": [{"name": "validate_my_product", "description": "desc"}]}
     task_a = SimpleNamespace(description="My task desc")
     task_b = SimpleNamespace(description="Other task desc")
-    with mock.patch.object(migrate_tasks, "prompt_user_menu") as mock_menu:
+    with mock.patch.object(migrate_tasks, "_prompt_user_menu") as mock_menu:
         mock_menu.return_value = "other_task"
         result = migrate_tasks._add_task({"validate_my_product": task_a, "other_task": task_b}, state)
     # validate_my_product should not appear in options passed to menu
@@ -194,7 +194,7 @@ def test_create_tasks_migration_wizard_returns_empty(abort: bool):
         mock.patch.object(migrate_tasks, "get_workflow", return_value=None),
         mock.patch.object(
             migrate_tasks,
-            "prompt_user_menu",
+            "_prompt_user_menu",
             side_effect=_make_exit_choice(abort),
         ),
     ):
