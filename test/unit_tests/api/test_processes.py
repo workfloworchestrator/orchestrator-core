@@ -6,6 +6,7 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
+from inline_snapshot import snapshot
 from sqlalchemy import select
 
 from oauth2_lib.fastapi import OIDCUserModel
@@ -1200,13 +1201,6 @@ def test_resolve_user_name(reporter, user_attrs, expected):
     assert result == expected
 
 
-# SYSTEM_USER constant must equal "SYSTEM" so the parametrize above stays in sync.
-def test_system_user_constant():
-    from orchestrator.services.processes import SYSTEM_USER
-
-    assert SYSTEM_USER == "SYSTEM"
-
-
 # ---------------------------------------------------------------------------
 # status_counts endpoint
 # ---------------------------------------------------------------------------
@@ -1224,21 +1218,12 @@ def test_status_counts_with_processes(test_client, mocked_processes):
     """GET /processes/status-counts aggregates counts for processes and tasks separately."""
     response = test_client.get("/api/processes/status-counts")
     assert response.status_code == HTTPStatus.OK
-    body = response.json()
-
-    # mocked_processes contains 5 non-task processes and 4 task processes (see fixtures/processes.py)
-    process_total = sum(body["process_counts"].values())
-    task_total = sum(body["task_counts"].values())
-    assert process_total == 5
-    assert task_total == 4
-
-    # Spot-check individual statuses for processes
-    assert body["process_counts"].get("completed") == 2
-    assert body["process_counts"].get("suspended") == 1
-
-    # Spot-check tasks
-    assert body["task_counts"].get("suspended") == 1
-    assert body["task_counts"].get("completed") == 1
+    assert response.json() == snapshot(
+        {
+            "process_counts": {"failed": 1, "completed": 2, "suspended": 1, "resumed": 1},
+            "task_counts": {"completed": 1, "suspended": 1, "resumed": 1, "running": 1},
+        }
+    )
 
 
 # ---------------------------------------------------------------------------

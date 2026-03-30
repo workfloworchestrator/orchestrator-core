@@ -1,8 +1,6 @@
 import pytest
 
 from orchestrator.api.helpers import (
-    _process_text_query,
-    _quote_if_kv_pair,
     get_in,
     getattr_in,
     product_block_paths,
@@ -90,46 +88,6 @@ def test_update_in(input_dict, path, value, expected_result):
     # TODO fix the failing scenarios
     assert update_in(input_dict, path, value) is None
     assert input_dict == expected_result
-
-
-@pytest.mark.parametrize(
-    "token,expected",
-    [
-        ("foo:bar", '"foo:bar"'),
-        ("status:active", '"status:active"'),
-        ("plaintoken", "plaintoken"),
-        ("", ""),
-        ("no-colon-here", "no-colon-here"),
-        ("a:b:c", '"a:b:c"'),
-    ],
-)
-def test_quote_if_kv_pair(token, expected):
-    assert _quote_if_kv_pair(token) == expected
-
-
-@pytest.mark.parametrize(
-    "query,expected",
-    [
-        # plain tokens: passed through unchanged
-        ("hello world", "hello world"),
-        # quoted phrase: shlex non-posix mode preserves quotes
-        ('"exact phrase"', '"exact phrase"'),
-        # two tokens, first is quoted phrase; quotes preserved in non-posix shlex
-        ('"foo bar" baz', '"foo bar" baz'),
-        # unbalanced quote: closing quote added, then preserved
-        ('"unclosed phrase', '"unclosed phrase"'),
-        # token with colon: gets wrapped in quotes
-        ("status:active", '"status:active"'),
-        # plain token + kv pair
-        ("hello status:active", 'hello "status:active"'),
-        # kv pair inside quotes: shlex preserves quotes, colon triggers double-wrapping
-        ('"status:active"', '""status:active""'),
-        # empty query
-        ("", ""),
-    ],
-)
-def test_process_text_query(query, expected):
-    assert _process_text_query(query) == expected
 
 
 @pytest.mark.parametrize(

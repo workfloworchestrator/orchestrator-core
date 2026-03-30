@@ -10,7 +10,7 @@ from sqlalchemy.sql.selectable import ScalarSelect
 from orchestrator.cli.domain_gen_helpers.helpers import sql_compile
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import get_product_block_id, get_product_block_ids
 from orchestrator.cli.domain_gen_helpers.types import BlockRelationDict, DomainModelChanges
-from orchestrator.cli.helpers.input_helpers import _enumerate_menu_keys, _prompt_user_menu, get_user_input
+from orchestrator.cli.helpers.input_helpers import enumerate_menu_keys, get_user_input, prompt_user_menu
 from orchestrator.cli.helpers.print_helpers import COLOR, noqa_print, print_fmt, str_fmt
 from orchestrator.db import db
 from orchestrator.db.models import (
@@ -78,18 +78,18 @@ def rename_resource_type_inputs(
 ) -> tuple[str | None, str | None]:
     old_resource_types = set(resource_type_choices.keys())
     noqa_print("Which resource type would you want to rename?")
-    old_rt = _prompt_user_menu(
+    old_rt = prompt_user_menu(
         [*[(p, p) for p in old_resource_types], ("continue", None)],
-        keys=[*_enumerate_menu_keys(old_resource_types), "q"],
+        keys=[*enumerate_menu_keys(old_resource_types), "q"],
     )
     if not old_rt:
         return None, None
 
     choices = resource_type_choices[old_rt] - set(renamed_resource_types.values())
     noqa_print(f"\nWhich resource type should rename {old_rt}?")
-    new_rt = _prompt_user_menu(
+    new_rt = prompt_user_menu(
         [*[(p, p) for p in choices], ("cancel", None)],
-        keys=[*_enumerate_menu_keys(choices), "q"],
+        keys=[*enumerate_menu_keys(choices), "q"],
     )
     return old_rt, new_rt if new_rt else None
 
@@ -156,17 +156,17 @@ def update_block_resource_type_input(
     old_props: list[str], new_props: list[str], block_name: str
 ) -> tuple[str | None, str | None]:
     noqa_print(f"Which resource type would you want to update in {block_name} Block?")
-    old_rt = _prompt_user_menu(
+    old_rt = prompt_user_menu(
         [*[(p, p) for p in old_props], ("continue", None)],
-        keys=[*_enumerate_menu_keys(old_props), "q"],
+        keys=[*enumerate_menu_keys(old_props), "q"],
     )
     if not old_rt:
         return None, None
 
     noqa_print(f"\nWhich resource type should update {old_rt}?")
-    new_rt = _prompt_user_menu(
+    new_rt = prompt_user_menu(
         [*[(p, p) for p in new_props], ("cancel", None)],
-        keys=[*_enumerate_menu_keys(new_props), "q"],
+        keys=[*enumerate_menu_keys(new_props), "q"],
     )
     return old_rt, new_rt if new_rt else None
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from inline_snapshot import snapshot
 
 from orchestrator.cli.generator.generator.helpers import (
     base_block_type,
@@ -135,10 +136,8 @@ _MERGE_STR_ENUMS: list[dict[str, Any]] = [{"name": "beta", "type": "StrEnum"}]
 
 def test_merge_fields() -> None:
     result = merge_fields(_MERGE_FIELDS, _MERGE_INT_ENUMS, _MERGE_STR_ENUMS)
-    result_by_name = {r["name"]: r for r in result}
-    assert result_by_name["alpha"]["type"] == "str"
-    assert result_by_name["beta"]["type"] == "StrEnum"
-    assert result_by_name["gamma"]["type"] == "IntEnum"
+    result_by_name = {r["name"]: r["type"] for r in result}
+    assert result_by_name == snapshot({"alpha": "str", "beta": "StrEnum", "gamma": "IntEnum"})
 
 
 @pytest.mark.parametrize(
@@ -164,9 +163,7 @@ _NAMESPACED_FIELDS: list[dict[str, Any]] = [
 
 def test_get_name_spaced_types_to_import() -> None:
     result = get_name_spaced_types_to_import(_NAMESPACED_FIELDS)
-    assert len(result) == 2
-    assert ("some.module", "VlanType") in result
-    assert ("network", "Speed") in result
+    assert sorted(result) == snapshot([("network", "Speed"), ("some.module", "VlanType")])
 
 
 def test_get_name_spaced_types_to_import_none() -> None:
