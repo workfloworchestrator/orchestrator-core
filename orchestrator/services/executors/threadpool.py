@@ -34,6 +34,7 @@ from orchestrator.types import BroadcastFunc
 from orchestrator.workflow import (
     ProcessStat,
     ProcessStatus,
+    StepLogFunc,
     runwf,
 )
 from orchestrator.workflows.removed_workflow import removed_workflow
@@ -68,32 +69,40 @@ def _set_process_status_running(process_id: UUID) -> None:
         raise Exception("Process is already running")
 
 
-def thread_start_process(
+def prepare_start(
     pstat: ProcessStat,
-    user: str = SYSTEM_USER,
-    user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
-) -> UUID:
-    if pstat.workflow == removed_workflow:
-        raise ValueError(START_WORKFLOW_REMOVED_ERROR_MSG)
+) -> tuple[ProcessStat, StepLogFunc]:
+    """Prepare state for starting a workflow. Must run inside a database_scope.
 
-    # enforce an update to the process status to properly show the process
-    _set_process_status_running(pstat.process_id)
+    Retrieves initial input state, merges it into the process state, and marks the
+    process as RUNNING. The commit in _set_process_status_running is the last DB
+    operation, leaving no open transaction on the session's connection.
 
+    Returns:
+        Tuple of (updated ProcessStat, step log function) ready for runwf.
+    """
     input_data = retrieve_input_state(pstat.process_id, "initial_state", False)
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
+    _set_process_status_running(pstat.process_id)
+    return pstat, partial(safe_logstep, broadcast_func=broadcast_func)
 
-    _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
 
-
-def thread_resume_process(
+def prepare_resume(
     process: ProcessTable,
     *,
     user: str | None = None,
-    user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
-) -> UUID:
+) -> tuple[ProcessStat, StepLogFunc]:
+    """Prepare state for resuming a workflow. Must run inside a database_scope.
+
+    Loads the process state, retrieves user input, merges it, and marks the process
+    as RUNNING. The commit in _set_process_status_running is the last DB operation,
+    leaving no open transaction on the session's connection.
+
+    Returns:
+        Tuple of (ProcessStat, step log function) ready for runwf.
+    """
     # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
     pstat = load_process(process)
     if pstat.workflow == removed_workflow:
@@ -107,12 +116,32 @@ def thread_resume_process(
     retrieve_input_str: InputType = "user_input" if process.steps else "initial_state"
     input_data = retrieve_input_state(process.process_id, retrieve_input_str, False)
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
-
-    # enforce an update to the process status to properly show the process
     _set_process_status_running(process.process_id)
+    return pstat, partial(safe_logstep, broadcast_func=broadcast_func)
 
-    _safe_logstep_prep = partial(safe_logstep, broadcast_func=broadcast_func)
-    _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_prep))
+
+def thread_start_process(
+    pstat: ProcessStat,
+    user: str = SYSTEM_USER,
+    user_model: OIDCUserModel | None = None,
+    broadcast_func: BroadcastFunc | None = None,
+) -> UUID:
+    if pstat.workflow == removed_workflow:
+        raise ValueError(START_WORKFLOW_REMOVED_ERROR_MSG)
+
+    pstat, logstep_func = prepare_start(pstat, broadcast_func=broadcast_func)
+    return _run_process_async(pstat.process_id, lambda: runwf(pstat, logstep_func))
+
+
+def thread_resume_process(
+    process: ProcessTable,
+    *,
+    user: str | None = None,
+    user_model: OIDCUserModel | None = None,
+    broadcast_func: BroadcastFunc | None = None,
+) -> UUID:
+    pstat, logstep_func = prepare_resume(process, user=user, broadcast_func=broadcast_func)
+    _run_process_async(pstat.process_id, lambda: runwf(pstat, logstep_func))
     return pstat.process_id
 
 
