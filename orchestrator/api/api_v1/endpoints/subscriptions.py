@@ -22,7 +22,6 @@ from fastapi import Depends
 from fastapi.routing import APIRouter
 from sqlalchemy import delete, select
 from sqlalchemy.orm import contains_eager, defer, joinedload
-from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -49,7 +48,6 @@ from orchestrator.services.subscriptions import (
 )
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.deprecation_logger import deprecated_endpoint
 from orchestrator.utils.get_subscription_dict import get_subscription_dict
 from orchestrator.websocket import sync_invalidate_subscription_cache
@@ -77,30 +75,6 @@ def _delete_process_subscriptions(process_subscriptions: list[ProcessSubscriptio
         ).first()
         if subscription:
             _delete_subscription_tree(subscription)
-
-
-def _filter_statuses(filter_statuses: str | None = None) -> list[str]:
-    """Check valid filter statuses.
-
-    Args:
-        filter_statuses: the filters.
-
-    Returns:
-        list of filters
-
-    """
-    if not filter_statuses:
-        return []
-
-    logger.debug("Filters to query subscription on.", filter_statuses=filter_statuses)
-    statuses = filter_statuses.split(",")
-    for status in statuses:
-        if status not in SubscriptionLifecycle.values():
-            raise HTTPException(
-                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-                detail=f"Status {status}, is not a valid `SubscriptionLifecycle`",
-            )
-    return statuses
 
 
 def _authorized_subscription_workflows(

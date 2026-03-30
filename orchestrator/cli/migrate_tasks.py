@@ -21,7 +21,7 @@ from sqlalchemy import select
 from tabulate import tabulate
 
 import orchestrator.workflows
-from orchestrator.cli.helpers.input_helpers import _enumerate_menu_keys, _prompt_user_menu, get_user_input
+from orchestrator.cli.helpers.input_helpers import enumerate_menu_keys, get_user_input, prompt_user_menu
 from orchestrator.cli.helpers.print_helpers import COLOR, noqa_print, print_fmt
 from orchestrator.db import WorkflowTable, db
 from orchestrator.targets import Target
@@ -56,7 +56,7 @@ def _add_task(tasks: dict[str, Workflow], state: dict) -> dict:
 
     already_used_tasks = {task["name"] for task in state["tasks_to_add"] + state["tasks_to_delete"]}
     task_options = [(task, task) for task in tasks.keys() if task not in already_used_tasks]
-    task_name = _prompt_user_menu([*task_options, ("cancel", None)], keys=[*_enumerate_menu_keys(task_options), "q"])
+    task_name = prompt_user_menu([*task_options, ("cancel", None)], keys=[*enumerate_menu_keys(task_options), "q"])
     if not task_name:
         # Menu cancelled
         return state
@@ -175,7 +175,7 @@ def create_tasks_migration_wizard() -> tuple[list[dict], list[dict]]:
     state = {"tasks_to_add": [], "tasks_to_delete": [], "done": False}
     while not state["done"]:
         print_fmt("\nWhat do you want to do?\n", flags=[COLOR.UNDERLINE, COLOR.BOLD])
-        choice_fn = _prompt_user_menu(
+        choice_fn = prompt_user_menu(
             [
                 ("Add task to database", lambda s: _add_task(available_tasks, s)),
                 ("Delete task from database", lambda s: _delete_task(database_tasks.values(), s)),

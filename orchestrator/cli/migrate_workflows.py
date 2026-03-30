@@ -8,7 +8,7 @@ from sqlalchemy import select
 from tabulate import tabulate
 
 import orchestrator.workflows
-from orchestrator.cli.helpers.input_helpers import _enumerate_menu_keys, _prompt_user_menu, get_user_input
+from orchestrator.cli.helpers.input_helpers import enumerate_menu_keys, get_user_input, prompt_user_menu
 from orchestrator.cli.helpers.print_helpers import COLOR, noqa_print, print_fmt, str_fmt
 from orchestrator.db import ProductTable, WorkflowTable, db
 from orchestrator.workflows import LazyWorkflowInstance, get_workflow
@@ -54,9 +54,9 @@ def _add_workflow(workflows: dict[str, LazyWorkflowInstance], state: dict) -> di
         return state
 
     noqa_print("Which product type should the workflow be added to?")
-    product_type = _prompt_user_menu(
+    product_type = prompt_user_menu(
         [*[(p, p) for p in registered_product_types], ("cancel", None)],
-        keys=[*_enumerate_menu_keys(registered_product_types), "q"],
+        keys=[*enumerate_menu_keys(registered_product_types), "q"],
     )
 
     if not product_type:
@@ -67,7 +67,7 @@ def _add_workflow(workflows: dict[str, LazyWorkflowInstance], state: dict) -> di
 
     already_used_workflows = {wf["name"] for wf in state["workflows_to_add"] + state["workflows_to_delete"]}
     wf_options = [(wf, wf) for wf in workflows if wf not in already_used_workflows]
-    wf_name = _prompt_user_menu([*wf_options, ("cancel", None)], keys=[*_enumerate_menu_keys(wf_options), "q"])
+    wf_name = prompt_user_menu([*wf_options, ("cancel", None)], keys=[*enumerate_menu_keys(wf_options), "q"])
     if not wf_name:
         # Menu cancelled
         return state
@@ -199,7 +199,7 @@ def create_workflows_migration_wizard() -> tuple[list[dict], list[dict]]:
     state = {"workflows_to_add": [], "workflows_to_delete": [], "done": False}
     while not state["done"]:
         print_fmt("\nWhat do you want to do?\n", flags=[COLOR.UNDERLINE, COLOR.BOLD])
-        choice_fn = _prompt_user_menu(
+        choice_fn = prompt_user_menu(
             [
                 ("Add workflow to database", lambda s: _add_workflow(registered_non_system_workflows, s)),
                 ("Delete workflow from database", lambda s: _delete_workflow(database_workflows, s)),
