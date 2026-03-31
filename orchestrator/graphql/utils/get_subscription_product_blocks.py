@@ -48,7 +48,7 @@ def is_product_block(candidate: Any) -> bool:
     if isinstance(candidate, dict):
         # TODO: also filter on tag (needs addition of tag in orchestrator endpoint)
         # NOTE: this crosses subscription boundaries. If needed we can add an additional filter to limit that.
-        return candidate.get("owner_subscription_id", None)
+        return candidate.get("owner_subscription_id", None) is not None
     return False
 
 

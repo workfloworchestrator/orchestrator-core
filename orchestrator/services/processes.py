@@ -244,7 +244,7 @@ def _get_current_step_to_update(
     step_name = step_state.pop("__step_name_override", step.name)
 
     # Core internal: __replace_last_state
-    if step_state.pop("__replace_last_state", None):
+    if step_state.pop("__replace_last_state", None) and last_db_step is not None:
         current_step = last_db_step
         current_step.status = process_state.status
         current_step.state = step_state

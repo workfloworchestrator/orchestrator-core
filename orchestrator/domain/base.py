@@ -751,7 +751,8 @@ class ProductBlockModel(DomainModel):
 
         cls._fix_pb_data()
         model = cls(**data)
-        model.db_model = other.db_model
+        if (src_db_model := other.db_model) is not None:
+            model.db_model = src_db_model
         return model
 
     @classmethod
@@ -1283,7 +1284,8 @@ class SubscriptionModel(DomainModel):
             data["end_date"] = nowtz()
 
         model = cls(**data)
-        model.db_model = other._db_model
+        if (src_db_model := other._db_model) is not None:
+            model.db_model = src_db_model
 
         return model
 
@@ -1502,7 +1504,7 @@ class SubscriptionModel(DomainModel):
 
 
 def validate_base_model(
-    name: str, cls: type[Any], base_model: type[BaseModel] = DomainModel, errors: list[str] | None = None
+    name: str, cls: Any, base_model: type[BaseModel] = DomainModel, errors: list[str] | None = None
 ) -> None:
     """Validates that the given class is not Pydantic BaseModel or its direct subclass."""
     # Instantiate errors list if not provided and avoid mutating default
@@ -1600,23 +1602,22 @@ def validate_lifecycle_change(
 
     Note: A `ValueError` will be raised when a unsafe status change is found
     """
+
+    def _check_used_by(block_model: "ProductBlockModel") -> None:
+        for used_by in filter(None, block_model.in_use_by):
+            _validate_lifecycle_change_for_product_block(used_by, block_model, status, other.description)
+
     for product_block_field, product_block_field_type in other._product_block_fields_.items():
         product_block_models = getattr(other, product_block_field)
         if is_list_type(product_block_field_type):
             for product_block_model in product_block_models:
-                used_by_generator = (used_by for used_by in product_block_model.in_use_by if used_by)
-                for used_by in used_by_generator:
-                    _validate_lifecycle_change_for_product_block(
-                        used_by, product_block_model, status, other.description
-                    )
+                _check_used_by(product_block_model)
         elif (
             is_optional_type(product_block_field_type) or is_union_type(product_block_field_type)
         ) and product_block_models is None:
             pass
         else:
-            used_by_generator = (used_by for used_by in product_block_models.in_use_by if used_by)
-            for used_by in used_by_generator:
-                _validate_lifecycle_change_for_product_block(used_by, product_block_models, status, other.description)
+            _check_used_by(product_block_models)
 
     logger.info(
         "Lifecycle validation check ok",
