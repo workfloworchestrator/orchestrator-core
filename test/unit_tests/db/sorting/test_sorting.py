@@ -31,6 +31,7 @@ from orchestrator.db.sorting.sorting import (
 
 
 def test_sorts_validate_partitions_valid_and_invalid() -> None:
+    """Fields present in the sort_fns mapping are valid; absent fields land in the invalid bucket."""
     sort_fns: dict[str, Any] = {"status": MagicMock(), "tag": MagicMock()}
     validate = generic_sorts_validate(sort_fns)
     sorts = [
@@ -46,6 +47,7 @@ def test_sorts_validate_partitions_valid_and_invalid() -> None:
 
 
 def test_sorts_validate_empty() -> None:
+    """An empty sort list produces empty valid and invalid partitions."""
     validate = generic_sorts_validate({"status": MagicMock()})
     invalid, valid = validate([])
     assert list(invalid) == []
@@ -56,6 +58,7 @@ def test_sorts_validate_empty() -> None:
 
 
 def test_apply_sorting_chains_functions() -> None:
+    """Each sort function receives the query returned by its predecessor, forming a pipeline."""
     query = MagicMock()
     q2 = MagicMock()
     q3 = MagicMock()
@@ -77,6 +80,7 @@ def test_apply_sorting_chains_functions() -> None:
     ],
 )
 def test_apply_sorting_error_calls_handler(exc_type: type) -> None:
+    """When a sort function raises ValueError, the error handler is invoked and the original query is returned."""
     query = MagicMock()
     error_handler = MagicMock()
     sort_fn = MagicMock(side_effect=exc_type("bad sort"))
@@ -89,6 +93,7 @@ def test_apply_sorting_error_calls_handler(exc_type: type) -> None:
 
 
 def test_apply_sorting_problem_detail_calls_handler() -> None:
+    """ProblemDetailException from a sort function is also caught and forwarded to the error handler."""
     from orchestrator.api.error_handling import ProblemDetailException
 
     query = MagicMock()
@@ -106,6 +111,7 @@ def test_apply_sorting_problem_detail_calls_handler() -> None:
 
 
 def test_generic_sort_valid_calls_no_error() -> None:
+    """When all requested sort fields exist, sorting succeeds without invoking the error handler."""
     query = MagicMock()
     sorted_q = MagicMock()
     sort_fn = MagicMock(return_value=sorted_q)
@@ -119,6 +125,7 @@ def test_generic_sort_valid_calls_no_error() -> None:
 
 
 def test_generic_sort_invalid_reports_valid_keys_sorted() -> None:
+    """Invalid sort fields trigger the error handler with all valid keys sorted alphabetically."""
     error_handler = MagicMock()
     sort = generic_sort({"zebra": MagicMock(), "apple": MagicMock(), "mango": MagicMock()})
     sort(MagicMock(), [Sort(field="invalid", order=SortOrder.ASC)], error_handler)
@@ -139,6 +146,7 @@ def test_generic_sort_invalid_reports_valid_keys_sorted() -> None:
     ],
 )
 def test_generic_column_sort_compiles(col_type: str, order: SortOrder, expected_fragment: str) -> None:
+    """String columns use lower() for case-insensitive ASC sorting; DESC uses raw ORDER BY DESC."""
     from sqlalchemy import Column, Integer, MetaData, String, Table, select
 
     type_map = {"String": String, "Integer": Integer}

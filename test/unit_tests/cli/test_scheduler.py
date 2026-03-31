@@ -1,5 +1,6 @@
-"""Tests for CLI scheduler commands: job listing, creation, updating, and deletion via typer CLI."""
+"""Tests for CLI scheduler commands: run, force, show-schedule, and load-initial-schedule."""
 
+import re
 from types import SimpleNamespace
 from unittest import mock
 
@@ -23,6 +24,19 @@ def _make_task(task_id: str = "task-1", name: str = "My Task", args=None, kwargs
         next_run_time=SimpleNamespace(replace=lambda **_: "2026-01-01 00:00:00"),
         trigger="interval",
     )
+
+
+# --- run ---
+
+
+def test_run_keyboard_interrupt_exits_130():
+    """KeyboardInterrupt during scheduler startup results in exit code 130."""
+    cm = mock.MagicMock()
+    cm.__enter__ = mock.MagicMock(side_effect=KeyboardInterrupt)
+    cm.__exit__ = mock.MagicMock(return_value=False)
+    with mock.patch("orchestrator.cli.scheduler.get_scheduler", return_value=cm):
+        result = runner.invoke(app, ["run"])
+    assert result.exit_code == 130
 
 
 # --- force ---
@@ -139,7 +153,12 @@ def test_show_schedule_empty():
     assert result.exit_code == 0
 
 
+def _to_ascii(line: str) -> str:
+    return line.encode("ascii", "ignore").decode("ascii").strip()
+
+
 def test_show_schedule_with_tasks():
+    """Tasks linked via the API show source 'API'; others show 'decorator'."""
     task_api = _make_task(task_id="api-task", name="API Task")
     task_dec = _make_task(task_id="dec-task", name="Decorator Task")
 
@@ -149,7 +168,9 @@ def test_show_schedule_with_tasks():
         mock.patch("orchestrator.cli.scheduler.get_all_scheduler_tasks", return_value=[task_api, task_dec]),
         mock.patch("orchestrator.schedules.service.get_linker_entries_by_schedule_ids", return_value=[linker_entry]),
     ):
-        result = runner.invoke(app, ["show-schedule"])
+        result = runner.invoke(app, ["show-schedule"], env={"COLUMNS": "300", "LINES": "200"})
     assert result.exit_code == 0
-    assert "API Task" in result.output
-    assert "Decorator Task" in result.output
+
+    output = "\n".join(_to_ascii(line) for line in result.output.splitlines())
+    assert re.search(r"api-task\s+API Task\s+API", output)
+    assert re.search(r"dec-task\s+Decorator Task\s+decorator", output)
