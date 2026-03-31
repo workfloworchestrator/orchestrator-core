@@ -13,9 +13,11 @@
 
 """Tests for range helpers: apply_range_to_statement (LIMIT/OFFSET, validation) and apply_range_to_query (offset/limit+1 logic)."""
 
+from contextlib import nullcontext
 from unittest.mock import MagicMock
 
 import pytest
+from pytest import param, raises
 from sqlalchemy import column, select, table
 
 from orchestrator.db.range.range import apply_range_to_query, apply_range_to_statement
@@ -29,28 +31,19 @@ def _make_stmt():
 
 
 @pytest.mark.parametrize(
-    "start,end",
+    "start,end,expectation",
     [
-        pytest.param(0, 10, id="zero-to-ten"),
-        pytest.param(5, 15, id="mid-range"),
-        pytest.param(0, 1, id="minimal"),
+        param(0, 10, nullcontext(), id="zero-to-ten"),
+        param(5, 15, nullcontext(), id="mid-range"),
+        param(0, 1, nullcontext(), id="minimal"),
+        param(10, 5, raises(ValueError, match="range start must be lower than end"), id="start-gt-end"),
+        param(5, 5, raises(ValueError, match="range start must be lower than end"), id="start-eq-end"),
     ],
 )
-def test_apply_range_to_statement_valid(start: int, end: int) -> None:
-    result = apply_range_to_statement(_make_stmt(), start, end)
-    assert result is not None
-
-
-@pytest.mark.parametrize(
-    "start,end",
-    [
-        pytest.param(10, 5, id="start-gt-end"),
-        pytest.param(5, 5, id="start-eq-end"),
-    ],
-)
-def test_apply_range_to_statement_invalid_raises(start: int, end: int) -> None:
-    with pytest.raises(ValueError, match="range start must be lower than end"):
-        apply_range_to_statement(_make_stmt(), start, end)
+def test_apply_range_to_statement(start: int, end: int, expectation) -> None:
+    with expectation:
+        result = apply_range_to_statement(_make_stmt(), start, end)
+        assert result is not None
 
 
 # --- apply_range_to_query ---

@@ -11,111 +11,146 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for loader utilities: _split_path, _relation_type_to_loader_func (direction→strategy mapping), and _join_attr_loaders (reduce-based chaining)."""
+"""Tests for get_query_loaders_for_model_paths: path resolution, deduplication, subpath filtering, and partial matches."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-from sqlalchemy.orm import RelationshipDirection, joinedload, selectinload, subqueryload
-from sqlalchemy.orm.strategies import SubqueryLoader
 
-from orchestrator.db.loaders import AttrLoader, _join_attr_loaders, _relation_type_to_loader_func, _split_path
+from orchestrator.db.loaders import AttrLoader, get_query_loaders_for_model_paths
 
 
-def _make_relationship(direction: RelationshipDirection, strategy=None) -> MagicMock:
-    rel = MagicMock()
-    rel.direction = direction
-    rel.strategy = strategy if strategy is not None else MagicMock(spec=object)
-    return rel
+def _make_attr_loader(name: str = "field") -> AttrLoader:
+    loader_fn = MagicMock(name=f"{name}_loader_fn")
+    loader_fn.__name__ = "selectinload"
+    attr = MagicMock(name=f"{name}_attr")
+    next_model = MagicMock(name=f"{name}_next_model")
+    return AttrLoader(loader_fn=loader_fn, attr=attr, next_model=next_model)
 
 
-def _make_attr_loader(loader_fn=None, attr=None, next_model=None) -> AttrLoader:
-    return AttrLoader(
-        loader_fn=loader_fn or MagicMock(name="loader_fn"),
-        attr=attr or MagicMock(name="attr"),
-        next_model=next_model or MagicMock(name="next_model"),
-    )
+def _make_joined_loader(result: MagicMock) -> MagicMock:
+    """Create a mock Load object that _join_attr_loaders would produce."""
+    load = MagicMock()
+    load.path = result
+    return load
 
 
-# --- _split_path ---
+@pytest.fixture()
+def _clear_model_loaders():
+    """Ensure _MODEL_LOADERS is populated via our mock, not leftover state."""
+    with patch("orchestrator.db.loaders._MODEL_LOADERS", {}):
+        yield
 
 
-@pytest.mark.parametrize(
-    "path,expected",
-    [
-        pytest.param("a", ["a"], id="single"),
-        pytest.param("a.b", ["a", "b"], id="two"),
-        pytest.param("a.b.c", ["a", "b", "c"], id="three"),
-    ],
-)
-def test_split_path(path: str, expected: list[str]) -> None:
-    assert list(_split_path(path)) == expected
+def test_empty_paths_returns_empty(_clear_model_loaders) -> None:
+    root = MagicMock()
+    with patch("orchestrator.db.loaders._lookup_attr_loaders", return_value=[]):
+        result = get_query_loaders_for_model_paths(root, [])
+    assert result == []
 
 
-# --- _relation_type_to_loader_func ---
+def test_single_level_path(_clear_model_loaders) -> None:
+    """A single-segment path like 'products' resolves to one loader."""
+    root = MagicMock()
+    loader = _make_attr_loader("products")
+
+    with patch("orchestrator.db.loaders._lookup_attr_loaders", return_value=[loader]):
+        result = get_query_loaders_for_model_paths(root, ["products"])
+
+    assert len(result) == 1
 
 
-@pytest.mark.parametrize(
-    "direction,strategy,expected_fn",
-    [
-        pytest.param(RelationshipDirection.MANYTOONE, None, joinedload, id="manytoone-joined"),
-        pytest.param(RelationshipDirection.ONETOMANY, None, selectinload, id="onetomany-selectin"),
-        pytest.param(RelationshipDirection.MANYTOMANY, None, selectinload, id="manytomany-selectin"),
-        pytest.param(
-            RelationshipDirection.ONETOMANY,
-            MagicMock(spec=SubqueryLoader),
-            subqueryload,
-            id="onetomany-subquery",
-        ),
-    ],
-)
-def test_relation_type_to_loader_func(
-    direction: RelationshipDirection, strategy: object | None, expected_fn: object
-) -> None:
-    rel = _make_relationship(direction, strategy)
-    assert _relation_type_to_loader_func(rel) is expected_fn
+def test_multi_level_path(_clear_model_loaders) -> None:
+    """A dotted path like 'products.blocks' resolves through two lookups."""
+    root = MagicMock()
+    loader_products = _make_attr_loader("products")
+    loader_blocks = _make_attr_loader("blocks")
+
+    def lookup(model, field):
+        if field == "products":
+            return [loader_products]
+        if field == "blocks":
+            return [loader_blocks]
+        return []
+
+    with patch("orchestrator.db.loaders._lookup_attr_loaders", side_effect=lookup):
+        result = get_query_loaders_for_model_paths(root, ["products.blocks"])
+
+    assert len(result) == 1
 
 
-def test_unrecognized_direction_raises() -> None:
-    rel = MagicMock()
-    rel.direction = object()
-    with pytest.raises(TypeError, match="Unrecognized relationship direction"):
-        _relation_type_to_loader_func(rel)
+def test_unknown_field_produces_no_loader(_clear_model_loaders) -> None:
+    """A path that doesn't match any relationship is silently skipped."""
+    root = MagicMock()
+
+    with patch("orchestrator.db.loaders._lookup_attr_loaders", return_value=[]):
+        result = get_query_loaders_for_model_paths(root, ["nonexistent"])
+
+    assert result == []
 
 
-# --- _join_attr_loaders ---
+def test_partial_match_stops_at_unknown_segment(_clear_model_loaders) -> None:
+    """'products.nonexistent' matches 'products' but stops at the unknown second segment."""
+    root = MagicMock()
+    loader_products = _make_attr_loader("products")
+
+    def lookup(model, field):
+        if field == "products":
+            return [loader_products]
+        return []
+
+    with patch("orchestrator.db.loaders._lookup_attr_loaders", side_effect=lookup):
+        result = get_query_loaders_for_model_paths(root, ["products.nonexistent"])
+
+    # Partial match on 'products' still produces a loader
+    assert len(result) == 1
 
 
-def test_join_attr_loaders_empty() -> None:
-    assert _join_attr_loaders([]) is None
+def test_duplicate_paths_deduplicated(_clear_model_loaders) -> None:
+    """Identical paths in input only produce one loader."""
+    root = MagicMock()
+    loader = _make_attr_loader("products")
+
+    with patch("orchestrator.db.loaders._lookup_attr_loaders", return_value=[loader]):
+        result = get_query_loaders_for_model_paths(root, ["products", "products"])
+
+    assert len(result) == 1
 
 
-def test_join_attr_loaders_single() -> None:
-    mock_attr = MagicMock()
-    mock_result = MagicMock()
-    mock_fn = MagicMock(return_value=mock_result)
-    loader = _make_attr_loader(loader_fn=mock_fn, attr=mock_attr)
-    assert _join_attr_loaders([loader]) is mock_result
-    mock_fn.assert_called_once_with(mock_attr)
+def test_subpath_filtered_when_longer_path_exists(_clear_model_loaders) -> None:
+    """'products' is skipped when 'products.blocks' already matched (longer paths are processed first)."""
+    root = MagicMock()
+    loader_products = _make_attr_loader("products")
+    loader_blocks = _make_attr_loader("blocks")
+
+    def lookup(model, field):
+        if field == "products":
+            return [loader_products]
+        if field == "blocks":
+            return [loader_blocks]
+        return []
+
+    with patch("orchestrator.db.loaders._lookup_attr_loaders", side_effect=lookup):
+        result = get_query_loaders_for_model_paths(root, ["products", "products.blocks"])
+
+    # Only the longer path 'products.blocks' should produce a loader
+    assert len(result) == 1
 
 
-def test_join_attr_loaders_chaining() -> None:
-    first_load = MagicMock()
-    chained = MagicMock()
+def test_independent_paths_both_included(_clear_model_loaders) -> None:
+    """Two unrelated paths like 'products' and 'workflows' each get their own loader."""
+    root = MagicMock()
+    loader_products = _make_attr_loader("products")
+    loader_workflows = _make_attr_loader("workflows")
 
-    first_fn = MagicMock(return_value=first_load)
-    first_fn.__name__ = "selectinload"
+    def lookup(model, field):
+        if field == "products":
+            return [loader_products]
+        if field == "workflows":
+            return [loader_workflows]
+        return []
 
-    second_fn = MagicMock()
-    second_fn.__name__ = "joinedload"
+    with patch("orchestrator.db.loaders._lookup_attr_loaders", side_effect=lookup):
+        result = get_query_loaders_for_model_paths(root, ["products", "workflows"])
 
-    second_attr = MagicMock()
-    first_load.joinedload = MagicMock(return_value=chained)
-
-    loaders = [
-        _make_attr_loader(loader_fn=first_fn, attr=MagicMock()),
-        _make_attr_loader(loader_fn=second_fn, attr=second_attr),
-    ]
-
-    assert _join_attr_loaders(loaders) is chained
-    first_load.joinedload.assert_called_once_with(second_attr)
+    assert len(result) == 2
