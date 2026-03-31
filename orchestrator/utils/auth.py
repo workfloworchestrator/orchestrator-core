@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection
 from typing import Protocol, TypeAlias, TypeVar, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict
@@ -18,7 +18,11 @@ class AuthUserModel(Protocol):
     identity backends.
     """
 
-    user_name: str
+    # mypy really hates `user_name: str`, because this is a read-only property on OIDCUserModel.
+    # Using a read-only property on the Protocol should still match implementations with a read/write attribute instead.
+    @property
+    def user_name(self) -> str:
+        return ""
 
     # TODO should I also enforce a "name"? I think things might break otherwise
     # e.g. settings.py::set_status does
@@ -35,14 +39,27 @@ class AuthStep(Protocol):
 
 
 @runtime_checkable
+class AuthStepList(Collection[AuthStep], Protocol):
+    """This models a minimal Protocol for a StepList."""
+
+    def map(self, f: Callable) -> AuthStepList:
+        pass
+
+
+@runtime_checkable
 class AuthWorkflow(Protocol):
     """This Protocol models the Workflow data the core provides for authorization."""
 
     name: str
     description: str
     target: Target
-    # Here be dragons: StepList isn't just a list[Step]. It adds extra machinery.
-    steps: list[AuthStep]
+
+    # Here be dragons! First, StepList isn't just a list[Step]. It adds extra machinery and typing,
+    # and it confuses static type checkers. So the following will make mypy barf:
+    # `steps: list[AuthStep]`, `steps: collections.abc.Collection[AuthStep]`, and even `steps: AuthStepList`.
+    @property
+    def steps(self) -> AuthStepList:
+        pass
 
 
 class AuthContext(BaseModel):
