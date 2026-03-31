@@ -18,6 +18,7 @@ repos:
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --show-fixes]
+        exclude: vulture_whitelist\.py
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -67,12 +68,23 @@ repos:
         args:
           - --no-warn-unused-ignores
           - --allow-untyped-decorators
-        exclude: (test/.*|migrations/.*)
+        exclude: (test/.*|migrations/.*|vulture_whitelist\.py)
+
+  - repo: local
+    hooks:
+      - id: vulture
+        name: vulture
+        language: system
+        entry: "uv run vulture orchestrator vulture_whitelist.py --min-confidence 90"
+        types: [python]
+        require_serial: true
+        pass_filenames: false
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
     hooks:
       - id: python-check-blanket-noqa
+        exclude: vulture_whitelist\.py
       - id: python-use-type-annotations
       - id: python-check-mock-methods
       - id: rst-backticks
