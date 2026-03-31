@@ -130,7 +130,7 @@ def test_deprecated_description_emits_warning(decorator_factory):
 
     with pytest.warns(DeprecationWarning):
 
-        @decorator_factory(description)  # type: ignore[misc]
+        @decorator_factory(description)  # type: ignore[untyped-decorator]
         def test_workflow() -> StepList:
             return begin >> done
 
@@ -145,7 +145,7 @@ def test_empty_description_does_not_emit_warning(decorator_factory):
     with warnings.catch_warnings(record=True) as warnings_record:
         warnings.simplefilter("always")
 
-        @decorator_factory("")  # type: ignore[misc]
+        @decorator_factory("")  # type: ignore[untyped-decorator]
         def test_workflow() -> StepList:
             return begin >> done
 
