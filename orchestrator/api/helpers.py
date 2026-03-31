@@ -16,18 +16,15 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import datetime
 from http import HTTPStatus
-from shlex import shlex
 from typing import Any
 from uuid import UUID
 
-from more_itertools import chunked
 from sqlalchemy import Select, func, select
-from sqlalchemy.sql import expression
 from starlette.responses import Response
 from structlog import get_logger
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.db import ProductTable, SubscriptionTable, db
+from orchestrator.db import db
 from orchestrator.db.models import SubscriptionSearchView
 from orchestrator.db.range.range import Selectable, apply_range_to_statement
 from orchestrator.domain.base import SubscriptionModel
@@ -38,40 +35,6 @@ logger = get_logger(__name__)
 
 def _quote_if_kv_pair(token: str) -> str:
     return f'"{token}"' if ":" in token else token
-
-
-def _process_text_query(q: str) -> str:
-    quote = '"'
-    if q.count(quote) % 2 == 1:
-        q += quote  # Add missing closing quote
-    lex = shlex(q)
-    lex.whitespace_split = True
-    lex.quotes = '"'
-    try:
-        return " ".join([_quote_if_kv_pair(token) for token in lex])
-    except ValueError:
-        logger.debug("Error parsing text query.")
-        return q
-
-
-def _add_sort_to_query(query: Select, sort: list[str] | None) -> Select:
-    if sort is None or len(sort) < 2:
-        return query
-
-    for item in chunked(sort, 2):
-        if item and len(item) == 2:
-            order_by_expr = expression.desc if item[1].upper() == "DESC" else expression.asc
-            if item[0] in ["product", "tag"]:
-                field = "name" if item[0] == "product" else "tag"
-                col = ProductTable.__dict__.get(field)
-            else:
-                col = SubscriptionTable.__dict__.get(item[0])
-
-            if col:
-                query = query.order_by(order_by_expr(col))
-            else:
-                raise_status(HTTPStatus.BAD_REQUEST, f"Unable to sort on unknown field: {item[0]}")
-    return query
 
 
 def add_response_range(

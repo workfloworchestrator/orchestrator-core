@@ -141,6 +141,7 @@ dev = [
     "types-toml>=0.10.8.20240310",
     "types-ujson>=5.10.0.20250326",
     "urllib3-mock>=0.3.3",
+    "vulture>=2.16",
     "watchdog>=6.0.0",
 ]
 
