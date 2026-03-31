@@ -136,7 +136,7 @@ def to_serializable(o: Any) -> Any:
         return str(o)
     if isinstance(o, datetime):
         return isoformat(o)
-    if is_dataclass(o):
+    if is_dataclass(o) and not isinstance(o, type):
         return asdict(o)
     if hasattr(o, "__json__"):
         return o.__json__()
