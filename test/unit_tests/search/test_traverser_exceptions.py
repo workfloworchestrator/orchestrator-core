@@ -139,7 +139,7 @@ def test_traverse_handles_computed_property_exception(caplog):
     class TestModel(BaseModel):
         normal_field: str = "test_value"
 
-        @computed_field  # type:ignore[misc]
+        @computed_field  # type: ignore[untyped-decorator]
         @property
         def failing_computed_field(self) -> str:
             raise AssertionError("Computed property failed")

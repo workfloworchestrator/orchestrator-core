@@ -212,7 +212,7 @@ class TestStructuredRetrieval:
             ),
         )
 
-        subscription_15_uuid: UUID = indexed_subscriptions[15].subscription_id  # type: ignore
+        subscription_15_uuid: UUID = indexed_subscriptions[15].subscription_id
         response = await engine.execute_search(
             query, db.session, cursor=PageCursor(score=0, id=str(subscription_15_uuid), query_id=subscription_15_uuid)
         )

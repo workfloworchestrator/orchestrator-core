@@ -9,7 +9,7 @@ from orchestrator.domain.context_cache import cache_subscription_models
 
 def test_serializable_property():
     class DerivedDomainModel(DomainModel):
-        @computed_field  # type: ignore[misc]
+        @computed_field  # type: ignore[untyped-decorator]
         @property
         def double_int_field(self) -> int:
             # This property is serialized
@@ -29,12 +29,12 @@ def test_serializable_property():
 
 def test_inherited_serializable_property():
     class ProvisioningDomainModel(DomainModel):
-        @computed_field  # type: ignore[misc]
+        @computed_field  # type: ignore[untyped-decorator]
         @property
         def double_int_field(self) -> int:
             return 2 * self.int_field
 
-        @computed_field  # type: ignore[misc]
+        @computed_field  # type: ignore[untyped-decorator]
         @property
         def triple_int_field(self) -> int:
             return 3 * self.int_field
@@ -42,7 +42,7 @@ def test_inherited_serializable_property():
         int_field: int
 
     class ActiveDomainModel(ProvisioningDomainModel):
-        @computed_field  # type: ignore[misc]
+        @computed_field  # type: ignore[untyped-decorator]
         @property
         def triple_int_field(self) -> int:
             # override the base property
@@ -67,7 +67,7 @@ def test_nested_serializable_property():
     """Ensure that nested serializable property's are included in the serialized model."""
 
     class DerivedDomainModel(DomainModel):
-        @computed_field  # type: ignore[misc]
+        @computed_field  # type: ignore[untyped-decorator]
         @property
         def double_int_field(self) -> int:
             # This property is serialized

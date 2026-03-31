@@ -27,7 +27,7 @@ def test_product_block_one(test_product_sub_block_one):
         list_field: list[int] = Field(default_factory=list)
         enum_field: DummyEnum | None = None
 
-        @computed_field  # type: ignore[misc]
+        @computed_field  # type: ignore[untyped-decorator]
         @property
         def title(self) -> str:
             return f"{self.tag} ProductBlockOneForTestInactive int_field={self.int_field}"
