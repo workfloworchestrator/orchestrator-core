@@ -83,6 +83,14 @@ class StaleDataError(ValueError):
         super().__init__(message)
 
 
+class ProcessAlreadyRunningError(Exception):
+    """Raised when a process cannot be started because it is already running or locked by another worker."""
+
+    def __init__(self, process_id: object, reason: str = "already running") -> None:
+        self.process_id = process_id
+        super().__init__(f"Process {process_id} is {reason}")
+
+
 class StartPredicateError(Exception):
     """Raised when a workflow's start predicate returns False, preventing the workflow from starting."""
 

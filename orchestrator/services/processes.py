@@ -325,7 +325,6 @@ def _db_log_step(
         "_db_log_step called",
         process_id=str(stat.process_id),
         step_name=step.name,
-        commit_disabled=db.session.info.get("disabled", False),
     )
 
     p = _update_process(stat.process_id, step, process_state)
@@ -333,22 +332,11 @@ def _db_log_step(
 
     db.session.add(p)
     db.session.add(current_step)
-    if db.session.info.get("disabled", False):
-        # We're inside a transactional() context (e.g., step_group substep).
-        # Commit is disabled — use a nested transaction (SAVEPOINT) so changes
-        # are immediately visible within this transaction without a full commit.
-        logger.debug(
-            "Commit disabled in _db_log_step, flushing via savepoint",
-            process_id=str(stat.process_id),
-        )
-        with db.session.begin_nested():
-            db.session.flush()
-    else:
-        try:
-            db.session.commit()
-        except BaseException:
-            db.session.rollback()
-            raise
+    try:
+        db.session.commit()
+    except BaseException:
+        db.session.rollback()
+        raise
 
     if broadcast_func:
         broadcast_func(p.process_id)
