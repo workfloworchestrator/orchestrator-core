@@ -331,3 +331,4 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
         # Extra safeguard rollback. If the commit failed there is still a failed transaction open.
         # BTW: without a transaction in progress this method is a pass-through.
         db.session.rollback()
+        db.session.close()
