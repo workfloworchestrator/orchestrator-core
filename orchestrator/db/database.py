@@ -167,7 +167,7 @@ class WrappedSession(Session):
 
 
 ENGINE_ARGUMENTS = {
-    "connect_args": {"connect_timeout": 10, "options": "-c timezone=UTC -c idle_in_transaction_session_timeout=120000"},
+    "connect_args": {"connect_timeout": 10, "options": "-c timezone=UTC"},
     "pool_pre_ping": True,
     "pool_size": 60,
     "json_serializer": json_dumps,
@@ -232,28 +232,12 @@ class Database:
 
         @event.listens_for(self.engine, "checkout")
         def _on_checkout(dbapi_connection: Any, connection_record: ConnectionPoolEntry, connection_proxy: Any) -> None:
-            try:
-                backend_pid = getattr(getattr(dbapi_connection, "info", None), "backend_pid", None)
-            except Exception:
-                backend_pid = None
-
             tx_status = getattr(getattr(dbapi_connection, "info", None), "transaction_status", None)
-
-            from structlog.contextvars import get_contextvars
-            ctx = get_contextvars()
-
-            log_kwargs: dict = {
-                "pg_backend_pid": backend_pid,
-                "workflow_name": ctx.get("workflow_name"),
-                "process_id": ctx.get("process_id"),
-                "step_func": ctx.get("func"),
-            }
-
             if tx_status is not None and tx_status != TransactionStatus.IDLE:
-                log_kwargs["transaction_status"] = tx_status.name if hasattr(tx_status, "name") else str(tx_status)
-                logger.warning("Connection checked out from pool with active transaction", **log_kwargs)
-            else:
-                logger.debug("Connection checked out from pool", **log_kwargs)
+                logger.warning(
+                    "Connection checked out from pool with active transaction",
+                    transaction_status=tx_status.name if hasattr(tx_status, "name") else str(tx_status),
+                )
 
     def _scopefunc(self) -> str | None:
         return self.request_context.get()
@@ -335,21 +319,13 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
     It will roll back in case of error, commit otherwise. It will also disable the `commit()` method
     on `BaseModel.session` for the time `transactional` is in effect.
     """
-    tx_start = time.monotonic()
     try:
         with disable_commit(db, log):
             yield
-        elapsed = time.monotonic() - tx_start
-        if elapsed > 5.0:
-            log.warning(
-                "Slow transaction: step held DB transaction open for extended period",
-                elapsed_seconds=round(elapsed, 3),
-            )
-        log.debug("Committing transaction.", elapsed_seconds=round(elapsed, 3))
+        log.debug("Committing transaction.")
         db.session.commit()
     except Exception:
-        elapsed = time.monotonic() - tx_start
-        log.warning("Rolling back transaction.", elapsed_seconds=round(elapsed, 3))
+        log.warning("Rolling back transaction.")
         raise
     finally:
         # Extra safeguard rollback. If the commit failed there is still a failed transaction open.

@@ -18,7 +18,6 @@ import contextvars
 import functools
 import inspect
 import secrets
-import time
 import warnings
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -1542,22 +1541,8 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
                 )
                 return process
 
-            # Close the implicit transaction opened by get_engine_settings_table() above.
-            # With psycopg3's autobegin, any SELECT opens a transaction immediately. If we
-            # leave it open, the connection is "idle in transaction" for the entire step body
-            # — including any slow external calls within the step.
-            db.session.rollback()
-
             process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
-            _step_wall_start = time.monotonic()
             step_result_process = process.execute_step(step)
-            _step_wall_elapsed = time.monotonic() - _step_wall_start
-            if _step_wall_elapsed > 10.0:
-                consolelogger.warning(
-                    "Step exceeded duration threshold",
-                    step_name=step.name,
-                    elapsed_seconds=round(_step_wall_elapsed, 3),
-                )
         except Exception as e:
             consolelogger.error("An exception occurred while executing the workflow step.")
             step_result_process = Failed(e)
