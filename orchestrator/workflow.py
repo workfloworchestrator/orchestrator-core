@@ -1541,6 +1541,11 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
                 )
                 return process
 
+            # Close the implicit transaction opened by psycopg3's autobegin on the SELECT above.
+            # Without this, the connection stays in "idle in transaction" state when the step's
+            # transactional() scope begins, causing locks to be held for the entire step duration.
+            db.session.rollback()
+
             process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
             step_result_process = process.execute_step(step)
         except Exception as e:
