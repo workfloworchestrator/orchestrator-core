@@ -70,9 +70,12 @@ jobs:
         run: |
           uv run pytest test/integration_tests/search -v -rs
 
+      - name: Install codecov dependencies
+        run: apt-get update && apt-get install -y git curl gpg
+
       - name: "Upload coverage to Codecov"
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v6
         with:
-          token: ${{ secrets.CODECOV_TOKEN }} # gives error 'Could not find a repository associated with upload token'
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
           files: ./coverage.xml
