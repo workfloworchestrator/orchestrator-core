@@ -15,9 +15,7 @@ from functools import partial
 from uuid import UUID
 
 import structlog
-from psycopg import errors as psycopg_errors
 from sqlalchemy import select
-from sqlalchemy.exc import OperationalError
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import ProcessTable, db
@@ -47,41 +45,29 @@ logger = structlog.get_logger(__name__)
 
 
 def _set_process_status_running(process_id: UUID) -> None:
-    """Set the process status to RUNNING to prevent it from being picked up by multiple workers.
+    """Set the process status to RUNNING to prevent it from being picked up by mutliple workers.
 
-    Uses SELECT FOR UPDATE NOWAIT wrapped in a SAVEPOINT so that lock contention does not abort
-    an outer transaction (e.g. when called from within an active ``@step`` transaction).  If the
-    row is already locked by another session, ``psycopg.errors.LockNotAvailable`` is raised by the
-    driver, wrapped in ``sqlalchemy.exc.OperationalError``; we catch that, roll back the savepoint,
-    and re-raise a descriptive exception without touching the outer transaction.
+    uses with_for_update to lock the subscription in a transaction, preventing other changes.
+    rolls back transation and raises an exception when its already on status RUNNING to prevent worker from running an already running process
 
     Args:
-        process_id: Process ID to fetch process from DB.
-
-    Raises:
-        ValueError: When the process row cannot be found.
-        ProcessAlreadyRunningError: When the process is already in RUNNING status or locked by another worker.
+        process_id: Process ID to fetch process from DB
     """
-    stmt = select(ProcessTable).where(ProcessTable.process_id == process_id).with_for_update(nowait=True)
+    stmt = select(ProcessTable).where(ProcessTable.process_id == process_id).with_for_update()
 
-    try:
-        with db.session.begin_nested():
-            result = db.session.execute(stmt)
-            locked_process = result.scalar_one_or_none()
+    result = db.session.execute(stmt)
+    locked_process = result.scalar_one_or_none()
 
-            if not locked_process:
-                raise ValueError(f"Process not found: {process_id}")
+    if not locked_process:
+        db.session.rollback()
+        raise ValueError(f"Process not found: {process_id}")
 
-            if locked_process.last_status is not ProcessStatus.RUNNING:
-                locked_process.last_status = ProcessStatus.RUNNING
-            else:
-                raise ProcessAlreadyRunningError(process_id)
-    except OperationalError as e:
-        if isinstance(e.orig, psycopg_errors.LockNotAvailable):
-            raise ProcessAlreadyRunningError(process_id, reason="already being executed by another worker") from e
-        raise
-    else:
+    if locked_process.last_status is not ProcessStatus.RUNNING:
+        locked_process.last_status = ProcessStatus.RUNNING
         db.session.commit()
+    else:
+        db.session.rollback()
+        raise Exception("Process is already running")
 
 
 def prepare_start(
