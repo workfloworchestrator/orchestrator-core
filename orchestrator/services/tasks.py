@@ -70,9 +70,6 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     def start_process(process_id: UUID, user: str) -> UUID | None:
         try:
-            # Setup a database scope to ensure the worker can recover from failed transactions.
-            # With psycopg3, Session.close() does NOT rollback, so without a scope the connection
-            # can be returned to the pool in "idle in transaction" state, causing lock contention.
             with db.database_scope():
                 process = _get_process(process_id)
                 pstat = load_process(process)

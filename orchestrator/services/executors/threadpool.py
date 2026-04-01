@@ -83,10 +83,9 @@ def thread_start_process(
     input_data = retrieve_input_state(pstat.process_id, "initial_state", False)
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
 
-    # Close the implicit transaction opened by psycopg3's autobegin on the SELECT in
-    # retrieve_input_state(). Without this, the connection stays in "idle in transaction"
-    # state for the entire duration of _run_process_async() (which runs synchronously
-    # in Worker executor mode), causing lock contention.
+    # Close the implicit transaction opened by psycopg3's autobegin on the SELECTs above.
+    # Without this, the connection stays in "idle in transaction" state for the entire
+    # duration of _run_process_async(), causing lock contention.
     db.session.rollback()
 
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)

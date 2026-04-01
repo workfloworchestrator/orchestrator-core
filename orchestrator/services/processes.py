@@ -330,6 +330,12 @@ def _db_log_step(
     p = _update_process(stat.process_id, step, process_state)
     current_step = _get_current_step_to_update(stat, p, step, process_state)
 
+    # Capture the state before commit, because commit() expires all ORM attributes.
+    # With psycopg3, accessing current_step.state after commit would trigger a lazy-load
+    # SELECT that opens a new autobegin transaction, leaving the connection in
+    # "idle in transaction" state until the next explicit rollback.
+    step_state = current_step.state
+
     db.session.add(p)
     db.session.add(current_step)
     try:
@@ -341,8 +347,8 @@ def _db_log_step(
     if broadcast_func:
         broadcast_func(p.process_id)
 
-    # Return the state as stored in the database
-    return process_state.__class__(current_step.state)
+    # Return the state as captured before commit — no lazy-load needed
+    return process_state.__class__(step_state)
 
 
 def safe_logstep(
