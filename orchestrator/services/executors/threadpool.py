@@ -15,11 +15,11 @@ from functools import partial
 from uuid import UUID
 
 import structlog
+from pydantic_forms.types import State
 from sqlalchemy import select
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import ProcessTable, db
-from orchestrator.utils.errors import ProcessAlreadyRunningError
 from orchestrator.services.input_state import InputType, retrieve_input_state
 from orchestrator.services.processes import (
     RESUME_WORKFLOW_REMOVED_ERROR_MSG,
@@ -38,7 +38,6 @@ from orchestrator.workflow import (
     runwf,
 )
 from orchestrator.workflows.removed_workflow import removed_workflow
-from pydantic_forms.types import State
 
 logger = structlog.get_logger(__name__)
 
