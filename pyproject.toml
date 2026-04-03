@@ -45,7 +45,7 @@ dependencies = [
     "fastapi-etag==0.4.0",
     "itsdangerous>=2.2.0",
     "jinja2==3.1.6",
-    "more-itertools~=10.8.0",
+    "more-itertools~=11.0.1",
     "nwa-stdlib~=1.11.0",
     "oauth2-lib>=2.6.1",
     "orjson==3.11.8",
