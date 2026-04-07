@@ -12,6 +12,8 @@ from sqlalchemy import select
 
 from orchestrator.db import ProcessTable, WorkflowTable, db
 from orchestrator.services.tasks import (
+    EXECUTE_PARALLEL_BRANCH,
+    EXECUTE_PARALLEL_BRANCH_WORKFLOW,
     NEW_TASK,
     NEW_WORKFLOW,
     RESUME_TASK,
@@ -175,6 +177,8 @@ def celery_config():
             NEW_WORKFLOW: {"queue": "test_workflows"},
             RESUME_TASK: {"queue": "test_tasks"},
             RESUME_WORKFLOW: {"queue": "test_workflows"},
+            EXECUTE_PARALLEL_BRANCH: {"queue": "test_tasks"},
+            EXECUTE_PARALLEL_BRANCH_WORKFLOW: {"queue": "test_workflows"},
         },
         "worker_prefetch_multiplier": 1,
         "worker_max_tasks_per_child": 10,  # Increased for better performance
@@ -234,6 +238,40 @@ def register_celery_tasks(celery_session_app):
         return f"Resumed workflow {process_id}"
 
     tasks[RESUME_WORKFLOW] = resume_workflow
+
+    @celery_session_app.task(name=EXECUTE_PARALLEL_BRANCH)
+    def execute_parallel_branch(*, process_id, branch_index, fork_step_id, initial_state, user="test"):
+        from uuid import UUID
+
+        from orchestrator.services.parallel import run_worker_branch
+
+        run_worker_branch(
+            process_id=UUID(process_id) if isinstance(process_id, str) else process_id,
+            branch_index=branch_index,
+            fork_step_id=UUID(fork_step_id) if isinstance(fork_step_id, str) else fork_step_id,
+            initial_state=initial_state,
+            user=user,
+        )
+        return f"Executed branch {branch_index} of {process_id}"
+
+    tasks[EXECUTE_PARALLEL_BRANCH] = execute_parallel_branch
+
+    @celery_session_app.task(name=EXECUTE_PARALLEL_BRANCH_WORKFLOW)
+    def execute_parallel_branch_workflow(*, process_id, branch_index, fork_step_id, initial_state, user="test"):
+        from uuid import UUID
+
+        from orchestrator.services.parallel import run_worker_branch
+
+        run_worker_branch(
+            process_id=UUID(process_id) if isinstance(process_id, str) else process_id,
+            branch_index=branch_index,
+            fork_step_id=UUID(fork_step_id) if isinstance(fork_step_id, str) else fork_step_id,
+            initial_state=initial_state,
+            user=user,
+        )
+        return f"Executed branch {branch_index} of {process_id}"
+
+    tasks[EXECUTE_PARALLEL_BRANCH_WORKFLOW] = execute_parallel_branch_workflow
 
     return tasks
 

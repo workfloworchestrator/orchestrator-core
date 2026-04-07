@@ -41,6 +41,9 @@ class ProcessStepType:
     commit_hash: strawberry.auto
     state: JSON | None
     state_delta: JSON | None
+    parallel_total_branches: strawberry.auto
+    parallel_completed_count: strawberry.auto
+    child_steps: list[Annotated["ProcessStepType", strawberry.lazy(".process")]] | None = None
 
 
 @strawberry.experimental.pydantic.type(model=ProcessSchema, directives=federation_key_directives)

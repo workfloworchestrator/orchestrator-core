@@ -185,6 +185,67 @@ class ProcessStepTable(BaseModel):
     started_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
     commit_hash = mapped_column(String(40), nullable=True, default=GIT_COMMIT_HASH)
 
+    # Parallel join tracking (only set on fork steps)
+    parallel_total_branches = mapped_column(Integer(), nullable=True)
+    parallel_completed_count = mapped_column(Integer(), nullable=True, server_default=text("0"))
+
+    # Relationships for parallel branch steps
+    child_step_relations: Mapped[list["ProcessStepRelationTable"]] = relationship(
+        "ProcessStepRelationTable",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="parent_step",
+        foreign_keys="[ProcessStepRelationTable.parent_step_id]",
+        order_by="ProcessStepRelationTable.order_id",
+    )
+    parent_step_relations: Mapped[list["ProcessStepRelationTable"]] = relationship(
+        "ProcessStepRelationTable",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="child_step",
+        foreign_keys="[ProcessStepRelationTable.child_step_id]",
+    )
+
+    child_steps = association_proxy("child_step_relations", "child_step")
+
+
+class ProcessStepRelationTable(BaseModel):
+    __tablename__ = "process_step_relations"
+
+    parent_step_id = mapped_column(
+        UUIDType,
+        ForeignKey("process_steps.stepid", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    child_step_id = mapped_column(
+        UUIDType,
+        ForeignKey("process_steps.stepid", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    order_id = mapped_column(Integer(), primary_key=True)
+    branch_index = mapped_column(Integer(), nullable=False)
+    seed_state = mapped_column(pg.JSONB(none_as_null=True), nullable=True)
+
+    parent_step: Mapped["ProcessStepTable"] = relationship(
+        "ProcessStepTable",
+        back_populates="child_step_relations",
+        foreign_keys=[parent_step_id],
+    )
+    child_step: Mapped["ProcessStepTable"] = relationship(
+        "ProcessStepTable",
+        back_populates="parent_step_relations",
+        foreign_keys=[child_step_id],
+    )
+
+
+process_step_relation_index = Index(
+    "process_step_relation_p_c_o_ix",
+    ProcessStepRelationTable.parent_step_id,
+    ProcessStepRelationTable.child_step_id,
+    ProcessStepRelationTable.order_id,
+    unique=True,
+)
+
 
 class ProcessSubscriptionTable(BaseModel):
     __tablename__ = "processes_subscriptions"

@@ -98,6 +98,10 @@ For `@modify_workflow`, `@validate_workflow` and `@terminate_workflow` the `subs
 
 Information about all usable step decorators can be found on [the architecture page on workflows](../architecture/application/workflow.md#workflow-steps).
 
+#### Parallel execution
+
+Steps that are independent of each other can be executed concurrently using the `|` operator or the `parallel()` / `foreach_parallel()` functions. For details and examples, see [Parallel Steps](../architecture/application/workflow.md#parallel-steps).
+
 ## Register workflows
 
 To make workflows available in the orchestrator, they must be registered in two stages:
