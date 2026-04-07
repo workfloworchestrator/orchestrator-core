@@ -67,7 +67,7 @@ dependencies = [
     "structlog>=25.4.0",
     "tabulate==0.10.0",
     "typer==0.24.1",
-    "uvicorn[standard]~=0.43.0",
+    "uvicorn[standard]~=0.44.0",
 ]
 
 [project.urls]
