@@ -156,7 +156,7 @@ CUSTOMER_ID: str = "2f47f65a-0911-e511-80d0-005056956c1a"
 
 CLI_OPT_MONITOR_SQLALCHEMY = "--monitor-sqlalchemy"
 
-DEFAULT_DATABASE_URI = "postgresql://nwa:nwa@localhost/orchestrator-core-test"
+DEFAULT_DATABASE_URI = "postgresql+psycopg://nwa:nwa@localhost/orchestrator-core-test"
 
 
 def pytest_addoption(parser):
@@ -258,11 +258,9 @@ def database(db_uri):
         url = url.set(database="postgres")
     else:
         url.database = "postgres"
-    engine = create_engine(url)
+    engine = create_engine(url, isolation_level="AUTOCOMMIT")
     with closing(engine.connect()) as conn:
-        conn.execute(text("COMMIT;"))
         conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
-        conn.execute(text("COMMIT;"))
         conn.execute(
             text(f'CREATE DATABASE "{db_to_create}" LOCALE_PROVIDER icu ICU_LOCALE "en-US" TEMPLATE template0;')
         )
@@ -279,7 +277,6 @@ def database(db_uri):
 
         # Force disconnect all sessions from the database
         with closing(engine.connect()) as conn:
-            conn.execute(text("COMMIT;"))
             conn.execute(
                 text(
                     "SELECT pg_terminate_backend(pid)"
@@ -289,7 +286,6 @@ def database(db_uri):
                 ),
                 {"dbname": db_to_create},
             )
-            conn.execute(text("COMMIT;"))
             # Now try to drop the database
             conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
 
