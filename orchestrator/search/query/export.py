@@ -19,9 +19,9 @@ from sqlalchemy.orm import selectinload
 from orchestrator.db import (
     ProcessTable,
     ProductTable,
-    SubscriptionTable,
     WorkflowTable,
     db,
+    subscription_table_class,
 )
 from orchestrator.search.core.types import EntityType
 
@@ -37,22 +37,23 @@ def fetch_subscription_export_data(entity_ids: list[str]) -> list[dict]:
         subscription_id, description, status, insync, start_date, end_date,
         note, product_name, tag, product_type, customer_id
     """
+    table = subscription_table_class()
     stmt = (
         select(
-            SubscriptionTable.subscription_id,
-            SubscriptionTable.description,
-            SubscriptionTable.status,
-            SubscriptionTable.insync,
-            SubscriptionTable.start_date,
-            SubscriptionTable.end_date,
-            SubscriptionTable.note,
-            SubscriptionTable.customer_id,
+            table.subscription_id,
+            table.description,
+            table.status,
+            table.insync,
+            table.start_date,
+            table.end_date,
+            table.note,
+            table.customer_id,
             ProductTable.name.label("product_name"),
             ProductTable.tag,
             ProductTable.product_type,
         )
-        .join(ProductTable, SubscriptionTable.product_id == ProductTable.product_id)
-        .filter(SubscriptionTable.subscription_id.in_([UUID(sid) for sid in entity_ids]))
+        .join(ProductTable, table.product_id == ProductTable.product_id)
+        .filter(table.subscription_id.in_([UUID(sid) for sid in entity_ids]))
     )
 
     rows = db.session.execute(stmt).all()

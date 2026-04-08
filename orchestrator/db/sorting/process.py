@@ -4,7 +4,13 @@ from sqlalchemy import Column, Select
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql import expression
 
-from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
+from orchestrator.db import (
+    ProcessSubscriptionTable,
+    ProcessTable,
+    ProductTable,
+    WorkflowTable,
+    subscription_table_class,
+)
 from orchestrator.db.filters import create_memoized_field_list
 from orchestrator.db.sorting import QueryType, SortOrder, generic_column_sort, generic_sort
 from orchestrator.utils.helpers import to_camel
@@ -39,9 +45,11 @@ def generic_process_relation_sort(
     return sort_function
 
 
+_SubscriptionTable = subscription_table_class()
+
 PROCESS_PRODUCT_SORT = {
     to_camel(key if "product" in key else f"product_{key}"): generic_process_relation_sort(
-        value, [ProcessSubscriptionTable, SubscriptionTable, ProductTable]
+        value, [ProcessSubscriptionTable, _SubscriptionTable, ProductTable]
     )
     for key, value in inspect(ProductTable).columns.items()
 }
@@ -55,7 +63,7 @@ PROCESS_SORT_FUNCTIONS_BY_COLUMN = (
         "workflowName": generic_process_relation_sort(WorkflowTable.name, [WorkflowTable]),
         "workflowTarget": generic_process_relation_sort(WorkflowTable.target, [WorkflowTable]),
         "subscriptions": generic_process_relation_sort(
-            SubscriptionTable.description, [ProcessSubscriptionTable, SubscriptionTable]
+            _SubscriptionTable.description, [ProcessSubscriptionTable, _SubscriptionTable]
         ),
     }
 )

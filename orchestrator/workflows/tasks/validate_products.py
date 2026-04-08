@@ -20,7 +20,13 @@ from sqlalchemy import not_, select
 from sqlalchemy.orm import joinedload
 
 import orchestrator.workflows
-from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, WorkflowTable, db
+from orchestrator.db import (
+    FixedInputTable,
+    ProductTable,
+    WorkflowTable,
+    db,
+    subscription_table_class,
+)
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services import products
 from orchestrator.services.products import get_products
@@ -171,7 +177,7 @@ def check_db_fixed_input_config() -> State:
 
 @step("Check subscription models")
 def check_subscription_models() -> State:
-    subscriptions = db.session.scalars(select(SubscriptionTable))
+    subscriptions = db.session.scalars(select(subscription_table_class()))
     failures: dict[str, Any] = {}
     for subscription in subscriptions:
         try:

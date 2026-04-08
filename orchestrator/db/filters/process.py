@@ -16,7 +16,13 @@ from uuid import UUID
 import structlog
 from sqlalchemy import BinaryExpression, ColumnElement, false, select
 
-from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
+from orchestrator.db import (
+    ProcessSubscriptionTable,
+    ProcessTable,
+    ProductTable,
+    WorkflowTable,
+    subscription_table_class,
+)
 from orchestrator.db.filters import create_memoized_field_list, generic_filter_from_clauses
 from orchestrator.db.filters.search_filters import (
     default_inferred_column_clauses,
@@ -34,9 +40,10 @@ def make_product_clause(filter_generator: WhereCondGenerator) -> WhereCondGenera
     """The passed filter_generator takes a Node and returns a where clause acting on a ProductTable column."""
 
     def product_clause(node: Node) -> BinaryExpression:
+        table = subscription_table_class()
         process_subscriptions = (
             select(ProcessSubscriptionTable.process_id)
-            .join(SubscriptionTable)
+            .join(table)
             .join(ProductTable)
             .where(filter_generator(node))
             .scalar_subquery()
@@ -54,10 +61,11 @@ def customer_clause(node: Node) -> BinaryExpression[bool] | ColumnElement[bool]:
         # Not a valid uuid, skip matching with customer_id
         return false()
 
+    table = subscription_table_class()
     process_subscriptions = (
         select(ProcessSubscriptionTable.process_id)
-        .join(SubscriptionTable)
-        .where(SubscriptionTable.customer_id == customer_uuid)
+        .join(table)
+        .where(table.customer_id == customer_uuid)
         .scalar_subquery()
     )
     return ProcessTable.process_id.in_(process_subscriptions)

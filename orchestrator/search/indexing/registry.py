@@ -21,8 +21,8 @@ from sqlalchemy.sql import Select
 from orchestrator.db import (
     ProcessTable,
     ProductTable,
-    SubscriptionTable,
     WorkflowTable,
+    subscription_table_class,
 )
 from orchestrator.db.database import BaseModel
 from orchestrator.search.core.types import EntityType, ExtractedField
@@ -96,7 +96,7 @@ class WorkflowConfig(EntityConfig[WorkflowTable]):
 ENTITY_CONFIG_REGISTRY: dict[EntityType, EntityConfig] = {
     EntityType.SUBSCRIPTION: EntityConfig(
         entity_kind=EntityType.SUBSCRIPTION,
-        table=SubscriptionTable,
+        table=subscription_table_class(),
         traverser=SubscriptionTraverser,
         pk_name="subscription_id",
         root_name="subscription",

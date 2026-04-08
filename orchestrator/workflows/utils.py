@@ -21,7 +21,7 @@ from more_itertools import first_true
 from pydantic import Field, field_validator, model_validator
 from sqlalchemy import select
 
-from orchestrator.db import ProductTable, SubscriptionTable, db
+from orchestrator.db import ProductTable, db, subscription_table_class
 from orchestrator.db.models import WorkflowTable
 from orchestrator.services import subscriptions
 from orchestrator.targets import Target
@@ -145,7 +145,8 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
         @classmethod
         def subscription_validator(cls, subscription_id: UUID) -> UUID:
             """Run validator for initial_input_forms to check if the subscription exists and that this workflow is valid to run for this subscription."""
-            subscription = db.session.get(SubscriptionTable, subscription_id)
+            table = subscription_table_class()
+            subscription = db.session.get(table, subscription_id)
             if subscription is None:
                 raise ValueError("Subscription not found")
 
@@ -166,8 +167,9 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
 
         @model_validator(mode="after")
         def version_validator(self) -> Self:
+            table = subscription_table_class()
             current_version = db.session.scalars(
-                select(SubscriptionTable.version).where(SubscriptionTable.subscription_id == self.subscription_id)
+                select(table.version).where(table.subscription_id == self.subscription_id)
             ).one()
             if not validate_data_version(current_version, self.version):
                 raise StaleDataError(current_version, self.version)
@@ -189,7 +191,8 @@ def wrap_modify_initial_input_form(initial_input_form: InputStepFunc | None) -> 
 
         user_input = yield _generate_modify_form(workflow_target, workflow_name)
 
-        subscription = db.session.get(SubscriptionTable, user_input.subscription_id)
+        table = subscription_table_class()
+        subscription = db.session.get(table, user_input.subscription_id)
         if subscription is None:
             raise ValueError(f"Subscription {user_input.subscription_id} not found")
         begin_state = {
