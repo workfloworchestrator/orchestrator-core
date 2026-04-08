@@ -83,7 +83,7 @@ def resolve_processes(
 
     default_loaders = [
         selectinload(ProcessTable.process_subscriptions)
-        .selectinload(ProcessSubscriptionTable.subscription.of_type(SubscriptionTable))
+        .selectinload(ProcessSubscriptionTable.subscription)
         .joinedload(SubscriptionTable.product)
     ]
     query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info) or default_loaders

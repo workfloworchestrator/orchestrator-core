@@ -399,7 +399,7 @@ def processes_filterable(  # noqa: C901
     processes: Select | CompoundSelect
     processes = select(ProcessTable).options(
         joinedload(ProcessTable.process_subscriptions)
-        .joinedload(ProcessSubscriptionTable.subscription.of_type(SubscriptionTable))
+        .joinedload(ProcessSubscriptionTable.subscription)
         .joinedload(SubscriptionTable.product),
         defer(ProcessTable.traceback),
     )
