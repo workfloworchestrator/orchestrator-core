@@ -282,7 +282,7 @@ class OrchestratorCore(FastAPI):
 
         for key, attr in custom_mapper.column_attrs.items():
             if key not in existing_keys:
-                base_mapper.add_property(key, attr.property)
+                base_mapper.add_property(key, attr)
 
     def register_graphql(
         self: "OrchestratorCore",

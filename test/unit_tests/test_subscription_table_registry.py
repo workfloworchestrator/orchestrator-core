@@ -1,50 +1,36 @@
-from orchestrator.db import subscription_table_class
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import select
+from sqlalchemy.orm import column_property
+
+from orchestrator.app import OrchestratorCore
 from orchestrator.db.models import SubscriptionTable
 
 
-def test_get_subscription_table_class_returns_default_when_no_custom_registered():
-    original = SubscriptionTable._custom_table_class
-    SubscriptionTable._custom_table_class = None
-    try:
-        result = SubscriptionTable.get_subscription_table_class()
-        assert result is SubscriptionTable
-    finally:
-        SubscriptionTable._custom_table_class = original
+def test_register_table_copies_column_properties():
+    """register_table should copy extra column_properties from custom to base."""
+
+    class CustomSubscriptionTable(SubscriptionTable):
+        extra_field = column_property(select(SubscriptionTable.description).scalar_subquery(), deferred=True)
+
+    base_mapper = sa_inspect(SubscriptionTable)
+    assert "extra_field" not in base_mapper.column_attrs
+
+    OrchestratorCore.register_table(SubscriptionTable, CustomSubscriptionTable)
+
+    assert "extra_field" in base_mapper.column_attrs
+
+    # Clean up: remove injected property
+    del base_mapper._props["extra_field"]
 
 
-def test_init_subclass_registers_custom_table():
-    original = SubscriptionTable._custom_table_class
-    SubscriptionTable._custom_table_class = None
-    try:
+def test_register_table_does_not_overwrite_existing_columns():
+    """register_table should not overwrite columns already on the base class."""
+    base_mapper = sa_inspect(SubscriptionTable)
+    original_description = base_mapper.column_attrs["description"]
 
-        class CustomSubscriptionTable(SubscriptionTable, use_as_subscription_table=True):
-            pass
+    class CustomSubscriptionTable(SubscriptionTable):
+        pass
 
-        result = SubscriptionTable.get_subscription_table_class()
-        assert result is CustomSubscriptionTable
-    finally:
-        SubscriptionTable._custom_table_class = original
+    OrchestratorCore.register_table(SubscriptionTable, CustomSubscriptionTable)
 
-
-def test_init_subclass_does_not_register_without_keyword():
-    original = SubscriptionTable._custom_table_class
-    SubscriptionTable._custom_table_class = None
-    try:
-
-        class PlainSubclass(SubscriptionTable):
-            pass
-
-        result = SubscriptionTable.get_subscription_table_class()
-        assert result is SubscriptionTable
-    finally:
-        SubscriptionTable._custom_table_class = original
-
-
-def test_subscription_table_class_helper_returns_default():
-    original = SubscriptionTable._custom_table_class
-    SubscriptionTable._custom_table_class = None
-    try:
-        result = subscription_table_class()
-        assert result is SubscriptionTable
-    finally:
-        SubscriptionTable._custom_table_class = original
+    assert base_mapper.column_attrs["description"] is original_description
