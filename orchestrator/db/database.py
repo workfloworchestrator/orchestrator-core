@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import time
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
@@ -163,7 +162,28 @@ class WrappedSession(Session):
                 "Will execute commit on behalf of step function when it returns."
             )
         else:
+            t = self._transaction
+            logger.debug(
+                "WrappedSession.commit",
+                transaction_type=type(t).__name__,
+                nested=getattr(t, "nested", None),
+                is_active=getattr(t, "is_active", None),
+                parent=type(getattr(t, "parent", None)).__name__,
+                transaction_id=id(t),
+                state=getattr(t, "state", None),
+                connections=len(getattr(t, "connections", [])),
+            )
             super().commit()
+            logger.debug(
+                "WrappedSession.commit",
+                transaction_type=type(t).__name__,
+                nested=getattr(t, "nested", None),
+                is_active=getattr(t, "is_active", None),
+                parent=type(getattr(t, "parent", None)).__name__,
+                transaction_id=id(t),
+                state=getattr(t, "state", None),
+                connections=len(getattr(t, "connections", [])),
+            )
 
 
 ENGINE_ARGUMENTS = {

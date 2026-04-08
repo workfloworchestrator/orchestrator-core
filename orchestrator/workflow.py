@@ -197,7 +197,7 @@ class StepList(list[Step]):
         if isinstance(other, StepList):
             return StepList([*self, *other])
 
-        if hasattr(other, "__name__"):  # type:ignore
+        if hasattr(other, "__name__"):  # type: ignore
             raise ValueError(
                 f"Expected @step decorated function or type Step or StepList, got {type(other)} with name {other.__name__} instead."
             )
@@ -1517,19 +1517,79 @@ def invalidate_status_counts() -> None:
     broadcast_invalidate_status_counts()
 
 
+def _log_pg_locks(mon_conn: Any, workflow_pid: int, label: str, step_name: str) -> None:
+    """Log PostgreSQL locks held by the workflow connection.
+
+    Uses a separate autocommit connection so querying pg_locks does not affect the workflow session.
+    """
+    try:
+        rows = mon_conn.execute(
+            "SELECT c.relname, l.mode "
+            "FROM pg_locks l JOIN pg_class c ON c.oid = l.relation "
+            "WHERE l.pid = %s ORDER BY c.relname",
+            (workflow_pid,),
+        ).fetchall()
+        locks = [f"{r[0]}({r[1]})" for r in rows]
+        if locks:
+            logger.warning("pg_locks", label=label, step=step_name, pid=workflow_pid, locks=locks)
+        else:
+            logger.debug("pg_locks", label=label, step=step_name, pid=workflow_pid, locks="none")
+    except Exception as e:
+        logger.debug("pg_locks query failed", label=label, error=str(e))
+
+
 def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFuncInternal) -> Process:
     """Execute the workflow steps one by one until a Process state other than Success or Skipped is reached."""
     consolelogger = cond_bind(logger, starting_process.unwrap(), "reporter", "created_by")
     process = starting_process
+
+    # Set up lock monitoring: separate autocommit connection + workflow PID
+    _mon_conn = None
+    _workflow_pid = None
+    try:
+        import psycopg
+
+        from sqlalchemy import text
+
+        url = str(db.session.bind.url).replace("+psycopg", "")
+        _mon_conn = psycopg.connect(url, autocommit=True)
+        _workflow_pid = db.session.execute(text("SELECT pg_backend_pid()")).scalar()
+        db.session.rollback()  # Clean up the autobegin from the PID query
+        logger.info("Lock monitoring active", workflow_pid=_workflow_pid)
+    except Exception as e:
+        logger.debug("Lock monitoring unavailable", error=str(e))
+
+    try:
+        return _exec_steps_inner(steps, process, dblogstep, consolelogger, _mon_conn, _workflow_pid)
+    finally:
+        if _mon_conn:
+            try:
+                _mon_conn.close()
+            except Exception:
+                pass
+
+
+def _exec_steps_inner(
+    steps: StepList,
+    process: Process,
+    dblogstep: StepLogFuncInternal,
+    consolelogger: BoundLogger,
+    mon_conn: Any,
+    workflow_pid: int | None,
+) -> Process:
+    """Inner loop for _exec_steps with lock monitoring."""
     for step in steps:
         # Check if we need to continue with the process
         if not (process.issuccess() or process.isskipped()):
             break
 
         consolelogger = consolelogger.bind(step_name=step.name)
+        logger.debug("ik kom hier 1")
 
         # Debug logging of step information
         mutationlogger = log_mutations(process.unwrap())
+
+        logger.debug("ik kom hier 2")
 
         # Execute step
         try:
@@ -1546,8 +1606,18 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
             # transactional() scope begins, causing locks to be held for the entire step duration.
             db.session.rollback()
 
+            if mon_conn and workflow_pid:
+                _log_pg_locks(mon_conn, workflow_pid, "before_step", step.name)
+
             process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
+            logger.debug("ik kom hier 3")
+
             step_result_process = process.execute_step(step)
+
+            logger.debug("ik kom hier 4")
+
+            if mon_conn and workflow_pid:
+                _log_pg_locks(mon_conn, workflow_pid, "after_step", step.name)
         except Exception as e:
             consolelogger.error("An exception occurred while executing the workflow step.")
             step_result_process = Failed(e)
@@ -1557,7 +1627,15 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         # as bare exceptions are not JSON serializable
         result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
         result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
+
+        logger.debug("ik kom hier 5")
+
         process = dblogstep(step, result_to_log)
+        logger.debug("ik kom hier 6")
+
+        if mon_conn and workflow_pid:
+            _log_pg_locks(mon_conn, workflow_pid, "after_dblog", step.name)
+
         # If database logging failed, the workflow should fail. When it was successful just continue with the
         # result of the executed step.
         consolelogger.debug("Workflow step executed.", process_status=process.status)

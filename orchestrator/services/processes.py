@@ -172,6 +172,7 @@ def delete_process(process_id: UUID) -> None:
 
 
 def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> ProcessTable:
+    logger.debug("Ik kom hier 9")
     p = db.session.get(ProcessTable, process_id)
     if p is None:
         raise ValueError(f"Failed to write failure step to process: process with PID {process_id} not found")
@@ -213,7 +214,7 @@ def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> P
     else:
         p.failed_reason = None
         p.traceback = None
-
+    logger.debug("Ik kom hier 10")
     return p
 
 
@@ -328,7 +329,9 @@ def _db_log_step(
     )
 
     p = _update_process(stat.process_id, step, process_state)
+    logger.debug("Ik kom hier 11")
     current_step = _get_current_step_to_update(stat, p, step, process_state)
+    logger.debug("Ik kom hier 12")
 
     # Capture the state before commit, because commit() expires all ORM attributes.
     # With psycopg3, accessing current_step.state after commit would trigger a lazy-load
@@ -337,15 +340,20 @@ def _db_log_step(
     step_state = current_step.state
 
     db.session.add(p)
+    logger.debug("Ik kom hier 13")
     db.session.add(current_step)
+    logger.debug("Ik kom hier 14")
     try:
         db.session.commit()
-    except BaseException:
+    except Exception:
         db.session.rollback()
         raise
 
+    logger.debug("Ik kom hier 15")
+
     if broadcast_func:
         broadcast_func(p.process_id)
+    logger.debug("Ik kom hier 16")
 
     # Return the state as captured before commit — no lazy-load needed
     return process_state.__class__(step_state)
@@ -366,7 +374,11 @@ def safe_logstep(
     """
 
     try:
-        return _db_log_step(stat, step, process_state, broadcast_func=broadcast_func)
+        logger.debug("ik kom hier 7")
+        temp = _db_log_step(stat, step, process_state, broadcast_func=broadcast_func)
+        logger.debug("ik kom hier 8")
+        return temp
+
     except Exception as e:
         logger.exception("Failed to save step", stat=stat, step=step, process_state=process_state)
         failure = Failed(error_state_to_dict(e))

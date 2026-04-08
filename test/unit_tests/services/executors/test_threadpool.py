@@ -93,6 +93,7 @@ def test_set_process_status_running_errors_if_not_found(mock_db):
     mock_db.session.commit.assert_not_called()
 
 
+@mock.patch("orchestrator.services.executors.threadpool.db")
 @mock.patch("orchestrator.services.executors.threadpool._set_process_status_running")
 @mock.patch("orchestrator.services.executors.threadpool.retrieve_input_state")
 @mock.patch("orchestrator.services.executors.threadpool._run_process_async")
@@ -100,6 +101,7 @@ def test_thread_start_process(
     mock_run_process_async,
     mock_retrieve_input_state,
     mock_set_process_status_running,
+    mock_db,
 ):
     process_id = uuid4()
 
@@ -129,6 +131,7 @@ def test_thread_start_process_errors_with_removed_workflow():
         thread_start_process(pstat)
 
 
+@mock.patch("orchestrator.services.executors.threadpool.db")
 @mock.patch("orchestrator.services.executors.threadpool._set_process_status_running")
 @mock.patch("orchestrator.services.executors.threadpool.retrieve_input_state")
 @mock.patch("orchestrator.services.executors.threadpool._run_process_async")
@@ -138,6 +141,7 @@ def test_thread_resume_process_resumed(
     mock_run_process_async,
     mock_retrieve_input_state,
     mock_set_process_status_running,
+    mock_db,
 ):
     process_id = uuid4()
     process = MagicMock()
