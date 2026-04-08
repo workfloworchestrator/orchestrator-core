@@ -43,8 +43,8 @@ from orchestrator import __version__
 from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.cli.main import app as cli_app
-from orchestrator.db import SubscriptionTable, db, init_database
-from orchestrator.db.database import DBSessionMiddleware
+from orchestrator.db import db, init_database
+from orchestrator.db.database import BaseModel, DBSessionMiddleware
 from orchestrator.db.listeners import monitor_sqlalchemy_queries
 from orchestrator.db.loaders import init_model_loaders
 from orchestrator.distlock import init_distlock_manager
@@ -262,21 +262,27 @@ class OrchestratorCore(FastAPI):
         SUBSCRIPTION_MODEL_REGISTRY.update(product_to_subscription_model_mapping)
 
     @staticmethod
-    def register_subscription_table(table_class: type[SubscriptionTable]) -> None:
-        """Register a custom SubscriptionTable subclass.
+    def register_table(base_class: type[BaseModel], custom_class: type[BaseModel]) -> None:
+        """Register a custom table subclass as provider for a base table class.
 
-        When registered, orchestrator-core will use this subclass for all internal
-        subscription queries instead of the base SubscriptionTable. This allows
-        downstream projects to add column_property computed columns that are
-        available on every loaded subscription.
-
-        The same effect can be achieved by passing ``use_as_subscription_table=True``
-        as a keyword argument when defining the subclass.
+        Inspects the custom class mapper for column_properties not present on
+        the base class and copies them onto the base mapper. After this call,
+        all code that uses the base class will have access to the extra columns.
 
         Args:
-            table_class: A subclass of SubscriptionTable to use globally.
+            base_class: The base table class (e.g. SubscriptionTable).
+            custom_class: A subclass that defines extra column_properties.
         """
-        SubscriptionTable._custom_table_class = table_class
+        from sqlalchemy import inspect as sa_inspect
+        from sqlalchemy.orm import Mapper
+
+        base_mapper: Mapper = sa_inspect(base_class)
+        custom_mapper: Mapper = sa_inspect(custom_class)
+        existing_keys = set(base_mapper.column_attrs.keys())
+
+        for key, attr in custom_mapper.column_attrs.items():
+            if key not in existing_keys:
+                base_mapper.add_property(key, attr.property)
 
     def register_graphql(
         self: "OrchestratorCore",
