@@ -145,8 +145,8 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
         @classmethod
         def subscription_validator(cls, subscription_id: UUID) -> UUID:
             """Run validator for initial_input_forms to check if the subscription exists and that this workflow is valid to run for this subscription."""
-            table = SubscriptionTable
-            subscription = db.session.get(table, subscription_id)
+
+            subscription = db.session.get(SubscriptionTable, subscription_id)
             if subscription is None:
                 raise ValueError("Subscription not found")
 
@@ -167,9 +167,9 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
 
         @model_validator(mode="after")
         def version_validator(self) -> Self:
-            table = SubscriptionTable
+
             current_version = db.session.scalars(
-                select(table.version).where(table.subscription_id == self.subscription_id)
+                select(SubscriptionTable.version).where(SubscriptionTable.subscription_id == self.subscription_id)
             ).one()
             if not validate_data_version(current_version, self.version):
                 raise StaleDataError(current_version, self.version)
@@ -191,8 +191,7 @@ def wrap_modify_initial_input_form(initial_input_form: InputStepFunc | None) -> 
 
         user_input = yield _generate_modify_form(workflow_target, workflow_name)
 
-        table = SubscriptionTable
-        subscription = db.session.get(table, user_input.subscription_id)
+        subscription = db.session.get(SubscriptionTable, user_input.subscription_id)
         if subscription is None:
             raise ValueError(f"Subscription {user_input.subscription_id} not found")
         begin_state = {

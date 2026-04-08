@@ -70,8 +70,9 @@ def _delete_process_subscriptions(process_subscriptions: list[ProcessSubscriptio
         db.session.execute(delete(ProcessSubscriptionTable).filter(ProcessSubscriptionTable.process_id == process_id))
         db.session.execute(delete(ProcessStepTable).filter(ProcessStepTable.process_id == process_id))
         db.session.execute(delete(ProcessTable).filter(ProcessTable.process_id == process_id))
-        table = SubscriptionTable
-        subscription = db.session.scalars(select(table).filter(table.subscription_id == subscription_id)).first()
+        subscription = db.session.scalars(
+            select(SubscriptionTable).filter(SubscriptionTable.subscription_id == subscription_id)
+        ).first()
         if subscription:
             _delete_subscription_tree(subscription)
 
@@ -142,7 +143,7 @@ def subscriptions_search(
     range_ = list(map(int, range.split(","))) if range else None
     sort_ = sort.split(",") if sort else None
     logger.info("subscriptions_search() called", range=range_, sort=sort_)
-    table = SubscriptionTable
+
     stmt = select(table, SubscriptionMetadataTable.metadata_).join_from(table, SubscriptionMetadataTable, isouter=True)
 
     stmt = stmt.join(table.product).options(contains_eager(table.product), defer(table.product_id))
@@ -164,7 +165,7 @@ def subscriptions_search(
 def subscription_workflows_by_id(
     subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate)
 ) -> dict[str, list[dict[str, list[Any] | str]]]:
-    table = SubscriptionTable
+
     subscription = db.session.get(
         table,
         subscription_id,

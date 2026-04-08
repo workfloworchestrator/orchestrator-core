@@ -80,11 +80,11 @@ def resolve_processes(
     logger.debug("resolve_processes() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
     # Hardcoded loaders required for _enrich_process
-    table = SubscriptionTable
+
     default_loaders = [
         selectinload(ProcessTable.process_subscriptions)
-        .selectinload(ProcessSubscriptionTable.subscription.of_type(table))
-        .joinedload(table.product)
+        .selectinload(ProcessSubscriptionTable.subscription.of_type(SubscriptionTable))
+        .joinedload(SubscriptionTable.product)
     ]
     query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info) or default_loaders
     select_stmt = select(ProcessTable).options(*query_loaders)

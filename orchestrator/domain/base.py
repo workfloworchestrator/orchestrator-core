@@ -744,7 +744,7 @@ class ProductBlockModel(DomainModel):
         This makes sure we always have a specific instance.
         """
         if not cls.__base_type__:
-            cls = ProductBlockModel.registry.get(other.name, cls)  # type:ignore
+            cls = ProductBlockModel.registry.get(other.name, cls)  # type: ignore
             cls = lookup_specialized_type(cls, status)
 
         data = cls._data_from_lifecycle(other, status, subscription_id)
@@ -783,7 +783,7 @@ class ProductBlockModel(DomainModel):
             status = SubscriptionLifecycle(subscription_instance.subscription.status)
 
         if not cls.__base_type__:
-            cls = ProductBlockModel.registry.get(subscription_instance.product_block.name, cls)  # type:ignore
+            cls = ProductBlockModel.registry.get(subscription_instance.product_block.name, cls)  # type: ignore
             cls = lookup_specialized_type(cls, status)
 
         elif not issubclass(cls, lookup_specialized_type(cls, status)):
@@ -839,9 +839,7 @@ class ProductBlockModel(DomainModel):
         for field_name, field_type in self._non_product_block_fields_.items():
             assert (  # noqa: S101
                 field_name in resource_types
-            ), (
-                f"Domain model {self.__class__} does not match the ProductBlockTable {product_block.name}, missing: {field_name} {resource_types}"
-            )
+            ), f"Domain model {self.__class__} does not match the ProductBlockTable {product_block.name}, missing: {field_name} {resource_types}"
 
             resource_type = resource_types[field_name]
             value = getattr(self, field_name)
@@ -1222,8 +1220,8 @@ class SubscriptionModel(DomainModel):
             description = f"Initial subscription of {product.description}"
 
         subscription_id = uuid4()
-        table = SubscriptionTable
-        subscription = table(
+
+        subscription = SubscriptionTable(
             subscription_id=subscription_id,
             product_id=product_id,
             customer_id=customer_id,
@@ -1272,7 +1270,7 @@ class SubscriptionModel(DomainModel):
             # Import here to prevent cyclic imports
             from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
-            cls = SUBSCRIPTION_MODEL_REGISTRY.get(other.product.name, cls)  # type:ignore
+            cls = SUBSCRIPTION_MODEL_REGISTRY.get(other.product.name, cls)  # type: ignore
             cls = lookup_specialized_type(cls, status)
 
         # this will raise ValueError when wrong lifecycle transitions are detected in the new domain model
@@ -1298,12 +1296,11 @@ class SubscriptionModel(DomainModel):
         if not isinstance(subscription_id, UUID | UUIDstr):
             raise TypeError(f"subscription_id is of type {type(subscription_id)} instead of UUID | UUIDstr")
 
-        table = SubscriptionTable
         loaders = [
-            joinedload(table.product).selectinload(ProductTable.fixed_inputs),
+            joinedload(SubscriptionTable.product).selectinload(ProductTable.fixed_inputs),
         ]
 
-        return db.session.get(table, subscription_id, options=loaders)
+        return db.session.get(SubscriptionTable, subscription_id, options=loaders)
 
     @classmethod
     def _to_product_model(cls: type[S], product: ProductTable) -> ProductModel:
@@ -1340,7 +1337,7 @@ class SubscriptionModel(DomainModel):
             # Import here to prevent cyclic imports
             from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
-            cls = SUBSCRIPTION_MODEL_REGISTRY.get(subscription.product.name, cls)  # type:ignore
+            cls = SUBSCRIPTION_MODEL_REGISTRY.get(subscription.product.name, cls)  # type: ignore
             cls = lookup_specialized_type(cls, status)
         elif not issubclass(cls, lookup_specialized_type(cls, status)):
             raise ValueError(f"{cls} is not valid for lifecycle {status}")
@@ -1352,7 +1349,7 @@ class SubscriptionModel(DomainModel):
             instances = {name: product_block}
         else:
             # TODO test using cls._load_root_instances() here as well
-            instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)  # type:ignore
+            instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)  # type: ignore
 
         try:
             model = cls(
@@ -1396,7 +1393,7 @@ class SubscriptionModel(DomainModel):
             from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
             try:
-                cls = SUBSCRIPTION_MODEL_REGISTRY[subscription.product.name]  # type:ignore
+                cls = SUBSCRIPTION_MODEL_REGISTRY[subscription.product.name]  # type: ignore
             except KeyError:
                 raise ProductNotInRegistryError(
                     f"'{subscription.product.name}' is not found within the SUBSCRIPTION_MODEL_REGISTRY"
@@ -1443,15 +1440,14 @@ class SubscriptionModel(DomainModel):
                 f"Lifecycle status {self.status.value} requires specialized type {specialized_type!r}, was: {type(self)!r}"
             )
 
-        table = SubscriptionTable
         existing_sub = db.session.get(
-            table,
+            SubscriptionTable,
             self.subscription_id,
             options=[
-                selectinload(table.instances)
+                selectinload(SubscriptionTable.instances)
                 .joinedload(SubscriptionInstanceTable.product_block)
                 .selectinload(ProductBlockTable.resource_types),
-                selectinload(table.instances).selectinload(SubscriptionInstanceTable.values),
+                selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
             ],
         )
         if not (sub := (existing_sub or self.db_model)):

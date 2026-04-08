@@ -397,11 +397,10 @@ def processes_filterable(  # noqa: C901
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
     # tracebacks are not presented in the list of processes and can be really large.
     processes: Select | CompoundSelect
-    table = SubscriptionTable
     processes = select(ProcessTable).options(
         joinedload(ProcessTable.process_subscriptions)
-        .joinedload(ProcessSubscriptionTable.subscription.of_type(table))
-        .joinedload(table.product),
+        .joinedload(ProcessSubscriptionTable.subscription.of_type(SubscriptionTable))
+        .joinedload(SubscriptionTable.product),
         defer(ProcessTable.traceback),
     )
 

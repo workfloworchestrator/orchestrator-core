@@ -19,16 +19,14 @@ def generic_subscription_relation_sort(field: Column) -> Callable[[QueryType, So
     return sort_function
 
 
-_SubscriptionTable = SubscriptionTable
-
 SUBSCRIPTION_PRODUCT_SORT = {
     to_camel(key if "product" in key else f"product_{key}"): generic_subscription_relation_sort(value)
     for key, value in inspect(ProductTable).columns.items()
 }
 
 subscription_table_sort = {
-    to_camel(key): generic_column_sort(value, _SubscriptionTable)
-    for [key, value] in inspect(_SubscriptionTable).columns.items()
+    to_camel(key): generic_column_sort(value, SubscriptionTable)
+    for [key, value] in inspect(SubscriptionTable).columns.items()
 }
 
 SUBSCRIPTION_SORT_FUNCTIONS_BY_COLUMN = (

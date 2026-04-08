@@ -255,16 +255,16 @@ def update_subscription(subscription_id: str, **attrs: dict | UUIDstr | str | da
 
 
 def retrieve_node_subscriptions_by_name(node_name: str) -> list[SubscriptionTable]:
-    table = SubscriptionTable
+
     stmt = (
-        select(table)
+        select(SubscriptionTable)
         .join(ProductTable)
         .join(SubscriptionInstanceTable)
         .join(SubscriptionInstanceValueTable)
         .join(ResourceTypeTable)
         .filter(SubscriptionInstanceValueTable.value == node_name)
         .filter(ResourceTypeTable.resource_type == "nso_device_id")
-        .filter(table.status.in_(["active", "provisioning"]))
+        .filter(SubscriptionTable.status.in_(["active", "provisioning"]))
     )
     return list(db.session.scalars(stmt))
 
@@ -282,7 +282,7 @@ def retrieve_subscription_by_subscription_instance_value(
     Returns: Subscription or None
 
     """
-    table = SubscriptionTable
+
     stmt = (
         select(table)
         .join(SubscriptionInstanceTable)
@@ -365,7 +365,6 @@ def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: list[s
 
     The query can be used to add extra filters when/where needed.
     """
-    table = SubscriptionTable
 
     # Find relations through resource types
     resource_type_relations = (
@@ -404,7 +403,6 @@ def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[
 
     The query can be used to add extra filters when/where needed.
     """
-    table = SubscriptionTable
 
     # Find relations through resource types
     resource_type_relations = (
@@ -412,8 +410,8 @@ def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[
         .join(ResourceTypeTable)
         .filter(ResourceTypeTable.resource_type.in_(RELATION_RESOURCE_TYPES))
         .filter(SubscriptionInstanceTable.subscription_id == subscription_id)
-        .join(table, SubscriptionInstanceValueTable.value == cast(table.subscription_id, Text))
-        .with_entities(table.subscription_id)
+        .join(SubscriptionTable, SubscriptionInstanceValueTable.value == cast(SubscriptionTable.subscription_id, Text))
+        .with_entities(SubscriptionTable.subscription_id)
     )
 
     # Find relations through instance hierarchy
@@ -438,12 +436,12 @@ def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[
 
 
 def _terminated_filter(query: Query) -> list[UUID]:
-    table = SubscriptionTable
+
     return list(more_itertools.flatten(query.filter(table.status != "terminated").with_entities(table.subscription_id)))
 
 
 def _in_sync_filter(query: Query) -> list[UUID]:
-    table = SubscriptionTable
+
     return list(more_itertools.flatten(query.filter(not_(table.insync)).with_entities(table.subscription_id)))
 
 
@@ -490,7 +488,7 @@ def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[U
 
 
 def get_relations(subscription_id: UUIDstr) -> dict[str, list[UUID]]:
-    table = SubscriptionTable
+
     subscription_table = db.session.get(
         table,
         subscription_id,
@@ -702,12 +700,12 @@ def format_extended_domain_model(subscription: dict, filter_owner_relations: boo
 
 
 def get_subscriptions_on_product_table() -> list[SubscriptionTable]:
-    table = SubscriptionTable
+
     select_query = select(table).join(ProductTable)
     return list(db.session.scalars(select_query))
 
 
 def get_subscriptions_on_product_table_in_sync(in_sync: bool = True) -> list[SubscriptionTable]:
-    table = SubscriptionTable
+
     select_query = select(table).join(ProductTable).filter(table.insync.is_(in_sync))
     return list(db.session.scalars(select_query))

@@ -96,12 +96,12 @@ async def format_subscription(info: OrchestratorInfo, subscription: Subscription
         return await get_subscription_details(info, subscription)
 
     strawberry_type = get_subscription_graphql_type(info, "subscription")
-    return strawberry_type.from_pydantic(subscription)  # type:ignore
+    return strawberry_type.from_pydantic(subscription)  # type: ignore
 
 
 async def resolve_subscription(info: OrchestratorInfo, id: UUID) -> SubscriptionInterface | None:
-    table = SubscriptionTable
-    stmt = select(table).where(table.subscription_id == id)
+
+    stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == id)
 
     if subscription := await run_in_threadpool(db.session.scalar, stmt):
         return await format_subscription(info, subscription)
@@ -128,7 +128,6 @@ async def resolve_subscriptions(
         query=query,
     )
 
-    table = SubscriptionTable
     stmt = (
         select(table)
         .join(ProductTable)

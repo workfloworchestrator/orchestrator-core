@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import Annotated, Any, TYPE_CHECKING
 from uuid import UUID
 
 import strawberry
@@ -46,8 +46,7 @@ async def owner_subscription_resolver(
 ) -> Annotated["SubscriptionInterface", strawberry.lazy(".subscription")] | None:
     from orchestrator.graphql.resolvers.subscription import format_subscription
 
-    table = SubscriptionTable
-    stmt = select(table).where(table.subscription_id == root.owner_subscription_id)
+    stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == root.owner_subscription_id)
 
     if subscription := db.session.scalar(stmt):
         return await format_subscription(info, subscription)
