@@ -36,7 +36,6 @@ from orchestrator.db import (
     SubscriptionMetadataTable,
     SubscriptionTable,
     db,
-    subscription_table_class,
 )
 from orchestrator.schemas import SubscriptionWorkflowListsSchema
 from orchestrator.schemas.subscription import SubscriptionDomainModelSchema, SubscriptionWithMetadata
@@ -71,10 +70,8 @@ def _delete_process_subscriptions(process_subscriptions: list[ProcessSubscriptio
         db.session.execute(delete(ProcessSubscriptionTable).filter(ProcessSubscriptionTable.process_id == process_id))
         db.session.execute(delete(ProcessStepTable).filter(ProcessStepTable.process_id == process_id))
         db.session.execute(delete(ProcessTable).filter(ProcessTable.process_id == process_id))
-        table = subscription_table_class()
-        subscription = db.session.scalars(
-            select(table).filter(table.subscription_id == subscription_id)
-        ).first()
+        table = SubscriptionTable
+        subscription = db.session.scalars(select(table).filter(table.subscription_id == subscription_id)).first()
         if subscription:
             _delete_subscription_tree(subscription)
 
@@ -145,14 +142,10 @@ def subscriptions_search(
     range_ = list(map(int, range.split(","))) if range else None
     sort_ = sort.split(",") if sort else None
     logger.info("subscriptions_search() called", range=range_, sort=sort_)
-    table = subscription_table_class()
-    stmt = select(table, SubscriptionMetadataTable.metadata_).join_from(
-        table, SubscriptionMetadataTable, isouter=True
-    )
+    table = SubscriptionTable
+    stmt = select(table, SubscriptionMetadataTable.metadata_).join_from(table, SubscriptionMetadataTable, isouter=True)
 
-    stmt = stmt.join(table.product).options(
-        contains_eager(table.product), defer(table.product_id)
-    )
+    stmt = stmt.join(table.product).options(contains_eager(table.product), defer(table.product_id))
     stmt = add_subscription_search_query_filter(stmt, query)
     stmt = add_response_range(stmt, range_, response, unit="subscriptions")
     sequence = db.session.execute(stmt).all()
@@ -171,7 +164,7 @@ def subscriptions_search(
 def subscription_workflows_by_id(
     subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate)
 ) -> dict[str, list[dict[str, list[Any] | str]]]:
-    table = subscription_table_class()
+    table = SubscriptionTable
     subscription = db.session.get(
         table,
         subscription_id,

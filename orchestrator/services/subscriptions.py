@@ -37,7 +37,6 @@ from orchestrator.db import (
     SubscriptionInstanceValueTable,
     SubscriptionTable,
     db,
-    subscription_table_class,
 )
 from orchestrator.db.models import (
     SubscriptionCustomerDescriptionTable,
@@ -256,7 +255,7 @@ def update_subscription(subscription_id: str, **attrs: dict | UUIDstr | str | da
 
 
 def retrieve_node_subscriptions_by_name(node_name: str) -> list[SubscriptionTable]:
-    table = subscription_table_class()
+    table = SubscriptionTable
     stmt = (
         select(table)
         .join(ProductTable)
@@ -283,7 +282,7 @@ def retrieve_subscription_by_subscription_instance_value(
     Returns: Subscription or None
 
     """
-    table = subscription_table_class()
+    table = SubscriptionTable
     stmt = (
         select(table)
         .join(SubscriptionInstanceTable)
@@ -366,7 +365,7 @@ def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: list[s
 
     The query can be used to add extra filters when/where needed.
     """
-    table = subscription_table_class()
+    table = SubscriptionTable
 
     # Find relations through resource types
     resource_type_relations = (
@@ -405,7 +404,7 @@ def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[
 
     The query can be used to add extra filters when/where needed.
     """
-    table = subscription_table_class()
+    table = SubscriptionTable
 
     # Find relations through resource types
     resource_type_relations = (
@@ -439,21 +438,13 @@ def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[
 
 
 def _terminated_filter(query: Query) -> list[UUID]:
-    table = subscription_table_class()
-    return list(
-        more_itertools.flatten(
-            query.filter(table.status != "terminated").with_entities(table.subscription_id)
-        )
-    )
+    table = SubscriptionTable
+    return list(more_itertools.flatten(query.filter(table.status != "terminated").with_entities(table.subscription_id)))
 
 
 def _in_sync_filter(query: Query) -> list[UUID]:
-    table = subscription_table_class()
-    return list(
-        more_itertools.flatten(
-            query.filter(not_(table.insync)).with_entities(table.subscription_id)
-        )
-    )
+    table = SubscriptionTable
+    return list(more_itertools.flatten(query.filter(not_(table.insync)).with_entities(table.subscription_id)))
 
 
 RELATION_RESOURCE_TYPES: list[str] = []
@@ -499,7 +490,7 @@ def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[U
 
 
 def get_relations(subscription_id: UUIDstr) -> dict[str, list[UUID]]:
-    table = subscription_table_class()
+    table = SubscriptionTable
     subscription_table = db.session.get(
         table,
         subscription_id,
@@ -711,12 +702,12 @@ def format_extended_domain_model(subscription: dict, filter_owner_relations: boo
 
 
 def get_subscriptions_on_product_table() -> list[SubscriptionTable]:
-    table = subscription_table_class()
+    table = SubscriptionTable
     select_query = select(table).join(ProductTable)
     return list(db.session.scalars(select_query))
 
 
 def get_subscriptions_on_product_table_in_sync(in_sync: bool = True) -> list[SubscriptionTable]:
-    table = subscription_table_class()
+    table = SubscriptionTable
     select_query = select(table).join(ProductTable).filter(table.insync.is_(in_sync))
     return list(db.session.scalars(select_query))

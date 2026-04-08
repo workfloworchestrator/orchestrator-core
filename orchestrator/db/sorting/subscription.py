@@ -4,7 +4,7 @@ from sqlalchemy import Column
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql import expression
 
-from orchestrator.db import ProductTable, subscription_table_class
+from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.db.filters import create_memoized_field_list
 from orchestrator.db.sorting import QueryType, SortOrder, generic_column_sort, generic_sort
 from orchestrator.utils.helpers import to_camel
@@ -19,7 +19,7 @@ def generic_subscription_relation_sort(field: Column) -> Callable[[QueryType, So
     return sort_function
 
 
-_SubscriptionTable = subscription_table_class()
+_SubscriptionTable = SubscriptionTable
 
 SUBSCRIPTION_PRODUCT_SORT = {
     to_camel(key if "product" in key else f"product_{key}"): generic_subscription_relation_sort(value)

@@ -21,7 +21,7 @@ from more_itertools import first_true
 from pydantic import Field, field_validator, model_validator
 from sqlalchemy import select
 
-from orchestrator.db import ProductTable, db, subscription_table_class
+from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.db.models import WorkflowTable
 from orchestrator.services import subscriptions
 from orchestrator.targets import Target
@@ -145,7 +145,7 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
         @classmethod
         def subscription_validator(cls, subscription_id: UUID) -> UUID:
             """Run validator for initial_input_forms to check if the subscription exists and that this workflow is valid to run for this subscription."""
-            table = subscription_table_class()
+            table = SubscriptionTable
             subscription = db.session.get(table, subscription_id)
             if subscription is None:
                 raise ValueError("Subscription not found")
@@ -167,7 +167,7 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
 
         @model_validator(mode="after")
         def version_validator(self) -> Self:
-            table = subscription_table_class()
+            table = SubscriptionTable
             current_version = db.session.scalars(
                 select(table.version).where(table.subscription_id == self.subscription_id)
             ).one()
@@ -191,7 +191,7 @@ def wrap_modify_initial_input_form(initial_input_form: InputStepFunc | None) -> 
 
         user_input = yield _generate_modify_form(workflow_target, workflow_name)
 
-        table = subscription_table_class()
+        table = SubscriptionTable
         subscription = db.session.get(table, user_input.subscription_id)
         if subscription is None:
             raise ValueError(f"Subscription {user_input.subscription_id} not found")

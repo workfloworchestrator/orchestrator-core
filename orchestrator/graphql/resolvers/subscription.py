@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 
 from nwastdlib.asyncio import gather_nice
-from orchestrator.db import ProductTable, SubscriptionTable, db, subscription_table_class
+from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.subscription import (
     filter_by_query_string,
@@ -100,7 +100,7 @@ async def format_subscription(info: OrchestratorInfo, subscription: Subscription
 
 
 async def resolve_subscription(info: OrchestratorInfo, id: UUID) -> SubscriptionInterface | None:
-    table = subscription_table_class()
+    table = SubscriptionTable
     stmt = select(table).where(table.subscription_id == id)
 
     if subscription := await run_in_threadpool(db.session.scalar, stmt):
@@ -128,7 +128,7 @@ async def resolve_subscriptions(
         query=query,
     )
 
-    table = subscription_table_class()
+    table = SubscriptionTable
     stmt = (
         select(table)
         .join(ProductTable)

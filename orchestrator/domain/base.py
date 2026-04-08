@@ -46,7 +46,6 @@ from orchestrator.db import (
     SubscriptionInstanceValueTable,
     SubscriptionTable,
     db,
-    subscription_table_class,
 )
 from orchestrator.db.queries.subscription_instance import get_subscription_instance_dict
 from orchestrator.domain.helpers import (
@@ -840,7 +839,9 @@ class ProductBlockModel(DomainModel):
         for field_name, field_type in self._non_product_block_fields_.items():
             assert (  # noqa: S101
                 field_name in resource_types
-            ), f"Domain model {self.__class__} does not match the ProductBlockTable {product_block.name}, missing: {field_name} {resource_types}"
+            ), (
+                f"Domain model {self.__class__} does not match the ProductBlockTable {product_block.name}, missing: {field_name} {resource_types}"
+            )
 
             resource_type = resource_types[field_name]
             value = getattr(self, field_name)
@@ -1221,7 +1222,7 @@ class SubscriptionModel(DomainModel):
             description = f"Initial subscription of {product.description}"
 
         subscription_id = uuid4()
-        table = subscription_table_class()
+        table = SubscriptionTable
         subscription = table(
             subscription_id=subscription_id,
             product_id=product_id,
@@ -1297,7 +1298,7 @@ class SubscriptionModel(DomainModel):
         if not isinstance(subscription_id, UUID | UUIDstr):
             raise TypeError(f"subscription_id is of type {type(subscription_id)} instead of UUID | UUIDstr")
 
-        table = subscription_table_class()
+        table = SubscriptionTable
         loaders = [
             joinedload(table.product).selectinload(ProductTable.fixed_inputs),
         ]
@@ -1442,7 +1443,7 @@ class SubscriptionModel(DomainModel):
                 f"Lifecycle status {self.status.value} requires specialized type {specialized_type!r}, was: {type(self)!r}"
             )
 
-        table = subscription_table_class()
+        table = SubscriptionTable
         existing_sub = db.session.get(
             table,
             self.subscription_id,
