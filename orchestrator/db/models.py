@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import sqlalchemy
@@ -630,17 +630,6 @@ class SubscriptionCustomerDescriptionTable(BaseModel):
 class SubscriptionTable(BaseModel):
     __tablename__ = "subscriptions"
 
-    _custom_table_class: ClassVar[type["SubscriptionTable"] | None] = None
-
-    def __init_subclass__(cls, *, use_as_subscription_table: bool = False, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-        if use_as_subscription_table:
-            SubscriptionTable._custom_table_class = cls
-
-    @classmethod
-    def get_subscription_table_class(cls) -> type["SubscriptionTable"]:
-        return cls._custom_table_class or cls
-
     subscription_id = mapped_column(
         UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, nullable=False
     )
@@ -843,7 +832,6 @@ class SubscriptionInstanceAsJsonFunction(GenericFunction):
 
 
 class AiSearchIndex(BaseModel):
-
     __tablename__ = "ai_search_index"
 
     entity_type = mapped_column(

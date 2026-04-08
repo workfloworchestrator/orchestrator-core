@@ -74,11 +74,6 @@ def init_database(settings: AppSettings) -> Database:
     return db
 
 
-def subscription_table_class() -> type[SubscriptionTable]:
-    """Return the registered custom SubscriptionTable subclass, or SubscriptionTable itself."""
-    return SubscriptionTable.get_subscription_table_class()
-
-
 __all__ = [
     "transactional",
     "SearchQueryTable",
@@ -103,7 +98,6 @@ __all__ = [
     "UtcTimestampError",
     "db",
     "init_database",
-    "subscription_table_class",
 ]
 
 ALL_DB_MODELS: list[type[DbBaseModel]] = [
