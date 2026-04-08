@@ -46,6 +46,7 @@ from orchestrator.db import (
     SubscriptionInstanceValueTable,
     SubscriptionTable,
     db,
+    subscription_table_class,
 )
 from orchestrator.db.queries.subscription_instance import get_subscription_instance_dict
 from orchestrator.domain.helpers import (
@@ -1220,7 +1221,8 @@ class SubscriptionModel(DomainModel):
             description = f"Initial subscription of {product.description}"
 
         subscription_id = uuid4()
-        subscription = SubscriptionTable(
+        table = subscription_table_class()
+        subscription = table(
             subscription_id=subscription_id,
             product_id=product_id,
             customer_id=customer_id,
@@ -1295,11 +1297,12 @@ class SubscriptionModel(DomainModel):
         if not isinstance(subscription_id, UUID | UUIDstr):
             raise TypeError(f"subscription_id is of type {type(subscription_id)} instead of UUID | UUIDstr")
 
+        table = subscription_table_class()
         loaders = [
-            joinedload(SubscriptionTable.product).selectinload(ProductTable.fixed_inputs),
+            joinedload(table.product).selectinload(ProductTable.fixed_inputs),
         ]
 
-        return db.session.get(SubscriptionTable, subscription_id, options=loaders)
+        return db.session.get(table, subscription_id, options=loaders)
 
     @classmethod
     def _to_product_model(cls: type[S], product: ProductTable) -> ProductModel:
@@ -1439,14 +1442,15 @@ class SubscriptionModel(DomainModel):
                 f"Lifecycle status {self.status.value} requires specialized type {specialized_type!r}, was: {type(self)!r}"
             )
 
+        table = subscription_table_class()
         existing_sub = db.session.get(
-            SubscriptionTable,
+            table,
             self.subscription_id,
             options=[
-                selectinload(SubscriptionTable.instances)
+                selectinload(table.instances)
                 .joinedload(SubscriptionInstanceTable.product_block)
                 .selectinload(ProductBlockTable.resource_types),
-                selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
+                selectinload(table.instances).selectinload(SubscriptionInstanceTable.values),
             ],
         )
         if not (sub := (existing_sub or self.db_model)):
