@@ -69,7 +69,6 @@ FilterCondition = (
 
 
 class PathFilter(BaseModel):
-
     path: str = Field(description="The ltree path of the field to filter on, e.g., 'subscription.customer_id'.")
     condition: FilterCondition = Field(description="The filter condition to apply.")
 

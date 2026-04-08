@@ -218,7 +218,7 @@ def generate_create_product_block_instance_relations_sql(
 
             instance_list = [
                 {"subscription_id": subscription_id, "product_block_id": depends_block_id_sql}
-                for instance_id, subscription_id, in subscription_instances
+                for instance_id, subscription_id in subscription_instances
             ]
             instance_relation_list = [
                 {

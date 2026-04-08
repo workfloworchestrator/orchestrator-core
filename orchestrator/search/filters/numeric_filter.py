@@ -43,7 +43,6 @@ class NumericValueFilter(BaseModel):
         cast_type = BIGINT if isinstance(self.value, int) else DOUBLE_PRECISION
         numeric_column: ColumnElement[Any] = sa_cast(column, cast_type)
         match self.op:
-
             case FilterOp.EQ:
                 return numeric_column == self.value
             case FilterOp.NEQ:

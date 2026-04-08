@@ -5,7 +5,7 @@ from prometheus_client.registry import Collector
 from pydantic import BaseModel
 from sqlalchemy import desc, func
 
-from orchestrator.db import ProcessTable, ProductTable, WorkflowTable, db, subscription_table_class
+from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db
 from orchestrator.db.models import ProcessSubscriptionTable
 from orchestrator.metrics.dbutils import handle_missing_tables
 from orchestrator.targets import Target
@@ -64,7 +64,6 @@ def _get_processes() -> list[ProcessTableQueryResult]:
 
     result: list[ProcessTableQueryResult] | None = None
     with handle_missing_tables():
-        table = subscription_table_class()
         process_count = func.count(WorkflowTable.name).label("process_count")
         total_process_time = func.coalesce(
             func.sum(func.extract("epoch", (ProcessTable.last_modified_at - ProcessTable.started_at))), 0
@@ -76,22 +75,22 @@ def _get_processes() -> list[ProcessTableQueryResult]:
                 ProcessTable.is_task,
                 ProductTable.name.label("product_name"),
                 WorkflowTable.name.label("workflow_name"),
-                table.customer_id,
+                SubscriptionTable.customer_id,
                 WorkflowTable.target.label("workflow_target"),
                 process_count,
                 total_process_time,
             )
             .join(WorkflowTable, WorkflowTable.workflow_id == ProcessTable.workflow_id)
             .join(ProcessSubscriptionTable, ProcessSubscriptionTable.process_id == ProcessTable.process_id)
-            .join(table, table.subscription_id == ProcessSubscriptionTable.subscription_id)
-            .join(ProductTable, ProductTable.product_id == table.product_id)
+            .join(SubscriptionTable, SubscriptionTable.subscription_id == ProcessSubscriptionTable.subscription_id)
+            .join(ProductTable, ProductTable.product_id == SubscriptionTable.product_id)
             .group_by(
                 ProcessTable.last_status,
                 ProcessTable.created_by,
                 ProcessTable.is_task,
                 ProductTable.name,
                 WorkflowTable.name,
-                table.customer_id,
+                SubscriptionTable.customer_id,
                 WorkflowTable.target,
             )
             .order_by(desc(process_count))

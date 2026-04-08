@@ -26,7 +26,7 @@ def get_all_validations(fields: list[dict]) -> list:
 
 def get_validation_imports(validations: list) -> list:
     def format_validator(validation: dict) -> str:
-        return f'{validation["validation"]["id"]}_validator'
+        return f"{validation['validation']['id']}_validator"
 
     return [format_validator(validation) for validation in validations]
 

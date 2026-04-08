@@ -167,6 +167,7 @@ ENGINE_ARGUMENTS = {
     "connect_args": {"connect_timeout": 10, "options": "-c timezone=UTC"},
     "pool_pre_ping": True,
     "pool_size": 60,
+    "pool_recycle": 3600,
     "json_serializer": json_dumps,
     "json_deserializer": json_loads,
 }

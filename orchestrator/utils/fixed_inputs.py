@@ -36,7 +36,7 @@ def fixed_input_configuration() -> dict[str, Any]:  # noqa: C901
             product = products.get_product_by_name(product_name)
         except NoResultFound:
             logger.error(
-                "Couldn't resolve product with fixed inputs for a domain model, due to a product_name " "mismatch.",
+                "Couldn't resolve product with fixed inputs for a domain model, due to a product_name mismatch.",
                 product_name=product_name,
             )
 

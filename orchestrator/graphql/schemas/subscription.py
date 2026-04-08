@@ -10,7 +10,7 @@ from strawberry.federation.schema_directives import Key
 from strawberry.federation.types import FieldSet
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, db, subscription_table_class
+from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, db
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.graphql.loaders.subscriptions import SubsLoaderType
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
@@ -86,13 +86,14 @@ class SubscriptionInterface:
 
         return ProductModelGraphql.from_pydantic(model.product)
 
-    @strawberry.field(name="_schema", description="Return all products block instances of a subscription as JSON Schema")  # type: ignore
+    @strawberry.field(
+        name="_schema", description="Return all products block instances of a subscription as JSON Schema"
+    )  # type: ignore
     async def schema(self) -> dict:
-        table = subscription_table_class()
         product_type_stmt = (
             select(ProductTable.name)
-            .join(table)
-            .where(table.subscription_id == self.subscription_id)
+            .join(SubscriptionTable)
+            .where(SubscriptionTable.subscription_id == self.subscription_id)
         )
         product_name = db.session.execute(product_type_stmt).scalar_one_or_none()
         if not product_name:
