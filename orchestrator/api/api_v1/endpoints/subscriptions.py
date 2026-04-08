@@ -144,9 +144,13 @@ def subscriptions_search(
     sort_ = sort.split(",") if sort else None
     logger.info("subscriptions_search() called", range=range_, sort=sort_)
 
-    stmt = select(table, SubscriptionMetadataTable.metadata_).join_from(table, SubscriptionMetadataTable, isouter=True)
+    stmt = select(SubscriptionTable, SubscriptionMetadataTable.metadata_).join_from(
+        SubscriptionTable, SubscriptionMetadataTable, isouter=True
+    )
 
-    stmt = stmt.join(table.product).options(contains_eager(table.product), defer(table.product_id))
+    stmt = stmt.join(SubscriptionTable.product).options(
+        contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
+    )
     stmt = add_subscription_search_query_filter(stmt, query)
     stmt = add_response_range(stmt, range_, response, unit="subscriptions")
     sequence = db.session.execute(stmt).all()
@@ -167,11 +171,11 @@ def subscription_workflows_by_id(
 ) -> dict[str, list[dict[str, list[Any] | str]]]:
 
     subscription = db.session.get(
-        table,
+        SubscriptionTable,
         subscription_id,
         options=[
-            joinedload(table.product),
-            joinedload(table.product).joinedload(ProductTable.workflows),
+            joinedload(SubscriptionTable.product),
+            joinedload(SubscriptionTable.product).joinedload(ProductTable.workflows),
         ],
     )
     if not subscription:

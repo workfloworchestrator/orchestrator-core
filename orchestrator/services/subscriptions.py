@@ -284,14 +284,14 @@ def retrieve_subscription_by_subscription_instance_value(
     """
 
     stmt = (
-        select(table)
+        select(SubscriptionTable)
         .join(SubscriptionInstanceTable)
         .join(SubscriptionInstanceValueTable)
         .join(ResourceTypeTable)
         .filter(SubscriptionInstanceValueTable.value == value)
         .filter(ResourceTypeTable.resource_type == resource_type)
-        .filter(table.status.in_(sub_status))
-        .distinct(table.subscription_id)
+        .filter(SubscriptionTable.status.in_(sub_status))
+        .distinct(SubscriptionTable.subscription_id)
     )
     return db.session.scalars(stmt).one_or_none()
 
@@ -368,33 +368,33 @@ def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: list[s
 
     # Find relations through resource types
     resource_type_relations = (
-        table.query.join(SubscriptionInstanceTable)
-        .options(joinedload(table.customer_descriptions))
+        SubscriptionTable.query.join(SubscriptionInstanceTable)
+        .options(joinedload(SubscriptionTable.customer_descriptions))
         .join(SubscriptionInstanceValueTable)
         .join(ResourceTypeTable)
         .filter(ResourceTypeTable.resource_type.in_(RELATION_RESOURCE_TYPES))
         .filter(SubscriptionInstanceValueTable.value == str(subscription_id))
-        .with_entities(table.subscription_id)
+        .with_entities(SubscriptionTable.subscription_id)
     )
 
     # Find relations through instance hierarchy
     in_use_by_instances = aliased(SubscriptionInstanceTable)
     depends_on_instances = aliased(SubscriptionInstanceTable)
     relation_relations = (
-        table.query.join(in_use_by_instances.subscription)
+        SubscriptionTable.query.join(in_use_by_instances.subscription)
         .join(in_use_by_instances.depends_on_block_relations)
         .join(depends_on_instances, SubscriptionInstanceRelationTable.depends_on)
         .filter(depends_on_instances.subscription_id == subscription_id)
         .filter(in_use_by_instances.subscription_id != subscription_id)
-        .with_entities(table.subscription_id)
+        .with_entities(SubscriptionTable.subscription_id)
     )
 
-    return table.query.filter(
+    return SubscriptionTable.query.filter(
         or_(
-            table.subscription_id.in_(resource_type_relations.scalar_subquery()),
-            table.subscription_id.in_(relation_relations.scalar_subquery()),
+            SubscriptionTable.subscription_id.in_(resource_type_relations.scalar_subquery()),
+            SubscriptionTable.subscription_id.in_(relation_relations.scalar_subquery()),
         ),
-        table.status.in_(filter_statuses if filter_statuses else SubscriptionLifecycle.values()),
+        SubscriptionTable.status.in_(filter_statuses if filter_statuses else SubscriptionLifecycle.values()),
     )
 
 

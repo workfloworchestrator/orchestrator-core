@@ -129,12 +129,12 @@ async def resolve_subscriptions(
     )
 
     stmt = (
-        select(table)
+        select(SubscriptionTable)
         .join(ProductTable)
         .options(
             # contains_eager() is needed because .join() does not eagerload, unlike options(joinedload())
             # (and using joinedload() is not possible because of filter_subscriptions())
-            contains_eager(table.product),
+            contains_eager(SubscriptionTable.product),
         )
     )
 
