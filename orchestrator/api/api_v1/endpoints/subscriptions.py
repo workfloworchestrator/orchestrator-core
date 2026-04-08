@@ -36,6 +36,7 @@ from orchestrator.db import (
     SubscriptionMetadataTable,
     SubscriptionTable,
     db,
+    subscription_table_class,
 )
 from orchestrator.schemas import SubscriptionWorkflowListsSchema
 from orchestrator.schemas.subscription import SubscriptionDomainModelSchema, SubscriptionWithMetadata
@@ -70,8 +71,9 @@ def _delete_process_subscriptions(process_subscriptions: list[ProcessSubscriptio
         db.session.execute(delete(ProcessSubscriptionTable).filter(ProcessSubscriptionTable.process_id == process_id))
         db.session.execute(delete(ProcessStepTable).filter(ProcessStepTable.process_id == process_id))
         db.session.execute(delete(ProcessTable).filter(ProcessTable.process_id == process_id))
+        table = subscription_table_class()
         subscription = db.session.scalars(
-            select(SubscriptionTable).filter(SubscriptionTable.subscription_id == subscription_id)
+            select(table).filter(table.subscription_id == subscription_id)
         ).first()
         if subscription:
             _delete_subscription_tree(subscription)
@@ -143,12 +145,13 @@ def subscriptions_search(
     range_ = list(map(int, range.split(","))) if range else None
     sort_ = sort.split(",") if sort else None
     logger.info("subscriptions_search() called", range=range_, sort=sort_)
-    stmt = select(SubscriptionTable, SubscriptionMetadataTable.metadata_).join_from(
-        SubscriptionTable, SubscriptionMetadataTable, isouter=True
+    table = subscription_table_class()
+    stmt = select(table, SubscriptionMetadataTable.metadata_).join_from(
+        table, SubscriptionMetadataTable, isouter=True
     )
 
-    stmt = stmt.join(SubscriptionTable.product).options(
-        contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
+    stmt = stmt.join(table.product).options(
+        contains_eager(table.product), defer(table.product_id)
     )
     stmt = add_subscription_search_query_filter(stmt, query)
     stmt = add_response_range(stmt, range_, response, unit="subscriptions")
@@ -168,12 +171,13 @@ def subscriptions_search(
 def subscription_workflows_by_id(
     subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate)
 ) -> dict[str, list[dict[str, list[Any] | str]]]:
+    table = subscription_table_class()
     subscription = db.session.get(
-        SubscriptionTable,
+        table,
         subscription_id,
         options=[
-            joinedload(SubscriptionTable.product),
-            joinedload(SubscriptionTable.product).joinedload(ProductTable.workflows),
+            joinedload(table.product),
+            joinedload(table.product).joinedload(ProductTable.workflows),
         ],
     )
     if not subscription:

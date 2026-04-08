@@ -17,7 +17,7 @@ from pydantic.alias_generators import to_camel as to_lower_camel
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from orchestrator.db import ProcessTable, db
+from orchestrator.db import ProcessTable, db, subscription_table_class
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import PROCESS_TABLE_COLUMN_CLAUSES, filter_processes, process_filter_fields
 from orchestrator.db.models import ProcessSubscriptionTable, SubscriptionTable
@@ -80,10 +80,11 @@ def resolve_processes(
     logger.debug("resolve_processes() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
     # Hardcoded loaders required for _enrich_process
+    table = subscription_table_class()
     default_loaders = [
         selectinload(ProcessTable.process_subscriptions)
-        .selectinload(ProcessSubscriptionTable.subscription)
-        .joinedload(SubscriptionTable.product)
+        .selectinload(ProcessSubscriptionTable.subscription.of_type(table))
+        .joinedload(table.product)
     ]
     query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info) or default_loaders
     select_stmt = select(ProcessTable).options(*query_loaders)

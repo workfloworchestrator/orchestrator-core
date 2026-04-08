@@ -4,7 +4,7 @@ from uuid import UUID
 import strawberry
 from sqlalchemy import select
 
-from orchestrator.db import ProductBlockTable, db
+from orchestrator.db import ProductBlockTable, db, subscription_table_class
 from orchestrator.db.models import SubscriptionTable
 from orchestrator.graphql.schemas.helpers import get_original_model
 from orchestrator.graphql.schemas.resource_type import ResourceType
@@ -47,7 +47,8 @@ async def owner_subscription_resolver(
 ) -> Annotated["SubscriptionInterface", strawberry.lazy(".subscription")] | None:
     from orchestrator.graphql.resolvers.subscription import format_subscription
 
-    stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == root.owner_subscription_id)
+    table = subscription_table_class()
+    stmt = select(table).where(table.subscription_id == root.owner_subscription_id)
 
     if subscription := db.session.scalar(stmt):
         return await format_subscription(info, subscription)

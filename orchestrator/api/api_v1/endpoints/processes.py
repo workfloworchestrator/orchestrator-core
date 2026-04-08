@@ -36,7 +36,7 @@ from starlette.responses import Response
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import add_response_range
-from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
+from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db, subscription_table_class
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import filter_processes
 from orchestrator.db.sorting import Sort, SortOrder
@@ -397,10 +397,11 @@ def processes_filterable(  # noqa: C901
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
     # tracebacks are not presented in the list of processes and can be really large.
     processes: Select | CompoundSelect
+    table = subscription_table_class()
     processes = select(ProcessTable).options(
         joinedload(ProcessTable.process_subscriptions)
-        .joinedload(ProcessSubscriptionTable.subscription)
-        .joinedload(SubscriptionTable.product),
+        .joinedload(ProcessSubscriptionTable.subscription.of_type(table))
+        .joinedload(table.product),
         defer(ProcessTable.traceback),
     )
 

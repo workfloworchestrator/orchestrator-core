@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 
 from nwastdlib.asyncio import gather_nice
-from orchestrator.db import ProductTable, SubscriptionTable, db
+from orchestrator.db import ProductTable, SubscriptionTable, db, subscription_table_class
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.subscription import (
     filter_by_query_string,
@@ -100,7 +100,8 @@ async def format_subscription(info: OrchestratorInfo, subscription: Subscription
 
 
 async def resolve_subscription(info: OrchestratorInfo, id: UUID) -> SubscriptionInterface | None:
-    stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == id)
+    table = subscription_table_class()
+    stmt = select(table).where(table.subscription_id == id)
 
     if subscription := await run_in_threadpool(db.session.scalar, stmt):
         return await format_subscription(info, subscription)
@@ -127,13 +128,14 @@ async def resolve_subscriptions(
         query=query,
     )
 
+    table = subscription_table_class()
     stmt = (
-        select(SubscriptionTable)
+        select(table)
         .join(ProductTable)
         .options(
             # contains_eager() is needed because .join() does not eagerload, unlike options(joinedload())
             # (and using joinedload() is not possible because of filter_subscriptions())
-            contains_eager(SubscriptionTable.product),
+            contains_eager(table.product),
         )
     )
 
