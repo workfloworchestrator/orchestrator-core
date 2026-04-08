@@ -43,7 +43,7 @@ from orchestrator import __version__
 from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.cli.main import app as cli_app
-from orchestrator.db import db, init_database
+from orchestrator.db import SubscriptionTable, db, init_database
 from orchestrator.db.database import DBSessionMiddleware
 from orchestrator.db.listeners import monitor_sqlalchemy_queries
 from orchestrator.db.loaders import init_model_loaders
@@ -260,6 +260,23 @@ class OrchestratorCore(FastAPI):
 
         """
         SUBSCRIPTION_MODEL_REGISTRY.update(product_to_subscription_model_mapping)
+
+    @staticmethod
+    def register_subscription_table(table_class: type[SubscriptionTable]) -> None:
+        """Register a custom SubscriptionTable subclass.
+
+        When registered, orchestrator-core will use this subclass for all internal
+        subscription queries instead of the base SubscriptionTable. This allows
+        downstream projects to add column_property computed columns that are
+        available on every loaded subscription.
+
+        The same effect can be achieved by passing ``use_as_subscription_table=True``
+        as a keyword argument when defining the subclass.
+
+        Args:
+            table_class: A subclass of SubscriptionTable to use globally.
+        """
+        SubscriptionTable._custom_table_class = table_class
 
     def register_graphql(
         self: "OrchestratorCore",

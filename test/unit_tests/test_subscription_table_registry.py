@@ -1,3 +1,4 @@
+from orchestrator.db import subscription_table_class
 from orchestrator.db.models import SubscriptionTable
 
 
@@ -34,6 +35,16 @@ def test_init_subclass_does_not_register_without_keyword():
             pass
 
         result = SubscriptionTable.get_subscription_table_class()
+        assert result is SubscriptionTable
+    finally:
+        SubscriptionTable._custom_table_class = original
+
+
+def test_subscription_table_class_helper_returns_default():
+    original = SubscriptionTable._custom_table_class
+    SubscriptionTable._custom_table_class = None
+    try:
+        result = subscription_table_class()
         assert result is SubscriptionTable
     finally:
         SubscriptionTable._custom_table_class = original
