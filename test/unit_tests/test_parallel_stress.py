@@ -26,6 +26,7 @@ from orchestrator.workflow import (
     foreach_parallel,
     init,
     parallel,
+    retrystep,
     runwf,
     step,
     workflow,
@@ -33,6 +34,8 @@ from orchestrator.workflow import (
 from test.unit_tests.workflows import (
     WorkflowInstanceForTests,
     assert_complete,
+    assert_failed,
+    assert_waiting,
     run_workflow,
 )
 
@@ -951,3 +954,252 @@ def test_max_workers_throttling() -> None:
         relations = _get_relations(fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}
         assert branch_indices == set(range(10))
+
+
+# ---------------------------------------------------------------------------
+# Step definitions for error propagation tests
+# ---------------------------------------------------------------------------
+
+
+@step("OK Step")
+def ok_step() -> dict:
+    return {"ok": True}
+
+
+@step("Failing Inner")
+def fail_inner() -> dict:
+    raise ValueError("inner fail")
+
+
+@step("Failing FE Item")
+def fail_fe_item(item: object, item_index: int) -> dict:
+    if item == "bad":
+        raise ValueError("bad item")
+    return {f"fe_result_{item_index}": f"done_{item}"}
+
+
+@retrystep("Retryable Inner")
+def retryable_inner() -> dict:
+    raise ValueError("retry me")
+
+
+@step("OK Item Step")
+def ok_item_step(item: object, item_index: int) -> dict:
+    return {f"item_result_{item_index}": f"processed_{item}"}
+
+
+# ---------------------------------------------------------------------------
+# Error propagation tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.workflow
+def test_error_in_inner_nested_parallel_propagates_to_outer() -> None:
+    """A failing step inside an inner parallel causes the entire workflow to fail.
+
+    Structure:
+        init >> parallel("Outer",
+            begin >> ok_step >> parallel("Inner Fail", begin >> fail_inner, begin >> ok_step),
+            begin >> ok_step,
+        ) >> done
+
+    Verifies:
+    - Workflow fails (not completes)
+    - Outer fork step exists in DB (created before branches ran)
+    """
+
+    @workflow()
+    def error_nested_wf():
+        return (
+            init
+            >> parallel(
+                "Outer",
+                begin >> ok_step >> parallel("Inner Fail", begin >> fail_inner, begin >> ok_step),
+                begin >> ok_step,
+            )
+            >> done
+        )
+
+    with WorkflowInstanceForTests(error_nested_wf, "error_nested_wf"):
+        result, pstat, _step_log = run_workflow("error_nested_wf", [{}])
+        assert_failed(result)
+
+        # Fork step should exist (outer parallel created it before branches ran)
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+
+@pytest.mark.workflow
+def test_error_in_foreach_parallel_nested_inside_parallel() -> None:
+    """A failing item in foreach_parallel inside a parallel branch causes the workflow to fail.
+
+    Structure:
+        init >> parallel("Outer",
+            begin >> foreach_parallel("FE Fail", "items", begin >> fail_fe_item),
+            begin >> ok_step,
+        ) >> done
+
+    One of the items is "bad" which triggers a ValueError in fail_fe_item.
+
+    Verifies:
+    - Workflow fails
+    - Outer fork step exists in DB
+    """
+
+    @workflow()
+    def error_fe_in_parallel_wf():
+        return (
+            init
+            >> parallel(
+                "Outer",
+                begin >> foreach_parallel("FE Fail", "items", begin >> fail_fe_item),
+                begin >> ok_step,
+            )
+            >> done
+        )
+
+    with register_test_workflow(error_fe_in_parallel_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {"items": ["good", "bad", "fine"]})
+        result = runwf(pstat, store(log))
+        assert_failed(result)
+
+        # Outer fork step should exist
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+
+@pytest.mark.workflow
+def test_retryable_step_inside_nested_parallel_returns_waiting() -> None:
+    """A retrystep in an inner parallel causes the outer parallel to return Waiting.
+
+    Structure:
+        init >> parallel("Outer",
+            begin >> ok_step >> parallel("Inner Retry", begin >> retryable_inner, begin >> ok_step),
+            begin >> ok_step,
+        ) >> done
+
+    The retryable_inner step raises, which makes it return Waiting. Since Waiting is
+    worse than Success but better than Failed, the outer parallel returns Waiting.
+
+    Verifies:
+    - Workflow result is Waiting (not Failed, not Complete)
+    - Fork step exists in DB
+    """
+
+    @workflow()
+    def retry_nested_wf():
+        return (
+            init
+            >> parallel(
+                "Outer",
+                begin >> ok_step >> parallel("Inner Retry", begin >> retryable_inner, begin >> ok_step),
+                begin >> ok_step,
+            )
+            >> done
+        )
+
+    with WorkflowInstanceForTests(retry_nested_wf, "retry_nested_wf"):
+        result, pstat, _step_log = run_workflow("retry_nested_wf", [{}])
+        assert_waiting(result)
+
+        # Fork step should exist
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+
+@pytest.mark.workflow
+def test_mixed_one_nested_group_fails_another_succeeds_outer_fails() -> None:
+    """Two branches each with inner parallels; one inner fails, the other succeeds.
+
+    Structure:
+        init >> parallel("Outer",
+            begin >> parallel("Inner OK", begin >> ok_step, begin >> ok_step),
+            begin >> parallel("Inner Fail", begin >> fail_inner, begin >> ok_step),
+        ) >> done
+
+    Failed takes precedence over Success in _worst_status, so the outer parallel fails.
+
+    Verifies:
+    - Workflow fails
+    - Outer fork step exists in DB
+    """
+
+    @workflow()
+    def mixed_fail_wf():
+        return (
+            init
+            >> parallel(
+                "Outer",
+                begin >> parallel("Inner OK", begin >> ok_step, begin >> ok_step),
+                begin >> parallel("Inner Fail", begin >> fail_inner, begin >> ok_step),
+            )
+            >> done
+        )
+
+    with WorkflowInstanceForTests(mixed_fail_wf, "mixed_fail_wf"):
+        result, pstat, _step_log = run_workflow("mixed_fail_wf", [{}])
+        assert_failed(result)
+
+        # Fork step should exist
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+
+@pytest.mark.workflow
+def test_partial_db_state_consistent_after_failure() -> None:
+    """After a failure, verify DB state is consistent: fork step exists, completed branches have relations.
+
+    Structure:
+        init >> parallel("Outer",
+            begin >> ok_step,
+            begin >> fail_inner,
+        ) >> done
+
+    One branch succeeds, the other fails. The fork step should exist and reflect
+    the worst status. Completed branch steps should be linked via relations.
+
+    Verifies:
+    - Fork step exists with parallel_total_branches set
+    - Fork step status reflects failure
+    - Relations exist for branches that completed (at least the successful one)
+    - Branch steps linked via relations have consistent status values
+    """
+
+    @workflow()
+    def partial_fail_wf():
+        return (
+            init
+            >> parallel(
+                "Outer",
+                begin >> ok_step,
+                begin >> fail_inner,
+            )
+            >> done
+        )
+
+    with WorkflowInstanceForTests(partial_fail_wf, "partial_fail_wf"):
+        result, pstat, _step_log = run_workflow("partial_fail_wf", [{}])
+        assert_failed(result)
+
+        # Fork step must exist
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        fork = fork_steps[0]
+        assert fork.parallel_total_branches == 2
+
+        # Fork status should reflect the worst outcome (failed)
+        assert fork.status == "failed"
+
+        # Relations should exist for branches that ran
+        relations = _get_relations(fork.step_id)
+        assert len(relations) >= 1  # At least the successful branch recorded steps
+
+        # Check that branch steps linked via relations have valid status values
+        child_step_ids = {rel.child_step_id for rel in relations}
+        branch_steps = db.session.query(ProcessStepTable).filter(ProcessStepTable.step_id.in_(child_step_ids)).all()
+        valid_statuses = {"success", "failed", "waiting"}
+        assert all(
+            bs.status in valid_statuses for bs in branch_steps
+        ), f"Unexpected branch step statuses: {[(bs.name, bs.status) for bs in branch_steps]}"
