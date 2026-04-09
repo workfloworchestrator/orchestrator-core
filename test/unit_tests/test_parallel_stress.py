@@ -22,6 +22,7 @@ from orchestrator.workflow import (
     ProcessStatus,
     Success,
     begin,
+    conditional,
     done,
     foreach_parallel,
     init,
@@ -1203,3 +1204,271 @@ def test_partial_db_state_consistent_after_failure() -> None:
         assert all(
             bs.status in valid_statuses for bs in branch_steps
         ), f"Unexpected branch step statuses: {[(bs.name, bs.status) for bs in branch_steps]}"
+
+
+# ---------------------------------------------------------------------------
+# Step definitions for edge case tests
+# ---------------------------------------------------------------------------
+
+
+@step("Noop Step")
+def noop_step() -> dict:
+    return {}
+
+
+@step("Empty Branch Step")
+def empty_branch_step() -> dict:
+    return {}
+
+
+@step("Identity Step")
+def identity_step() -> dict:
+    return {"identity": True}
+
+
+@step("Conditional Target")
+def conditional_target() -> dict:
+    return {"conditional_ran": True}
+
+
+@step("Scalar Echo")
+def scalar_echo(item: int, item_index: int) -> dict:
+    return {f"echo_{item_index}": item}
+
+
+# ---------------------------------------------------------------------------
+# Edge case tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.workflow
+def test_foreach_parallel_single_item() -> None:
+    """foreach_parallel over a list with exactly 1 item behaves like a single branch.
+
+    Verifies:
+    - Workflow completes successfully
+    - Fork step has parallel_total_branches=1
+    - Exactly one branch (index 0) in ProcessStepRelationTable
+    """
+
+    @workflow()
+    def single_item_fe_wf():
+        return init >> foreach_parallel("SingleFE", "items", begin >> scalar_echo) >> done
+
+    with register_test_workflow(single_item_fe_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {"items": [42]})
+        result = runwf(pstat, store(log))
+        assert_complete(result)
+        state = result.unwrap()
+
+        # Initial state preserved
+        assert "items" in state
+
+        # DB: one fork step with exactly 1 branch
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        fork = fork_steps[0]
+        assert fork.parallel_total_branches == 1
+        assert fork.parallel_completed_count == 1
+
+        relations = _get_relations(fork.step_id)
+        branch_indices = {rel.branch_index for rel in relations}
+        assert branch_indices == {0}
+
+
+@pytest.mark.workflow
+def test_back_to_back_parallel_blocks() -> None:
+    """Two parallel blocks immediately adjacent with no sequential step between them.
+
+    Structure:
+        init >> parallel("P1", begin >> outer_a, begin >> outer_b)
+             >> parallel("P2", begin >> static_left, begin >> static_right)
+             >> done
+
+    Verifies:
+    - Workflow completes successfully
+    - Both fork steps are created in DB
+    - Each fork step has the correct branch count
+    """
+
+    @workflow()
+    def back_to_back_wf():
+        return (
+            init
+            >> parallel("P1", begin >> outer_a, begin >> outer_b)
+            >> parallel("P2", begin >> static_left, begin >> static_right)
+            >> done
+        )
+
+    with register_test_workflow(back_to_back_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {})
+        result = runwf(pstat, store(log))
+        assert_complete(result)
+
+        # DB: two fork steps (P1 and P2)
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 2
+
+        fork_by_name = {fs.name: fs for fs in fork_steps}
+        assert set(fork_by_name.keys()) == {"P1", "P2"}
+
+        for name in ("P1", "P2"):
+            assert fork_by_name[name].parallel_total_branches == 2
+            assert fork_by_name[name].parallel_completed_count == 2
+
+            relations = _get_relations(fork_by_name[name].step_id)
+            branch_indices = {rel.branch_index for rel in relations}
+            assert branch_indices == {0, 1}
+
+
+@pytest.mark.workflow
+def test_large_state_through_parallel() -> None:
+    """Pass a large dict (100+ keys, nested structures) through a parallel block.
+
+    Verifies deep copy doesn't corrupt state — all original keys survive post-parallel.
+    """
+
+    @workflow()
+    def large_state_wf():
+        return init >> parallel("Large", begin >> noop_step, begin >> noop_step) >> done
+
+    large_state = {f"key_{i}": {"nested": list(range(i)), "label": f"item_{i}"} for i in range(150)}
+
+    with register_test_workflow(large_state_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, large_state)
+        result = runwf(pstat, store(log))
+        assert_complete(result)
+        state = result.unwrap()
+
+        # All 150 keys must survive through the parallel block
+        assert all(f"key_{i}" in state for i in range(150)), "Some keys were lost through the parallel block"
+
+        # Verify nested structure integrity for a sample of keys
+        for i in (0, 50, 99, 149):
+            assert state[f"key_{i}"]["nested"] == list(range(i))
+            assert state[f"key_{i}"]["label"] == f"item_{i}"
+
+
+@pytest.mark.workflow
+def test_conditional_step_inside_parallel_branch() -> None:
+    """A branch of a parallel block uses conditional() to skip a step.
+
+    Structure:
+        init >> parallel("With conditional",
+            begin >> identity_step >> skip_always(conditional_target),
+            begin >> ok_step,
+        ) >> done
+
+    Verifies:
+    - Workflow completes successfully
+    - The conditional_target step is skipped (its result key absent from branch state)
+    - Fork step exists in DB with correct branch count
+    """
+    skip_always = conditional(lambda _state: False)
+
+    @workflow()
+    def conditional_parallel_wf():
+        return (
+            init
+            >> parallel(
+                "With conditional",
+                begin >> identity_step >> skip_always(conditional_target),
+                begin >> ok_step,
+            )
+            >> done
+        )
+
+    with register_test_workflow(conditional_parallel_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {})
+        result = runwf(pstat, store(log))
+        assert_complete(result)
+        state = result.unwrap()
+
+        # Branch results must NOT leak into main state
+        assert "conditional_ran" not in state
+        assert "identity" not in state
+        assert "ok" not in state
+
+        # DB: one fork step
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        fork = fork_steps[0]
+        assert fork.parallel_total_branches == 2
+        assert fork.parallel_completed_count == 2
+
+
+@pytest.mark.workflow
+def test_foreach_parallel_with_scalar_items() -> None:
+    """foreach_parallel with a list of scalar integers.
+
+    Verifies that item and item_index are accessible in the step function
+    and the workflow completes correctly for all items.
+    """
+
+    @workflow()
+    def scalar_fe_wf():
+        return init >> foreach_parallel("ScalarFE", "values", begin >> scalar_echo) >> done
+
+    with register_test_workflow(scalar_fe_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {"values": [10, 20, 30, 40, 50]})
+        result = runwf(pstat, store(log))
+        assert_complete(result)
+        state = result.unwrap()
+
+        # Initial state preserved
+        assert "values" in state
+        assert state["values"] == [10, 20, 30, 40, 50]
+
+        # DB: one fork step with 5 branches
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        fork = fork_steps[0]
+        assert fork.parallel_total_branches == 5
+        assert fork.parallel_completed_count == 5
+
+        relations = _get_relations(fork.step_id)
+        branch_indices = {rel.branch_index for rel in relations}
+        assert branch_indices == set(range(5))
+
+
+@pytest.mark.workflow
+def test_parallel_branches_return_empty_dicts() -> None:
+    """Both branches of a parallel block return empty dicts.
+
+    Verifies this doesn't break the merge logic or cause any issues.
+    """
+
+    @workflow()
+    def empty_branches_wf():
+        return init >> parallel("Empty", begin >> empty_branch_step, begin >> empty_branch_step) >> done
+
+    with register_test_workflow(empty_branches_wf) as wf_table:
+        log: list = []
+        initial = {"sentinel": "preserved"}
+        pstat = create_new_process_stat(wf_table, initial)
+        result = runwf(pstat, store(log))
+        assert_complete(result)
+        state = result.unwrap()
+
+        # Initial state must survive
+        assert state["sentinel"] == "preserved"
+
+        # DB: one fork step with 2 branches
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        fork = fork_steps[0]
+        assert fork.parallel_total_branches == 2
+        assert fork.parallel_completed_count == 2
+
+        relations = _get_relations(fork.step_id)
+        branch_indices = {rel.branch_index for rel in relations}
+        assert branch_indices == {0, 1}
