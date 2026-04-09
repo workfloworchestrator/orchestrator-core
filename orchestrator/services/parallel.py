@@ -223,7 +223,6 @@ def _join_and_resume(
     """Called by the last-finishing branch to determine status and resume the parent workflow."""
     branch_data = _collect_branch_results(fork_step_id)
 
-    # Reconstruct Process objects from DB state + status
     results = [_STATUSES.get(StepStatus(status), Success)(state) for _branch_idx, state, status in branch_data]
     worst = _worst_status(results)
 
@@ -233,7 +232,6 @@ def _join_and_resume(
         fork_step.state = initial_state
         db.session.commit()
 
-    # Resume the parent workflow via the configured executor
     from orchestrator.services.processes import _get_process, get_execution_context
 
     process = _get_process(process_id)

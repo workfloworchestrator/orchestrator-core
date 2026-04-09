@@ -7,6 +7,7 @@ session fixture.
 """
 
 import time
+from itertools import accumulate
 from typing import cast
 from uuid import uuid4
 
@@ -33,6 +34,7 @@ from orchestrator.workflow import (
     step,
     workflow,
 )
+from orchestrator.workflows import get_workflow
 from test.unit_tests.workflows import (
     WorkflowInstanceForTests,
     assert_complete,
@@ -260,41 +262,6 @@ def test_two_level_nested_parallel() -> None:
         # Branch 0 should have more steps (outer_a + inner parallel join step)
         assert len(branch_0_rels) >= 2
         assert len(branch_1_rels) >= 1
-
-
-@pytest.mark.workflow
-def test_nested_parallel_creates_inner_fork_step() -> None:
-    """After copy_context fix, nested parallel creates fork steps at BOTH levels."""
-
-    @workflow()
-    def nested_inner_fork_wf():
-        return (
-            init
-            >> parallel(
-                "Outer",
-                begin >> outer_a >> parallel("Inner", begin >> inner_x, begin >> inner_y),
-                begin >> outer_b,
-            )
-            >> done
-        )
-
-    with WorkflowInstanceForTests(nested_inner_fork_wf, "nested_inner_fork_wf"):
-        result, pstat, _step_log = run_workflow("nested_inner_fork_wf", [{}])
-        assert_complete(result)
-
-        fork_steps = _get_fork_steps(pstat.process_id)
-        assert len(fork_steps) == 2, f"Expected 2 fork steps (Outer + Inner), got {len(fork_steps)}"
-
-        fork_by_name = {fs.name: fs for fs in fork_steps}
-        assert set(fork_by_name.keys()) == {"Outer", "Inner"}
-
-        inner_fork = fork_by_name["Inner"]
-        assert inner_fork.parallel_total_branches == 2
-        assert inner_fork.parallel_completed_count == 2
-
-        inner_relations = _get_relations(inner_fork.step_id)
-        inner_branch_indices = {rel.branch_index for rel in inner_relations}
-        assert inner_branch_indices == {0, 1}
 
 
 @pytest.mark.workflow
@@ -769,12 +736,7 @@ def test_asymmetric_branch_lengths(branch_lengths: list[int], expected_relations
     - Branch results are NOT merged into main state
     """
     # Build branches with non-overlapping step pool offsets
-    offsets: list[int] = []
-    running = 0
-    for length in branch_lengths:
-        offsets.append(running)
-        running += length
-
+    offsets = [0, *accumulate(branch_lengths[:-1])]
     branches = tuple(_build_branch(length, offset) for length, offset in zip(branch_lengths, offsets))
 
     @workflow()
@@ -836,12 +798,7 @@ def test_asymmetric_order_ids_sequential(branch_lengths: list[int]) -> None:
     - No gaps or duplicates in order_ids within a branch
     - Branches with different lengths have independent order_id sequences
     """
-    offsets: list[int] = []
-    running = 0
-    for length in branch_lengths:
-        offsets.append(running)
-        running += length
-
+    offsets = [0, *accumulate(branch_lengths[:-1])]
     branches = tuple(_build_branch(length, offset) for length, offset in zip(branch_lengths, offsets))
 
     @workflow()
@@ -1538,111 +1495,89 @@ def test_parallel_branches_return_empty_dicts() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.workflow
-def test_find_parallel_step_top_level() -> None:
-    """_find_parallel_step finds a parallel step at the top level of wf.steps."""
+def _make_find_wf(name: str):
+    """Factory for workflow definitions used by _find_parallel_step tests."""
+    match name:
+        case "flat":
 
-    @workflow()
-    def flat_wf():
-        return init >> parallel("TopLevel", begin >> outer_a, begin >> outer_b) >> done
+            @workflow()
+            def flat_wf():
+                return init >> parallel("TopLevel", begin >> outer_a, begin >> outer_b) >> done
 
-    with WorkflowInstanceForTests(flat_wf, "flat_wf"):
-        from orchestrator.workflows import get_workflow
+            return flat_wf, "flat_wf"
+        case "nested_parallel":
 
-        wf = get_workflow("flat_wf")
-        result = _find_parallel_step(wf.steps, "TopLevel")
-        assert result is not None
-        assert getattr(result, "_parallel_group_name", None) == "TopLevel"
+            @workflow()
+            def nested_wf():
+                return (
+                    init
+                    >> parallel(
+                        "Outer",
+                        begin >> outer_a >> parallel("Inner", begin >> inner_x, begin >> inner_y),
+                        begin >> outer_b,
+                    )
+                    >> done
+                )
 
+            return nested_wf, "nested_find_wf"
+        case "nested_foreach":
 
-@pytest.mark.workflow
-def test_find_parallel_step_nested_in_parallel_branch() -> None:
-    """_find_parallel_step finds a parallel step nested inside another parallel step's branch."""
+            @workflow()
+            def fe_nested_wf():
+                return (
+                    init
+                    >> foreach_parallel(
+                        "FEOuter",
+                        "items",
+                        begin >> parallel("InsideFE", begin >> inner_x, begin >> inner_y),
+                    )
+                    >> done
+                )
 
-    @workflow()
-    def nested_wf():
-        return (
-            init
-            >> parallel(
-                "Outer",
-                begin >> outer_a >> parallel("Inner", begin >> inner_x, begin >> inner_y),
-                begin >> outer_b,
-            )
-            >> done
-        )
+            return fe_nested_wf, "fe_nested_find_wf"
+        case "three_levels":
 
-    with WorkflowInstanceForTests(nested_wf, "nested_find_wf"):
-        from orchestrator.workflows import get_workflow
+            @workflow()
+            def deep_wf():
+                return (
+                    init
+                    >> parallel(
+                        "L1",
+                        begin
+                        >> parallel("L2", begin >> parallel("L3", begin >> deep_p, begin >> deep_q), begin >> mid_m),
+                        begin >> top_c,
+                    )
+                    >> done
+                )
 
-        wf = get_workflow("nested_find_wf")
-        result = _find_parallel_step(wf.steps, "Inner")
-        assert result is not None
-        assert getattr(result, "_parallel_group_name", None) == "Inner"
-
-
-@pytest.mark.workflow
-def test_find_parallel_step_nested_in_foreach_template() -> None:
-    """_find_parallel_step finds a parallel step nested inside a foreach_parallel template."""
-
-    @workflow()
-    def fe_nested_wf():
-        return (
-            init
-            >> foreach_parallel(
-                "FEOuter",
-                "items",
-                begin >> parallel("InsideFE", begin >> inner_x, begin >> inner_y),
-            )
-            >> done
-        )
-
-    with WorkflowInstanceForTests(fe_nested_wf, "fe_nested_find_wf"):
-        from orchestrator.workflows import get_workflow
-
-        wf = get_workflow("fe_nested_find_wf")
-        result = _find_parallel_step(wf.steps, "InsideFE")
-        assert result is not None
-        assert getattr(result, "_parallel_group_name", None) == "InsideFE"
+            return deep_wf, "deep_find_wf"
+        case _:
+            raise ValueError(f"Unknown workflow: {name}")
 
 
 @pytest.mark.workflow
-def test_find_parallel_step_three_levels_deep() -> None:
-    """_find_parallel_step finds a step 3 levels deep."""
+@pytest.mark.parametrize(
+    ("wf_key", "search_name", "expected_found"),
+    [
+        pytest.param("flat", "TopLevel", True, id="top-level"),
+        pytest.param("nested_parallel", "Inner", True, id="nested-in-parallel-branch"),
+        pytest.param("nested_foreach", "InsideFE", True, id="nested-in-foreach-template"),
+        pytest.param("three_levels", "L1", True, id="3-levels-L1"),
+        pytest.param("three_levels", "L2", True, id="3-levels-L2"),
+        pytest.param("three_levels", "L3", True, id="3-levels-L3"),
+        pytest.param("flat", "DoesNotExist", False, id="missing-returns-none"),
+    ],
+)
+def test_find_parallel_step(wf_key: str, search_name: str, expected_found: bool) -> None:
+    """_find_parallel_step finds (or not) a parallel step at various nesting depths."""
+    wf_func, wf_name = _make_find_wf(wf_key)
 
-    @workflow()
-    def deep_wf():
-        return (
-            init
-            >> parallel(
-                "L1",
-                begin >> parallel("L2", begin >> parallel("L3", begin >> deep_p, begin >> deep_q), begin >> mid_m),
-                begin >> top_c,
-            )
-            >> done
-        )
+    with WorkflowInstanceForTests(wf_func, wf_name):
+        wf = get_workflow(wf_name)
+        result = _find_parallel_step(wf.steps, search_name)
 
-    with WorkflowInstanceForTests(deep_wf, "deep_find_wf"):
-        from orchestrator.workflows import get_workflow
-
-        wf = get_workflow("deep_find_wf")
-
-        for name in ("L1", "L2", "L3"):
-            result = _find_parallel_step(wf.steps, name)
-            assert result is not None, f"Could not find parallel step '{name}'"
-            assert getattr(result, "_parallel_group_name", None) == name
-
-
-@pytest.mark.workflow
-def test_find_parallel_step_returns_none_for_missing() -> None:
-    """_find_parallel_step returns None when group name doesn't exist."""
-
-    @workflow()
-    def simple_wf():
-        return init >> parallel("Exists", begin >> outer_a, begin >> outer_b) >> done
-
-    with WorkflowInstanceForTests(simple_wf, "missing_find_wf"):
-        from orchestrator.workflows import get_workflow
-
-        wf = get_workflow("missing_find_wf")
-        result = _find_parallel_step(wf.steps, "DoesNotExist")
-        assert result is None
+        if expected_found:
+            assert result is not None, f"Expected to find '{search_name}' but got None"
+            assert getattr(result, "_parallel_group_name", None) == search_name
+        else:
+            assert result is None, f"Expected None for '{search_name}' but found a step"
