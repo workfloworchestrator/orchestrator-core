@@ -627,3 +627,179 @@ def test_foreach_nested_inside_foreach(groups: list[dict], expected_outer_branch
         relations = _get_relations(outer_fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}
         assert branch_indices == set(range(expected_outer_branches))
+
+
+# ---------------------------------------------------------------------------
+# Step definitions for asymmetric branch tests
+# ---------------------------------------------------------------------------
+
+
+def _make_chain_step(name: str, key: str):
+    """Factory that creates a named step returning {key: 'done'}."""
+
+    @step(name)
+    def _step() -> dict:
+        return {key: "done"}
+
+    return _step
+
+
+# Pre-create a pool of chain steps for use in asymmetric branch tests
+chain_steps: list = [_make_chain_step(f"Chain {i}", f"chain_{i}") for i in range(20)]
+
+
+def _build_branch(step_count: int, offset: int = 0):
+    """Build a branch pipeline with *step_count* steps drawn from the pool.
+
+    Args:
+        step_count: Number of steps in this branch.
+        offset: Index offset into ``chain_steps`` to avoid reusing the same step objects across branches.
+
+    Returns:
+        A pipeline starting with ``begin`` followed by ``step_count`` chained steps.
+    """
+    from functools import reduce
+
+    branch_steps = chain_steps[offset : offset + step_count]
+    return reduce(lambda acc, s: acc >> s, branch_steps, begin)
+
+
+# ---------------------------------------------------------------------------
+# Asymmetric branch tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.workflow
+@pytest.mark.parametrize(
+    "branch_lengths,expected_relations_per_branch",
+    [
+        pytest.param(
+            [1, 5],
+            {0: 1, 1: 5},
+            id="1_vs_5_steps",
+        ),
+        pytest.param(
+            [5, 1],
+            {0: 5, 1: 1},
+            id="5_vs_1_steps",
+        ),
+        pytest.param(
+            [1, 1],
+            {0: 1, 1: 1},
+            id="1_vs_1_baseline",
+        ),
+        pytest.param(
+            [3, 4, 1],
+            {0: 3, 1: 4, 2: 1},
+            id="3_vs_4_vs_1_steps",
+        ),
+    ],
+)
+def test_asymmetric_branch_lengths(branch_lengths: list[int], expected_relations_per_branch: dict[int, int]) -> None:
+    """Parallel block with branches of vastly different step counts.
+
+    Verifies:
+    - Workflow completes successfully
+    - Correct number of branches in the fork step
+    - Each branch has the expected number of ProcessStepRelationTable rows
+    - Branch results are NOT merged into main state
+    """
+    # Build branches with non-overlapping step pool offsets
+    offsets: list[int] = []
+    running = 0
+    for length in branch_lengths:
+        offsets.append(running)
+        running += length
+
+    branches = tuple(_build_branch(length, offset) for length, offset in zip(branch_lengths, offsets))
+
+    @workflow()
+    def asymmetric_wf():
+        return init >> parallel("Asym", *branches) >> done
+
+    with register_test_workflow(asymmetric_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {})
+        result = runwf(pstat, store(log))
+        assert_complete(result)
+        state = result.unwrap()
+
+        # Branch results must NOT leak into main state
+        for i in range(sum(branch_lengths)):
+            assert f"chain_{i}" not in state, f"Branch result key 'chain_{i}' should not be in main state"
+
+        # DB: one fork step for "Asym"
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        fork = fork_steps[0]
+        assert fork.parallel_total_branches == len(branch_lengths)
+        assert fork.parallel_completed_count == len(branch_lengths)
+
+        relations = _get_relations(fork.step_id)
+        branch_indices = {rel.branch_index for rel in relations}
+        assert branch_indices == set(range(len(branch_lengths)))
+
+        # Verify each branch has the expected number of relation rows
+        for branch_idx, expected_count in expected_relations_per_branch.items():
+            branch_rels = [r for r in relations if r.branch_index == branch_idx]
+            assert (
+                len(branch_rels) == expected_count
+            ), f"Branch {branch_idx}: expected {expected_count} relations, got {len(branch_rels)}"
+
+
+@pytest.mark.workflow
+@pytest.mark.parametrize(
+    "branch_lengths",
+    [
+        pytest.param([1, 5], id="1_vs_5_order_ids"),
+        pytest.param([5, 1], id="5_vs_1_order_ids"),
+        pytest.param([1, 1], id="1_vs_1_order_ids"),
+        pytest.param([3, 4, 1], id="3_vs_4_vs_1_order_ids"),
+        pytest.param([1, 2, 3, 4, 5], id="ascending_1_to_5_order_ids"),
+        pytest.param([5, 4, 3, 2, 1], id="descending_5_to_1_order_ids"),
+    ],
+)
+def test_asymmetric_order_ids_sequential(branch_lengths: list[int]) -> None:
+    """Verify ProcessStepRelationTable order_ids are sequential within each branch.
+
+    For asymmetric branches, each branch must have order_ids 0..N-1 where N is the
+    number of steps in that branch. This test explicitly checks the order_id values
+    regardless of branch length differences.
+
+    Verifies:
+    - order_id values form a contiguous 0-based sequence per branch
+    - No gaps or duplicates in order_ids within a branch
+    - Branches with different lengths have independent order_id sequences
+    """
+    offsets: list[int] = []
+    running = 0
+    for length in branch_lengths:
+        offsets.append(running)
+        running += length
+
+    branches = tuple(_build_branch(length, offset) for length, offset in zip(branch_lengths, offsets))
+
+    @workflow()
+    def order_id_wf():
+        return init >> parallel("OrderCheck", *branches) >> done
+
+    with register_test_workflow(order_id_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {})
+        result = runwf(pstat, store(log))
+        assert_complete(result)
+
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        fork = fork_steps[0]
+        relations = _get_relations(fork.step_id)
+
+        for branch_idx, expected_length in enumerate(branch_lengths):
+            branch_rels = [r for r in relations if r.branch_index == branch_idx]
+            actual_order_ids = sorted(r.order_id for r in branch_rels)
+            expected_order_ids = list(range(expected_length))
+            assert (
+                actual_order_ids == expected_order_ids
+            ), f"Branch {branch_idx}: expected order_ids {expected_order_ids}, got {actual_order_ids}"
