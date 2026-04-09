@@ -202,10 +202,6 @@ def test_two_level_nested_parallel() -> None:
     - Outer branch steps linked via ProcessStepRelationTable
     - Pre-parallel state is preserved (branch results NOT merged)
     - Inner parallel executes correctly (results visible in branch steps)
-
-    Note: Inner parallel fork steps are not persisted because branch threads
-    do not propagate ``process_stat_var``, so ``process_id`` is None inside
-    nested parallel branches. Only the outermost fork step is tracked in DB.
     """
 
     @workflow()
@@ -231,13 +227,21 @@ def test_two_level_nested_parallel() -> None:
         assert "inner_x" not in state
         assert "inner_y" not in state
 
-        # DB: one fork step for "Outer" (inner parallel runs without DB tracking)
+        # DB: two fork steps for "Outer" and "Inner"
         fork_steps = _get_fork_steps(pstat.process_id)
-        assert len(fork_steps) == 1
+        assert len(fork_steps) == 2
 
-        outer_fork = fork_steps[0]
+        fork_by_name = {fs.name: fs for fs in fork_steps}
+        outer_fork = fork_by_name["Outer"]
         assert outer_fork.parallel_total_branches == 2
         assert outer_fork.parallel_completed_count == 2
+
+        inner_fork = fork_by_name["Inner"]
+        assert inner_fork.parallel_total_branches == 2
+        assert inner_fork.parallel_completed_count == 2
+        inner_relations = _get_relations(inner_fork.step_id)
+        inner_branch_indices = {rel.branch_index for rel in inner_relations}
+        assert inner_branch_indices == {0, 1}
 
         # Verify outer fork has branch relations with indices {0, 1}
         relations = _get_relations(outer_fork.step_id)
@@ -308,12 +312,9 @@ def test_three_level_nested_parallel() -> None:
 
     Verifies:
     - Workflow completes successfully
-    - Top-level fork step persisted in DB with correct branch count
+    - All three fork steps (Top, Mid, Deep) are persisted in DB with correct branch counts
     - Pre-parallel state is preserved (branch results NOT merged)
     - All nested branches execute without error
-
-    Note: Only the outermost fork step is tracked in DB because branch threads
-    do not propagate ``process_stat_var``.
     """
 
     @workflow()
@@ -337,13 +338,24 @@ def test_three_level_nested_parallel() -> None:
         for key in ("mid_m", "deep_p", "deep_q", "top_c"):
             assert key not in state, f"Branch result key {key!r} should not be in main state"
 
-        # DB: one fork step for "Top" (nested parallels run without DB tracking)
+        # DB: three fork steps for "Top", "Mid", and "Deep"
         fork_steps = _get_fork_steps(pstat.process_id)
-        assert len(fork_steps) == 1
+        assert len(fork_steps) == 3
 
-        top_fork = fork_steps[0]
+        fork_by_name = {fs.name: fs for fs in fork_steps}
+        assert set(fork_by_name.keys()) == {"Top", "Mid", "Deep"}
+
+        top_fork = fork_by_name["Top"]
         assert top_fork.parallel_total_branches == 2
         assert top_fork.parallel_completed_count == 2
+
+        mid_fork = fork_by_name["Mid"]
+        assert mid_fork.parallel_total_branches == 2
+        assert mid_fork.parallel_completed_count == 2
+
+        deep_fork = fork_by_name["Deep"]
+        assert deep_fork.parallel_total_branches == 2
+        assert deep_fork.parallel_completed_count == 2
 
         # Verify top fork has branch relations with indices {0, 1}
         relations = _get_relations(top_fork.step_id)
@@ -423,7 +435,7 @@ def test_parallel_with_foreach_branch() -> None:
 
     Verifies:
     - Workflow completes successfully
-    - Only the outer parallel fork step is persisted in DB
+    - The outer parallel fork step and inner foreach fork step are both persisted in DB
     - Branch results are NOT merged into main state
     - Both the foreach branch and the static branch execute correctly
     """
@@ -450,13 +462,18 @@ def test_parallel_with_foreach_branch() -> None:
         assert "result_p2" not in state
         assert "left" not in state
 
-        # DB: one fork step for "Mixed" (inner foreach runs without DB tracking)
+        # DB: two fork steps for "Mixed" (outer parallel) and "FE" (inner foreach)
         fork_steps = _get_fork_steps(pstat.process_id)
-        assert len(fork_steps) == 1
+        assert len(fork_steps) == 2
 
-        outer_fork = fork_steps[0]
+        fork_by_name = {fs.name: fs for fs in fork_steps}
+        outer_fork = fork_by_name["Mixed"]
         assert outer_fork.parallel_total_branches == 2
         assert outer_fork.parallel_completed_count == 2
+
+        fe_fork = fork_by_name["FE"]
+        assert fe_fork.parallel_total_branches == 2
+        assert fe_fork.parallel_completed_count == 2
 
         relations = _get_relations(outer_fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}
@@ -477,8 +494,7 @@ def test_foreach_parallel_with_parallel_inside() -> None:
 
     Verifies:
     - Workflow completes successfully
-    - The outer foreach_parallel fork step is persisted in DB with per-item branches
-    - Inner parallel fork steps are NOT persisted (no process_stat_var in branch threads)
+    - The outer foreach_parallel fork step and all inner parallel fork steps are persisted in DB
     - Branch results are NOT merged into main state
     """
 
@@ -507,11 +523,15 @@ def test_foreach_parallel_with_parallel_inside() -> None:
         # Initial state preserved
         assert "items" in state
 
-        # DB: one fork step for "Items" foreach (inner parallel not tracked)
+        # DB: 4 fork steps - one for "Items" foreach + one "Inner" per branch (3 items)
         fork_steps = _get_fork_steps(pstat.process_id)
-        assert len(fork_steps) == 1
+        assert len(fork_steps) == 4
 
-        fe_fork = fork_steps[0]
+        fork_names = [fs.name for fs in fork_steps]
+        assert fork_names.count("Items") == 1
+        assert fork_names.count("Inner") == 3
+
+        fe_fork = next(fs for fs in fork_steps if fs.name == "Items")
         assert fe_fork.parallel_total_branches == 3
         assert fe_fork.parallel_completed_count == 3
 
@@ -625,8 +645,7 @@ def test_foreach_nested_inside_foreach(groups: list[dict], expected_outer_branch
 
     Verifies:
     - Workflow completes successfully
-    - Only the outer foreach_parallel fork step is persisted in DB
-    - Inner foreach fork steps are NOT persisted (branch threads lack process_stat_var)
+    - The outer foreach_parallel fork step and all inner foreach fork steps are persisted in DB
     - Branch results are NOT merged into main state
     - Initial state preserved
     """
@@ -657,11 +676,15 @@ def test_foreach_nested_inside_foreach(groups: list[dict], expected_outer_branch
         # Initial state preserved
         assert "groups" in state
 
-        # DB: one fork step for "Outer" (inner foreach runs without DB tracking)
+        # DB: outer fork step + one "Inner" fork step per outer branch
         fork_steps = _get_fork_steps(pstat.process_id)
-        assert len(fork_steps) == 1
+        assert len(fork_steps) == 1 + expected_outer_branches
 
-        outer_fork = fork_steps[0]
+        fork_names = [fs.name for fs in fork_steps]
+        assert fork_names.count("Outer") == 1
+        assert fork_names.count("Inner") == expected_outer_branches
+
+        outer_fork = next(fs for fs in fork_steps if fs.name == "Outer")
         assert outer_fork.parallel_total_branches == expected_outer_branches
         assert outer_fork.parallel_completed_count == expected_outer_branches
 
@@ -1061,9 +1084,9 @@ def test_error_in_inner_nested_parallel_propagates_to_outer() -> None:
         result, pstat, _step_log = run_workflow("error_nested_wf", [{}])
         assert_failed(result)
 
-        # Fork step should exist (outer parallel created it before branches ran)
+        # Both outer and inner fork steps should exist
         fork_steps = _get_fork_steps(pstat.process_id)
-        assert len(fork_steps) == 1
+        assert len(fork_steps) == 2
 
 
 @pytest.mark.workflow
@@ -1101,9 +1124,9 @@ def test_error_in_foreach_parallel_nested_inside_parallel() -> None:
         result = runwf(pstat, store(log))
         assert_failed(result)
 
-        # Outer fork step should exist
+        # Outer and inner (FE Fail) fork steps should exist
         fork_steps = _get_fork_steps(pstat.process_id)
-        assert len(fork_steps) == 1
+        assert len(fork_steps) == 2
 
 
 @pytest.mark.workflow
@@ -1140,9 +1163,9 @@ def test_retryable_step_inside_nested_parallel_returns_waiting() -> None:
         result, pstat, _step_log = run_workflow("retry_nested_wf", [{}])
         assert_waiting(result)
 
-        # Fork step should exist
+        # Outer and inner retry fork steps should exist
         fork_steps = _get_fork_steps(pstat.process_id)
-        assert len(fork_steps) == 1
+        assert len(fork_steps) == 2
 
 
 @pytest.mark.workflow
@@ -1178,9 +1201,9 @@ def test_mixed_one_nested_group_fails_another_succeeds_outer_fails() -> None:
         result, pstat, _step_log = run_workflow("mixed_fail_wf", [{}])
         assert_failed(result)
 
-        # Fork step should exist
+        # Outer + two inner fork steps should exist
         fork_steps = _get_fork_steps(pstat.process_id)
-        assert len(fork_steps) == 1
+        assert len(fork_steps) == 3
 
 
 @pytest.mark.workflow
