@@ -22,8 +22,10 @@ from orchestrator.workflow import (
     Success,
     begin,
     done,
+    foreach_parallel,
     init,
     parallel,
+    runwf,
     step,
     workflow,
 )
@@ -306,3 +308,322 @@ def test_three_level_nested_parallel() -> None:
         relations = _get_relations(top_fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}
         assert branch_indices == {0, 1}
+
+
+# ---------------------------------------------------------------------------
+# Step definitions for mixed parallel / foreach_parallel tests
+# ---------------------------------------------------------------------------
+
+
+@step("Process Port")
+def process_port(port_id: str) -> dict:
+    return {f"result_{port_id}": "processed"}
+
+
+@step("Tag Item")
+def tag_item(item: int, item_index: int) -> dict:
+    return {f"tagged_{item_index}": item * 10}
+
+
+@step("Static Left")
+def static_left() -> dict:
+    return {"left": "done"}
+
+
+@step("Static Right")
+def static_right() -> dict:
+    return {"right": "done"}
+
+
+@step("Setup Ports")
+def setup_ports() -> dict:
+    return {"ports": [{"port_id": "p1"}, {"port_id": "p2"}]}
+
+
+@step("Compute Sum")
+def compute_sum(item: int, item_index: int) -> dict:
+    return {f"sum_{item_index}": item + 100}
+
+
+@step("Process Sub")
+def process_sub(item: int, item_index: int) -> dict:
+    return {f"sub_result_{item_index}": item * 2}
+
+
+@step("Finalize")
+def finalize() -> dict:
+    return {"finalized": True}
+
+
+@step("Branch Marker A")
+def branch_marker_a() -> dict:
+    return {"marker_a": True}
+
+
+@step("Branch Marker B")
+def branch_marker_b() -> dict:
+    return {"marker_b": True}
+
+
+# ---------------------------------------------------------------------------
+# Mixed parallel / foreach_parallel tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.workflow
+def test_parallel_with_foreach_branch() -> None:
+    """parallel() where one branch uses foreach_parallel.
+
+    Structure:
+        init >> parallel("Mixed",
+            begin >> setup_ports >> foreach_parallel("FE", "ports", begin >> process_port),
+            begin >> static_left,
+        ) >> done
+
+    Verifies:
+    - Workflow completes successfully
+    - Only the outer parallel fork step is persisted in DB
+    - Branch results are NOT merged into main state
+    - Both the foreach branch and the static branch execute correctly
+    """
+
+    @workflow()
+    def mixed_parallel_foreach_wf():
+        return (
+            init
+            >> parallel(
+                "Mixed",
+                begin >> setup_ports >> foreach_parallel("FE", "ports", begin >> process_port),
+                begin >> static_left,
+            )
+            >> done
+        )
+
+    with WorkflowInstanceForTests(mixed_parallel_foreach_wf, "mixed_parallel_foreach_wf"):
+        result, pstat, _step_log = run_workflow("mixed_parallel_foreach_wf", [{}])
+        assert_complete(result)
+        state = result.unwrap()
+
+        # Branch results must NOT leak into main state
+        assert "result_p1" not in state
+        assert "result_p2" not in state
+        assert "left" not in state
+
+        # DB: one fork step for "Mixed" (inner foreach runs without DB tracking)
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        outer_fork = fork_steps[0]
+        assert outer_fork.parallel_total_branches == 2
+        assert outer_fork.parallel_completed_count == 2
+
+        relations = _get_relations(outer_fork.step_id)
+        branch_indices = {rel.branch_index for rel in relations}
+        assert branch_indices == {0, 1}
+
+
+@pytest.mark.workflow
+def test_foreach_parallel_with_parallel_inside() -> None:
+    """foreach_parallel where each item's branch contains a static parallel block.
+
+    Structure:
+        init >> foreach_parallel("Items", "items", begin >> parallel("Inner",
+            begin >> static_left,
+            begin >> static_right,
+        )) >> done
+
+    Each item spawns a branch that internally runs a parallel() with two sub-branches.
+
+    Verifies:
+    - Workflow completes successfully
+    - The outer foreach_parallel fork step is persisted in DB with per-item branches
+    - Inner parallel fork steps are NOT persisted (no process_stat_var in branch threads)
+    - Branch results are NOT merged into main state
+    """
+
+    @workflow()
+    def foreach_with_inner_parallel_wf():
+        return (
+            init
+            >> foreach_parallel(
+                "Items",
+                "items",
+                begin >> parallel("Inner", begin >> static_left, begin >> static_right),
+            )
+            >> done
+        )
+
+    with register_test_workflow(foreach_with_inner_parallel_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {"items": [{"tag": "a"}, {"tag": "b"}, {"tag": "c"}]})
+        result = runwf(pstat, store(log))
+        assert_complete(result)
+        state = result.unwrap()
+
+        # Branch results must NOT leak into main state
+        assert "left" not in state
+        assert "right" not in state
+        # Initial state preserved
+        assert "items" in state
+
+        # DB: one fork step for "Items" foreach (inner parallel not tracked)
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        fe_fork = fork_steps[0]
+        assert fe_fork.parallel_total_branches == 3
+        assert fe_fork.parallel_completed_count == 3
+
+        relations = _get_relations(fe_fork.step_id)
+        branch_indices = {rel.branch_index for rel in relations}
+        assert branch_indices == {0, 1, 2}
+
+
+@pytest.mark.workflow
+def test_sequential_parallel_foreach_parallel_chain() -> None:
+    """Sequential chain: parallel >> foreach_parallel >> parallel.
+
+    Structure:
+        init >> parallel("P1", begin >> outer_a, begin >> outer_b)
+             >> foreach_parallel("FE", "values", begin >> tag_item)
+             >> parallel("P2", begin >> static_left, begin >> static_right)
+             >> done
+
+    Three parallel blocks executed in sequence, each completing before the next starts.
+
+    Verifies:
+    - Workflow completes successfully
+    - Three fork steps persisted in DB (one per parallel/foreach_parallel block)
+    - Branch results are NOT merged between blocks
+    - Initial state key "values" is preserved through all blocks
+    """
+
+    @workflow()
+    def chain_wf():
+        return (
+            init
+            >> parallel("P1", begin >> outer_a, begin >> outer_b)
+            >> foreach_parallel("FE", "values", begin >> tag_item)
+            >> parallel("P2", begin >> static_left, begin >> static_right)
+            >> done
+        )
+
+    with register_test_workflow(chain_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {"values": [1, 2, 3]})
+        result = runwf(pstat, store(log))
+        assert_complete(result)
+        state = result.unwrap()
+
+        # Branch results must NOT leak into main state
+        assert "outer_a" not in state
+        assert "outer_b" not in state
+        assert "tagged_0" not in state
+        assert "left" not in state
+        assert "right" not in state
+
+        # Initial state preserved through all blocks
+        assert "values" in state
+
+        # DB: three fork steps (P1, FE, P2)
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 3
+
+        # Look up each fork step by name
+        fork_by_name = {fs.name: fs for fs in fork_steps}
+        assert set(fork_by_name.keys()) == {"P1", "FE", "P2"}
+
+        # P1: 2 branches
+        assert fork_by_name["P1"].parallel_total_branches == 2
+        assert fork_by_name["P1"].parallel_completed_count == 2
+
+        # FE: 3 branches (one per item)
+        assert fork_by_name["FE"].parallel_total_branches == 3
+        assert fork_by_name["FE"].parallel_completed_count == 3
+
+        # P2: 2 branches
+        assert fork_by_name["P2"].parallel_total_branches == 2
+        assert fork_by_name["P2"].parallel_completed_count == 2
+
+
+@pytest.mark.workflow
+@pytest.mark.parametrize(
+    "groups,expected_outer_branches",
+    [
+        pytest.param(
+            [{"group": "A", "sub_items": [1, 2]}, {"group": "B", "sub_items": [3, 4]}],
+            2,
+            id="two_groups_two_inner_each",
+        ),
+        pytest.param(
+            [{"group": "X", "sub_items": [10, 20, 30]}],
+            1,
+            id="single_group_three_inner",
+        ),
+        pytest.param(
+            [
+                {"group": "A", "sub_items": [1]},
+                {"group": "B", "sub_items": [2]},
+                {"group": "C", "sub_items": [3]},
+            ],
+            3,
+            id="three_groups_one_inner_each",
+        ),
+    ],
+)
+def test_foreach_nested_inside_foreach(groups: list[dict], expected_outer_branches: int) -> None:
+    """foreach_parallel nested inside foreach_parallel.
+
+    Structure:
+        init >> foreach_parallel("Outer", "groups", begin
+            >> foreach_parallel("Inner", "sub_items", begin >> compute_sum)
+        ) >> done
+
+    The outer foreach iterates over groups; each group dict contains a "sub_items"
+    list that the inner foreach iterates over.
+
+    Verifies:
+    - Workflow completes successfully
+    - Only the outer foreach_parallel fork step is persisted in DB
+    - Inner foreach fork steps are NOT persisted (branch threads lack process_stat_var)
+    - Branch results are NOT merged into main state
+    - Initial state preserved
+    """
+
+    @workflow()
+    def nested_foreach_wf():
+        return (
+            init
+            >> foreach_parallel(
+                "Outer",
+                "groups",
+                begin >> foreach_parallel("Inner", "sub_items", begin >> compute_sum),
+            )
+            >> done
+        )
+
+    with register_test_workflow(nested_foreach_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {"groups": groups})
+        result = runwf(pstat, store(log))
+        assert_complete(result)
+        state = result.unwrap()
+
+        # Branch results must NOT leak into main state
+        assert "sum_0" not in state
+        assert "sum_1" not in state
+
+        # Initial state preserved
+        assert "groups" in state
+
+        # DB: one fork step for "Outer" (inner foreach runs without DB tracking)
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        outer_fork = fork_steps[0]
+        assert outer_fork.parallel_total_branches == expected_outer_branches
+        assert outer_fork.parallel_completed_count == expected_outer_branches
+
+        relations = _get_relations(outer_fork.step_id)
+        branch_indices = {rel.branch_index for rel in relations}
+        assert branch_indices == set(range(expected_outer_branches))
