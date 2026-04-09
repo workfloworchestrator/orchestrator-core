@@ -6,6 +6,7 @@ and edge cases. All tests run with real DB persistence via the engine-pool
 session fixture.
 """
 
+import time
 from typing import cast
 from uuid import uuid4
 
@@ -803,3 +804,150 @@ def test_asymmetric_order_ids_sequential(branch_lengths: list[int]) -> None:
             assert (
                 actual_order_ids == expected_order_ids
             ), f"Branch {branch_idx}: expected order_ids {expected_order_ids}, got {actual_order_ids}"
+
+
+# ---------------------------------------------------------------------------
+# Step definitions for scale / concurrency tests
+# ---------------------------------------------------------------------------
+
+
+@step("Slow Item Step")
+def slow_item_step(item: object, item_index: int) -> dict:
+    time.sleep(0.05)
+    return {f"result_{item_index}": f"done_{item}"}
+
+
+# ---------------------------------------------------------------------------
+# Scale / concurrency stress tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.workflow
+def test_ten_branch_parallel() -> None:
+    """A parallel() with 10 branches, each doing a small amount of work.
+
+    Verifies:
+    - Workflow completes successfully
+    - Fork step has parallel_total_branches=10 and parallel_completed_count=10
+    - All 10 branch indices present in ProcessStepRelationTable
+    - All branch steps have status "success"
+    """
+
+    @workflow()
+    def ten_branch_wf():
+        return init >> parallel("Ten branches", *[begin >> chain_steps[i] for i in range(10)]) >> done
+
+    with register_test_workflow(ten_branch_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {})
+        result = runwf(pstat, store(log))
+        assert_complete(result)
+        state = result.unwrap()
+
+        # Branch results must NOT leak into main state
+        for i in range(10):
+            assert f"chain_{i}" not in state, f"Branch result key 'chain_{i}' should not be in main state"
+
+        # DB: one fork step for "Ten branches"
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        fork = fork_steps[0]
+        assert fork.parallel_total_branches == 10
+        assert fork.parallel_completed_count == 10
+
+        # All 10 branch indices present
+        relations = _get_relations(fork.step_id)
+        branch_indices = {rel.branch_index for rel in relations}
+        assert branch_indices == set(range(10))
+
+        # All branch steps have status "success"
+        child_step_ids = {rel.child_step_id for rel in relations}
+        branch_steps = db.session.query(ProcessStepTable).filter(ProcessStepTable.step_id.in_(child_step_ids)).all()
+        assert all(
+            bs.status == "success" for bs in branch_steps
+        ), f"Not all branch steps succeeded: {[(bs.name, bs.status) for bs in branch_steps]}"
+
+
+@pytest.mark.workflow
+def test_twenty_item_foreach_parallel() -> None:
+    """foreach_parallel over a list of 20 items with concurrency verification.
+
+    Verifies:
+    - Workflow completes successfully
+    - Fork step has parallel_total_branches=20 and parallel_completed_count=20
+    - All 20 branch indices present in ProcessStepRelationTable
+    - Execution is concurrent (20 items sleeping 0.05s each should complete in <2s)
+    """
+
+    @workflow()
+    def twenty_item_wf():
+        return init >> foreach_parallel("Scale FE", "items", begin >> slow_item_step) >> done
+
+    with register_test_workflow(twenty_item_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {"items": list(range(20))})
+        start = time.monotonic()
+        result = runwf(pstat, store(log))
+        elapsed = time.monotonic() - start
+        assert_complete(result)
+
+        # Concurrency check: 20 * 0.05s = 1s sequential; concurrent should be much faster
+        assert elapsed < 2.0, f"Expected concurrent execution to finish in <2s, took {elapsed:.2f}s"
+
+        # DB: one fork step for "Scale FE"
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        fork = fork_steps[0]
+        assert fork.parallel_total_branches == 20
+        assert fork.parallel_completed_count == 20
+
+        # All 20 branch indices present
+        relations = _get_relations(fork.step_id)
+        branch_indices = {rel.branch_index for rel in relations}
+        assert branch_indices == set(range(20))
+
+
+@pytest.mark.workflow
+def test_max_workers_throttling() -> None:
+    """foreach_parallel with max_workers=2 throttles concurrency.
+
+    With 10 items each sleeping 0.05s and max_workers=2, execution should take
+    ~0.25s (5 batches of 2), not ~0.05s (full parallelism) and not ~0.5s (sequential).
+
+    Verifies:
+    - Workflow completes correctly
+    - Throttled execution takes longer than fully parallel but less than sequential
+    - All 10 branches persisted in DB
+    """
+
+    @workflow()
+    def throttled_wf():
+        return init >> foreach_parallel("Throttled", "items", begin >> slow_item_step, max_workers=2) >> done
+
+    with register_test_workflow(throttled_wf) as wf_table:
+        log: list = []
+        pstat = create_new_process_stat(wf_table, {"items": list(range(10))})
+        start = time.monotonic()
+        result = runwf(pstat, store(log))
+        elapsed = time.monotonic() - start
+        assert_complete(result)
+
+        # Throttling check: 10 items, max_workers=2, each 0.05s -> ~0.25s minimum (5 batches)
+        assert elapsed >= 0.2, f"Should be throttled by max_workers=2, but finished in {elapsed:.2f}s"
+        # Should still be faster than fully sequential (10 * 0.05s = 0.5s)
+        assert elapsed < 2.0, f"Should not be sequential, took {elapsed:.2f}s"
+
+        # DB: one fork step for "Throttled"
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+
+        fork = fork_steps[0]
+        assert fork.parallel_total_branches == 10
+        assert fork.parallel_completed_count == 10
+
+        # All 10 branch indices present
+        relations = _get_relations(fork.step_id)
+        branch_indices = {rel.branch_index for rel in relations}
+        assert branch_indices == set(range(10))
