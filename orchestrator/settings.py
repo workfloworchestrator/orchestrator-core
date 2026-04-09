@@ -60,6 +60,8 @@ class AppSettings(BaseSettings):
     ]
     ENVIRONMENT: str = "local"
     EXECUTOR: str = ExecutorType.THREADPOOL
+    PARALLEL_BRANCH_QUEUE: str = ""  # empty = use default tasks queue
+    PARALLEL_BRANCH_WORKFLOW_QUEUE: str = ""  # empty = use default workflows queue
     WORKFLOWS_SWAGGER_HOST: str = "localhost"
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
     BASE_URL: str = "http://localhost:8080"  # Base URL for the API (used for generating export URLs)

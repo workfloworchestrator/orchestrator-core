@@ -36,6 +36,8 @@ NEW_TASK = "tasks.new_task"
 NEW_WORKFLOW = "tasks.new_workflow"
 RESUME_TASK = "tasks.resume_task"
 RESUME_WORKFLOW = "tasks.resume_workflow"
+EXECUTE_PARALLEL_BRANCH = "tasks.execute_parallel_branch"
+EXECUTE_PARALLEL_BRANCH_WORKFLOW = "tasks.execute_parallel_branch_workflow"
 
 
 def get_celery_task(task_name: str) -> Task:
@@ -56,11 +58,17 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
     _celery = celery
 
     # Different routes/queues so we can assign them priorities
+    from orchestrator.settings import app_settings
+
+    parallel_task_queue = app_settings.PARALLEL_BRANCH_QUEUE or "new_tasks"
+    parallel_wf_queue = app_settings.PARALLEL_BRANCH_WORKFLOW_QUEUE or "new_workflows"
     celery.conf.task_routes = {
         NEW_TASK: {"queue": "new_tasks"},
         NEW_WORKFLOW: {"queue": "new_workflows"},
         RESUME_TASK: {"queue": "resume_tasks"},
         RESUME_WORKFLOW: {"queue": "resume_workflows"},
+        EXECUTE_PARALLEL_BRANCH: {"queue": parallel_task_queue},
+        EXECUTE_PARALLEL_BRANCH_WORKFLOW: {"queue": parallel_wf_queue},
     }
 
     register_custom_serializer()
@@ -112,6 +120,64 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
     def resume_workflow(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Resume workflow", process_id=process_id)
         return resume_process(process_id, user=user)
+
+    def _run_parallel_branch(
+        process_id: UUID,
+        branch_index: int,
+        fork_step_id: UUID,
+        initial_state: dict,
+        user: str,
+        seed_state: dict | None = None,
+    ) -> UUID | None:
+        local_logger.info(
+            "Execute parallel branch",
+            process_id=process_id,
+            fork_step_id=fork_step_id,
+            branch_index=branch_index,
+        )
+        try:
+            from orchestrator.services.parallel import run_worker_branch
+
+            run_worker_branch(
+                process_id=process_id,
+                branch_index=branch_index,
+                fork_step_id=fork_step_id,
+                initial_state=initial_state,
+                user=user,
+                seed_state=seed_state,
+            )
+        except Exception as exc:
+            local_logger.error(
+                "Parallel branch failed",
+                process_id=process_id,
+                branch_index=branch_index,
+                details=str(exc),
+            )
+            return None
+        else:
+            return process_id
+
+    @celery_task(name=EXECUTE_PARALLEL_BRANCH)  # type: ignore
+    def execute_parallel_branch(
+        process_id: UUID,
+        branch_index: int,
+        fork_step_id: UUID,
+        initial_state: dict,
+        user: str,
+        seed_state: dict | None = None,
+    ) -> UUID | None:
+        return _run_parallel_branch(process_id, branch_index, fork_step_id, initial_state, user, seed_state)
+
+    @celery_task(name=EXECUTE_PARALLEL_BRANCH_WORKFLOW)  # type: ignore
+    def execute_parallel_branch_workflow(
+        process_id: UUID,
+        branch_index: int,
+        fork_step_id: UUID,
+        initial_state: dict,
+        user: str,
+        seed_state: dict | None = None,
+    ) -> UUID | None:
+        return _run_parallel_branch(process_id, branch_index, fork_step_id, initial_state, user, seed_state)
 
 
 class CeleryJobWorkerStatus(WorkerStatus):

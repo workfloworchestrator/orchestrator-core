@@ -1,0 +1,306 @@
+"""Integration tests for Celery-based parallel branch execution.
+
+Tests exercise real DB persistence through the parallel execution path.
+"""
+
+from uuid import uuid4
+
+import pytest
+
+from orchestrator.db import ProcessStepTable, db
+from orchestrator.services.parallel import (
+    _atomic_increment_completed,
+    _collect_branch_results,
+    _resolve_branch_from_db,
+)
+from orchestrator.workflow import (
+    begin,
+    done,
+    foreach_parallel,
+    init,
+    parallel,
+    step,
+    workflow,
+)
+from test.unit_tests.workflows import WorkflowInstanceForTests, assert_complete, run_workflow
+
+# --- Step definitions ---
+
+
+@step("Celery Branch A")
+def cel_branch_a() -> dict:
+    return {"cel_a": "done"}
+
+
+@step("Celery Branch B")
+def cel_branch_b() -> dict:
+    return {"cel_b": "done"}
+
+
+@step("Multi A1")
+def multi_a1() -> dict:
+    return {"a1": "first"}
+
+
+@step("Multi A2")
+def multi_a2(a1: str) -> dict:
+    return {"a2": f"{a1}_second"}
+
+
+@step("Multi B1")
+def multi_b1() -> dict:
+    return {"b1": "only"}
+
+
+@step("Seq Step")
+def seq_step() -> dict:
+    return {"seq": "done"}
+
+
+@step("Final Step")
+def final_step() -> dict:
+    return {"final": "done"}
+
+
+@step("Process FE Item")
+def process_fe_item(item: object, item_index: int) -> dict:
+    return {f"result_{item_index}": f"processed_{item}"}
+
+
+@step("Seed FE Items")
+def seed_fe_items() -> dict:
+    return {"items": ["alpha", "beta", "gamma"]}
+
+
+# --- Query helpers ---
+
+
+def _get_fork_step(process_id: object) -> ProcessStepTable:
+    """Return the single fork step for a given process."""
+    return (
+        db.session.query(ProcessStepTable)
+        .filter(
+            ProcessStepTable.process_id == process_id,
+            ProcessStepTable.parallel_total_branches.isnot(None),
+        )
+        .one()
+    )
+
+
+def _get_all_steps(process_id: object) -> list[ProcessStepTable]:
+    """Return all process steps ordered by creation."""
+    return (
+        db.session.query(ProcessStepTable)
+        .filter(ProcessStepTable.process_id == process_id)
+        .order_by(ProcessStepTable.step_id)
+        .all()
+    )
+
+
+# --- Tests ---
+
+
+@pytest.mark.celery
+def test_atomic_increment_completed_with_real_db() -> None:
+    """Run a 2-branch parallel workflow, reset counter, then verify atomic increment."""
+
+    @workflow()
+    def cel_incr_wf():
+        return init >> parallel("incr group", begin >> cel_branch_a, begin >> cel_branch_b) >> done
+
+    with WorkflowInstanceForTests(cel_incr_wf, "cel_incr_wf"):
+        result, pstat, _step_log = run_workflow("cel_incr_wf", [{}])
+        assert_complete(result)
+
+        fork_step = _get_fork_step(pstat.process_id)
+        assert fork_step.parallel_completed_count == 2
+        assert fork_step.parallel_total_branches == 2
+
+        # Reset counter to test _atomic_increment_completed directly
+        fork_step.parallel_completed_count = 0
+        db.session.commit()
+
+        first_completed, first_total = _atomic_increment_completed(fork_step.step_id)
+        assert first_completed == 1
+        assert first_total == 2
+
+        second_completed, second_total = _atomic_increment_completed(fork_step.step_id)
+        assert second_completed == 2
+        assert second_total == 2
+
+
+@pytest.mark.celery
+def test_collect_branch_results_from_real_db() -> None:
+    """Run a 2-branch parallel workflow and collect branch results from DB."""
+
+    @workflow()
+    def cel_collect_wf():
+        return init >> parallel("collect group", begin >> cel_branch_a, begin >> cel_branch_b) >> done
+
+    with WorkflowInstanceForTests(cel_collect_wf, "cel_collect_wf"):
+        result, pstat, _step_log = run_workflow("cel_collect_wf", [{}])
+        assert_complete(result)
+
+        fork_step = _get_fork_step(pstat.process_id)
+        branch_results = _collect_branch_results(fork_step.step_id)
+
+        assert len(branch_results) == 2
+
+        # Results are sorted by branch_index
+        assert branch_results[0][0] == 0
+        assert branch_results[1][0] == 1
+
+        # Each branch should have "success" status
+        assert branch_results[0][2] == "success"
+        assert branch_results[1][2] == "success"
+
+        # Collect all state keys across branches
+        all_state_keys = {key for _idx, state, _status in branch_results for key in state}
+        assert "cel_a" in all_state_keys
+        assert "cel_b" in all_state_keys
+
+
+@pytest.mark.celery
+def test_collect_branch_results_multi_step_returns_last_step() -> None:
+    """Branch with multiple steps returns accumulated state from the last step."""
+
+    @workflow()
+    def cel_multi_step_wf():
+        return init >> parallel("multi step group", begin >> multi_a1 >> multi_a2, begin >> multi_b1) >> done
+
+    with WorkflowInstanceForTests(cel_multi_step_wf, "cel_multi_step_wf"):
+        result, pstat, _step_log = run_workflow("cel_multi_step_wf", [{}])
+        assert_complete(result)
+
+        fork_step = _get_fork_step(pstat.process_id)
+        branch_results = _collect_branch_results(fork_step.step_id)
+
+        assert len(branch_results) == 2
+
+        # Branch 0 has 2 steps (multi_a1 >> multi_a2); the last step's state should have both keys
+        branch_0_results = [r for r in branch_results if r[0] == 0]
+        assert len(branch_0_results) == 1
+        branch_0_state = branch_0_results[0][1]
+        assert "a1" in branch_0_state
+        assert "a2" in branch_0_state
+        assert branch_0_state["a2"] == "first_second"
+
+        # Branch 1 has 1 step
+        branch_1_results = [r for r in branch_results if r[0] == 1]
+        assert len(branch_1_results) == 1
+        assert "b1" in branch_1_results[0][1]
+
+
+@pytest.mark.celery
+def test_resolve_branch_from_db_finds_correct_branch() -> None:
+    """Resolve branch metadata from DB after running a parallel workflow."""
+
+    @workflow()
+    def cel_resolve_wf():
+        return init >> parallel("resolve group", begin >> cel_branch_a, begin >> cel_branch_b) >> done
+
+    with WorkflowInstanceForTests(cel_resolve_wf, "cel_resolve_wf"):
+        result, pstat, _step_log = run_workflow("cel_resolve_wf", [{}])
+        assert_complete(result)
+
+        fork_step = _get_fork_step(pstat.process_id)
+
+        group_name_0, branch_steps_0 = _resolve_branch_from_db(fork_step.step_id, pstat.process_id, 0)
+        assert group_name_0 == "resolve group"
+        assert len(branch_steps_0) > 0
+
+        group_name_1, branch_steps_1 = _resolve_branch_from_db(fork_step.step_id, pstat.process_id, 1)
+        assert group_name_1 == "resolve group"
+        assert len(branch_steps_1) > 0
+
+
+@pytest.mark.celery
+def test_resolve_branch_from_db_invalid_fork_step_raises() -> None:
+    """Non-existent fork step ID raises ValueError."""
+    with pytest.raises(ValueError, match="not found"):
+        _resolve_branch_from_db(uuid4(), uuid4(), 0)
+
+
+@pytest.mark.celery
+def test_foreach_parallel_branch_results_in_db() -> None:
+    """foreach_parallel over 3 dict items creates 3 branches with correct per-item states."""
+
+    @workflow()
+    def cel_foreach_wf():
+        return init >> seed_fe_items >> foreach_parallel("fe group", "items", begin >> process_fe_item) >> done
+
+    with WorkflowInstanceForTests(cel_foreach_wf, "cel_foreach_wf"):
+        result, pstat, _step_log = run_workflow("cel_foreach_wf", [{}])
+        assert_complete(result)
+
+        fork_step = _get_fork_step(pstat.process_id)
+        branch_results = _collect_branch_results(fork_step.step_id)
+
+        assert len(branch_results) == 3
+
+        # Verify branch indices
+        indices = {r[0] for r in branch_results}
+        assert indices == {0, 1, 2}
+
+        # Each branch should have processed its item
+        all_state_keys = {key for _idx, state, _status in branch_results for key in state}
+        assert "result_0" in all_state_keys
+        assert "result_1" in all_state_keys
+        assert "result_2" in all_state_keys
+
+
+@pytest.mark.celery
+def test_full_parallel_workflow_db_state_after_completion() -> None:
+    """Complete workflow with sequential and parallel steps creates correct DB state.
+
+    Note: in tests, only the fork step and branch steps are persisted to DB
+    (regular steps use an in-memory step log). We verify the parallel-specific
+    DB rows and the step_log for the full sequence.
+    """
+
+    @workflow()
+    def cel_full_wf():
+        return (
+            init
+            >> seq_step
+            >> parallel("full group", begin >> cel_branch_a, begin >> cel_branch_b)
+            >> final_step
+            >> done
+        )
+
+    with WorkflowInstanceForTests(cel_full_wf, "cel_full_wf"):
+        result, pstat, step_log = run_workflow("cel_full_wf", [{}])
+        assert_complete(result)
+
+        # Verify workflow sequence via step_log (in-memory).
+        # Note: the parallel group step uses __replace_last_state which replaces
+        # the preceding step in the log, so seq_step is overwritten by "full group".
+        logged_step_names = [s.name for s, _process in step_log]
+        assert "Start" in logged_step_names
+        assert "full group" in logged_step_names
+        assert "Final Step" in logged_step_names
+        assert "Done" in logged_step_names
+
+        # Verify fork step persisted with correct counts
+        fork_step = _get_fork_step(pstat.process_id)
+        assert fork_step.parallel_total_branches == 2
+        assert fork_step.parallel_completed_count == 2
+
+        # Verify fork step has child_steps via association proxy
+        child_steps = list(fork_step.child_steps)
+        assert len(child_steps) == 2
+
+        child_names = {cs.name for cs in child_steps}
+        assert any("[Branch 0]" in n for n in child_names)
+        assert any("[Branch 1]" in n for n in child_names)
+
+        # Verify branch steps are in DB
+        all_db_steps = _get_all_steps(pstat.process_id)
+        db_step_names = [s.name for s in all_db_steps]
+        branch_step_names = [n for n in db_step_names if "[Branch" in n]
+        assert len(branch_step_names) >= 2
+
+        # Verify fork step stores initial_state (NOT merged branch results)
+        assert fork_step.status == "success"
+        assert "cel_a" not in fork_step.state
+        assert "cel_b" not in fork_step.state

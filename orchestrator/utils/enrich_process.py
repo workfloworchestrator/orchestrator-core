@@ -55,7 +55,7 @@ def find_previous_step(steps: list[ProcessStepTable], index: int) -> ProcessStep
 def enrich_step_details(step: ProcessStepTable, previous_step: ProcessStepTable | None) -> dict:
     state_delta = get_dict_updates(previous_step.state, step.state) if previous_step else step.state
 
-    return {
+    result = {
         "name": step.name,
         "executed": step.completed_at.timestamp(),
         "started": step.started_at.timestamp(),
@@ -66,7 +66,12 @@ def enrich_step_details(step: ProcessStepTable, previous_step: ProcessStepTable 
         "step_id": step.step_id,
         "stepid": step.step_id,
         "state_delta": state_delta,
+        "parallel_total_branches": step.parallel_total_branches,
+        "parallel_completed_count": step.parallel_completed_count,
     }
+    if step.parallel_total_branches is not None:
+        result["child_steps"] = [enrich_step_details(child, None) for child in step.child_steps]
+    return result
 
 
 def enrich_process_details(process: ProcessTable, p_stat: ProcessStat) -> dict:

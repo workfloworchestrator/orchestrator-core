@@ -125,6 +125,114 @@ For a practical example of how to define reusable workflow steps—and how to le
 👉 [Reusable step functions and singledispatch usage]
 
 
+### Parallel Steps
+
+The workflow engine supports two kinds of parallel execution, both implemented as a fork/join pattern: the engine forks the state into isolated copies for each branch, executes them concurrently, and joins the results back into a single state.
+
+Parallel execution supports two backends:
+
+- **ThreadPool** (default): Branches run in-process using a `ThreadPoolExecutor`. Each branch thread gets its own database session via `db.database_scope()`.
+- **Celery** (distributed): When `EXECUTOR=celery`, each branch is submitted as a separate Celery task. The parent workflow suspends (`Waiting`) until all branches complete. The last branch to finish atomically detects completion and resumes the parent workflow.
+
+#### Static parallel — fixed branches
+
+Use when the set of branches is known at definition time (e.g., always provision port A and port B together).
+
+**Pipe operator (unnamed)**:
+```python
+@create_workflow(...)
+def create_dual_port():
+    return init >> (
+        (begin >> provision_port_a)
+        | (begin >> provision_port_b)
+    ) >> link_ports >> done
+```
+
+**Dict naming (named)**:
+```python
+@create_workflow(...)
+def create_dual_port():
+    return init >> {
+        "Provision ports": (begin >> provision_port_a)
+                           | (begin >> provision_port_b)
+    } >> link_ports >> done
+```
+
+**Explicit `parallel()` function** (for advanced options like `retry_auth_callback`):
+```python
+from orchestrator.workflow import parallel
+
+@create_workflow(...)
+def create_dual_port():
+    par = parallel("Provision ports",
+                   begin >> provision_port_a,
+                   begin >> provision_port_b,
+                   retry_auth_callback=my_callback)
+    return init >> par >> link_ports >> done
+```
+
+#### Dynamic parallel — one branch per item
+
+Use when the number of branches depends on a runtime list in the workflow state (e.g., provision one port per item in `state["ports"]`).
+
+```python
+from orchestrator.workflow import foreach_parallel
+
+@step("Fetch ports")
+def fetch_ports():
+    return {"ports": [{"port_id": "p1", "vlan": 100},
+                      {"port_id": "p2", "vlan": 200}]}
+
+@step("Provision port")
+def provision_port(port_id, vlan):          # injected from each item
+    result = call_provisioning_api(port_id, vlan)
+    return {f"port_{port_id}_result": result}  # distinct key per item
+
+@create_workflow(...)
+def provision_n_ports():
+    return (
+        init
+        >> fetch_ports
+        >> foreach_parallel("Provision ports", "ports", begin >> provision_port)
+        >> link_ports
+        >> done
+    )
+```
+
+Each item in the list becomes the seed state for one branch:
+
+- **Dict items** are merged directly into the branch's initial state: `initial_state | {"port_id": "p1", "vlan": 100}`.
+- **Scalar items** are injected as `{"item": <value>, "item_index": <int>}`.
+
+Seed keys are injected into the branch's initial state as input-only context for that branch's steps.
+
+#### Behavior (both kinds)
+
+- **State isolation**: Each branch receives a deep copy of the input state. Mutations in one branch do not affect other branches.
+- **Concurrent execution**: Branches execute concurrently. With ThreadPool, each branch runs in its own thread with an isolated database session (via `db.database_scope()`). With Celery, each branch runs as an independent worker task.
+- **Per-branch DB logging**: Each branch writes its own `ProcessStepTable` rows, linked to the parent fork step via `ProcessStepRelationTable`. This gives fine-grained visibility into branch execution and enables the UI to render parallel branches as a tree.
+- **No state merging**: Branch results are **not** merged back into the main workflow state. Each branch's final state is persisted in its own `ProcessStepTable` row, linked to the fork step via `ProcessStepRelationTable`. The main workflow continues with its pre-fork state. Branch results are accessible via the DB (and visible in the UI) but do not pollute the parent state.
+- **Error propagation**: If any branch fails, the entire parallel group fails. All branches run to completion before the worst status is determined. Status priority is: Failed > Waiting > Suspend > AwaitingCallback > Success.
+- **No user interaction in branches**: Parallel branches must not contain `inputstep` or `callback_step` steps. This is validated at workflow definition time.
+- **Logging**: The parallel group creates a fork step in the process log. Named groups use the provided name; unnamed groups get an auto-generated name from the branch step names. Branch sub-steps appear as child rows linked via `ProcessStepRelationTable`.
+- **Three or more branches**: The `|` operator chains naturally: `a | b | c` creates three parallel branches.
+- **Empty list** (`foreach_parallel`): An empty `items_key` list returns `Success` with the unchanged state — no threads are created.
+
+#### Database schema
+
+Parallel execution introduces:
+
+- **`ProcessStepRelationTable`**: A join table linking parent (fork) steps to child (branch) steps with `parent_step_id`, `child_step_id`, `order_id`, and `branch_index` columns.
+- **Fork step columns on `ProcessStepTable`**: `parallel_total_branches` (total branch count) and `parallel_completed_count` (branches finished so far, used for atomic last-finisher detection with Celery).
+
+#### Celery configuration
+
+When using Celery execution, parallel branches are routed to configurable queues:
+
+- `PARALLEL_BRANCH_QUEUE`: Queue for parallel branch tasks (default: same as regular task queue).
+- `PARALLEL_BRANCH_WORKFLOW_QUEUE`: Queue for parallel branch workflow tasks (default: same as regular workflow queue).
+
+
 ### Execution parameters
 
 You can fine-tune workflow execution behavior using a set of configuration parameters.

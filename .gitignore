@@ -133,3 +133,6 @@ src/*
 # MacOS Stuff
 
 .DS_store
+
+# Superpowers plans (local only)
+docs/superpowers/
