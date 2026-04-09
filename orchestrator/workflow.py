@@ -21,6 +21,7 @@ import secrets
 import warnings
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from itertools import dropwhile
@@ -694,6 +695,7 @@ def _run_threadpool_branches(
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {
             executor.submit(
+                copy_context().run,
                 _run_branch,
                 branches[idx] if len(branches) > 1 else branches[0],
                 initial_state,

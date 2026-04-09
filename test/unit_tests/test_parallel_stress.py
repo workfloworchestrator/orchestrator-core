@@ -258,6 +258,41 @@ def test_two_level_nested_parallel() -> None:
 
 
 @pytest.mark.workflow
+def test_nested_parallel_creates_inner_fork_step() -> None:
+    """After copy_context fix, nested parallel creates fork steps at BOTH levels."""
+
+    @workflow()
+    def nested_inner_fork_wf():
+        return (
+            init
+            >> parallel(
+                "Outer",
+                begin >> outer_a >> parallel("Inner", begin >> inner_x, begin >> inner_y),
+                begin >> outer_b,
+            )
+            >> done
+        )
+
+    with WorkflowInstanceForTests(nested_inner_fork_wf, "nested_inner_fork_wf"):
+        result, pstat, _step_log = run_workflow("nested_inner_fork_wf", [{}])
+        assert_complete(result)
+
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 2, f"Expected 2 fork steps (Outer + Inner), got {len(fork_steps)}"
+
+        fork_by_name = {fs.name: fs for fs in fork_steps}
+        assert set(fork_by_name.keys()) == {"Outer", "Inner"}
+
+        inner_fork = fork_by_name["Inner"]
+        assert inner_fork.parallel_total_branches == 2
+        assert inner_fork.parallel_completed_count == 2
+
+        inner_relations = _get_relations(inner_fork.step_id)
+        inner_branch_indices = {rel.branch_index for rel in inner_relations}
+        assert inner_branch_indices == {0, 1}
+
+
+@pytest.mark.workflow
 def test_three_level_nested_parallel() -> None:
     """Three levels of nesting: parallel inside parallel inside parallel.
 
