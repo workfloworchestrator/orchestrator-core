@@ -16,6 +16,7 @@ from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 
 from orchestrator.db import ProcessStepRelationTable, ProcessStepTable, ProcessTable, db
 from orchestrator.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
+from orchestrator.services.parallel import _find_parallel_step
 from orchestrator.services.processes import SYSTEM_USER
 from orchestrator.workflow import (
     ProcessStat,
@@ -1507,3 +1508,118 @@ def test_parallel_branches_return_empty_dicts() -> None:
         relations = _get_relations(fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}
         assert branch_indices == {0, 1}
+
+
+# ---------------------------------------------------------------------------
+# _find_parallel_step unit tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.workflow
+def test_find_parallel_step_top_level() -> None:
+    """_find_parallel_step finds a parallel step at the top level of wf.steps."""
+
+    @workflow()
+    def flat_wf():
+        return init >> parallel("TopLevel", begin >> outer_a, begin >> outer_b) >> done
+
+    with WorkflowInstanceForTests(flat_wf, "flat_wf"):
+        from orchestrator.workflows import get_workflow
+
+        wf = get_workflow("flat_wf")
+        result = _find_parallel_step(wf.steps, "TopLevel")
+        assert result is not None
+        assert getattr(result, "_parallel_group_name", None) == "TopLevel"
+
+
+@pytest.mark.workflow
+def test_find_parallel_step_nested_in_parallel_branch() -> None:
+    """_find_parallel_step finds a parallel step nested inside another parallel step's branch."""
+
+    @workflow()
+    def nested_wf():
+        return (
+            init
+            >> parallel(
+                "Outer",
+                begin >> outer_a >> parallel("Inner", begin >> inner_x, begin >> inner_y),
+                begin >> outer_b,
+            )
+            >> done
+        )
+
+    with WorkflowInstanceForTests(nested_wf, "nested_find_wf"):
+        from orchestrator.workflows import get_workflow
+
+        wf = get_workflow("nested_find_wf")
+        result = _find_parallel_step(wf.steps, "Inner")
+        assert result is not None
+        assert getattr(result, "_parallel_group_name", None) == "Inner"
+
+
+@pytest.mark.workflow
+def test_find_parallel_step_nested_in_foreach_template() -> None:
+    """_find_parallel_step finds a parallel step nested inside a foreach_parallel template."""
+
+    @workflow()
+    def fe_nested_wf():
+        return (
+            init
+            >> foreach_parallel(
+                "FEOuter",
+                "items",
+                begin >> parallel("InsideFE", begin >> inner_x, begin >> inner_y),
+            )
+            >> done
+        )
+
+    with WorkflowInstanceForTests(fe_nested_wf, "fe_nested_find_wf"):
+        from orchestrator.workflows import get_workflow
+
+        wf = get_workflow("fe_nested_find_wf")
+        result = _find_parallel_step(wf.steps, "InsideFE")
+        assert result is not None
+        assert getattr(result, "_parallel_group_name", None) == "InsideFE"
+
+
+@pytest.mark.workflow
+def test_find_parallel_step_three_levels_deep() -> None:
+    """_find_parallel_step finds a step 3 levels deep."""
+
+    @workflow()
+    def deep_wf():
+        return (
+            init
+            >> parallel(
+                "L1",
+                begin >> parallel("L2", begin >> parallel("L3", begin >> deep_p, begin >> deep_q), begin >> mid_m),
+                begin >> top_c,
+            )
+            >> done
+        )
+
+    with WorkflowInstanceForTests(deep_wf, "deep_find_wf"):
+        from orchestrator.workflows import get_workflow
+
+        wf = get_workflow("deep_find_wf")
+
+        for name in ("L1", "L2", "L3"):
+            result = _find_parallel_step(wf.steps, name)
+            assert result is not None, f"Could not find parallel step '{name}'"
+            assert getattr(result, "_parallel_group_name", None) == name
+
+
+@pytest.mark.workflow
+def test_find_parallel_step_returns_none_for_missing() -> None:
+    """_find_parallel_step returns None when group name doesn't exist."""
+
+    @workflow()
+    def simple_wf():
+        return init >> parallel("Exists", begin >> outer_a, begin >> outer_b) >> done
+
+    with WorkflowInstanceForTests(simple_wf, "missing_find_wf"):
+        from orchestrator.workflows import get_workflow
+
+        wf = get_workflow("missing_find_wf")
+        result = _find_parallel_step(wf.steps, "DoesNotExist")
+        assert result is None
