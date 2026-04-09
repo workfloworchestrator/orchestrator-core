@@ -18,8 +18,9 @@ from typing import Any, ClassVar, cast
 from uuid import uuid4
 
 import structlog
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import Query, Session, as_declarative, scoped_session, sessionmaker
 from sqlalchemy.sql.schema import MetaData
@@ -174,6 +175,23 @@ ENGINE_ARGUMENTS = {
 SESSION_ARGUMENTS = {"class_": WrappedSession, "autocommit": False, "autoflush": True, "query_cls": SearchQuery}
 
 
+def _register_pool_events(engine: Engine) -> None:
+    """Register pool events to prevent idle-in-transaction connections.
+
+    psycopg3 uses autobegin, which means a connection may have an open
+    transaction when returned to the pool. This listener ensures a
+    rollback is issued on checkin to clean up any leftover transaction state.
+    """
+
+    @event.listens_for(engine, "checkin")
+    def _on_checkin(dbapi_connection: Any, connection_record: Any) -> None:
+        """Roll back any open transaction when a connection is returned to the pool."""
+        try:
+            dbapi_connection.rollback()
+        except Exception:
+            pass
+
+
 class Database:
     """Setup and contain our database connection.
 
@@ -188,6 +206,7 @@ class Database:
     def __init__(self, db_url: str) -> None:
         self.request_context: ContextVar[str] = ContextVar("request_context", default="")
         self.engine = create_engine(db_url, **ENGINE_ARGUMENTS)
+        _register_pool_events(self.engine)
         self.session_factory = sessionmaker(
             bind=self.engine, class_=WrappedSession, autocommit=False, autoflush=True, query_cls=SearchQuery
         )

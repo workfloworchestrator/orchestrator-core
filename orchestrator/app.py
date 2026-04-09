@@ -149,6 +149,21 @@ class OrchestratorCore(FastAPI):
 
         self.include_router(api_router, prefix="/api")
 
+        # Validate DATABASE_URI dialect before initializing the database.
+        # psycopg2-binary has been removed in favor of psycopg3; bare
+        # "postgresql://" URIs will cause a cryptic driver-not-found error.
+        db_uri = str(base_settings.DATABASE_URI.get_secret_value())
+        if db_uri.startswith("postgresql://"):
+            import warnings
+
+            warnings.warn(
+                "DATABASE_URI uses 'postgresql://' dialect which defaults to psycopg2. "
+                "orchestrator-core has migrated to psycopg3. "
+                "Please update DATABASE_URI to use 'postgresql+psycopg://' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         init_database(base_settings)
 
         from orchestrator.llm_settings import llm_settings
@@ -268,6 +283,9 @@ class OrchestratorCore(FastAPI):
         Inspects the custom class mapper for column_properties not present on
         the base class and copies them onto the base mapper. After this call,
         all code that uses the base class will have access to the extra columns.
+
+        Note: Only column_property attributes are copied. Relationships,
+        hybrid properties, and other mapper attributes are not transferred.
 
         Args:
             base_class: The base table class (e.g. SubscriptionTable).
