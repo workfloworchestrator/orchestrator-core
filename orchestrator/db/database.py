@@ -208,7 +208,12 @@ class Database:
         self.engine = create_engine(db_url, **ENGINE_ARGUMENTS)
         _register_pool_events(self.engine)
         self.session_factory = sessionmaker(
-            bind=self.engine, class_=WrappedSession, autocommit=False, autoflush=True, query_cls=SearchQuery
+            bind=self.engine,
+            class_=WrappedSession,
+            autocommit=False,
+            autoflush=True,
+            query_cls=SearchQuery,
+            expire_on_commit=False,
         )
 
         self.scoped_session = scoped_session(self.session_factory, self._scopefunc)
