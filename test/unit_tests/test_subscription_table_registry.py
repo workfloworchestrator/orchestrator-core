@@ -68,3 +68,33 @@ def test_register_table_does_not_copy_relationships():
     OrchestratorCore.register_table(SubscriptionTable, CustomSubscriptionTable)
 
     assert set(base_mapper.relationships.keys()) == original_relationships
+
+
+@pytest.mark.usefixtures("_cleanup_extra_field")
+def test_register_table_column_accessible_in_query(generic_subscription_1):
+    """After register_table, custom column_properties should be accessible in queries."""
+    from orchestrator.db import db
+
+    class CustomSubscriptionTable(SubscriptionTable):
+        extra_field = column_property(
+            select(SubscriptionTable.description).correlate(SubscriptionTable).scalar_subquery(), deferred=True
+        )
+
+    OrchestratorCore.register_table(SubscriptionTable, CustomSubscriptionTable)
+
+    result = db.session.scalars(select(SubscriptionTable)).first()
+    assert result is not None
+    assert result.extra_field is not None
+
+
+@pytest.mark.usefixtures("_cleanup_extra_field")
+def test_register_table_columns_visible_in_inspect():
+    """After register_table, custom columns should be visible via inspect()."""
+
+    class CustomSubscriptionTable(SubscriptionTable):
+        extra_field = column_property(select(SubscriptionTable.description).scalar_subquery(), deferred=True)
+
+    OrchestratorCore.register_table(SubscriptionTable, CustomSubscriptionTable)
+
+    mapper = sa_inspect(SubscriptionTable)
+    assert "extra_field" in {key for key in mapper.column_attrs.keys()}
