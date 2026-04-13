@@ -197,7 +197,7 @@ class StepList(list[Step]):
         if isinstance(other, StepList):
             return StepList([*self, *other])
 
-        if hasattr(other, "__name__"):  # type:ignore
+        if hasattr(other, "__name__"):  # type: ignore
             raise ValueError(
                 f"Expected @step decorated function or type Step or StepList, got {type(other)} with name {other.__name__} instead."
             )
@@ -1531,13 +1531,14 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
 
         # Execute step
         try:
-            engine_status = get_engine_settings_table()
-            if engine_status.global_lock:
-                # Exiting from thread workflow engine is Paused or Pausing
-                consolelogger.info(
-                    "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
-                )
-                return process
+            with transactional(db, logger):
+                engine_status = get_engine_settings_table()
+                if engine_status.global_lock:
+                    # Exiting from thread workflow engine is Paused or Pausing
+                    consolelogger.info(
+                        "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
+                    )
+                    return process
 
             process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
             step_result_process = process.execute_step(step)
@@ -1549,8 +1550,21 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         # Convert ErrorState to ErrorDict when Failed or Waiting before writing to the database
         # as bare exceptions are not JSON serializable
         result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
-        result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
-        process = dblogstep(step, result_to_log)
+        # Wrap post-step logging in transactional() so all DB activity runs inside a managed
+        # transaction context. Two distinct query sources are covered here:
+        #   1. mutationlogger runs synchronously via on_success() and triggers structlog
+        #      serialization of the mutations dict. Pydantic evaluates @computed_field properties
+        #      during that serialization, e.g. corelink/peer title() which call from_subscription()
+        #      and execute a SELECT. Without a managed boundary, psycopg3 autobegin starts a
+        #      transaction that is never closed -> idle-in-transaction.
+        #   2. dblogstep -> safe_logstep -> _db_log_step does its own ProcessTable/ProcessStepTable
+        #      queries plus broadcast_func. Same autobegin issue.
+        # disable_commit() inside transactional() makes the inner db.session.commit() in
+        # _db_log_step a no-op; the outer transactional() commits on success or rolls back on
+        # failure (with a safeguard rollback in finally).
+        with transactional(db, logger):
+            result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
+            process = dblogstep(step, result_to_log)
         # If database logging failed, the workflow should fail. When it was successful just continue with the
         # result of the executed step.
         consolelogger.debug("Workflow step executed.", process_status=process.status)

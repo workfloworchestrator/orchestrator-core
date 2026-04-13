@@ -40,6 +40,7 @@ from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.types import BroadcastFunc
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import StartPredicateError, error_state_to_dict
+from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.websocket import broadcast_invalidate_status_counts, broadcast_process_update_to_websocket
 from orchestrator.workflow import (
     CALLBACK_TOKEN_KEY,
@@ -335,8 +336,17 @@ def _db_log_step(
     if broadcast_func:
         broadcast_func(p.process_id)
 
-    # Return the state as stored in the database
-    return process_state.__class__(current_step.state)
+    # Return the state as it would be read back from the database. Explicitly JSON-roundtrip
+    # so any SubscriptionModel (or other custom) instances are replaced with their serialized
+    # representations - the same shape as what gets persisted in the JSONB column. The next
+    # step's inject_args._get_sub_id() requires that step state never contains live
+    # SubscriptionModel instances. Previously this invariant was enforced implicitly via
+    # SQLAlchemy expire_on_commit + a JSONB reload after commit, but that no longer holds:
+    #   * Inside transactional() the inner db.session.commit() above is a no-op so no
+    #     expire/reload happens before this function returns.
+    #   * With psycopg3 autobegin a post-commit reload would itself open an unmanaged
+    #     transaction (idle-in-transaction risk).
+    return process_state.__class__(json_loads(json_dumps(current_step.state)))
 
 
 def safe_logstep(

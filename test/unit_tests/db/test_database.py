@@ -174,3 +174,41 @@ def test_transactional_restores_expire_on_commit_on_commit_failure() -> None:
             pass
 
     assert db.session.expire_on_commit is True
+
+
+def test_transactional_nested_does_not_commit_or_rollback() -> None:
+    """When transactional() is called inside an outer transactional() (i.e. db.session
+    is already marked disabled), the inner call must not commit or rollback.
+
+    Otherwise the inner rollback (the 'safeguard rollback' in the finally) would
+    rollback the outer transaction's accumulated work and expire any ORM objects
+    loaded inside the inner block - causing ObjectDeletedError on subsequent
+    attribute access by the outer code. Concretely: thread_validate_workflow runs
+    thread_start_process inside an existing step's transactional() context;
+    thread_start_process now wraps retrieve_input_state in transactional(), and
+    without reentrance support its safeguard rollback breaks the outer step's
+    transaction and detaches the just-loaded InputStateTable instance.
+    """
+    db = _make_db(disabled=True)  # simulate already inside an outer transactional()
+    log = MagicMock()
+
+    with transactional(db, log):
+        pass
+
+    db.session.commit.assert_not_called()
+    db.session.rollback.assert_not_called()
+
+
+def test_transactional_nested_propagates_exception_without_rollback() -> None:
+    """Nested transactional() must propagate exceptions without committing or
+    rolling back; the outer transactional() owns commit/rollback semantics.
+    """
+    db = _make_db(disabled=True)
+    log = MagicMock()
+
+    with pytest.raises(RuntimeError, match="inner failed"):
+        with transactional(db, log):
+            raise RuntimeError("inner failed")
+
+    db.session.commit.assert_not_called()
+    db.session.rollback.assert_not_called()

@@ -213,7 +213,6 @@ class Database:
             autocommit=False,
             autoflush=True,
             query_cls=SearchQuery,
-            expire_on_commit=False,
         )
 
         self.scoped_session = scoped_session(self.session_factory, self._scopefunc)
@@ -285,7 +284,18 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
     expire_on_commit is temporarily disabled during commit so that ORM objects retain their
     in-memory attribute values. This prevents lazy-load queries after commit that would start
     unmanaged transactions with psycopg3's autobegin behavior.
+
+    Reentrant: if `transactional()` is called inside an outer `transactional()` (i.e. the
+    session is already marked disabled), the inner call yields without committing or rolling
+    back. Commit/rollback are owned by the outermost call. This avoids the inner safeguard
+    rollback expiring ORM objects loaded inside the inner block, which would break the outer
+    transaction (objects loaded inside the inner block would raise ObjectDeletedError on
+    subsequent attribute access by the outer code).
     """
+    if db.session.info.get("disabled", False):
+        # Nested call: outer transactional() owns commit/rollback. Inner is a no-op.
+        yield
+        return
     try:
         with disable_commit(db, log):
             yield
