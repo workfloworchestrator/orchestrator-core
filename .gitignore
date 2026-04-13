@@ -133,3 +133,5 @@ src/*
 # MacOS Stuff
 
 .DS_store
+
+docs/superpowers
