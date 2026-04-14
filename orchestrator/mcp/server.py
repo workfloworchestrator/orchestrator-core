@@ -561,31 +561,11 @@ def create_mcp_server() -> FastMCP:
     return mcp
 
 
-def create_mcp_http_app() -> Any:
-    """Create the raw FastMCP Starlette HTTP app (no auth wrapping).
+def create_mcp_app(auth_manager: Any = None) -> Any:
+    """Create the MCP ASGI app for mounting in FastAPI.
 
-    Returns the ``StarletteWithLifespan`` instance produced by FastMCP.  Its
-    ``.lifespan`` attribute must be composed into the parent FastAPI app's
-    lifespan so that the ``StreamableHTTPSessionManager`` task group is
-    properly initialised before any requests are served.
-
-    The endpoint path is set to ``"/"`` so that when this app is mounted at
-    ``/mcp`` in the parent FastAPI app the MCP protocol endpoint is reachable
-    at ``/mcp`` (not ``/mcp/mcp``, which would be the result of using the
-    FastMCP default path of ``/mcp``).
-
-    Returns:
-        StarletteWithLifespan: The raw MCP ASGI app with a ``.lifespan``
-        attribute suitable for composition.
-    """
-    return mcp.http_app(path="/")
-
-
-def create_mcp_app(auth_manager: Any = None) -> tuple[Any, Any]:
-    """Create the MCP ASGI apps for mounting in FastAPI.
-
-    Creates the raw ``StarletteWithLifespan`` (needed for lifespan composition)
-    and optionally wraps it with authentication middleware.
+    Returns a StarletteWithLifespan instance. Lifespan is managed
+    automatically by Starlette's mount() lifespan forwarding (Starlette ≥0.37).
 
     Args:
         auth_manager: The AuthManager instance from the parent OrchestratorCore.
@@ -594,20 +574,17 @@ def create_mcp_app(auth_manager: Any = None) -> tuple[Any, Any]:
             If None, the MCP server runs without authentication (development only).
 
     Returns:
-        A ``(mcp_asgi_app, mcp_starlette_app)`` tuple where ``mcp_starlette_app``
-        is the raw ``StarletteWithLifespan`` whose ``.lifespan`` must be composed
-        into the parent FastAPI app's lifespan, and ``mcp_asgi_app`` is the
-        (optionally auth-wrapped) ASGI app to mount for request handling.
+        StarletteWithLifespan: The MCP ASGI app, optionally configured with
+        authentication middleware.
     """
-    mcp_starlette_app = create_mcp_http_app()
+    mcp_app = mcp.http_app(path="/")
 
     if auth_manager is not None:
         from orchestrator.mcp.auth import MCPAuthMiddleware
 
-        mcp_asgi_app: Any = MCPAuthMiddleware(mcp_starlette_app, auth_manager=auth_manager)
+        mcp_app.add_middleware(MCPAuthMiddleware, auth_manager=auth_manager)
         logger.info("MCP server configured with authentication middleware")
     else:
-        mcp_asgi_app = mcp_starlette_app
-        logger.warning("MCP server running WITHOUT authentication — development mode only")
+        logger.warning("MCP server running WITHOUT authentication")
 
-    return mcp_asgi_app, mcp_starlette_app
+    return mcp_app

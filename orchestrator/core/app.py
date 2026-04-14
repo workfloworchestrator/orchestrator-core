@@ -16,9 +16,7 @@ This module contains the main `OrchestratorCore` class for the `FastAPI` backend
 provides the ability to run the CLI.
 """
 
-import asyncio
-from collections.abc import AsyncGenerator, Callable
-from contextlib import asynccontextmanager
+from collections.abc import Callable
 from typing import Any, cast
 
 import sentry_sdk
@@ -119,27 +117,21 @@ class OrchestratorCore(FastAPI):
         websocket_manager = init_websocket_manager(base_settings)
         distlock_manager = init_distlock_manager(base_settings)
 
-        self.on_startup: list[Callable] = [distlock_manager.connect_redis]
-        self.on_shutdown: list[Callable] = [distlock_manager.disconnect_redis]
+        startup_functions: list[Callable] = [distlock_manager.connect_redis]
+        shutdown_functions: list[Callable] = [distlock_manager.disconnect_redis]
         if websocket_manager.enabled:
-            self.on_startup.append(websocket_manager.connect_redis)
-            self.on_shutdown.extend([websocket_manager.disconnect_all, websocket_manager.disconnect_redis])
+            startup_functions.append(websocket_manager.connect_redis)
+            shutdown_functions.extend([websocket_manager.disconnect_all, websocket_manager.disconnect_redis])
 
         # Initialize worker status monitor for accurate running process counts
         self.worker_status_monitor = get_worker_status_monitor()
-        self.on_shutdown.append(self.worker_status_monitor.stop)
+        shutdown_functions.append(self.worker_status_monitor.stop)
 
         if base_settings.EXECUTOR == ExecutorType.THREADPOOL:
             # Only need broadcast thread when using threadpool executor
             self.broadcast_thread = ProcessDataBroadcastThread(websocket_manager)
-            self.on_startup.append(self.broadcast_thread.start)
-            self.on_shutdown.append(self.broadcast_thread.stop)
-
-        init_database(base_settings)
-
-        # Build the MCP apps before super().__init__() so the raw Starlette app's
-        # lifespan can be composed into the parent app's lifespan context manager.
-        mcp_asgi_app, mcp_starlette_app = self._build_mcp_apps()
+            startup_functions.append(self.broadcast_thread.start)
+            shutdown_functions.append(self.broadcast_thread.stop)
 
         super().__init__(
             title=title,
@@ -149,14 +141,27 @@ class OrchestratorCore(FastAPI):
             redoc_url=redoc_url,
             version=version,
             default_response_class=default_response_class,
-            lifespan=self._build_lifespan(mcp_starlette_app),
+            on_startup=startup_functions,
+            on_shutdown=shutdown_functions,
             **kwargs,
         )
 
         self.include_router(api_router, prefix="/api")
 
-        if mcp_asgi_app is not None:
-            self.mount("/mcp", mcp_asgi_app)  # mount the auth-wrapped app for request handling
+        init_database(base_settings)
+
+        try:
+            from orchestrator.mcp import create_mcp_app
+
+            mcp_app = create_mcp_app(auth_manager=self.auth_manager)
+            self.mount("/mcp", mcp_app)
+            logger.info("MCP server mounted at /mcp")
+        except ImportError as e:
+            logger.error(
+                "Unable to create MCP server. Please install MCP dependencies: `pip install orchestrator-core[mcp]`",
+                error=str(e),
+            )
+            raise
 
         self.add_middleware(ClearStructlogContextASGIMiddleware)
         self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET.get_secret_value())
@@ -183,53 +188,6 @@ class OrchestratorCore(FastAPI):
         def _index() -> str:
             return "Orchestrator Core"
 
-    def _build_mcp_apps(self) -> tuple[Any, Any]:
-        """Create the MCP ASGI apps.
-
-        Returns a ``(mcp_asgi_app, mcp_starlette_app)`` tuple.  Delegates to
-        ``orchestrator.mcp.create_mcp_app`` which handles auth wrapping and
-        returns both the raw ``StarletteWithLifespan`` (for lifespan composition)
-        and the (optionally auth-wrapped) ASGI app (for request handling).
-        """
-        logger.info("Mounting MCP server")
-        try:
-            from orchestrator.mcp import create_mcp_app
-
-            return create_mcp_app(auth_manager=self.auth_manager)
-        except ImportError as e:
-            logger.error(
-                "Unable to mount MCP server. Please install MCP dependencies: `pip install orchestrator-core[mcp]`",
-                error=str(e),
-            )
-            raise
-
-    def _build_lifespan(self, mcp_starlette_app: Any) -> Any:
-        """Return a composed ``@asynccontextmanager`` lifespan for the FastAPI app.
-
-        The lifespan runs all ``on_startup`` callbacks, enters the MCP app's
-        lifespan context (if MCP is enabled), yields, exits the MCP lifespan,
-        and finally runs all ``on_shutdown`` callbacks.
-
-        Args:
-            mcp_starlette_app: The raw ``StarletteWithLifespan`` instance whose
-                ``.lifespan`` must be entered, or ``None`` when MCP is disabled.
-        """
-        startup_functions = self.on_startup
-        shutdown_functions = self.on_shutdown
-
-        @asynccontextmanager
-        async def _composed_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-            for fn in startup_functions:
-                await fn() if asyncio.iscoroutinefunction(fn) else fn()
-            if mcp_starlette_app is not None:
-                async with mcp_starlette_app.lifespan(mcp_starlette_app):
-                    yield
-            else:
-                yield
-            for fn in shutdown_functions:
-                await fn() if asyncio.iscoroutinefunction(fn) else fn()
-
-        return _composed_lifespan
 
     def add_sentry(
         self,
