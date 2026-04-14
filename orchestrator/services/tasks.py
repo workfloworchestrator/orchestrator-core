@@ -15,7 +15,7 @@ from typing import Any
 from uuid import UUID
 
 import structlog
-from celery import Celery, Task
+from celery import Celery
 from celery.app.control import Inspect
 from celery.utils.log import get_task_logger
 from kombu.serialization import registry
