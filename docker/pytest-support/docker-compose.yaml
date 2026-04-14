@@ -1,0 +1,56 @@
+# This docker-compose is a set of support services needed to run
+# pytest. It's modeled after .github/workflows/run-unit-tests.yml
+
+services:
+  ### Supporting services
+  postgres:
+    image: 'pgvector/pgvector:pg17'
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: nwa
+      POSTGRES_USER: nwa
+      POSTGRES_DB: orchestrator-core-test
+    volumes:
+      - postgres-data:/var/lib/postgresql/data/
+    healthcheck:
+      test:
+        - CMD
+        - sh
+        - -c # this is to evaluate the $POSTGRES_USER from the env
+        - pg_isready --username $$POSTGRES_USER --dbname $$POSTGRES_DB
+        # - CMD
+        # - pg_isready
+      interval: "3s"
+      timeout: "2s"
+      retries: 20
+      start_period: "5s"
+
+  redis:
+    image: docker.io/redis:latest
+    command:
+      - sh
+      - -c # this is to evaluate the $REDIS_PASSWORD from the env
+      - redis-server --requirepass $$REDIS_PASSWORD ## $$ because of docker-compose
+    ports:
+      - "6379:6379"
+    environment:
+      REDIS_PASSWORD: nwa
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - sh
+        - -c # evaluate $REDIS_PASSWORD
+        - REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping
+      interval: "3s"
+      timeout: "1s"
+      retries: 20
+      start_period: "1s"
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
