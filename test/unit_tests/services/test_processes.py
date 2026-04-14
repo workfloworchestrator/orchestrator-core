@@ -141,25 +141,7 @@ def test_process_log_db_step_success(simple_workflow):
 def test_db_log_step_strips_subscription_models_inside_transactional(
     simple_workflow, generic_product_type_1, generic_subscription_1
 ):
-    """When _db_log_step runs inside transactional(), it must return a state without live
-    SubscriptionModel instances.
-
-    The next step's inject_args._get_sub_id() asserts that step state never contains live
-    SubscriptionModel instances. Historically this invariant was enforced implicitly: with
-    SQLAlchemy's expire_on_commit=True the in-process commit() inside _db_log_step would
-    expire current_step.state, so the subsequent attribute access would re-read the JSONB
-    column and yield the JSON-roundtripped (model_dump) form.
-
-    That implicit cleanup no longer holds:
-
-        1. Inside transactional() the inner db.session.commit() is a no-op
-           (disable_commit), so no expire/reload happens before _db_log_step returns.
-        2. With psycopg3 autobegin, a post-commit reload would itself open an unmanaged
-           transaction (idle-in-transaction risk).
-
-    _db_log_step must therefore perform the state cleanup explicitly so the invariant
-    holds regardless of the commit/expire dance.
-    """
+    """_db_log_step must return plain-dict state; live SubscriptionModel instances must be serialized out."""
     _, GenericProductOne = generic_product_type_1
     subscription = GenericProductOne.from_subscription(generic_subscription_1)
     assert isinstance(subscription, SubscriptionModel)  # sanity check on the fixture chain

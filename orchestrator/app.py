@@ -259,18 +259,10 @@ class OrchestratorCore(FastAPI):
 
     @staticmethod
     def register_table(base_class: type[BaseModel], custom_class: type[BaseModel]) -> None:
-        """Register a custom table subclass as provider for a base table class.
+        """Copy extra column_properties from custom_class onto base_class's mapper.
 
-        Inspects the custom class mapper for column_properties not present on
-        the base class and copies them onto the base mapper. After this call,
-        all code that uses the base class will have access to the extra columns.
-
-        Note: Only column_property attributes are copied. Relationships,
-        hybrid properties, and other mapper attributes are not transferred.
-
-        Args:
-            base_class: The base table class (e.g. SubscriptionTable).
-            custom_class: A subclass that defines extra column_properties.
+        Only column_property attributes are copied; relationships and hybrid
+        properties are not transferred.
         """
         from sqlalchemy import inspect as sa_inspect
         from sqlalchemy.orm import Mapper

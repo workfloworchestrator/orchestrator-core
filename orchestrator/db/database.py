@@ -176,12 +176,7 @@ SESSION_ARGUMENTS = {"class_": WrappedSession, "autocommit": False, "autoflush":
 
 
 def _register_pool_events(engine: Engine) -> None:
-    """Register pool events to prevent idle-in-transaction connections.
-
-    psycopg3 uses autobegin, which means a connection may have an open
-    transaction when returned to the pool. This listener ensures a
-    rollback is issued on checkin to clean up any leftover transaction state.
-    """
+    """Roll back any open transaction on pool checkin (psycopg3 autobegin cleanup)."""
 
     @event.listens_for(engine, "checkin")
     def _on_checkin(dbapi_connection: Any, connection_record: Any) -> None:
@@ -277,12 +272,9 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
     It will roll back in case of error, commit otherwise. It will also disable the `commit()` method
     on `BaseModel.session` for the time `transactional` is in effect.
 
-    Reentrant: if `transactional()` is called inside an outer `transactional()` (i.e. the
-    session is already marked disabled), the inner call yields without committing or rolling
-    back. Commit/rollback are owned by the outermost call. This avoids the inner safeguard
-    rollback expiring ORM objects loaded inside the inner block, which would break the outer
-    transaction (objects loaded inside the inner block would raise ObjectDeletedError on
-    subsequent attribute access by the outer code).
+    Reentrant: nested calls yield without committing or rolling back; the outermost call
+    owns the transaction. This prevents the inner safeguard rollback from discarding the
+    outer transaction's work.
     """
     if db.session.info.get("disabled", False):
         # Nested call: outer transactional() owns commit/rollback. Inner is a no-op.
