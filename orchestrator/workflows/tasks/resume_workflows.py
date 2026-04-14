@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,6 +20,7 @@ from orchestrator.services import processes
 from orchestrator.settings import get_authorizers
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus, StepList, done, init, step, workflow
+from orchestrator.workflows.predicates import no_uncompleted_instance
 from pydantic_forms.types import State, UUIDstr
 
 authorizers = get_authorizers()
@@ -114,6 +115,7 @@ def restart_created_workflows(created_state_process_ids: list[UUIDstr]) -> State
     target=Target.SYSTEM,
     authorize_callback=authorizers.authorize_callback,
     retry_auth_callback=authorizers.retry_auth_callback,
+    run_predicate=no_uncompleted_instance,
 )
 def task_resume_workflows() -> StepList:
     return init >> find_waiting_workflows >> resume_found_workflows >> restart_created_workflows >> done
