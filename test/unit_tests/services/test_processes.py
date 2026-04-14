@@ -172,8 +172,7 @@ def test_db_log_step_strips_subscription_models_inside_transactional(
 
 
 def test_thread_start_process_does_not_leak_open_transaction(simple_workflow):
-    """thread_start_process must not leave the empty-scope session with an open
-    transaction after returning.
+    """thread_start_process must not leave the empty-scope session with an open transaction after returning.
 
     retrieve_input_state issues a SELECT that, with psycopg3 autobegin, opens a
     transaction; without an explicit commit/rollback the connection becomes

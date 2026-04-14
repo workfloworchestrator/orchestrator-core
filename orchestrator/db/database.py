@@ -183,7 +183,7 @@ def _register_pool_events(engine: Engine) -> None:
         """Roll back any open transaction when a connection is returned to the pool."""
         try:
             dbapi_connection.rollback()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
 
