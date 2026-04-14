@@ -82,6 +82,7 @@ Source = "https://github.com/workfloworchestrator/orchestrator-core"
 celery = [
     "celery~=5.6.0",
 ]
+mcp = ["fastmcp>=2.0.0"]
 
 # Local dependencies for development
 [dependency-groups]
