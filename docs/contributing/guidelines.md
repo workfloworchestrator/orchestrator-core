@@ -72,6 +72,20 @@ To run the pre-commit hooks manually, run the following command:
 uv run pre-commit run --all-files
 ```
 
+## Updating AI context (CLAUDE.md)
+
+The repository includes a `CLAUDE.md` file at its root. This file is read by AI coding assistants (such as Claude Code) to understand the project's conventions without repeated explanation. It covers build commands, code style rules, key directory layout, test markers, and commit message guidance.
+
+The PR checklist asks you to keep it current. Update (or have Claude update) `CLAUDE.md` when you:
+
+- Add or rename a CLI command or common `uv run` invocation
+- Change a code style rule (line length, import style, docstring convention, etc.)
+- Add a new top-level package or significantly restructure the directory layout
+- Add, rename, or remove a pytest marker
+- Change the Python version range or package manager tooling
+
+You do not need to update it for normal feature work, bug fixes, or dependency bumps.
+
 ## Orchestrator release
 
 The `orchestrator-core` has no release schedule but is actively used and maintained by the workflow orchestrator group.
