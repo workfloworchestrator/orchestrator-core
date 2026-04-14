@@ -13,6 +13,9 @@ from sqlalchemy import select
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessStepTable, ProcessTable, db
+from orchestrator.db.database import transactional
+from orchestrator.domain.base import SubscriptionModel
+from orchestrator.services.executors.threadpool import thread_start_process
 from orchestrator.services.processes import (
     RESUME_WORKFLOW_REMOVED_ERROR_MSG,
     SYSTEM_USER,
@@ -133,6 +136,103 @@ def test_process_log_db_step_success(simple_workflow):
     assert p.last_step == "step"
     assert p.failed_reason is None
     assert p.assignee == "assignee"
+
+
+def test_db_log_step_strips_subscription_models_inside_transactional(
+    simple_workflow, generic_product_type_1, generic_subscription_1
+):
+    """When _db_log_step runs inside transactional(), it must return a state without live
+    SubscriptionModel instances.
+
+    The next step's inject_args._get_sub_id() asserts that step state never contains live
+    SubscriptionModel instances. Historically this invariant was enforced implicitly: with
+    SQLAlchemy's expire_on_commit=True the in-process commit() inside _db_log_step would
+    expire current_step.state, so the subsequent attribute access would re-read the JSONB
+    column and yield the JSON-roundtripped (model_dump) form.
+
+    That implicit cleanup no longer holds:
+
+        1. Inside transactional() the inner db.session.commit() is a no-op
+           (disable_commit), so no expire/reload happens before _db_log_step returns.
+        2. With psycopg3 autobegin, a post-commit reload would itself open an unmanaged
+           transaction (idle-in-transaction risk).
+
+    _db_log_step must therefore perform the state cleanup explicitly so the invariant
+    holds regardless of the commit/expire dance.
+    """
+    _, GenericProductOne = generic_product_type_1
+    subscription = GenericProductOne.from_subscription(generic_subscription_1)
+    assert isinstance(subscription, SubscriptionModel)  # sanity check on the fixture chain
+
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
+    )
+    db.session.add(p)
+    db.session.commit()
+
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
+    step = make_step_function(lambda: None, "step", None, "assignee")
+    state = Success({"subscription": subscription})
+
+    with transactional(db, MagicMock()):
+        result = _db_log_step(pstat, step, state)
+
+    returned = result.unwrap()
+    assert "subscription" in returned
+    assert not isinstance(returned["subscription"], SubscriptionModel), (
+        "_db_log_step returned state still containing a live SubscriptionModel; "
+        "the next step's inject_args._get_sub_id() will raise AssertionError."
+    )
+
+
+def test_thread_start_process_does_not_leak_open_transaction(simple_workflow):
+    """thread_start_process must not leave the empty-scope session with an open
+    transaction after returning.
+
+    retrieve_input_state issues a SELECT that, with psycopg3 autobegin, opens a
+    transaction; without an explicit commit/rollback the connection becomes
+    idle-in-transaction (visible in pg_stat_activity). It must therefore run
+    inside a transactional() context that closes the transaction before
+    thread_start_process returns to the caller (typically a Celery worker).
+    """
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
+    )
+    db.session.add(p)
+    db.session.commit()
+
+    # Build a minimal in-memory workflow function. The workflow is never executed
+    # because we mock _run_process_async; we only need a non-removed_workflow value
+    # for the early branch in thread_start_process and for ProcessStat construction.
+    wf = make_workflow(_workflow_test_fn, "wf description", None, Target.SYSTEM, StepList())
+    wf.name = "wf name"
+    pstat = ProcessStat(
+        process_id=process_id,
+        workflow=wf,
+        state=Success({}),
+        log=StepList(),
+        current_user="user",
+    )
+
+    assert not db.session.in_transaction(), "precondition: clean session"
+
+    # Mock _run_process_async to skip actually running the workflow thread; we are
+    # only testing the pre-runwf section of thread_start_process.
+    with mock.patch("orchestrator.services.executors.threadpool._run_process_async"):
+        thread_start_process(pstat, user="user")
+
+    assert not db.session.in_transaction(), (
+        "thread_start_process left an open transaction on db.session - "
+        "retrieve_input_state ran outside transactional() context."
+    )
 
 
 def test_process_log_db_step_skipped(simple_workflow):
