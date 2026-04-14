@@ -179,7 +179,7 @@ def _register_pool_events(engine: Engine) -> None:
     """Roll back any open transaction on pool checkin (psycopg3 autobegin cleanup)."""
 
     @event.listens_for(engine, "checkin")
-    def _on_checkin(dbapi_connection: Any, connection_record: Any) -> None:
+    def _on_checkin(dbapi_connection: Any, _connection_record: Any) -> None:
         """Roll back any open transaction when a connection is returned to the pool."""
         try:
             dbapi_connection.rollback()
