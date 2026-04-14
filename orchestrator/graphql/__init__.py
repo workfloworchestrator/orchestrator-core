@@ -23,6 +23,7 @@ from orchestrator.graphql.schema import (
     OrchestratorQuery,
     OrchestratorSchema,
     Query,
+    SearchQuery,
     create_graphql_router,
     default_context_getter,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "Query",
     "OrchestratorQuery",
     "CustomerQuery",
+    "SearchQuery",
     "Mutation",
     "OrchestratorGraphqlRouter",
     "OrchestratorSchema",

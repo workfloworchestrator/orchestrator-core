@@ -53,6 +53,14 @@ from orchestrator.graphql.resolvers import (
     resolve_workflows,
 )
 from orchestrator.graphql.resolvers.scheduled_tasks import resolve_scheduled_tasks
+from orchestrator.graphql.resolvers.search import (
+    resolve_search,
+    resolve_search_definitions,
+    resolve_search_paths,
+    resolve_search_query,
+    resolve_search_query_export,
+    resolve_search_query_results,
+)
 from orchestrator.graphql.schemas import DEFAULT_GRAPHQL_MODELS
 from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.process import ProcessType
@@ -60,6 +68,13 @@ from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.schemas.product_block import ProductBlock
 from orchestrator.graphql.schemas.resource_type import ResourceType
 from orchestrator.graphql.schemas.scheduled_task import ScheduledTaskGraphql
+from orchestrator.graphql.schemas.search import (
+    ExportResponseType,
+    PathsResponseType,
+    QueryResultsResponseType,
+    SearchResultsConnection,
+    TypeDefinitionType,
+)
 from orchestrator.graphql.schemas.settings import StatusType
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.schemas.version import VersionType
@@ -119,7 +134,35 @@ class CustomerQuery:
     )
 
 
-Query: type = merge_types("Query", (OrchestratorQuery, CustomerQuery))
+@strawberry.federation.type(description="Search queries")
+class SearchQuery:
+    search: SearchResultsConnection = authenticated_field(
+        resolver=resolve_search,
+        description="Unified search across entity types",
+    )
+    search_paths: PathsResponseType = authenticated_field(
+        resolver=resolve_search_paths,
+        description="Path autocomplete suggestions for search filter UI",
+    )
+    search_definitions: list[TypeDefinitionType] = authenticated_field(
+        resolver=resolve_search_definitions,
+        description="Filter operator definitions for all UI types",
+    )
+    search_query_results: QueryResultsResponseType = authenticated_field(
+        resolver=resolve_search_query_results,
+        description="Fetch full query results by query_id (aggregations, counts, or search)",
+    )
+    search_query: SearchResultsConnection = authenticated_field(
+        resolver=resolve_search_query,
+        description="Retrieve and execute a saved search by query_id",
+    )
+    search_query_export: ExportResponseType = authenticated_field(
+        resolver=resolve_search_query_export,
+        description="Export search results using a saved query_id",
+    )
+
+
+Query: type = merge_types("Query", (OrchestratorQuery, CustomerQuery, SearchQuery))
 Mutation: type = merge_types("Mutation", (SettingsMutation, CustomerSubscriptionDescriptionMutation, ProcessMutation))
 
 OrchestratorGraphqlRouter = GraphQLRouter

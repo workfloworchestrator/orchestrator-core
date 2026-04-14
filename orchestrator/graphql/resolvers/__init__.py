@@ -3,6 +3,14 @@ from orchestrator.graphql.resolvers.process import resolve_process, resolve_proc
 from orchestrator.graphql.resolvers.product import resolve_products
 from orchestrator.graphql.resolvers.product_block import resolve_product_blocks
 from orchestrator.graphql.resolvers.resource_type import resolve_resource_types
+from orchestrator.graphql.resolvers.search import (
+    resolve_search,
+    resolve_search_definitions,
+    resolve_search_paths,
+    resolve_search_query,
+    resolve_search_query_export,
+    resolve_search_query_results,
+)
 from orchestrator.graphql.resolvers.settings import SettingsMutation, resolve_settings
 from orchestrator.graphql.resolvers.subscription import resolve_subscription, resolve_subscriptions
 from orchestrator.graphql.resolvers.version import resolve_version
@@ -21,4 +29,10 @@ __all__ = [
     "resolve_resource_types",
     "resolve_workflows",
     "resolve_version",
+    "resolve_search",
+    "resolve_search_definitions",
+    "resolve_search_paths",
+    "resolve_search_query",
+    "resolve_search_query_export",
+    "resolve_search_query_results",
 ]
