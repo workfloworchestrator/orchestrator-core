@@ -13,8 +13,10 @@
 
 """Tests for DATABASE_URI dialect validation in OrchestratorCore.__init__."""
 
+from typing import Any
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from orchestrator.app import OrchestratorCore
 from orchestrator.settings import AppSettings
@@ -39,9 +41,9 @@ _INIT_PATCHES = [
 ]
 
 
-def _apply_patches(patches: list) -> tuple:
-    started = [p.start() for p in patches]
-    return started
+def _apply_patches(patches: list[Any]) -> None:
+    for p in patches:
+        p.start()
 
 
 def _stop_patches(patches: list) -> None:
@@ -97,15 +99,14 @@ class _DeprecationAsError:
         warnings.filterwarnings("error", category=DeprecationWarning)
         return self
 
-    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> bool:
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         import warnings
 
-        warnings.filters[:] = self._prev
+        warnings.filters[:] = self._prev  # type: ignore[index]
         if exc_type is DeprecationWarning:
             # Convert the warning-turned-error into a readable assertion failure.
             raise AssertionError(f"Unexpected DeprecationWarning raised: {exc_val}") from None
         # Propagate any other exception (or no exception) unchanged.
-        return False
 
 
 def warnings_as_errors() -> "_DeprecationAsError":
