@@ -277,10 +277,6 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
     It will roll back in case of error, commit otherwise. It will also disable the `commit()` method
     on `BaseModel.session` for the time `transactional` is in effect.
 
-    expire_on_commit is temporarily disabled during commit so that ORM objects retain their
-    in-memory attribute values. This prevents lazy-load queries after commit that would start
-    unmanaged transactions with psycopg3's autobegin behavior.
-
     Reentrant: if `transactional()` is called inside an outer `transactional()` (i.e. the
     session is already marked disabled), the inner call yields without committing or rolling
     back. Commit/rollback are owned by the outermost call. This avoids the inner safeguard

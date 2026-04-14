@@ -137,45 +137,6 @@ def test_transactional_disables_commit_inside_block() -> None:
     assert db.session.info.get("disabled") is False
 
 
-def test_transactional_disables_expire_on_commit_during_commit() -> None:
-    """expire_on_commit must be False during commit to prevent lazy-load queries.
-
-    With psycopg3 autobegin, any lazy-load query after commit starts an implicit
-    transaction that is never committed/rolled back, causing idle-in-transaction.
-    """
-    db = _make_db()
-    log = MagicMock()
-    captured_values: list[bool] = []
-
-    def capture_expire_on_commit() -> None:
-        captured_values.append(db.session.expire_on_commit)
-
-    db.session.commit.side_effect = capture_expire_on_commit
-    db.session.expire_on_commit = True  # Start with default
-
-    with transactional(db, log):
-        pass
-
-    # During commit, expire_on_commit should have been False
-    assert captured_values == [False]
-    # After transactional exits, expire_on_commit should be restored to True
-    assert db.session.expire_on_commit is True
-
-
-def test_transactional_restores_expire_on_commit_on_commit_failure() -> None:
-    """expire_on_commit must be restored even if commit raises."""
-    db = _make_db()
-    log = MagicMock()
-    db.session.expire_on_commit = True
-    db.session.commit.side_effect = RuntimeError("commit failed")
-
-    with pytest.raises(RuntimeError, match="commit failed"):
-        with transactional(db, log):
-            pass
-
-    assert db.session.expire_on_commit is True
-
-
 def test_transactional_nested_does_not_commit_or_rollback() -> None:
     """When transactional() is called inside an outer transactional() (i.e. db.session
     is already marked disabled), the inner call must not commit or rollback.
