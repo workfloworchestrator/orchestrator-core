@@ -11,13 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from functools import partial
+from typing import Any
 from uuid import UUID
 
 import structlog
 from celery import Celery, Task
 from celery.app.control import Inspect
 from celery.utils.log import get_task_logger
-from kombu.serialization import registry
+from kombu.serialization import registry  # type: ignore[attr-defined]
 
 from orchestrator.db import db
 from orchestrator.db.database import transactional
@@ -40,7 +41,7 @@ RESUME_TASK = "tasks.resume_task"
 RESUME_WORKFLOW = "tasks.resume_workflow"
 
 
-def get_celery_task(task_name: str) -> Task:
+def get_celery_task(task_name: str) -> Any:
     if _celery:
         return _celery.signature(task_name)
     raise AssertionError("Celery has not been initialised yet")
@@ -100,22 +101,22 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     celery_task = partial(celery.task, log=local_logger, serializer="orchestrator-json")
 
-    @celery_task(name=NEW_TASK)  # type: ignore
+    @celery_task(name=NEW_TASK)
     def new_task(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Start task", process_id=process_id)
         return start_process(process_id, user=user)
 
-    @celery_task(name=NEW_WORKFLOW)  # type: ignore
+    @celery_task(name=NEW_WORKFLOW)
     def new_workflow(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Start workflow", process_id=process_id)
         return start_process(process_id, user=user)
 
-    @celery_task(name=RESUME_TASK)  # type: ignore
+    @celery_task(name=RESUME_TASK)
     def resume_task(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Resume task", process_id=process_id)
         return resume_process(process_id, user=user)
 
-    @celery_task(name=RESUME_WORKFLOW)  # type: ignore
+    @celery_task(name=RESUME_WORKFLOW)
     def resume_workflow(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Resume workflow", process_id=process_id)
         return resume_process(process_id, user=user)

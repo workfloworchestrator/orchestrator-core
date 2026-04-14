@@ -16,7 +16,7 @@ This module contains the main `OrchestratorCore` class for the `FastAPI` backend
 provides the ability to run the CLI.
 """
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import sentry_sdk
 import structlog
@@ -267,8 +267,8 @@ class OrchestratorCore(FastAPI):
         from sqlalchemy import inspect as sa_inspect
         from sqlalchemy.orm import Mapper
 
-        base_mapper: Mapper = sa_inspect(base_class)
-        custom_mapper: Mapper = sa_inspect(custom_class)
+        base_mapper = cast(Mapper[Any], sa_inspect(base_class))
+        custom_mapper = cast(Mapper[Any], sa_inspect(custom_class))
         existing_keys = set(base_mapper.column_attrs.keys())
 
         for key, attr in custom_mapper.column_attrs.items():
