@@ -150,8 +150,9 @@ def test_transactional_nested_does_not_commit_or_rollback() -> None:
 
 
 def test_transactional_nested_propagates_exception_without_rollback() -> None:
-    """Nested transactional() must propagate exceptions without committing or
-    rolling back; the outer transactional() owns commit/rollback semantics.
+    """Nested transactional() must propagate exceptions without committing or rolling back.
+
+    The outer transactional() owns commit/rollback semantics.
     """
     db = _make_db(disabled=True)
     log = MagicMock()

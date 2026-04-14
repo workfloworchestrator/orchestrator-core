@@ -97,4 +97,4 @@ def test_register_table_columns_visible_in_inspect():
     OrchestratorCore.register_table(SubscriptionTable, CustomSubscriptionTable)
 
     mapper = sa_inspect(SubscriptionTable)
-    assert "extra_field" in {key for key in mapper.column_attrs.keys()}
+    assert "extra_field" in set(mapper.column_attrs.keys())
