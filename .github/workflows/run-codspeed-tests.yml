@@ -46,7 +46,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.11.6"
+          version: "0.11.3"
 
       - name: Install the project
         # --all-extras: [project.optional-dependencies]
@@ -75,7 +75,7 @@ jobs:
       - uses: CodSpeedHQ/action@v4
         with:
           mode: simulation
-          run: CACHE_URI=redis://redis DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB uv run pytest test/unit_tests --codspeed
+          run: CACHE_URI=redis://redis DATABASE_URI=postgresql+psycopg://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB uv run pytest test/unit_tests --codspeed
           token: ${{ secrets.CODSPEED_TOKEN }}
         env:
           POSTGRES_DB: orchestrator-core-test

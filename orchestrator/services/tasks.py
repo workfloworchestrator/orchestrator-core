@@ -19,6 +19,8 @@ from celery.app.control import Inspect
 from celery.utils.log import get_task_logger
 from kombu.serialization import registry
 
+from orchestrator.db import db
+from orchestrator.db.database import transactional
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.services.executors.threadpool import thread_resume_process, thread_start_process
 from orchestrator.services.processes import _get_process, ensure_correct_process_status, load_process
@@ -69,9 +71,17 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     def start_process(process_id: UUID, user: str) -> UUID | None:
         try:
-            process = _get_process(process_id)
-            pstat = load_process(process)
-            ensure_correct_process_status(process_id, ProcessStatus.CREATED)
+            # Wrap _get_process (joinedload of processes/process_steps/process_subscriptions/
+            # subscription) in transactional() so the SELECTs run inside a managed transaction.
+            # On a Celery worker the session uses the empty scope (no database_scope), so an
+            # unmanaged SELECT triggers psycopg3 autobegin and leaves the connection
+            # idle-in-transaction in pg_stat_activity until the next commit. Without this
+            # wrap that 'next commit' would not happen until the workflow run inside
+            # _run_process_async finishes (which uses a different scope/session entirely).
+            with transactional(db, local_logger):
+                process = _get_process(process_id)
+                pstat = load_process(process)
+                ensure_correct_process_status(process_id, ProcessStatus.CREATED)
             thread_start_process(pstat, user=user, broadcast_func=process_broadcast_fn)
 
         except Exception as exc:
@@ -82,8 +92,11 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     def resume_process(process_id: UUID, user: str) -> UUID | None:
         try:
-            process = _get_process(process_id)
-            ensure_correct_process_status(process_id, ProcessStatus.RESUMED)
+            # See start_process: same idle-in-transaction concern on the Celery worker's
+            # empty-scope session for the joinedload SELECT issued by _get_process.
+            with transactional(db, local_logger):
+                process = _get_process(process_id)
+                ensure_correct_process_status(process_id, ProcessStatus.RESUMED)
             thread_resume_process(process, user=user, broadcast_func=process_broadcast_fn)
         except Exception as exc:
             local_logger.error("Worker failed to resume workflow", process_id=process_id, details=str(exc))

@@ -77,7 +77,7 @@ class AppSettings(BaseSettings):
     WORKFLOWS_SWAGGER_HOST: str = "localhost"
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
     BASE_URL: str = "http://localhost:8080"  # Base URL for the API (used for generating export URLs)
-    DATABASE_URI: SecretPostgresDsn = "postgresql://nwa:nwa@localhost/orchestrator-core"  # type: ignore
+    DATABASE_URI: SecretPostgresDsn = "postgresql+psycopg://nwa:nwa@localhost/orchestrator-core"  # type: ignore
     MAX_WORKERS: int = 5
     WORKER_STATUS_INTERVAL: int = Field(
         5, description="Interval in seconds for updating worker status count in the background monitor"

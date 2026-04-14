@@ -39,7 +39,7 @@ createdb orchestrator-core -O nwa  # set password to 'nwa'
 Configure the database URI in your local environment:
 
 ```
-export DATABASE_URI=postgresql://nwa:nwa@localhost:5432/orchestrator-core
+export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core
 ```
 
 ### Step 3 - Create main.py and wsgi.py
@@ -82,18 +82,20 @@ Visit the [ReDoc](http://127.0.0.1:8080/api/redoc) or [OpenAPI](http://127.0.0.1
 
 ## Contributing
 
-We use [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage dependencies and [docker compose](https://docs.docker.com/compose/) to provide services required for unit tests (redis, postgresql)
+We use [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage dependencies.
 
 To get started, follow these steps:
 
 ```shell
+# in your postgres database
+createdb orchestrator-core-test -O nwa  # set password to 'nwa'
+
 # on your local machine
 git clone https://github.com/workfloworchestrator/orchestrator-core
 cd orchestrator-core
-just pytest  # Run unit tests
-just pytest -vx  # Stop at first failed test
-just pytest --last-failed  # re-run only failed tests
-just pytest --failed-first  # run tests starting with tests that failed
+export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
+uv sync --all-extras --all-groups
+uv run pytest
 ```
 
 For more details please read the [development docs](https://workfloworchestrator.org/orchestrator-core/contributing/development/).

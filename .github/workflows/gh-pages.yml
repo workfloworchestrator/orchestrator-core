@@ -1,25 +1,29 @@
-name: Dispatch to workfloworchestrator.github.io
+name: gh-pages
 on:
   push:
     branches:
       - main
 
+env:
+  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
+
 jobs:
-  trigger-docs:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Generate token
-        id: app-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.DOCS_APP_ID }}
-          private-key: ${{ secrets.DOCS_APP_PRIVATE_KEY }}
-          owner: workfloworchestrator
-          repositories: workfloworchestrator.github.io
+      - uses: actions/checkout@v6
 
-      - name: Trigger docs build on workfloworchestrator.github.io
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          gh api repos/workfloworchestrator/workfloworchestrator.github.io/dispatches \
-            -f event_type=docs-update
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v7
+        with:
+          # It is considered best practice to pin to a specific uv version.
+          version: "0.11.3"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the project
+        # --no-dev: exclude group 'dev' from [dependency-groups]
+        # --group docs: include group 'dev' from [dependency-groups]
+        run: uv sync --no-dev --group docs
+
+      - name: Build and publish docs
+        run: uv run mkdocs gh-deploy --force

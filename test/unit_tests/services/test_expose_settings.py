@@ -12,7 +12,7 @@ def test_expose_settings():
         db_password: SecretStr = "test_password"  # noqa: S105
         debug_mode: bool = True
         secret_test: SecretStr = "test_secret"  # noqa: S105
-        uri: SecretPostgresDsn = "postgresql://user:password@localhost/dbname"
+        uri: SecretPostgresDsn = "postgresql+psycopg://user:password@localhost/dbname"
         cache_uri: SecretRedisDsn = "rediss://user:password@localhost/dbname"
 
     my_settings = MySettings()
