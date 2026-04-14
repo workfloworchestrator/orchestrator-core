@@ -155,6 +155,7 @@ class ProcessTable(BaseModel):
     traceback = mapped_column(String(TRACEBACK_LENGTH))
     created_by = mapped_column(String(255), nullable=True)
     is_task = mapped_column(Boolean, nullable=False, server_default=text("false"), index=True)
+    note = mapped_column(StringThatAutoConvertsToNullWhenEmpty(NOTE_LENGTH))
 
     steps = relationship(
         "ProcessStepTable", cascade="delete", passive_deletes=True, order_by="asc(ProcessStepTable.completed_at)"
@@ -832,7 +833,6 @@ class SubscriptionInstanceAsJsonFunction(GenericFunction):
 
 
 class AiSearchIndex(BaseModel):
-
     __tablename__ = "ai_search_index"
 
     entity_type = mapped_column(
