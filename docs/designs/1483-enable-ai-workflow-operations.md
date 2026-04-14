@@ -984,7 +984,7 @@ Mount the MCP server in [`LLMOrchestratorCore`](orchestrator/agentic_app.py:31) 
 if self.llm_settings.MCP_ENABLED:
     from orchestrator.mcp.server import create_mcp_app
     mcp_app = create_mcp_app()
-    self.mount("/api/mcp", mcp_app)
+    self.mount("/mcp", mcp_app)
 ```
 
 ### MCP vs. Agent Graph: When to Use Which
@@ -1378,7 +1378,7 @@ async def start_workflows_bulk(ctx, workflow_key, subscription_ids):
   - [ ] `list_products()` — same signature as existing client
 - [ ] Implement `orchestrator/mcp/tools/health.py`
   - [ ] `get_orchestrator_health()` — same signature as existing client
-- [ ] Mount MCP server in [`LLMOrchestratorCore`](orchestrator/agentic_app.py:31) at `/api/mcp`
+- [ ] Mount MCP server in [`LLMOrchestratorCore`](orchestrator/agentic_app.py:31) at `/mcp`
 - [ ] Parity tests: verify each tool returns same structure as existing client
 - [ ] Verify existing `pyesnet` client can be pointed at `/api/mcp` with no code changes
 
@@ -1650,7 +1650,7 @@ sequenceDiagram
     participant Tool as wfo_start_workflow
     participant WFO as start_process
 
-    Claude->>MCP: POST /api/mcp/tools/call {tool: "wfo_start_workflow", args: {...}}
+    Claude->>MCP: POST /mcp/tools/call {tool: "wfo_start_workflow", args: {...}}
     MCP->>Auth: validate_api_key(key)
     Auth-->>MCP: OIDCUserModel
     MCP->>Tool: wfo_start_workflow(workflow_key, form_inputs, user=user_model)

@@ -166,8 +166,8 @@ class OrchestratorCore(FastAPI):
             from orchestrator.mcp import create_mcp_app
 
             mcp_app = create_mcp_app(auth_manager=self.auth_manager)
-            self.mount("/api/mcp", mcp_app)
-            logger.info("Mounting MCP server at /api/mcp")
+            self.mount("/mcp", mcp_app)
+            logger.info("Mounting MCP server at /mcp")
         except ImportError as e:
             logger.error(
                 "Unable to mount MCP server. Please install MCP dependencies: `pip install orchestrator-core[mcp]`",
