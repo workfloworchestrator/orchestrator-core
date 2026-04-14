@@ -10,7 +10,7 @@ We use [**MKDOCS**](https://www.mkdocs.org) as a documentation tool. Please crea
 
 ## Branch naming
 
-Use the pattern `<type>/<short-slug>`:
+Use the pattern `<type>/<issue-number>-<short-slug>`:
 
 - `feature/` — new functionality
 - `fix/` — bug fixes
@@ -21,10 +21,10 @@ Use the pattern `<type>/<short-slug>`:
 Keep the slug lowercase and hyphen-separated. Examples:
 
 ```
-feature/run-predicate
-fix/subscription-count-hyphen
-docs/contributing-commit-guide
-refactor/isinstance-to-match-case
+feature/1234-run-predicate
+fix/57-subscription-count-hyphen
+docs/42-contributing-commit-guide
+refactor/4725-isinstance-to-match-case
 ```
 
 ## Commit messages
