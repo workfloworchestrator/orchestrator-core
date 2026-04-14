@@ -9,7 +9,33 @@ to the administration of the port in IMS and the NRM, configuration options
 including 802.1Q, Ethernet auto negotiation, and the use of LLDP are registered,
 as well as a reference to the Node the port is installed in.
 
-<img height="75%" src="../port.png" title="Port Product Model" width="75%"/>
+```mermaid
+classDiagram
+    direction TB
+    namespace PortProduct {
+        class Fixed Inputs {
+            +speed: int
+        }
+        class PortBlock {
+            +ims_id: ims_id
+            +nrm_id: nrm_id
+            +mode: PortMode
+            +auto_negotiation: bool
+            +lldp: bool
+            +node: NodeBlock
+        }
+    }
+    namespace NodeProduct {
+        class NodeBlock {
+            +ims_id: ims_id
+            +nrm_id: nrm_id
+            +ipv4_ipam_id: IpamId
+            +ipv6_ipam_id: IpamId
+        }
+    }
+
+    PortBlock "n" --> "1" NodeBlock
+```
 
 * **speed**: the speed of the physical interface on the node in Mbit/s
 * **ims_id**: ID of the node in the inventory management system

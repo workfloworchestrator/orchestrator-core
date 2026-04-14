@@ -11,34 +11,42 @@ provider network. This is administered with the fixed input protection_type.
 
 ```mermaid
 classDiagram
-    namespace L2_point_to_pointProduct {
+    direction TB
+    namespace L2Point2PointProduct {
         class Fixed Inputs {
             +protection_type "Protection Type"
         }
-        class L2_ptp_virtual_circuit_block {
+        class L2Point2PointBlock {
             +ims_id: ims_id
             +nrm_id: nrm_id
             +speed: integer
             +speed_policer: boolean
-            +sap: list[L2_service_attach_point_block]
+            +sap: list[L2ServiceAttachmentPoint]
         }
-        class L2_service_attach_point_block {
+        class L2ServiceAttachmentPointBlock {
             +vlan_range: vlan_range_type
-            +port: Port_block
+            +port: PortBlock
         }
     }
-    namespace Port_Product subscription {
-        class Port_block {
+    namespace PortProduct {
+        class PortBlock {
             +device: DeviceBlock
             +port_name: str
         }
     }
 
-    L2_ptp_virtual_circuit_block "1" -- "2" L2_service_attach_point_block
-    L2_service_attach_point_block "1" -- "n" Port_block
+    L2Point2PointBlock "1" --> "2" L2ServiceAttachmentPointBlock
+    L2ServiceAttachmentPointBlock "n" --> "1" PortBlock
 ```
 
+## class L2Point2PointProduct
+
+**Fixed Inputs:**
+
 * **protection_type**: this service is either unprotected or protected
+
+**class L2Point2PointProductBlock:**
+
 * **ims_id**: ID of the node in the inventory management system
 * **nrm_id**: ID of the node in the network resource manager
 * **speed**: the speed of the point-to-point service in Mbit/s
