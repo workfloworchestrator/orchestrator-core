@@ -81,12 +81,8 @@ def thread_start_process(
     # enforce an update to the process status to properly show the process
     _set_process_status_running(pstat.process_id)
 
-    # Wrap retrieve_input_state in transactional() so the SELECT it issues runs inside
-    # a managed transaction. With psycopg3 autobegin an unmanaged SELECT leaves the
-    # connection idle-in-transaction until the next commit; on a Celery worker (which
-    # uses the empty-scope session and does not open a database_scope) there is no
-    # subsequent commit before the worker thread returns to Celery, so the connection
-    # stays idle-in-transaction in pg_stat_activity.
+    # Celery workers use the empty-scope session (no database_scope); wrap in
+    # transactional() to prevent psycopg3 autobegin leaving the connection idle-in-transaction.
     with transactional(db, logger):
         input_data = retrieve_input_state(pstat.process_id, "initial_state", False)
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
@@ -103,11 +99,7 @@ def thread_resume_process(
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
-    # Wrap all SELECTs (load_process triggers a lazy load on process.workflow which is not
-    # part of _get_process's joinedload chain, plus retrieve_input_state) in transactional()
-    # so they run inside a managed transaction. Otherwise psycopg3 autobegin leaves the
-    # Celery worker's empty-scope session idle-in-transaction in pg_stat_activity. See
-    # thread_start_process and tasks.start_process for the same pattern.
+    # Same idle-in-transaction concern as thread_start_process: wrap DB reads in transactional().
     with transactional(db, logger):
         pstat = load_process(process)
         if pstat.workflow == removed_workflow:
