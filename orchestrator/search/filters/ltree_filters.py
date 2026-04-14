@@ -15,9 +15,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from sqlalchemy import bindparam, cast
-from sqlalchemy.types import UserDefinedType
 from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.types import UserDefinedType
 from sqlalchemy_utils.types.ltree import Ltree
+
+from orchestrator.search.core.types import LTREE_SEPARATOR, FilterOp, SQLAColumn
 
 
 class _LQuery(UserDefinedType):
@@ -25,13 +27,11 @@ class _LQuery(UserDefinedType):
 
     cache_ok = True
 
-    def get_col_spec(self, **kw: Any) -> str:
+    def get_col_spec(self, **_kw: Any) -> str:
         return "lquery"
 
     def bind_expression(self, bindvalue: Any) -> Any:
         return cast(bindvalue, self)
-
-from orchestrator.search.core.types import LTREE_SEPARATOR, FilterOp, SQLAColumn
 
 
 class LtreeFilter(BaseModel):
@@ -64,6 +64,8 @@ class LtreeFilter(BaseModel):
                 ltree_value = Ltree(path)
                 return column == ltree_value
             case FilterOp.HAS_COMPONENT | FilterOp.NOT_HAS_COMPONENT:
-                return column.op("~")(bindparam(None, f"*{LTREE_SEPARATOR}{self.value}{LTREE_SEPARATOR}*", type_=_LQuery()))
+                return column.op("~")(
+                    bindparam(None, f"*{LTREE_SEPARATOR}{self.value}{LTREE_SEPARATOR}*", type_=_LQuery())
+                )
             case FilterOp.ENDS_WITH:
                 return column.op("~")(bindparam(None, f"*{LTREE_SEPARATOR}{self.value}", type_=_LQuery()))
