@@ -14,15 +14,21 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from orchestrator.security import http_bearer_extractor
+
 logger = structlog.get_logger(__name__)
 
 
 class MCPAuthMiddleware:
-    """ASGI middleware that authenticates MCP requests using the orchestrator's AuthManager.
+    """ASGI middleware that authenticates and authorizes MCP requests using the orchestrator's AuthManager.
 
-    This middleware extracts Bearer tokens from the Authorization header and validates
-    them using the same pluggable OIDCAuth backend that protects the REST API. The
-    auth_manager is injected via the constructor (closure pattern) rather than accessed
+    This middleware extracts Bearer tokens from the Authorization header using the same
+    ``HttpBearerExtractor`` that protects the REST API, then validates them through the
+    same ``auth_manager.authentication.authenticate`` and ``auth_manager.authorization.authorize``
+    call chain used by the ``authenticate`` and ``authorize`` FastAPI dependencies in
+    ``orchestrator/security.py``.
+
+    The auth_manager is injected via the constructor (closure pattern) rather than accessed
     via request.app, since mounted sub-apps don't share the parent's app instance.
 
     The authenticated OIDCUserModel is stored in scope["state"]["mcp_user"] so that
@@ -43,8 +49,13 @@ class MCPAuthMiddleware:
             return
 
         request = Request(scope, receive)
-        token = self._extract_bearer_token(request)
 
+        # Extract bearer token using the same HttpBearerExtractor used by the REST API.
+        http_credentials = await http_bearer_extractor(request)
+        token = http_credentials.credentials if http_credentials else None
+
+        # Calls the same auth_manager.authentication.authenticate path used by the
+        # `authenticate` FastAPI dependency in orchestrator/security.py.
         try:
             user = await self.auth_manager.authentication.authenticate(request, token)
         except Exception as e:
@@ -52,6 +63,31 @@ class MCPAuthMiddleware:
             response = JSONResponse(
                 status_code=HTTPStatus.UNAUTHORIZED,
                 content={"error": "authentication_failed", "message": str(e)},
+            )
+            await response(scope, receive, send)
+            return
+
+        # --- Authorization (OPA / role check) ---
+        # Calls the same auth_manager.authorization.authorize path used by the
+        # `authorize` FastAPI dependency in orchestrator/security.py.
+        try:
+            authorized = await self.auth_manager.authorization.authorize(request, user)
+        except Exception as e:
+            logger.warning("MCP authorization failed", error=str(e))
+            response = JSONResponse(
+                status_code=HTTPStatus.FORBIDDEN,
+                content={"error": "authorization_failed", "message": str(e)},
+            )
+            await response(scope, receive, send)
+            return
+
+        # authorized=None means auth is disabled (OAUTH2_ACTIVE=False); treat as permitted.
+        # authorized=False means the policy explicitly denied the request.
+        if authorized is False:
+            logger.warning("MCP request denied by authorization policy", user=self._resolve_user_name(user))
+            response = JSONResponse(
+                status_code=HTTPStatus.FORBIDDEN,
+                content={"error": "forbidden", "message": "Authorization policy denied the request"},
             )
             await response(scope, receive, send)
             return
@@ -65,20 +101,22 @@ class MCPAuthMiddleware:
         await self.app(scope, receive, send)
 
     @staticmethod
-    def _extract_bearer_token(request: Request) -> str | None:
-        """Extract Bearer token from the Authorization header."""
-        auth_header = request.headers.get("authorization", "")
-        if auth_header.lower().startswith("bearer "):
-            return auth_header[7:].strip()
-        return None
-
-    @staticmethod
     def _resolve_user_name(user: Any) -> str:
-        """Resolve a display name from the OIDCUserModel, falling back to 'mcp'."""
+        """Resolve a display name from the OIDCUserModel.
+
+        Tries OIDC standard claims in priority order:
+          1. ``name``               — full display name
+          2. ``preferred_username`` — login / username claim
+          3. ``sub``                — subject identifier (always present in a valid token)
+          4. ``"unknown"``          — last-resort sentinel (should not occur after mandatory auth)
+
+        Note: ``OIDCUserModel.user_name`` is a property that always returns ``""`` and is
+        therefore intentionally excluded from this chain.
+        """
         if user is None:
-            return "mcp"
-        if hasattr(user, "name") and user.name:
-            return user.name
-        if hasattr(user, "user_name") and user.user_name:
-            return user.user_name
-        return "mcp"
+            return "unknown"
+        for attr in ("name", "preferred_username", "sub"):
+            value = getattr(user, attr, None) if not isinstance(user, dict) else user.get(attr)
+            if value:
+                return value
+        return "unknown"
