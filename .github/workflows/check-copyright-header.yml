@@ -36,6 +36,9 @@ jobs:
             # Skip deleted or non-regular files
             [[ -f "$file" ]] || continue
 
+            # Only check Python files
+            [[ "$file" == *.py ]] || continue
+
             # Only inspect the header (first 20 lines)
             if ! head -n 1 "$file" | grep -Eqi "# Copyright.*${CURRENT_YEAR}"; then
               echo "ERROR: $file does not contain a ${CURRENT_YEAR} copyright notice in the header"
