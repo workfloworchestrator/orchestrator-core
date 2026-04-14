@@ -296,11 +296,7 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
         with disable_commit(db, log):
             yield
         log.debug("Committing transaction.")
-        db.session.expire_on_commit = False
-        try:
-            db.session.commit()
-        finally:
-            db.session.expire_on_commit = True
+        db.session.commit()
     except Exception:
         log.warning("Rolling back transaction.")
         raise
