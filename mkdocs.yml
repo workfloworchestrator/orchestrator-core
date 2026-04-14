@@ -178,6 +178,7 @@ nav:
           - Creating Tasks and Schedules: guides/tasks.md
           - Scaling the Orchestrator: guides/scaling.md
           - Pausing the Orchestrator: guides/pause-and-resume.md
+          - Generating a Config File: guides/generate-config-file.md
           # These would ideally go here:
           # - Migrations:
           #       - Subscriptions
