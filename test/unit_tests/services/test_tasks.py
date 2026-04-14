@@ -4,7 +4,9 @@ Covers get_celery_task, register_custom_serializer, initialise_celery (including
 and CeleryJobWorkerStatus.
 """
 
+from collections.abc import Generator
 from contextlib import contextmanager
+from typing import Any
 from unittest.mock import ANY, MagicMock, patch
 from uuid import uuid4
 
@@ -59,7 +61,7 @@ def _make_capturing_celery():
 
 
 @contextmanager
-def _noop_transactional(db, log):
+def _noop_transactional(db: Any, log: Any) -> Generator[None, None, None]:
     yield
 
 
