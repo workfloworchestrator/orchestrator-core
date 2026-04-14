@@ -8,6 +8,55 @@ free to raise an issue in the project. We will strive to reply to your enquiry A
 
 We use [**MKDOCS**](https://www.mkdocs.org) as a documentation tool. Please create a PR if you have any additions or contributions to make. All docs can be written in MD or html. Full guidelines on how to set this up can be found [here](development.md).
 
+## Branch naming
+
+Use the pattern `<type>/<short-slug>`:
+
+- `feature/` — new functionality
+- `fix/` — bug fixes
+- `chore/` — maintenance, tooling, dependency pins
+- `docs/` — documentation-only changes
+- `refactor/` — structural changes with no behaviour change
+
+Keep the slug lowercase and hyphen-separated. Examples:
+
+```
+feature/run-predicate
+fix/subscription-count-hyphen
+docs/contributing-commit-guide
+refactor/isinstance-to-match-case
+```
+
+## Commit messages
+
+Write commit messages in the **imperative mood**, sentence case, with no trailing period. Aim to keep the subject line under 72 characters.
+
+```
+# Good
+Add run_predicate to workflow decorator
+Fix subscription count for products with hyphen in name
+Refactor isinstance chains to match/case structural pattern matching
+Remove starlette version pin
+
+# Avoid
+added run predicate          # past tense
+fix                          # too vague
+Lets not add superpowers     # not imperative, no context
+```
+
+If the change needs more explanation, add a blank line after the subject and write a body:
+
+```
+Fix scheduler using the same SQLAlchemy session
+
+The scheduler was reusing a single session across concurrent tasks,
+causing state bleed. Each task now gets its own session.
+```
+
+**Issue references** go in the PR description, not the subject line. GitHub will close the issue automatically when the PR merges if you write `Fixes #123` or `Closes #123` in the PR body.
+
+The `(#PR-number)` suffix is appended automatically by GitHub on squash merge — do not add it by hand.
+
 ## Pre-commit hooks
 
 We use pre-commit hooks to ensure that the code is formatted correctly and that the tests pass.
