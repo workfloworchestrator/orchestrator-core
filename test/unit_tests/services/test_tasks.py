@@ -59,7 +59,7 @@ def _make_capturing_celery():
 
 
 @contextmanager
-def _noop_transactional(db, log):  # type: ignore[no-untyped-def]
+def _noop_transactional(db, log):
     yield
 
 
