@@ -18,7 +18,7 @@ import structlog
 from celery import Celery, Task
 from celery.app.control import Inspect
 from celery.utils.log import get_task_logger
-from kombu.serialization import registry  # type: ignore[attr-defined]
+from kombu.serialization import registry
 
 from orchestrator.db import db
 from orchestrator.db.database import transactional
@@ -101,22 +101,22 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     celery_task = partial(celery.task, log=local_logger, serializer="orchestrator-json")
 
-    @celery_task(name=NEW_TASK)
+    @celery_task(name=NEW_TASK)  # type: ignore[untyped-decorator]
     def new_task(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Start task", process_id=process_id)
         return start_process(process_id, user=user)
 
-    @celery_task(name=NEW_WORKFLOW)
+    @celery_task(name=NEW_WORKFLOW)  # type: ignore[untyped-decorator]
     def new_workflow(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Start workflow", process_id=process_id)
         return start_process(process_id, user=user)
 
-    @celery_task(name=RESUME_TASK)
+    @celery_task(name=RESUME_TASK)  # type: ignore[untyped-decorator]
     def resume_task(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Resume task", process_id=process_id)
         return resume_process(process_id, user=user)
 
-    @celery_task(name=RESUME_WORKFLOW)
+    @celery_task(name=RESUME_WORKFLOW)  # type: ignore[untyped-decorator]
     def resume_workflow(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Resume workflow", process_id=process_id)
         return resume_process(process_id, user=user)
