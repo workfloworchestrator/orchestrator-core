@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.db import db
 from orchestrator.db.models import AiSearchIndex, SearchQueryTable
-from orchestrator.llm_settings import llm_settings
+from orchestrator.settings import llm_settings
 
 logger = structlog.get_logger(__name__)
 

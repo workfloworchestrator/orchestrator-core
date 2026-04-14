@@ -27,11 +27,11 @@ from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.db import db
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.llm_settings import llm_settings
 from orchestrator.search.core.embedding import EmbeddingIndexer
 from orchestrator.search.core.types import ExtractedField, IndexableRecord
 from orchestrator.search.indexing.registry import EntityConfig
 from orchestrator.search.indexing.traverse import DatabaseEntity
+from orchestrator.settings import llm_settings
 
 logger = structlog.get_logger(__name__)
 

@@ -14,9 +14,9 @@
 import secrets
 import string
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, Secret, SecretStr
+from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, Secret, SecretStr, field_validator
 from pydantic.main import BaseModel
 from pydantic_settings import BaseSettings
 
@@ -28,6 +28,20 @@ from pydantic_forms.types import strEnum
 
 SecretRedisDsn = Secret[RedisDsn]
 SecretPostgresDsn = Secret[PostgresDsn]
+
+EMBEDDING_DIMENSION_MIN = 100
+EMBEDDING_DIMENSION_MAX = 2000
+EMBEDDING_DIMENSION_DEFAULT = 1536
+
+EMBEDDING_DIMENSION_FIELD = Annotated[
+    int,
+    Field(
+        ge=EMBEDDING_DIMENSION_MIN,
+        le=EMBEDDING_DIMENSION_MAX,
+        default=EMBEDDING_DIMENSION_DEFAULT,
+        description="Embedding dimension: when embeddings are generated at a higher resolution than this setting, the least significant numbers will be truncated",
+    ),
+]
 
 
 class ExecutorType(strEnum):
@@ -111,6 +125,39 @@ class AppSettings(BaseSettings):
 
 
 app_settings = AppSettings()
+
+
+class LLMSettings(BaseSettings):
+    # Embedding settings
+    EMBEDDING_DIMENSION: EMBEDDING_DIMENSION_FIELD = 1536
+    EMBEDDING_MODEL: str = "openai/text-embedding-3-small"  # See litellm docs for supported models.
+    EMBEDDING_SAFE_MARGIN_PERCENT: float = Field(
+        0.1, description="Safety margin as a percentage (e.g., 0.1 for 10%) for token budgeting.", ge=0, le=1
+    )
+
+    # The following settings are only needed for local models or system constraints.
+    # By default, they are set conservative assuming a small model like All-MiniLM-L6-V2.
+    EMBEDDING_API_KEY: str = ""  # Change per provider (Azure, etc).
+    EMBEDDING_API_BASE: str | None = None
+    EMBEDDING_FALLBACK_MAX_TOKENS: int | None = 512
+    EMBEDDING_MAX_BATCH_SIZE: int | None = None
+
+    # General LiteLLM settings
+    LLM_MAX_RETRIES: int = 3
+    LLM_TIMEOUT: int = 30
+
+    # Toggle creation of extensions
+    LLM_FORCE_EXTENTION_MIGRATION: bool = False
+
+    @field_validator("EMBEDDING_MODEL")
+    def validate_embedding_model_format(cls, v: str) -> str:
+        """Validate that embedding model is in 'vendor/model' format."""
+        if "/" not in v:
+            raise ValueError("EMBEDDING_MODEL must be in format 'vendor/model'")
+        return v
+
+
+llm_settings = LLMSettings()
 
 # Set oauth2lib_settings variables to the same (default) value of settings
 oauth2lib_settings.SERVICE_NAME = app_settings.SERVICE_NAME

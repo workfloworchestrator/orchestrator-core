@@ -16,11 +16,9 @@
 import pytest
 from pydantic import ValidationError
 
-pytest.importorskip("orchestrator.search.core.types", reason="search extra not installed")
-
-from orchestrator.schemas.search_requests import SearchRequest  # noqa: E402
-from orchestrator.search.core.types import EntityType, RetrieverType  # noqa: E402
-from orchestrator.search.query.mixins import StructuredOrderBy  # noqa: E402
+from orchestrator.schemas.search_requests import SearchRequest
+from orchestrator.search.core.types import EntityType, RetrieverType
+from orchestrator.search.query.mixins import StructuredOrderBy
 
 
 @pytest.mark.parametrize(

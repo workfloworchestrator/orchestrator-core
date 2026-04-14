@@ -17,8 +17,9 @@ from datetime import timedelta
 import structlog
 from sqlalchemy import select
 
-from orchestrator import llm_settings
 from orchestrator.db import ProcessTable, db
+from orchestrator.db.models import AiSearchIndex
+from orchestrator.search.core.types import EntityType
 from orchestrator.settings import app_settings, get_authorizers
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
@@ -51,22 +52,15 @@ def remove_tasks() -> State:
 @step("Clean up ai_search_indexes")
 def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
     count = 0
-    if llm_settings.SEARCH_ENABLED:
-        from orchestrator.db.models import AiSearchIndex
-        from orchestrator.search.core.types import EntityType
+    if deleted_process_id_list:
+        count = (
+            db.session.query(AiSearchIndex)
+            .filter(AiSearchIndex.entity_type == EntityType.PROCESS)
+            .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
+            .delete(synchronize_session=False)
+        )
 
-        if len(deleted_process_id_list) > 0:
-            count = (
-                db.session.query(AiSearchIndex)
-                .filter(AiSearchIndex.entity_type == EntityType.PROCESS)
-                .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
-                .delete(synchronize_session=False)
-            )
-
-        return {"ai_search_index_rows_deleted": count}
-
-    logger.warning("Search Service not enabled, table ai_search_index does not exist")
-    return {"ai_search_index_rows_deleted": count, "ai_search_enabled": False}
+    return {"ai_search_index_rows_deleted": count}
 
 
 @workflow(

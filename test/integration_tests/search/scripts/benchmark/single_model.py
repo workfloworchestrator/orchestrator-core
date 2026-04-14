@@ -90,11 +90,11 @@ async def benchmark_single_model(
     # Now safe to import orchestrator modules - they'll use correct dimension
     from orchestrator.db import db
     from orchestrator.db.database import Database
-    from orchestrator.llm_settings import llm_settings
     from orchestrator.search.core.embedding import EmbeddingIndexer
     from orchestrator.search.core.types import EntityType
     from orchestrator.search.query import engine
     from orchestrator.search.query.queries import SelectQuery
+    from orchestrator.settings import llm_settings
     from test.integration_tests.search.helpers import ModelConfig, load_benchmark_queries
     from test.integration_tests.search.scripts.benchmark.benchmark import BenchmarkResult
     from test.integration_tests.search.scripts.benchmark.metrics import (

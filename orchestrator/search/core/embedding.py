@@ -17,7 +17,7 @@ from litellm import aembedding as llm_aembedding
 from litellm import embedding as llm_embedding
 from litellm import exceptions as llm_exc
 
-from orchestrator.llm_settings import llm_settings
+from orchestrator.settings import llm_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -36,8 +36,8 @@ class EmbeddingIndexer:
             resp = llm_embedding(
                 model=llm_settings.EMBEDDING_MODEL,
                 input=[t.lower() for t in texts],
-                api_key=llm_settings.OPENAI_API_KEY,
-                api_base=llm_settings.OPENAI_BASE_URL,
+                api_key=llm_settings.EMBEDDING_API_KEY,
+                api_base=llm_settings.EMBEDDING_API_BASE,
                 timeout=llm_settings.LLM_TIMEOUT,
                 max_retries=llm_settings.LLM_MAX_RETRIES,
             )
@@ -62,8 +62,8 @@ class QueryEmbedder:
             resp = await llm_aembedding(
                 model=llm_settings.EMBEDDING_MODEL,
                 input=[text.lower()],
-                api_key=llm_settings.OPENAI_API_KEY,
-                api_base=llm_settings.OPENAI_BASE_URL,
+                api_key=llm_settings.EMBEDDING_API_KEY,
+                api_base=llm_settings.EMBEDDING_API_BASE,
                 timeout=5.0,
                 max_retries=0,  # No retries, prioritize speed.
             )

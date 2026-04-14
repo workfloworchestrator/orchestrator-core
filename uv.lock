@@ -2405,6 +2405,7 @@ dependencies = [
     { name = "fastapi-etag" },
     { name = "itsdangerous" },
     { name = "jinja2" },
+    { name = "litellm" },
     { name = "more-itertools" },
     { name = "nwa-stdlib" },
     { name = "oauth2-lib" },
@@ -2433,9 +2434,6 @@ dependencies = [
 [package.optional-dependencies]
 celery = [
     { name = "celery" },
-]
-search = [
-    { name = "litellm" },
 ]
 
 [package.dev-dependencies]
@@ -2510,7 +2508,7 @@ requires-dist = [
     { name = "fastapi-etag", specifier = "==0.4.0" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "jinja2", specifier = "==3.1.6" },
-    { name = "litellm", marker = "extra == 'search'", specifier = ">=1.80.0" },
+    { name = "litellm", specifier = ">=1.80.0" },
     { name = "more-itertools", specifier = "~=11.0.1" },
     { name = "nwa-stdlib", specifier = "~=1.11.0" },
     { name = "oauth2-lib", specifier = ">=2.6.1" },
@@ -2535,7 +2533,7 @@ requires-dist = [
     { name = "typer", specifier = "==0.24.1" },
     { name = "uvicorn", extras = ["standard"], specifier = "~=0.44.0" },
 ]
-provides-extras = ["celery", "search"]
+provides-extras = ["celery"]
 
 [package.metadata.requires-dev]
 dev = [

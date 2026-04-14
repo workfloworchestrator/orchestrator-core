@@ -24,6 +24,7 @@ from orchestrator.api.api_v1.endpoints import (
     products,
     resource_types,
     schedules,
+    search,
     settings,
     subscription_customer_descriptions,
     subscriptions,
@@ -32,7 +33,6 @@ from orchestrator.api.api_v1.endpoints import (
     workflows,
     ws,
 )
-from orchestrator.llm_settings import llm_settings
 from orchestrator.security import authorize
 
 api_router = APIRouter()
@@ -95,9 +95,4 @@ api_router.include_router(
 )
 api_router.include_router(forms.router, prefix="/forms", tags=["Core", "Forms"], dependencies=[Depends(authorize)])
 
-if llm_settings.SEARCH_ENABLED:
-    from orchestrator.api.api_v1.endpoints import search
-
-    api_router.include_router(
-        search.router, prefix="/search", tags=["Core", "Search"], dependencies=[Depends(authorize)]
-    )
+api_router.include_router(search.router, prefix="/search", tags=["Core", "Search"], dependencies=[Depends(authorize)])

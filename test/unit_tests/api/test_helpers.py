@@ -1,6 +1,9 @@
+import warnings
+
 import pytest
 
 from orchestrator.api.helpers import (
+    add_subscription_search_query_filter,
     get_in,
     getattr_in,
     product_block_paths,
@@ -126,3 +129,19 @@ def test_get_in_missing_nested_key_raises():
 def test_get_in_list_index_out_of_range():
     with pytest.raises(IndexError):
         get_in({"a": [1, 2, 3]}, "a.10")
+
+
+def test_subscription_search_query_filter_emits_deprecation_warning():
+    """TSV search should emit a deprecation warning pointing to LLM search."""
+    from sqlalchemy import select
+
+    from orchestrator.db import SubscriptionTable
+
+    stmt = select(SubscriptionTable)
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        add_subscription_search_query_filter(stmt, "test")
+        deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+        assert len(deprecation_warnings) == 1
+        assert "deprecated" in str(deprecation_warnings[0].message).lower()
+        assert "/api/search" in str(deprecation_warnings[0].message)

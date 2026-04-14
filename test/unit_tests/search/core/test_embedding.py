@@ -20,8 +20,8 @@ pytestmark = pytest.mark.search
 
 _FAKE_SETTINGS = {
     "EMBEDDING_MODEL": "openai/text-embedding-3-small",
-    "OPENAI_API_KEY": "test-key",
-    "OPENAI_BASE_URL": None,
+    "EMBEDDING_API_KEY": "test-key",
+    "EMBEDDING_API_BASE": None,
     "LLM_TIMEOUT": 30,
     "LLM_MAX_RETRIES": 3,
     "EMBEDDING_DIMENSION": 3,
