@@ -14,7 +14,8 @@
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
-from sqlalchemy import UserDefinedType, bindparam
+from sqlalchemy import bindparam, cast
+from sqlalchemy.types import UserDefinedType
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy_utils.types.ltree import Ltree
 
@@ -26,6 +27,9 @@ class _LQuery(UserDefinedType):
 
     def get_col_spec(self, **kw: Any) -> str:
         return "lquery"
+
+    def bind_expression(self, bindvalue: Any) -> Any:
+        return cast(bindvalue, self)
 
 from orchestrator.search.core.types import LTREE_SEPARATOR, FilterOp, SQLAColumn
 

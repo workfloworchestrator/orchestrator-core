@@ -17,10 +17,12 @@ from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy_utils.types.ltree import Ltree
+from sqlalchemy import Column, MetaData, String, Table, create_engine
+from sqlalchemy.dialects import postgresql
+from sqlalchemy_utils.types.ltree import Ltree, LtreeType
 
 from orchestrator.search.core.types import LTREE_SEPARATOR, FilterOp
-from orchestrator.search.filters.ltree_filters import LtreeFilter
+from orchestrator.search.filters.ltree_filters import LtreeFilter, _LQuery
 
 pytestmark = pytest.mark.search
 
@@ -160,3 +162,40 @@ def test_ends_with_uses_star_prefix_pattern() -> None:
     bound = col.op.return_value.call_args[0][0]
     assert bound.value == f"*{LTREE_SEPARATOR}leaf"
     assert result is expected
+
+
+# ---------------------------------------------------------------------------
+# _LQuery type — ensures CAST AS lquery in compiled SQL (psycopg3 compat)
+# ---------------------------------------------------------------------------
+
+_test_table = Table("t", MetaData(), Column("path", LtreeType))
+
+
+def test_lquery_get_col_spec() -> None:
+    assert _LQuery().get_col_spec() == "lquery"
+
+
+def test_lquery_bind_expression_produces_cast() -> None:
+    from sqlalchemy import bindparam
+
+    bp = bindparam("val", "*.status", type_=_LQuery())
+    expr = _test_table.c.path.op("~")(bp)
+    sql = str(expr.compile(dialect=postgresql.dialect()))
+    assert "CAST" in sql and "lquery" in sql
+
+
+@pytest.mark.parametrize(
+    "op, value, expected_fragment",
+    [
+        pytest.param(FilterOp.MATCHES_LQUERY, "*.child.*", "CAST(", id="matches_lquery"),
+        pytest.param(FilterOp.HAS_COMPONENT, "seg", "CAST(", id="has_component"),
+        pytest.param(FilterOp.NOT_HAS_COMPONENT, "seg", "CAST(", id="not_has_component"),
+        pytest.param(FilterOp.ENDS_WITH, "leaf", "CAST(", id="ends_with"),
+    ],
+)
+def test_tilde_ops_compile_with_lquery_cast(op: FilterOp, value: str, expected_fragment: str) -> None:
+    f = LtreeFilter(op=op, value=value)  # type: ignore[arg-type]
+    expr = f.to_expression(_test_table.c.path, "ignored")
+    sql = str(expr.compile(dialect=postgresql.dialect()))
+    assert expected_fragment in sql
+    assert "lquery" in sql
