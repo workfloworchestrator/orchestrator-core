@@ -17,7 +17,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import Column, MetaData, String, Table, create_engine
+from sqlalchemy import Column, MetaData, Table
 from sqlalchemy.dialects import postgresql
 from sqlalchemy_utils.types.ltree import Ltree, LtreeType
 
