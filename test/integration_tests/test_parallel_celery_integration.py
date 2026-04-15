@@ -393,3 +393,86 @@ def test_foreach_parallel_worker_dispatches_all_branches() -> None:
             assert fork_step.status == "success"
             assert len(resume_log) == 1, f"Expected exactly 1 resume call, got {len(resume_log)}"
             assert resume_log[0] == pstat.process_id
+
+
+@pytest.mark.celery
+def test_parallel_branch_failure_does_not_retry_with_worker() -> None:
+    """A failed parallel branch must result in a Failed workflow, not infinite retries.
+
+    Verifies that:
+    1. A workflow with a failing branch reaches terminal Failed state (not Waiting/retrying)
+    2. The failing branch is called exactly once (no infinite retry)
+    3. Steps after the failed parallel block are not executed
+
+    NOTE: The production retry bug may only manifest with a real Celery worker and
+    task_acks_late=True or broker visibility_timeout. This test guards the in-process path.
+    DB-level fork step verification is skipped because _create_fork_step's database_scope()
+    commit invalidates the shared test connection's transaction when a branch fails.
+    """
+
+    fail_call_count = 0
+    post_parallel_call_count = 0
+
+    @step("Always Fail")
+    def always_fail() -> dict:
+        nonlocal fail_call_count
+        fail_call_count += 1
+        raise RuntimeError("Intentional branch failure")
+
+    @step("Always Succeed")
+    def always_succeed() -> dict:
+        return {"ok": True}
+
+    @step("After Parallel")
+    def after_parallel() -> dict:
+        nonlocal post_parallel_call_count
+        post_parallel_call_count += 1
+        return {"after": True}
+
+    @workflow()
+    def fail_worker_wf():
+        return init >> parallel("fail group", begin >> always_fail, begin >> always_succeed) >> after_parallel >> done
+
+    from orchestrator.workflows import ALL_WORKFLOWS
+
+    # Register workflow manually to control cleanup (database_scope() commits in
+    # _create_fork_step can invalidate the test transaction, making ORM-based cleanup fail).
+    from test.unit_tests.workflows import store_workflow
+
+    ALL_WORKFLOWS["fail_worker_wf"] = WorkflowInstanceForTests(fail_worker_wf, "fail_worker_wf")
+    wf_table = store_workflow(fail_worker_wf, name="fail_worker_wf")
+    try:
+        result, pstat, step_log = run_workflow("fail_worker_wf", [{}])
+
+        # Workflow must reach a terminal non-success state
+        assert not result.issuccess(), f"Expected failure but got success: {result}"
+        assert not result.iswaiting(), f"Workflow stuck in Waiting (retry loop?): {result}"
+        assert result.isfailed(), f"Expected Failed but got: {result}"
+
+        # The failing step must have been called exactly once — no retries
+        assert fail_call_count == 1, f"Failing branch was called {fail_call_count} times, expected 1"
+
+        # Steps after the failed parallel block must NOT have executed
+        assert (
+            post_parallel_call_count == 0
+        ), f"Post-parallel step was called {post_parallel_call_count} times, expected 0"
+
+        # Verify step log shows the failure propagated from the parallel group
+        logged_step_names = [s.name for s, _process in step_log]
+        assert (
+            "After Parallel" not in logged_step_names
+        ), f"After Parallel should not appear in step log: {logged_step_names}"
+    finally:
+        del ALL_WORKFLOWS["fail_worker_wf"]
+        # Clean up DB row; use raw SQL to avoid ObjectDeletedError when the
+        # test transaction has been invalidated by _create_fork_step's commit.
+        try:
+            from sqlalchemy import delete as sa_delete
+
+            from orchestrator.db import WorkflowTable
+
+            db.session.rollback()
+            db.session.execute(sa_delete(WorkflowTable).where(WorkflowTable.workflow_id == wf_table.workflow_id))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
