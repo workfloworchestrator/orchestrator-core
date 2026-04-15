@@ -558,9 +558,14 @@ def test_worker_resume_after_parallel_executes_remaining_steps() -> None:
     3. We simulate the resume by calling load_process + runwf
     4. The resumed workflow must execute the post-parallel step and reach Complete
 
-    The bug: load_process -> _recoverwf counts ALL process steps (including fork and branch child
-    steps persisted by the parallel machinery). This inflated stepcount causes wf.steps[stepcount:]
-    to skip remaining steps, so the workflow completes without running post-parallel steps.
+    Two bugs fixed:
+    1. load_process included fork/branch child steps, inflating stepcount in _recoverwf
+    2. _join_and_resume didn't update the main Waiting step to Success
+
+    Note: In eager Celery mode, branches execute synchronously inside .delay(), so
+    _join_and_resume fires BEFORE safe_logstep writes the Waiting step. In production,
+    branches run asynchronously and _join_and_resume runs AFTER. We simulate the
+    production ordering by calling _update_main_parallel_step after the workflow returns.
     """
 
     resume_final_called = False
@@ -625,6 +630,14 @@ def test_worker_resume_after_parallel_executes_remaining_steps() -> None:
 
             # Branches should have completed (eager mode) and triggered resume
             assert len(resume_log) == 1, f"Expected exactly 1 resume call, got {len(resume_log)}"
+
+            # Simulate production ordering: in production, _join_and_resume runs AFTER
+            # safe_logstep writes the Waiting step. In eager mode, it runs BEFORE.
+            # Call _update_main_parallel_step now that the Waiting step exists in DB.
+            db.session.expire_all()
+            fork_step = _get_fork_step(pstat.process_id)
+            _update_main_parallel_step(pstat.process_id, fork_step.name, fork_step.step_id, "success", fork_step.state)
+            db.session.commit()
 
             # Phase 2: Simulate the Celery resume by loading process from DB and running remaining steps
             process = db.session.get(ProcessTable, pstat.process_id)
