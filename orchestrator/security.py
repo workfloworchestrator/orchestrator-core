@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from http import HTTPStatus
 from typing import Annotated
 
 from authlib.integrations.starlette_client import OAuth
@@ -21,6 +22,7 @@ from starlette.websockets import WebSocket
 from nwastdlib.url import URL
 from oauth2_lib.fastapi import HTTPX_SSL_CONTEXT, HttpBearerExtractor, OIDCUserModel
 from oauth2_lib.settings import oauth2lib_settings
+from orchestrator.api.error_handling import raise_status
 
 oauth_client_credentials = OAuth()
 
@@ -45,7 +47,12 @@ async def authenticate(
 
 
 async def authorize(request: Request, user: Annotated[OIDCUserModel | None, Depends(authenticate)]) -> bool | None:
-    return await request.app.auth_manager.authorization.authorize(request, user)
+    result = await request.app.auth_manager.authorization.authorize(request, user)
+    if result is False:  # None is different!
+        raise_status(HTTPStatus.FORBIDDEN, detail="Not authorized")
+
+    # Either authorized (True) or authorization is bypassed (None)
+    return result
 
 
 async def authenticate_websocket(websocket: WebSocket, token: str) -> OIDCUserModel | None:
@@ -55,4 +62,9 @@ async def authenticate_websocket(websocket: WebSocket, token: str) -> OIDCUserMo
 async def authorize_websocket(
     websocket: WebSocket, user: Annotated[OIDCUserModel | None, Depends(authenticate)]
 ) -> bool | None:
-    return await websocket.app.auth_manager.authorization.authorize(websocket, user)
+    result = await websocket.app.auth_manager.authorization.authorize(websocket, user)
+    if result is False:  # None is different!
+        raise_status(HTTPStatus.FORBIDDEN, detail="Not authorized")
+
+    # Either authorized (True) or authorization is bypassed (None)
+    return result
