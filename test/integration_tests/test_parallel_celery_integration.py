@@ -3,17 +3,19 @@
 Tests exercise real DB persistence through the parallel execution path.
 """
 
+from functools import partial
 from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 
-from orchestrator.db import ProcessStepTable, db
+from orchestrator.db import ProcessStepTable, ProcessTable, db
 from orchestrator.services.parallel import (
     _atomic_increment_completed,
     _collect_branch_results,
     _resolve_branch_from_db,
 )
+from orchestrator.services.processes import create_process, load_process, safe_logstep
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.workflow import (
     begin,
@@ -21,10 +23,17 @@ from orchestrator.workflow import (
     foreach_parallel,
     init,
     parallel,
+    runwf,
     step,
     workflow,
 )
-from test.unit_tests.workflows import WorkflowInstanceForTests, assert_complete, run_workflow
+from orchestrator.workflows import ALL_WORKFLOWS
+from test.unit_tests.workflows import (
+    WorkflowInstanceForTests,
+    assert_complete,
+    run_workflow,
+    store_workflow,
+)
 
 # --- Step definitions ---
 
@@ -526,6 +535,123 @@ def test_foreach_parallel_single_branch_failure_with_worker() -> None:
         assert sorted(executed_indices) == [0, 1, 2], f"Expected all branches to run, got {executed_indices}"
     finally:
         del ALL_WORKFLOWS["fe_fail_worker_wf"]
+        try:
+            from sqlalchemy import delete as sa_delete
+
+            from orchestrator.db import WorkflowTable
+
+            db.session.rollback()
+            db.session.execute(sa_delete(WorkflowTable).where(WorkflowTable.workflow_id == wf_table.workflow_id))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
+@pytest.mark.celery
+def test_worker_resume_after_parallel_executes_remaining_steps() -> None:
+    """After parallel branches complete in WORKER mode, resume via load_process + runwf must execute post-parallel steps.
+
+    This exercises the full Celery resume flow:
+    1. Run the workflow in WORKER mode — it suspends (Waiting) at the parallel step
+    2. Branches execute and _join_and_resume triggers a resume
+    3. We simulate the resume by calling load_process + runwf
+    4. The resumed workflow must execute the post-parallel step and reach Complete
+
+    The bug: load_process -> _recoverwf counts ALL process steps (including fork and branch child
+    steps persisted by the parallel machinery). This inflated stepcount causes wf.steps[stepcount:]
+    to skip remaining steps, so the workflow completes without running post-parallel steps.
+    """
+
+    resume_final_called = False
+
+    @step("Resume Branch A")
+    def resume_branch_a() -> dict:
+        return {"ra": "done"}
+
+    @step("Resume Branch B")
+    def resume_branch_b() -> dict:
+        return {"rb": "done"}
+
+    @step("Resume Final Step")
+    def resume_final_step() -> dict:
+        nonlocal resume_final_called
+        resume_final_called = True
+        return {"final_resume": "done"}
+
+    @workflow()
+    def resume_worker_wf():
+        return (
+            init
+            >> parallel("resume group", begin >> resume_branch_a, begin >> resume_branch_b)
+            >> resume_final_step
+            >> done
+        )
+
+    from orchestrator.services.parallel import run_worker_branch as _original_run_worker_branch
+
+    resume_log: list[object] = []
+
+    def _noop_resume(process, user="test"):
+        """Capture resume calls instead of dispatching a real Celery resume task."""
+        resume_log.append(process.process_id)
+
+    noop_execution_context = {
+        "start": lambda *a, **kw: None,
+        "resume": _noop_resume,
+        "validate": lambda *a, **kw: None,
+    }
+
+    def _scoped_run_worker_branch(**kwargs):
+        with db.database_scope():
+            _original_run_worker_branch(**kwargs)
+
+    ALL_WORKFLOWS["resume_worker_wf"] = WorkflowInstanceForTests(resume_worker_wf, "resume_worker_wf")
+    wf_table = store_workflow(resume_worker_wf, name="resume_worker_wf")
+    try:
+        with (
+            patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
+            patch("orchestrator.services.parallel.run_worker_branch", _scoped_run_worker_branch),
+            patch("orchestrator.services.processes.get_execution_context", return_value=noop_execution_context),
+        ):
+            # Phase 1: Start the workflow — it will suspend at the parallel step (Waiting)
+            # Use create_process + runwf with safe_logstep so steps are persisted to DB
+            # (load_process reads from DB, so in-memory step_log won't work).
+            pstat = create_process("resume_worker_wf", [{}])
+            result = runwf(pstat, partial(safe_logstep))
+
+            # WORKER mode: parent suspends while branches run asynchronously
+            assert result.iswaiting(), f"Expected Waiting (WORKER mode), but was: {result}"
+
+            # Branches should have completed (eager mode) and triggered resume
+            assert len(resume_log) == 1, f"Expected exactly 1 resume call, got {len(resume_log)}"
+
+            # Phase 2: Simulate the Celery resume by loading process from DB and running remaining steps
+            process = db.session.get(ProcessTable, pstat.process_id)
+            assert process is not None, "Process not found in DB"
+
+            loaded_pstat = load_process(process)
+
+            # The remaining steps (loaded_pstat.log) should NOT include the parallel step
+            # (it already ran). It should contain resume_final_step and done.
+            remaining_step_names = [s.name for s in loaded_pstat.log]
+            assert (
+                "resume group" not in remaining_step_names
+            ), f"Parallel step 'resume group' should not be in remaining steps: {remaining_step_names}"
+            assert len(loaded_pstat.log) >= 2, (
+                f"Expected at least 2 remaining steps (resume_final_step + done), got {len(loaded_pstat.log)}: "
+                f"{remaining_step_names}"
+            )
+
+            # Run the remaining steps
+            resume_result = runwf(loaded_pstat, partial(safe_logstep))
+
+            # The workflow must complete successfully
+            assert_complete(resume_result)
+
+            # resume_final_step must have actually been called
+            assert resume_final_called, "resume_final_step was never called — post-parallel steps were skipped"
+    finally:
+        del ALL_WORKFLOWS["resume_worker_wf"]
         try:
             from sqlalchemy import delete as sa_delete
 
