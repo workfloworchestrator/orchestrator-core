@@ -258,7 +258,7 @@ const WfoAnyComponent: FC<WfoAnyComponentProps> = (...) => {
 [1]: https://github.com/workfloworchestrator/example-orchestrator-ui
 [2]: https://nextjs.org
 [3]: https://react.dev
-[4]: https://www.npmjs.com/package/@orchestrator-uiorchestrator-ui-components
+[4]: https://www.npmjs.com/package/@orchestrator-ui/orchestrator-ui-components
 [5]: https://workfloworchestrator.org/orchestrator-core/architecture/application/workflow
 [6]: https://nextjs.org/docs/pages
 [7]: https://nextjs.org/docs/app/building-your-application/routing

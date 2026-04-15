@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -24,6 +24,7 @@ from orchestrator.settings import app_settings, get_authorizers
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.workflow import ProcessStatus, StepList, done, init, step, workflow
+from orchestrator.workflows.predicates import no_uncompleted_instance
 from pydantic_forms.types import State
 
 authorizers = get_authorizers()
@@ -68,6 +69,7 @@ def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
     target=Target.SYSTEM,
     authorize_callback=authorizers.authorize_callback,
     retry_auth_callback=authorizers.retry_auth_callback,
+    run_predicate=no_uncompleted_instance,
 )
 def task_clean_up_tasks() -> StepList:
     return init >> remove_tasks >> cleanup_ai_search_index >> done
