@@ -147,7 +147,7 @@ class LLMSettings(BaseSettings):
     LLM_TIMEOUT: int = 30
 
     # Toggle creation of extensions
-    LLM_FORCE_EXTENTION_MIGRATION: bool = False
+    LLM_FORCE_EXTENSION_MIGRATION: bool = False
 
     @field_validator("EMBEDDING_MODEL")
     def validate_embedding_model_format(cls, v: str) -> str:
