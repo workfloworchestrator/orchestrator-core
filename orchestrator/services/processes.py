@@ -812,13 +812,28 @@ def _restore_log(steps: list[ProcessStepTable]) -> list[WFProcess]:
     return [deserialize(step) for step in steps]
 
 
+def _is_main_log_step(step: ProcessStepTable) -> bool:
+    """Return True if this step is part of the main workflow log.
+
+    Excludes fork steps (parallel tracking) and branch child steps
+    (linked via ProcessStepRelationTable). These are auxiliary rows
+    that must not inflate the step count in _recoverwf.
+    """
+    if step.parallel_total_branches is not None:
+        return False
+    if step.parent_step_relations:
+        return False
+    return True
+
+
 def load_process(process: ProcessTable) -> ProcessStat:
     workflow = get_workflow(str(process.workflow.name))
 
     if not workflow:
         workflow = removed_workflow
 
-    log = _restore_log(process.steps)
+    main_steps = [s for s in process.steps if _is_main_log_step(s)]
+    log = _restore_log(main_steps)
     pstate, remaining = _recoverwf(workflow, log)
 
     return ProcessStat(

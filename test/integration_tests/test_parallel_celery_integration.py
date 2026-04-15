@@ -757,3 +757,31 @@ def test_join_and_resume_updates_main_waiting_step() -> None:
             assert main_step_after.status == "success", (
                 f"Main Waiting step should have been updated to 'success', " f"but was '{main_step_after.status}'"
             )
+
+
+@pytest.mark.celery
+def test_load_process_excludes_fork_and_branch_steps() -> None:
+    """load_process must not include fork steps or branch child steps in the recovered log."""
+
+    @workflow()
+    def load_process_wf():
+        return init >> parallel("lp group", begin >> cel_branch_a, begin >> cel_branch_b) >> final_step >> done
+
+    with WorkflowInstanceForTests(load_process_wf, "load_process_wf"):
+        # Use create_process + runwf with safe_logstep so steps are persisted to DB
+        # (load_process reads from DB, so the in-memory step_log from run_workflow won't work)
+        pstat = create_process("load_process_wf", [{}])
+        result = runwf(pstat, partial(safe_logstep))
+        assert_complete(result)
+
+        # Verify fork/branch steps exist in DB (precondition)
+        fork_step = _get_fork_step(pstat.process_id)
+        assert fork_step is not None
+
+        # load_process should recover correctly despite fork/branch steps in DB
+        process = db.session.get(ProcessTable, pstat.process_id)
+        loaded = load_process(process)
+
+        # The recovered state should be Complete (workflow finished)
+        assert loaded.state.iscomplete(), f"Expected Complete state, got: {loaded.state}"
+        assert len(loaded.log) == 0, f"Expected no remaining steps, got: {[s.name for s in loaded.log]}"
