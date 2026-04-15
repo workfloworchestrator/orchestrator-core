@@ -1,0 +1,51 @@
+name: Verify copyright year in modified files
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  copyright-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify copyright year in modified files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CURRENT_YEAR="$(date +%Y)"
+
+          # Determine base ref
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_REF="origin/${{ github.base_ref }}"
+          else
+            BASE_REF="$(git rev-parse HEAD~1)"
+          fi
+
+          MODIFIED_FILES=$(git diff --name-only "$BASE_REF"...HEAD)
+
+          FAIL=0
+
+          for file in $MODIFIED_FILES; do
+            # Skip deleted or non-regular files
+            [[ -f "$file" ]] || continue
+
+            # Only check Python files
+            [[ "$file" == *.py ]] || continue
+
+            # Only inspect the header (first 20 lines)
+            if ! head -n 1 "$file" | grep -Eqi "# Copyright.*${CURRENT_YEAR}"; then
+              echo "ERROR: $file does not contain a ${CURRENT_YEAR} copyright notice in the header"
+              FAIL=1
+            fi
+          done
+
+          if [[ "$FAIL" -ne 0 ]]; then
+            exit 1
+          fi
