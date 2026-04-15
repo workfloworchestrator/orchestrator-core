@@ -131,11 +131,15 @@ While it defaults to using `OIDCAuth` for authentication, `OPAAuthorization` for
 
 When initiating the `OrchestratorCore` class, it's [`auth_manager`][6] property is set to `AuthManager`. AuthManager is provided by [oauth2_lib][7].
 
-`AuthManager` provides 3 methods that are called for authentication and authorization: `authentication`, `authentication` and `graphql_authorization`.
+`AuthManager` provides 3 methods that are called for authentication and authorization: `authentication`, `authorization`, and `graphql_authorization`.
 
 `authentication`: The default method provided by Oaut2Lib implements returning the OIDC user from the OIDC introspection endpoint.
 
-`authorization`: A method that applies authorization decisions to HTTP requests, the decision is either true (Allowed) or false (Forbidden). Gets this payload to based decisions on. The default method provided by Oaut2Lib uses OPA and sends the payload to the opa_url specified in OPA_URL setting to get a decision.
+Note:
+The default authentication method allows for the passing in of **is_bypassable_request** method that receives the Request object
+and returns a boolean. When this method returns true the request is always allowed regardless of other authorization decisions.
+
+`authorization`: A method that applies authorization decisions to HTTP requests, **the decision is either true (Allowed), false (Forbidden), or None (authorization bypassed for local dev).** Gets this payload to based decisions on. The default method provided by Oauth2Lib uses OPA and sends the payload to the opa_url specified in OPA_URL setting to get a decision.
 
 ```
             "input": {
@@ -147,12 +151,11 @@ When initiating the `OrchestratorCore` class, it's [`auth_manager`][6] property 
             }
 ```
 
-Note:
-The default authentication method allows for the passing in of **is_bypassable_request** method that receives the Request object
-and returns a boolean. When this method returns true the request is always allowed regardless of other authorization decisions.
-
 `graphql_authorization`: A method that applies authorization decisions to graphql requests. Specializes OPA authorization for GraphQL operations.
 GraphQl results always return a 200 response when authenticated but can return 403 results for partial results as may occur in federated scenarios.
+
+WFO will return a generic 403 for both `authorization` and `graphql_authorization`. If desired, users can also
+raise their own `HTTPException` with a custom `detail=` parameter to return additional context.
 
 ### Customizing
 
