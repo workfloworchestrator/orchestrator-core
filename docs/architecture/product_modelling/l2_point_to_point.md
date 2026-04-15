@@ -9,9 +9,44 @@ that endpoint and, in the case where 802.1Q has to be enabled, the VLAN range
 used. The service can either be deployed protected or unprotected in the service
 provider network. This is administered with the fixed input protection_type.
 
-<img height="75%" src="../l2_point_to_point.png" title="L2 Point-to-Point Product Model" width="75%"/>
+```mermaid
+classDiagram
+    direction TB
+    namespace L2Point2PointProduct {
+        class Fixed Inputs {
+            +protection_type "Protection Type"
+        }
+        class L2Point2PointBlock {
+            +ims_id: ims_id
+            +nrm_id: nrm_id
+            +speed: integer
+            +speed_policer: boolean
+            +sap: list[L2ServiceAttachmentPoint]
+        }
+        class L2ServiceAttachmentPointBlock {
+            +vlan_range: vlan_range_type
+            +port: PortBlock
+        }
+    }
+    namespace PortProduct {
+        class PortBlock {
+            +device: DeviceBlock
+            +port_name: str
+        }
+    }
+
+    L2Point2PointBlock "1" --> "2" L2ServiceAttachmentPointBlock
+    L2ServiceAttachmentPointBlock "n" --> "1" PortBlock
+```
+
+## class L2Point2PointProduct
+
+**Fixed Inputs:**
 
 * **protection_type**: this service is either unprotected or protected
+
+**class L2Point2PointProductBlock:**
+
 * **ims_id**: ID of the node in the inventory management system
 * **nrm_id**: ID of the node in the network resource manager
 * **speed**: the speed of the point-to-point service in Mbit/s
