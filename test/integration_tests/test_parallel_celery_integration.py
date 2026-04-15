@@ -3,6 +3,7 @@
 Tests exercise real DB persistence through the parallel execution path.
 """
 
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -13,6 +14,7 @@ from orchestrator.services.parallel import (
     _collect_branch_results,
     _resolve_branch_from_db,
 )
+from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.workflow import (
     begin,
     done,
@@ -205,13 +207,17 @@ def test_resolve_branch_from_db_finds_correct_branch() -> None:
 
         fork_step = _get_fork_step(pstat.process_id)
 
-        group_name_0, branch_steps_0 = _resolve_branch_from_db(fork_step.step_id, pstat.process_id, 0)
+        group_name_0, branch_steps_0, process_0, wf_0 = _resolve_branch_from_db(fork_step.step_id, pstat.process_id, 0)
         assert group_name_0 == "resolve group"
         assert len(branch_steps_0) > 0
+        assert process_0.process_id == pstat.process_id
+        assert wf_0 is not None
 
-        group_name_1, branch_steps_1 = _resolve_branch_from_db(fork_step.step_id, pstat.process_id, 1)
+        group_name_1, branch_steps_1, process_1, wf_1 = _resolve_branch_from_db(fork_step.step_id, pstat.process_id, 1)
         assert group_name_1 == "resolve group"
         assert len(branch_steps_1) > 0
+        assert process_1.process_id == pstat.process_id
+        assert wf_1 is not None
 
 
 @pytest.mark.celery
@@ -304,3 +310,86 @@ def test_full_parallel_workflow_db_state_after_completion() -> None:
         assert fork_step.status == "success"
         assert "cel_a" not in fork_step.state
         assert "cel_b" not in fork_step.state
+
+
+@pytest.mark.celery
+def test_foreach_parallel_worker_dispatches_all_branches() -> None:
+    """With EXECUTOR=WORKER, foreach_parallel must dispatch and execute every branch, not just the first."""
+
+    call_log: list[int] = []
+
+    @step("Track FE Item")
+    def track_fe_item(item: object, item_index: int) -> dict:
+        call_log.append(item_index)
+        return {f"tracked_{item_index}": f"done_{item}"}
+
+    @step("Seed FE Items Worker")
+    def seed_fe_items_worker() -> dict:
+        return {"items": ["x", "y", "z"]}
+
+    @workflow()
+    def fe_worker_wf():
+        return (
+            init >> seed_fe_items_worker >> foreach_parallel("fe worker group", "items", begin >> track_fe_item) >> done
+        )
+
+    from orchestrator.services.parallel import run_worker_branch as _original_run_worker_branch
+
+    resume_log: list[object] = []
+
+    def _noop_resume(process, user="test"):
+        """Capture resume calls instead of dispatching a real Celery resume task."""
+        resume_log.append(process.process_id)
+
+    noop_execution_context = {"start": lambda *a, **kw: None, "resume": _noop_resume, "validate": lambda *a, **kw: None}
+
+    def _scoped_run_worker_branch(**kwargs):
+        """Wrap run_worker_branch in database_scope to match production Celery worker isolation.
+
+        In production, each Celery worker task runs with its own DB connection. In tests with
+        task_always_eager=True, all tasks share the test connection. The database_scope() ensures
+        each branch gets its own session scope, matching the isolation that _execute_branch
+        provides in the THREADPOOL path.
+        """
+        with db.database_scope():
+            _original_run_worker_branch(**kwargs)
+
+    with (
+        patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
+        patch("orchestrator.services.parallel.run_worker_branch", _scoped_run_worker_branch),
+        # Stub only the resume dispatch so _join_and_resume's DB logic is tested.
+        patch("orchestrator.services.processes.get_execution_context", return_value=noop_execution_context),
+    ):
+        with WorkflowInstanceForTests(fe_worker_wf, "fe_worker_wf"):
+            result, pstat, _step_log = run_workflow("fe_worker_wf", [{}])
+
+            # WORKER mode returns Waiting: the parent workflow suspends while branches
+            # execute asynchronously. In eager mode the branches have already completed
+            # by the time delay() returns, so we verify branch execution via the DB.
+            assert result.iswaiting(), f"Expected Waiting (WORKER mode), but was: {result}"
+
+            # All 3 branches must have been called
+            assert sorted(call_log) == [0, 1, 2], f"Expected branches 0,1,2 but got {call_log}"
+
+            # DB: fork step must show all branches completed
+            fork_step = _get_fork_step(pstat.process_id)
+            assert fork_step.parallel_total_branches == 3
+            assert fork_step.parallel_completed_count == 3
+
+            # DB: all branch results must be present
+            branch_results = _collect_branch_results(fork_step.step_id)
+            assert len(branch_results) == 3
+
+            indices = {r[0] for r in branch_results}
+            assert indices == {0, 1, 2}
+
+            # Each branch produced its expected key
+            all_state_keys = {key for _idx, state, _status in branch_results for key in state}
+            assert "tracked_0" in all_state_keys
+            assert "tracked_1" in all_state_keys
+            assert "tracked_2" in all_state_keys
+
+            # _join_and_resume must have updated the fork step status and triggered resume
+            assert fork_step.status == "success"
+            assert len(resume_log) == 1, f"Expected exactly 1 resume call, got {len(resume_log)}"
+            assert resume_log[0] == pstat.process_id

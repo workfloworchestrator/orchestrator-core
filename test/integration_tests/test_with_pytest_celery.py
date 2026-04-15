@@ -13,9 +13,11 @@ from test.integration_tests.conftest import TestOrchestratorCelery
 
 @pytest.fixture(scope="module")
 def init_celery_app(celery_session_app):
-    """Initialize Celery application for testing.
+    """Provide the Celery application for testing.
 
-    Sets up custom serialization and initializes the Celery app.
+    The autouse ``setup_test_celery`` fixture in conftest already calls
+    ``initialise_celery`` for every test, so this fixture simply returns the
+    configured application.
 
     Args:
         celery_session_app: The Celery application instance from pytest-celery
@@ -23,9 +25,6 @@ def init_celery_app(celery_session_app):
     Returns:
         Celery: The configured Celery application
     """
-    from orchestrator.services.tasks import initialise_celery
-
-    initialise_celery(celery_session_app)
     return celery_session_app
 
 
@@ -50,19 +49,20 @@ def celery_worker_setup(celery_worker):
 
 @pytest.mark.celery
 @pytest.mark.noresponses
-def test_pytest_celery_all_tasks(init_celery_app, register_celery_tasks):
-    """Test all registered celery tasks."""
+@pytest.mark.parametrize(
+    "task_name, expected_prefix",
+    [
+        pytest.param(NEW_TASK, "Started new process", id="new_task"),
+        pytest.param(NEW_WORKFLOW, "Started new workflow", id="new_workflow"),
+        pytest.param(RESUME_TASK, "Resumed task", id="resume_task"),
+        pytest.param(RESUME_WORKFLOW, "Resumed workflow", id="resume_workflow"),
+    ],
+)
+def test_pytest_celery_all_tasks(init_celery_app, register_celery_tasks, task_name, expected_prefix):
+    """Test registered celery task dispatches and returns expected result."""
     process_id = str(uuid4())
-    tasks = [
-        (NEW_TASK, "Started new process"),
-        (NEW_WORKFLOW, "Started new workflow"),
-        (RESUME_TASK, "Resumed task"),
-        (RESUME_WORKFLOW, "Resumed workflow"),
-    ]
-
-    for task_name, expected_prefix in tasks:
-        result = register_celery_tasks[task_name].delay(process_id)
-        assert result.get(timeout=5) == f"{expected_prefix} {process_id}"
+    result = register_celery_tasks[task_name].delay(process_id)
+    assert result.get(timeout=5) == f"{expected_prefix} {process_id}"
 
 
 @pytest.mark.celery

@@ -647,7 +647,8 @@ def _dispatch_worker_branches(
     task_name = EXECUTE_PARALLEL_BRANCH if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW
     trigger_task = get_celery_task(task_name)
 
-    for idx, _ in enumerate(branches):
+    n_branches = len(seeds) if seeds else len(branches)
+    for idx in range(n_branches):
         branch_initial = (initial_state | seeds[idx]) if seeds else initial_state
         seed = seeds[idx] if seeds else None
         trigger_task.delay(process_id, idx, fork_step_id, branch_initial, current_user, seed)

@@ -208,9 +208,24 @@ def celery_worker_parameters():
     }
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def register_celery_tasks(celery_session_app):
-    """Register test tasks with the Celery application."""
+    """Register test tasks with the Celery application.
+
+    Clears any previously registered production tasks first, since Celery
+    skips registration when a task with the same name already exists.
+    """
+    task_names = [
+        NEW_TASK,
+        NEW_WORKFLOW,
+        RESUME_TASK,
+        RESUME_WORKFLOW,
+        EXECUTE_PARALLEL_BRANCH,
+        EXECUTE_PARALLEL_BRANCH_WORKFLOW,
+    ]
+    for name in task_names:
+        celery_session_app._tasks.pop(name, None)
+
     tasks = {}
 
     @celery_session_app.task(name=NEW_TASK)  # type: ignore[untyped-decorator]
@@ -291,10 +306,10 @@ def celery_timeout():
 @pytest.fixture(autouse=True)
 def setup_test_celery(celery_session_app, monkeypatch):
     """Setup and teardown for Celery tests."""
-    # Reset Celery app
+    # Reset Celery app so initialise_celery can be called
     monkeypatch.setattr("orchestrator.services.tasks._celery", None)
 
-    # Initialize Celery
+    # Initialize Celery (registers production tasks)
     register_custom_serializer()
     initialise_celery(celery_session_app)
 
