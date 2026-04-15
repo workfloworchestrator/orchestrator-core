@@ -62,6 +62,7 @@ class ProcessType:
     steps: strawberry.auto
     form: JSON | None
     current_state: JSON | None
+    note: str | None
 
     @strawberry.field(description="Get traceback")  # type: ignore
     def traceback(self) -> str | None:
