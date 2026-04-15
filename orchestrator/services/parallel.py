@@ -213,6 +213,38 @@ def run_worker_branch(
         )
 
 
+def _update_main_parallel_step(
+    process_id: UUID,
+    step_name: str,
+    fork_step_id: UUID,
+    status: str,
+    state: dict,
+) -> None:
+    """Update the main Waiting process step to reflect parallel branch completion.
+
+    When the parallel step dispatches branches in WORKER mode, safe_logstep writes a
+    Waiting process step. After all branches complete, this step must be updated to
+    the resolved status so _recoverwf correctly advances past it on resume.
+    """
+    from sqlalchemy import and_
+
+    main_step = (
+        db.session.query(ProcessStepTable)
+        .filter(
+            and_(
+                ProcessStepTable.process_id == process_id,
+                ProcessStepTable.name == step_name,
+                ProcessStepTable.status == StepStatus.WAITING,
+                ProcessStepTable.step_id != fork_step_id,
+            )
+        )
+        .first()
+    )
+    if main_step is not None:
+        main_step.status = status
+        main_step.state = state
+
+
 def _join_and_resume(
     *,
     process_id: UUID,
@@ -226,10 +258,16 @@ def _join_and_resume(
     results = [_STATUSES.get(StepStatus(status), Success)(state) for _branch_idx, state, status in branch_data]
     worst = _worst_status(results)
 
+    resolved_status = worst.status if worst is not None else StepStatus.SUCCESS
+
     fork_step = db.session.get(ProcessStepTable, fork_step_id)
     if fork_step is not None:
-        fork_step.status = worst.status if worst is not None else StepStatus.SUCCESS
+        fork_step.status = resolved_status
         fork_step.state = initial_state
+
+        # Update the main Waiting process step so _recoverwf advances past it on resume
+        _update_main_parallel_step(process_id, fork_step.name, fork_step_id, resolved_status, initial_state)
+
         db.session.commit()
 
     from orchestrator.services.processes import _get_process, get_execution_context

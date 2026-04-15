@@ -14,6 +14,7 @@ from orchestrator.services.parallel import (
     _atomic_increment_completed,
     _collect_branch_results,
     _resolve_branch_from_db,
+    _update_main_parallel_step,
 )
 from orchestrator.services.processes import create_process, load_process, safe_logstep
 from orchestrator.settings import ExecutorType, app_settings
@@ -662,3 +663,97 @@ def test_worker_resume_after_parallel_executes_remaining_steps() -> None:
             db.session.commit()
         except Exception:
             db.session.rollback()
+
+
+@pytest.mark.celery
+def test_join_and_resume_updates_main_waiting_step() -> None:
+    """After all branches complete, _join_and_resume must update the main Waiting process step to Success.
+
+    When running in WORKER mode, safe_logstep writes a Waiting process step for the parallel group.
+    After all branches finish, _join_and_resume updates the fork step but must ALSO update this main
+    Waiting step so _recoverwf correctly counts it as cleared on resume.
+    """
+
+    @step("Join Branch A")
+    def join_branch_a() -> dict:
+        return {"ja": "done"}
+
+    @step("Join Branch B")
+    def join_branch_b() -> dict:
+        return {"jb": "done"}
+
+    @workflow()
+    def join_update_wf():
+        return init >> parallel("join group", begin >> join_branch_a, begin >> join_branch_b) >> done
+
+    from orchestrator.services.parallel import run_worker_branch as _original_run_worker_branch
+
+    resume_log: list[object] = []
+
+    def _noop_resume(process, user="test"):
+        resume_log.append(process.process_id)
+
+    noop_execution_context = {"start": lambda *a, **kw: None, "resume": _noop_resume, "validate": lambda *a, **kw: None}
+
+    def _scoped_run_worker_branch(**kwargs):
+        with db.database_scope():
+            _original_run_worker_branch(**kwargs)
+
+    with (
+        patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
+        patch("orchestrator.services.parallel.run_worker_branch", _scoped_run_worker_branch),
+        patch("orchestrator.services.processes.get_execution_context", return_value=noop_execution_context),
+    ):
+        with WorkflowInstanceForTests(join_update_wf, "join_update_wf"):
+            pstat = create_process("join_update_wf", [{}])
+            result = runwf(pstat, partial(safe_logstep))
+
+            assert result.iswaiting(), f"Expected Waiting (WORKER mode), but was: {result}"
+
+            # In eager Celery mode, branches run synchronously inside .delay(), so
+            # _join_and_resume executes BEFORE safe_logstep writes the Waiting step.
+            # In production, branches run asynchronously and _join_and_resume runs AFTER
+            # the Waiting step is persisted.
+            #
+            # To test _update_main_parallel_step in isolation, we verify it can update
+            # the Waiting step that safe_logstep has now written (after the workflow returned).
+            db.session.expire_all()
+
+            fork_step = _get_fork_step(pstat.process_id)
+            assert fork_step.status == "success", f"Fork step should be success, got {fork_step.status}"
+
+            # Confirm the main Waiting step exists (written by safe_logstep after Waiting return)
+            from sqlalchemy import and_
+
+            main_step = (
+                db.session.query(ProcessStepTable)
+                .filter(
+                    and_(
+                        ProcessStepTable.process_id == pstat.process_id,
+                        ProcessStepTable.name == "join group",
+                        ProcessStepTable.status == "waiting",
+                        ProcessStepTable.step_id != fork_step.step_id,
+                    )
+                )
+                .first()
+            )
+            assert main_step is not None, "Main Waiting step for 'join group' not found in DB"
+
+            # Now call _update_main_parallel_step directly — simulating what happens
+            # in production when _join_and_resume runs after the Waiting step exists
+            _update_main_parallel_step(
+                pstat.process_id,
+                "join group",
+                fork_step.step_id,
+                "success",
+                fork_step.state,
+            )
+            db.session.commit()
+
+            # Verify the main step was updated from waiting to success
+            db.session.expire_all()
+            main_step_after = db.session.get(ProcessStepTable, main_step.step_id)
+            assert main_step_after is not None
+            assert main_step_after.status == "success", (
+                f"Main Waiting step should have been updated to 'success', " f"but was '{main_step_after.status}'"
+            )
