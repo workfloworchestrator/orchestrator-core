@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF, ESnet, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,13 +16,15 @@ from uuid import UUID
 
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload, selectinload
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.db import ProductBlockTable, ProductTable, db
+from orchestrator.db import ProductBlockTable, ProductTable, SubscriptionTable, db
+from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.schemas import ProductSchema
 from orchestrator.schemas.product import ProductPatchSchema
+from orchestrator.types import SubscriptionLifecycle
 
 router = APIRouter()
 
@@ -75,16 +77,40 @@ async def patch_product_by_id(product_id: UUID, data: ProductPatchSchema = Body(
     if not product:
         raise_status(HTTPStatus.NOT_FOUND, f"Product id {product_id} not found")
 
-    return await _patch_product_description(data, product)
+    return await _patch_product(data, product)
 
 
-async def _patch_product_description(
+async def _patch_product(
     data: ProductPatchSchema,
     product: ProductTable,
 ) -> ProductTable:
 
     updated_properties = data.model_dump(exclude_unset=True)
+
+    # Update description if provided
     description = updated_properties.get("description", product.description)
     product.description = description
+
+    # Update status if provided
+    if "status" in updated_properties:
+        new_status = updated_properties["status"]
+
+        # Validate: cannot set END_OF_LIFE if non-terminated subscriptions exist
+        if new_status == ProductLifecycle.END_OF_LIFE:
+            non_terminated_count = db.session.scalar(
+                select(func.count(SubscriptionTable.subscription_id)).where(
+                    SubscriptionTable.product_id == product.product_id,
+                    SubscriptionTable.status != SubscriptionLifecycle.TERMINATED,
+                )
+            )
+            if non_terminated_count and non_terminated_count > 0:
+                raise_status(
+                    HTTPStatus.BAD_REQUEST,
+                    f"Cannot set product to 'end of life': "
+                    f"{non_terminated_count} subscription(s) are not in terminated state",
+                )
+
+        product.status = new_status
+
     db.session.commit()
     return product
