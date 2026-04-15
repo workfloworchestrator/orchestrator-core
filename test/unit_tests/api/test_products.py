@@ -219,3 +219,52 @@ def test_product_by_id_returns_correct_data(seed, test_client):
     product = response.json()
 
     assert product["name"] == "LightPath"
+
+
+def test_update_status(seed, test_client):
+    """Patching status to a non-EOL value should succeed."""
+    body = {"status": "phase out"}
+    response = test_client.patch(f"/api/products/{PRODUCT_ID}", json=body)
+
+    assert HTTPStatus.CREATED == response.status_code
+    assert response.json()["status"] == "phase out"
+
+
+def test_update_status_end_of_life_with_active_subscriptions(seed, test_client):
+    """Cannot set 'end of life' when product has non-terminated subscriptions."""
+    body = {"status": "end of life"}
+    response = test_client.patch(f"/api/products/{PRODUCT_ID}", json=body)
+
+    assert HTTPStatus.BAD_REQUEST == response.status_code
+    assert "not in terminated state" in response.json()["detail"]
+
+
+def test_update_status_end_of_life_with_terminated_subscriptions(seed, test_client):
+    """Can set 'end of life' when all subscriptions are terminated."""
+    subscription = db.session.get(SubscriptionTable, SUBSCRIPTION_ID)
+    subscription.status = "terminated"
+    db.session.commit()
+
+    body = {"status": "end of life"}
+    response = test_client.patch(f"/api/products/{PRODUCT_ID}", json=body)
+
+    assert HTTPStatus.CREATED == response.status_code
+    assert response.json()["status"] == "end of life"
+
+
+def test_update_status_invalid_value(seed, test_client):
+    """Invalid status value should return 422 Unprocessable Entity."""
+    body = {"status": "invalid_status"}
+    response = test_client.patch(f"/api/products/{PRODUCT_ID}", json=body)
+
+    assert HTTPStatus.UNPROCESSABLE_ENTITY == response.status_code
+
+
+def test_update_description_and_status(seed, test_client):
+    """Patching both description and status should update both."""
+    body = {"description": "Updated", "status": "pre production"}
+    response = test_client.patch(f"/api/products/{PRODUCT_ID}", json=body)
+
+    assert HTTPStatus.CREATED == response.status_code
+    assert response.json()["description"] == "Updated"
+    assert response.json()["status"] == "pre production"
