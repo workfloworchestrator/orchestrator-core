@@ -16,7 +16,13 @@ from __future__ import annotations
 from sqlalchemy import func, select
 
 from orchestrator.db import ProcessTable, db
-from orchestrator.workflow import PredicateContext, RunPredicateFail, RunPredicatePass, RunPredicateResult
+from orchestrator.workflow import (
+    PredicateContext,
+    ProcessStatus,
+    RunPredicateFail,
+    RunPredicatePass,
+    RunPredicateResult,
+)
 
 
 def no_uncompleted_instance(context: PredicateContext) -> RunPredicateResult:
@@ -34,7 +40,7 @@ def no_uncompleted_instance(context: PredicateContext) -> RunPredicateResult:
         .select_from(ProcessTable)
         .filter(
             ProcessTable.workflow.has(name=workflow_name),
-            ProcessTable.last_status != "completed",
+            ProcessTable.last_status.not_in([ProcessStatus.COMPLETED, ProcessStatus.ABORTED]),
         )
     )
     if uncompleted_count == 0:
