@@ -476,3 +476,63 @@ def test_parallel_branch_failure_does_not_retry_with_worker() -> None:
             db.session.commit()
         except Exception:
             db.session.rollback()
+
+
+@pytest.mark.celery
+def test_foreach_parallel_single_branch_failure_with_worker() -> None:
+    """In foreach_parallel with EXECUTOR=WORKER, one failing branch must fail the whole workflow.
+
+    All branches must still execute (no short-circuit), but the final status is Failed.
+
+    This test uses EXECUTOR=WORKER mode and has a failing branch.  The test infrastructure
+    binds all DB sessions to a single shared test connection.  When the failing step's
+    ``transactional()`` context manager calls ``db.session.rollback()``, it invalidates
+    the shared connection's transaction, making DB-level fork step verification impossible.
+    We therefore verify branch dispatch and execution at the Python level only, matching
+    the approach taken in ``test_parallel_branch_failure_does_not_retry_with_worker``.
+    """
+
+    executed_indices: list[int] = []
+
+    @step("Maybe Fail Item")
+    def maybe_fail_item(item: object, item_index: int) -> dict:
+        executed_indices.append(item_index)
+        if item == "poison":
+            raise RuntimeError(f"Branch {item_index} hit poison item")
+        return {f"result_{item_index}": f"ok_{item}"}
+
+    @step("Seed With Poison")
+    def seed_with_poison() -> dict:
+        return {"items": ["good", "poison", "fine"]}
+
+    @workflow()
+    def fe_fail_worker_wf():
+        return init >> seed_with_poison >> foreach_parallel("fe fail group", "items", begin >> maybe_fail_item) >> done
+
+    from orchestrator.workflows import ALL_WORKFLOWS
+    from test.unit_tests.workflows import store_workflow
+
+    ALL_WORKFLOWS["fe_fail_worker_wf"] = WorkflowInstanceForTests(fe_fail_worker_wf, "fe_fail_worker_wf")
+    wf_table = store_workflow(fe_fail_worker_wf, name="fe_fail_worker_wf")
+    try:
+        result, pstat, step_log = run_workflow("fe_fail_worker_wf", [{}])
+
+        # Workflow must reach a terminal non-success state
+        assert not result.issuccess(), f"Expected failure but got success: {result}"
+        assert not result.iswaiting(), f"Workflow stuck in Waiting (retry loop?): {result}"
+        assert result.isfailed(), f"Expected Failed but got: {result}"
+
+        # All three foreach branches must have executed (no short-circuit)
+        assert sorted(executed_indices) == [0, 1, 2], f"Expected all branches to run, got {executed_indices}"
+    finally:
+        del ALL_WORKFLOWS["fe_fail_worker_wf"]
+        try:
+            from sqlalchemy import delete as sa_delete
+
+            from orchestrator.db import WorkflowTable
+
+            db.session.rollback()
+            db.session.execute(sa_delete(WorkflowTable).where(WorkflowTable.workflow_id == wf_table.workflow_id))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
