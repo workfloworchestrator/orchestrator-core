@@ -35,6 +35,7 @@ from typing import Any
 from uuid import UUID
 
 import structlog
+from mcp.types import ToolAnnotations
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
@@ -60,13 +61,20 @@ logger = structlog.get_logger(__name__)
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-
-def _serialize(obj: Any) -> str:
-    """Serialize an object to a JSON string for MCP tool responses."""
-    try:
-        return json_dumps(obj)
-    except (TypeError, ValueError):
-        return str(obj)
+# Pre-built ToolAnnotations instances for the three annotation profiles used
+# across all tools.
+_READ_ONLY = ToolAnnotations(
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=False,
+)
+_WRITE = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=True,
+    idempotentHint=False,
+    openWorldHint=False,
+)
 
 
 def _error_response(error_type: str, message: str, details: Any = None) -> str:
@@ -80,7 +88,7 @@ def _error_response(error_type: str, message: str, details: Any = None) -> str:
 # ── Workflow Discovery Tools ─────────────────────────────────────
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def list_workflows(
     target: str | None = None,
     is_task: bool | None = None,
@@ -119,13 +127,13 @@ def list_workflows(
                 }
                 for wf in workflows
             ]
-            return json.dumps(result)
+            return json_dumps(result)
     except Exception as e:
         logger.error("list_workflows failed", error=str(e))
         return _error_response("list_workflows_error", str(e))
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_workflow_form(
     workflow_key: str,
     page_inputs: list[dict[str, Any]] | None = None,
@@ -160,16 +168,16 @@ def get_workflow_form(
             if not wf:
                 return _error_response("not_found", f"Workflow '{workflow_key}' does not exist")
 
-            initial_state: dict[str, Any] = {"workflow_name": workflow_key}
+            initial_state: dict[str, Any] = {"workflow_name": workflow_key, "workflow_target": wf.target}
             user_inputs = page_inputs or []
             form_schema = generate_form(wf.initial_input_form, initial_state, user_inputs)
-            return json.dumps(form_schema, default=str)
+            return json_dumps(form_schema)
     except Exception as e:
         logger.error("get_workflow_form failed", workflow_key=workflow_key, error=str(e))
         return _error_response("form_error", str(e))
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_subscription_available_workflows(subscription_id: str) -> str:
     """Get workflows available for a specific subscription.
 
@@ -188,7 +196,7 @@ def get_subscription_available_workflows(subscription_id: str) -> str:
         with db.database_scope():
             subscription = get_subscription(UUID(subscription_id))
             result = subscription_workflows(subscription)
-            return json.dumps(result, default=str)
+            return json_dumps(result)
     except ValueError as e:
         return _error_response("not_found", f"Subscription not found: {e}")
     except Exception as e:
@@ -199,7 +207,7 @@ def get_subscription_available_workflows(subscription_id: str) -> str:
 # ── Workflow Execution Tools ─────────────────────────────────────
 
 
-@mcp.tool()
+@mcp.tool(annotations=_WRITE)
 def create_workflow(
     workflow_key: str,
     form_inputs: list[dict[str, Any]],
@@ -244,7 +252,7 @@ def create_workflow(
         return _error_response("workflow_error", error_str)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_WRITE)
 def resume_workflow_process(
     process_id: str,
     form_inputs: list[dict[str, Any]] | None = None,
@@ -282,7 +290,7 @@ def resume_workflow_process(
         return _error_response("resume_error", str(e))
 
 
-@mcp.tool()
+@mcp.tool(annotations=_WRITE)
 def abort_workflow_process(
     process_id: str,
     user: str = "mcp",
@@ -312,7 +320,7 @@ def abort_workflow_process(
 # ── Process Monitoring Tools ─────────────────────────────────────
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_process_status(process_id: str) -> str:
     """Get the current status and details of a workflow process.
 
@@ -354,13 +362,13 @@ def get_process_status(process_id: str) -> str:
             if enriched.get("current_state"):
                 result["current_state"] = enriched["current_state"]
 
-            return json.dumps(result, default=str)
+            return json_dumps(result)
     except Exception as e:
         logger.error("get_process_status failed", process_id=process_id, error=str(e))
         return _error_response("process_error", str(e))
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def list_recent_processes(
     status: str | None = None,
     workflow_name: str | None = None,
@@ -425,7 +433,7 @@ def list_recent_processes(
 # ── Subscription Query Tools ─────────────────────────────────────
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_subscription_details(subscription_id: str) -> str:
     """Get detailed information about a subscription including its product blocks.
 
@@ -456,7 +464,7 @@ def get_subscription_details(subscription_id: str) -> str:
                 "end_date": str(subscription.end_date) if subscription.end_date else None,
                 "note": subscription.note,
             }
-            return json.dumps(result, default=str)
+            return json_dumps(result)
     except ValueError as e:
         return _error_response("not_found", f"Subscription not found: {e}")
     except Exception as e:
@@ -464,7 +472,7 @@ def get_subscription_details(subscription_id: str) -> str:
         return _error_response("subscription_error", str(e))
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def search_subscriptions(
     query: str | None = None,
     status: str | None = None,
@@ -527,7 +535,7 @@ def search_subscriptions(
 # ── Product Query Tools ──────────────────────────────────────────
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def list_products(product_type: str | None = None, tag: str | None = None) -> str:
     """List available products, optionally filtered by type or tag.
 
@@ -560,7 +568,7 @@ def list_products(product_type: str | None = None, tag: str | None = None) -> st
                 }
                 for p in products
             ]
-            return json.dumps(result, default=str)
+            return json_dumps(result)
     except Exception as e:
         logger.error("list_products failed", error=str(e))
         return _error_response("list_products_error", str(e))
