@@ -55,6 +55,7 @@ from orchestrator.services.workflows import get_workflows
 from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.utils.json import json_dumps
 from orchestrator.workflows import get_workflow
+from pydantic_forms.exceptions import FormValidationError
 
 logger = structlog.get_logger(__name__)
 
@@ -138,11 +139,19 @@ def get_workflow_form(
     workflow_key: str,
     page_inputs: list[dict[str, Any]] | None = None,
 ) -> str:
-    """Get the JSON Schema of a workflow's form for the next page.
+    """Get the JSON Schema of a workflow's form page by page.
 
-    Call this BEFORE starting a workflow to discover what input fields are required.
-    For multi-page forms, pass previously filled pages in page_inputs to get the
-    next page's schema.
+    IMPORTANT: Workflow forms are multi-page. You MUST call this tool repeatedly,
+    adding each filled page to page_inputs, until complete=true. Only then call
+    create_workflow with all accumulated page_inputs.
+
+    Algorithm:
+        1. Call get_workflow_form(workflow_key) to get page 0 schema
+        2. Fill in the fields shown in the schema
+        3. Call get_workflow_form(workflow_key, [page0_data]) to get page 1 schema
+        4. Fill in the fields shown in the schema
+        5. Repeat until complete=true
+        6. Call create_workflow(workflow_key, [page0_data, page1_data, ...])
 
     Args:
         workflow_key: The workflow name (snake_case, e.g. "create_node",
@@ -152,15 +161,27 @@ def get_workflow_form(
             to get page 2 after filling page 1, etc.
 
     Returns:
-        JSON object with the form schema including field names, types,
-        constraints, and whether more pages follow (hasNext).
+        JSON object with:
+          - page: current page number (0-indexed)
+          - complete: true when all pages have been filled; stop calling and
+            proceed to create_workflow. false means there are more pages to fill.
+          - schema: JSON Schema for the current page's fields (null when complete=true)
 
     Example:
-        # Get first page schema:
-        get_workflow_form("modify_note")
+        # Step 1 - get page 0:
+        get_workflow_form("create_baseconfig")
+        # -> {"page": 0, "complete": false, "schema": {"properties": {"product": ...}}}
 
-        # Get second page after filling first:
-        get_workflow_form("modify_note", [{"subscription_id": "abc-123"}])
+        # Step 2 - fill page 0, get page 1:
+        get_workflow_form("create_baseconfig", [{"product": "9ef0c9fd-..."}])
+        # -> {"page": 1, "complete": false, "schema": {"properties": {"template_name": ..., "baseconfig_role": ...}}}
+
+        # Step 3 - fill page 1, check if done:
+        get_workflow_form("create_baseconfig", [{"product": "9ef0c9fd-..."}, {"template_name": "...", "baseconfig_role": "CORE"}])
+        # -> {"page": 2, "complete": true, "schema": null}
+
+        # Step 4 - submit all pages:
+        create_workflow("create_baseconfig", [{"product": "9ef0c9fd-..."}, {"template_name": "...", "baseconfig_role": "CORE"}])
     """
     try:
         with db.database_scope():
@@ -170,8 +191,15 @@ def get_workflow_form(
 
             initial_state: dict[str, Any] = {"workflow_name": workflow_key, "workflow_target": wf.target}
             user_inputs = page_inputs or []
+            page_index = len(user_inputs)
             form_schema = generate_form(wf.initial_input_form, initial_state, user_inputs)
-            return json_dumps(form_schema)
+
+            result: dict[str, Any] = {
+                "page": page_index,
+                "complete": form_schema is None,
+                "schema": form_schema,
+            }
+            return json_dumps(result)
     except Exception as e:
         logger.error("get_workflow_form failed", workflow_key=workflow_key, error=str(e))
         return _error_response("form_error", str(e))
@@ -243,12 +271,16 @@ def create_workflow(
                 user=user,
             )
             return json.dumps({"process_id": str(process_id), "status": "started"})
+    except FormValidationError as e:
+        logger.error("create_workflow validation failed", workflow_key=workflow_key, error=str(e))
+        return _error_response(
+            "validation_error",
+            str(e),
+            {"errors": e.errors, "validator": e.validator_name},
+        )
     except Exception as e:
         error_str = str(e)
         logger.error("create_workflow failed", workflow_key=workflow_key, error=error_str)
-        # FormValidationError from pydantic_forms includes structured validation details
-        if hasattr(e, "detail"):
-            return _error_response("validation_error", error_str, getattr(e, "detail", None))
         return _error_response("workflow_error", error_str)
 
 
