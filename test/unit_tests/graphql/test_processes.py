@@ -412,7 +412,7 @@ def test_processes_filtering_with_invalid_filter(
                 "Invalid filter arguments (invalid_filters=['test'] "
                 "valid_filter_keys=['assignee', 'createdBy', "
                 "'customer', 'failedReason', 'isTask', 'lastModifiedAt', 'lastStatus', "
-                "'lastStep', 'processId', 'product', 'productDescription', 'startedAt', "
+                "'lastStep', 'note', 'processId', 'product', 'productDescription', 'startedAt', "
                 "'subscriptionId', 'tag', 'target', 'traceback', 'workflowId', "
                 "'workflowName'])"
             ),

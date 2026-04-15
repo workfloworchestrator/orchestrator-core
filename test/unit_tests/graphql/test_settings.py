@@ -106,6 +106,8 @@ def test_clear_cache_mutation_fails_auth(test_client_graphql, monkeypatch):
 
 def test_success_clear_cache(test_client_graphql, cache_fixture):
     cache = create_redis_client(app_settings.CACHE_URI.get_secret_value())
+    print("### CACHE URI %r" % app_settings.CACHE_URI)
+    print("### CACHE URI %r" % app_settings.CACHE_URI.get_secret_value())
     key = "some_model_uuid"
     test_data = {key: {"data": [1, 2, 3]}}
 

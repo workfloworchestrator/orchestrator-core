@@ -465,6 +465,7 @@ def test_processes_filterable_response_model(
         "steps": None,
         "form": None,
         "workflow_target": "SYSTEM",
+        "note": None,
     }
 
 
