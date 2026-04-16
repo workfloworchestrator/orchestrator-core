@@ -88,4 +88,4 @@ class AuthContext(BaseModel):
 
 # Can instead use "type Authorizer = ..." in later Python versions.
 T = TypeVar("T", bound=AuthContext)
-Authorizer: TypeAlias = Callable[[T | None], Awaitable[bool]]
+Authorizer: TypeAlias = Callable[[T], Awaitable[bool]]

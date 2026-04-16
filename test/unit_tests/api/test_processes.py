@@ -629,7 +629,7 @@ def test_new_process_higher_version_invalid(test_client, generic_subscription_1)
 
 
 def test_unauthorized_to_run_process(test_client):
-    async def disallow(_: AuthContext | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
     @workflow(target=Target.CREATE, authorize_callback=disallow)
@@ -643,10 +643,10 @@ def test_unauthorized_to_run_process(test_client):
 
 @pytest.fixture
 def authorize_resume_workflow():
-    async def disallow(_: AuthContext | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
-    async def allow(_: AuthContext | None = None) -> bool:
+    async def allow(_: AuthContext) -> bool:
         return True
 
     class ConfirmForm(FormPage):
@@ -864,10 +864,10 @@ def test_continue_awaiting_process_endpoint_wrong_process_status(test_client, pr
 
 @pytest.fixture
 def authorize_step_group_retry_workflow():
-    async def disallow(_: AuthContext | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
-    async def allow(_: AuthContext | None = None) -> bool:
+    async def allow(_: AuthContext) -> bool:
         return True
 
     steps = StepList([])
@@ -939,10 +939,10 @@ def test_unauthorized_step_group_retry(test_client, process_on_unretriable_step_
 
 @pytest.fixture
 def authorize_step_retry_workflow():
-    async def disallow(_: AuthContext | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
-    async def allow(_: AuthContext | None = None) -> bool:
+    async def allow(_: AuthContext) -> bool:
         return True
 
     @step("authorized_retry", retry_auth_callback=allow)
@@ -1018,10 +1018,10 @@ def test_unauthorized_step_retry(test_client, process_on_unretriable_step):
 
 @pytest.fixture
 def authorize_retrystep_retry_workflow():
-    async def disallow(_: AuthContext | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
-    async def allow(_: AuthContext | None = None) -> bool:
+    async def allow(_: AuthContext) -> bool:
         return True
 
     @retrystep("authorized_retry", retry_auth_callback=allow)
@@ -1111,7 +1111,7 @@ def fastapi_app_for_auth_callbacks(fastapi_app):
 def test_internal_authorize_callback(test_client, fastapi_app_for_auth_callbacks):
     """Test RBAC callbacks can restrict access to internal workflows."""
 
-    async def disallow(_: AuthContext | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
     with mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process:
@@ -1155,10 +1155,10 @@ def internal_process_on_retry_step():
 def test_internal_retry_auth_callback(test_client, fastapi_app_for_auth_callbacks, internal_process_on_retry_step):
     """Test that RBAC callbacks can manage access to retrying internal workflows."""
 
-    async def disallow(_: AuthContext | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
-    async def allow(_: AuthContext | None = None) -> bool:
+    async def allow(_: AuthContext) -> bool:
         return True
 
     with mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process:
