@@ -24,6 +24,36 @@ An important thing to understand about interacting with the database inside of w
         heading_level: 3
 
 
+## Database Driver (psycopg3)
+
+orchestrator-core uses [psycopg 3](https://www.psycopg.org/psycopg3/) (`psycopg[binary]`) as its PostgreSQL driver. The SQLAlchemy dialect for psycopg3 requires the `postgresql+psycopg://` URI scheme:
+
+```bash
+DATABASE_URI=postgresql+psycopg://user:pass@host/dbname
+```
+
+Using the legacy `postgresql://` (psycopg2) scheme will raise a deprecation warning at startup.
+
+### Autobegin and `transactional()`
+
+psycopg3 uses **autobegin**: any database query automatically opens an implicit transaction. If a query runs outside an explicit `COMMIT` or `ROLLBACK`, the connection is left in an "idle in transaction" state, which blocks other operations and exhausts the connection pool.
+
+orchestrator-core's workflow engine and Celery task handlers wrap all DB interactions in the `transactional()` context manager, which commits on success and rolls back on error:
+
+```python
+from orchestrator.db import db, transactional
+from structlog import get_logger
+
+logger = get_logger(__name__)
+
+with transactional(db, logger):
+    result = db.session.execute(...)
+```
+
+**When to use it yourself:** any code that issues queries outside the normal workflow step lifecycle — e.g. custom Celery signal handlers, startup hooks, or background threads — should wrap those queries in `transactional()`.
+
+`transactional()` is safe to nest: an inner call detected inside an outer one is a no-op (commit/rollback remain with the outer context).
+
 ## Multiple Heads
 
 When you have multiple features in flight at a time with your WFO development process, you might come across this error when starting up your WFO instance, especially after performing `git` merges:

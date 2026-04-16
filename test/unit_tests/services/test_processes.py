@@ -184,7 +184,8 @@ def test_db_log_step_strips_subscription_models_inside_transactional(
     )
 
 
-def test_thread_start_process_does_not_leak_open_transaction(simple_workflow):
+@mock.patch("orchestrator.services.executors.threadpool._run_process_async")
+def test_thread_start_process_does_not_leak_open_transaction(mock_run_async, simple_workflow):
     """thread_start_process must not leave the empty-scope session with an open transaction after returning.
 
     retrieve_input_state issues a SELECT that, with psycopg3 autobegin, opens a
@@ -203,8 +204,7 @@ def test_thread_start_process_does_not_leak_open_transaction(simple_workflow):
     db.session.add(p)
     db.session.commit()
 
-    # Build a minimal in-memory workflow function. The workflow is never executed
-    # because we mock _run_process_async; we only need a non-removed_workflow value
+    # Build a minimal in-memory workflow function. We only need a non-removed_workflow value
     # for the early branch in thread_start_process and for ProcessStat construction.
     wf = make_workflow(_workflow_test_fn, "wf description", None, Target.SYSTEM, StepList())
     wf.name = "wf name"
@@ -218,10 +218,7 @@ def test_thread_start_process_does_not_leak_open_transaction(simple_workflow):
 
     assert not db.session.in_transaction(), "precondition: clean session"
 
-    # Mock _run_process_async to skip actually running the workflow thread; we are
-    # only testing the pre-runwf section of thread_start_process.
-    with mock.patch("orchestrator.services.executors.threadpool._run_process_async"):
-        thread_start_process(pstat, user="user")
+    thread_start_process(pstat, user="user")
 
     assert not db.session.in_transaction(), (
         "thread_start_process left an open transaction on db.session - "

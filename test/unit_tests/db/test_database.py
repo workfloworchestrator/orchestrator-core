@@ -143,7 +143,7 @@ def test_transactional_nested_does_not_commit_or_rollback() -> None:
     log = MagicMock()
 
     with transactional(db, log):
-        pass
+        db.session.add(MagicMock())
 
     db.session.commit.assert_not_called()
     db.session.rollback.assert_not_called()

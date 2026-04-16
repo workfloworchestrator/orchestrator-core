@@ -18,7 +18,7 @@ from requests.exceptions import RequestException
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from orchestrator.db import EngineSettingsTable, db
+from orchestrator.db import EngineSettingsTable, db, transactional
 from orchestrator.schemas.engine_settings import EngineSettingsSchema, GlobalStatusEnum
 from orchestrator.services.worker_status_monitor import get_worker_status_monitor
 from orchestrator.settings import app_settings
@@ -28,7 +28,8 @@ logger = structlog.get_logger(__name__)
 
 def get_engine_settings_table() -> EngineSettingsTable:
     """Returns the EngineSettingsTable object. Raises an exception if the query does not return exactly one row."""
-    return db.session.execute(select(EngineSettingsTable)).scalar_one()
+    with transactional(db, logger):
+        return db.session.execute(select(EngineSettingsTable)).scalar_one()
 
 
 def get_engine_settings_table_for_update() -> EngineSettingsTable:

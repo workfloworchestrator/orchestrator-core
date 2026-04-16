@@ -1531,14 +1531,13 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
 
         # Execute step
         try:
-            with transactional(db, logger):
-                engine_status = get_engine_settings_table()
-                if engine_status.global_lock:
-                    # Exiting from thread workflow engine is Paused or Pausing
-                    consolelogger.info(
-                        "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
-                    )
-                    return process
+            engine_status = get_engine_settings_table()
+            if engine_status.global_lock:
+                # Exiting from thread workflow engine is Paused or Pausing
+                consolelogger.info(
+                    "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
+                )
+                return process
 
             process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
             step_result_process = process.execute_step(step)
@@ -1550,10 +1549,8 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         # Convert ErrorState to ErrorDict when Failed or Waiting before writing to the database
         # as bare exceptions are not JSON serializable
         result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
-        # Wrap logging in transactional() so SELECTs triggered by mutationlogger and
-        # dblogstep run inside a managed transaction (psycopg3 autobegin prevention).
+        result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
         with transactional(db, logger):
-            result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
             process = dblogstep(step, result_to_log)
         # If database logging failed, the workflow should fail. When it was successful just continue with the
         # result of the executed step.

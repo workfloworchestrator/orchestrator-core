@@ -28,7 +28,7 @@ def test_handle_missing_tables_passes_through_normally() -> None:
 
 def test_handle_missing_tables_suppresses_undefined_table_error() -> None:
     """ProgrammingError wrapping UndefinedTable is caught and not re-raised."""
-    orig = psycopg_errors.UndefinedTable.__new__(psycopg_errors.UndefinedTable)
+    orig = psycopg_errors.UndefinedTable()
     exc = ProgrammingError("", {}, orig)
 
     with handle_missing_tables():

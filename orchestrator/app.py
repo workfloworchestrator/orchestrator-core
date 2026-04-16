@@ -162,9 +162,6 @@ class OrchestratorCore(FastAPI):
 
         self.include_router(api_router, prefix="/api")
 
-        # Validate DATABASE_URI dialect before initializing the database.
-        # psycopg2-binary has been removed in favor of psycopg3; bare
-        # "postgresql://" URIs will cause a cryptic driver-not-found error.
         db_uri = str(base_settings.DATABASE_URI.get_secret_value())
         if db_uri.startswith("postgresql://"):
             import warnings
@@ -178,23 +175,6 @@ class OrchestratorCore(FastAPI):
             )
 
         init_database(base_settings)
-
-        from orchestrator.llm_settings import llm_settings
-
-        if llm_settings.SEARCH_ENABLED:
-            logger.info("Running search migration")
-            try:
-                from orchestrator.search.llm_migration import run_migration
-
-                with db.engine.begin() as connection:
-                    run_migration(connection)
-            except ImportError as e:
-                logger.error(
-                    "Unable to run search migration. Please install search dependencies: "
-                    "`pip install orchestrator-core[search]`",
-                    error=str(e),
-                )
-                raise
 
         self.add_middleware(ClearStructlogContextASGIMiddleware)
         self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET.get_secret_value())
