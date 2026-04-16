@@ -62,7 +62,7 @@ from orchestrator.services.processes import (
 )
 from orchestrator.services.settings import get_engine_settings_table
 from orchestrator.settings import app_settings
-from orchestrator.utils.auth import Authorizer
+from orchestrator.utils.auth import AuthContext, Authorizer
 from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.utils.errors import StartPredicateError
 from orchestrator.websocket import (
@@ -196,8 +196,14 @@ async def new_process(
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
-    if not await workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to execute '{workflow_key}' workflow")
+    context = AuthContext(
+        user=user_model,
+        workflow=workflow,
+        action="start_workflow",
+    )
+
+    if not await workflow.authorize_callback(context):
+        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to start '{workflow_key}' workflow")
 
     try:
         process_id = await asyncio.to_thread(
@@ -229,17 +235,30 @@ async def resume_process_endpoint(
 ) -> None:
     process = await asyncio.to_thread(_get_process, process_id)
 
-    if not can_be_resumed(process.last_status):
-        raise_status(HTTPStatus.CONFLICT, f"Resuming a {process.last_status.lower()} workflow is not possible")
-
     pstat = load_process(process)
-    auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(pstat), pstat.workflow)
+    steps = get_steps_to_evaluate_for_rbac(pstat)
+    auth_resume, auth_retry = get_auth_callbacks(steps, pstat.workflow)
     if process.last_status == ProcessStatus.SUSPENDED:
-        if auth_resume is not None and not (await auth_resume(user_model)):
+        context = AuthContext(
+            user=user_model,
+            workflow=pstat.workflow,
+            step=steps[-1],
+            action="resume_workflow",
+        )
+        if auth_resume is not None and not (await auth_resume(context)):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to resume step")
     elif process.last_status in (ProcessStatus.FAILED, ProcessStatus.WAITING):
-        if auth_retry is not None and not (await auth_retry(user_model)):
+        context = AuthContext(
+            user=user_model,
+            workflow=pstat.workflow,
+            step=steps[-1],
+            action="retry_workflow",
+        )
+        if auth_retry is not None and not (await auth_retry(context)):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to retry step")
+
+    if not can_be_resumed(process.last_status):
+        raise_status(HTTPStatus.CONFLICT, f"Resuming a {process.last_status.lower()} workflow is not possible")
 
     await broadcast_invalidate_status_counts_async()
     broadcast_func = api_broadcast_process_data(request)

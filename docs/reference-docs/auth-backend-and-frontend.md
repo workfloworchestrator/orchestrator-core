@@ -280,8 +280,10 @@ app.register_graphql_authorization(graphql_authorization_instance)
     Role-based access control for workflows is currently in beta.
     Initial support has been added to the backend, but the feature is not fully communicated through the UI yet.
 
-Certain `orchestrator-core` decorators accept authorization callbacks of type `type Authorizer = Callable[[OIDCUserModel | None], Awaitable[bool]]`, which return True when the input user is authorized, otherwise False.
-In other words, authorization callbacks are async, take a nullable OIDCUserModel (or subclass) as argument, and return a bool.
+Certain `orchestrator-core` decorators accept authorization callbacks of type `type Authorizer = Callable[[AuthContext], Awaitable[bool]]`, which return True when the input user is authorized, otherwise False.
+In other words, authorization callbacks are async, take an `AuthContext` as an argument, and return a bool.
+
+See `orchestrator.utils.auth.AuthContext` as a reference for what data is available to your callback function.
 
 A table (below) is available for comparing possible configuration states with the policy that will be enforced.
 
@@ -554,15 +556,15 @@ For more on application startup, see the [Settings Overview page][settings-overv
 Assume we have the following function that can be used to create callbacks:
 
 ```python
-from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator.utils.auth import AuthContext
 from orchestrator.workflows.utils import Authorizer
 
 def allow_roles(*roles) -> Authorizer:
-    async def f(user: OIDCUserModel) -> bool:
-        if is_admin(user):  # Relative to your authorization provider
+    async def f(context: AuthContext) -> bool:
+        if is_admin(context.user):  # Relative to your authorization provider
             return True
         for role in roles:
-            if has_role(user, role):  # Relative to your authorization provider
+            if has_role(context.user, role):  # Relative to your authorization provider
                 return True
         return False
 
