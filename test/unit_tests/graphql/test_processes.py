@@ -1,4 +1,4 @@
-# Copyright 2022 SURF.
+# Copyright 2022-2026 SURF, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -412,7 +412,7 @@ def test_processes_filtering_with_invalid_filter(
                 "Invalid filter arguments (invalid_filters=['test'] "
                 "valid_filter_keys=['assignee', 'createdBy', "
                 "'customer', 'failedReason', 'isTask', 'lastModifiedAt', 'lastStatus', "
-                "'lastStep', 'processId', 'product', 'productDescription', 'startedAt', "
+                "'lastStep', 'note', 'processId', 'product', 'productDescription', 'startedAt', "
                 "'subscriptionId', 'tag', 'target', 'traceback', 'workflowId', "
                 "'workflowName'])"
             ),

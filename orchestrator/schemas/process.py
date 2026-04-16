@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,6 +18,7 @@ from uuid import UUID
 from pydantic import ConfigDict, Field
 
 from orchestrator.config.assignee import Assignee
+from orchestrator.db.models import NOTE_LENGTH
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.subscription import SubscriptionSchema
 from orchestrator.targets import Target
@@ -67,6 +68,7 @@ class ProcessSchema(ProcessBaseSchema):
     current_state: dict[str, Any] | None = None
     steps: list[ProcessStepSchema] | None = None
     form: dict[str, Any] | None = None
+    note: str | None = None
 
 
 class ProcessResumeAllSchema(OrchestratorBaseModel):
@@ -76,6 +78,10 @@ class ProcessResumeAllSchema(OrchestratorBaseModel):
 class ProcessStatusCounts(OrchestratorBaseModel):
     process_counts: dict[ProcessStatus, int]
     task_counts: dict[ProcessStatus, int]
+
+
+class ProcessPatchSchema(OrchestratorBaseModel):
+    note: Annotated[str, Field(max_length=NOTE_LENGTH)] | None = None
 
 
 Reporter = Annotated[str, Field(max_length=100)]
