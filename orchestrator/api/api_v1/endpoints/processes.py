@@ -16,6 +16,7 @@
 import asyncio
 import struct
 import zlib
+from collections.abc import AsyncGenerator
 from http import HTTPStatus
 from typing import Any
 from uuid import UUID
@@ -43,6 +44,8 @@ from orchestrator.db.sorting import Sort, SortOrder
 from orchestrator.db.sorting.process import sort_processes
 from orchestrator.schemas import ProcessIdSchema, ProcessResumeAllSchema, ProcessSchema, ProcessStatusCounts, Reporter
 from orchestrator.schemas.process import ProcessPatchSchema
+from orchestrator.search.core.types import EntityType
+from orchestrator.search.indexing import run_indexing_for_entity
 from orchestrator.security import authenticate
 from orchestrator.services.process_broadcast_thread import api_broadcast_process_data
 from orchestrator.services.processes import (
@@ -343,8 +346,21 @@ def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depen
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
 
-@router.patch("/{process_id}", response_model=ProcessSchema, status_code=HTTPStatus.OK)
-async def update_process(process_id: UUID, data: ProcessPatchSchema = Body(...)) -> ProcessTable:
+async def _index_processes(process_id: UUID) -> AsyncGenerator[None, Any]:
+    yield
+    run_indexing_for_entity(EntityType.PROCESS, str(process_id))
+
+
+@router.patch(
+    "/{process_id}",
+    response_model=ProcessSchema,
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(_index_processes)],
+)
+async def update_process(
+    process_id: UUID,
+    data: ProcessPatchSchema = Body(...),
+) -> ProcessTable:
     process = _get_process(process_id)
     if not process:
         raise_status(HTTPStatus.NOT_FOUND, f"Process id {process_id} not found")
