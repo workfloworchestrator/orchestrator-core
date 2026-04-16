@@ -13,7 +13,7 @@
 """Add process note field.
 
 Revision ID: be3163f7c49d
-Revises: fbc16e410bc6
+Revises: a1b2c3d4e5f6
 Create Date: 2026-04-14 19:56:14.971237
 
 """
@@ -25,7 +25,7 @@ from orchestrator.db.models import StringThatAutoConvertsToNullWhenEmpty
 
 # revision identifiers, used by Alembic.
 revision = "be3163f7c49d"
-down_revision = "fbc16e410bc6"
+down_revision = "a1b2c3d4e5f6"
 branch_labels = None
 depends_on = None
 
