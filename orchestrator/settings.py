@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,7 +14,7 @@
 import secrets
 import string
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, Secret, SecretStr
 from pydantic.main import BaseModel
@@ -28,6 +28,20 @@ from pydantic_forms.types import strEnum
 
 SecretRedisDsn = Secret[RedisDsn]
 SecretPostgresDsn = Secret[PostgresDsn]
+
+EMBEDDING_DIMENSION_MIN = 100
+EMBEDDING_DIMENSION_MAX = 2000
+EMBEDDING_DIMENSION_DEFAULT = 1536
+
+EMBEDDING_DIMENSION_FIELD = Annotated[
+    int,
+    Field(
+        ge=EMBEDDING_DIMENSION_MIN,
+        le=EMBEDDING_DIMENSION_MAX,
+        default=EMBEDDING_DIMENSION_DEFAULT,
+        description="Embedding dimension: when embeddings are generated at a higher resolution than this setting, the least significant numbers will be truncated",
+    ),
+]
 
 
 class ExecutorType(strEnum):
@@ -111,6 +125,36 @@ class AppSettings(BaseSettings):
 
 
 app_settings = AppSettings()
+
+
+class LLMSettings(BaseSettings):
+    # Embedding settings
+    EMBEDDING_DIMENSION: EMBEDDING_DIMENSION_FIELD = 1536
+    EMBEDDING_MODEL: str = Field(
+        "openai/text-embedding-3-small",
+        pattern=r".+/.+",
+        description="Embedding model in 'vendor/model' format. See litellm docs for supported models.",
+    )
+    EMBEDDING_SAFE_MARGIN_PERCENT: float = Field(
+        0.1, description="Safety margin as a percentage (e.g., 0.1 for 10%) for token budgeting.", ge=0, le=1
+    )
+
+    # The following settings are only needed for local models or system constraints.
+    # By default, they are set conservative assuming a small model like All-MiniLM-L6-V2.
+    EMBEDDING_API_KEY: str = ""  # Change per provider (Azure, etc).
+    EMBEDDING_API_BASE: str | None = None
+    EMBEDDING_FALLBACK_MAX_TOKENS: int | None = 512
+    EMBEDDING_MAX_BATCH_SIZE: int | None = None
+
+    # General LiteLLM settings
+    LLM_MAX_RETRIES: int = 3
+    LLM_TIMEOUT: int = 30
+
+    # Toggle creation of extensions
+    LLM_FORCE_EXTENSION_MIGRATION: bool = False
+
+
+llm_settings = LLMSettings()
 
 # Set oauth2lib_settings variables to the same (default) value of settings
 oauth2lib_settings.SERVICE_NAME = app_settings.SERVICE_NAME

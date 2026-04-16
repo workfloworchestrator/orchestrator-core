@@ -65,7 +65,6 @@ jobs:
           POSTGRES_PASSWORD: nwa
           POSTGRES_HOST: postgres
           ENVIRONMENT: TESTING
-          SEARCH_ENABLED: true
 
       - name: Install codecov dependencies
         run: apt-get update && apt-get install -y git curl gpg
