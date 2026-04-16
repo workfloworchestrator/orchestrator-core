@@ -15,7 +15,7 @@ from typing import Any, cast
 from structlog import get_logger
 
 from orchestrator.db.database import BaseModel as DbBaseModel
-from orchestrator.db.database import Database, transactional
+from orchestrator.db.database import Database
 from orchestrator.db.models import (  # noqa: F401
     AgentRunTable,
     EngineSettingsTable,
@@ -75,7 +75,6 @@ def init_database(settings: AppSettings) -> Database:
 
 
 __all__ = [
-    "transactional",
     "SearchQueryTable",
     "AgentRunTable",
     "SubscriptionTable",

@@ -17,7 +17,18 @@ With a blank WFO instance, to setup the database properly, you simply need to ru
 
 ## Saving a Transaction in Your Workflow
 
-An important thing to understand about interacting with the database inside of workflow steps is that saving to the database in disabled during the workflow step. When a subsription is returned at the end of a step, then all of the appropriate saving in the database occurs. You can see how we do this with the `WrappedSession` class we made around the SQLAlchemy `Session` object:
+Workflow step execution uses a per-step session-management model implemented in `orchestrator.workflow._run_step`. Each step runs under two nested `database_scope()` blocks — one for the work unit (pre-step reads, step body, model persistence) and a separate one for the logging unit (`_db_log_step` + process state update). This guarantees that a failed step is still persisted to `process_steps`, because the logging scope is fresh and opens regardless of whether the work scope raised.
+
+Step authors don't normally need to do anything explicit: returning the step state at the end of the function is sufficient, and the framework handles the transaction boundaries. If you need to execute DB queries outside of a step (for example in a scheduled task, a Celery signal handler, or a CLI command), open a fresh scope with an explicit transaction:
+
+```python
+from orchestrator.db import db
+
+with db.database_scope(), db.session.begin():
+    ...
+```
+
+`WrappedSession` is an empty `sqlalchemy.orm.Session` subclass kept for type-hint compatibility; it no longer enforces any commit discipline because the framework now owns transaction boundaries via the per-step scope model.
 
 ::: orchestrator.db.database.WrappedSession
     options:

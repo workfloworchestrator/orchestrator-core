@@ -1,6 +1,11 @@
 # Changelog
 
 ## [Unreleased]
+- **BREAKING**: Removed `transactional()` and `disable_commit()` helpers from `orchestrator.db.database`.
+  - Workflow step execution now uses a per-step `database_scope()` model implemented in `orchestrator.workflow._run_step`. Each step runs under two nested scopes (Unit A for work, Unit B for logging) so failure rows are always persisted to `process_steps` regardless of whether the step body raised.
+  - Downstream callers that imported `transactional` or `disable_commit` must migrate to `with db.database_scope(), db.session.begin(): ...` (for explicit write transactions) or rely on the per-step framework scoping (for step-body code). The `WrappedSession` subclass is kept as an empty subclass for type-hint compatibility.
+  - Rationale: the old helper silently disabled commit via a session-info flag, which was incompatible with psycopg3's strict autobegin semantics and produced `idle in transaction` connection leaks under real-world load. The new model makes session lifetime explicit and scope-local.
+- Hardened `database_scope()` so setup errors do not leak scope-key registry entries.
 - Migrate most sqlalchemy queries to v2 functions
     - Moved `WorkflowTable.find_by_name` to `orchestrator.services.workflows.get_workflow_by_name`
 

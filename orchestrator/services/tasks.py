@@ -21,9 +21,13 @@ from celery.utils.log import get_task_logger
 from kombu.serialization import registry
 
 from orchestrator.db import db
-from orchestrator.db.database import transactional
 from orchestrator.schemas.engine_settings import WorkerStatus
-from orchestrator.services.executors.threadpool import thread_resume_process, thread_start_process
+from orchestrator.services.executors.threadpool import (
+    prepare_resume_state,
+    prepare_start_state,
+    thread_resume_process,
+    thread_start_process,
+)
 from orchestrator.services.processes import _get_process, ensure_correct_process_status, load_process
 from orchestrator.types import BroadcastFunc
 from orchestrator.utils.json import json_dumps, json_loads
@@ -72,13 +76,19 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     def start_process(process_id: UUID, user: str) -> UUID | None:
         try:
-            # Celery workers use the empty-scope session (no database_scope); wrap in
-            # transactional() to prevent psycopg3 autobegin leaving the connection idle-in-transaction.
-            with transactional(db, local_logger):
+            # Single consolidated scope for all pre-workflow DB work: process load,
+            # status validation, RUNNING flip, and initial-state retrieval. Previously
+            # this was split across two scopes (one here, one in thread_start_process)
+            # with _set_process_status_running running unscoped between them.
+            with db.database_scope(), db.session.begin():
                 process = _get_process(process_id)
                 pstat = load_process(process)
                 ensure_correct_process_status(process_id, ProcessStatus.CREATED)
-            thread_start_process(pstat, user=user, broadcast_func=process_broadcast_fn)
+                pstat = prepare_start_state(pstat)
+
+            thread_start_process(
+                pstat, user=user, broadcast_func=process_broadcast_fn, _prepared=True
+            )
 
         except Exception as exc:
             local_logger.error("Worker failed to execute workflow", process_id=process_id, details=str(exc))
@@ -88,11 +98,16 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     def resume_process(process_id: UUID, user: str) -> UUID | None:
         try:
-            # Same idle-in-transaction concern as start_process: wrap DB reads in transactional().
-            with transactional(db, local_logger):
+            # Single consolidated scope for all pre-workflow DB work: process fetch,
+            # status validation, pstat load, RUNNING flip, and resume-state retrieval.
+            with db.database_scope(), db.session.begin():
                 process = _get_process(process_id)
                 ensure_correct_process_status(process_id, ProcessStatus.RESUMED)
-            thread_resume_process(process, user=user, broadcast_func=process_broadcast_fn)
+                pstat = prepare_resume_state(process, user=user)
+
+            thread_resume_process(
+                process, user=user, broadcast_func=process_broadcast_fn, _prepared_pstat=pstat
+            )
         except Exception as exc:
             local_logger.error("Worker failed to resume workflow", process_id=process_id, details=str(exc))
             return None

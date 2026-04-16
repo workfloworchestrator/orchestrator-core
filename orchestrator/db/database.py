@@ -151,7 +151,16 @@ class BaseModel(_Base):
 
 
 class WrappedSession(Session):
-    """This Session class allows us to disable commit during steps."""
+    """Session subclass that can have its ``commit()`` temporarily disabled.
+
+    Step bodies running under :func:`disable_commit` must not issue their own
+    commits — the framework ``_run_step`` helper owns the transaction boundary
+    around a step, so a nested commit inside the step body would break the
+    outer :meth:`sqlalchemy.orm.Session.begin` context manager. This override
+    silences such step-body commits while ``session.info["disabled"]`` is set
+    (logging a warning so the step author notices during development) and
+    forwards to the normal commit path otherwise.
+    """
 
     def commit(self) -> None:
         if self.info.get("disabled", False):
@@ -192,7 +201,7 @@ class Database:
         )
 
         self.scoped_session = scoped_session(self.session_factory, self._scopefunc)
-        BaseModel.set_query(cast(SearchQuery, self.scoped_session.query_property()))
+        BaseModel.set_query(cast(SearchQuery, cast(object, self.scoped_session.query_property())))
 
     def _scopefunc(self) -> str | None:
         return self.request_context.get()
@@ -203,39 +212,54 @@ class Database:
 
     @contextmanager
     def database_scope(self, **kwargs: Any) -> Generator["Database", None, None]:
-        """Create a new database session (scope).
+        """Create a fresh SQLAlchemy Session bound to a new scope key.
 
-        This creates a new database session to handle all the database connection from a single scope (request or workflow).
-        This method should typically only been called in request middleware or at the start of workflows.
+        Each call sets a unique value in the ``request_context`` ContextVar so
+        the underlying ``scoped_session`` yields a new Session instance. On
+        exit the Session is removed from the registry and the ContextVar is
+        reset to its prior value. Used by:
+
+        * the HTTP request middleware (one scope per request),
+        * the workflow executor (one outer scope per workflow run),
+        * the per-step session manager in :func:`orchestrator.workflow._run_step`
+          (two nested scopes per step — one for the work unit, one for the
+          logging unit).
+
+        Nested calls yield distinct Session instances and ``remove()`` on exit
+        cleans only the innermost scope.
 
         Args:
             kwargs: Optional session kw args for this session
         """
         token = self.request_context.set(str(uuid4()))
-        self.scoped_session(**kwargs)
         try:
+            self.scoped_session(**kwargs)
             yield self
         finally:
             self.scoped_session.remove()
             self.request_context.reset(token)
 
 
-class DBSessionMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: ASGIApp, database: Database, commit_on_exit: bool = False):
-        super().__init__(app)
-        self.commit_on_exit = commit_on_exit
-        self.database = database
-
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        with self.database.database_scope():
-            return await call_next(request)
-
-
 @contextmanager
-def disable_commit(db: Database, log: BoundLogger) -> Iterator:
+def disable_commit(db: "Database", log: BoundLogger) -> Iterator[None]:
+    """Temporarily disable ``commit()`` on ``db.session`` for the duration of the block.
+
+    While active, calls to :meth:`WrappedSession.commit` are silent no-ops
+    (with a warning logged) so that code running inside the block — typically
+    a workflow step body — cannot prematurely commit work that the framework
+    intends to own via an outer :meth:`Session.begin` context manager.
+
+    The guard is reentrant: if commit is already disabled when the block
+    starts, the inner block leaves the flag alone and the outer block is
+    responsible for clearing it.
+
+    Args:
+        db: The :class:`Database` whose current session should be guarded.
+        log: A bound logger to attach to the session for warning messages.
+    """
     restore = True
-    # If `db.session` already has its `commit` method disabled we won't try disabling *and* restoring it again.
     if db.session.info.get("disabled", False):
+        # Already disabled by an outer guard; this inner block is a no-op.
         restore = False
     else:
         log.debug("Temporarily disabling commit.")
@@ -250,30 +274,12 @@ def disable_commit(db: Database, log: BoundLogger) -> Iterator:
             db.session.info["logger"] = None
 
 
-@contextmanager
-def transactional(db: Database, log: BoundLogger) -> Iterator:
-    """Run a step function in an implicit transaction with automatic rollback or commit.
+class DBSessionMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app: ASGIApp, database: Database, commit_on_exit: bool = False):
+        super().__init__(app)
+        self.commit_on_exit = commit_on_exit
+        self.database = database
 
-    It will roll back in case of error, commit otherwise. It will also disable the `commit()` method
-    on `BaseModel.session` for the time `transactional` is in effect.
-
-    Reentrant: nested calls yield without committing or rolling back; the outermost call
-    owns the transaction. This prevents the inner safeguard rollback from discarding the
-    outer transaction's work.
-    """
-    if db.session.info.get("disabled", False):
-        # Nested call: outer transactional() owns commit/rollback. Inner is a no-op.
-        yield
-        return
-    try:
-        with disable_commit(db, log):
-            yield
-        log.debug("Committing transaction.")
-        db.session.commit()
-    except Exception:
-        log.warning("Rolling back transaction.")
-        raise
-    finally:
-        # Extra safeguard rollback. If the commit failed there is still a failed transaction open.
-        # BTW: without a transaction in progress this method is a pass-through.
-        db.session.rollback()
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        with self.database.database_scope():
+            return await call_next(request)

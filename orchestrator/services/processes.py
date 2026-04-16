@@ -325,7 +325,7 @@ def _db_log_step(
     p = _update_process(stat.process_id, step, process_state)
     current_step = _get_current_step_to_update(stat, p, step, process_state)
 
-    # Serialize state to a plain dict now, before the outer transactional() flushes it.
+    # Serialize state to a plain dict now, before the outer session.begin() block flushes it.
     # This ensures the next step never receives live SubscriptionModel instances and
     # avoids re-evaluating expensive @computed_field properties on flush.
     current_step.state = json_loads(json_dumps(current_step.state))

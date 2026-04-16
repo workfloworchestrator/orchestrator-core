@@ -42,7 +42,8 @@ from structlog.stdlib import BoundLogger
 from nwastdlib import const, identity
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import db, transactional
+from orchestrator.db import db
+from orchestrator.db.database import disable_commit
 from orchestrator.services.settings import get_engine_settings_table
 from orchestrator.targets import Target
 from orchestrator.types import ErrorDict, StepFunc
@@ -283,9 +284,8 @@ def step(
             ):
                 step_in_inject_args = inject_args(func)
                 try:
-                    with transactional(db, logger):
-                        result = step_in_inject_args(state)
-                        return Success(result)
+                    result = step_in_inject_args(state)
+                    return Success(result)
                 except Exception as ex:
                     logger.warning("Step failed", exc_info=ex)
                     return Failed(ex)
@@ -319,9 +319,8 @@ def retrystep(
             ):
                 step_in_inject_args = inject_args(func)
                 try:
-                    with transactional(db, logger):
-                        result = step_in_inject_args(state)
-                        return Success(result)
+                    result = step_in_inject_args(state)
+                    return Success(result)
                 except Exception as ex:
                     return Waiting(ex)
 
@@ -1515,6 +1514,75 @@ def invalidate_status_counts() -> None:
     broadcast_invalidate_status_counts()
 
 
+def _run_step(
+    step: Step,
+    process: Process,
+    logstep: Callable[[Step, Process], Process],
+) -> Process:
+    """Execute a single workflow step within two distinct database session scopes.
+
+    The step is executed in two separate units, each with its own fresh
+    :func:`database_scope`:
+
+    * **Unit A (pre-step / execution)** opens a fresh ``database_scope`` and
+      a single ``session.begin()`` transaction. Inside that transaction we
+      activate :func:`disable_commit` so that any ``db.session.commit()``
+      call made by the step body (directly or via helpers such as
+      ``create_process``/``store_input_state``) is silenced. The step body
+      therefore cannot prematurely commit work, and the ``session.begin()``
+      context manager owns the single framework commit at the end of the
+      unit. Exceptions raised inside the body are caught, converted to a
+      ``Failed`` outcome, and the ``session.begin()`` context rolls back —
+      so that Unit B can still persist the failure in a clean session.
+    * **Unit B (outcome logging)** opens a fresh ``database_scope`` but does
+      **not** wrap in ``session.begin()``. ``logstep`` (``safe_logstep`` ->
+      ``_db_log_step``) owns the commit for the ``process_steps`` row. A
+      separate scope means that any session state Unit A left behind cannot
+      contaminate Unit B. Unit B always runs (even after Unit A raised),
+      guaranteeing a durable log record for every step.
+
+    Args:
+        step: The workflow step to execute.
+        process: The current :class:`Process` state going into the step.
+        logstep: Callable persisting the (possibly error-converted) outcome process.
+
+    Returns:
+        The :class:`Process` as returned by ``logstep``, or the untouched incoming
+        ``process`` if the engine is globally locked.
+    """
+    consolelogger = cond_bind(logger, process.unwrap(), "reporter", "created_by").bind(step_name=step.name)
+
+    mutationlogger: Callable[[State], None] = log_mutations({})
+    outcome: Process
+    try:
+        with db.database_scope():
+            with db.session.begin():
+                with disable_commit(db, consolelogger):
+                    engine_status = get_engine_settings_table()
+                    if engine_status.global_lock:
+                        consolelogger.info(
+                            "Not executing Step as the workflow engine is Paused. "
+                            "Process will remain in state 'running'"
+                        )
+                        return process
+
+                    mutationlogger = log_mutations(process.unwrap())
+                    process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
+                    outcome = process.execute_step(step)
+    except Exception as exc:
+        consolelogger.error("An exception occurred while executing the workflow step.")
+        outcome = Failed(exc)
+
+    to_log = outcome.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
+
+    with db.database_scope():
+        to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
+        result = logstep(step, to_log)
+
+    consolelogger.debug("Workflow step executed.", process_status=result.status)
+    return result
+
+
 def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFuncInternal) -> Process:
     """Execute the workflow steps one by one until a Process state other than Success or Skipped is reached."""
     consolelogger = cond_bind(logger, starting_process.unwrap(), "reporter", "created_by")
@@ -1525,39 +1593,7 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
             break
 
         consolelogger = consolelogger.bind(step_name=step.name)
-
-        # Debug logging of step information
-        mutationlogger = log_mutations(process.unwrap())
-
-        # Execute step
-        try:
-            with transactional(db, logger):
-                engine_status = get_engine_settings_table()
-                if engine_status.global_lock:
-                    # Exiting from thread workflow engine is Paused or Pausing
-                    consolelogger.info(
-                        "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
-                    )
-                    return process
-
-            process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
-            step_result_process = process.execute_step(step)
-        except Exception as e:
-            consolelogger.error("An exception occurred while executing the workflow step.")
-            step_result_process = Failed(e)
-
-        # write the new process state after the step execution to the database
-        # Convert ErrorState to ErrorDict when Failed or Waiting before writing to the database
-        # as bare exceptions are not JSON serializable
-        result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
-        # Wrap logging in transactional() so SELECTs triggered by mutationlogger and
-        # dblogstep run inside a managed transaction (psycopg3 autobegin prevention).
-        with transactional(db, logger):
-            result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
-            process = dblogstep(step, result_to_log)
-        # If database logging failed, the workflow should fail. When it was successful just continue with the
-        # result of the executed step.
-        consolelogger.debug("Workflow step executed.", process_status=process.status)
+        process = _run_step(step=step, process=process, logstep=dblogstep)
 
     return process
 

@@ -58,7 +58,8 @@ def test_set_process_status_running(mock_db):
     _set_process_status_running(uuid4())
 
     assert mock_process.last_status == ProcessStatus.RUNNING
-    mock_db.session.commit.assert_called_once()
+    # Caller owns the transaction; _set_process_status_running must not commit/rollback
+    mock_db.session.commit.assert_not_called()
     mock_db.session.rollback.assert_not_called()
 
 
@@ -71,10 +72,11 @@ def test_set_process_status_running_errors_if_already_running(mock_db):
     mock_result.scalar_one_or_none.return_value = mock_process
     mock_db.session.execute.return_value = mock_result
 
-    with pytest.raises(Exception, match="Process is already running"):
+    with pytest.raises(RuntimeError, match="Process is already running"):
         _set_process_status_running(uuid4())
 
-    mock_db.session.rollback.assert_called_once()
+    # Caller owns the transaction; _set_process_status_running must not commit/rollback
+    mock_db.session.rollback.assert_not_called()
     mock_db.session.commit.assert_not_called()
 
 
@@ -86,10 +88,11 @@ def test_set_process_status_running_errors_if_not_found(mock_db):
 
     process_id = uuid4()
 
-    with pytest.raises(Exception, match=f"Process not found: {process_id}"):
+    with pytest.raises(ValueError, match=f"Process not found: {process_id}"):
         _set_process_status_running(process_id)
 
-    mock_db.session.rollback.assert_called_once()
+    # Caller owns the transaction; _set_process_status_running must not commit/rollback
+    mock_db.session.rollback.assert_not_called()
     mock_db.session.commit.assert_not_called()
 
 
@@ -146,18 +149,20 @@ def test_thread_resume_process_resumed(
 
     pstat = MagicMock()
     pstat.process_id = process_id
-    pstat.state.map.return_value = {"state": "test"}
+    # prepare_resume_state reassigns pstat twice (current_user update, then state update).
+    # Propagate process_id through the chain so thread_resume_process returns the right value.
+    pstat.update.return_value.process_id = process_id
+    pstat.update.return_value.update.return_value.process_id = process_id
 
     mock_load_process.return_value = pstat
 
-    expected_user = "other user"
-
     result = thread_resume_process(process, user="other user")
 
-    pstat.user = expected_user
     mock_set_process_status_running.assert_called_once()
     mock_retrieve_input_state.assert_called_once_with(pstat.process_id, "user_input", False)
-    assert pstat.update.call_args_list == [call(current_user="other user"), call(state={"state": "test"})]
+    # First update (current_user) is called on the original pstat; second update
+    # (state merge) is called on pstat.update.return_value after reassignment.
+    assert pstat.update.call_args_list == [call(current_user="other user")]
     mock_run_process_async.assert_called_once()
     assert result == process_id
 

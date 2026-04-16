@@ -26,7 +26,6 @@ from sqlalchemy import select
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessStepTable, ProcessTable, db
-from orchestrator.db.database import transactional
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services.executors.threadpool import thread_start_process
 from orchestrator.services.processes import (
@@ -151,7 +150,7 @@ def test_process_log_db_step_success(simple_workflow):
     assert p.assignee == "assignee"
 
 
-def test_db_log_step_strips_subscription_models_inside_transactional(
+def test_db_log_step_strips_subscription_models(
     simple_workflow, generic_product_type_1, generic_subscription_1
 ):
     """_db_log_step must return plain-dict state; live SubscriptionModel instances must be serialized out."""
@@ -173,8 +172,7 @@ def test_db_log_step_strips_subscription_models_inside_transactional(
     step = make_step_function(lambda: None, "step", None, "assignee")
     state = Success({"subscription": subscription})
 
-    with transactional(db, MagicMock()):
-        result = _db_log_step(pstat, step, state)
+    result = _db_log_step(pstat, step, state)
 
     returned = result.unwrap()
     assert "subscription" in returned
@@ -190,8 +188,9 @@ def test_thread_start_process_does_not_leak_open_transaction(simple_workflow):
     retrieve_input_state issues a SELECT that, with psycopg3 autobegin, opens a
     transaction; without an explicit commit/rollback the connection becomes
     idle-in-transaction (visible in pg_stat_activity). It must therefore run
-    inside a transactional() context that closes the transaction before
-    thread_start_process returns to the caller (typically a Celery worker).
+    inside a `database_scope() + session.begin()` block that closes the
+    transaction before thread_start_process returns to the caller (typically a
+    Celery worker).
     """
     process_id = uuid4()
     p = ProcessTable(
@@ -225,7 +224,7 @@ def test_thread_start_process_does_not_leak_open_transaction(simple_workflow):
 
     assert not db.session.in_transaction(), (
         "thread_start_process left an open transaction on db.session - "
-        "retrieve_input_state ran outside transactional() context."
+        "retrieve_input_state ran outside a database_scope/session.begin block."
     )
 
 
@@ -1162,5 +1161,9 @@ def test_resume_process_full_happy_flow(mock_run_process_async, sample_workflow_
             process = _get_process(process_id)
             assert process.last_status == ProcessStatus.SUSPENDED
             resume_process(process, user_inputs=[{"test_field_2": "test input 2"}])
+            # thread_resume_process opens its own database_scope() for the pre-execution
+            # work, so COMPLETED is committed in a different session scope. Expire the
+            # cached object in the current session so the next get() reloads from DB.
+            db.session.expire(process)
             process = _get_process(process_id)
             assert process.last_status == ProcessStatus.COMPLETED
