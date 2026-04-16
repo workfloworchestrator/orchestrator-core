@@ -16,7 +16,7 @@ import string
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, Secret, SecretStr, field_validator
+from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, Secret, SecretStr
 from pydantic.main import BaseModel
 from pydantic_settings import BaseSettings
 
@@ -130,7 +130,11 @@ app_settings = AppSettings()
 class LLMSettings(BaseSettings):
     # Embedding settings
     EMBEDDING_DIMENSION: EMBEDDING_DIMENSION_FIELD = 1536
-    EMBEDDING_MODEL: str = "openai/text-embedding-3-small"  # See litellm docs for supported models.
+    EMBEDDING_MODEL: str = Field(
+        "openai/text-embedding-3-small",
+        pattern=r".+/.+",
+        description="Embedding model in 'vendor/model' format. See litellm docs for supported models.",
+    )
     EMBEDDING_SAFE_MARGIN_PERCENT: float = Field(
         0.1, description="Safety margin as a percentage (e.g., 0.1 for 10%) for token budgeting.", ge=0, le=1
     )
@@ -148,13 +152,6 @@ class LLMSettings(BaseSettings):
 
     # Toggle creation of extensions
     LLM_FORCE_EXTENSION_MIGRATION: bool = False
-
-    @field_validator("EMBEDDING_MODEL")
-    def validate_embedding_model_format(cls, v: str) -> str:
-        """Validate that embedding model is in 'vendor/model' format."""
-        if "/" not in v:
-            raise ValueError("EMBEDDING_MODEL must be in format 'vendor/model'")
-        return v
 
 
 llm_settings = LLMSettings()

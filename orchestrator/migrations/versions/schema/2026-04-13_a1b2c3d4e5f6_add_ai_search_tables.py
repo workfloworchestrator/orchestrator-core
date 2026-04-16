@@ -44,7 +44,7 @@ def upgrade() -> None:
 
     # Check for pgvector extension; create extensions if missing or forced
     res = conn.execute(text("SELECT 1 FROM pg_extension WHERE extname = 'vector' LIMIT 1;"))
-    if llm_settings.LLM_FORCE_EXTENTION_MIGRATION or res.fetchone() is None:
+    if llm_settings.LLM_FORCE_EXTENSION_MIGRATION or res.fetchone() is None:
         conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS ltree;"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent;"))
