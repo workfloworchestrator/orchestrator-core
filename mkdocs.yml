@@ -81,6 +81,7 @@ plugins:
           'migration-guide/2.0.md': 'guides/upgrading/2.0.md'
           'migration-guide/3.0.md': 'guides/upgrading/3.0.md'
           'migration-guide/4.0.md': 'guides/upgrading/4.0.md'
+          'migration-guide/4.0.md': 'guides/upgrading/4.0.md'
 copyright: Copyright &copy; 2018 - 2024 Workflow Orchestrator Programme
 extra:
     generator: false
@@ -191,7 +192,7 @@ nav:
                 - v4.x: guides/upgrading/4.0.md
                 - v4.7: guides/upgrading/4.7.md
                 - v4.8: guides/upgrading/4.8.md
-                # - v5.0: guides/upgrading/5.0.md  # TODO: uncomment for final 5.0 release
+                - v5.0: guides/upgrading/5.0.md
     - Reference Documentation:
           - TL;DR: reference-docs/tldr.md
           - API docs:
