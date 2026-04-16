@@ -343,8 +343,8 @@ def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depen
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
 
-@router.patch("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-async def update_process_note(process_id: UUID, data: ProcessPatchSchema = Body(...)) -> ProcessTable:
+@router.patch("/{process_id}", response_model=ProcessSchema, status_code=HTTPStatus.OK)
+async def update_process(process_id: UUID, data: ProcessPatchSchema = Body(...)) -> ProcessTable:
     process = _get_process(process_id)
     if not process:
         raise_status(HTTPStatus.NOT_FOUND, f"Process id {process_id} not found")
@@ -353,7 +353,7 @@ async def update_process_note(process_id: UUID, data: ProcessPatchSchema = Body(
 
 
 async def _patch_process(data: ProcessPatchSchema, process: ProcessTable) -> ProcessTable:
-    updated_properties = data.model_dump()
+    updated_properties = data.model_dump(exclude_unset=True)  # `None` is allowed, but must be explicitly set
 
     for field, value in updated_properties.items():
         setattr(process, field, value)
