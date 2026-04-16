@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT, ESnet.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 
 logger.info("Starting the orchestrator", version=__version__)
 
-from orchestrator.llm_settings import llm_settings
+from orchestrator.settings import llm_settings
 from orchestrator.settings import app_settings
 from orchestrator.app import OrchestratorCore
 from orchestrator.workflow import (

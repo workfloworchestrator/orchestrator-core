@@ -12,9 +12,10 @@
 # limitations under the License.
 
 from http import HTTPStatus
+from typing import Any, AsyncGenerator
 from uuid import UUID
 
-from fastapi.param_functions import Body
+from fastapi.param_functions import Body, Depends
 from fastapi.routing import APIRouter
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload, selectinload
@@ -24,6 +25,8 @@ from orchestrator.db import ProductBlockTable, ProductTable, SubscriptionTable, 
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.schemas import ProductSchema
 from orchestrator.schemas.product import ProductPatchSchema
+from orchestrator.search.core.types import EntityType
+from orchestrator.search.indexing import run_indexing_for_entity
 from orchestrator.types import SubscriptionLifecycle
 
 router = APIRouter()
@@ -71,7 +74,17 @@ def _product_by_id(product_id: UUID) -> ProductTable | None:
     return db.session.scalars(stmt).unique().one_or_none()
 
 
-@router.patch("/{product_id}", status_code=HTTPStatus.CREATED, response_model=ProductSchema)
+async def _index_products(product_id: UUID) -> AsyncGenerator[None, Any]:
+    yield
+    run_indexing_for_entity(EntityType.PRODUCT, str(product_id))
+
+
+@router.patch(
+    "/{product_id}",
+    status_code=HTTPStatus.CREATED,
+    response_model=ProductSchema,
+    dependencies=[Depends(_index_products)],
+)
 async def patch_product_by_id(product_id: UUID, data: ProductPatchSchema = Body(...)) -> ProductTable:
     product = _product_by_id(product_id)
     if not product:
