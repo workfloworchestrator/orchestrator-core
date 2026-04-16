@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from http import HTTPStatus
+from typing import Any, AsyncGenerator
 from uuid import UUID
 
 from fastapi.param_functions import Body, Depends
@@ -71,7 +72,8 @@ def _product_by_id(product_id: UUID) -> ProductTable | None:
     return db.session.scalars(stmt).unique().one_or_none()
 
 
-async def _index_products(product_id: UUID) -> None:
+async def _index_products(product_id: UUID) -> AsyncGenerator[None, Any]:
+    yield
     run_indexing_for_entity(EntityType.PRODUCT, str(product_id))
 
 
