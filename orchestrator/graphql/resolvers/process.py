@@ -61,7 +61,6 @@ def resolve_process(info: OrchestratorInfo, process_id: UUID) -> ProcessType | N
     stmt = select(ProcessTable).options(*query_loaders).where(ProcessTable.process_id == process_id)
     if process := db.session.scalar(stmt):
         is_detailed = _is_process_detailed(info)
-        logger.warning("### PROCESS", process=process)
         return ProcessType.from_pydantic(_enrich_process(process, is_detailed))
     return None
 
