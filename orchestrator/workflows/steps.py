@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,7 +15,6 @@ from copy import deepcopy
 import structlog
 from pydantic import ValidationError
 
-from orchestrator import llm_settings
 from orchestrator.db import db
 from orchestrator.db.models import ProcessSubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
@@ -154,7 +153,7 @@ def refresh_subscription_search_index(subscription: SubscriptionModel | None) ->
     """
     try:
         reset_search_index()
-        if llm_settings.SEARCH_ENABLED and subscription:
+        if subscription:
             from orchestrator.search.core.types import EntityType
             from orchestrator.search.indexing import run_indexing_for_entity
 
@@ -178,7 +177,7 @@ def refresh_process_search_index(process_id: UUIDstr | None) -> State:
     """
     try:
         reset_search_index()
-        if llm_settings.SEARCH_ENABLED and process_id:
+        if process_id:
             from orchestrator.search.core.types import EntityType
             from orchestrator.search.indexing import run_indexing_for_entity
 

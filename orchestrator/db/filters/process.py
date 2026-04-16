@@ -39,7 +39,7 @@ def make_product_clause(filter_generator: WhereCondGenerator) -> WhereCondGenera
             .join(SubscriptionTable)
             .join(ProductTable)
             .where(filter_generator(node))
-            .subquery()
+            .scalar_subquery()
         )
         return ProcessTable.process_id.in_(process_subscriptions)
 
@@ -58,7 +58,7 @@ def customer_clause(node: Node) -> BinaryExpression[bool] | ColumnElement[bool]:
         select(ProcessSubscriptionTable.process_id)
         .join(SubscriptionTable)
         .where(SubscriptionTable.customer_id == customer_uuid)
-        .subquery()
+        .scalar_subquery()
     )
     return ProcessTable.process_id.in_(process_subscriptions)
 
@@ -66,7 +66,9 @@ def customer_clause(node: Node) -> BinaryExpression[bool] | ColumnElement[bool]:
 def make_subscription_id_clause(filter_generator: WhereCondGenerator) -> WhereCondGenerator:
     def subscription_id_clause(node: Node) -> BinaryExpression:
 
-        process_subscriptions = select(ProcessSubscriptionTable.process_id).where(filter_generator(node)).subquery()
+        process_subscriptions = (
+            select(ProcessSubscriptionTable.process_id).where(filter_generator(node)).scalar_subquery()
+        )
 
         return ProcessTable.process_id.in_(process_subscriptions)
 
@@ -79,7 +81,7 @@ def make_workflow_field_clause(filter_generator: WhereCondGenerator) -> WhereCon
             select(ProcessTable.process_id)
             .join(WorkflowTable)
             .where(WorkflowTable.deleted_at.is_(None), filter_generator(node))
-            .subquery()
+            .scalar_subquery()
         )
 
         return ProcessTable.process_id.in_(process_workflow)

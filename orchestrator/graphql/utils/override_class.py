@@ -23,7 +23,7 @@ def override_class(strawberry_class: type, fields: list[StrawberryField]) -> typ
 
     def override_fn(field: StrawberryField) -> StrawberryField:
         if custom_field := fields_map.get(field.name):
-            field.base_resolver = custom_field.base_resolver
+            field.base_resolver = custom_field.base_resolver  # type: ignore[assignment]
             return field
         return field
 

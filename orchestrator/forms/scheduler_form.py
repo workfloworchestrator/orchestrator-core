@@ -85,12 +85,20 @@ def get_cron_kwargs(form_data: dict) -> dict:
     }
 
 
+def _check_authorize(workflow: Workflow, user_model: OIDCUserModel | None) -> bool:
+    result = workflow.authorize_callback(user_model)
+    if asyncio.iscoroutine(result):
+        result.close()
+        return True
+    return bool(result)
+
+
 def get_tasks(user_model: OIDCUserModel | None) -> dict[str, tuple[Workflow, UUID]]:
     tasks = db.session.scalars(select(WorkflowTable))
     return {
         task_row.name: (workflow, task_row.workflow_id)
         for task_row in tasks
-        if (workflow := get_workflow(task_row.name)) and workflow.authorize_callback(user_model)
+        if (workflow := get_workflow(task_row.name)) and _check_authorize(workflow, user_model)
     }
 
 

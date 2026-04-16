@@ -1,4 +1,5 @@
-site_name: Workflow Orchestrator
+# workfloworchestrator.github.io uses site_name in the URL, don't change it
+site_name: Orchestrator Core
 site_description: An extensible workflow engine to manage customer facing resources and resource facing resources.
 site_url: https://workfloworchestrator.org/orchestrator-core
 theme:
@@ -169,7 +170,6 @@ nav:
                 - Application:
                       - Preparing source folder: getting-started/prepare-source-folder.md
                       - Base application: getting-started/base.md
-                      - Agentic application: getting-started/agentic.md
                 - Workflows: getting-started/workflows.md
                 - Docker: getting-started/docker.md
                 - Orchestrator UI: getting-started/orchestration-ui.md
@@ -179,6 +179,7 @@ nav:
           - Creating Tasks and Schedules: guides/tasks.md
           - Scaling the Orchestrator: guides/scaling.md
           - Pausing the Orchestrator: guides/pause-and-resume.md
+          - Generating a Config File: guides/generate-config-file.md
           # These would ideally go here:
           # - Migrations:
           #       - Subscriptions
@@ -210,7 +211,6 @@ nav:
           - Forms: reference-docs/forms.md
           - Running the App:
                 - App.py: reference-docs/app/app.md
-                - Agentic App.py: reference-docs/app/agentic-app.md
                 - Python Version: reference-docs/python.md
                 - Settings: reference-docs/app/settings-overview.md
           - Workflows:

@@ -1,2 +1,15 @@
 [run]
-omit = *migrations*|*test*
+source = orchestrator
+branch = True
+omit =
+    orchestrator/migrations/*
+
+[report]
+show_missing = True
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    @abstractmethod
+    @overload
+    raise NotImplementedError
+    \.\.\.

@@ -34,7 +34,7 @@ def long_running_workflow():
     def immediate_step():
         return {"done": True}
 
-    @workflow("Long Running Workflow")
+    @workflow()
     def long_running_workflow_py():
         return init >> long_running_step >> immediate_step >> long_running_step >> done
 
@@ -62,7 +62,7 @@ def test_workflow_2(generic_subscription_1: UUIDstr, generic_product_type_1) -> 
     def immediate_step():
         return {"done": True}
 
-    @workflow("Workflow")
+    @workflow()
     def workflow_for_testing_processes_2_py():
         return init >> insert_object >> check_object >> immediate_step >> done
 

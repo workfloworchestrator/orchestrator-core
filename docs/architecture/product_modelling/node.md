@@ -12,7 +12,18 @@ track of all IP addresses and prefixes used across the network service product,
 the pointers to the IPv4 and IPv6 loopback addresses on the node are also
 stored.
 
-<img height="75%" src="../node.png" title="Node Product Model" width="75%"/>
+```mermaid
+classDiagram
+    direction TB
+    namespace NodeProduct {
+        class NodeBlock {
+            +ims_id: ims_id
+            +nrm_id: nrm_id
+            +ipv4_ipam_id: IpamId
+            +ipv6_ipam_id: IpamId
+        }
+    }
+```
 
 * **ims_id**: ID of the node in the inventory management system
 * **nrm_id**: ID of the node in the network resource manager

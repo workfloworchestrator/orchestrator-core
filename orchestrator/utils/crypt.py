@@ -13,7 +13,6 @@
 
 import random
 import re
-from typing import Dict, List, Optional, Tuple
 
 
 # ------------------------------------------------------------------------------
@@ -30,16 +29,12 @@ class Cryptic:
 
     # ------------------------------------------------------------------------------
     def __init__(self) -> None:
-        for fam in range(len(self.FAMILY)):
-            for c in range(len(self.FAMILY[fam])):
-                token = self.FAMILY[fam]
-                self.EXTRA[token[c]] = 3 - fam
+        self.EXTRA = {char: 3 - fam_idx for fam_idx, token in enumerate(self.FAMILY) for char in token}
 
         self.NUM_ALPHA = "".join(self.FAMILY)
         self.VALID = "[" + self.MAGIC + self.NUM_ALPHA + "]"
 
-        for num_alpha in range(len(self.NUM_ALPHA)):
-            self.ALPHA_NUM[self.NUM_ALPHA[num_alpha]] = num_alpha
+        self.ALPHA_NUM = {char: idx for idx, char in enumerate(self.NUM_ALPHA)}
 
     # ------------------------------------------------------------------------------
     def _randc(self, count: int = 1) -> str:

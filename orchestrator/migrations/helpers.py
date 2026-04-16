@@ -142,7 +142,7 @@ def ensure_default_workflows(conn: sa.engine.Connection) -> None:
         for workflow_uuid in default_workflow_ids
     ]
     conn.execute(
-        sa.dialects.postgresql.insert(product_workflows_table)
+        sa.dialects.postgresql.insert(product_workflows_table)  # type: ignore[attr-defined]
         .values(product_workflow_table_rows)
         .on_conflict_do_nothing(index_elements=("product_id", "workflow_id"))
     )

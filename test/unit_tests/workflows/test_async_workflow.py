@@ -65,7 +65,7 @@ cb1 = callback_step("Dry run", action_step=action_dr, validate_step=validate_sta
 cb2 = callback_step("For real", action_step=action_fr, validate_step=validate_state)
 
 
-@workflow("Multiple callback wf", target=Target.CREATE)
+@workflow(target=Target.CREATE)
 def multiple_callback_wf():
     return begin >> cb1 >> cb2 >> cleanup >> done
 
@@ -79,7 +79,7 @@ def test_workflow_with_callback():
 
     call_ext_system = callback_step(name="Call ext system", action_step=action, validate_step=validate)
 
-    @workflow("Test wf", target=Target.CREATE)
+    @workflow(target=Target.CREATE)
     def test_wf():
         return begin >> step1 >> call_ext_system >> step2 >> done
 
@@ -103,7 +103,7 @@ def test_callback_wf_with_custom_callback_route():
         name="Call ext system", action_step=action, validate_step=step1, callback_route_key="custom_route_key"
     )
 
-    @workflow("Test wf", target=Target.CREATE)
+    @workflow(target=Target.CREATE)
     def test_wf():
         return begin >> call_ext_system >> done
 
@@ -170,7 +170,7 @@ def test_wf_with_multiple_callback_steps(test_client):
 
 def test_wf_callback_progress_on_completed_process(test_client):
     # given
-    @workflow("Test wf", target=Target.CREATE)
+    @workflow(target=Target.CREATE)
     def test_wf():
         return begin >> step1 >> done
 
@@ -194,7 +194,7 @@ def test_wf_callback_progress_on_completed_process(test_client):
 
 def test_wf_callback_progress_with_incorrect_token(test_client):
     # given
-    @workflow("Test wf", target=Target.CREATE)
+    @workflow(target=Target.CREATE)
     def test_wf():
         return begin >> cb1 >> done
 

@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,22 +12,21 @@
 # limitations under the License.
 
 import functools
-from collections.abc import Generator
+import itertools
+import warnings
+from collections.abc import Generator, Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from http import HTTPStatus
-from shlex import shlex
 from typing import Any
 from uuid import UUID
 
-from more_itertools import chunked
 from sqlalchemy import Select, func, select
-from sqlalchemy.sql import expression
 from starlette.responses import Response
 from structlog import get_logger
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.db import ProductTable, SubscriptionTable, db
+from orchestrator.db import db
 from orchestrator.db.models import SubscriptionSearchView
 from orchestrator.db.range.range import Selectable, apply_range_to_statement
 from orchestrator.domain.base import SubscriptionModel
@@ -38,40 +37,6 @@ logger = get_logger(__name__)
 
 def _quote_if_kv_pair(token: str) -> str:
     return f'"{token}"' if ":" in token else token
-
-
-def _process_text_query(q: str) -> str:
-    quote = '"'
-    if q.count(quote) % 2 == 1:
-        q += quote  # Add missing closing quote
-    lex = shlex(q)
-    lex.whitespace_split = True
-    lex.quotes = '"'
-    try:
-        return " ".join([_quote_if_kv_pair(token) for token in lex])
-    except ValueError:
-        logger.debug("Error parsing text query.")
-        return q
-
-
-def _add_sort_to_query(query: Select, sort: list[str] | None) -> Select:
-    if sort is None or len(sort) < 2:
-        return query
-
-    for item in chunked(sort, 2):
-        if item and len(item) == 2:
-            order_by_expr = expression.desc if item[1].upper() == "DESC" else expression.asc
-            if item[0] in ["product", "tag"]:
-                field = "name" if item[0] == "product" else "tag"
-                col = ProductTable.__dict__.get(field)
-            else:
-                col = SubscriptionTable.__dict__.get(item[0])
-
-            if col:
-                query = query.order_by(order_by_expr(col))
-            else:
-                raise_status(HTTPStatus.BAD_REQUEST, f"Unable to sort on unknown field: {item[0]}")
-    return query
 
 
 def add_response_range(
@@ -98,7 +63,16 @@ def add_subscription_search_query_filter(stmt: Select, search_query: str) -> Sel
 
     The Select statement should read from SubscriptionTable as a source.
     The query will first be converted from camelCase to snake_case before parsing.
+
+    .. deprecated::
+        TSV search is deprecated. Use the LLM-powered search API at /api/search instead.
     """
+    warnings.warn(
+        "TSV search is deprecated and will be removed in a future version. "
+        "Use the LLM-powered search API at /api/search instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if len(search_query) > MAX_QUERY_STRING_LENGTH:
         raise_status(HTTPStatus.BAD_REQUEST, f"Max query length of {MAX_QUERY_STRING_LENGTH} characters exceeded.")
 
@@ -196,19 +170,37 @@ def getattr_in(obj: Any, attr: str) -> Any:
 
 
 def product_block_paths(subscription: SubscriptionModel | dict) -> list[str]:
+    """Return all dot-separated paths to nested dicts in a subscription.
+
+    Recursively flattens a subscription dict into a list of dot-notation paths
+    (e.g. "product_blocks.0.name") that identify every nested dict node. List
+    items are addressed by their integer index.
+    """
     _subscription = subscription.model_dump() if isinstance(subscription, SubscriptionModel) else subscription
 
-    def get_dict_items(d: dict) -> Generator:
-        for k, v in d.items():
-            if isinstance(v, dict):
-                for k1, v1 in get_dict_items(v):
-                    yield (f"{k}.{k1}", v1)
-                yield (k, v)
-            if isinstance(v, list):
-                for index, list_item in enumerate(v):
-                    if isinstance(list_item, dict):
-                        for list_item_key, list_item_value in get_dict_items(list_item):
-                            yield (f"{k}.{index}.{list_item_key}", list_item_value)
-                        yield (f"{k}.{index}", list_item)
+    def _prefixed(prefix: str, items: Iterable) -> Generator:
+        """Prepend *prefix* to the key of each (key, value) pair."""
+        return ((f"{prefix}.{k}", v) for k, v in items)
 
-    return [path for path, value in get_dict_items(_subscription)]
+    def _list_item_entries(key: str, index: int, list_item: Any) -> Generator:
+        """Yield path entries for a single list element if it is a dict."""
+        if not isinstance(list_item, dict):
+            return
+        yield from _prefixed(f"{key}.{index}", get_dict_items(list_item))
+        yield (f"{key}.{index}", list_item)
+
+    def _dict_value_entries(key: str, value: Any) -> Generator:
+        """Yield path entries for a dict value or each element of a list value."""
+        if isinstance(value, dict):
+            yield from _prefixed(key, get_dict_items(value))
+            yield (key, value)
+        elif isinstance(value, list):
+            yield from itertools.chain.from_iterable(
+                _list_item_entries(key, idx, item) for idx, item in enumerate(value)
+            )
+
+    def get_dict_items(d: dict) -> Iterable:
+        """Recursively flatten a dict into (dot_path, value) pairs for all nested dicts."""
+        return itertools.chain.from_iterable(_dict_value_entries(k, v) for k, v in d.items())
+
+    return [path for path, _value in get_dict_items(_subscription)]

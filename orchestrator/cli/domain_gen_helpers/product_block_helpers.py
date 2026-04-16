@@ -41,7 +41,7 @@ def get_subscription_instance(subscription_id: str, product_block_id: ScalarSele
             SubscriptionInstanceTable.subscription_id == subscription_id,
         )
         .limit(1)
-        .as_scalar()
+        .scalar_subquery()
     )
 
 

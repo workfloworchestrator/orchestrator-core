@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,12 +17,14 @@ from datetime import timedelta
 import structlog
 from sqlalchemy import select
 
-from orchestrator import llm_settings
 from orchestrator.db import ProcessTable, db
+from orchestrator.db.models import AiSearchIndex
+from orchestrator.search.core.types import EntityType
 from orchestrator.settings import app_settings, get_authorizers
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.workflow import ProcessStatus, StepList, done, init, step, workflow
+from orchestrator.workflows.predicates import no_uncompleted_instance
 from pydantic_forms.types import State
 
 authorizers = get_authorizers()
@@ -51,22 +53,15 @@ def remove_tasks() -> State:
 @step("Clean up ai_search_indexes")
 def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
     count = 0
-    if llm_settings.SEARCH_ENABLED:
-        from orchestrator.db.models import AiSearchIndex
-        from orchestrator.search.core.types import EntityType
+    if deleted_process_id_list:
+        count = (
+            db.session.query(AiSearchIndex)
+            .filter(AiSearchIndex.entity_type == EntityType.PROCESS)
+            .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
+            .delete(synchronize_session=False)
+        )
 
-        if len(deleted_process_id_list) > 0:
-            count = (
-                db.session.query(AiSearchIndex)
-                .filter(AiSearchIndex.entity_type == EntityType.PROCESS)
-                .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
-                .delete(synchronize_session=False)
-            )
-
-        return {"ai_search_index_rows_deleted": count}
-
-    logger.warning("Search Service not enabled, table ai_search_index does not exist")
-    return {"ai_search_index_rows_deleted": count, "ai_search_enabled": False}
+    return {"ai_search_index_rows_deleted": count}
 
 
 @workflow(
@@ -74,6 +69,7 @@ def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
     target=Target.SYSTEM,
     authorize_callback=authorizers.authorize_callback,
     retry_auth_callback=authorizers.retry_auth_callback,
+    run_predicate=no_uncompleted_instance,
 )
 def task_clean_up_tasks() -> StepList:
     return init >> remove_tasks >> cleanup_ai_search_index >> done

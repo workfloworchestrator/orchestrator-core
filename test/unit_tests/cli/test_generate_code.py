@@ -51,7 +51,7 @@ def test_missing_or_extra_files(expected_folder, actual_folder):
 def get_dynamic_migration_values(file):
     """Retrieve dynamic values from the given migration file."""
     line_prefixes = ["Revision ID:", "Revises:", "Create Date:", "revision =", "down_revision =", "depends_on ="]
-    text = file.open().read()
+    text = file.read_text()
     regex = r"^(?:(%s)(.*))$" % ("|".join(re.escape(v) for v in line_prefixes),)
     matches = re.findall(regex, text, flags=re.MULTILINE)
     return dict(matches)  # {"Revision ID:": "Revision ID: 59e1199aff7f", ...}
@@ -59,7 +59,7 @@ def get_dynamic_migration_values(file):
 
 def update_dynamic_migration_values(file, replacements):
     """Update dynamic values in the migration file and return the content."""
-    text = file.open().read()
+    text = file.read_text()
     for prefix, replacement_line in replacements.items():
         regex_pattern = r"^(?:(%s)(.*))$" % (re.escape(prefix),)
         regex_replace = r"\1%s" % (replacement_line,)
@@ -82,7 +82,7 @@ def get_revision_ids(folder):
     rev_id_to_file = {}
     for migration_file in migration_files:
         _date, filename_rev_id, *_rest = migration_file.name.split("_")
-        rev_ids = dict(re.findall(r'(.+) = "([0-9a-z]+)"', migration_file.open().read()))
+        rev_ids = dict(re.findall(r'(.+) = "([0-9a-z]+)"', migration_file.read_text()))
         migration_rev_id = rev_ids["revision"]
         assert (
             filename_rev_id == migration_rev_id
@@ -139,10 +139,15 @@ def test_differences_in_generated_code(expected_folder, actual_folder):
             actual_lines = update_dynamic_migration_values(actual, replacements).splitlines(keepends=True)
         else:
             tofile = f"actual {relative}"
-            actual_lines = actual.open().readlines()
+            actual_lines = actual.read_text().splitlines(True)
 
         diff = context_diff(
-            open(expected).readlines(), actual_lines, fromfile=f"expected {relative}", tofile=tofile, n=1, lineterm=""
+            expected.read_text().splitlines(True),
+            actual_lines,
+            fromfile=f"expected {relative}",
+            tofile=tofile,
+            n=1,
+            lineterm="",
         )
 
         formatted_diff = "\n".join(diff)

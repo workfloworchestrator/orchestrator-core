@@ -244,29 +244,27 @@ def make_workflow(
     def wrapping_function() -> NoReturn:
         raise Exception("This function should not be executed")
 
-    wrapping_function = cast(Workflow, wrapping_function)
+    wf: Workflow = cast(Workflow, wrapping_function)
 
-    wrapping_function.name = f.__name__  # default, will be changed by LazyWorkflowInstance
-    wrapping_function.description = description
-    wrapping_function.authorize_callback = allow if authorize_callback is None else authorize_callback
+    wf.name = f.__name__  # default, will be changed by LazyWorkflowInstance
+    wf.description = description
+    wf.authorize_callback = allow if authorize_callback is None else authorize_callback
     # If no retry auth policy is given, defer to policy for process creation.
-    wrapping_function.retry_auth_callback = (
-        wrapping_function.authorize_callback if retry_auth_callback is None else retry_auth_callback
-    )
+    wf.retry_auth_callback = wf.authorize_callback if retry_auth_callback is None else retry_auth_callback
 
     if initial_input_form is None:
         # We always need a form to prevent starting a workflow when no input is needed.
         # This would happen on first post that is used to retrieve the first form page
         initial_input_form = cast(InputStepFunc, const(FormPage))
 
-    wrapping_function.initial_input_form = _handle_simple_input_form_generator(initial_input_form)
-    wrapping_function.target = target
-    wrapping_function.steps = steps
-    wrapping_function.run_predicate = run_predicate
+    wf.initial_input_form = _handle_simple_input_form_generator(initial_input_form)
+    wf.target = target
+    wf.steps = steps
+    wf.run_predicate = run_predicate
 
-    wrapping_function.__doc__ = make_workflow_doc(wrapping_function)
+    wf.__doc__ = make_workflow_doc(wf)
 
-    return wrapping_function
+    return wf
 
 
 def step(

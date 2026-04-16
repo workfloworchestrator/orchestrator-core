@@ -3,7 +3,7 @@
 ## Project
 - **Package**: `orchestrator-core` (SURF), module `orchestrator`
 - **Version**: see `orchestrator/__init__.py`
-- **Stack**: FastAPI, SQLAlchemy, Pydantic v2, Strawberry GraphQL, Pydantic-AI, LiteLLM
+- **Stack**: FastAPI, SQLAlchemy, Pydantic v2, Strawberry GraphQL, LiteLLM
 - **Python**: 3.11–3.14 | **Package manager**: `uv` | **Build**: flit
 
 ## Common Commands
@@ -43,15 +43,11 @@ orchestrator/
   db/          SQLAlchemy models, queries, filters, sorting
   domain/      Business domain models (subscriptions, products, blocks)
   graphql/     Strawberry GraphQL schema & resolvers
-  search/      LLM search & agent subsystem
-    agent/     FSM/Planner agent (pydantic-ai)
-    adapters/  Protocol handlers: AG-UI, A2A, MCP
-    tools/     Modular tools: search, aggregation, filters, result_actions
+  search/      LLM search subsystem
   services/    Business logic services
   workflows/   Workflow DSL & execution engine
   websocket/   Real-time WebSocket support
   app.py       Core FastAPI application
-  agentic_app.py  LLM-enhanced application
 test/
   unit_tests/
   integration_tests/
@@ -63,14 +59,12 @@ docs/
 
 ## Optional Extras
 - `search` extra: adds LiteLLM for search
-- `agent` extra: adds pydantic-ai, ag-ui-protocol, fasta2a, mcp
 - `celery` extra: adds Celery worker support
 
 ## Test Markers
 - `workflow` — full workflow tests (slow)
 - `acceptance` — acceptance tests (special handling)
 - `search` — requires search extra
-- `agent` — requires agent extra
 - `celery` — requires celery
 
 ## Commit Messages

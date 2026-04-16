@@ -6,6 +6,7 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
+from inline_snapshot import snapshot
 from sqlalchemy import select
 
 from oauth2_lib.fastapi import OIDCUserModel
@@ -56,7 +57,7 @@ def long_running_workflow():
             test_condition.wait()
         return {"done": True}
 
-    @workflow("Long Running Workflow")
+    @workflow()
     def long_running_workflow_py():
         return init >> long_running_step >> long_running_step >> done
 
@@ -631,7 +632,7 @@ def test_unauthorized_to_run_process(test_client):
     async def disallow(_: AuthContext | None = None) -> bool:
         return False
 
-    @workflow("unauthorized_workflow", target=Target.CREATE, authorize_callback=disallow)
+    @workflow(target=Target.CREATE, authorize_callback=disallow)
     def unauthorized_workflow():
         return init >> done
 
@@ -661,7 +662,7 @@ def authorize_resume_workflow():
         user_input = yield ConfirmForm
         return user_input.model_dump()
 
-    @workflow("test_auth_workflow", target=Target.CREATE, authorize_callback=allow, retry_auth_callback=disallow)
+    @workflow(target=Target.CREATE, authorize_callback=allow, retry_auth_callback=disallow)
     def test_auth_workflow():
         return init >> authorized_resume >> unauthorized_resume >> done
 
@@ -874,7 +875,7 @@ def authorize_step_group_retry_workflow():
     unauthorized_retry = step_group("unauthorized_retry", steps, retry_auth_callback=disallow)
 
     # Default retry is disallow so we can test that authorized_retry overrides this.
-    @workflow("test_step_group_workflow", target=Target.CREATE, retry_auth_callback=disallow)
+    @workflow(target=Target.CREATE, retry_auth_callback=disallow)
     def test_step_group_workflow():
         return init >> authorized_retry >> unauthorized_retry >> done
 
@@ -953,7 +954,7 @@ def authorize_step_retry_workflow():
         return
 
     # Default retry is disallow so we can test that authorized_retry overrides this.
-    @workflow("test_step_retry_workflow", target=Target.CREATE, retry_auth_callback=disallow)
+    @workflow(target=Target.CREATE, retry_auth_callback=disallow)
     def test_step_group_workflow():
         return init >> authorized_retry >> unauthorized_retry >> done
 
@@ -1032,7 +1033,7 @@ def authorize_retrystep_retry_workflow():
         return
 
     # Default retry is disallow so we can test that authorized_retry overrides this.
-    @workflow("test_retrystep_retry_workflow", target=Target.CREATE, retry_auth_callback=disallow)
+    @workflow(target=Target.CREATE, retry_auth_callback=disallow)
     def test_step_group_workflow():
         return init >> authorized_retry >> unauthorized_retry >> done
 
@@ -1173,3 +1174,287 @@ def test_internal_retry_auth_callback(test_client, fastapi_app_for_auth_callback
         fastapi_app_for_auth_callbacks.register_internal_retry_auth_callback(allow)
         response = test_client.put(f"/api/processes/{internal_process_on_retry_step}/resume", json={})
         assert HTTPStatus.NO_CONTENT == response.status_code
+
+
+# ---------------------------------------------------------------------------
+# resolve_user_name
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "reporter, user_attrs, expected",
+    [
+        # reporter takes precedence over everything
+        ("reporter_name", {"name": "alice"}, "reporter_name"),
+        # no reporter → use resolved_user.name when present
+        (None, {"name": "alice"}, "alice"),
+        # no reporter, no name on user → fall back to user_name (empty string for base OIDCUserModel)
+        (None, {"user_name": "bob"}, ""),
+        # no reporter, no resolved_user → SYSTEM_USER
+        (None, None, "SYSTEM"),
+    ],
+)
+def test_resolve_user_name(reporter, user_attrs, expected):
+    from orchestrator.api.api_v1.endpoints.processes import resolve_user_name
+
+    resolved_user = OIDCUserModel(user_attrs) if user_attrs is not None else None
+    result = resolve_user_name(reporter=reporter, resolved_user=resolved_user)
+    assert result == expected
+
+
+# ---------------------------------------------------------------------------
+# status_counts endpoint
+# ---------------------------------------------------------------------------
+
+
+def test_status_counts_empty_db(test_client):
+    """GET /processes/status-counts returns empty dicts when no processes exist."""
+    response = test_client.get("/api/processes/status-counts")
+    assert response.status_code == HTTPStatus.OK
+    body = response.json()
+    assert body == {"process_counts": {}, "task_counts": {}}
+
+
+def test_status_counts_with_processes(test_client, mocked_processes):
+    """GET /processes/status-counts aggregates counts for processes and tasks separately."""
+    response = test_client.get("/api/processes/status-counts")
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == snapshot(
+        {
+            "process_counts": {"failed": 1, "completed": 2, "suspended": 1, "resumed": 1},
+            "task_counts": {"completed": 1, "suspended": 1, "resumed": 1, "running": 1},
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# check_global_lock – direct function call raises HTTPException on lock
+# ---------------------------------------------------------------------------
+
+
+def test_check_global_lock_raises_when_locked():
+    """check_global_lock() must raise a 503 HTTPException when engine is locked."""
+    from orchestrator.api.api_v1.endpoints.processes import check_global_lock
+
+    engine_settings_mock = mock.MagicMock()
+    engine_settings_mock.global_lock = True
+
+    with (
+        mock.patch(
+            "orchestrator.api.api_v1.endpoints.processes.get_engine_settings_table",
+            return_value=engine_settings_mock,
+        ),
+        pytest.raises(Exception) as exc_info,
+    ):
+        check_global_lock()
+
+    assert exc_info.value.status_code == HTTPStatus.SERVICE_UNAVAILABLE
+
+
+def test_check_global_lock_does_not_raise_when_unlocked():
+    """check_global_lock() must not raise when the engine is not locked."""
+    from orchestrator.api.api_v1.endpoints.processes import check_global_lock
+
+    engine_settings_mock = mock.MagicMock()
+    engine_settings_mock.global_lock = False
+
+    with mock.patch(
+        "orchestrator.api.api_v1.endpoints.processes.get_engine_settings_table",
+        return_value=engine_settings_mock,
+    ):
+        # Should complete without raising.
+        check_global_lock()
+
+
+def test_check_global_lock_via_endpoint_returns_503(test_client, test_workflow):
+    """Posting to a process endpoint when the engine is locked returns 503."""
+    engine_settings = get_engine_settings_table()
+    engine_settings.global_lock = True
+    db.session.flush()
+
+    response = test_client.post(f"/api/processes/{test_workflow.name}", json=[{}])
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
+
+
+# ---------------------------------------------------------------------------
+# _calculate_processes_crc32_checksum
+# ---------------------------------------------------------------------------
+
+
+def test_calculate_processes_crc32_checksum_empty_list():
+    """An empty list must produce a checksum of 0 (initial value, no iterations)."""
+    from orchestrator.api.api_v1.endpoints.processes import _calculate_processes_crc32_checksum
+
+    assert _calculate_processes_crc32_checksum([]) == 0
+
+
+def test_calculate_processes_crc32_checksum_deterministic(started_process):
+    """The same list of processes always produces the same checksum."""
+    from orchestrator.api.api_v1.endpoints.processes import _calculate_processes_crc32_checksum
+
+    process = db.session.get(ProcessTable, started_process)
+    assert process is not None
+
+    first = _calculate_processes_crc32_checksum([process])
+    second = _calculate_processes_crc32_checksum([process])
+    assert first == second
+    assert isinstance(first, int)
+
+
+def test_calculate_processes_crc32_checksum_differs_for_different_inputs(started_process, test_workflow):
+    """Different process lists produce different checksums."""
+    from uuid import uuid4 as _uuid4
+
+    from orchestrator.api.api_v1.endpoints.processes import _calculate_processes_crc32_checksum
+
+    process_a = db.session.get(ProcessTable, started_process)
+    assert process_a is not None
+
+    # Create a second independent process so the two lists differ.
+    process_id_b = _uuid4()
+    process_b = ProcessTable(
+        process_id=process_id_b,
+        workflow_id=test_workflow.workflow_id,
+        last_status=ProcessStatus.COMPLETED if hasattr(ProcessStatus, "COMPLETED") else ProcessStatus.SUSPENDED,
+    )
+    db.session.add(process_b)
+    db.session.flush()
+
+    checksum_a = _calculate_processes_crc32_checksum([process_a])
+    checksum_b = _calculate_processes_crc32_checksum([process_b])
+    assert checksum_a != checksum_b
+
+
+# ---------------------------------------------------------------------------
+# processes_filterable – ETag / If-None-Match cache behaviour
+# ---------------------------------------------------------------------------
+
+
+def test_processes_filterable_etag_header_present(test_client, started_process):
+    """GET /processes/ must return an ETag response header."""
+    response = test_client.get("/api/processes/")
+    assert response.status_code == HTTPStatus.OK
+    assert "etag" in response.headers
+
+
+def test_processes_filterable_if_none_match_returns_304(test_client, started_process):
+    """When If-None-Match matches the current ETag the server returns 304."""
+    first = test_client.get("/api/processes/")
+    assert first.status_code == HTTPStatus.OK
+
+    etag_header = first.headers["etag"]
+    # The ETag header value is W/"<hex>" – extract just the hex part for If-None-Match.
+    entity_tag = etag_header.lstrip('W/"').rstrip('"')
+
+    second = test_client.get("/api/processes/", headers={"If-None-Match": entity_tag})
+    assert second.status_code == HTTPStatus.NOT_MODIFIED
+
+
+def test_processes_filterable_stale_if_none_match_returns_200(test_client, started_process):
+    """When If-None-Match does not match, the server returns 200 with a fresh body."""
+    response = test_client.get("/api/processes/", headers={"If-None-Match": "0xdeadbeef"})
+    assert response.status_code == HTTPStatus.OK
+
+
+# ---------------------------------------------------------------------------
+# processes_filterable – invalid filter args
+# ---------------------------------------------------------------------------
+
+
+def test_processes_filterable_odd_filter_args_returns_400(test_client):
+    """An odd number of filter arguments must return 400 Bad Request."""
+    response = test_client.get("/api/processes/?filter=lastStatus")
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+
+
+def test_processes_filterable_empty_filter_param_ignored(test_client):
+    """An empty filter= query param is treated as absent (falsy string → no filtering) and returns 200."""
+    # The source does: filter.split(",") if filter else None — empty string is falsy, so _filter stays None.
+    response = test_client.get("/api/processes/?filter=")
+    assert response.status_code == HTTPStatus.OK
+
+
+# ---------------------------------------------------------------------------
+# get_steps_to_evaluate_for_rbac
+# ---------------------------------------------------------------------------
+
+
+def test_get_steps_to_evaluate_for_rbac_empty_log():
+    """When pstat.log is empty, all workflow steps are returned."""
+    from orchestrator.api.api_v1.endpoints.processes import get_steps_to_evaluate_for_rbac
+
+    @step("step_a")
+    def step_a():
+        return {}
+
+    @step("step_b")
+    def step_b():
+        return {}
+
+    wf = make_workflow(
+        f=lambda: {},
+        description="test",
+        initial_input_form=None,
+        target=Target.SYSTEM,
+        steps=StepList([step_a, step_b]),
+        authorize_callback=None,
+        retry_auth_callback=None,
+    )
+
+    from orchestrator.workflow import ProcessStat
+
+    pstat = ProcessStat(
+        process_id=uuid4(),
+        workflow=wf,
+        state={},
+        log=StepList([]),  # empty log → no remaining steps
+        current_user="SYSTEM",
+    )
+
+    result = get_steps_to_evaluate_for_rbac(pstat)
+    # With empty log the function returns pstat.workflow.steps unchanged.
+    assert list(result) == list(wf.steps)
+
+
+def test_get_steps_to_evaluate_for_rbac_with_remaining_steps():
+    """When pstat.log has remaining steps, result is past steps + first remaining step."""
+    from orchestrator.api.api_v1.endpoints.processes import get_steps_to_evaluate_for_rbac
+
+    @step("step_x")
+    def step_x():
+        return {}
+
+    @step("step_y")
+    def step_y():
+        return {}
+
+    @step("step_z")
+    def step_z():
+        return {}
+
+    wf = make_workflow(
+        f=lambda: {},
+        description="test",
+        initial_input_form=None,
+        target=Target.SYSTEM,
+        steps=StepList([step_x, step_y, step_z]),
+        authorize_callback=None,
+        retry_auth_callback=None,
+    )
+
+    from orchestrator.workflow import ProcessStat
+
+    # Simulate that step_z is still remaining (step_x and step_y are done).
+    remaining = StepList([step_z])
+    pstat = ProcessStat(
+        process_id=uuid4(),
+        workflow=wf,
+        state={},
+        log=remaining,
+        current_user="SYSTEM",
+    )
+
+    result = get_steps_to_evaluate_for_rbac(pstat)
+    result_names = [s.name for s in result]
+    # past steps (all but last 1) = [step_x, step_y], then first of remaining = step_z
+    assert result_names == ["step_x", "step_y", "step_z"]

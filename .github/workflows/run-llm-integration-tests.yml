@@ -52,7 +52,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.11.0"
+          version: "0.11.6"
           python-version: ${{ matrix.python-version }}
 
       - name: Install project and dependencies
@@ -65,14 +65,16 @@ jobs:
           DATABASE_URI: postgresql://nwa:nwa@postgres/orchestrator-core-test
           ENVIRONMENT: TESTING
           PYTHONPATH: .
-          SEARCH_ENABLED: true
           REDIS_HOST: redis
         run: |
           uv run pytest test/integration_tests/search -v -rs
 
+      - name: Install codecov dependencies
+        run: apt-get update && apt-get install -y git curl gpg
+
       - name: "Upload coverage to Codecov"
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v6
         with:
-          token: ${{ secrets.CODECOV_TOKEN }} # gives error 'Could not find a repository associated with upload token'
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
           files: ./coverage.xml

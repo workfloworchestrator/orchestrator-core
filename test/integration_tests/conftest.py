@@ -209,25 +209,25 @@ def register_celery_tasks(celery_session_app):
     """Register test tasks with the Celery application."""
     tasks = {}
 
-    @celery_session_app.task(name=NEW_TASK)  # type: ignore[misc]
+    @celery_session_app.task(name=NEW_TASK)  # type: ignore[untyped-decorator]
     def new_task(process_id: str, user: str = "test") -> str:
         return f"Started new process {process_id}"
 
     tasks[NEW_TASK] = new_task
 
-    @celery_session_app.task(name=NEW_WORKFLOW)  # type: ignore[misc]
+    @celery_session_app.task(name=NEW_WORKFLOW)  # type: ignore[untyped-decorator]
     def new_workflow(process_id: str, user: str = "test") -> str:
         return f"Started new workflow {process_id}"
 
     tasks[NEW_WORKFLOW] = new_workflow
 
-    @celery_session_app.task(name=RESUME_TASK)  # type: ignore[misc]
+    @celery_session_app.task(name=RESUME_TASK)  # type: ignore[untyped-decorator]
     def resume_task(process_id: str, user: str = "test") -> str:
         return f"Resumed task {process_id}"
 
     tasks[RESUME_TASK] = resume_task
 
-    @celery_session_app.task(name=RESUME_WORKFLOW)  # type: ignore[misc]
+    @celery_session_app.task(name=RESUME_WORKFLOW)  # type: ignore[untyped-decorator]
     def resume_workflow(process_id: str, user: str = "test") -> str:
         if process_id is None:
             raise ValueError("process_id cannot be None")

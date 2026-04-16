@@ -864,7 +864,7 @@ def test_subscription_detail_with_forbidden_workflow_without_override(seed, test
     def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    @workflow("unauthorized_workflow", target=Target.MODIFY, authorize_callback=disallow)
+    @workflow(target=Target.MODIFY, authorize_callback=disallow)
     def unauthorized_workflow():
         return init >> done
 
@@ -880,3 +880,15 @@ def test_subscription_detail_with_forbidden_workflow_without_override(seed, test
         assert len(subscription_workflows["modify"]) == 1
         assert "reason" in subscription_workflows["modify"][0]
         assert subscription_workflows["modify"][0]["reason"] == expected_error
+
+
+def test_subscription_set_in_sync_not_found(test_client):
+    random_id = uuid4()
+    response = test_client.put(f"/api/subscriptions/{random_id}/set_in_sync")
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+def test_subscription_set_in_sync_already_in_sync(seed, test_client):
+    # IP_PREFIX_SUBSCRIPTION_ID is created with insync=True in the seed fixture
+    response = test_client.put(f"/api/subscriptions/{IP_PREFIX_SUBSCRIPTION_ID}/set_in_sync")
+    assert response.status_code == HTTPStatus.OK

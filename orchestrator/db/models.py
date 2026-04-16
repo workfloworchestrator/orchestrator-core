@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -47,14 +47,14 @@ from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import Mapped, deferred, mapped_column, object_session, relationship, undefer
+from sqlalchemy.orm import Mapped, deferred, mapped_column, object_session, relationship, undefer, with_parent
 from sqlalchemy.sql.functions import GenericFunction
 from sqlalchemy_utils import LtreeType, TSVectorType, UUIDType
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db.database import BaseModel, SearchQuery
-from orchestrator.llm_settings import llm_settings
 from orchestrator.search.core.types import FieldType
+from orchestrator.settings import llm_settings
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.version import GIT_COMMIT_HASH
@@ -279,18 +279,20 @@ class ProductTable(BaseModel):
 
     def find_block_by_name(self, name: str) -> ProductBlockTable:
         if session := object_session(self):
-            return session.query(ProductBlockTable).with_parent(self).filter(ProductBlockTable.name == name).one()
+            return session.scalars(
+                select(ProductBlockTable).where(
+                    with_parent(self, ProductTable.product_blocks), ProductBlockTable.name == name
+                )
+            ).one()
         raise AssertionError("Session should not be None")
 
     def fixed_input_value(self, name: str) -> str:
         if session := object_session(self):
-            return (
-                session.query(FixedInputTable)
-                .with_parent(self)
-                .filter(FixedInputTable.name == name)
-                .with_entities(FixedInputTable.value)
-                .scalar()
-            )
+            return session.scalars(
+                select(FixedInputTable.value).where(
+                    with_parent(self, ProductTable.fixed_inputs), FixedInputTable.name == name
+                )
+            ).one()
         raise AssertionError("Session should not be None")
 
     def _subscription_workflow_key(self, target: Target) -> str | None:
@@ -308,7 +310,7 @@ class ProductTable(BaseModel):
         return wfs[0].name if len(wfs) > 0 else None
 
     def workflow_by_key(self, name: str) -> WorkflowTable | None:
-        return first_true(self.workflows, None, lambda wf: wf.name == name)  # type: ignore
+        return first_true(self.workflows, None, lambda wf: wf.name == name)
 
 
 class FixedInputTable(BaseModel):
@@ -384,9 +386,11 @@ class ProductBlockTable(BaseModel):
 
     def find_resource_type_by_name(self, name: str) -> ResourceTypeTable:
         if session := object_session(self):
-            return (
-                session.query(ResourceTypeTable).with_parent(self).filter(ResourceTypeTable.resource_type == name).one()
-            )
+            return session.scalars(
+                select(ResourceTypeTable).where(
+                    with_parent(self, ProductBlockTable.resource_types), ResourceTypeTable.resource_type == name
+                )
+            ).one()
         raise AssertionError("Session should not be None")
 
 
@@ -559,7 +563,7 @@ class SubscriptionInstanceTable(BaseModel):
     )
 
     def value_for_resource_type(self, name: str | None) -> SubscriptionInstanceValueTable | None:
-        return first_true(self.values, None, lambda x: x.resource_type.resource_type == name)  # type: ignore
+        return first_true(self.values, None, lambda x: x.resource_type.resource_type == name)
 
 
 SubscriptionInstanceTable.parent_relations = SubscriptionInstanceTable.in_use_by_block_relations
@@ -691,9 +695,11 @@ class SubscriptionMetadataTable(BaseModel):
     )
     metadata_ = mapped_column("metadata", pg.JSONB(), nullable=False)
 
-    @staticmethod
-    def find_by_subscription_id(subscription_id: str) -> SubscriptionMetadataTable | None:
-        return SubscriptionMetadataTable.query.get(subscription_id)
+    @classmethod
+    def find_by_subscription_id(cls, subscription_id: str) -> SubscriptionMetadataTable | None:
+        from orchestrator.db import db
+
+        return db.session.get(cls, subscription_id)
 
 
 class SubscriptionSearchView(BaseModel):

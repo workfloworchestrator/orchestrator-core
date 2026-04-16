@@ -204,7 +204,7 @@ class FieldType(str, Enum):
         }
 
         if type_hint in _type_mapping:
-            return _type_mapping[type_hint]  # type: ignore[index]
+            return _type_mapping[type_hint]
 
         if get_origin(type_hint) is Annotated:
             inner_type = get_args(type_hint)[0]

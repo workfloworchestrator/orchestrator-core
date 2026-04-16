@@ -1,3 +1,5 @@
+"""Tests for workflow decorator utilities: reconcile_workflow step composition, deprecation warnings, obsolete_step, and ensure_provisioning_status."""
+
 import warnings
 
 import pytest
@@ -5,7 +7,9 @@ import pytest
 from orchestrator.workflow import StepList, Workflow, begin, done, step, workflow
 from orchestrator.workflows.utils import (
     create_workflow,
+    ensure_provisioning_status,
     modify_workflow,
+    obsolete_step,
     reconcile_workflow,
     task,
     terminate_workflow,
@@ -126,7 +130,7 @@ def test_deprecated_description_emits_warning(decorator_factory):
 
     with pytest.warns(DeprecationWarning):
 
-        @decorator_factory(description)  # type: ignore[misc]
+        @decorator_factory(description)  # type: ignore[untyped-decorator]
         def test_workflow() -> StepList:
             return begin >> done
 
@@ -141,10 +145,35 @@ def test_empty_description_does_not_emit_warning(decorator_factory):
     with warnings.catch_warnings(record=True) as warnings_record:
         warnings.simplefilter("always")
 
-        @decorator_factory("")  # type: ignore[misc]
+        @decorator_factory("")  # type: ignore[untyped-decorator]
         def test_workflow() -> StepList:
             return begin >> done
 
     description_warnings = [w for w in warnings_record if issubclass(w.category, DeprecationWarning)]
     assert description_warnings == []
     assert test_workflow.description == ""
+
+
+def test_obsolete_step():
+    result = obsolete_step({})
+    assert result.issuccess()
+
+
+def test_ensure_provisioning_status():
+    @step("Dummy modify step")
+    def dummy_modify():
+        pass
+
+    steplist = ensure_provisioning_status(dummy_modify)
+    step_names = [s.name for s in steplist]
+    assert step_names == ["Set subscription to 'provisioning'", "Dummy modify step", "Set subscription to 'active'"]
+
+
+def test_task_with_initial_input_form():
+    def my_input_form(state):
+        return state
+
+    my_task = task(initial_input_form=my_input_form)(lambda: begin >> done)
+
+    assert isinstance(my_task, Workflow)
+    assert my_task.initial_input_form is not None

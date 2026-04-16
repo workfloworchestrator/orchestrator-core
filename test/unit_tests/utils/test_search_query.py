@@ -9,6 +9,13 @@ from orchestrator.db.helpers import to_sql_string
 from orchestrator.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor, create_sqlalchemy_select
 
 
+class MyTable(BaseModel):
+    __tablename__ = "my_table"
+    __table_args__ = {"extend_existing": True}
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+
+
 def _parse_tree_and_tsquery(q: str) -> tuple[tuple, str]:
     tokens = Lexer(q).lex()
     tree = Parser(tokens).parse()
@@ -137,18 +144,11 @@ def test_query_kv_camelcasing():
     ],
 )
 def test_sqlalchemy_visitor(search_query, substrings):
-    class MyTable(BaseModel):
-        __tablename__ = "my_table"
-        id = Column(Integer, primary_key=True)
-        name = Column(String)
-
     mappings = {"name": lambda node: MyTable.name.like(node[1].lower())}
     stmt = select(MyTable)
     stmt = create_sqlalchemy_select(stmt, search_query, mappings, MyTable, MyTable.id)
     for substring in substrings:
         assert substring in to_sql_string(stmt)
-
-    MyTable.metadata.clear()
 
 
 @pytest.mark.parametrize("i", range(100))
