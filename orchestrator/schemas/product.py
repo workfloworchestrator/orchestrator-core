@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF, ESnet, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -47,3 +47,4 @@ class ProductSchema(ProductBaseSchema):
 
 class ProductPatchSchema(OrchestratorBaseModel):
     description: Annotated[str, Field(max_length=DESCRIPTION_LENGTH)] | None = None
+    status: ProductLifecycle | None = None
