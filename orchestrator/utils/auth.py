@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Collection
-from typing import Protocol, TypeAlias, TypeVar, runtime_checkable
+from typing import Literal, Protocol, TypeAlias, TypeVar, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict
 
@@ -36,11 +36,6 @@ class AuthUserModel(Protocol):
     @property
     def user_name(self) -> str:
         return ""
-
-    # TODO should I also enforce a "name"? I think things might break otherwise
-    # e.g. settings.py::set_status does
-    # user_name = oidc_user.name if oidc_user else SYSTEM_USER
-    # Or perhaps that should instead be updated to use user_name instead.
 
 
 @runtime_checkable
@@ -85,7 +80,9 @@ class AuthContext(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
     user: AuthUserModel | None = None
+    action: Literal["start_workflow", "resume_workflow", "retry_workflow"]
     workflow: AuthWorkflow | None = None
+    # Should be None for "start_workflow", otherwise set
     step: AuthStep | None = None
 
 

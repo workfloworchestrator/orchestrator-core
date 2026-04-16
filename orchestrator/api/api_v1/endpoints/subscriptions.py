@@ -115,7 +115,7 @@ def _authorized_subscription_workflows(
             if not workflow:
                 continue
 
-            context = AuthContext(user=current_user, workflow=workflow)
+            context = AuthContext(user=current_user, workflow=workflow, action="start_workflow")
             if (
                 not workflow.authorize_callback(context)  # The current user isn't allowed to run this workflow
                 and "reason" not in workflow_dict  # and there isn't already a reason why this workflow cannot run

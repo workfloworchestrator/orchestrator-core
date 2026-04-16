@@ -94,16 +94,12 @@ class ProcessType:
         steps = get_steps_to_evaluate_for_rbac(pstat)
         auth_resume, auth_retry = get_auth_callbacks(steps, workflow)
 
-        # TODO is this a safe way to get the current step? What if there are substeps?
-        context = AuthContext(
-            user=oidc_user,
-            workflow=pstat.workflow,
-            step=steps[-1],
-        )
+        resume_context = AuthContext(user=oidc_user, workflow=pstat.workflow, step=steps[-1], action="resume_workflow")
+        retry_context = AuthContext(user=oidc_user, workflow=pstat.workflow, step=steps[-1], action="retry_workflow")
 
         return FormUserPermissionsType(
-            retryAllowed=bool(auth_retry and await auth_retry(context)),
-            resumeAllowed=bool(auth_resume and await auth_resume(context)),
+            retryAllowed=bool(auth_retry and await auth_retry(resume_context)),
+            resumeAllowed=bool(auth_resume and await auth_resume(retry_context)),
         )
 
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore

@@ -195,7 +195,7 @@ async def new_process(
     context = AuthContext(
         user=user_model,
         workflow=workflow,
-        # step=step, #TODO should we include the workflow's first step?
+        action="start_workflow",
     )
 
     if not await workflow.authorize_callback(context):
@@ -234,16 +234,22 @@ async def resume_process_endpoint(
     pstat = load_process(process)
     steps = get_steps_to_evaluate_for_rbac(pstat)
     auth_resume, auth_retry = get_auth_callbacks(steps, pstat.workflow)
-    context = AuthContext(
-        user=user_model,
-        workflow=pstat.workflow,
-        step=steps[-1],
-    )
-
     if process.last_status == ProcessStatus.SUSPENDED:
+        context = AuthContext(
+            user=user_model,
+            workflow=pstat.workflow,
+            step=steps[-1],
+            action="resume_workflow",
+        )
         if auth_resume is not None and not (await auth_resume(context)):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to resume step")
     elif process.last_status in (ProcessStatus.FAILED, ProcessStatus.WAITING):
+        context = AuthContext(
+            user=user_model,
+            workflow=pstat.workflow,
+            step=steps[-1],
+            action="retry_workflow",
+        )
         if auth_retry is not None and not (await auth_retry(context)):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to retry step")
 

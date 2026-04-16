@@ -41,6 +41,7 @@ class Workflow:
         context = AuthContext(
             workflow=workflow,
             user=oidc_user,
+            action="start_workflow",
         )
 
         return await workflow.authorize_callback(context)  # type: ignore

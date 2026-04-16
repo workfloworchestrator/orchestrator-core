@@ -35,7 +35,10 @@ async def test_generic_authorizer():
     """
 
     async def generic_authorizer(context: AuthContext) -> bool:
-        """Allows users to run workflows associated with their username."""
+        """Allows users to run workflows associated with their username.
+
+        Ignores workflow action and per-step authorizations.
+        """
         if not context.user or not context.workflow:
             return False
 
@@ -62,7 +65,7 @@ async def test_generic_authorizer():
         return begin >> one >> done
 
     # bar cannot run some_workflow
-    context = AuthContext(user=User(name="bar"), workflow=some_workflow, step=one)
+    context = AuthContext(user=User(name="bar"), workflow=some_workflow, action="start_workflow")
     context.user.name = "bar"
     assert not await some_workflow.authorize_callback(context)
     # foo can run some_workflow
