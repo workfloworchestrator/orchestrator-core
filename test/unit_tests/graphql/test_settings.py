@@ -1,15 +1,3 @@
-# Copyright 2026 SURF, ESnet.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 import json
 from hashlib import md5
 from http import HTTPStatus
@@ -118,8 +106,6 @@ def test_clear_cache_mutation_fails_auth(test_client_graphql, monkeypatch):
 
 def test_success_clear_cache(test_client_graphql, cache_fixture):
     cache = create_redis_client(app_settings.CACHE_URI.get_secret_value())
-    print("### CACHE URI %r" % app_settings.CACHE_URI)
-    print("### CACHE URI %r" % app_settings.CACHE_URI.get_secret_value())
     key = "some_model_uuid"
     test_data = {key: {"data": [1, 2, 3]}}
 
