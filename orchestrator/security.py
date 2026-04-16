@@ -47,6 +47,19 @@ async def authenticate(
 
 
 async def authorize(request: Request, user: Annotated[OIDCUserModel | None, Depends(authenticate)]) -> bool | None:
+    """FastAPI dependency (middleware) to determine if user is authorized to make a request.
+
+    Must raise a 403 Forbidden in order to interrupt handling of request.
+
+    OrchestratorCore.register_authorization allows users to register their own Authorization instance.
+    This could be the oauth2_lib default OPA-based instance, but with auto_error=False,
+    or a custom Authorization instance entirely. So we should be sure to raise on a False.
+
+    True: authorized
+    None: auth bypass
+    False: not authorized, so raise
+    HTTPException: allow this to raise
+    """
     result = await request.app.auth_manager.authorization.authorize(request, user)
     if result is False:  # None is different!
         raise_status(HTTPStatus.FORBIDDEN, detail="Not authorized")
@@ -62,6 +75,19 @@ async def authenticate_websocket(websocket: WebSocket, token: str) -> OIDCUserMo
 async def authorize_websocket(
     websocket: WebSocket, user: Annotated[OIDCUserModel | None, Depends(authenticate)]
 ) -> bool | None:
+    """FastAPI dependency (middleware) to determine if user is authorized to make a websocket connection.
+
+    Must raise a 403 Forbidden in order to interrupt handling of request.
+
+    OrchestratorCore.register_graphql_authorization allows users to register their own GraphQLAuthorization
+    instance. This could be the oauth2_lib default OPA-based instance, but with auto_error=False,
+    or a custom GraphQLAuthorization instance entirely. So we should be sure to raise on a False.
+
+    True: authorized
+    None: auth bypass
+    False: not authorized, so raise
+    HTTPException: allow this to raise
+    """
     result = await websocket.app.auth_manager.authorization.authorize(websocket, user)
     if result is False:  # None is different!
         raise_status(HTTPStatus.FORBIDDEN, detail="Not authorized")
