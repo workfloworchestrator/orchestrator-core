@@ -79,9 +79,9 @@ async def authorize_websocket(
 
     Must raise a 403 Forbidden in order to interrupt handling of request.
 
-    OrchestratorCore.register_graphql_authorization allows users to register their own GraphQLAuthorization
+    OrchestratorCore.register_graphql_authorization allows users to register their own Authorization
     instance. This could be the oauth2_lib default OPA-based instance, but with auto_error=False,
-    or a custom GraphQLAuthorization instance entirely. So we should be sure to raise on a False.
+    or a custom Authorization instance entirely. So we should be sure to raise on a False.
 
     True: authorized
     None: auth bypass
