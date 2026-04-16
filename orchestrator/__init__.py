@@ -15,7 +15,7 @@
 
 # ruff: noqa: I001  (import order matters — app_settings must resolve before app.py)
 
-__version__ = "5.0.0a7"
+__version__ = "5.0.0rc1"
 
 
 from structlog import get_logger
