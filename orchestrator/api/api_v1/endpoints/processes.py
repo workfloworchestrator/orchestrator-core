@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT, ESnet.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,6 +16,7 @@
 import asyncio
 import struct
 import zlib
+from collections.abc import AsyncGenerator
 from http import HTTPStatus
 from typing import Any
 from uuid import UUID
@@ -42,6 +43,9 @@ from orchestrator.db.filters.process import filter_processes
 from orchestrator.db.sorting import Sort, SortOrder
 from orchestrator.db.sorting.process import sort_processes
 from orchestrator.schemas import ProcessIdSchema, ProcessResumeAllSchema, ProcessSchema, ProcessStatusCounts, Reporter
+from orchestrator.schemas.process import ProcessPatchSchema
+from orchestrator.search.core.types import EntityType
+from orchestrator.search.indexing import run_indexing_for_entity
 from orchestrator.security import authenticate
 from orchestrator.services.process_broadcast_thread import api_broadcast_process_data
 from orchestrator.services.processes import (
@@ -359,6 +363,38 @@ def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depen
         return
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
+
+
+async def _index_processes(process_id: UUID) -> AsyncGenerator[None, Any]:
+    yield
+    run_indexing_for_entity(EntityType.PROCESS, str(process_id))
+
+
+@router.patch(
+    "/{process_id}",
+    response_model=ProcessSchema,
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(_index_processes)],
+)
+async def update_process(
+    process_id: UUID,
+    data: ProcessPatchSchema = Body(...),
+) -> ProcessTable:
+    process = _get_process(process_id)
+    if not process:
+        raise_status(HTTPStatus.NOT_FOUND, f"Process id {process_id} not found")
+
+    return await _patch_process(data, process)
+
+
+async def _patch_process(data: ProcessPatchSchema, process: ProcessTable) -> ProcessTable:
+    updated_properties = data.model_dump(exclude_unset=True)  # `None` is allowed, but must be explicitly set
+
+    for field, value in updated_properties.items():
+        setattr(process, field, value)
+
+    db.session.commit()
+    return process
 
 
 @router.get("/status-counts", response_model=ProcessStatusCounts)

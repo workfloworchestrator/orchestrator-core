@@ -191,7 +191,7 @@ exclude = [
     "orchestrator/vendor",
 ]
 line-length = 120
-target-version = "py39"
+target-version = "py312"
 
 [tool.ruff.lint]
 ignore = [
