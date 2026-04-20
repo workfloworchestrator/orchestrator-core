@@ -79,6 +79,7 @@ from collections.abc import Sequence
 from contextlib import suppress
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Union
 from uuid import UUID
 
@@ -130,6 +131,8 @@ def to_serializable(o: Any) -> Any:
         TypeError: in case no conversion was possible.
 
     """
+    if isinstance(o, Decimal):
+        return float(o)
     if isinstance(o, UUID):
         return str(o)
     if is_ipaddress_type(o):

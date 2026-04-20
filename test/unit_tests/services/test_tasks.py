@@ -198,28 +198,12 @@ def test_start_process_returns_process_id_on_success(celery_start_fn):
 def test_start_process_returns_none_on_exception(celery_start_fn, failing_fn):
     process_id = uuid4()
 
-    patches = {
-        "orchestrator.services.tasks.transactional": patch(
-            "orchestrator.services.tasks.transactional", side_effect=_noop_transactional
-        ),
-        "orchestrator.services.tasks._get_process": patch(
-            "orchestrator.services.tasks._get_process", return_value=MagicMock()
-        ),
-        "orchestrator.services.tasks.load_process": patch(
-            "orchestrator.services.tasks.load_process", return_value=MagicMock()
-        ),
-        "orchestrator.services.tasks.ensure_correct_process_status": patch(
-            "orchestrator.services.tasks.ensure_correct_process_status"
-        ),
-        "orchestrator.services.tasks.thread_start_process": patch("orchestrator.services.tasks.thread_start_process"),
-    }
-
     with (
-        patches["orchestrator.services.tasks.transactional"],
-        patches["orchestrator.services.tasks._get_process"] as m_get,
-        patches["orchestrator.services.tasks.load_process"] as m_load,
-        patches["orchestrator.services.tasks.ensure_correct_process_status"],
-        patches["orchestrator.services.tasks.thread_start_process"] as m_thread,
+        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional),
+        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()) as m_get,
+        patch("orchestrator.services.tasks.load_process", return_value=MagicMock()) as m_load,
+        patch("orchestrator.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.services.tasks.thread_start_process") as m_thread,
     ):
         target = {"_get_process": m_get, "load_process": m_load, "thread_start_process": m_thread}[failing_fn]
         target.side_effect = RuntimeError("boom")
@@ -289,7 +273,7 @@ def test_resume_process_returns_none_on_exception(celery_resume_fn, failing_fn):
 
 
 # ---------------------------------------------------------------------------
-# CeleryJobWorkerStatus (existing fixture kept below)
+# CeleryJobWorkerStatus — Celery inspection API edge cases (None, partial, empty)
 # ---------------------------------------------------------------------------
 
 

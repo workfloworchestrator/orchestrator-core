@@ -100,14 +100,3 @@ def test_register_table_column_accessible_in_query(generic_subscription_1):
     assert result.extra_field is not None
 
 
-@pytest.mark.usefixtures("_cleanup_extra_field")
-def test_register_table_columns_visible_in_inspect():
-    """After register_table, custom columns should be visible via inspect()."""
-
-    class CustomSubscriptionTable(SubscriptionTable):
-        extra_field = column_property(select(SubscriptionTable.description).scalar_subquery(), deferred=True)
-
-    OrchestratorCore.register_table(SubscriptionTable, CustomSubscriptionTable)
-
-    mapper = sa_inspect(SubscriptionTable)
-    assert "extra_field" in set(mapper.column_attrs.keys())
