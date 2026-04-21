@@ -37,7 +37,7 @@ logger = get_logger(__name__)
 
 app: typer.Typer = typer.Typer()
 
-orchestrator_module_location = os.path.dirname(typer.__file__)
+orchestrator_module_location = os.path.dirname(orchestrator.__file__)
 migration_dir = "migrations"
 
 loader = jinja2.FileSystemLoader(os.path.join(orchestrator_module_location, f"{migration_dir}/templates"))

@@ -8,11 +8,11 @@ from alembic.script import ScriptDirectory
 from alembic.util.exc import CommandError
 from structlog import get_logger
 
-import typer
+import orchestrator
 
 logger = get_logger(__name__)
 
-orchestrator_module_location = os.path.dirname(typer.__file__)
+orchestrator_module_location = os.path.dirname(orchestrator.__file__)
 
 
 def remove_down_revision_from_text(text: str) -> str:

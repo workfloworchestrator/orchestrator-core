@@ -157,6 +157,7 @@ exclude = '''
     | \.git          # root of the project
     | \.hg
     | \.mypy_cache
+    | \.ruff_cache
     | \.tox
     | \.venv
     | venv
@@ -345,3 +346,19 @@ module = "test"
 disallow_untyped_calls = false
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
+
+[tool.coverage.run]
+source = "orchestrator/core"
+branch = true
+omit = ["orchestrator/migrations/*"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "@overload",
+    "raise NotImplementedError",
+    "\\.\\.\\.",
+]

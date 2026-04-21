@@ -46,7 +46,7 @@ coverage.xml
 *.cover
 *.py,cover
 .hypothesis/
-.pytest_cache/
+.*_cache/
 
 # pyenv
 .python-version
