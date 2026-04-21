@@ -42,7 +42,7 @@ authorizers = get_authorizers()
 @step("Check all workflows in database")
 def check_all_workflows_are_in_db() -> State:
     all_workflows_in_db = {k.name for k in get_workflows()}
-    all_workflows = {k for k in orchestrator.workflows.ALL_WORKFLOWS.keys()}  # noqa: C416
+    all_workflows = {k for k in orchestrator.core.workflows.ALL_WORKFLOWS.keys()}  # noqa: C416
     not_in_db = all_workflows - all_workflows_in_db
     not_in_lwi = all_workflows_in_db - all_workflows
     if not_in_db or not_in_lwi:
@@ -60,7 +60,7 @@ def check_all_workflows_are_in_db() -> State:
 @step("Check workflows for matching targets and descriptions")
 def check_workflows_for_matching_targets_and_descriptions() -> State:
     workflow_assertions = []
-    for key, lazy_wf in orchestrator.workflows.ALL_WORKFLOWS.items():
+    for key, lazy_wf in orchestrator.core.workflows.ALL_WORKFLOWS.items():
         wf = lazy_wf.instantiate()
         db_workflow = get_workflow_by_name(key)
         if db_workflow:
@@ -79,7 +79,7 @@ def check_workflows_for_matching_targets_and_descriptions() -> State:
     # Check translations
     translations = generate_translations("en-GB")["workflow"]
     workflow_assertions = []
-    for key in orchestrator.workflows.ALL_WORKFLOWS:
+    for key in orchestrator.core.workflows.ALL_WORKFLOWS:
         if key not in translations:
             workflow_assertions.append(key)
 

@@ -266,7 +266,7 @@ norecursedirs = [
     "docs",
     "test/unit_tests/cli/data/generate",
 ]
-testpaths = "test/unit_tests orchestrator"
+testpaths = ["test/unit_tests", "orchestrator"]
 junit_suite_name = "orchestrator"
 asyncio_mode = "auto"
 
@@ -329,6 +329,7 @@ plugins = [
 ]
 # Suppress "note: By default the bodies of untyped functions are not checked"
 disable_error_code = "annotation-unchecked"
+explicit_package_bases = true
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
@@ -337,12 +338,12 @@ warn_required_dynamic_aliases = true
 warn_untyped_fields = true
 
 [[tool.mypy.overrides]]
-module = "orchestrator.app"
+module = "orchestrator.core.app"
 # Has some nwastdlib untyped stuff
 disallow_untyped_calls = false
 
 [[tool.mypy.overrides]]
-module = "test"
+module = "test.*"
 disallow_untyped_calls = false
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
@@ -350,7 +351,7 @@ disallow_incomplete_defs = false
 [tool.coverage.run]
 source = "orchestrator/core"
 branch = true
-omit = ["orchestrator/migrations/*"]
+omit = ["orchestrator/core/migrations/*"]
 
 [tool.coverage.report]
 show_missing = true

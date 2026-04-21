@@ -1,8 +1,8 @@
 # orchestrator-core — Claude Code Guide
 
 ## Project
-- **Package**: `orchestrator-core` (SURF), module `orchestrator`
-- **Version**: see `orchestrator/__init__.py`
+- **Package**: `orchestrator-core` (SURF), module `orchestrator.core`
+- **Version**: see `pyproject.toml`
 - **Stack**: FastAPI, SQLAlchemy, Pydantic v2, Strawberry GraphQL, LiteLLM
 - **Python**: 3.11–3.14 | **Package manager**: `uv` | **Build**: `uv`
 
@@ -37,7 +37,7 @@ pre-commit run --all-files             # format, lint, type check.
 
 ## Key Directories
 ```
-orchestrator/
+orchestrator/core/
   api/         REST API (FastAPI routers)
   cli/         CLI (typer/click)
   db/          SQLAlchemy models, queries, filters, sorting

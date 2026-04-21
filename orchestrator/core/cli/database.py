@@ -21,7 +21,6 @@ from alembic import command
 from alembic.config import Config
 from structlog import get_logger
 
-import orchestrator.core.workflows
 from orchestrator.core.cli.domain_gen_helpers.types import ModelUpdates
 from orchestrator.core.cli.generate import create_writer, get_template_environment
 from orchestrator.core.cli.generator.generator.migration import create_data_head_if_not_exists
@@ -37,7 +36,7 @@ logger = get_logger(__name__)
 
 app: typer.Typer = typer.Typer()
 
-orchestrator_module_location = os.path.dirname(orchestrator.__file__)
+orchestrator_module_location = os.path.join(os.path.dirname(__file__), os.pardir)
 migration_dir = "migrations"
 
 loader = jinja2.FileSystemLoader(os.path.join(orchestrator_module_location, f"{migration_dir}/templates"))

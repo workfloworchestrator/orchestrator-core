@@ -164,7 +164,7 @@ def _mock_db_tasks(tasks):
 
 def _mock_all_workflows(workflow_names: list[str]):
     return mock.patch.dict(
-        orchestrator.workflows.ALL_WORKFLOWS,
+        orchestrator.core.workflows.ALL_WORKFLOWS,
         {name: object() for name in workflow_names},
         clear=True,
     )

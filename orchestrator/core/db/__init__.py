@@ -101,15 +101,17 @@ __all__ = [
 ]
 
 ALL_DB_MODELS: list[type[DbBaseModel]] = [
-    SearchQueryTable,
     AgentRunTable,
+    EngineSettingsTable,
     FixedInputTable,
+    InputStateTable,
     ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
     ProductBlockTable,
     ProductTable,
     ResourceTypeTable,
+    SearchQueryTable,
     SubscriptionCustomerDescriptionTable,
     SubscriptionInstanceRelationTable,
     SubscriptionInstanceTable,

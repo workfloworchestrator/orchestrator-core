@@ -189,7 +189,7 @@ def create_workflows_migration_wizard() -> tuple[list[dict], list[dict]]:
         - list of workflow items to delete in the migration
     """
     database_workflows = list(db.session.scalars(select(WorkflowTable)))
-    registered_workflows = orchestrator.workflows.ALL_WORKFLOWS
+    registered_workflows = orchestrator.core.workflows.ALL_WORKFLOWS
     system_workflow_names = {wf.name for wf in database_workflows if wf.is_task}
     registered_non_system_workflows = {k: v for k, v in registered_workflows.items() if k not in system_workflow_names}
 

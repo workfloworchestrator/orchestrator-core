@@ -12,7 +12,7 @@ time to create an Alembic database migration to insert this information into
 the database. All the SQL statements needed for this migration can be written
 by hand, but knowledge about the database tables and how they are used is
 required to write correct statements. Luckily, the orchestrator comes with
-helper functions, located at `orchestrator/migrations/helpers`, that produce
+helper functions, located at `orchestrator/core/migrations/helpers`, that produce
 the needed SQL statements.  These helper functions make use of a set of simple
 data structures that describe the domain models and workflows that need to be
 added to the database. Recently a third option was added, the orchestrator is

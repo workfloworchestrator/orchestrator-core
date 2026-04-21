@@ -201,11 +201,11 @@ def run_migrations(db_uri: str) -> None:
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)))
     os.environ["DATABASE_URI"] = db_uri
     app_settings.DATABASE_URI = SecretPostgresDsn(db_uri)  # type: ignore
-    alembic_cfg = Config(file_=os.path.join(path, "../../orchestrator/migrations/alembic.ini"))
-    alembic_cfg.set_main_option("script_location", os.path.join(path, "../../orchestrator/migrations"))
+    alembic_cfg = Config(file_=os.path.join(path, "../../orchestrator/core/migrations/alembic.ini"))
+    alembic_cfg.set_main_option("script_location", os.path.join(path, "../../orchestrator/core/migrations"))
     alembic_cfg.set_main_option(
         "version_locations",
-        f"{os.path.join(path, '../../orchestrator/migrations/versions/schema')}",
+        f"{os.path.join(path, '../../orchestrator/core/migrations/versions/schema')}",
     )
     alembic_cfg.set_main_option("sqlalchemy.url", db_uri)
     command.upgrade(alembic_cfg, "heads")

@@ -15,7 +15,7 @@
 
 from importlib.metadata import version
 
-__version__ = version("orchestrator-core")
+__version__: str = version("orchestrator-core")
 
 
 from structlog import get_logger

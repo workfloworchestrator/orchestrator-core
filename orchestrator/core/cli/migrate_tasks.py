@@ -152,7 +152,7 @@ def create_tasks_migration_wizard() -> tuple[list[dict], list[dict]]:
     """
     database_tasks = {task.name: task for task in list(db.session.scalars(select(WorkflowTable))) if task.is_task}
     registered_wf_instances = {
-        task: cast(Workflow, get_workflow(task)) for task in orchestrator.workflows.ALL_WORKFLOWS.keys()
+        task: cast(Workflow, get_workflow(task)) for task in orchestrator.core.workflows.ALL_WORKFLOWS.keys()
     }
 
     is_task = [Target.SYSTEM, Target.VALIDATE]

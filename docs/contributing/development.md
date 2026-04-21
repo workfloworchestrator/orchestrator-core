@@ -78,13 +78,13 @@ Then execute the following steps to create and test your schema change.
 
 ```shell
 # Point alembic to the right config file
-export ALEMBIC_CONFIG=orchestrator/migrations/alembic.ini
+export ALEMBIC_CONFIG=orchestrator/core/migrations/alembic.ini
 
 # Run all current migrations
 alembic upgrade heads
 
-# add or change models in orchestrator/db/models.py
-vim orchestrator/db/models.py
+# add or change models in orchestrator/core/db/models.py
+vim orchestrator/core/db/models.py
 
 # Generate a migration for your change
 alembic revision --autogenerate -m "Demonstrating schema changes"

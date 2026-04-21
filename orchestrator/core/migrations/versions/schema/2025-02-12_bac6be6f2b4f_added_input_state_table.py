@@ -11,7 +11,7 @@ import sqlalchemy_utils
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-from orchestrator.core import db
+from orchestrator.core.db.models import UtcTimestamp
 
 # revision identifiers, used by Alembic.
 revision = "bac6be6f2b4f"
@@ -34,7 +34,7 @@ def upgrade() -> None:
         sa.Column("input_state", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column(
             "input_time",
-            db.models.UtcTimestamp(timezone=True),
+            UtcTimestamp(timezone=True),
             server_default=sa.text("current_timestamp"),
             nullable=False,
         ),
