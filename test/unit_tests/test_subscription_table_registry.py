@@ -98,5 +98,3 @@ def test_register_table_column_accessible_in_query(generic_subscription_1):
     result = db.session.scalars(select(SubscriptionTable)).first()
     assert result is not None
     assert result.extra_field is not None
-
-
