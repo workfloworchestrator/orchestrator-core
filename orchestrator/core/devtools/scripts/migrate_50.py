@@ -16,16 +16,19 @@ def migrate_file(f: Path) -> bool:
     text = f.read_text()
     text_orig = text
     # First, we replace all "from orchestrator." with "from orchestrator.core."
-    rgx = r"from orchestrator\.(.+)$"
-    text = re.sub(rgx, r"from orchestrator\.core\.\1", text)
+    rgx = r"from orchestrator\.(.+)"
+    text = re.sub(rgx, r"from orchestrator.core.\1", text)
 
     # Then, replace all "import orchestrator." with "import orchestrator.core."
-    rgx = r"import orchestrator\.(.+)$"
-    text = re.sub(rgx, r"import orchestrator\.core\.\1", text)
+    rgx = r"import orchestrator\.(.+)"
+    text = re.sub(rgx, r"import orchestrator.core.\1", text)
 
-    print(f"Updated {f.name:50s}")
-
-    return text_orig != text
+    was_updated = text_orig != text
+    if was_updated:
+        print(f"Updated {f.name:50s}")
+        with f.open(mode="w"):
+            f.write_text(text)
+    return was_updated
 
 
 if __name__ == "__main__":
