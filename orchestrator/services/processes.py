@@ -332,11 +332,6 @@ def _db_log_step(
 
     db.session.add(p)
     db.session.add(current_step)
-    try:
-        db.session.commit()
-    except BaseException:
-        db.session.rollback()
-        raise
 
     if broadcast_func:
         broadcast_func(p.process_id)

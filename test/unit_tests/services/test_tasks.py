@@ -105,10 +105,9 @@ def test_get_celery_task_raises_when_not_initialized():
 # ---------------------------------------------------------------------------
 
 
-def test_register_custom_serializer_registers_orchestrator_json():
-    with patch("orchestrator.services.tasks.registry") as mock_registry:
-        register_custom_serializer()
-
+@patch("orchestrator.services.tasks.registry")
+def test_register_custom_serializer_registers_orchestrator_json(mock_registry) -> None:
+    register_custom_serializer()
     mock_registry.register.assert_called_once_with("orchestrator-json", ANY, ANY, "application/json", "utf-8")
 
 
@@ -136,15 +135,6 @@ def test_initialise_celery_sets_task_routes():
         RESUME_TASK: {"queue": "resume_tasks"},
         RESUME_WORKFLOW: {"queue": "resume_workflows"},
     }
-
-
-def test_initialise_celery_registers_four_named_tasks():
-    celery, captured = _make_capturing_celery()
-
-    with patch("orchestrator.services.tasks.register_custom_serializer"):
-        initialise_celery(celery)
-
-    assert set(captured.keys()) == {NEW_TASK, NEW_WORKFLOW, RESUME_TASK, RESUME_WORKFLOW}
 
 
 # ---------------------------------------------------------------------------

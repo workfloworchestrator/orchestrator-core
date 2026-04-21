@@ -49,7 +49,7 @@ def test_register_table_does_not_overwrite_existing_columns():
     original_description = base_mapper.column_attrs["description"]
 
     class CustomSubscriptionTable(SubscriptionTable):
-        pass
+        description = column_property(select(SubscriptionTable.description).scalar_subquery(), deferred=True)
 
     OrchestratorCore.register_table(SubscriptionTable, CustomSubscriptionTable)
 

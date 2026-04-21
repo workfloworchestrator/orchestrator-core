@@ -138,27 +138,25 @@ def test_transactional_disables_commit_inside_block() -> None:
 
 
 def test_transactional_nested_does_not_commit_or_rollback() -> None:
-    """Nested transactional() must not commit or rollback; the outer call owns the transaction."""
+    """Nested transactional() must not commit or rollback even after a real session operation."""
     db = _make_db(disabled=True)  # simulate already inside an outer transactional()
     log = MagicMock()
 
     with transactional(db, log):
-        pass
+        db.session.add(MagicMock())  # simulate a real write
 
     db.session.commit.assert_not_called()
     db.session.rollback.assert_not_called()
 
 
 def test_transactional_nested_propagates_exception_without_rollback() -> None:
-    """Nested transactional() must propagate exceptions without committing or rolling back.
-
-    The outer transactional() owns commit/rollback semantics.
-    """
+    """Nested transactional() must propagate exceptions without rollback after a real session operation."""
     db = _make_db(disabled=True)
     log = MagicMock()
 
     with pytest.raises(RuntimeError, match="inner failed"):
         with transactional(db, log):
+            db.session.add(MagicMock())  # simulate a real write
             raise RuntimeError("inner failed")
 
     db.session.commit.assert_not_called()
