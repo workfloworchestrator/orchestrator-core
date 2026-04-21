@@ -131,11 +131,15 @@ While it defaults to using `OIDCAuth` for authentication, `OPAAuthorization` for
 
 When initiating the `OrchestratorCore` class, it's [`auth_manager`][6] property is set to `AuthManager`. AuthManager is provided by [oauth2_lib][7].
 
-`AuthManager` provides 3 methods that are called for authentication and authorization: `authentication`, `authentication` and `graphql_authorization`.
+`AuthManager` provides 3 methods that are called for authentication and authorization: `authentication`, `authorization`, and `graphql_authorization`.
 
 `authentication`: The default method provided by Oaut2Lib implements returning the OIDC user from the OIDC introspection endpoint.
 
-`authorization`: A method that applies authorization decisions to HTTP requests, the decision is either true (Allowed) or false (Forbidden). Gets this payload to based decisions on. The default method provided by Oaut2Lib uses OPA and sends the payload to the opa_url specified in OPA_URL setting to get a decision.
+Note:
+The default authentication method allows for the passing in of **is_bypassable_request** method that receives the Request object
+and returns a boolean. When this method returns true the request is always allowed regardless of other authorization decisions.
+
+`authorization`: A method that applies authorization decisions to HTTP requests, **the decision is either true (Allowed), false (Forbidden), or None (authorization bypassed for local dev).** Gets this payload to based decisions on. The default method provided by Oauth2Lib uses OPA and sends the payload to the opa_url specified in OPA_URL setting to get a decision.
 
 ```
             "input": {
@@ -147,12 +151,11 @@ When initiating the `OrchestratorCore` class, it's [`auth_manager`][6] property 
             }
 ```
 
-Note:
-The default authentication method allows for the passing in of **is_bypassable_request** method that receives the Request object
-and returns a boolean. When this method returns true the request is always allowed regardless of other authorization decisions.
-
 `graphql_authorization`: A method that applies authorization decisions to graphql requests. Specializes OPA authorization for GraphQL operations.
 GraphQl results always return a 200 response when authenticated but can return 403 results for partial results as may occur in federated scenarios.
+
+WFO will return a generic 403 for both `authorization` and `graphql_authorization`. If desired, users can also
+raise their own `HTTPException` with a custom `detail=` parameter to return additional context.
 
 ### Customizing
 
@@ -277,8 +280,10 @@ app.register_graphql_authorization(graphql_authorization_instance)
     Role-based access control for workflows is currently in beta.
     Initial support has been added to the backend, but the feature is not fully communicated through the UI yet.
 
-Certain `orchestrator-core` decorators accept authorization callbacks of type `type Authorizer = Callable[[OIDCUserModel | None], Awaitable[bool]]`, which return True when the input user is authorized, otherwise False.
-In other words, authorization callbacks are async, take a nullable OIDCUserModel (or subclass) as argument, and return a bool.
+Certain `orchestrator-core` decorators accept authorization callbacks of type `type Authorizer = Callable[[AuthContext], Awaitable[bool]]`, which return True when the input user is authorized, otherwise False.
+In other words, authorization callbacks are async, take an `AuthContext` as an argument, and return a bool.
+
+See `orchestrator.utils.auth.AuthContext` as a reference for what data is available to your callback function.
 
 A table (below) is available for comparing possible configuration states with the policy that will be enforced.
 
@@ -551,15 +556,15 @@ For more on application startup, see the [Settings Overview page][settings-overv
 Assume we have the following function that can be used to create callbacks:
 
 ```python
-from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator.utils.auth import AuthContext
 from orchestrator.workflows.utils import Authorizer
 
 def allow_roles(*roles) -> Authorizer:
-    async def f(user: OIDCUserModel) -> bool:
-        if is_admin(user):  # Relative to your authorization provider
+    async def f(context: AuthContext) -> bool:
+        if is_admin(context.user):  # Relative to your authorization provider
             return True
         for role in roles:
-            if has_role(user, role):  # Relative to your authorization provider
+            if has_role(context.user, role):  # Relative to your authorization provider
                 return True
         return False
 

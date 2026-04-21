@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,11 +16,11 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
-from orchestrator.llm_settings import llm_settings
 from orchestrator.search.core.embedding import EmbeddingIndexer
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.query import engine
 from orchestrator.search.query.queries import SelectQuery
+from orchestrator.settings import llm_settings
 
 from ..fixtures import GROUND_TRUTH_QUERIES, TEST_PRODUCT, TEST_SUBSCRIPTIONS
 from ..helpers import GROUND_TRUTH_FILE, index_subscription, save_ground_truth

@@ -1,10 +1,3 @@
-#!/usr/bin/env python3
-"""The main application module.
-
-This module contains the main `OrchestratorCore` class for the `FastAPI` backend and
-provides the ability to run the CLI.
-"""
-
 # Copyright 2019-2026 SURF, ESnet, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +10,11 @@ provides the ability to run the CLI.
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""The main application module.
+
+This module contains the main `OrchestratorCore` class for the `FastAPI` backend and
+provides the ability to run the CLI.
+"""
 from collections.abc import Callable
 from typing import Any, cast
 
@@ -162,23 +160,6 @@ class OrchestratorCore(FastAPI):
             )
 
         init_database(base_settings)
-
-        from orchestrator.llm_settings import llm_settings
-
-        if llm_settings.SEARCH_ENABLED:
-            logger.info("Running search migration")
-            try:
-                from orchestrator.search.llm_migration import run_migration
-
-                with db.engine.begin() as connection:
-                    run_migration(connection)
-            except ImportError as e:
-                logger.error(
-                    "Unable to run search migration. Please install search dependencies: "
-                    "`pip install orchestrator-core[search]`",
-                    error=str(e),
-                )
-                raise
 
         self.add_middleware(ClearStructlogContextASGIMiddleware)
         self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET.get_secret_value())

@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -111,6 +111,7 @@ def enrich_process(process: ProcessTable, p_stat: ProcessStat | None = None) -> 
         "started_at": process.started_at,
         "traceback": process.traceback,
         "last_modified_at": process.last_modified_at,
+        "note": process.note,
         "product": subscriptions[0]["product"] if subscriptions else None,
         "subscriptions": subscriptions,
         "steps": None,

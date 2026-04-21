@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -21,8 +21,8 @@ from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.db import SubscriptionTable
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.llm_settings import llm_settings
 from orchestrator.search.core.types import EntityType, FieldType
+from orchestrator.settings import llm_settings
 
 GROUND_TRUTH_FILE = Path(__file__).parent / "data" / "ground_truth.json"
 MODELS_FILE = GROUND_TRUTH_FILE.parent / "models.json"
@@ -41,7 +41,7 @@ class BenchmarkQuery:
 class ModelConfig:
     """Configuration for an embedding model to benchmark.
 
-    Note: API keys and base URLs come from llm_settings (OPENAI_API_KEY, OPENAI_BASE_URL).
+    Note: API keys and base URLs come from llm_settings (EMBEDDING_API_KEY, EMBEDDING_API_BASE).
     This config only specifies the model name, LiteLLM model string, and expected dimension.
     """
 

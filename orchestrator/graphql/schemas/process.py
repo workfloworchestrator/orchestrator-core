@@ -1,3 +1,15 @@
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import TYPE_CHECKING, Annotated
 
 import strawberry
@@ -17,6 +29,7 @@ from orchestrator.graphql.types import FormUserPermissionsType, GraphqlFilter, G
 from orchestrator.schemas.process import ProcessSchema, ProcessStepSchema
 from orchestrator.services.processes import load_process
 from orchestrator.settings import app_settings
+from orchestrator.utils.auth import AuthContext
 from orchestrator.workflows import get_workflow
 
 if TYPE_CHECKING:
@@ -62,6 +75,7 @@ class ProcessType:
     steps: strawberry.auto
     form: JSON | None
     current_state: JSON | None
+    note: str | None
 
     @strawberry.field(description="Get traceback")  # type: ignore
     def traceback(self) -> str | None:
@@ -85,13 +99,20 @@ class ProcessType:
     @strawberry.field(description="Returns user permissions for operations on this process")  # type: ignore
     async def user_permissions(self, info: OrchestratorInfo) -> FormUserPermissionsType:
         oidc_user = await info.context.get_current_user
+
+        # Note that workflow and pstat.workflow can differ here!
         workflow = get_workflow(self.workflow_name)
-        process = load_process(db.session.get(ProcessTable, self.process_id))  # type: ignore[arg-type]
-        auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(process), workflow)
+        pstat = load_process(db.session.get(ProcessTable, self.process_id))  # type: ignore[arg-type]
+
+        steps = get_steps_to_evaluate_for_rbac(pstat)
+        auth_resume, auth_retry = get_auth_callbacks(steps, workflow)
+
+        resume_context = AuthContext(user=oidc_user, workflow=pstat.workflow, step=steps[-1], action="resume_workflow")
+        retry_context = AuthContext(user=oidc_user, workflow=pstat.workflow, step=steps[-1], action="retry_workflow")
 
         return FormUserPermissionsType(
-            retryAllowed=bool(auth_retry and await auth_retry(oidc_user)),
-            resumeAllowed=bool(auth_resume and await auth_resume(oidc_user)),
+            retryAllowed=bool(auth_retry and await auth_retry(resume_context)),
+            resumeAllowed=bool(auth_resume and await auth_resume(retry_context)),
         )
 
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore

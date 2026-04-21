@@ -1,6 +1,22 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import warnings
+
 import pytest
 
 from orchestrator.api.helpers import (
+    add_subscription_search_query_filter,
     get_in,
     getattr_in,
     product_block_paths,
@@ -126,3 +142,19 @@ def test_get_in_missing_nested_key_raises():
 def test_get_in_list_index_out_of_range():
     with pytest.raises(IndexError):
         get_in({"a": [1, 2, 3]}, "a.10")
+
+
+def test_subscription_search_query_filter_emits_deprecation_warning():
+    """TSV search should emit a deprecation warning pointing to LLM search."""
+    from sqlalchemy import select
+
+    from orchestrator.db import SubscriptionTable
+
+    stmt = select(SubscriptionTable)
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        add_subscription_search_query_filter(stmt, "test")
+        deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+        assert len(deprecation_warnings) == 1
+        assert "deprecated" in str(deprecation_warnings[0].message).lower()
+        assert "/api/search" in str(deprecation_warnings[0].message)
