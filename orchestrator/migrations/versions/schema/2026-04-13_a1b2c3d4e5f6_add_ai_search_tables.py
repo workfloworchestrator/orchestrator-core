@@ -17,7 +17,7 @@ Port of orchestrator/search/llm_migration.py into a proper alembic migration.
 Creates the ai_search_index, agent_runs, search_queries, and graph_snapshots tables
 along with required extensions and the field_type enum.
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 262744958e0c
 Revises: fbc16e410bc6
 Create Date: 2026-04-13 00:00:00.000000
 
@@ -30,7 +30,7 @@ from orchestrator.search.core.types import FieldType
 from orchestrator.settings import llm_settings
 
 # revision identifiers, used by Alembic.
-revision = "a1b2c3d4e5f6"
+revision = "262744958e0c"
 down_revision = "fbc16e410bc6"
 branch_labels = None
 depends_on = None
