@@ -18,7 +18,9 @@ from celery import Celery, Task
 from celery.app.control import Inspect
 from celery.utils.log import get_task_logger
 from kombu.serialization import registry
+from sqlalchemy.exc import OperationalError
 
+from orchestrator.db import db
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.services.executors.threadpool import thread_resume_process, thread_start_process
 from orchestrator.services.processes import _get_process, ensure_correct_process_status, load_process
@@ -49,7 +51,52 @@ def register_custom_serializer() -> None:
     registry.register("orchestrator-json", json_dumps, json_loads, "application/json", "utf-8")
 
 
-def initialise_celery(celery: Celery) -> None:  # noqa: C901
+WORKER_MAX_RETRIES = 3
+WORKER_RETRY_BACKOFF = 2
+
+
+def _worker_start_process(process_id: UUID, *, user: str, broadcast_func: BroadcastFunc | None) -> UUID | None:
+    """Execute a start process on the worker side.
+
+    Re-raises OperationalError for Celery retry on transient DB connection failures.
+    """
+    try:
+        with db.database_scope():
+            process = _get_process(process_id)
+            pstat = load_process(process)
+            ensure_correct_process_status(process_id, ProcessStatus.CREATED)
+            thread_start_process(pstat, user=user, broadcast_func=broadcast_func)
+    except OperationalError:
+        local_logger.warning("Transient DB error in worker, will retry", process_id=process_id)
+        raise
+    except Exception as exc:
+        local_logger.error("Worker failed to execute workflow", process_id=process_id, details=str(exc))
+        return None
+    else:
+        return process_id
+
+
+def _worker_resume_process(process_id: UUID, *, user: str, broadcast_func: BroadcastFunc | None) -> UUID | None:
+    """Execute a resume process on the worker side.
+
+    Re-raises OperationalError for Celery retry on transient DB connection failures.
+    """
+    try:
+        with db.database_scope():
+            process = _get_process(process_id)
+            ensure_correct_process_status(process_id, ProcessStatus.RESUMED)
+            thread_resume_process(process, user=user, broadcast_func=broadcast_func)
+    except OperationalError:
+        local_logger.warning("Transient DB error in worker, will retry", process_id=process_id)
+        raise
+    except Exception as exc:
+        local_logger.error("Worker failed to resume workflow", process_id=process_id, details=str(exc))
+        return None
+    else:
+        return process_id
+
+
+def initialise_celery(celery: Celery) -> None:
     global _celery
     if _celery:
         raise AssertionError("You can only initialise Celery once")
@@ -67,51 +114,34 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     process_broadcast_fn: BroadcastFunc | None = getattr(celery, "process_broadcast_fn", None)
 
-    def start_process(process_id: UUID, user: str) -> UUID | None:
-        try:
-            process = _get_process(process_id)
-            pstat = load_process(process)
-            ensure_correct_process_status(process_id, ProcessStatus.CREATED)
-            thread_start_process(pstat, user=user, broadcast_func=process_broadcast_fn)
-
-        except Exception as exc:
-            local_logger.error("Worker failed to execute workflow", process_id=process_id, details=str(exc))
-            return None
-        else:
-            return process_id
-
-    def resume_process(process_id: UUID, user: str) -> UUID | None:
-        try:
-            process = _get_process(process_id)
-            ensure_correct_process_status(process_id, ProcessStatus.RESUMED)
-            thread_resume_process(process, user=user, broadcast_func=process_broadcast_fn)
-        except Exception as exc:
-            local_logger.error("Worker failed to resume workflow", process_id=process_id, details=str(exc))
-            return None
-        else:
-            return process_id
-
-    celery_task = partial(celery.task, log=local_logger, serializer="orchestrator-json")
+    celery_task = partial(
+        celery.task,
+        log=local_logger,
+        serializer="orchestrator-json",
+        autoretry_for=(OperationalError,),
+        max_retries=WORKER_MAX_RETRIES,
+        retry_backoff=WORKER_RETRY_BACKOFF,
+    )
 
     @celery_task(name=NEW_TASK)  # type: ignore
     def new_task(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Start task", process_id=process_id)
-        return start_process(process_id, user=user)
+        return _worker_start_process(process_id, user=user, broadcast_func=process_broadcast_fn)
 
     @celery_task(name=NEW_WORKFLOW)  # type: ignore
     def new_workflow(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Start workflow", process_id=process_id)
-        return start_process(process_id, user=user)
+        return _worker_start_process(process_id, user=user, broadcast_func=process_broadcast_fn)
 
     @celery_task(name=RESUME_TASK)  # type: ignore
     def resume_task(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Resume task", process_id=process_id)
-        return resume_process(process_id, user=user)
+        return _worker_resume_process(process_id, user=user, broadcast_func=process_broadcast_fn)
 
     @celery_task(name=RESUME_WORKFLOW)  # type: ignore
     def resume_workflow(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Resume workflow", process_id=process_id)
-        return resume_process(process_id, user=user)
+        return _worker_resume_process(process_id, user=user, broadcast_func=process_broadcast_fn)
 
 
 class CeleryJobWorkerStatus(WorkerStatus):
