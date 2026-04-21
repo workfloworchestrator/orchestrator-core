@@ -33,7 +33,7 @@ def remove_imports(text: str, module: str, symbol: str) -> tuple[str, bool]:
 
 def insert_import(text: str, import_stmt: str) -> str:
     # Find the first import line and add our line above that
-    # Rely on ruff & black for formatting
+    # Rely on ruff for formatting
     return re.sub(r"(^(?:from .+|import .+)$)", f"{import_stmt}\n" + r"\1", text, count=1, flags=re.M)
 
 
@@ -84,7 +84,7 @@ def migrate(target_dir: Path, migrate_file: Callable[[Path], bool]) -> bool:
     abs_path = str(target_dir.resolve())
 
     def run_tools() -> bool:
-        return run_tool("ruff", "check", "--fix", abs_path) and run_tool("black", "--quiet", abs_path)
+        return run_tool("ruff", "check", "--fix", abs_path) and run_tool("ruff", "format", abs_path)
 
     print(f"\n### Verifying files in {abs_path}... ", end="")
     if not run_tools():
