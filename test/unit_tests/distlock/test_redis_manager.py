@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from redis.exceptions import LockError
 
-from orchestrator.distlock.managers.redis_distlock_manager import RedisDistLockManager
+from orchestrator.core.distlock.managers.redis_distlock_manager import RedisDistLockManager
 
 
 @pytest.fixture

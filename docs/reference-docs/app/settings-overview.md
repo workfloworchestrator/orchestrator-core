@@ -10,8 +10,8 @@ An example of the settings is shown below:
 
 ```python
 from oauth2_lib.settings import oauth2lib_settings
-from orchestrator.settings import BaseSettings
-from orchestrator.services.settings_env_variables import expose_settings
+from orchestrator.core.settings import BaseSettings
+from orchestrator.core.services.settings_env_variables import expose_settings
 
 
 class AppSettings(BaseSettings):
@@ -67,7 +67,7 @@ In order to expose your settings, you need to register them using the `expose_se
 two arguments: the name of the settings class and the instance of the settings class.
 
 ```python
-from orchestrator.settings import expose_settings, BaseSettings
+from orchestrator.core.settings import expose_settings, BaseSettings
 
 
 class MySettings(BaseSettings):
@@ -118,8 +118,8 @@ The following rules apply when exposing settings:
 ### Rules for Masking Secrets
 
 - `SecretStr` from `from pydantic import SecretStr` are masked.
-- `SecretPostgresDsn` from `from orchestrator.settings import SecretPostgresDsn` is masked.
-- `SecretRedisDsn` from `from orchestrator.settings import SecretRedisDsn` is masked.
+- `SecretPostgresDsn` from `from orchestrator.core.settings import SecretPostgresDsn` is masked.
+- `SecretRedisDsn` from `from orchestrator.core.settings import SecretRedisDsn` is masked.
 
 ## Overview of AppSettings class
 

@@ -4,9 +4,9 @@ from unittest import mock
 
 from typer.testing import CliRunner
 
-from orchestrator.cli.generate import app
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.cli.generate import app
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.types import SubscriptionLifecycle
 
 
 class MyExistingProductBlockInactive(ProductBlockModel, product_block_name="My Existing Product Block"):

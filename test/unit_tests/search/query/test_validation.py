@@ -17,10 +17,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.search.aggregations import AggregationType
-from orchestrator.search.core.types import EntityType, FieldType, FilterOp, UIType
-from orchestrator.search.filters import DateValueFilter, EqualityFilter, LtreeFilter, NumericValueFilter, PathFilter
-from orchestrator.search.query.exceptions import (
+from orchestrator.core.search.aggregations import AggregationType
+from orchestrator.core.search.core.types import EntityType, FieldType, FilterOp, UIType
+from orchestrator.core.search.filters import (
+    DateValueFilter,
+    EqualityFilter,
+    LtreeFilter,
+    NumericValueFilter,
+    PathFilter,
+)
+from orchestrator.core.search.query.exceptions import (
     EmptyFilterPathError,
     IncompatibleAggregationTypeError,
     IncompatibleFilterTypeError,
@@ -29,8 +35,8 @@ from orchestrator.search.query.exceptions import (
     InvalidLtreePatternError,
     PathNotFoundError,
 )
-from orchestrator.search.query.mixins import OrderBy, OrderDirection
-from orchestrator.search.query.validation import (
+from orchestrator.core.search.query.mixins import OrderBy, OrderDirection
+from orchestrator.core.search.query.validation import (
     complete_filter_validation,
     is_filter_compatible_with_field_type,
     validate_aggregation_field,

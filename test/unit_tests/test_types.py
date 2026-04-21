@@ -1,6 +1,6 @@
 from typing import Union
 
-from orchestrator.types import is_of_type
+from orchestrator.core.types import is_of_type
 
 
 def test_is_of_type():

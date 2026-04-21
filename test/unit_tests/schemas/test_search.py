@@ -16,14 +16,14 @@
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.schemas.search import (
+from orchestrator.core.schemas.search import (
     ExportResponse,
     PageInfoSchema,
     PathsResponse,
     SearchResultsSchema,
 )
-from orchestrator.search.core.types import UIType
-from orchestrator.search.query.builder import LeafInfo
+from orchestrator.core.search.core.types import UIType
+from orchestrator.core.search.query.builder import LeafInfo
 
 
 def test_search_results_data_default_factory_creates_independent_lists() -> None:

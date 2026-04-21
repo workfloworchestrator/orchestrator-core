@@ -7,9 +7,9 @@ from fastapi import WebSocket, status
 from fastapi.exceptions import HTTPException
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
-from orchestrator.websocket.managers.broadcast_websocket_manager import BroadcastWebsocketManager
-from orchestrator.websocket.managers.memory_websocket_manager import MemoryWebsocketManager
-from orchestrator.websocket.websocket_manager import WebSocketManager
+from orchestrator.core.websocket.managers.broadcast_websocket_manager import BroadcastWebsocketManager
+from orchestrator.core.websocket.managers.memory_websocket_manager import MemoryWebsocketManager
+from orchestrator.core.websocket.websocket_manager import WebSocketManager
 
 REDIS_URL = "redis://localhost:6379"
 MEMORY_URL = "memory://"

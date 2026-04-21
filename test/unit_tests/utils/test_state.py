@@ -5,9 +5,9 @@ from uuid import UUID, uuid4
 import pytest
 
 from nwastdlib import const
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.types import SubscriptionLifecycle
-from orchestrator.utils.state import _build_arguments, extract, form_inject_args, inject_args
+from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.utils.state import _build_arguments, extract, form_inject_args, inject_args
 from pydantic_forms.core import FormPage, post_form
 from pydantic_forms.types import State
 
@@ -681,8 +681,8 @@ def test_build_arguments_subscription_model_list_any_guard(monkeypatch):
     """Test that list[Any] for SubscriptionModel raises ValueError with expected message."""
     from typing import Any
 
-    from orchestrator.domain.base import SubscriptionModel
-    from orchestrator.types import is_list_type
+    from orchestrator.core.domain.base import SubscriptionModel
+    from orchestrator.core.types import is_list_type
 
     # Create a function with list[Any] annotation that would trigger the guard
     def step_func(models: list[Any]):

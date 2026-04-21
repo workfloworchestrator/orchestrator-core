@@ -3,10 +3,10 @@ import uuid
 import pytest
 from sqlalchemy import Column, Integer, String, func, select
 
-from orchestrator.db import db
-from orchestrator.db.database import BaseModel
-from orchestrator.db.helpers import to_sql_string
-from orchestrator.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor, create_sqlalchemy_select
+from orchestrator.core.db import db
+from orchestrator.core.db.database import BaseModel
+from orchestrator.core.db.helpers import to_sql_string
+from orchestrator.core.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor, create_sqlalchemy_select
 
 
 class MyTable(BaseModel):

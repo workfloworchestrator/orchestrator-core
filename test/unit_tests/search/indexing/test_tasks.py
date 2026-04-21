@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 from sqlalchemy.orm import Query
 
-from orchestrator.search.core.types import EntityType
-from orchestrator.search.indexing.tasks import _get_entity_count, run_indexing_for_entity
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.indexing.tasks import _get_entity_count, run_indexing_for_entity
 
 pytestmark = pytest.mark.search
 

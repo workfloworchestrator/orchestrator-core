@@ -16,14 +16,14 @@ from uuid import UUID
 
 import pytest
 
-from orchestrator.db import db
-from orchestrator.search.core.types import BooleanOperator, EntityType, FilterOp, SearchMetadata, UIType
-from orchestrator.search.filters import EqualityFilter, FilterTree, PathFilter
-from orchestrator.search.query import engine
-from orchestrator.search.query.queries import SelectQuery
-from orchestrator.search.retrieval.pagination import PageCursor
-from orchestrator.settings import llm_settings
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.db import db
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, SearchMetadata, UIType
+from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter
+from orchestrator.core.search.query import engine
+from orchestrator.core.search.query.queries import SelectQuery
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.settings import llm_settings
+from orchestrator.core.types import SubscriptionLifecycle
 
 from .fixtures import (
     PANCAKES_ID,

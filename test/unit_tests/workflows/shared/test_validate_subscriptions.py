@@ -2,9 +2,9 @@ from unittest import mock
 
 import pytest
 
-from orchestrator.db import SubscriptionTable, db
-from orchestrator.workflow import StepList, begin, step
-from orchestrator.workflows.utils import validate_workflow
+from orchestrator.core.db import SubscriptionTable, db
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.utils import validate_workflow
 from pydantic_forms.exceptions import FormValidationError
 from test.unit_tests.workflows import (
     WorkflowInstanceForTests,

@@ -4,10 +4,10 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from orchestrator.config.assignee import Assignee
-from orchestrator.db import ProcessStepTable, ProcessTable, WorkflowTable, db
-from orchestrator.targets import Target
-from orchestrator.workflow import ProcessStatus
+from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.db import ProcessStepTable, ProcessTable, WorkflowTable, db
+from orchestrator.core.targets import Target
+from orchestrator.core.workflow import ProcessStatus
 from test.unit_tests.workflows import assert_complete, assert_state, extract_state, run_workflow
 
 
@@ -149,7 +149,7 @@ def test_restart_created_workflows_exception(mock_restart_process, mock_resume_p
 @mock.patch("orchestrator.services.processes.resume_process")
 def test_resume_process_not_found(mock_resume_process):
     """When process_id doesn't exist in DB, resume skips it via continue."""
-    from orchestrator.workflows.tasks.resume_workflows import resume_found_workflows
+    from orchestrator.core.workflows.tasks.resume_workflows import resume_found_workflows
 
     nonexistent_id = str(uuid4())
     result = resume_found_workflows(
@@ -167,7 +167,7 @@ def test_resume_process_not_found(mock_resume_process):
 @mock.patch("orchestrator.services.processes.restart_process")
 def test_restart_process_not_found(mock_restart_process):
     """When process_id doesn't exist in DB, restart skips it via continue."""
-    from orchestrator.workflows.tasks.resume_workflows import restart_created_workflows
+    from orchestrator.core.workflows.tasks.resume_workflows import restart_created_workflows
 
     nonexistent_id = str(uuid4())
     result = restart_created_workflows({"created_state_process_ids": [nonexistent_id]})

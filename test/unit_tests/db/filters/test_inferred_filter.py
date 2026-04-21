@@ -21,7 +21,7 @@ import pytest
 import sqlalchemy
 from sqlalchemy import Column, MetaData, Table
 
-from orchestrator.db.filters.search_filters.inferred_filter import (
+from orchestrator.core.db.filters.search_filters.inferred_filter import (
     convert_to_datetime,
     convert_to_int,
     filter_exact,

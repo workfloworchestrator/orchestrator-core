@@ -3,7 +3,7 @@ from http import HTTPStatus
 
 import pytest
 
-from orchestrator.settings import AppSettings
+from orchestrator.core.settings import AppSettings
 from test.unit_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
 
 

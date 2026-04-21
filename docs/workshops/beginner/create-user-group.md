@@ -103,12 +103,12 @@ Use the skeleton below to create the file
 ```python
 from uuid import uuid4
 
-from orchestrator.forms import FormPage
-from orchestrator.targets import Target
-from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
-from orchestrator.workflow import done, init, step, workflow
-from orchestrator.workflows.steps import resync, set_status, store_process_subscription
-from orchestrator.workflows.utils import wrap_create_initial_input_form
+from orchestrator.core.forms import FormPage
+from orchestrator.core.targets import Target
+from orchestrator.core.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
+from orchestrator.core.workflow import done, init, step, workflow
+from orchestrator.core.workflows.steps import resync, set_status, store_process_subscription
+from orchestrator.core.workflows.utils import wrap_create_initial_input_form
 
 from products.product_types.user_group import UserGroupInactive, UserGroupProvisioning
 

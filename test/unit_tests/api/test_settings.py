@@ -6,9 +6,9 @@ from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 from sqlalchemy.exc import SQLAlchemyError
 
-from orchestrator.db import db
-from orchestrator.services.settings import get_engine_settings_table
-from orchestrator.services.settings_env_variables import expose_settings, get_all_exposed_settings
+from orchestrator.core.db import db
+from orchestrator.core.services.settings import get_engine_settings_table
+from orchestrator.core.services.settings_env_variables import expose_settings, get_all_exposed_settings
 
 
 def test_get_engine_status(test_client):

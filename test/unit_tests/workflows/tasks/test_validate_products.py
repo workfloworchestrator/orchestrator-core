@@ -4,9 +4,9 @@ from unittest import mock
 import pytest
 from pydantic import ValidationError
 
-import orchestrator.workflows.tasks.validate_products as validate_products
-from orchestrator.db import WorkflowTable
-from orchestrator.utils.errors import ProcessFailureError
+import orchestrator.core.workflows.tasks.validate_products as validate_products
+from orchestrator.core.db import WorkflowTable
+from orchestrator.core.utils.errors import ProcessFailureError
 from test.unit_tests.workflows import assert_complete, run_workflow
 
 

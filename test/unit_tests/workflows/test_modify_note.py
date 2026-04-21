@@ -1,8 +1,8 @@
 import pytest
 from sqlalchemy import text
 
-from orchestrator.db import db
-from orchestrator.services.subscriptions import get_subscription
+from orchestrator.core.db import db
+from orchestrator.core.services.subscriptions import get_subscription
 from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
 TEST = "Some note"

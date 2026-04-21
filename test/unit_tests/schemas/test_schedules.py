@@ -18,7 +18,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.schemas.schedules import (
+from orchestrator.core.schemas.schedules import (
     APSchedulerJobCreate,
     APSchedulerJobDelete,
     APSchedulerJobUpdate,

@@ -22,13 +22,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.search.core.types import EntityType
-from orchestrator.search.retrieval.retrievers.base import Retriever
-from orchestrator.search.retrieval.retrievers.fuzzy import FuzzyRetriever
-from orchestrator.search.retrieval.retrievers.hybrid import RrfHybridRetriever
-from orchestrator.search.retrieval.retrievers.process import ProcessHybridRetriever
-from orchestrator.search.retrieval.retrievers.semantic import SemanticRetriever
-from orchestrator.search.retrieval.retrievers.structured import StructuredRetriever
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.retrieval.retrievers.base import Retriever
+from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
+from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
+from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
+from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
+from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 
 pytestmark = pytest.mark.search
 

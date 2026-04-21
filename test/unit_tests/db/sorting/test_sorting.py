@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.db.sorting.sorting import (
+from orchestrator.core.db.sorting.sorting import (
     Sort,
     SortOrder,
     generic_apply_sorting,
@@ -94,7 +94,7 @@ def test_apply_sorting_error_calls_handler(exc_type: type) -> None:
 
 def test_apply_sorting_problem_detail_calls_handler() -> None:
     """ProblemDetailException from a sort function is also caught and forwarded to the error handler."""
-    from orchestrator.api.error_handling import ProblemDetailException
+    from orchestrator.core.api.error_handling import ProblemDetailException
 
     query = MagicMock()
     error_handler = MagicMock()

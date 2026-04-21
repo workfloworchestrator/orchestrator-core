@@ -1,7 +1,7 @@
 from unittest import mock
 from unittest.mock import Mock
 
-from orchestrator.utils.get_subscription_dict import get_subscription_dict
+from orchestrator.core.utils.get_subscription_dict import get_subscription_dict
 
 
 @mock.patch("orchestrator.utils.get_subscription_dict._generate_etag")

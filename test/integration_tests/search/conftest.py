@@ -16,9 +16,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.db import ProductTable, SubscriptionTable, db
-from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.types import EntityType
+from orchestrator.core.db import ProductTable, SubscriptionTable, db
+from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.search.core.types import EntityType
 
 from .fixtures import TEST_PRODUCT, TEST_SUBSCRIPTIONS
 from .helpers import index_subscription, load_ground_truth
@@ -96,7 +96,7 @@ def maybe_run_benchmark(request, worker_id, database):
         capman.suspend_global_capture(in_=True)
 
     # Setup test data
-    from orchestrator.db import ProductTable, SubscriptionTable
+    from orchestrator.core.db import ProductTable, SubscriptionTable
 
     with db.session as session:
         product = ProductTable(**TEST_PRODUCT)

@@ -3,10 +3,10 @@ from enum import StrEnum, auto
 import pytest
 from pydantic import Field, computed_field
 
-from orchestrator.db import ProductBlockTable, db
-from orchestrator.domain.base import ProductBlockModel, ProductModel
-from orchestrator.domain.lifecycle import ProductLifecycle
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.db import ProductBlockTable, db
+from orchestrator.core.domain.base import ProductBlockModel, ProductModel
+from orchestrator.core.domain.lifecycle import ProductLifecycle
+from orchestrator.core.types import SubscriptionLifecycle
 
 
 class DummyEnum(StrEnum):

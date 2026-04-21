@@ -5,9 +5,9 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.api.error_handling import ProblemDetailException
-from orchestrator.api.models import cleanse_json, delete, parse_date_fields, transform_json, validate
-from orchestrator.db import ProductTable, ResourceTypeTable
+from orchestrator.core.api.error_handling import ProblemDetailException
+from orchestrator.core.api.models import cleanse_json, delete, parse_date_fields, transform_json, validate
+from orchestrator.core.db import ProductTable, ResourceTypeTable
 
 # --- validate ---
 

@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.db.loaders import AttrLoader, get_query_loaders_for_model_paths
+from orchestrator.core.db.loaders import AttrLoader, get_query_loaders_for_model_paths
 
 
 def _make_attr_loader(name: str = "field") -> AttrLoader:

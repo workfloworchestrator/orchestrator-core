@@ -7,10 +7,10 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from orchestrator.db import db
-from orchestrator.db.models import WorkflowApschedulerJob
-from orchestrator.schedules.scheduler import enrich_with_workflow_id, get_scheduler
-from orchestrator.schedules.service import (
+from orchestrator.core.db import db
+from orchestrator.core.db.models import WorkflowApschedulerJob
+from orchestrator.core.schedules.scheduler import enrich_with_workflow_id, get_scheduler
+from orchestrator.core.schedules.service import (
     SCHEDULER_QUEUE,
     _add_scheduled_task,
     _build_trigger_on_update,
@@ -24,7 +24,7 @@ from orchestrator.schedules.service import (
     serialize_payload,
     workflow_scheduler_queue,
 )
-from orchestrator.schemas.schedules import (
+from orchestrator.core.schemas.schedules import (
     SCHEDULER_Q_CREATE,
     SCHEDULER_Q_DELETE,
     SCHEDULER_Q_UPDATE,
@@ -32,7 +32,7 @@ from orchestrator.schemas.schedules import (
     APSchedulerJobDelete,
     APSchedulerJobUpdate,
 )
-from orchestrator.services.workflows import get_workflow_by_name
+from orchestrator.core.services.workflows import get_workflow_by_name
 
 
 def test_serialize_deserialize_payload_create():
@@ -145,7 +145,7 @@ def test_run_start_workflow_scheduler_task_calls_start_process_once(mock_start):
 
 @patch("orchestrator.schedules.service.start_process")
 def test_run_start_workflow_scheduler_task_skips_on_start_predicate_error(mock_start, caplog):
-    from orchestrator.utils.errors import StartPredicateError
+    from orchestrator.core.utils.errors import StartPredicateError
 
     workflow_name = "task_validate_products"
 

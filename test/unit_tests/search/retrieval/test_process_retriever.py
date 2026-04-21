@@ -23,10 +23,10 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.dialects import postgresql
 
-from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.types import SearchMetadata
-from orchestrator.search.retrieval.pagination import PageCursor
-from orchestrator.search.retrieval.retrievers.process import ProcessHybridRetriever
+from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.search.core.types import SearchMetadata
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
 
 pytestmark = pytest.mark.search
 

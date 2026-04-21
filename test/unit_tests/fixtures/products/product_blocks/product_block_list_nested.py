@@ -1,8 +1,8 @@
 import pytest
 
-from orchestrator.db import ProductBlockTable, db
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.db import ProductBlockTable, db
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.types import SubscriptionLifecycle
 from test.unit_tests.helpers import safe_delete_product_block_id
 
 

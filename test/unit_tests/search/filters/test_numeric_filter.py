@@ -18,8 +18,8 @@ from pydantic import ValidationError
 from sqlalchemy import String, column
 from sqlalchemy.sql.elements import ColumnElement
 
-from orchestrator.search.core.types import FilterOp
-from orchestrator.search.filters.numeric_filter import NumericRange, NumericRangeFilter, NumericValueFilter
+from orchestrator.core.search.core.types import FilterOp
+from orchestrator.core.search.filters.numeric_filter import NumericRange, NumericRangeFilter, NumericValueFilter
 
 pytestmark = pytest.mark.search
 

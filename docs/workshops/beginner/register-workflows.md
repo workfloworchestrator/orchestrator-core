@@ -10,7 +10,7 @@ Registering workflow functions in the code is done by creating appropriate `Lazy
 For example, the `LazyWorkflowInstance` for the `UserGroup` create workflow looks like this:
 
 ```python
-from orchestrator.workflows import LazyWorkflowInstance
+from orchestrator.core.workflows import LazyWorkflowInstance
 
 LazyWorkflowInstance("workflows.user_group.create_user_group", "create_user_group")
 ```
@@ -72,7 +72,7 @@ This will create an empty database migration in the folder
 To add all User and UserGroup workflows in bulk a list of `Dict` is created, for only the UserGroup create workflow the list looks like this:
 
 ```python
-from orchestrator.targets import Target
+from orchestrator.core.targets import Target
 
 new_workflows = [
     {
@@ -91,7 +91,7 @@ Add a list of `Dict`s describing the create, modify and terminate workflows for 
 The migration `upgrade` and `downgrade` functions will just loop through the list:
 
 ```python
-from orchestrator.migrations.helpers import create_workflow, delete_workflow
+from orchestrator.core.migrations.helpers import create_workflow, delete_workflow
 
 
 def upgrade() -> None:

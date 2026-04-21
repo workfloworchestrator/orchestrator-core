@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.db.database import (
+from orchestrator.core.db.database import (
     WrappedSession,
     disable_commit,
     transactional,

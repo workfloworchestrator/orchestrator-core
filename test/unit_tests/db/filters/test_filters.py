@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy import column, select, table
 
-from orchestrator.db.filters.filters import (
+from orchestrator.core.db.filters.filters import (
     Filter,
     _filter_to_node,
     _filters_to_and_expr,

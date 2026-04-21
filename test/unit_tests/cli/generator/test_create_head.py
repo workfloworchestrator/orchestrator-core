@@ -1,7 +1,7 @@
 from unittest import mock
 
-from orchestrator.cli.generate import get_template_environment
-from orchestrator.cli.generator.generator.migration import create_data_head_if_not_exists
+from orchestrator.core.cli.generate import get_template_environment
+from orchestrator.core.cli.generator.generator.migration import create_data_head_if_not_exists
 
 
 @mock.patch("orchestrator.cli.generator.generator.migration.get_heads")

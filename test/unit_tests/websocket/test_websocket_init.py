@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.websocket import (
+from orchestrator.core.websocket import (
     WS_CHANNELS,
     WrappedWebSocketManager,
     broadcast_invalidate_cache,
@@ -20,8 +20,8 @@ from orchestrator.websocket import (
     sync_broadcast_invalidate_cache,
     sync_invalidate_subscription_cache,
 )
-from orchestrator.websocket.websocket_manager import WebSocketManager
-from orchestrator.workflow import ProcessStatus
+from orchestrator.core.websocket.websocket_manager import WebSocketManager
+from orchestrator.core.workflow import ProcessStatus
 
 # --- empty_fn ---
 
@@ -135,7 +135,7 @@ def test_is_process_active(process_status, expected):
 async def test_broadcast_event_sends_to_events_channel():
     with patch("orchestrator.websocket.websocket_manager") as mock_wsm:
         mock_wsm.broadcast_data = AsyncMock()
-        from orchestrator.websocket import _broadcast_event
+        from orchestrator.core.websocket import _broadcast_event
 
         await _broadcast_event("testEvent", {"foo": "bar"})
         mock_wsm.broadcast_data.assert_awaited_once_with(

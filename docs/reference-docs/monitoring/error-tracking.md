@@ -50,15 +50,15 @@ performance and errors more effectively.
 
 Add the following code to the `main.py` file of the `orchestrator-core` application:
 ```python
-from orchestrator import OrchestratorCore
-from orchestrator.cli.main import app as core_cli
-from orchestrator.settings import AppSettings
+from orchestrator.core import OrchestratorCore
+from orchestrator.core.cli.main import app as core_cli
+from orchestrator.core.settings import AppSettings
 from my_orchestrator.settings import my_settings
 
 app = OrchestratorCore(base_settings=AppSettings())
 
 if app.base_settings.TRACING_ENABLED and app.base_settings.ENVIRONMENT != "local":
-    from orchestrator.app import sentry_integrations
+    from orchestrator.core.app import sentry_integrations
     from sentry_sdk.integrations.httpx import HttpxIntegration
 
     sentry_integrations.append(HttpxIntegration())

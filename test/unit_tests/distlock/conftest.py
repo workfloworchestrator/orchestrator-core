@@ -12,7 +12,7 @@
 # limitations under the License.
 import pytest
 
-from orchestrator.distlock.managers.memory_distlock_manager import MemoryDistLockManager
+from orchestrator.core.distlock.managers.memory_distlock_manager import MemoryDistLockManager
 
 
 @pytest.fixture(autouse=True)

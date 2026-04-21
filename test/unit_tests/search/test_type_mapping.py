@@ -20,7 +20,7 @@ from uuid import UUID
 
 import pytest
 
-from orchestrator.search.core.types import FieldType
+from orchestrator.core.search.core.types import FieldType
 
 from .fixtures.blocks import MTU, MTUChoice, PriorityIntEnum, RequiredIntList, StatusEnum
 
@@ -79,7 +79,7 @@ def test_unknown_type_defaults_to_string():
 
 
 def test_product_block_model_returns_block():
-    from orchestrator.domain.base import ProductBlockModel
+    from orchestrator.core.domain.base import ProductBlockModel
 
     class TestBlock(ProductBlockModel):
         pass

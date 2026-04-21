@@ -2,13 +2,13 @@ import json
 
 from sqlalchemy import select, text
 
-from orchestrator.cli.database import migrate_domain_models
-from orchestrator.db import db
-from orchestrator.db.models import ProductTable, ResourceTypeTable
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.services.resource_types import get_resource_types
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.cli.database import migrate_domain_models
+from orchestrator.core.db import db
+from orchestrator.core.db.models import ProductTable, ResourceTypeTable
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.services.resource_types import get_resource_types
+from orchestrator.core.types import SubscriptionLifecycle
 from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 
 

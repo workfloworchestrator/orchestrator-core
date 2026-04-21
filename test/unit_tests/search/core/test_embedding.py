@@ -23,7 +23,7 @@ import httpx
 import litellm.exceptions as llm_exc
 import pytest
 
-from orchestrator.search.core.embedding import EmbeddingIndexer, QueryEmbedder
+from orchestrator.core.search.core.embedding import EmbeddingIndexer, QueryEmbedder
 
 pytestmark = pytest.mark.search
 

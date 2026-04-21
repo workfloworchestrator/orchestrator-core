@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from strawberry.types.nodes import SelectedField
 
-from orchestrator.graphql.utils import is_querying_page_data
+from orchestrator.core.graphql.utils import is_querying_page_data
 
 
 def test_is_querying_page_data_with_pageinfo_fields():

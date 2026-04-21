@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from inline_snapshot import snapshot
 
-from orchestrator.cli.generator.generator.helpers import (
+from orchestrator.core.cli.generator.generator.helpers import (
     base_block_type,
     find_root_product_block,
     get_constrained_ints,

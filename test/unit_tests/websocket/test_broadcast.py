@@ -6,9 +6,9 @@ from unittest import mock
 import pytest
 from fastapi import WebSocket
 
-from orchestrator.settings import app_settings
-from orchestrator.websocket import WS_CHANNELS
-from orchestrator.websocket.websocket_manager import WebSocketManager
+from orchestrator.core.settings import app_settings
+from orchestrator.core.websocket import WS_CHANNELS
+from orchestrator.core.websocket.websocket_manager import WebSocketManager
 
 
 @pytest.fixture

@@ -41,9 +41,9 @@ Here is a very bare-bones task file:
     import structlog
     import time
 
-    from orchestrator.targets import Target
-    from orchestrator.types import State
-    from orchestrator.workflow import StepList, done, init, step, workflow
+    from orchestrator.core.targets import Target
+    from orchestrator.core.types import State
+    from orchestrator.core.workflow import StepList, done, init, step, workflow
 
     logger = structlog.get_logger(__name__)
 
@@ -70,8 +70,8 @@ Here is a very bare-bones task file:
 
     from pydantic_forms.types import State
 
-    from orchestrator.workflow import StepList, step, begin
-    from orchestrator.workflows.utils import task
+    from orchestrator.core.workflow import StepList, step, begin
+    from orchestrator.core.workflows.utils import task
 
     logger = structlog.get_logger(__name__)
 
@@ -104,7 +104,7 @@ in addition to being defined in the code.
 However, instead of `create_workflow`, simply use the `create_task` helper instead.
 
 ```python
-from orchestrator.migrations.helpers import create_task, delete_workflow
+from orchestrator.core.migrations.helpers import create_task, delete_workflow
 
 new_tasks = [
     {
@@ -154,8 +154,8 @@ Continuing with our previous example:
 ```python
 # schedules/nightly_sync.py
 
-from orchestrator.schedules.scheduler import scheduler
-from orchestrator.services.processes import start_process
+from orchestrator.core.schedules.scheduler import scheduler
+from orchestrator.core.services.processes import start_process
 
 
 # previously `scheduler()` which is now deprecated

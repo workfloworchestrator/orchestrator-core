@@ -12,8 +12,8 @@
 # limitations under the License.
 
 from oauth2_lib.fastapi import OIDCUserModel
-from orchestrator.utils.auth import AuthContext
-from orchestrator.workflow import (
+from orchestrator.core.utils.auth import AuthContext
+from orchestrator.core.workflow import (
     begin,
     done,
     step,

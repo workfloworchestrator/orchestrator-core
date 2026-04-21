@@ -1,0 +1,120 @@
+# Copyright 2019-2020 SURF.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from typing import Any, cast
+
+from structlog import get_logger
+
+from orchestrator.core.db.database import BaseModel as DbBaseModel
+from orchestrator.core.db.database import Database, transactional
+from orchestrator.core.db.models import (  # noqa: F401
+    AgentRunTable,
+    EngineSettingsTable,
+    FixedInputTable,
+    InputStateTable,
+    ProcessStepTable,
+    ProcessSubscriptionTable,
+    ProcessTable,
+    ProductBlockTable,
+    ProductTable,
+    ResourceTypeTable,
+    SearchQueryTable,
+    SubscriptionCustomerDescriptionTable,
+    SubscriptionInstanceRelationTable,
+    SubscriptionInstanceTable,
+    SubscriptionInstanceValueTable,
+    SubscriptionMetadataTable,
+    SubscriptionTable,
+    UtcTimestamp,
+    UtcTimestampError,
+    WorkflowTable,
+)
+from orchestrator.core.settings import AppSettings
+
+logger = get_logger(__name__)
+
+
+class WrappedDatabase:
+    def __init__(self, wrappee: Database | None = None) -> None:
+        self.wrapped_database = wrappee
+
+    def update(self, wrappee: Database) -> None:
+        self.wrapped_database = wrappee
+        logger.info("Database object configured, all methods referencing `db` should work.")
+
+    def __getattr__(self, attr: str) -> Any:
+        if not isinstance(self.wrapped_database, Database):
+            if "_" in attr:
+                logger.warning("No database configured, but attempting to access class methods")
+                return None
+            raise RuntimeWarning(
+                "No database configured at this time. Please pass database configuration to OrchestratorCore base_settings"
+            )
+
+        return getattr(self.wrapped_database, attr)
+
+
+# You need to pass a modified AppSettings class to the OrchestratorCore class to init the database correctly
+wrapped_db = WrappedDatabase()
+db = cast(Database, wrapped_db)
+
+
+# The Global Database is set after calling this function
+def init_database(settings: AppSettings) -> Database:
+    wrapped_db.update(Database(str(settings.DATABASE_URI.get_secret_value())))
+    return db
+
+
+__all__ = [
+    "transactional",
+    "SearchQueryTable",
+    "AgentRunTable",
+    "SubscriptionTable",
+    "ProcessSubscriptionTable",
+    "ProcessTable",
+    "ProcessStepTable",
+    "ProductTable",
+    "ProductBlockTable",
+    "SubscriptionInstanceRelationTable",
+    "SubscriptionInstanceTable",
+    "SubscriptionInstanceValueTable",
+    "SubscriptionMetadataTable",
+    "ResourceTypeTable",
+    "FixedInputTable",
+    "InputStateTable",
+    "EngineSettingsTable",
+    "WorkflowTable",
+    "SubscriptionCustomerDescriptionTable",
+    "UtcTimestamp",
+    "UtcTimestampError",
+    "db",
+    "init_database",
+]
+
+ALL_DB_MODELS: list[type[DbBaseModel]] = [
+    SearchQueryTable,
+    AgentRunTable,
+    FixedInputTable,
+    ProcessStepTable,
+    ProcessSubscriptionTable,
+    ProcessTable,
+    ProductBlockTable,
+    ProductTable,
+    ResourceTypeTable,
+    SubscriptionCustomerDescriptionTable,
+    SubscriptionInstanceRelationTable,
+    SubscriptionInstanceTable,
+    SubscriptionInstanceValueTable,
+    SubscriptionMetadataTable,
+    SubscriptionTable,
+    WorkflowTable,
+]

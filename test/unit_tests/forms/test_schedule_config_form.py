@@ -2,7 +2,7 @@ from http import HTTPStatus
 
 from inline_snapshot import snapshot
 
-from orchestrator.schemas.schedules import APSchedulerJobCreate
+from orchestrator.core.schemas.schedules import APSchedulerJobCreate
 
 
 def test_forms_endpoint_scheduler_config_without_initial_form_input(test_client):

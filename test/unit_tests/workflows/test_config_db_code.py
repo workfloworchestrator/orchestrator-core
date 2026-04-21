@@ -3,13 +3,13 @@ from more_itertools.recipes import first_true
 from sqlalchemy import not_, select
 from sqlalchemy.orm import joinedload
 
-from orchestrator.db import ProductTable, WorkflowTable, db
-from orchestrator.db.models import FixedInputTable
-from orchestrator.services import products
-from orchestrator.services.products import get_products
-from orchestrator.targets import Target
-from orchestrator.utils.fixed_inputs import fixed_input_configuration as fi_configuration
-from orchestrator.workflows import ALL_WORKFLOWS
+from orchestrator.core.db import ProductTable, WorkflowTable, db
+from orchestrator.core.db.models import FixedInputTable
+from orchestrator.core.services import products
+from orchestrator.core.services.products import get_products
+from orchestrator.core.targets import Target
+from orchestrator.core.utils.fixed_inputs import fixed_input_configuration as fi_configuration
+from orchestrator.core.workflows import ALL_WORKFLOWS
 
 
 def test_all_workflows_have_matching_targets_and_descriptions():

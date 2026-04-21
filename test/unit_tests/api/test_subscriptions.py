@@ -7,8 +7,8 @@ import pytest
 
 from nwastdlib.url import URL
 from oauth2_lib.fastapi import OIDCUserModel
-from orchestrator.api.helpers import product_block_paths
-from orchestrator.db import (
+from orchestrator.core.api.helpers import product_block_paths
+from orchestrator.core.db import (
     FixedInputTable,
     ProcessSubscriptionTable,
     ProcessTable,
@@ -20,17 +20,17 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.db.models import SubscriptionInstanceRelationTable, WorkflowTable
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.services.subscriptions import (
+from orchestrator.core.db.models import SubscriptionInstanceRelationTable, WorkflowTable
+from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.services.subscriptions import (
     RELATION_RESOURCE_TYPES,
     _generate_etag,
     build_extended_domain_model,
     get_subscription,
     unsync,
 )
-from orchestrator.targets import Target
-from orchestrator.workflow import ProcessStatus, done, init, workflow
+from orchestrator.core.targets import Target
+from orchestrator.core.workflow import ProcessStatus, done, init, workflow
 from test.unit_tests.config import (
     IMS_CIRCUIT_ID,
     INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,

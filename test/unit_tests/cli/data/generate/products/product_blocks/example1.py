@@ -3,8 +3,8 @@ from ipaddress import IPv4Address
 from typing import Annotated
 
 from annotated_types import Ge, Le, Len
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SI, SubscriptionLifecycle
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.types import SI, SubscriptionLifecycle
 from pydantic import computed_field
 
 from products.product_blocks.example2 import Example2Block, Example2BlockInactive, Example2BlockProvisioning

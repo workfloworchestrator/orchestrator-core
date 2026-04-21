@@ -6,8 +6,8 @@ import pytest
 from requests.exceptions import RequestException
 from sqlalchemy.exc import SQLAlchemyError
 
-from orchestrator.schemas.engine_settings import EngineSettingsSchema, GlobalStatusEnum
-from orchestrator.services.settings import (
+from orchestrator.core.schemas.engine_settings import EngineSettingsSchema, GlobalStatusEnum
+from orchestrator.core.services.settings import (
     generate_engine_global_status,
     generate_engine_settings_schema,
     post_update_to_slack,

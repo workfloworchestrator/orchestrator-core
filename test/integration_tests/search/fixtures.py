@@ -14,8 +14,8 @@
 
 from uuid import UUID
 
-from orchestrator.domain.lifecycle import ProductLifecycle
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.domain.lifecycle import ProductLifecycle
+from orchestrator.core.types import SubscriptionLifecycle
 
 # =============================================================================
 # Product

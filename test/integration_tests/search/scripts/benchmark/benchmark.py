@@ -22,7 +22,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from orchestrator.db import db
+from orchestrator.core.db import db
 
 from ...helpers import load_benchmark_queries, load_model_configs
 from .display import display_benchmark_results

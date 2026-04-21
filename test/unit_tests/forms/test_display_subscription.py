@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from orchestrator.forms.validators import DisplaySubscription, Label, migration_summary
+from orchestrator.core.forms.validators import DisplaySubscription, Label, migration_summary
 from pydantic_forms.core import FormPage
 
 

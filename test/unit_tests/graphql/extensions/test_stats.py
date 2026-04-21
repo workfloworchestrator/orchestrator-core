@@ -2,8 +2,8 @@ from unittest.mock import patch
 
 from dirty_equals import IsFloat, IsInt
 
-from orchestrator.db.listeners import disable_listeners, monitor_sqlalchemy_queries
-from orchestrator.settings import app_settings
+from orchestrator.core.db.listeners import disable_listeners, monitor_sqlalchemy_queries
+from orchestrator.core.settings import app_settings
 from test.unit_tests.config import GRAPHQL_ENDPOINT
 
 

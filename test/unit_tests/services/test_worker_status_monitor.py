@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.services.worker_status_monitor import WorkerStatusMonitor, get_worker_status_monitor
-from orchestrator.settings import ExecutorType
+from orchestrator.core.services.worker_status_monitor import WorkerStatusMonitor, get_worker_status_monitor
+from orchestrator.core.settings import ExecutorType
 
 
 @pytest.fixture
@@ -154,7 +154,7 @@ def test_monitor_stops_cleanly():
 def test_get_worker_status_monitor_returns_singleton():
     """Test that get_worker_status_monitor returns the same instance."""
     # Reset the global instance for this test
-    import orchestrator.services.worker_status_monitor as wsm_module
+    import orchestrator.core.services.worker_status_monitor as wsm_module
 
     original_monitor = wsm_module._monitor
     wsm_module._monitor = None

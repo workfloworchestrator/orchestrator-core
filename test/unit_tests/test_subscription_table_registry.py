@@ -12,12 +12,11 @@
 # limitations under the License.
 
 import pytest
+from orchestrator.app import OrchestratorCore
+from orchestrator.db.models import SubscriptionTable
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select
 from sqlalchemy.orm import column_property
-
-from orchestrator.app import OrchestratorCore
-from orchestrator.db.models import SubscriptionTable
 
 
 @pytest.fixture()

@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.db import ProductTable, SubscriptionCustomerDescriptionTable, SubscriptionTable, db
+from orchestrator.core.db import ProductTable, SubscriptionCustomerDescriptionTable, SubscriptionTable, db
 
 SUBSCRIPTION_ID = uuid4()
 SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID = uuid4()

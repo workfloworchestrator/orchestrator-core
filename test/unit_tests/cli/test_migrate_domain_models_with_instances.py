@@ -3,13 +3,13 @@ from unittest.mock import patch
 
 from sqlalchemy import select, text
 
-from orchestrator.cli.database import migrate_domain_models
-from orchestrator.db import db
-from orchestrator.db.models import ResourceTypeTable, SubscriptionInstanceValueTable
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.domain.base import ProductBlockModel, SubscriptionModel
-from orchestrator.services.resource_types import get_resource_types
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.cli.database import migrate_domain_models
+from orchestrator.core.db import db
+from orchestrator.core.db.models import ResourceTypeTable, SubscriptionInstanceValueTable
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain.base import ProductBlockModel, SubscriptionModel
+from orchestrator.core.services.resource_types import get_resource_types
+from orchestrator.core.types import SubscriptionLifecycle
 from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 
 

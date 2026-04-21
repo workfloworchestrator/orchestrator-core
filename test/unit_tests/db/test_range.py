@@ -20,7 +20,7 @@ import pytest
 from pytest import param, raises
 from sqlalchemy import column, select, table
 
-from orchestrator.db.range.range import apply_range_to_query, apply_range_to_statement
+from orchestrator.core.db.range.range import apply_range_to_query, apply_range_to_statement
 
 
 def _make_stmt():

@@ -18,10 +18,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from orchestrator.distlock import WrappedDistLockManager, empty_fn
-from orchestrator.distlock.distlock_manager import DistLockManager
-from orchestrator.distlock.managers.memory_distlock_manager import MemoryDistLockManager
-from orchestrator.distlock.managers.redis_distlock_manager import RedisDistLockManager
+from orchestrator.core.distlock import WrappedDistLockManager, empty_fn
+from orchestrator.core.distlock.distlock_manager import DistLockManager
+from orchestrator.core.distlock.managers.memory_distlock_manager import MemoryDistLockManager
+from orchestrator.core.distlock.managers.redis_distlock_manager import RedisDistLockManager
 
 # --- DistLockManager backend selection ---
 
@@ -125,7 +125,7 @@ def test_wrapped_update_replaces_wrappee() -> None:
 
 @pytest.fixture
 def _save_restore_wrapped_manager():
-    from orchestrator.distlock import wrapped_distlock_manager
+    from orchestrator.core.distlock import wrapped_distlock_manager
 
     original = wrapped_distlock_manager.wrapped_distlock_manager
     yield
@@ -134,7 +134,7 @@ def _save_restore_wrapped_manager():
 
 @pytest.mark.usefixtures("_save_restore_wrapped_manager")
 def test_init_distlock_manager_redis_backend() -> None:
-    from orchestrator.distlock import init_distlock_manager, wrapped_distlock_manager
+    from orchestrator.core.distlock import init_distlock_manager, wrapped_distlock_manager
 
     mock_settings = MagicMock()
     mock_settings.ENABLE_DISTLOCK_MANAGER = True

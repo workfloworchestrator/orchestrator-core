@@ -1,6 +1,6 @@
-from orchestrator.db import db
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.db import db
+from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.types import SubscriptionLifecycle
 from test.unit_tests.conftest import CUSTOMER_ID
 
 

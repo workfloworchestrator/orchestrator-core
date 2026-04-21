@@ -1,4 +1,4 @@
-from orchestrator.utils.get_updated_properties import get_updated_properties
+from orchestrator.core.utils.get_updated_properties import get_updated_properties
 
 
 def test_get_updated_fields_with_root_props():

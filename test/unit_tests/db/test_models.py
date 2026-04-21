@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.db.models import (
+from orchestrator.core.db.models import (
     StringThatAutoConvertsToNullWhenEmpty,
     UtcTimestamp,
     UtcTimestampError,

@@ -2,12 +2,12 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.db import db
-from orchestrator.db.models import FixedInputTable, ProductTable
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.domain.base import ProductModel, SubscriptionModel
-from orchestrator.domain.lifecycle import ProductLifecycle
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.db import db
+from orchestrator.core.db.models import FixedInputTable, ProductTable
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain.base import ProductModel, SubscriptionModel
+from orchestrator.core.domain.lifecycle import ProductLifecycle
+from orchestrator.core.types import SubscriptionLifecycle
 
 
 @pytest.fixture

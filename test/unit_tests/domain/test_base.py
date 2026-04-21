@@ -9,20 +9,20 @@ from pydantic import BaseModel, Field, ValidationError, conlist
 from sqlalchemy import func, select
 from sqlalchemy.exc import NoResultFound
 
-from orchestrator.db import (
+from orchestrator.core.db import (
     ProductTable,
     SubscriptionInstanceRelationTable,
     SubscriptionInstanceTable,
     SubscriptionInstanceValueTable,
     db,
 )
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.domain.base import (
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain.base import (
     ProductBlockModel,
     SubscriptionModel,
 )
-from orchestrator.domain.lifecycle import ProductLifecycle
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.domain.lifecycle import ProductLifecycle
+from orchestrator.core.types import SubscriptionLifecycle
 from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (
     ProductBlockListNestedForTestInactive,
 )

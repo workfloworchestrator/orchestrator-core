@@ -18,9 +18,9 @@ from uuid import UUID
 
 import pytest
 
-from orchestrator.db import ProcessTable, SubscriptionTable
-from orchestrator.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
-from orchestrator.search.indexing.traverse import ProcessTraverser, ProductTraverser, SubscriptionTraverser
+from orchestrator.core.db import ProcessTable, SubscriptionTable
+from orchestrator.core.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
+from orchestrator.core.search.indexing.traverse import ProcessTraverser, ProductTraverser, SubscriptionTraverser
 
 
 def test_subscription_traverser_product_not_in_registry():
@@ -134,7 +134,7 @@ def test_get_fields_unexpected_exception_propagates():
 def test_traverse_handles_computed_property_exception(caplog):
     from pydantic import BaseModel, computed_field
 
-    from orchestrator.search.indexing.traverse import BaseTraverser
+    from orchestrator.core.search.indexing.traverse import BaseTraverser
 
     class TestModel(BaseModel):
         normal_field: str = "test_value"

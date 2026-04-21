@@ -56,8 +56,8 @@ user group product block in the lifecycle states `INITIAL`, `PROVISIONING` and
 ```python
 from typing import Optional
 
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.types import SubscriptionLifecycle
 
 # UserGroupBlockInactive with all resource types optional
 ...
@@ -86,8 +86,8 @@ Use the following skeleton to create the file `user_group.py` in the
 product in its different lifecycle states:
 
 ```python
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.types import SubscriptionLifecycle
 
 from products.product_blocks.user_group import (
     UserGroupBlock,
@@ -120,8 +120,8 @@ product block in its different lifecycle states:
 ```python
 from typing import Optional
 
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.types import SubscriptionLifecycle
 
 from products.product_blocks.user_group import (
     UserGroupBlock,
@@ -156,8 +156,8 @@ standard python module `enum` to define an enumeration of strings, to create a
 type to be used for the fixed input `affiliation`.
 
 ```python
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.types import SubscriptionLifecycle, strEnum
+from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.types import SubscriptionLifecycle, strEnum
 
 from products.product_blocks.user import (
     UserBlock,

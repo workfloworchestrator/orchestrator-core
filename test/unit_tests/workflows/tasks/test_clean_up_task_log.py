@@ -18,10 +18,10 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy_utils import Ltree
 
-from orchestrator.db import ProcessStepTable, ProcessTable, WorkflowTable, db
-from orchestrator.targets import Target
-from orchestrator.utils.datetime import nowtz
-from orchestrator.workflow import ProcessStatus
+from orchestrator.core.db import ProcessStepTable, ProcessTable, WorkflowTable, db
+from orchestrator.core.targets import Target
+from orchestrator.core.utils.datetime import nowtz
+from orchestrator.core.workflow import ProcessStatus
 from test.unit_tests.workflows import assert_complete, assert_state, extract_state, run_workflow
 
 
@@ -72,8 +72,8 @@ def task():
     db.session.add_all([wf_old, wf_new, wf, generic_step, task_old, task_new, process])
     db.session.commit()
 
-    from orchestrator.db.models import AiSearchIndex
-    from orchestrator.search.core.types import EntityType, FieldType
+    from orchestrator.core.db.models import AiSearchIndex
+    from orchestrator.core.search.core.types import EntityType, FieldType
 
     search_index_old_1 = AiSearchIndex(
         entity_type=EntityType.PROCESS,
@@ -122,7 +122,7 @@ def test_remove_tasks(task):
         "ai_search_index_rows_deleted": 2,
     }
 
-    from orchestrator.db.models import AiSearchIndex
+    from orchestrator.core.db.models import AiSearchIndex
 
     ai_indexes = db.session.scalars(select(AiSearchIndex)).all()
     # 2 deleted, 1 left

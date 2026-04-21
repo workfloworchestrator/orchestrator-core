@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 from fastapi import HTTPException, WebSocketDisconnect, status
 from pytest import raises
 
-from orchestrator.websocket import broadcast_invalidate_cache, sync_broadcast_invalidate_cache
+from orchestrator.core.websocket import broadcast_invalidate_cache, sync_broadcast_invalidate_cache
 
 
 def test_websocket_events_ping_pong(test_client):

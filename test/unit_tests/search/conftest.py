@@ -16,8 +16,8 @@ from uuid import UUID
 
 import pytest
 
-from orchestrator.domain.base import ProductModel
-from orchestrator.search.core.types import ExtractedField
+from orchestrator.core.domain.base import ProductModel
+from orchestrator.core.search.core.types import ExtractedField
 
 from .fixtures.expected_data.subscriptions import (
     get_complex_expected_fields,
@@ -112,7 +112,7 @@ def mock_load_model():
 @pytest.fixture
 def mock_db_product(product_uuid: UUID) -> MagicMock:
     """Provides a mock SQLAlchemy ProductTable object that mimics a real database entity."""
-    from orchestrator.domain.lifecycle import ProductLifecycle
+    from orchestrator.core.domain.lifecycle import ProductLifecycle
 
     def create_mock_db_product(product_id: UUID | None = None, product_name: str = "TestProduct"):
         mock_product = MagicMock()

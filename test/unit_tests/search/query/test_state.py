@@ -18,9 +18,9 @@ from uuid import UUID
 
 import pytest
 
-from orchestrator.search.core.exceptions import QueryStateNotFoundError
-from orchestrator.search.query.queries import BaseQuery, SelectQuery
-from orchestrator.search.query.state import QueryState
+from orchestrator.core.search.core.exceptions import QueryStateNotFoundError
+from orchestrator.core.search.query.queries import BaseQuery, SelectQuery
+from orchestrator.core.search.query.state import QueryState
 
 pytestmark = pytest.mark.search
 

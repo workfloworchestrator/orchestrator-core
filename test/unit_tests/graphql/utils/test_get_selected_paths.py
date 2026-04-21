@@ -1,6 +1,6 @@
 from unittest import mock
 
-from orchestrator.graphql.utils.get_selected_paths import get_selected_paths
+from orchestrator.core.graphql.utils.get_selected_paths import get_selected_paths
 from test.unit_tests.graphql.utils.fixtures import LARGE_QUERY_SELECTED_FIELDS, SMALL_QUERY_SELECTED_FIELDS
 
 

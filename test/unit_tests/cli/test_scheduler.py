@@ -6,7 +6,7 @@ from unittest import mock
 
 from typer.testing import CliRunner
 
-from orchestrator.cli.scheduler import app
+from orchestrator.core.cli.scheduler import app
 
 runner = CliRunner()
 

@@ -3,9 +3,9 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.db import InputStateTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
-from orchestrator.services.input_state import retrieve_input_state, store_input_state
-from orchestrator.workflow import ProcessStatus, StepStatus
+from orchestrator.core.db import InputStateTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.core.services.input_state import retrieve_input_state, store_input_state
+from orchestrator.core.workflow import ProcessStatus, StepStatus
 
 
 @pytest.fixture

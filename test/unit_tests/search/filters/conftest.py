@@ -14,8 +14,8 @@
 
 import pytest
 
-from orchestrator.search.core.types import BooleanOperator, FilterOp, UIType
-from orchestrator.search.filters import EqualityFilter, FilterTree, PathFilter, StringFilter
+from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
+from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter, StringFilter
 
 
 @pytest.fixture

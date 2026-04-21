@@ -23,13 +23,13 @@ import pytest
 from pydantic_i18n import PydanticI18n
 from sqlalchemy import select
 
-from orchestrator.api.error_handling import ProblemDetailException
-from orchestrator.config.assignee import Assignee
-from orchestrator.db import ProcessStepTable, ProcessTable, db
-from orchestrator.db.database import transactional
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.services.executors.threadpool import thread_start_process
-from orchestrator.services.processes import (
+from orchestrator.core.api.error_handling import ProblemDetailException
+from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.db import ProcessStepTable, ProcessTable, db
+from orchestrator.core.db.database import transactional
+from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.services.executors.threadpool import thread_start_process
+from orchestrator.core.services.processes import (
     RESUME_WORKFLOW_REMOVED_ERROR_MSG,
     SYSTEM_USER,
     _async_resume_processes,
@@ -43,11 +43,11 @@ from orchestrator.services.processes import (
     safe_logstep,
     start_process,
 )
-from orchestrator.services.settings import generate_engine_settings_schema, get_engine_settings_table
-from orchestrator.settings import app_settings
-from orchestrator.targets import Target
-from orchestrator.utils.errors import ApiException, error_state_to_dict
-from orchestrator.workflow import (
+from orchestrator.core.services.settings import generate_engine_settings_schema, get_engine_settings_table
+from orchestrator.core.settings import app_settings
+from orchestrator.core.targets import Target
+from orchestrator.core.utils.errors import ApiException, error_state_to_dict
+from orchestrator.core.workflow import (
     Abort,
     Complete,
     Failed,
@@ -66,7 +66,7 @@ from orchestrator.workflow import (
     step,
     workflow,
 )
-from orchestrator.workflows.removed_workflow import removed_workflow
+from orchestrator.core.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core.translations import translations
 from pydantic_forms.exceptions import FormValidationError
 from test.unit_tests.fixtures.workflows import initial_input_form, step1, step2

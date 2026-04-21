@@ -2,8 +2,8 @@ import json
 import pathlib
 import tempfile
 
-from orchestrator.services.translations import generate_translations
-from orchestrator.settings import app_settings
+from orchestrator.core.services.translations import generate_translations
+from orchestrator.core.settings import app_settings
 
 
 def test_generate_translations_empty():

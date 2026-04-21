@@ -6,7 +6,7 @@ from unittest import mock
 import pytest
 from alembic.util.exc import CommandError
 
-from orchestrator.cli.migration_helpers import (
+from orchestrator.core.cli.migration_helpers import (
     _insert_preamble,
     create_migration_file,
     remove_core_as_down_revision,

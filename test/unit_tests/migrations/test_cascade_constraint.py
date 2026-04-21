@@ -12,8 +12,8 @@
 # limitations under the License.
 import pytest
 
-from orchestrator.db import db
-from orchestrator.db.models import InputStateTable, ProcessTable
+from orchestrator.core.db import db
+from orchestrator.core.db.models import InputStateTable, ProcessTable
 
 
 @pytest.fixture

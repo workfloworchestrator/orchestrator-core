@@ -1,7 +1,7 @@
-from orchestrator.db import db
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.services.subscription_relations import get_depends_on_subscriptions, get_in_use_by_subscriptions
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.db import db
+from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.services.subscription_relations import get_depends_on_subscriptions, get_in_use_by_subscriptions
+from orchestrator.core.types import SubscriptionLifecycle
 
 
 def terminate_subscription(subscription_id):

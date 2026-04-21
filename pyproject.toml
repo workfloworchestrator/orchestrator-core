@@ -1,6 +1,7 @@
 [project]
 name = "orchestrator-core"
-dynamic = ["version", "description"]
+description = "This is the orchestrator workflow engine."
+version = "5.0.0rc2"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -143,11 +144,8 @@ dev = [
 ]
 
 [build-system]
-requires = ["flit_core>=3.2,<4"]
-build-backend = "flit_core.buildapi"
-
-[tool.flit.module]
-name = "orchestrator"
+requires = ["uv_build>=0.11.7,<0.12"]
+build-backend = "uv_build"
 
 [tool.black]
 line-length = 120
@@ -162,7 +160,6 @@ exclude = '''
     | \.tox
     | \.venv
     | venv
-    | src
     | test/unit_tests/cli/data/generate
     | orchestrator/vendor
   )/
@@ -182,7 +179,6 @@ exclude = [
     ".eggs",
     "__pycache__",
     "dist",
-    "src",
     "crypt.py",
     "venv",
     ".venv",
@@ -221,13 +217,12 @@ select = ["B", "C", "D", "E", "F", "I", "N", "RET", "S", "T", "W"]
 ban-relative-imports = "all"
 
 [tool.ruff.lint.per-file-ignores]
-"orchestrator/api/*" = ["B008"]
-"orchestrator/cli/*" = ["B008"]
-"orchestrator/devtools/scripts/*" = ["S101", "T201"]
+"orchestrator/core/__init__.py" = ["I001", "E402"]
+"orchestrator/core/api/*" = ["B008"]
+"orchestrator/core/cli/*" = ["B008"]
+"orchestrator/core/devtools/scripts/*" = ["S101", "T201"]
+"orchestrator/core/search/llm_migration.py" = ["S608"]
 "test/*" = ["S101", "B033", "N816", "N802", "T201"]
-"orchestrator/__init__.py" = ["E402"]
-"orchestrator/search/llm_migration.py" = ["S608"]
-"demos/*" = ["S101", "T201"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -247,3 +242,106 @@ index-url = "https://pypi.org/simple"
 override-dependencies = [
     "grpcio==1.76.0",  # Force grpcio 1.76.0 for Python 3.14 wheel support
 ]
+
+[tool.uv.build-backend]
+module-name = "orchestrator.core"
+module-root = ""
+namespace = true
+
+[tool.pytest]
+addopts = [
+    "--doctest-modules",
+    "--doctest-ignore-import-errors"
+]
+norecursedirs = [
+    ".git",
+    "build",
+    "dist",
+    "*.egg",
+    "__pycache__",
+    ".cache",
+    ".*",
+    "migrations",
+    "docs",
+    "test/unit_tests/cli/data/generate",
+]
+testpaths = "test/unit_tests orchestrator"
+junit_suite_name = "orchestrator"
+asyncio_mode = "auto"
+
+# https://docs.python.org/3/library/warnings.html?highlight=warnings#describing-warning-filters
+# filterwarnings line syntax is
+#   action:message:category:module:line
+#
+# action	= what to do with the matched warning (default, error, ignore, always, module, once)
+# message	= regex for the warning message to match (leave empty to match by category/module)
+# category	= full path to warning class to match (leave empty to match by message/module)
+# module	= the module for which to match raised warnings (leave empty to match by message/category)
+filterwarnings = [
+	# TODO #427 ProductBlockModel.name being used as both a ClassVar and a pydantic Field
+	'ignore:Field name "name" shadows an attribute in parent.*:UserWarning:pydantic',
+	# Third-party warnings we cannot fix
+	"ignore:Use the 'sqlalchemy.url'.*:DeprecationWarning:alembic",
+	"ignore:.*path_separator.*:DeprecationWarning:alembic",
+	"ignore:.*Use 'content=.*:DeprecationWarning:httpx",
+	"ignore:.*unclosed.*:ResourceWarning:redis",
+	"ignore:.*format_exc_info.*:DeprecationWarning:structlog",
+	# Intentional deprecation warning for ProcessStepSchema.executed field
+	"ignore:.*executed.*deprecated.*:DeprecationWarning:orchestrator.schemas.process",
+	"ignore:.*executed.*deprecated.*:DeprecationWarning:orchestrator.graphql",
+]
+markers = [
+    "workflow: Test that runs a complete workflow (Slow)",
+    "acceptance: Acceptance Tests. Needs special handling.",
+	"regression: Tests that cover bugs that are fixed to prevent them from regressing",
+	"celery: Tests that require celery functionality",
+	"search: Tests that require search/indexing functionality",
+	"agent: Tests that require agentic functionality and the agent extra dependencies",
+	"noresponses: Skip HTTP response mocking for this test (use with caution)",
+]
+
+[tool.mypy]
+exclude = "(venv|test/unit_tests/cli/data/generate|orchestrator/core/vendor|vulture_whitelist.py)"
+ignore_missing_imports = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+# check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+strict_optional = true
+namespace_packages = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+# Disable due to flaky results in mypy itself
+# warn_return_any = true
+warn_no_return = true
+warn_unreachable = true
+implicit_reexport = false
+strict_equality = true
+show_error_codes = true
+show_column_numbers = true
+# lineprecision_report = mypy-coverage
+plugins = [
+    "pydantic.mypy",
+    "strawberry.ext.mypy_plugin",
+]
+# Suppress "note: By default the bodies of untyped functions are not checked"
+disable_error_code = "annotation-unchecked"
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true
+
+[[tool.mypy.overrides]]
+module = "orchestrator.app"
+# Has some nwastdlib untyped stuff
+disallow_untyped_calls = false
+
+[[tool.mypy.overrides]]
+module = "test"
+disallow_untyped_calls = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false

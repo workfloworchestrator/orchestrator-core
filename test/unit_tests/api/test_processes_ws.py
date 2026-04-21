@@ -9,10 +9,10 @@ import pytest
 from fastapi import status
 from fastapi.websockets import WebSocketDisconnect
 
-from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
-from orchestrator.settings import app_settings
-from orchestrator.websocket import websocket_manager
-from orchestrator.workflow import ProcessStatus, StepStatus, done, init, step, workflow
+from orchestrator.core.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.core.settings import app_settings
+from orchestrator.core.websocket import websocket_manager
+from orchestrator.core.workflow import ProcessStatus, StepStatus, done, init, step, workflow
 from pydantic_forms.types import UUIDstr
 from test.unit_tests.workflows import WorkflowInstanceForTests
 

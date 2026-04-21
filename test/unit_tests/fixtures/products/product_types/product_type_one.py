@@ -3,11 +3,11 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from orchestrator.db import FixedInputTable, ProductTable, db
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.domain.base import ProductModel, SubscriptionModel
-from orchestrator.domain.lifecycle import ProductLifecycle
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.db import FixedInputTable, ProductTable, db
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain.base import ProductModel, SubscriptionModel
+from orchestrator.core.domain.lifecycle import ProductLifecycle
+from orchestrator.core.types import SubscriptionLifecycle
 from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 
 

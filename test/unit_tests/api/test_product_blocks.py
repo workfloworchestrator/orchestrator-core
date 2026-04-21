@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import delete
 
-from orchestrator.db import ProductBlockTable, db
+from orchestrator.core.db import ProductBlockTable, db
 
 PRODUCT_BLOCK_ID = uuid4()
 

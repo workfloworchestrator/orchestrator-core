@@ -4,9 +4,9 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 
-from orchestrator.db import ResourceTypeTable, SubscriptionTable, WorkflowTable, db, transactional
-from orchestrator.db.helpers import get_postgres_version
-from orchestrator.targets import Target
+from orchestrator.core.db import ResourceTypeTable, SubscriptionTable, WorkflowTable, db, transactional
+from orchestrator.core.db.helpers import get_postgres_version
+from orchestrator.core.targets import Target
 
 
 def test_transactional():

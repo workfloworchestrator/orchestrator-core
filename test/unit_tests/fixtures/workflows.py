@@ -1,10 +1,10 @@
 import pytest
 
-from orchestrator.config.assignee import Assignee
-from orchestrator.db import WorkflowTable, db
-from orchestrator.targets import Target
-from orchestrator.utils.datetime import nowtz
-from orchestrator.workflow import (
+from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.db import WorkflowTable, db
+from orchestrator.core.targets import Target
+from orchestrator.core.utils.datetime import nowtz
+from orchestrator.core.workflow import (
     done,
     init,
     inputstep,

@@ -17,11 +17,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from orchestrator.api.api_v1.endpoints.search import _perform_search_and_fetch
-from orchestrator.schemas.search_requests import SearchRequest
-from orchestrator.search.core.types import EntityType, SearchMetadata
-from orchestrator.search.query.engine import execute_search
-from orchestrator.search.query.queries import SelectQuery
+from orchestrator.core.api.api_v1.endpoints.search import _perform_search_and_fetch
+from orchestrator.core.schemas.search_requests import SearchRequest
+from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.query.engine import execute_search
+from orchestrator.core.search.query.queries import SelectQuery
 
 from .fixtures.helpers import SIMPLE_SUBSCRIPTION_FILTER, make_column_row, make_search_row
 

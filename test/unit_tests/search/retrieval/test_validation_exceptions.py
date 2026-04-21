@@ -22,8 +22,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.search.core.types import BooleanOperator, EntityType, FieldType, FilterOp, UIType
-from orchestrator.search.filters import (
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FieldType, FilterOp, UIType
+from orchestrator.core.search.filters import (
     DateValueFilter,
     EqualityFilter,
     FilterTree,
@@ -32,14 +32,14 @@ from orchestrator.search.filters import (
     PathFilter,
     StringFilter,
 )
-from orchestrator.search.query.exceptions import (
+from orchestrator.core.search.query.exceptions import (
     EmptyFilterPathError,
     IncompatibleFilterTypeError,
     InvalidEntityPrefixError,
     InvalidLtreePatternError,
     PathNotFoundError,
 )
-from orchestrator.search.query.validation import (
+from orchestrator.core.search.query.validation import (
     complete_filter_validation,
     is_filter_compatible_with_field_type,
     validate_filter_tree,

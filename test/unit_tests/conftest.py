@@ -35,9 +35,9 @@ from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 from starlette.testclient import TestClient
 from urllib3_mock import Responses
 
-from orchestrator import OrchestratorCore
-from orchestrator.config.assignee import Assignee
-from orchestrator.db import (
+from orchestrator.core import OrchestratorCore
+from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.db import (
     ProcessSubscriptionTable,
     ProcessTable,
     ProductBlockTable,
@@ -48,18 +48,18 @@ from orchestrator.db import (
     WorkflowTable,
     db,
 )
-from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
-from orchestrator.db.models import WorkflowApschedulerJob
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.schedules.scheduler import get_scheduler
-from orchestrator.schedules.service import run_start_workflow_scheduler_task
-from orchestrator.services.translations import generate_translations
-from orchestrator.services.workflows import get_workflow_by_name
-from orchestrator.settings import SecretPostgresDsn, app_settings
-from orchestrator.types import SubscriptionLifecycle
-from orchestrator.utils.json import json_dumps
-from orchestrator.utils.redis_client import create_redis_client
+from orchestrator.core.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
+from orchestrator.core.db.models import WorkflowApschedulerJob
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.schedules.scheduler import get_scheduler
+from orchestrator.core.schedules.service import run_start_workflow_scheduler_task
+from orchestrator.core.services.translations import generate_translations
+from orchestrator.core.services.workflows import get_workflow_by_name
+from orchestrator.core.settings import SecretPostgresDsn, app_settings
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.utils.json import json_dumps
+from orchestrator.core.utils.redis_client import create_redis_client
 from pydantic_forms.core import FormPage
 from test.unit_tests.fixtures.processes import (  # noqa: F401
     mocked_processes,
@@ -434,8 +434,8 @@ def reset_worker_monitor_state():
     _active_threadpool_jobs > 0, which the background thread caches. This fixture
     resets that state after each test so the next test starts with an accurate count of 0.
     """
-    import orchestrator.services.processes as proc_module
-    import orchestrator.services.worker_status_monitor as wsm_module
+    import orchestrator.core.services.processes as proc_module
+    import orchestrator.core.services.worker_status_monitor as wsm_module
 
     yield
 
@@ -955,7 +955,7 @@ def monitor_sqlalchemy(pytestconfig, request, capsys):
             with monitor_sqlalchemy():
                 ... something that does db queries
     """
-    from orchestrator.db.listeners import disable_listeners, monitor_sqlalchemy_queries
+    from orchestrator.core.db.listeners import disable_listeners, monitor_sqlalchemy_queries
 
     @contextlib.contextmanager
     def monitor_queries():

@@ -3,12 +3,12 @@
 import pytest
 from pydantic_settings import BaseSettings
 
-from orchestrator.services.settings_env_variables import (
+from orchestrator.core.services.settings_env_variables import (
     EXPOSED_ENV_SETTINGS_REGISTRY,
     expose_settings,
     get_all_exposed_settings,
 )
-from orchestrator.utils.expose_settings import SettingsEnvVariablesSchema, SettingsExposedSchema
+from orchestrator.core.utils.expose_settings import SettingsEnvVariablesSchema, SettingsExposedSchema
 
 
 @pytest.fixture(autouse=True)

@@ -10,8 +10,8 @@ from uuid import UUID
 import pytest
 from sqlalchemy_utils.types.ltree import Ltree
 
-from orchestrator.search.core.types import EntityType, ExtractedField, FieldType
-from orchestrator.search.indexing.indexer import Indexer
+from orchestrator.core.search.core.types import EntityType, ExtractedField, FieldType
+from orchestrator.core.search.indexing.indexer import Indexer
 
 # Test constants
 ENTITY_ID = "12345678-1234-1234-1234-123456789abc"

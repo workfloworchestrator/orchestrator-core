@@ -19,8 +19,8 @@ from sqlalchemy import Column, MetaData, Table
 from sqlalchemy.dialects import postgresql
 from sqlalchemy_utils.types.ltree import Ltree, LtreeType
 
-from orchestrator.search.core.types import LTREE_SEPARATOR, FilterOp
-from orchestrator.search.filters.ltree_filters import LtreeFilter, _LQuery
+from orchestrator.core.search.core.types import LTREE_SEPARATOR, FilterOp
+from orchestrator.core.search.filters.ltree_filters import LtreeFilter, _LQuery
 
 pytestmark = pytest.mark.search
 

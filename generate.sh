@@ -17,7 +17,7 @@ mkdir -pv "${PRODUCT_TYPES_PATH}" "${PRODUCT_BLOCKS_PATH}" "${WORKFLOWS_PATH}" "
 WORKFLOWS_INIT_FILE="${WORKFLOWS_PATH}/__init__.py"
 if test ! -f "${WORKFLOWS_INIT_FILE}"
 then
-    echo "from orchestrator.workflows import LazyWorkflowInstance" >> "${WORKFLOWS_INIT_FILE}"
+    echo "from orchestrator.core.workflows import LazyWorkflowInstance" >> "${WORKFLOWS_INIT_FILE}"
 fi
 
 for CONFIG_FILE in /Users/hanst/Sources/workfloworchestrator/example-orchestrator-advanced/product_models/*.yaml

@@ -34,7 +34,7 @@ Here is an example that makes a HTTP request to a service that executes
 an Ansible playbook:
 
 ```python
-from orchestrator import step
+from orchestrator.core import step
 
 
 @step("Execute an ansible playbook")
@@ -75,7 +75,7 @@ supplement it, we will need an additional function which also
 provides the validation step.
 
 ```python
-from orchestrator.workflow import Step, callback_step
+from orchestrator.core.workflow import Step, callback_step
 
 
 def callback_interaction(provisioning_step: Step) -> StepList:
@@ -109,8 +109,8 @@ This allows us, in this example, to use the return code from Ansible to make
 the pass/fail decision on the step:
 
 ```python
-from orchestrator import step
-from orchestrator.utils.errors import ProcessFailureError
+from orchestrator.core import step
+from orchestrator.core.utils.errors import ProcessFailureError
 
 
 @step("Evaluate callback result")
@@ -125,9 +125,9 @@ Then we also need the step that presents the results to the operator and
 requests confirmation before proceeding:
 
 ```python
-from orchestrator.config.assignee import Assignee
-from orchestrator.forms import FormPage
-from orchestrator.workflow import Step, inputstep
+from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.forms import FormPage
+from orchestrator.core.workflow import Step, inputstep
 from pydantic_forms.validators import LongText
 
 
@@ -154,8 +154,8 @@ Finally, we wire this all up in our StepList. Instead of including the step
 directly, provide the step as a parameter to the interaction function:
 
 ```python
-from orchestrator.types import SubscriptionLifecycle
-from orchestrator.workflows.utils import create_workflow
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflows.utils import create_workflow
 
 
 @create_workflow("Example workflow", initial_input_form=initial_input_form_generator)

@@ -60,7 +60,7 @@ Mark workflow tests with `@pytest.mark.workflow`. The `responses` HTTP mock fixt
 
 ```python
 import pytest
-from orchestrator.db import ProductTable
+from orchestrator.core.db import ProductTable
 from sqlalchemy import select
 from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
@@ -110,8 +110,8 @@ Repeat the `assert_suspended` / `resume_workflow` cycle for each suspension poin
 To test a workflow defined inline (not registered in `ALL_WORKFLOWS`), use `WorkflowInstanceForTests` as a context manager:
 
 ```python
-from orchestrator.targets import Target
-from orchestrator.workflow import begin, done, inputstep, step, workflow
+from orchestrator.core.targets import Target
+from orchestrator.core.workflow import begin, done, inputstep, step, workflow
 from test.unit_tests.workflows import WorkflowInstanceForTests, assert_complete, assert_suspended, resume_workflow, run_workflow
 
 def test_my_inline_workflow():

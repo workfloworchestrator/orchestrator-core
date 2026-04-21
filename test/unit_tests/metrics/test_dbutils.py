@@ -12,10 +12,9 @@
 # limitations under the License.
 
 import pytest
+from orchestrator.metrics.dbutils import handle_missing_tables
 from psycopg import errors as psycopg_errors
 from sqlalchemy.exc import ProgrammingError
-
-from orchestrator.metrics.dbutils import handle_missing_tables
 
 
 def test_handle_missing_tables_passes_through_normally() -> None:

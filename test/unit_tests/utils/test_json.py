@@ -21,9 +21,9 @@ import pytest
 import pytz
 from pydantic import BaseModel
 
-from orchestrator.schemas.base import OrchestratorBaseModel
-from orchestrator.utils.datetime import nowtz
-from orchestrator.utils.json import from_serializable, json_dumps, json_loads, non_none_dict, to_serializable
+from orchestrator.core.schemas.base import OrchestratorBaseModel
+from orchestrator.core.utils.datetime import nowtz
+from orchestrator.core.utils.json import from_serializable, json_dumps, json_loads, non_none_dict, to_serializable
 
 
 def test_serialization_datetime():

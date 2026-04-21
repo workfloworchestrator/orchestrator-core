@@ -17,12 +17,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.domain.lifecycle import ProductLifecycle
-from orchestrator.search.core.exceptions import ProductNotInRegistryError
-from orchestrator.search.core.types import EntityType
-from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
-from orchestrator.search.indexing.traverse import ProductTraverser
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain.lifecycle import ProductLifecycle
+from orchestrator.core.search.core.exceptions import ProductNotInRegistryError
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+from orchestrator.core.search.indexing.traverse import ProductTraverser
 
 from .fixtures.expected_data.products import (
     get_complex_product_expected_fields,

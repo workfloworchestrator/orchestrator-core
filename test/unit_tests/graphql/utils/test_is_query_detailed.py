@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from strawberry.types.nodes import FragmentSpread, SelectedField
 
-from orchestrator.graphql.utils import is_query_detailed
+from orchestrator.core.graphql.utils import is_query_detailed
 
 is_test_query_detailed = is_query_detailed(("basic", "name"))
 

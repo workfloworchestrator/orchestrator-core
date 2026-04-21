@@ -17,7 +17,7 @@ from uuid import UUID
 
 import pytest
 
-from orchestrator.utils.docs import INDENT3, get_doc_title, make_field_doc, make_ref
+from orchestrator.core.utils.docs import INDENT3, get_doc_title, make_field_doc, make_ref
 
 
 class _ClassWithDoc:

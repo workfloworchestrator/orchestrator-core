@@ -5,15 +5,15 @@ from uuid import uuid4
 import pytest
 from kombu.exceptions import ConnectionError
 
-from orchestrator.db.models import ProcessTable
-from orchestrator.services.executors.celery import (
+from orchestrator.core.db.models import ProcessTable
+from orchestrator.core.services.executors.celery import (
     _celery_resume_process,
     _celery_set_process_status_resumed,
     _celery_start_process,
 )
-from orchestrator.services.processes import RESUMABLE_STATUSES
-from orchestrator.services.tasks import NEW_TASK, RESUME_WORKFLOW
-from orchestrator.workflow import ProcessStatus
+from orchestrator.core.services.processes import RESUMABLE_STATUSES
+from orchestrator.core.services.tasks import NEW_TASK, RESUME_WORKFLOW
+from orchestrator.core.workflow import ProcessStatus
 
 
 @mock.patch("orchestrator.services.tasks.get_celery_task")

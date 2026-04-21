@@ -91,7 +91,7 @@ This is an basic example of how to extend the query.
 You can do the same to extend Mutation.
 
 ```python
-from orchestrator.graphql import Query, Mutation, OrchestratorQuery
+from orchestrator.core.graphql import Query, Mutation, OrchestratorQuery
 
 
 # Queries
@@ -136,10 +136,10 @@ import strawberry
 from sqlalchemy import select
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.db import db
-from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.schemas.subscription import SubscriptionInterface
-from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+from orchestrator.core.db import db
+from orchestrator.core.graphql.pagination import Connection
+from orchestrator.core.graphql.schemas.subscription import SubscriptionInterface
+from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 
 
 @strawberry.federation.type(description="Customer", keys=["customer_id"])
@@ -159,7 +159,7 @@ class Customer:
         first: int = 10,
         after: int = 0,
     ) -> Connection[SubscriptionInterface]:
-        from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
+        from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
 
         filter_by_customer_id = (filter_by or []) + [GraphqlFilter(field="customerId", value=str(self.uuid))]  # type: ignore
         return await resolve_subscriptions(info, filter_by_customer_id, sort_by, first, after)
@@ -183,7 +183,7 @@ This functionality is to make metadata descriptive in a `__schema__` for the fro
 example how to update the `__schema__`:
 
 ```python
-from orchestrator.graphql.schemas.subscription import MetadataDict
+from orchestrator.core.graphql.schemas.subscription import MetadataDict
 
 
 class Metadata(BaseModel):
@@ -237,7 +237,7 @@ Here's an example of how to do it:
 import strawberry
 from typing import Annotated
 from app.product_blocks import ProductBlock
-from orchestrator.graphql import DEFAULT_GRAPHQL_MODELS
+from orchestrator.core.graphql import DEFAULT_GRAPHQL_MODELS
 
 
 # It is necessary to use pydantic type, so that other product blocks can recognize it when typing to GraphQL.
@@ -270,7 +270,7 @@ Here's an example of how to add a new scalar:
 ```python
 import strawberry
 from typing import NewType
-from orchestrator.graphql import SCALAR_OVERRIDES
+from orchestrator.core.graphql import SCALAR_OVERRIDES
 
 VlanRangesType = strawberry.scalar(
     name="VlanRangesType",
@@ -467,7 +467,7 @@ The problem with this is that Strawberry automatically uses the alias name and d
 To fix it and have CamelCasing, we can prevent aliases from being used in `strawberry.type` using the created mapping `USE_PYDANTIC_ALIAS_MODEL_MAPPING`:
 
 ```python
-from orchestrator.graphql.autoregistration import USE_PYDANTIC_ALIAS_MODEL_MAPPING
+from orchestrator.core.graphql.autoregistration import USE_PYDANTIC_ALIAS_MODEL_MAPPING
 
 USE_PYDANTIC_ALIAS_MODEL_MAPPING.update({"ExampleProductSubscription": False})
 ```
@@ -518,7 +518,7 @@ Quick example (for more indebt check customerType override):
 
 ```python
 import strawberry
-from orchestrator.graphql.utils.override_class import override_class
+from orchestrator.core.graphql.utils.override_class import override_class
 
 
 # Define a Strawberry type representing an example entity
@@ -576,13 +576,13 @@ from typing import Annotated
 import strawberry
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.schemas.customer import CustomerType
-from orchestrator.graphql.schemas.subscription import (
+from orchestrator.core.graphql.pagination import Connection
+from orchestrator.core.graphql.schemas.customer import CustomerType
+from orchestrator.core.graphql.schemas.subscription import (
     SubscriptionInterface,
 )  # noqa: F401
-from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.graphql.utils.override_class import override_class
+from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+from orchestrator.core.graphql.utils.override_class import override_class
 
 # Type annotation for better readability rather than having this directly as a return type
 SubscriptionInterfaceType = Connection[
@@ -602,7 +602,7 @@ async def resolve_subscriptions(
     first: int = 10,
     after: int = 0,
 ) -> SubscriptionInterfaceType:
-    from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
+    from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
 
     # Include the filter for the customer ID; since 'customerId' exists in the subscription, filtering updates are not required.
     filter_by_customer_id = (filter_by or []) + [GraphqlFilter(field="customerId", value=str(root.customer_id))]  # type: ignore
@@ -630,19 +630,19 @@ In this example code, we introduce a resolver override for the `CustomerType`. T
 import structlog
 from sqlalchemy import func, select
 
-from orchestrator.db import db
-from orchestrator.db.filters import Filter
-from orchestrator.db.range.range import apply_range_to_statement
-from orchestrator.db.sorting import Sort
-from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.resolvers.helpers import rows_from_statement
-from orchestrator.graphql.schemas.customer import CustomerType
-from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.graphql.utils.create_resolver_error_handler import (
+from orchestrator.core.db import db
+from orchestrator.core.db.filters import Filter
+from orchestrator.core.db.range.range import apply_range_to_statement
+from orchestrator.core.db.sorting import Sort
+from orchestrator.core.graphql.pagination import Connection
+from orchestrator.core.graphql.resolvers.helpers import rows_from_statement
+from orchestrator.core.graphql.schemas.customer import CustomerType
+from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+from orchestrator.core.graphql.utils.create_resolver_error_handler import (
     create_resolver_error_handler,
 )
-from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
-from orchestrator.utils.search_query import create_sqlalchemy_select
+from orchestrator.core.graphql.utils.to_graphql_result_page import to_graphql_result_page
+from orchestrator.core.utils.search_query import create_sqlalchemy_select
 from your_customer_table_location.db.models import CustomerTable
 
 # # Import custom sorting and filtering modules used with `sort_by` and `filter_by`.

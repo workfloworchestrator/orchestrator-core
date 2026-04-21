@@ -15,8 +15,8 @@
 
 import pytest
 
-from orchestrator.search.core.types import FieldType, FilterOp, UIType
-from orchestrator.search.filters.definitions import (
+from orchestrator.core.search.core.types import FieldType, FilterOp, UIType
+from orchestrator.core.search.filters.definitions import (
     TypeDefinition,
     component_operators,
     generate_definitions,

@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from orchestrator.search.aggregations import (
+from orchestrator.core.search.aggregations import (
     AggregationType,
     BaseAggregation,
     CountAggregation,
@@ -26,11 +26,11 @@ from orchestrator.search.aggregations import (
     TemporalGrouping,
     TemporalPeriod,
 )
-from orchestrator.search.core.types import EntityType, QueryOperation
-from orchestrator.search.filters import FilterTree
-from orchestrator.search.query.builder import build_aggregation_query, build_candidate_query
-from orchestrator.search.query.mixins import OrderBy, OrderDirection
-from orchestrator.search.query.queries import AggregateQuery, CountQuery, ExportQuery, Query, SelectQuery
+from orchestrator.core.search.core.types import EntityType, QueryOperation
+from orchestrator.core.search.filters import FilterTree
+from orchestrator.core.search.query.builder import build_aggregation_query, build_candidate_query
+from orchestrator.core.search.query.mixins import OrderBy, OrderDirection
+from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, Query, SelectQuery
 
 pytestmark = pytest.mark.search
 

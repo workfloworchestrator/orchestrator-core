@@ -7,9 +7,9 @@ from uuid import uuid4
 from inline_snapshot import snapshot
 
 from oauth2_lib.fastapi import OIDCUserModel
-from orchestrator.db.models import WorkflowApschedulerJob, WorkflowTable
-from orchestrator.targets import Target
-from orchestrator.workflow import done, init, workflow
+from orchestrator.core.db.models import WorkflowApschedulerJob, WorkflowTable
+from orchestrator.core.targets import Target
+from orchestrator.core.workflow import done, init, workflow
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
 

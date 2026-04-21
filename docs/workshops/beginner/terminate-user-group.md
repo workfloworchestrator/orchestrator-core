@@ -32,7 +32,7 @@ subscription. This is done by using a `Label` to show a question on the input
 form:
 
 ```python
-from orchestrator.forms.validators import Label
+from orchestrator.core.forms.validators import Label
 
 ...
     class TerminateForm(FormPage):
@@ -55,13 +55,13 @@ Use the skeleton below to create the file
 `workflows/user_group/terminate_user_group.py`:
 
 ```python
-from orchestrator.forms import FormPage
-from orchestrator.forms.validators import Label
-from orchestrator.targets import Target
-from orchestrator.types import InputForm, State, SubscriptionLifecycle, UUIDstr
-from orchestrator.workflow import done, init, step, workflow
-from orchestrator.workflows.steps import resync, set_status, store_process_subscription, unsync
-from orchestrator.workflows.utils import wrap_modify_initial_input_form
+from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import Label
+from orchestrator.core.targets import Target
+from orchestrator.core.types import InputForm, State, SubscriptionLifecycle, UUIDstr
+from orchestrator.core.workflow import done, init, step, workflow
+from orchestrator.core.workflows.steps import resync, set_status, store_process_subscription, unsync
+from orchestrator.core.workflows.utils import wrap_modify_initial_input_form
 
 from products import UserGroup
 

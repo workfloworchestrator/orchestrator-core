@@ -15,8 +15,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from orchestrator.domain.base import ProductModel
-from orchestrator.domain.lifecycle import ProductLifecycle
+from orchestrator.core.domain.base import ProductModel
+from orchestrator.core.domain.lifecycle import ProductLifecycle
 
 from .blocks import (
     BasicBlock,

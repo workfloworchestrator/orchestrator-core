@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from orchestrator.schemas.base import OrchestratorBaseModel
+from orchestrator.core.schemas.base import OrchestratorBaseModel
 
 
 class _DateTimeModel(OrchestratorBaseModel):

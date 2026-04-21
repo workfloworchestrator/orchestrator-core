@@ -23,14 +23,14 @@ import pytest
 from sqlalchemy import literal, select
 from sqlalchemy.dialects import postgresql
 
-from orchestrator.db import db
-from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.query.mixins import OrderDirection, StructuredOrderBy
-from orchestrator.search.retrieval.pagination import PageCursor
-from orchestrator.search.retrieval.retrievers.fuzzy import FuzzyRetriever
-from orchestrator.search.retrieval.retrievers.hybrid import RrfHybridRetriever, compute_rrf_hybrid_score_sql
-from orchestrator.search.retrieval.retrievers.semantic import SemanticRetriever
-from orchestrator.search.retrieval.retrievers.structured import StructuredRetriever
+from orchestrator.core.db import db
+from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.search.query.mixins import OrderDirection, StructuredOrderBy
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
+from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever, compute_rrf_hybrid_score_sql
+from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
+from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 
 from .snapshot_helper import assert_sql_matches_snapshot
 

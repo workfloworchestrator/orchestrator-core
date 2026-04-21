@@ -1,0 +1,92 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+import structlog
+from litellm import aembedding as llm_aembedding
+from litellm import embedding as llm_embedding
+from litellm import exceptions as llm_exc
+
+from orchestrator.core.settings import llm_settings
+
+logger = structlog.get_logger(__name__)
+
+
+class EmbeddingIndexer:
+
+    @classmethod
+    def get_embeddings_from_api_batch(cls, texts: list[str], dry_run: bool) -> list[list[float]]:
+        if not texts:
+            return []
+        if dry_run:
+            logger.debug("Dry Run: returning empty embeddings")
+            return [[] for _ in texts]
+
+        try:
+            resp = llm_embedding(
+                model=llm_settings.EMBEDDING_MODEL,
+                input=[t.lower() for t in texts],
+                api_key=llm_settings.EMBEDDING_API_KEY,
+                api_base=llm_settings.EMBEDDING_API_BASE,
+                encoding_format=llm_settings.EMBEDDING_ENCODING_FORMAT,
+                timeout=llm_settings.LLM_TIMEOUT,
+                max_retries=llm_settings.LLM_MAX_RETRIES,
+            )
+            data = sorted(resp.data, key=lambda e: e["index"])
+            return [row["embedding"][: llm_settings.EMBEDDING_DIMENSION] for row in data]
+        except llm_exc.APIConnectionError as e:
+            logger.error("Embedding service unreachable", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
+            return [[] for _ in texts]
+        except (llm_exc.APIError, llm_exc.RateLimitError, llm_exc.Timeout) as e:
+            logger.error("Embedding request failed", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
+            return [[] for _ in texts]
+        except Exception as e:
+            logger.error("Unexpected embedding error", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
+            return [[] for _ in texts]
+
+
+class QueryEmbedder:
+    """A stateless, async utility for embedding real-time user queries."""
+
+    @classmethod
+    async def generate_for_text_async(cls, text: str) -> list[float] | None:
+        """Generate an embedding vector for a single query text.
+
+        Returns a list of floats (the embedding) on success, or None if the embedding
+        could not be produced — either because the input text is empty or because the
+        embedding service is unavailable / returned an error.
+
+        Callers must treat None as "embedding unavailable" and fall back to fuzzy/
+        structured search rather than passing it to a vector similarity query.
+        """
+        if not text:
+            return None
+
+        if not llm_settings.EMBEDDING_API_ENABLED:
+            logger.debug("Embedding API not enabled, search functionality restricted to fuzzy/structured search")
+            return None
+
+        try:
+            resp = await llm_aembedding(
+                model=llm_settings.EMBEDDING_MODEL,
+                input=[text.lower()],
+                api_key=llm_settings.EMBEDDING_API_KEY,
+                api_base=llm_settings.EMBEDDING_API_BASE,
+                encoding_format=llm_settings.EMBEDDING_ENCODING_FORMAT,
+                timeout=5.0,
+                max_retries=0,  # No retries, prioritize speed.
+            )
+            return resp.data[0]["embedding"][: llm_settings.EMBEDDING_DIMENSION]
+        except Exception as e:
+            logger.error("Async embedding generation failed", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
+            return None

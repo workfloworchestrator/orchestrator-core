@@ -2,7 +2,7 @@
 
 from unittest import mock
 
-from orchestrator.cli.helpers.input_helpers import get_user_input
+from orchestrator.core.cli.helpers.input_helpers import get_user_input
 
 
 @mock.patch("orchestrator.cli.helpers.input_helpers.input", return_value="  hello  ")

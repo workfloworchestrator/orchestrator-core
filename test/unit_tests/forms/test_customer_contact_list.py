@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from orchestrator.forms.validators import customer_contact_list
+from orchestrator.core.forms.validators import customer_contact_list
 from pydantic_forms.core import FormPage
 
 

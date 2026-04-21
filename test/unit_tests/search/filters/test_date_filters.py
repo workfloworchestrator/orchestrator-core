@@ -20,8 +20,8 @@ from pydantic import ValidationError
 from sqlalchemy import String, column
 from sqlalchemy.sql.elements import ColumnElement
 
-from orchestrator.search.core.types import FilterOp
-from orchestrator.search.filters.date_filters import (
+from orchestrator.core.search.core.types import FilterOp
+from orchestrator.core.search.filters.date_filters import (
     DateRange,
     DateRangeFilter,
     DateValueFilter,

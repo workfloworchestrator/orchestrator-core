@@ -2,8 +2,8 @@ from unittest import mock
 
 from sqlalchemy.orm import Relationship
 
-from orchestrator.db.models import WorkflowTable
-from orchestrator.graphql.utils.get_query_loaders import get_query_loaders_for_gql_fields
+from orchestrator.core.db.models import WorkflowTable
+from orchestrator.core.graphql.utils.get_query_loaders import get_query_loaders_for_gql_fields
 from test.unit_tests.graphql.utils.fixtures import LARGE_QUERY_SELECTED_FIELDS, SMALL_QUERY_SELECTED_FIELDS
 
 

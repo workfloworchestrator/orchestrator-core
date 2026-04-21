@@ -8,15 +8,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.db import ProcessTable, SubscriptionTable
-from orchestrator.search.core.types import EntityType, ExtractedField, FieldType
-from orchestrator.search.indexing.registry import (
+from orchestrator.core.db import ProcessTable, SubscriptionTable
+from orchestrator.core.search.core.types import EntityType, ExtractedField, FieldType
+from orchestrator.core.search.indexing.registry import (
     ENTITY_CONFIG_REGISTRY,
     EntityConfig,
     ProcessConfig,
     WorkflowConfig,
 )
-from orchestrator.search.indexing.traverse import (
+from orchestrator.core.search.indexing.traverse import (
     ProcessTraverser,
     SubscriptionTraverser,
     WorkflowTraverser,

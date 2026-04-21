@@ -7,7 +7,7 @@ import pytest
 import structlog
 from more_itertools import one
 
-from orchestrator.cli.generate import app as generate_app
+from orchestrator.core.cli.generate import app as generate_app
 from test.unit_tests.cli.helpers import absolute_path
 
 logger = structlog.get_logger()

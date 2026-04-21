@@ -3,9 +3,9 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.db import db
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.db import db
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.types import SubscriptionLifecycle
 from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 
 

@@ -1,0 +1,123 @@
+{# Create workflow -#}
+
+{% from 'macros.j2' import type_and_default, required with context -%}
+
+from collections.abc import Generator
+from typing import Annotated
+
+import structlog
+from pydantic import AfterValidator, ConfigDict, model_validator
+from pydantic_forms.types import FormGenerator, State, UUIDstr
+
+from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import Divider, Label, CustomerId, MigrationSummary
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.steps import store_process_subscription
+from orchestrator.core.workflows.utils import create_workflow
+
+{%- for namespace, type in types_to_import %}
+from {{ namespace }} import {{ type }}
+{%- endfor %}
+from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}Inactive, {{ product.type }}Provisioning
+{%-if validation_imports %}
+from {{workflows_module}}.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
+{%-endif %}
+{% if product.config.summary_forms -%}
+from {{workflows_module}}.shared import create_summary_form
+{%- endif %}
+{% if product_block_types -%}
+from {{ product_blocks_module }}.{{ product_block.variable }} import {{ product_block_types | map(attribute='type') | join(", ") }}
+{%- endif %}
+
+{% include 'additional_create_imports.j2' %}
+
+
+logger = structlog.get_logger(__name__)
+
+{% for validation in validations -%}
+validated_{{ validation.field.name }} = Annotated[{{ validation.field.type }}, AfterValidator({{ validation.validation.id }}_validator)]
+{% endfor %}
+
+def initial_input_form_generator(product_name: str) -> FormGenerator:
+    # TODO add additional fields to form if needed
+
+    class Create{{ product.type }}Form(FormPage):
+        model_config = ConfigDict(title=product_name)
+
+        customer_id: CustomerId
+{% include "additional_create_input_fields.j2" ignore missing %}
+
+        {{ product.variable }}_settings: Label
+        divider_1: Divider
+
+        {% for field in fields if field.type not in existing_product_blocks -%}
+        {% if field.type not in existing_product_blocks -%}
+        {% if field.type in validations | map(attribute='field.type') -%}
+            {% set type = 'validated_' +  field.name -%}
+        {% else -%}
+            {% set type = field.type -%}
+        {% endif -%}
+        {{ field.name }}: {{ type_and_default(field, type, ["inactive", "provisioning"]) }}
+        {%- endif %}
+        {% endfor -%}
+        {% for validation in workflow_validations %}
+
+        @model_validator(mode="after")
+        def {{ validation.id }}(self) -> "Create{{ product.type }}Form":
+            if False:  # TODO implement validation
+                raise ValueError("{{ validation.description }}")
+            return self
+        {%- endfor %}
+
+    user_input = yield Create{{ product.type }}Form
+    user_input_dict = user_input.dict()
+    {% if product.config.summary_forms %}
+    summary_fields = [{% for field in fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
+    yield from create_summary_form(user_input_dict, product_name, summary_fields)
+    {%- endif %}
+
+    return user_input_dict
+
+
+@step("Construct Subscription model")
+def construct_{{ product.variable }}_model(
+    product: UUIDstr,
+    customer_id: UUIDstr,
+    {% for field in fields -%}
+    {% if field.type not in existing_product_blocks -%}
+    {{ field.name }}: {{ required(field, field.type, ["inactive", "provisioning"]) }},
+    {%- endif %}
+    {% endfor -%}
+) -> State:
+    {{ product.variable }} = {{ product.type }}Inactive.from_product_id(
+        product_id=product,
+        customer_id=customer_id,
+        status=SubscriptionLifecycle.INITIAL,
+    )
+
+    {%- for field in fields %}
+    {{ product.variable }}.{{ product_block.name }}.{{ field.name }} = {{ field.name }}
+    {%- endfor %}
+
+    {{ product.variable }} = {{ product.type }}Provisioning.from_other_lifecycle({{ product.variable }}, SubscriptionLifecycle.PROVISIONING)
+    {{ product.variable }}.description = subscription_description({{ product.variable }})
+
+    return {
+        "subscription": {{ product.variable }},
+        "subscription_id": {{ product.variable }}.subscription_id,  # necessary to be able to use older generic step functions
+        "subscription_description": {{ product.variable }}.description,
+    }
+
+
+{% include 'additional_create_steps.j2' %}
+
+
+@create_workflow(initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
+def create_{{ product.variable }}() -> StepList:
+    return (
+        begin
+        >> construct_{{ product.variable }}_model
+        >> store_process_subscription()
+        # TODO add provision step(s)
+    )

@@ -56,12 +56,12 @@ Use the skeleton below to create the file
 `workflows/user_group/modify_user_group.py`:
 
 ```python
-from orchestrator.forms import FormPage, ReadOnlyField
-from orchestrator.targets import Target
-from orchestrator.types import FormGenerator, State, UUIDstr
-from orchestrator.workflow import done, init, step, workflow
-from orchestrator.workflows.steps import resync, store_process_subscription, unsync
-from orchestrator.workflows.utils import wrap_modify_initial_input_form
+from orchestrator.core.forms import FormPage, ReadOnlyField
+from orchestrator.core.targets import Target
+from orchestrator.core.types import FormGenerator, State, UUIDstr
+from orchestrator.core.workflow import done, init, step, workflow
+from orchestrator.core.workflows.steps import resync, store_process_subscription, unsync
+from orchestrator.core.workflows.utils import wrap_modify_initial_input_form
 
 from products.product_types.user_group import UserGroup
 

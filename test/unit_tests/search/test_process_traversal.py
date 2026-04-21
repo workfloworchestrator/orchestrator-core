@@ -17,9 +17,9 @@ from datetime import datetime
 from unittest.mock import MagicMock
 from uuid import UUID
 
-from orchestrator.db import ProcessTable
-from orchestrator.search.core.types import EntityType, FieldType
-from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+from orchestrator.core.db import ProcessTable
+from orchestrator.core.search.core.types import EntityType, FieldType
+from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 
 _EXPECTED_FIELDS = {
     "process.process_id": ("550e8400-e29b-41d4-a716-446655440000", FieldType.UUID),

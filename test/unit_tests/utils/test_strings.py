@@ -1,4 +1,4 @@
-from orchestrator.utils.strings import remove_redundant_ws
+from orchestrator.core.utils.strings import remove_redundant_ws
 
 
 def test_remove_redundant_ws():

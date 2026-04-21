@@ -27,8 +27,8 @@ The decorated function must return a chain of steps using the `>>` operator to d
 ### Minimal create workflow example
 
 ```python
-from orchestrator.workflows.utils import create_workflow
-from orchestrator.workflow import StepList, begin
+from orchestrator.core.workflows.utils import create_workflow
+from orchestrator.core.workflow import StepList, begin
 
 
 @create_workflow(initial_input_form=initial_input_form_generator)
@@ -115,7 +115,7 @@ Workflow functions must be registered by creating a `LazyWorkflowInstance`, whic
 Example — registering the `create_user_group` workflow:
 
 ```python
-from orchestrator.workflows import LazyWorkflowInstance
+from orchestrator.core.workflows import LazyWorkflowInstance
 
 LazyWorkflowInstance("workflows.user_group.create_user_group", "create_user_group")
 ```
@@ -189,7 +189,7 @@ For the migration we will make use of the migration helper functions `create_wor
 To add all User and UserGroup workflows in bulk a list of `Dict` is created, for only the UserGroup create workflow the list looks like this:
 
 ```python
-from orchestrator.targets import Target
+from orchestrator.core.targets import Target
 
 new_workflows = [
     {
@@ -208,7 +208,7 @@ Add a list of `Dict`s describing the create, modify and terminate workflows for 
 The migration `upgrade` and `downgrade` functions will just loop through the list:
 
 ```python
-from orchestrator.migrations.helpers import create_workflow, delete_workflow
+from orchestrator.core.migrations.helpers import create_workflow, delete_workflow
 
 
 def upgrade() -> None:

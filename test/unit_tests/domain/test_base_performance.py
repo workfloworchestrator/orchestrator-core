@@ -3,9 +3,9 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import func, select
 
-from orchestrator.db import SubscriptionTable, db
-from orchestrator.domain import SubscriptionModel
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.db import SubscriptionTable, db
+from orchestrator.core.domain import SubscriptionModel
+from orchestrator.core.types import SubscriptionLifecycle
 from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 
 

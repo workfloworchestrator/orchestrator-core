@@ -4,22 +4,22 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.db import ProcessTable
-from orchestrator.services.executors.threadpool import (
+from orchestrator.core.db import ProcessTable
+from orchestrator.core.services.executors.threadpool import (
     _set_process_status_running,
     thread_resume_process,
     thread_start_process,
 )
-from orchestrator.services.processes import RESUME_WORKFLOW_REMOVED_ERROR_MSG, START_WORKFLOW_REMOVED_ERROR_MSG
-from orchestrator.targets import Target
-from orchestrator.workflow import (
+from orchestrator.core.services.processes import RESUME_WORKFLOW_REMOVED_ERROR_MSG, START_WORKFLOW_REMOVED_ERROR_MSG
+from orchestrator.core.targets import Target
+from orchestrator.core.workflow import (
     ProcessStat,
     ProcessStatus,
     Success,
     make_workflow,
     step,
 )
-from orchestrator.workflows.removed_workflow import removed_workflow
+from orchestrator.core.workflows.removed_workflow import removed_workflow
 
 
 def mock_process_data():

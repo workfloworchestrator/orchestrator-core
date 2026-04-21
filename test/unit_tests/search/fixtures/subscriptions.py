@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from orchestrator.domain.base import SubscriptionModel
+from orchestrator.core.domain.base import SubscriptionModel
 
 from .blocks import BasicBlock, ComputedBlock, ContainerListBlock, OuterBlock
 

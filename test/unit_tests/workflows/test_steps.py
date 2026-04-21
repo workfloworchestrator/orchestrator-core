@@ -6,8 +6,8 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.workflows.steps import (
+from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.workflows.steps import (
     refresh_process_search_index,
     refresh_subscription_search_index,
     store_process_subscription,
@@ -112,7 +112,7 @@ def test_unsync_creates_backup_for_model(mock_from_sub, mock_invalidate, subscri
 
 
 def test_store_process_subscription_deprecation_warning():
-    from orchestrator.targets import Target
+    from orchestrator.core.targets import Target
 
     with patch("orchestrator.workflows.steps.logger") as mock_logger:
         store_process_subscription(Target.CREATE)

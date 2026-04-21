@@ -47,7 +47,7 @@ export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-cor
 Create a `main.py` file for running the CLI.
 
 ```python
-from orchestrator.cli.main import app as core_cli
+from orchestrator.core.cli.main import app as core_cli
 
 if __name__ == "__main__":
     core_cli()
@@ -56,8 +56,8 @@ if __name__ == "__main__":
 Create a `wsgi.py` file for running the web server.
 
 ```python
-from orchestrator import OrchestratorCore
-from orchestrator.settings import AppSettings
+from orchestrator.core import OrchestratorCore
+from orchestrator.core.settings import AppSettings
 
 app = OrchestratorCore(base_settings=AppSettings())
 ```

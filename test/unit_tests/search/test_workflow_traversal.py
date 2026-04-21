@@ -16,10 +16,10 @@
 from datetime import datetime
 from uuid import UUID
 
-from orchestrator.db import WorkflowTable
-from orchestrator.search.core.types import EntityType, FieldType
-from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
-from orchestrator.targets import Target
+from orchestrator.core.db import WorkflowTable
+from orchestrator.core.search.core.types import EntityType, FieldType
+from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+from orchestrator.core.targets import Target
 
 _EXPECTED_FIELDS = {
     "workflow.workflow_id": ("660e8400-e29b-41d4-a716-446655440000", FieldType.UUID),

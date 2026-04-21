@@ -152,12 +152,12 @@ from uuid import UUID
 from celery import Celery
 from celery.signals import worker_shutting_down
 from nwastdlib.debugging import start_debugger
-from orchestrator.db import init_database
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.types import BroadcastFunc
-from orchestrator.websocket import broadcast_process_update_to_websocket, init_websocket_manager
-from orchestrator.websocket.websocket_manager import WebSocketManager
-from orchestrator.workflows import ALL_WORKFLOWS
+from orchestrator.core.db import init_database
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.types import BroadcastFunc
+from orchestrator.core.websocket import broadcast_process_update_to_websocket, init_websocket_manager
+from orchestrator.core.websocket.websocket_manager import WebSocketManager
+from orchestrator.core.workflows import ALL_WORKFLOWS
 
 # Substitute your_orch with your org's Orchestrator instance.
 # class AppSettings(OrchSettings):
@@ -225,7 +225,7 @@ Create a file with the above, for example `my_orchestrator/celery_client.py`.
 Next, update your `main.py` and `wsgi.py` to include the following imports:
 
 ```python
-from orchestrator.services.tasks import initialise_celery
+from orchestrator.core.services.tasks import initialise_celery
 from my_orchestrator.celery_client import celery
 ```
 

@@ -31,8 +31,8 @@ query is all that is needed to get a list of `active` `UserGroup`
 subscriptions:
 
 ```python
-from orchestrator.db import db
-from orchestrator.db.models import ProductTable, SubscriptionTable
+from orchestrator.core.db import db
+from orchestrator.core.db.models import ProductTable, SubscriptionTable
 from sqlalchemy import select
 
 ...
@@ -60,8 +60,8 @@ keys.  The amount of entries that may be chosen is controlled by the
 Putting everything together, the user group selector looks like this:
 
 ```python
-from orchestrator.db import db
-from orchestrator.db.models import ProductTable, SubscriptionTable
+from orchestrator.core.db import db
+from orchestrator.core.db.models import ProductTable, SubscriptionTable
 from sqlalchemy import select
 
 def user_group_selector() -> list:
@@ -102,14 +102,14 @@ Use the skeleton below to create the file `workflows/user/create_user.py`:
 from typing import List, Optional
 from uuid import uuid4
 
-from orchestrator.db.models import ProductTable, SubscriptionTable
-from orchestrator.forms import FormPage
-from orchestrator.forms.validators import Choice, choice_list
-from orchestrator.targets import Target
-from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
-from orchestrator.workflow import done, init, step, workflow
-from orchestrator.workflows.steps import resync, set_status, store_process_subscription
-from orchestrator.workflows.utils import wrap_create_initial_input_form
+from orchestrator.core.db.models import ProductTable, SubscriptionTable
+from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import Choice, choice_list
+from orchestrator.core.targets import Target
+from orchestrator.core.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
+from orchestrator.core.workflow import done, init, step, workflow
+from orchestrator.core.workflows.steps import resync, set_status, store_process_subscription
+from orchestrator.core.workflows.utils import wrap_create_initial_input_form
 
 from products.product_types.user import UserInactive, UserProvisioning
 from products.product_types.user_group import UserGroup

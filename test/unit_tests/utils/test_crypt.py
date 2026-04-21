@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import pytest
 
-from orchestrator.utils.crypt import Cryptic
+from orchestrator.core.utils.crypt import Cryptic
 
 
 @pytest.fixture

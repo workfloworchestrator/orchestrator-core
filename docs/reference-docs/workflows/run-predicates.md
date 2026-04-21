@@ -41,7 +41,7 @@ A predicate is any callable that accepts a `PredicateContext` and returns a `Run
 ### Simple function
 
 ```python
-from orchestrator.workflow import PredicateContext, RunPredicateFail, RunPredicatePass, RunPredicateResult, workflow
+from orchestrator.core.workflow import PredicateContext, RunPredicateFail, RunPredicatePass, RunPredicateResult, workflow
 
 def is_maintenance_window(context: PredicateContext) -> RunPredicateResult:
     from datetime import datetime

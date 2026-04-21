@@ -4,8 +4,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 
-from orchestrator.db import ProductTable, db
-from orchestrator.services.products import get_product_by_id, get_product_by_name, get_tags, get_types
+from orchestrator.core.db import ProductTable, db
+from orchestrator.core.services.products import get_product_by_id, get_product_by_name, get_tags, get_types
 
 
 def test_get_product_by_id(generic_product_1):

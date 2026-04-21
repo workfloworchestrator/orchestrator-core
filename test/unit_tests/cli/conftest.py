@@ -4,7 +4,7 @@ from functools import partial
 import pytest
 from typer.testing import CliRunner
 
-from orchestrator.cli.database import app as db_app
+from orchestrator.core.cli.database import app as db_app
 from test.unit_tests.cli.helpers import create_main
 
 

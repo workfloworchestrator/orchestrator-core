@@ -2,9 +2,9 @@ import json
 from hashlib import md5
 from http import HTTPStatus
 
-from orchestrator import app_settings
-from orchestrator.utils.redis import ONE_WEEK
-from orchestrator.utils.redis_client import create_redis_client
+from orchestrator.core import app_settings
+from orchestrator.core.utils.redis import ONE_WEEK
+from orchestrator.core.utils.redis_client import create_redis_client
 from test.unit_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
 
 

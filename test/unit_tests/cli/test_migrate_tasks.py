@@ -5,8 +5,8 @@ from unittest import mock
 
 import pytest
 
-import orchestrator.cli.migrate_tasks as migrate_tasks
-import orchestrator.workflows
+import orchestrator.core.cli.migrate_tasks as migrate_tasks
+import orchestrator.core.workflows
 
 
 def _state():

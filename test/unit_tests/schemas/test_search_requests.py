@@ -16,9 +16,9 @@
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.schemas.search_requests import SearchRequest
-from orchestrator.search.core.types import EntityType, RetrieverType
-from orchestrator.search.query.mixins import StructuredOrderBy
+from orchestrator.core.schemas.search_requests import SearchRequest
+from orchestrator.core.search.core.types import EntityType, RetrieverType
+from orchestrator.core.search.query.mixins import StructuredOrderBy
 
 
 @pytest.mark.parametrize(

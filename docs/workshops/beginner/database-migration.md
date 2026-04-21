@@ -36,7 +36,7 @@ from the rest of the code.
 Create the file `products/__init__.py` and add the following code:
 
 ```python
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 
 from products.product_types.user import User
 from products.product_types.user_group import UserGroup

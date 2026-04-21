@@ -1,6 +1,6 @@
 import pytest
 
-from orchestrator.db import ResourceTypeTable
+from orchestrator.core.db import ResourceTypeTable
 
 
 @pytest.fixture

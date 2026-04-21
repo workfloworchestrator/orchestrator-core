@@ -15,9 +15,9 @@
 
 import pytest
 
-from orchestrator.search.core.types import EntityType
-from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
-from orchestrator.search.indexing.traverse import SubscriptionTraverser
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+from orchestrator.core.search.indexing.traverse import SubscriptionTraverser
 
 
 def _assert_traverse_fields_match(mock_load_model, mock_db_subscription, subscription_instance, expected_fields):

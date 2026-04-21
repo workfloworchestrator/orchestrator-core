@@ -2,9 +2,9 @@ from unittest import mock
 
 from pydantic import computed_field
 
-from orchestrator.domain import SubscriptionModel
-from orchestrator.domain.base import DomainModel
-from orchestrator.domain.context_cache import cache_subscription_models
+from orchestrator.core.domain import SubscriptionModel
+from orchestrator.core.domain.base import DomainModel
+from orchestrator.core.domain.context_cache import cache_subscription_models
 
 
 def test_serializable_property():

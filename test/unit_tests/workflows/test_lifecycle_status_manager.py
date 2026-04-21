@@ -13,9 +13,9 @@
 
 import pytest
 
-from orchestrator.utils.state import inject_args
-from orchestrator.workflow import StepList, begin, step
-from orchestrator.workflows.utils import ensure_provisioning_status
+from orchestrator.core.utils.state import inject_args
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.utils import ensure_provisioning_status
 
 
 @step("Dummy Step Success")

@@ -1,4 +1,4 @@
-from orchestrator.utils.datetime import TIMESTAMP_REGEX, timestamp
+from orchestrator.core.utils.datetime import TIMESTAMP_REGEX, timestamp
 
 
 def test_timestamp_and_regex():

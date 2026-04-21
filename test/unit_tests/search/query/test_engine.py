@@ -17,16 +17,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from orchestrator.search.core.types import EntityType, RetrieverType, SearchMetadata
-from orchestrator.search.query.engine import (
+from orchestrator.core.search.core.types import EntityType, RetrieverType, SearchMetadata
+from orchestrator.core.search.query.engine import (
     _get_retriever_from_override,
     execute_aggregation,
     execute_export,
     execute_search,
 )
-from orchestrator.search.query.queries import CountQuery, ExportQuery, SelectQuery
-from orchestrator.search.query.results import SearchResponse, SearchResult
-from orchestrator.search.retrieval.retrievers import (
+from orchestrator.core.search.query.queries import CountQuery, ExportQuery, SelectQuery
+from orchestrator.core.search.query.results import SearchResponse, SearchResult
+from orchestrator.core.search.retrieval.retrievers import (
     FuzzyRetriever,
     ProcessHybridRetriever,
     RrfHybridRetriever,

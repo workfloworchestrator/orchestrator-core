@@ -23,10 +23,10 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from orchestrator.search.core.exceptions import InvalidCursorError
-from orchestrator.search.core.types import EntityType, SearchMetadata
-from orchestrator.search.query.results import SearchResponse, SearchResult
-from orchestrator.search.retrieval.pagination import PageCursor, encode_next_page_cursor
+from orchestrator.core.search.core.exceptions import InvalidCursorError
+from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.query.results import SearchResponse, SearchResult
+from orchestrator.core.search.retrieval.pagination import PageCursor, encode_next_page_cursor
 
 pytestmark = pytest.mark.search
 

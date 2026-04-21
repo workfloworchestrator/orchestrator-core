@@ -18,7 +18,7 @@ from typing import Annotated, List, Literal, Union
 from annotated_types import Len
 from pydantic import AfterValidator, computed_field
 
-from orchestrator.domain.base import ProductBlockModel
+from orchestrator.core.domain.base import ProductBlockModel
 
 
 class StatusEnum(Enum):

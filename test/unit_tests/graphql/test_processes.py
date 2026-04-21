@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
-from orchestrator import app_settings
+from orchestrator.core import app_settings
 from test.unit_tests.config import GRAPHQL_ENDPOINT
 from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 

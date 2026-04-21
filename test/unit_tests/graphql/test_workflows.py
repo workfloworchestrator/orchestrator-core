@@ -5,9 +5,9 @@ from unittest.mock import patch
 import pytest
 
 from oauth2_lib.fastapi import OIDCUserModel
-from orchestrator import app_settings, workflow
-from orchestrator.targets import Target
-from orchestrator.workflow import done, init
+from orchestrator.core import app_settings, workflow
+from orchestrator.core.targets import Target
+from orchestrator.core.workflow import done, init
 from test.unit_tests.config import GRAPHQL_ENDPOINT
 from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 from test.unit_tests.workflows import WorkflowInstanceForTests

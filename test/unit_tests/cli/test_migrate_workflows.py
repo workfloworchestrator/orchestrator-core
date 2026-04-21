@@ -4,8 +4,8 @@ from unittest import mock
 
 import pytest
 
-import orchestrator.cli.migrate_workflows as migrate_workflows
-from orchestrator.workflows import LazyWorkflowInstance
+import orchestrator.core.cli.migrate_workflows as migrate_workflows
+from orchestrator.core.workflows import LazyWorkflowInstance
 
 
 def _state():

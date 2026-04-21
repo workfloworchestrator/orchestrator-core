@@ -15,12 +15,12 @@
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
-from orchestrator.db import ProductTable, SubscriptionTable, db
-from orchestrator.search.core.embedding import EmbeddingIndexer
-from orchestrator.search.core.types import EntityType
-from orchestrator.search.query import engine
-from orchestrator.search.query.queries import SelectQuery
-from orchestrator.settings import llm_settings
+from orchestrator.core.db import ProductTable, SubscriptionTable, db
+from orchestrator.core.search.core.embedding import EmbeddingIndexer
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.query import engine
+from orchestrator.core.search.query.queries import SelectQuery
+from orchestrator.core.settings import llm_settings
 
 from ..fixtures import GROUND_TRUTH_QUERIES, TEST_PRODUCT, TEST_SUBSCRIPTIONS
 from ..helpers import GROUND_TRUTH_FILE, index_subscription, save_ground_truth

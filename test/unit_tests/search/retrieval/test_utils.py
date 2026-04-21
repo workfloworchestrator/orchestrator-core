@@ -15,7 +15,7 @@
 
 import pytest
 
-from orchestrator.search.query.results import generate_highlight_indices, truncate_text_with_highlights
+from orchestrator.core.search.query.results import generate_highlight_indices, truncate_text_with_highlights
 
 
 @pytest.mark.parametrize(

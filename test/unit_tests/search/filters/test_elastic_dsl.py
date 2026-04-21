@@ -18,17 +18,17 @@ from typing import Any
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from orchestrator.schemas.search_requests import SearchRequest
-from orchestrator.search.core.types import BooleanOperator, FilterOp, UIType
-from orchestrator.search.filters import FilterTree, PathFilter
-from orchestrator.search.filters.base import EqualityFilter, StringFilter
-from orchestrator.search.filters.date_filters import DateRangeFilter, DateValueFilter
-from orchestrator.search.filters.elastic_dsl import (
+from orchestrator.core.schemas.search_requests import SearchRequest
+from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
+from orchestrator.core.search.filters import FilterTree, PathFilter
+from orchestrator.core.search.filters.base import EqualityFilter, StringFilter
+from orchestrator.core.search.filters.date_filters import DateRangeFilter, DateValueFilter
+from orchestrator.core.search.filters.elastic_dsl import (
     ElasticQuery,
     elastic_to_filter_tree,
 )
-from orchestrator.search.filters.ltree_filters import LtreeFilter
-from orchestrator.search.filters.numeric_filter import NumericRangeFilter, NumericValueFilter
+from orchestrator.core.search.filters.ltree_filters import LtreeFilter
+from orchestrator.core.search.filters.numeric_filter import NumericRangeFilter, NumericValueFilter
 
 ElasticQueryAdapter: TypeAdapter[ElasticQuery] = TypeAdapter(ElasticQuery)
 

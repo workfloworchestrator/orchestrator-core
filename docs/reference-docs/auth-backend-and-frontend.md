@@ -231,7 +231,7 @@ Graphql Authorization decisions can be made based on request properties and user
 Below is an example illustrating how to override the default configurations:
 
 ```python
-from orchestrator import OrchestratorCore, app_settings
+from orchestrator.core import OrchestratorCore, app_settings
 from oauth2_lib.fastapi import OIDCAuth, OIDCUserModel, Authorization, RequestPath, GraphqlAuthorization
 from oauth2_lib.settings import oauth2lib_settings
 from httpx import AsyncClient
@@ -539,7 +539,7 @@ Users of Workflow Orchestrator can't directly access the `@workflow` decorators 
 However, authorization callbacks can still be passed via the `OrchestratorCore` class when initializing your WFO application.
 
 ```python
-from orchestrator import OrchestratorCore
+from orchestrator.core import OrchestratorCore
 
 app = OrchestratorCore()
 
@@ -556,8 +556,8 @@ For more on application startup, see the [Settings Overview page][settings-overv
 Assume we have the following function that can be used to create callbacks:
 
 ```python
-from orchestrator.utils.auth import AuthContext
-from orchestrator.workflows.utils import Authorizer
+from orchestrator.core.utils.auth import AuthContext
+from orchestrator.core.workflows.utils import Authorizer
 
 def allow_roles(*roles) -> Authorizer:
     async def f(context: AuthContext) -> bool:

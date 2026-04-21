@@ -70,9 +70,9 @@ workon example-orchestrator
 Create a `main.py` file with the following content:
 
 ``` python
-from orchestrator import OrchestratorCore
-from orchestrator.cli.main import app as core_cli
-from orchestrator.settings import AppSettings
+from orchestrator.core import OrchestratorCore
+from orchestrator.core.cli.main import app as core_cli
+from orchestrator.core.settings import AppSettings
 
 app = OrchestratorCore(base_settings=AppSettings())
 

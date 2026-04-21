@@ -30,9 +30,9 @@ called. Data sources can include external API resources, CSV- or YAML files, etc
 external provisioning systems can be skipped, resulting in a creation workflow that could be as simple as follows.
 
 ```python
-from orchestrator.workflow import StepList, begin
-from orchestrator.workflows.steps import store_process_subscription
-from orchestrator.workflows.utils import create_workflow
+from orchestrator.core.workflow import StepList, begin
+from orchestrator.core.workflows.steps import store_process_subscription
+from orchestrator.core.workflows.utils import create_workflow
 
 @create_workflow("Create imported Node")
 def create_imported_node() -> StepList:
@@ -55,8 +55,8 @@ straightforward workflow alike the example given earlier. For the modification o
 following serves as an example.
 
 ```python
-from orchestrator.workflow import StepList, begin, step
-from orchestrator.workflows.utils import modify_workflow
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.utils import modify_workflow
 
 @step("Create new Node subscription")
 def import_node_subscription(subscription_id: UUIDstr) -> State:

@@ -8,14 +8,14 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.services.process_broadcast_thread import (
+from orchestrator.core.services.process_broadcast_thread import (
     ProcessDataBroadcastThread,
     _broadcast_queue_put_fn,
     _broadcast_ws_fn,
     _nop,
     api_broadcast_process_data,
 )
-from orchestrator.websocket.websocket_manager import WebSocketManager
+from orchestrator.core.websocket.websocket_manager import WebSocketManager
 
 # ---------------------------------------------------------------------------
 # _nop

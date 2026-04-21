@@ -2,7 +2,7 @@
 
 import pytest
 
-from orchestrator.workflows import ALL_WORKFLOWS, LazyWorkflowInstance, get_workflow
+from orchestrator.core.workflows import ALL_WORKFLOWS, LazyWorkflowInstance, get_workflow
 
 
 @pytest.fixture(autouse=True)

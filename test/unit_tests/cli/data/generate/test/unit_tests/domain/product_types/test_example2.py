@@ -1,7 +1,7 @@
 from uuid import uuid4
 
-from orchestrator.db import ProductTable, db
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.db import ProductTable, db
+from orchestrator.core.types import SubscriptionLifecycle
 
 from products.product_types.example2 import Example2, Example2Inactive
 

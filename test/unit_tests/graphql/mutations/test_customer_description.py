@@ -1,6 +1,6 @@
 import json
 
-from orchestrator.db import SubscriptionCustomerDescriptionTable, db
+from orchestrator.core.db import SubscriptionCustomerDescriptionTable, db
 from test.unit_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
 from test.unit_tests.graphql.mutations.helpers import mutation_authorization
 

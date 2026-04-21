@@ -7,13 +7,13 @@ from uuid import UUID, uuid4
 import pytest
 
 from nwastdlib import const
-from orchestrator.api.api_v1.endpoints.processes import get_steps_to_evaluate_for_rbac
-from orchestrator.config.assignee import Assignee
-from orchestrator.db import db
-from orchestrator.services.processes import SYSTEM_USER
-from orchestrator.targets import Target
-from orchestrator.utils.errors import error_state_to_dict
-from orchestrator.workflow import (
+from orchestrator.core.api.api_v1.endpoints.processes import get_steps_to_evaluate_for_rbac
+from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.db import db
+from orchestrator.core.services.processes import SYSTEM_USER
+from orchestrator.core.targets import Target
+from orchestrator.core.utils.errors import error_state_to_dict
+from orchestrator.core.workflow import (
     Abort,
     Complete,
     Failed,
@@ -40,7 +40,7 @@ from orchestrator.workflow import (
     step_group,
     workflow,
 )
-from orchestrator.workflow import _purestep as purestep
+from orchestrator.core.workflow import _purestep as purestep
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from test.unit_tests.workflows import (

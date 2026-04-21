@@ -8,14 +8,14 @@ from typing import cast
 
 import structlog
 
-from orchestrator.db import ProcessTable, WorkflowTable, db
-from orchestrator.services.input_state import store_input_state
-from orchestrator.services.processes import StateMerger, create_process
-from orchestrator.targets import Target
-from orchestrator.utils.json import json_dumps, json_loads
-from orchestrator.workflow import Process as WFProcess
-from orchestrator.workflow import ProcessStat, Step, Success, Workflow, runwf
-from orchestrator.workflows import ALL_WORKFLOWS, LazyWorkflowInstance
+from orchestrator.core.db import ProcessTable, WorkflowTable, db
+from orchestrator.core.services.input_state import store_input_state
+from orchestrator.core.services.processes import StateMerger, create_process
+from orchestrator.core.targets import Target
+from orchestrator.core.utils.json import json_dumps, json_loads
+from orchestrator.core.workflow import Process as WFProcess
+from orchestrator.core.workflow import ProcessStat, Step, Success, Workflow, runwf
+from orchestrator.core.workflows import ALL_WORKFLOWS, LazyWorkflowInstance
 from pydantic_forms.core import post_form
 from pydantic_forms.types import FormGenerator, InputForm, State
 from test.unit_tests.config import IMS_CIRCUIT_ID, PORT_SUBSCRIPTION_ID
@@ -120,7 +120,7 @@ def extract_state(result):
 
 
 def extract_error(result):
-    from orchestrator.workflow import Process
+    from orchestrator.core.workflow import Process
 
     assert isinstance(result, Process), f"Expected a Process, but got {repr(result)} of type {type(result)}"
     assert not isinstance(result.s, Process), "Result contained a Process in a Process, this should not happen"

@@ -4,11 +4,11 @@ from http import HTTPStatus
 import pytest
 from sqlalchemy import func, select
 
-from orchestrator.db import ProcessTable, db
-from orchestrator.services.processes import create_process
-from orchestrator.targets import Target
-from orchestrator.utils.errors import StartPredicateError
-from orchestrator.workflow import RunPredicateFail, RunPredicatePass, begin, done, step, workflow
+from orchestrator.core.db import ProcessTable, db
+from orchestrator.core.services.processes import create_process
+from orchestrator.core.targets import Target
+from orchestrator.core.utils.errors import StartPredicateError
+from orchestrator.core.workflow import RunPredicateFail, RunPredicatePass, begin, done, step, workflow
 from test.unit_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
 from test.unit_tests.graphql.mutations.helpers import mutation_authorization
 from test.unit_tests.workflows import WorkflowInstanceForTests, assert_complete, run_workflow

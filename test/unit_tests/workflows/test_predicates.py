@@ -18,14 +18,14 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.db import ProcessTable, db
-from orchestrator.workflow import (
+from orchestrator.core.db import ProcessTable, db
+from orchestrator.core.workflow import (
     PredicateContext,
     ProcessStatus,
     RunPredicateFail,
     RunPredicatePass,
 )
-from orchestrator.workflows.predicates import no_uncompleted_instance
+from orchestrator.core.workflows.predicates import no_uncompleted_instance
 
 
 @pytest.fixture

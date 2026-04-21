@@ -1,9 +1,9 @@
 import pytest
 
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.domain.lifecycle import validate_subscription_model_product_type
-from orchestrator.settings import LifecycleValidationMode
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.domain.lifecycle import validate_subscription_model_product_type
+from orchestrator.core.settings import LifecycleValidationMode
+from orchestrator.core.types import SubscriptionLifecycle
 
 
 @pytest.fixture

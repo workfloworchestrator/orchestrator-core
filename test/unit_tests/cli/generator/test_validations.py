@@ -2,7 +2,7 @@
 
 import pytest
 
-from orchestrator.cli.generator.generator.validations import (
+from orchestrator.core.cli.generator.generator.validations import (
     get_all_validations,
     get_validation_imports,
     get_validations,

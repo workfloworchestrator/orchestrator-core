@@ -1,5 +1,5 @@
 import pytest
-from orchestrator.db import ProductTable
+from orchestrator.core.db import ProductTable
 
 from products.product_types.example2 import Example2
 from test.unit_tests.workflows import assert_complete, extract_state, run_workflow

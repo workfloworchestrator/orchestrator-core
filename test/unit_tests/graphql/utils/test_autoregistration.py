@@ -1,4 +1,4 @@
-from orchestrator.graphql.autoregistration import create_strawberry_enums
+from orchestrator.core.graphql.autoregistration import create_strawberry_enums
 from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 
 

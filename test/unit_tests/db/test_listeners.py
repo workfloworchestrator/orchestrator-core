@@ -1,8 +1,8 @@
 from dirty_equals import IsFloat
 from sqlalchemy import text
 
-from orchestrator.db import db
-from orchestrator.db.listeners import disable_listeners, monitor_sqlalchemy_queries
+from orchestrator.core.db import db
+from orchestrator.core.db.listeners import disable_listeners, monitor_sqlalchemy_queries
 
 
 def test_monitor_sqlalchemy_queries():

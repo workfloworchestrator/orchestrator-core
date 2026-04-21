@@ -4,8 +4,8 @@ import warnings
 
 import pytest
 
-from orchestrator.workflow import StepList, Workflow, begin, done, step, workflow
-from orchestrator.workflows.utils import (
+from orchestrator.core.workflow import StepList, Workflow, begin, done, step, workflow
+from orchestrator.core.workflows.utils import (
     create_workflow,
     ensure_provisioning_status,
     modify_workflow,

@@ -15,8 +15,8 @@
 from ipaddress import IPv4Address, IPv6Address
 from uuid import UUID
 
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.types import SubscriptionLifecycle
 
 
 class TestProductBlockInactive(ProductBlockModel, product_block_name="Test Product Block"):

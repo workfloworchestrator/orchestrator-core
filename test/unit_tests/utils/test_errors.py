@@ -1,6 +1,6 @@
 from http import HTTPStatus
 
-from orchestrator.utils.errors import ApiException, ProcessFailureError, error_state_to_dict
+from orchestrator.core.utils.errors import ApiException, ProcessFailureError, error_state_to_dict
 
 
 class RESTResponse:  # From openapi-generator generated clients

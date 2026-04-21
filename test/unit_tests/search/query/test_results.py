@@ -17,10 +17,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.search.core.types import BooleanOperator, EntityType, FilterOp, UIType
-from orchestrator.search.filters import EqualityFilter, FilterTree, LtreeFilter, PathFilter
-from orchestrator.search.query.queries import CountQuery
-from orchestrator.search.query.results import (
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, UIType
+from orchestrator.core.search.filters import EqualityFilter, FilterTree, LtreeFilter, PathFilter
+from orchestrator.core.search.query.queries import CountQuery
+from orchestrator.core.search.query.results import (
     MatchingField,
     QueryResultsResponse,
     ResultRow,

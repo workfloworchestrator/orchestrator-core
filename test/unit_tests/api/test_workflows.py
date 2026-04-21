@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import delete
 
-from orchestrator.db import WorkflowTable, db
+from orchestrator.core.db import WorkflowTable, db
 
 WORKFLOW_ID = uuid4()
 

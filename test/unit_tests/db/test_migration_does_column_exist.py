@@ -1,5 +1,5 @@
-from orchestrator.db import db
-from orchestrator.migrations.helpers import has_table_column
+from orchestrator.core.db import db
+from orchestrator.core.migrations.helpers import has_table_column
 
 
 def test_select_from_table():

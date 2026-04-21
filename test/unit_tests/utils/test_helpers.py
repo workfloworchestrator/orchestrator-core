@@ -17,7 +17,7 @@ from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 
 import pytest
 
-from orchestrator.utils.helpers import (
+from orchestrator.core.utils.helpers import (
     camel_to_snake,
     create_filter_string,
     get_target_values,

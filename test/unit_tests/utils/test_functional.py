@@ -2,7 +2,7 @@ import functools
 
 import pytest
 
-from orchestrator.utils.functional import (
+from orchestrator.core.utils.functional import (
     as_t,
     expand_ranges,
     first_available_or_next,

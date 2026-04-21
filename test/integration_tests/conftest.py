@@ -10,8 +10,8 @@ import structlog
 from celery import Celery
 from sqlalchemy import select
 
-from orchestrator.db import ProcessTable, WorkflowTable, db
-from orchestrator.services.tasks import (
+from orchestrator.core.db import ProcessTable, WorkflowTable, db
+from orchestrator.core.services.tasks import (
     NEW_TASK,
     NEW_WORKFLOW,
     RESUME_TASK,
@@ -19,9 +19,9 @@ from orchestrator.services.tasks import (
     initialise_celery,
     register_custom_serializer,
 )
-from orchestrator.settings import AppSettings
-from orchestrator.targets import Target
-from orchestrator.workflow import ProcessStatus
+from orchestrator.core.settings import AppSettings
+from orchestrator.core.targets import Target
+from orchestrator.core.workflow import ProcessStatus
 from test.unit_tests.conftest import (  # noqa: F401,E402
     database,
     db_session,

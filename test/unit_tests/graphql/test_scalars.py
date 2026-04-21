@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 import strawberry
 
-from orchestrator.graphql.types import SCALAR_OVERRIDES
+from orchestrator.core.graphql.types import SCALAR_OVERRIDES
 
 BIG_INT_VALUE = 2**40  # 1,099,511,627,776
 DECIMAL_VALUE = Decimal("1234567890.123456789")

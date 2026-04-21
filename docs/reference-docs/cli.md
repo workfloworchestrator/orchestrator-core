@@ -110,8 +110,8 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
 
 - UserGroup Block:
     ```python
-    from orchestrator.domain.base import SubscriptionModel, ProductBlockModel
-    from orchestrator.types import SubscriptionLifecycle
+    from orchestrator.core.domain.base import SubscriptionModel, ProductBlockModel
+    from orchestrator.core.types import SubscriptionLifecycle
 
 
     class UserGroupBlockInactive(
@@ -139,8 +139,8 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
 
 - UserGroup Product:
     ```python
-    from orchestrator.domain.base import SubscriptionModel
-    from orchestrator.types import SubscriptionLifecycle
+    from orchestrator.core.domain.base import SubscriptionModel
+    from orchestrator.core.types import SubscriptionLifecycle
 
     from products.product_blocks.user_group import (
         UserGroupBlock,
@@ -167,8 +167,8 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
 
 - User Block:
     ```python
-    from orchestrator.domain.base import ProductBlockModel
-    from orchestrator.types import SubscriptionLifecycle
+    from orchestrator.core.domain.base import ProductBlockModel
+    from orchestrator.core.types import SubscriptionLifecycle
 
     from products.product_blocks.user_group import (
         UserGroupBlock,
@@ -206,8 +206,8 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
 
 - User Product:
     ```python
-    from orchestrator.domain.base import SubscriptionModel
-    from orchestrator.types import SubscriptionLifecycle, strEnum
+    from orchestrator.core.domain.base import SubscriptionModel
+    from orchestrator.core.types import SubscriptionLifecycle, strEnum
 
     from products.product_blocks.user import (
         UserBlock,
@@ -238,7 +238,7 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
 
 - `SUBSCRIPTION_MODEL_REGISTRY`:
     ```python
-    from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+    from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 
     from products.product_types.user import User
     from products.product_types.user_group import UserGroup

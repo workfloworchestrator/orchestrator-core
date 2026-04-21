@@ -20,16 +20,16 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy import Row
 
-from orchestrator.search.core.types import EntityType, FieldType, UIType
-from orchestrator.search.query.builder import (
+from orchestrator.core.search.core.types import EntityType, FieldType, UIType
+from orchestrator.core.search.query.builder import (
     ComponentInfo,
     LeafInfo,
     _apply_ordering,
     build_paths_query,
     process_path_rows,
 )
-from orchestrator.search.query.mixins import OrderBy, OrderDirection
-from orchestrator.search.query.queries import CountQuery
+from orchestrator.core.search.query.mixins import OrderBy, OrderDirection
+from orchestrator.core.search.query.queries import CountQuery
 
 pytestmark = pytest.mark.search
 
@@ -294,7 +294,7 @@ def test_apply_ordering_no_order_by_no_temporal_returns_stmt_unchanged():
 
 def test_apply_ordering_temporal_group_by_default_ordering():
     """With temporal_group_by but no order_by -> default ascending ordering applied."""
-    from orchestrator.search.aggregations import TemporalGrouping, TemporalPeriod
+    from orchestrator.core.search.aggregations import TemporalGrouping, TemporalPeriod
 
     temporal = TemporalGrouping(field="subscription.start_date", period=TemporalPeriod.MONTH)
     query = CountQuery(
@@ -310,7 +310,7 @@ def test_apply_ordering_temporal_group_by_default_ordering():
 
 def test_apply_ordering_temporal_alias_lookup():
     """order_by using temporal alias is resolved correctly."""
-    from orchestrator.search.aggregations import TemporalGrouping, TemporalPeriod
+    from orchestrator.core.search.aggregations import TemporalGrouping, TemporalPeriod
 
     temporal = TemporalGrouping(field="subscription.start_date", period=TemporalPeriod.MONTH)
     alias = temporal.alias

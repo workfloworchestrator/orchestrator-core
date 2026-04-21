@@ -13,19 +13,19 @@
 
 import pytest
 
-from orchestrator.db import db
-from orchestrator.search.aggregations import (
+from orchestrator.core.db import db
+from orchestrator.core.search.aggregations import (
     AggregationType,
     CountAggregation,
     TemporalGrouping,
     TemporalPeriod,
 )
-from orchestrator.search.core.types import BooleanOperator, EntityType, FilterOp, UIType
-from orchestrator.search.filters import EqualityFilter, FilterTree, PathFilter
-from orchestrator.search.query import engine
-from orchestrator.search.query.mixins import OrderBy, OrderDirection
-from orchestrator.search.query.queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, UIType
+from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter
+from orchestrator.core.search.query import engine
+from orchestrator.core.search.query.mixins import OrderBy, OrderDirection
+from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
+from orchestrator.core.types import SubscriptionLifecycle
 
 FILTER_STATUS_ACTIVE = PathFilter(
     path="status",

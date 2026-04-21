@@ -14,9 +14,9 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from orchestrator.search.aggregations import BaseAggregation
-from orchestrator.search.core.types import BooleanOperator, FilterOp, UIType
-from orchestrator.search.filters import EqualityFilter, FilterTree, PathFilter
+from orchestrator.core.search.aggregations import BaseAggregation
+from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
+from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter
 
 SIMPLE_SUBSCRIPTION_FILTER = FilterTree(
     op=BooleanOperator.AND,

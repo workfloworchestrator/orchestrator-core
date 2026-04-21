@@ -2,7 +2,7 @@ from unittest import mock
 
 import pytest
 
-from orchestrator.graphql.autoregistration import register_domain_models
+from orchestrator.core.graphql.autoregistration import register_domain_models
 
 
 @pytest.fixture(autouse=True)

@@ -13,7 +13,7 @@
 
 from typing import List, Tuple
 
-from orchestrator.search.core.types import ExtractedField, FieldType
+from orchestrator.core.search.core.types import ExtractedField, FieldType
 
 
 def fields(field_data: List[Tuple[str, str, FieldType]]) -> List[ExtractedField]:

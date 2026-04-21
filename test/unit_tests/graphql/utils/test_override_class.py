@@ -5,8 +5,8 @@ from uuid import UUID
 import pytest
 import strawberry
 
-from orchestrator.graphql.schemas.customer import CustomerType
-from orchestrator.graphql.utils.override_class import override_class
+from orchestrator.core.graphql.schemas.customer import CustomerType
+from orchestrator.core.graphql.utils.override_class import override_class
 from test.unit_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
 
 

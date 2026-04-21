@@ -6,15 +6,15 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import MultipleResultsFound
 
-from orchestrator.db import ProductTable, db
-from orchestrator.domain import SubscriptionModel
-from orchestrator.services.subscriptions import (
+from orchestrator.core.db import ProductTable, db
+from orchestrator.core.domain import SubscriptionModel
+from orchestrator.core.services.subscriptions import (
     build_extended_domain_model,
     format_extended_domain_model,
     get_subscription,
     retrieve_subscription_by_subscription_instance_value,
 )
-from orchestrator.utils.json import json_dumps, json_loads
+from orchestrator.core.utils.json import json_dumps, json_loads
 from test.unit_tests import fixtures
 
 CORRECT_SUBSCRIPTION = str(uuid4())

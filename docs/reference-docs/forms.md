@@ -13,13 +13,13 @@ It's definitely worth poking around in that module to see the various input type
 To use the pydantic forms, you must import the `FormPage` class:
 
 ```python
-from orchestrator.forms import FormPage, ReadOnlyField
+from orchestrator.core.forms import FormPage, ReadOnlyField
 ```
 
 Additionally, the validators module exposes validators that also function as "input type widgets". Here is an example of importing some of the built-in validators for use in a workflow:
 
 ```python
-from orchestrator.forms.validators import CustomerId, choice_list, Choice
+from orchestrator.core.forms.validators import CustomerId, choice_list, Choice
 ```
 
 You can, of course, define you own validators as well simply by using pydantic validators, as described in the [pydantic documentation.](https://docs.pydantic.dev/latest/concepts/validators/)
@@ -74,8 +74,8 @@ The `zip()` maneuver takes the list and makes it into a dict with the same keys 
 Confirming actions is a common bit of functionality. This bit of code displays a read only payload from an external system, lets the user check that value and then approve that the payload is correct as a form of a dry run:
 
 ```python
-from orchestrator.forms import FormPage, ReadOnlyField
-from orchestrator.forms.validators import Accept, LongText
+from orchestrator.core.forms import FormPage, ReadOnlyField
+from orchestrator.core.forms.validators import Accept, LongText
 
 
 def confirm_dry_run_results(dry_run_results: str) -> State:

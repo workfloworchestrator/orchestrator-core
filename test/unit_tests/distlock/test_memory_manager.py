@@ -19,7 +19,7 @@ from time import sleep, time
 
 import pytest
 
-from orchestrator.distlock.managers.memory_distlock_manager import MemoryDistLockManager
+from orchestrator.core.distlock.managers.memory_distlock_manager import MemoryDistLockManager
 
 
 @pytest.fixture

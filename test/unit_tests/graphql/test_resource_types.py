@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from fastapi import Response
 
-from orchestrator import app_settings
+from orchestrator.core import app_settings
 from test.unit_tests.config import GRAPHQL_ENDPOINT
 
 

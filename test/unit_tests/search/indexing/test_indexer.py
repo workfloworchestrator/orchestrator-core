@@ -12,8 +12,8 @@ from uuid import UUID
 import pytest
 from sqlalchemy_utils.types.ltree import Ltree
 
-from orchestrator.search.core.types import EntityType, ExtractedField, FieldType, IndexableRecord
-from orchestrator.search.indexing.indexer import Indexer, _maybe_begin, _maybe_progress
+from orchestrator.core.search.core.types import EntityType, ExtractedField, FieldType, IndexableRecord
+from orchestrator.core.search.indexing.indexer import Indexer, _maybe_begin, _maybe_progress
 
 pytestmark = pytest.mark.search
 

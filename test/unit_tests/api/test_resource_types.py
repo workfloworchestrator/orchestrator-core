@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import delete
 
-from orchestrator.db import ResourceTypeTable, db
+from orchestrator.core.db import ResourceTypeTable, db
 
 RESOURCE_TYPE_ID = uuid4()
 

@@ -1,7 +1,7 @@
 import pytest
 
-from orchestrator.db import SubscriptionTable, db
-from orchestrator.targets import Target
+from orchestrator.core.db import SubscriptionTable, db
+from orchestrator.core.targets import Target
 from test.unit_tests.workflows import (
     assert_complete,
     extract_state,

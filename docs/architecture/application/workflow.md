@@ -139,7 +139,7 @@ This behavior can be changed in the `WF_USABLE_MAP` data structure:
 > note: Terminate workflows are by default, allowed to run on subscriptions in any lifecycle state unless explicitly restricted in this map.
 
 ```python
-from orchestrator.services.subscriptions import WF_USABLE_MAP
+from orchestrator.core.services.subscriptions import WF_USABLE_MAP
 
 WF_USABLE_MAP.update(
     {
@@ -158,7 +158,7 @@ By default, only terminate workflows are prohibited from running on subscription
 This behavior can be changed in the `WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS` data structure:
 
 ```python
-from orchestrator.services.subscriptions import WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS
+from orchestrator.core.services.subscriptions import WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS
 
 WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS.update(
     {
@@ -175,7 +175,7 @@ By default, only system workflows (tasks) are allowed to run on subscriptions th
 This behavior can be changed with the `WF_USABLE_WHILE_OUT_OF_SYNC` data structure:
 
 ```python
-from orchestrator.services.subscriptions import WF_USABLE_WHILE_OUT_OF_SYNC
+from orchestrator.core.services.subscriptions import WF_USABLE_WHILE_OUT_OF_SYNC
 
 WF_USABLE_WHILE_OUT_OF_SYNC.extend(
     [
