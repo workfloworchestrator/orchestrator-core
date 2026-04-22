@@ -226,7 +226,6 @@ override-dependencies = [
 [tool.uv.build-backend]
 module-name = "orchestrator.core"
 module-root = ""
-namespace = true
 
 [tool.pytest]
 addopts = [

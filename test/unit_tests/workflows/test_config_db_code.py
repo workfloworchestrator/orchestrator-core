@@ -27,7 +27,7 @@ def test_all_products_have_at_least_one_workflow():
         select(ProductTable).where(not_(ProductTable.workflows.any())).with_only_columns(ProductTable.name)
     ).all()
     assert len(prods_without_wf) == 0, (
-        f"These products do not have a workflow " f"associated with them: {', '.join(prods_without_wf)}."
+        f"These products do not have a workflow associated with them: {', '.join(prods_without_wf)}."
     )
 
 
@@ -39,7 +39,7 @@ def test_all_non_system_workflows_have_at_least_one_product(generic_product_1):
     ).all()
 
     assert len(wfs_without_prod) == 0, (
-        f"These workflows do not have a product " f"associated with them: {', '.join(wfs_without_prod)}."
+        f"These workflows do not have a product associated with them: {', '.join(wfs_without_prod)}."
     )
 
 
@@ -64,7 +64,9 @@ def test_db_fixed_input_config():
 
     for fi in fixed_inputs:
         fi_data = first_true(
-            fixed_input_configuration["fixed_inputs"], None, lambda i: i["name"] == fi.name  # noqa: B023
+            fixed_input_configuration["fixed_inputs"],
+            None,
+            lambda i: i["name"] == fi.name,  # noqa: B023
         )
         assert fi_data, fi
         assert fi.value in fi_data["values"], fi

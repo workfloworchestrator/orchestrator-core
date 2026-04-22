@@ -9,7 +9,6 @@ def test_monitor_sqlalchemy_queries():
     monitor_sqlalchemy_queries()
 
     try:
-
         db.session.execute(text("select 1"))
 
         stats = db.session.connection().info.copy()

@@ -32,7 +32,7 @@ def test_error_state_to_dict_api_exception():
         "error": "Not Found",
         "headers": "",
         "status_code": HTTPStatus.NOT_FOUND,
-        "traceback": "ApiException: (404)\n" "Reason: Not Found\n" "\n",
+        "traceback": "ApiException: (404)\nReason: Not Found\n\n",
     }
 
 
@@ -59,7 +59,7 @@ def test_error_state_to_dict_api_exception_with_headers_none():
         "error": "Not Found",
         "headers": "",
         "status_code": HTTPStatus.NOT_FOUND,
-        "traceback": "ApiException: (404)\n" "Reason: Not Found\n" "\n",
+        "traceback": "ApiException: (404)\nReason: Not Found\n\n",
     }
 
 

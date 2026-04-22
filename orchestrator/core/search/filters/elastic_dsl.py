@@ -214,8 +214,12 @@ def _invert_range_to_or(
     pf: PathFilter, range_val: DateRange | NumericRange, value_filter_cls: type[DateValueFilter | NumericValueFilter]
 ) -> FilterTree:
     """Invert a BETWEEN range filter to OR of inverted bounds (< start OR > end)."""
-    lo = PathFilter(path=pf.path, condition=value_filter_cls(op=FilterOp.LT, value=range_val.start), value_kind=pf.value_kind)  # type: ignore[arg-type]
-    hi = PathFilter(path=pf.path, condition=value_filter_cls(op=FilterOp.GT, value=range_val.end), value_kind=pf.value_kind)  # type: ignore[arg-type]
+    lo = PathFilter(
+        path=pf.path, condition=value_filter_cls(op=FilterOp.LT, value=range_val.start), value_kind=pf.value_kind
+    )  # type: ignore[arg-type]
+    hi = PathFilter(
+        path=pf.path, condition=value_filter_cls(op=FilterOp.GT, value=range_val.end), value_kind=pf.value_kind
+    )  # type: ignore[arg-type]
     return FilterTree(op=BooleanOperator.OR, children=[lo, hi])
 
 

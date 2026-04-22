@@ -84,9 +84,9 @@ def get_revision_ids(folder):
         _date, filename_rev_id, *_rest = migration_file.name.split("_")
         rev_ids = dict(re.findall(r'(.+) = "([0-9a-z]+)"', migration_file.read_text()))
         migration_rev_id = rev_ids["revision"]
-        assert (
-            filename_rev_id == migration_rev_id
-        ), f"Migration file {showfile(migration_file)} has a different revision id in name and body"
+        assert filename_rev_id == migration_rev_id, (
+            f"Migration file {showfile(migration_file)} has a different revision id in name and body"
+        )
         rev_id_to_file[migration_rev_id] = migration_file
         revision_chain[rev_ids.get("down_revision", "base")] = migration_rev_id
 

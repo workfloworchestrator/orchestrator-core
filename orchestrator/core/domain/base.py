@@ -842,7 +842,9 @@ class ProductBlockModel(DomainModel):
         for field_name, field_type in self._non_product_block_fields_.items():
             assert (  # noqa: S101
                 field_name in resource_types
-            ), f"Domain model {self.__class__} does not match the ProductBlockTable {product_block.name}, missing: {field_name} {resource_types}"
+            ), (
+                f"Domain model {self.__class__} does not match the ProductBlockTable {product_block.name}, missing: {field_name} {resource_types}"
+            )
 
             resource_type = resource_types[field_name]
             value = getattr(self, field_name)

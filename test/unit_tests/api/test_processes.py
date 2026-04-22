@@ -166,9 +166,9 @@ def test_long_running_pause(test_client, long_running_workflow):
     app_settings.TESTING = False
     # Start the workflow
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{}])
-    assert (
-        HTTPStatus.CREATED == response.status_code
-    ), f"Invalid response status code (response data: {response.json()})"
+    assert HTTPStatus.CREATED == response.status_code, (
+        f"Invalid response status code (response data: {response.json()})"
+    )
 
     process_id = response.json()["id"]
 
@@ -238,9 +238,9 @@ def test_service_unavailable_engine_locked(test_client, test_workflow):
 def test_complete_workflow(test_client, test_workflow):
     response = test_client.post(f"/api/processes/{test_workflow.name}", json=[{}])
 
-    assert (
-        HTTPStatus.CREATED == response.status_code
-    ), f"Invalid response status code (response data: {response.json()})"
+    assert HTTPStatus.CREATED == response.status_code, (
+        f"Invalid response status code (response data: {response.json()})"
+    )
 
     process_id = response.json()["id"]
 

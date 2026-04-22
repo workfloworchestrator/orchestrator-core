@@ -82,14 +82,14 @@ class Lexer:
             ch = cast(str, self.peek())  # We know ch can't be None here
             if ch in SPECIAL_CHARS:
                 self.pos += 1
-                yield SPECIAL_CHARS[ch],
+                yield (SPECIAL_CHARS[ch],)
             elif re.fullmatch(Lexer.word_boundary_regex, ch):
                 self.pos += 1
             else:
                 word = self.read_word()
                 yield Token.WORD, word
 
-        yield Token.END,
+        yield (Token.END,)
 
 
 Node = tuple[str, Any]

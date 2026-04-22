@@ -37,7 +37,6 @@ ValidatedDateValue = Annotated[DateValue, BeforeValidator(_validate_date_string)
 
 
 class DateRange(BaseModel):
-
     start: ValidatedDateValue
     end: ValidatedDateValue
 

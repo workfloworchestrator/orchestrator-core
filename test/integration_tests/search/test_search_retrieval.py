@@ -77,15 +77,15 @@ class TestSemanticRetrieval:
         response = await engine.execute_search(query, db.session)
 
         # Verify semantic retriever was used (multi-word queries don't set fuzzy_term)
-        assert (
-            response.metadata == SearchMetadata.semantic()
-        ), f"Expected semantic retriever for multi-word query, got {response.metadata.search_type}"
+        assert response.metadata == SearchMetadata.semantic(), (
+            f"Expected semantic retriever for multi-word query, got {response.metadata.search_type}"
+        )
 
         result_ids = [str(r.entity_id) for r in response.results]
         expected_ranking = get_expected_ranking(query_text)
 
         assert result_ids == expected_ranking, (
-            f"Ranking should match ground truth.\n" f"Expected: {expected_ranking}\n" f"Got: {result_ids}"
+            f"Ranking should match ground truth.\nExpected: {expected_ranking}\nGot: {result_ids}"
         )
 
 
@@ -120,15 +120,15 @@ class TestHybridRetrieval:
         response = await engine.execute_search(query, db.session)
 
         # Verify hybrid retriever was used (single-word queries use hybrid)
-        assert (
-            response.metadata == SearchMetadata.hybrid()
-        ), f"Expected hybrid retriever for single-word query, got {response.metadata}"
+        assert response.metadata == SearchMetadata.hybrid(), (
+            f"Expected hybrid retriever for single-word query, got {response.metadata}"
+        )
 
         result_ids = [str(r.entity_id) for r in response.results]
         expected_ranking = get_expected_ranking(query_text)
 
         assert result_ids == expected_ranking, (
-            f"Ranking should match ground truth.\n" f"Expected: {expected_ranking}\n" f"Got: {result_ids}"
+            f"Ranking should match ground truth.\nExpected: {expected_ranking}\nGot: {result_ids}"
         )
 
 
@@ -149,9 +149,9 @@ class TestFuzzyRetrieval:
             response = await engine.execute_search(query, db.session)
 
         # Verify fuzzy retriever was used when embedding generation failed
-        assert (
-            response.metadata == SearchMetadata.fuzzy()
-        ), f"Expected fuzzy retriever when embedding=None, got {response.metadata}"
+        assert response.metadata == SearchMetadata.fuzzy(), (
+            f"Expected fuzzy retriever when embedding=None, got {response.metadata}"
+        )
 
         # Should return pancakes result
         assert len(response.results) >= 1, f"Should return at least 1 subscription, got {len(response.results)}"
@@ -184,9 +184,9 @@ class TestStructuredRetrieval:
         response = await engine.execute_search(query, db.session)
 
         # Verify structured retriever was used
-        assert (
-            response.metadata == SearchMetadata.structured()
-        ), f"Expected structured retriever, got {response.metadata}"
+        assert response.metadata == SearchMetadata.structured(), (
+            f"Expected structured retriever, got {response.metadata}"
+        )
 
         # Limited to 10 by query limit, but metadata should indicate more available
         assert len(response.results) == 10, f"Should return 10 results (limit), got {len(response.results)}"
@@ -199,9 +199,9 @@ class TestStructuredRetrieval:
         result_ids = [UUID(r.entity_id) if isinstance(r.entity_id, str) else r.entity_id for r in response.results]
         test_subs_by_id = {sub["subscription_id"]: sub for sub in TEST_SUBSCRIPTIONS}
 
-        assert all(
-            test_subs_by_id[rid]["status"] == SubscriptionLifecycle.ACTIVE for rid in result_ids
-        ), "All results should have status=active"
+        assert all(test_subs_by_id[rid]["status"] == SubscriptionLifecycle.ACTIVE for rid in result_ids), (
+            "All results should have status=active"
+        )
 
     @pytest.mark.asyncio
     async def test_filter_only_uses_structured_retriever_with_cursor(self, indexed_subscriptions, mock_embeddings):
@@ -227,9 +227,9 @@ class TestStructuredRetrieval:
         )
 
         # Verify structured retriever was used
-        assert (
-            response.metadata == SearchMetadata.structured()
-        ), f"Expected structured retriever, got {response.metadata}"
+        assert response.metadata == SearchMetadata.structured(), (
+            f"Expected structured retriever, got {response.metadata}"
+        )
 
         assert len(response.results) == 5, f"Should return 5 results, got {len(response.results)}"
         assert response.has_more is False, "Should indicate no more results available"
@@ -258,9 +258,9 @@ class TestStructuredRetrieval:
         response = await engine.execute_search(query, db.session)
 
         # Verify structured retriever was used
-        assert (
-            response.metadata == SearchMetadata.structured()
-        ), f"Expected structured retriever, got {response.metadata}"
+        assert response.metadata == SearchMetadata.structured(), (
+            f"Expected structured retriever, got {response.metadata}"
+        )
 
         assert len(response.results) == 0
         assert response.has_more is False

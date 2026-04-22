@@ -116,9 +116,9 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
 
     # Start the workflow
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{}])
-    assert (
-        HTTPStatus.CREATED == response.status_code
-    ), f"Invalid response status code (response data: {response.json()})"
+    assert HTTPStatus.CREATED == response.status_code, (
+        f"Invalid response status code (response data: {response.json()})"
+    )
 
     process_id = response.json()["id"]
 
@@ -186,9 +186,9 @@ def test_websocket_process_detail_with_suspend(test_client, test_workflow):
 
     response = test_client.post(f"/api/processes/{test_workflow.name}", json=[{}])
 
-    assert (
-        response.status_code == HTTPStatus.CREATED
-    ), f"Invalid response status code (response data: {response.json()})"
+    assert response.status_code == HTTPStatus.CREATED, (
+        f"Invalid response status code (response data: {response.json()})"
+    )
 
     process_id = response.json()["id"]
 
@@ -223,9 +223,9 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
 
     response = test_client.post(f"/api/processes/{test_workflow.name}", json=[{}])
 
-    assert (
-        response.status_code == HTTPStatus.CREATED
-    ), f"Invalid response status code (response data: {response.json()})"
+    assert response.status_code == HTTPStatus.CREATED, (
+        f"Invalid response status code (response data: {response.json()})"
+    )
 
     process_id = response.json()["id"]
 
@@ -271,17 +271,17 @@ def test_websocket_process_list_multiple_workflows(test_client, test_workflow, t
             # start test_workflow
             test_workflow_response = test_client.post(f"/api/processes/{test_workflow.name}", json=[{}])
 
-            assert (
-                test_workflow_response.status_code == HTTPStatus.CREATED
-            ), f"Invalid response status code (response data: {test_workflow_response.json()})"
+            assert test_workflow_response.status_code == HTTPStatus.CREATED, (
+                f"Invalid response status code (response data: {test_workflow_response.json()})"
+            )
 
             test_workflow_1_pid = test_workflow_response.json()["id"]
 
             # Start test_workflow_2
             response = test_client.post(f"/api/processes/{test_workflow_2.name}", json=[{}])
-            assert (
-                response.status_code == HTTPStatus.CREATED
-            ), f"Invalid response status code (response data: {response.json()})"
+            assert response.status_code == HTTPStatus.CREATED, (
+                f"Invalid response status code (response data: {response.json()})"
+            )
 
             test_workflow_2_pid = response.json()["id"]
 

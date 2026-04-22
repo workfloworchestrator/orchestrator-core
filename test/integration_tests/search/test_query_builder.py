@@ -205,12 +205,12 @@ class TestAggregationQueryBuilder:
         expected_cumulative = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 21, 22]  # Running totals
 
         for i, result in enumerate(response.results):
-            assert (
-                result.aggregations["count"] == expected_counts[i]
-            ), f"Month {i+1}: expected count {expected_counts[i]}, got {result.aggregations['count']}"
-            assert (
-                result.aggregations["count_cumulative"] == expected_cumulative[i]
-            ), f"Month {i+1}: expected cumulative {expected_cumulative[i]}, got {result.aggregations['count_cumulative']}"
+            assert result.aggregations["count"] == expected_counts[i], (
+                f"Month {i + 1}: expected count {expected_counts[i]}, got {result.aggregations['count']}"
+            )
+            assert result.aggregations["count_cumulative"] == expected_cumulative[i], (
+                f"Month {i + 1}: expected cumulative {expected_cumulative[i]}, got {result.aggregations['count_cumulative']}"
+            )
 
     @pytest.mark.asyncio
     async def test_count_with_ordering(self, indexed_subscriptions):
@@ -225,13 +225,13 @@ class TestAggregationQueryBuilder:
 
         # Should be ordered by count descending (active=21, provisioning=1)
         assert len(response.results) == 2, "Should have 2 status groups"
-        assert (
-            response.results[0].group_values["status"] == SubscriptionLifecycle.ACTIVE.value
-        ), "First should be active"
+        assert response.results[0].group_values["status"] == SubscriptionLifecycle.ACTIVE.value, (
+            "First should be active"
+        )
         assert response.results[0].aggregations["count"] == 21, "Active count should be 21"
-        assert (
-            response.results[1].group_values["status"] == SubscriptionLifecycle.PROVISIONING.value
-        ), "Second should be provisioning"
+        assert response.results[1].group_values["status"] == SubscriptionLifecycle.PROVISIONING.value, (
+            "Second should be provisioning"
+        )
         assert response.results[1].aggregations["count"] == 1, "Provisioning count should be 1"
 
 

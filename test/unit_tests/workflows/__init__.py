@@ -43,27 +43,27 @@ def _raise_exception(state):
 
 
 def assert_success(result):
-    assert (
-        result.on_failed(_raise_exception).on_waiting(_raise_exception).issuccess()
-    ), f"Unexpected process status. Expected Success, but was: {result}"
+    assert result.on_failed(_raise_exception).on_waiting(_raise_exception).issuccess(), (
+        f"Unexpected process status. Expected Success, but was: {result}"
+    )
 
 
 def assert_waiting(result):
-    assert result.on_failed(
-        _raise_exception
-    ).iswaiting(), f"Unexpected process status. Expected Waiting, but was: {result}"
+    assert result.on_failed(_raise_exception).iswaiting(), (
+        f"Unexpected process status. Expected Waiting, but was: {result}"
+    )
 
 
 def assert_awaiting_callback(result):
-    assert result.on_failed(
-        _raise_exception
-    ).isawaitingcallback(), f"Unexpected process status. Expected AwaitingCallback, but was: {result}"
+    assert result.on_failed(_raise_exception).isawaitingcallback(), (
+        f"Unexpected process status. Expected AwaitingCallback, but was: {result}"
+    )
 
 
 def assert_suspended(result):
-    assert result.on_failed(
-        _raise_exception
-    ).issuspend(), f"Unexpected process status. Expected Suspend, but was: {result}"
+    assert result.on_failed(_raise_exception).issuspend(), (
+        f"Unexpected process status. Expected Suspend, but was: {result}"
+    )
 
 
 def assert_aborted(result):
@@ -75,9 +75,9 @@ def assert_failed(result):
 
 
 def assert_complete(result):
-    assert result.on_failed(
-        _raise_exception
-    ).iscomplete(), f"Unexpected process status. Expected Complete, but was: {result}"
+    assert result.on_failed(_raise_exception).iscomplete(), (
+        f"Unexpected process status. Expected Complete, but was: {result}"
+    )
 
 
 def assert_state(result, expected):
@@ -279,9 +279,9 @@ def assert_product_blocks_equal(expected, actual):
 
     expected_product_block_names = [list(p.keys())[0] for p in expected]
     actual_product_block_names = [list(p.keys())[0] for p in actual]
-    assert (
-        expected_product_block_names == actual_product_block_names
-    ), f"Expected the following product blocks: {expected_product_block_names}, but got {actual_product_block_names}"
+    assert expected_product_block_names == actual_product_block_names, (
+        f"Expected the following product blocks: {expected_product_block_names}, but got {actual_product_block_names}"
+    )
 
     for expected_pb, actual_pb in zip(expected, actual):
         for expected_instance_values, actual_instance_values in zip(expected_pb.values(), actual_pb.values()):
@@ -289,9 +289,9 @@ def assert_product_blocks_equal(expected, actual):
             actual_tuples = set(reduce(accumulate_list_of_tuples, actual_instance_values, []))
             missing_instance_values = expected_tuples - actual_tuples
             unexpected_instance_values = actual_tuples - expected_tuples
-            assert (
-                not missing_instance_values
-            ), f"Missing instance value(s): {missing_instance_values}; Unexpected: {unexpected_instance_values}"
+            assert not missing_instance_values, (
+                f"Missing instance value(s): {missing_instance_values}; Unexpected: {unexpected_instance_values}"
+            )
             assert not unexpected_instance_values, f"Unexpected instance values: {unexpected_instance_values}"
 
 

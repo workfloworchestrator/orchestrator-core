@@ -86,7 +86,9 @@ class SubscriptionInterface:
 
         return ProductModelGraphql.from_pydantic(model.product)
 
-    @strawberry.field(name="_schema", description="Return all products block instances of a subscription as JSON Schema")  # type: ignore
+    @strawberry.field(
+        name="_schema", description="Return all products block instances of a subscription as JSON Schema"
+    )  # type: ignore
     async def schema(self) -> dict:
         product_type_stmt = (
             select(ProductTable.name)

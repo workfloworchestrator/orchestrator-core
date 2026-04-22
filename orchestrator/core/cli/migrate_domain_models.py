@@ -5,6 +5,7 @@
 $ PYTHONPATH=. python bin/list_workflows
 
 """
+
 import sys
 from collections.abc import Sequence
 from uuid import UUID

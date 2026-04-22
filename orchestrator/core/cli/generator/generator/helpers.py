@@ -254,7 +254,7 @@ def get_product_path(config: dict) -> Path:
 
 
 def get_product_import(product: dict, lifecycle: str = "") -> str:
-    return f'from {get_product_types_module()}.{product["variable"]} import {product["type"]}{lifecycle}\n'
+    return f"from {get_product_types_module()}.{product['variable']} import {product['type']}{lifecycle}\n"
 
 
 def create_dunder_init_files(path: Path) -> None:
