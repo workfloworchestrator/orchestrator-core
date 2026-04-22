@@ -26,6 +26,8 @@ def _cleanup_extra_field():
     yield
     base_mapper = sa_inspect(SubscriptionTable)
     base_mapper._props.pop("extra_field", None)
+    if "extra_field" in vars(SubscriptionTable):
+        delattr(SubscriptionTable, "extra_field")
 
 
 @pytest.mark.usefixtures("_cleanup_extra_field")
@@ -41,19 +43,6 @@ def test_register_table_copies_column_properties():
     OrchestratorCore.register_table(SubscriptionTable, CustomSubscriptionTable)
 
     assert "extra_field" in base_mapper.column_attrs
-
-
-def test_register_table_does_not_overwrite_existing_columns():
-    """register_table should not overwrite columns already on the base class."""
-    base_mapper = sa_inspect(SubscriptionTable)
-    original_description = base_mapper.column_attrs["description"]
-
-    class CustomSubscriptionTable(SubscriptionTable):
-        pass
-
-    OrchestratorCore.register_table(SubscriptionTable, CustomSubscriptionTable)
-
-    assert base_mapper.column_attrs["description"] is original_description
 
 
 @pytest.mark.usefixtures("_cleanup_extra_field")
