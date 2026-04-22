@@ -1,10 +1,4 @@
-"""Tests for PageCursor encode/decode roundtrips and encode_next_page_cursor logic.
-
-Covers cursor serialization, URL-safe base64 encoding, error handling for invalid
-cursors, first-page vs subsequent-page cursor generation, and DB persistence behavior.
-"""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,6 +10,12 @@ cursors, first-page vs subsequent-page cursor generation, and DB persistence beh
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+"""Tests for PageCursor encode/decode roundtrips and encode_next_page_cursor logic.
+
+Covers cursor serialization, URL-safe base64 encoding, error handling for invalid
+cursors, first-page vs subsequent-page cursor generation, and DB persistence behavior.
+"""
 
 import base64
 from unittest.mock import MagicMock, patch
