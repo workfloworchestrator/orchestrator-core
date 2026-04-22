@@ -132,7 +132,7 @@ def to_serializable(o: Any) -> Any:
 
     """
     if isinstance(o, Decimal):
-        return float(o)
+        return str(o)
     if isinstance(o, UUID):
         return str(o)
     if is_ipaddress_type(o):

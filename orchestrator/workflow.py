@@ -1600,7 +1600,8 @@ def abort_wf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
 
         state = pstat.state.abort()
 
-        return logstep(pstat, abort_func, state)
+        with transactional(db, logger):
+            return logstep(pstat, abort_func, state)
     return pstat.state
 
 

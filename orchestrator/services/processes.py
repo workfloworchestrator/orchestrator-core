@@ -239,7 +239,12 @@ def _get_current_step_to_update(
     """
     step_state: State = process_state.unwrap()
     current_step = None
-    last_db_step = p.steps[-1] if len(p.steps) else None
+    last_db_step = db.session.scalars(
+        select(ProcessStepTable)
+        .where(ProcessStepTable.process_id == p.process_id)
+        .order_by(ProcessStepTable.completed_at.desc())
+        .limit(1)
+    ).first()
 
     # Core internal: __step_name_override
     step_name = step_state.pop("__step_name_override", step.name)
