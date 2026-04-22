@@ -326,7 +326,7 @@ disallow_untyped_defs = false
 disallow_incomplete_defs = false
 
 [tool.coverage.run]
-source = "orchestrator/core"
+source = ["orchestrator/core"]
 branch = true
 omit = ["orchestrator/core/migrations/*"]
 
