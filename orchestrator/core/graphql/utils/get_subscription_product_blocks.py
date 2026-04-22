@@ -38,7 +38,7 @@ class ProductBlockInstance:
     in_use_by_relations: list[JSON]
     product_block_instance_values: JSON
     subscription: (
-        Annotated["SubscriptionInterface", strawberry.lazy("orchestrator.graphql.schemas.subscription")] | None
+        Annotated["SubscriptionInterface", strawberry.lazy("orchestrator.core.graphql.schemas.subscription")] | None
     ) = strawberry.field(
         description="resolve to subscription of the product block", resolver=owner_subscription_resolver
     )

@@ -4,7 +4,7 @@ You can use the `api/settings/overview` endpoint to get an overview of the setti
 This endpoint provides a JSON response that contains the settings that are defined in the application. The settings are
 grouped by their names and sensitive values are masked for security reasons.
 Per default, the application settings are used to configure the application. The settings are defined in the
-`orchestrator.settings.py` module and can be used to configure the application.
+`orchestrator.core.settings.py` module and can be used to configure the application.
 
 An example of the settings is shown below:
 
@@ -33,7 +33,7 @@ if app_settings.EXPOSE_OAUTH_SETTINGS:
 ```
 
 What you see above is the default settings for the application. The settings are defined in the
-`orchestrator.settings.py` module and can be used to configure the application.
+`orchestrator.core.settings.py` module and can be used to configure the application.
 The `EXPOSE_SETTINGS` and `EXPOSE_OAUTH_SETTINGS` flags are used to control whether the settings should be exposed via
 the `api/settings/overview` endpoint, the result looks like this:
 
@@ -124,6 +124,6 @@ The following rules apply when exposing settings:
 ## Overview of AppSettings class
 
 Toggle the source code block below to get a complete overview of the current application settings.
-::: orchestrator.settings.AppSettings
+::: orchestrator.core.settings.AppSettings
     options:
         heading_level: 4

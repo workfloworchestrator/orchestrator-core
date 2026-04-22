@@ -21,7 +21,7 @@ from orchestrator.core.workflow import Workflow
 
 logger = structlog.get_logger(__name__)
 
-DEFAULT_PKG = "orchestrator.workflows"
+DEFAULT_PKG = "orchestrator.core.workflows"
 
 
 ALL_WORKFLOWS: dict[str, "LazyWorkflowInstance"] = {}

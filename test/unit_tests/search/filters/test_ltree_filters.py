@@ -1,3 +1,5 @@
+"""Tests for orchestrator.core.search.filters.ltree_filters: LtreeFilter construction validation and to_expression operator dispatch."""
+
 # Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.

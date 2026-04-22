@@ -697,7 +697,7 @@ def test_build_arguments_subscription_model_list_any_guard(monkeypatch):
             return True
         return original_is_list_type(annotation, target_type)
 
-    monkeypatch.setattr("orchestrator.utils.state.is_list_type", patched_is_list_type)
+    monkeypatch.setattr("orchestrator.core.utils.state.is_list_type", patched_is_list_type)
 
     state = {"models": []}
 

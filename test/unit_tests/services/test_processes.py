@@ -729,7 +729,7 @@ def test_safe_logstep(simple_workflow):
     state_data = {"not_serializable": object()}
     state = Complete(state_data)
 
-    with mock.patch("orchestrator.services.processes._db_log_step", spec=_db_log_step) as mock__db_log_step:
+    with mock.patch("orchestrator.core.services.processes._db_log_step", spec=_db_log_step) as mock__db_log_step:
         mock__db_log_step.side_effect = [
             Exception("Failed to commit because of json serializable failure"),
             mock.sentinel.result,
@@ -772,7 +772,7 @@ def test_safe_logstep_critical_failure():
     state = Complete(state_data)
 
     with mock.patch(  # Mock just to be able to spy on calls
-        "orchestrator.services.processes._db_log_step", spec=_db_log_step, side_effect=_db_log_step
+        "orchestrator.core.services.processes._db_log_step", spec=_db_log_step, side_effect=_db_log_step
     ) as mock__db_log_step:
         with pytest.raises(ValueError) as e:
             result = safe_logstep(pstat, step, state)
@@ -799,8 +799,8 @@ def test_safe_logstep_critical_failure():
         assert f"Failed to write failure step to process: process with PID {process_id} not found" in str(e.value)
 
 
-@mock.patch("orchestrator.services.processes._get_process")
-@mock.patch("orchestrator.services.processes.resume_process")
+@mock.patch("orchestrator.core.services.processes._get_process")
+@mock.patch("orchestrator.core.services.processes.resume_process")
 def test_async_resume_processes(mock_resume_process, mock_get_process, caplog):
     """Test that _async_resume_process() rejects running processes and handles failures."""
     processes = [
@@ -875,7 +875,7 @@ def test_run_process_async_success(fastapi_app):
     app_settings.TESTING = True
 
 
-@mock.patch("orchestrator.services.processes._db_log_process_ex")
+@mock.patch("orchestrator.core.services.processes._db_log_process_ex")
 def test_run_process_async_exception(mock_db_log_process_ex, fastapi_app):
     process_id = uuid4()
     event = Event()
@@ -903,14 +903,16 @@ def test_run_process_async_exception(mock_db_log_process_ex, fastapi_app):
     app_settings.TESTING = True
 
 
-@mock.patch("orchestrator.services.executors.threadpool.db")
-@mock.patch("orchestrator.services.processes._get_process")
-@mock.patch("orchestrator.services.executors.threadpool.retrieve_input_state")
-@mock.patch("orchestrator.services.processes.store_input_state")
-@mock.patch("orchestrator.services.executors.threadpool._run_process_async", return_value=(mock.sentinel.process_id))
-@mock.patch("orchestrator.services.processes._db_create_process")
-@mock.patch("orchestrator.services.processes.post_form")
-@mock.patch("orchestrator.services.processes.get_workflow")
+@mock.patch("orchestrator.core.services.executors.threadpool.db")
+@mock.patch("orchestrator.core.services.processes._get_process")
+@mock.patch("orchestrator.core.services.executors.threadpool.retrieve_input_state")
+@mock.patch("orchestrator.core.services.processes.store_input_state")
+@mock.patch(
+    "orchestrator.core.services.executors.threadpool._run_process_async", return_value=(mock.sentinel.process_id)
+)
+@mock.patch("orchestrator.core.services.processes._db_create_process")
+@mock.patch("orchestrator.core.services.processes.post_form")
+@mock.patch("orchestrator.core.services.processes.get_workflow")
 def test_start_process(
     mock_get_workflow,
     mock_post_form,
@@ -970,8 +972,8 @@ def test_start_process(
     assert mock_get_workflow.call_count == 1
 
 
-@mock.patch("orchestrator.services.processes.post_form")
-@mock.patch("orchestrator.services.processes.get_workflow")
+@mock.patch("orchestrator.core.services.processes.post_form")
+@mock.patch("orchestrator.core.services.processes.get_workflow")
 def test_start_process_form_error(mock_get_workflow, mock_post_form):
     @step("test step")
     def test_step():
@@ -1002,7 +1004,7 @@ def test_start_process_form_error(mock_get_workflow, mock_post_form):
     )
 
 
-@mock.patch("orchestrator.services.processes.get_workflow")
+@mock.patch("orchestrator.core.services.processes.get_workflow")
 def test_start_process_workflow_removed(mock_get_workflow):
     mock_get_workflow.return_value = None
 
@@ -1010,10 +1012,10 @@ def test_start_process_workflow_removed(mock_get_workflow):
         start_process(mock.sentinel.wf_name, None, mock.sentinel.user)
 
 
-@mock.patch("orchestrator.services.processes.post_form")
-@mock.patch("orchestrator.services.processes.load_process")
-@mock.patch("orchestrator.services.processes.store_input_state")
-@mock.patch("orchestrator.services.processes.get_execution_context")
+@mock.patch("orchestrator.core.services.processes.post_form")
+@mock.patch("orchestrator.core.services.processes.load_process")
+@mock.patch("orchestrator.core.services.processes.store_input_state")
+@mock.patch("orchestrator.core.services.processes.get_execution_context")
 def test_resume_process(mock_get_execution_context, mock_store_input_state, mock_load_process, mock_post_form):
     wf = workflow()(lambda: init >> step1 >> step2)
     process_id = uuid4()
@@ -1044,8 +1046,8 @@ def test_resume_process(mock_get_execution_context, mock_store_input_state, mock
     resume_fn.assert_called_once_with(process, user=mock.sentinel.user, broadcast_func=None)
 
 
-@mock.patch("orchestrator.services.processes.post_form")
-@mock.patch("orchestrator.services.processes.load_process")
+@mock.patch("orchestrator.core.services.processes.post_form")
+@mock.patch("orchestrator.core.services.processes.load_process")
 def test_resume_process_form_error(mock_load_process, mock_post_form):
     wf = workflow()(lambda: init >> step1 >> step2)
     process_id = uuid4()
@@ -1077,7 +1079,7 @@ def test_resume_process_form_error(mock_load_process, mock_post_form):
     )
 
 
-@mock.patch("orchestrator.services.processes.load_process")
+@mock.patch("orchestrator.core.services.processes.load_process")
 def test_resume_process_workflow_removed(mock_load_process):
     pstat = MagicMock(spec=ProcessStat)
     pstat.workflow = removed_workflow
@@ -1140,7 +1142,7 @@ def run_sync(process_id, fn):
     return process_id
 
 
-@mock.patch("orchestrator.services.processes._run_process_async")
+@mock.patch("orchestrator.core.services.processes._run_process_async")
 def test_start_process_full_happy_flow(mock_run_process_async, sample_workflow):
     mock_run_process_async.side_effect = run_sync
     with mock.patch.object(db.session, "rollback"):
@@ -1151,7 +1153,7 @@ def test_start_process_full_happy_flow(mock_run_process_async, sample_workflow):
             assert process.last_status == ProcessStatus.COMPLETED
 
 
-@mock.patch("orchestrator.services.processes._run_process_async")
+@mock.patch("orchestrator.core.services.processes._run_process_async")
 def test_resume_process_full_happy_flow(mock_run_process_async, sample_workflow_with_suspend):
     mock_run_process_async.side_effect = run_sync
     with mock.patch.object(db.session, "rollback"):

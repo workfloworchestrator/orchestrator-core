@@ -64,7 +64,7 @@ def test_serialize_deserialize_payload_create():
     assert deserialize_payload(serialized_delete).scheduled_type == SCHEDULER_Q_DELETE
 
 
-@patch("orchestrator.schedules.service.redis_connection")
+@patch("orchestrator.core.schedules.service.redis_connection")
 def test_add_create_scheduled_task_to_queue_raw(mock_redis):
     payload = APSchedulerJobCreate(
         name="Test Job",
@@ -84,7 +84,7 @@ def test_add_create_scheduled_task_to_queue_raw(mock_redis):
     assert b"workflow_name" in bytes_arg
 
 
-@patch("orchestrator.schedules.service.redis_connection")
+@patch("orchestrator.core.schedules.service.redis_connection")
 def test_add_update_scheduled_task_to_queue(mock_redis):
     payload = APSchedulerJobUpdate(
         name="Test Job Update",
@@ -102,7 +102,7 @@ def test_add_update_scheduled_task_to_queue(mock_redis):
     assert b"schedule_id" in bytes_arg
 
 
-@patch("orchestrator.schedules.service.redis_connection")
+@patch("orchestrator.core.schedules.service.redis_connection")
 def test_add_delete_scheduled_task_to_queue(mock_redis):
     payload = APSchedulerJobDelete(
         workflow_id=uuid4(),
@@ -134,7 +134,7 @@ def test_get_linker_entries_by_schedule_ids(scheduler_with_jobs):
     assert linker_entries[0].schedule_id == schedule_id
 
 
-@patch("orchestrator.schedules.service.start_process")
+@patch("orchestrator.core.schedules.service.start_process")
 def test_run_start_workflow_scheduler_task_calls_start_process_once(mock_start):
     workflow_name = "task_validate_products"
 
@@ -143,7 +143,7 @@ def test_run_start_workflow_scheduler_task_calls_start_process_once(mock_start):
     mock_start.assert_called_once_with(workflow_name, None)
 
 
-@patch("orchestrator.schedules.service.start_process")
+@patch("orchestrator.core.schedules.service.start_process")
 def test_run_start_workflow_scheduler_task_skips_on_start_predicate_error(mock_start, caplog):
     from orchestrator.core.utils.errors import StartPredicateError
 
@@ -158,7 +158,7 @@ def test_run_start_workflow_scheduler_task_skips_on_start_predicate_error(mock_s
     assert "Skipping scheduled task -> start predicate not satisfied" in caplog.text
 
 
-@patch("orchestrator.schedules.service.start_process")
+@patch("orchestrator.core.schedules.service.start_process")
 def test_run_start_workflow_scheduler_task_skips_on_unexpected_error(mock_start, caplog):
     workflow_name = "task_validate_products"
 
@@ -181,9 +181,9 @@ def test_run_start_workflow_scheduler_task_skips_on_invalid_user_inputs_error(ca
     assert "Skipping scheduled task -> the user inputs have become invalid" in caplog.text
 
 
-@patch("orchestrator.schedules.service._add_linker_entry", return_value=None)
-@patch("orchestrator.schedules.service.get_workflow_by_workflow_id")
-@patch("orchestrator.schedules.service.db.session.begin")
+@patch("orchestrator.core.schedules.service._add_linker_entry", return_value=None)
+@patch("orchestrator.core.schedules.service.get_workflow_by_workflow_id")
+@patch("orchestrator.core.schedules.service.db.session.begin")
 def test_add_scheduled_task_creates_scheduler_job_and_linker_entry(
     mock_linker_entry, mock_get_workflow, mock_db_begin, clear_all_scheduler_jobs
 ):
@@ -212,7 +212,7 @@ def test_add_scheduled_task_creates_scheduler_job_and_linker_entry(
         assert scheduler.get_jobs()[0].name == payload_create.name
 
 
-@patch("orchestrator.schedules.service._build_trigger_on_update")
+@patch("orchestrator.core.schedules.service._build_trigger_on_update")
 def test_update_scheduled_task_updates_trigger_and_name(mock_build_trigger):
     # Fake trigger returned by _build_trigger_on_update
     fake_trigger = Mock()
@@ -243,7 +243,7 @@ def test_update_scheduled_task_updates_trigger_and_name(mock_build_trigger):
     mock_job.modify.assert_called_once_with(name="Updated Name")
 
 
-@patch("orchestrator.schedules.service._delete_linker_entry")
+@patch("orchestrator.core.schedules.service._delete_linker_entry")
 def test_delete_scheduled_task_calls_remove_and_linker_delete(mock_delete_linker_entry):
     # --- Arrange ---
     schedule_id = uuid4()
@@ -299,9 +299,9 @@ def test_build_trigger_on_update_invalid_name():
     assert "Invalid trigger type" in str(exc.value)
 
 
-@patch("orchestrator.schedules.service._add_scheduled_task")
-@patch("orchestrator.schedules.service._update_scheduled_task")
-@patch("orchestrator.schedules.service._delete_scheduled_task")
+@patch("orchestrator.core.schedules.service._add_scheduled_task")
+@patch("orchestrator.core.schedules.service._update_scheduled_task")
+@patch("orchestrator.core.schedules.service._delete_scheduled_task")
 def test_workflow_scheduler_queue_create(mock_delete, mock_update, mock_create):
     payload = APSchedulerJobCreate(
         name="Test",
@@ -321,9 +321,9 @@ def test_workflow_scheduler_queue_create(mock_delete, mock_update, mock_create):
     mock_delete.assert_not_called()
 
 
-@patch("orchestrator.schedules.service._add_scheduled_task")
-@patch("orchestrator.schedules.service._update_scheduled_task")
-@patch("orchestrator.schedules.service._delete_scheduled_task")
+@patch("orchestrator.core.schedules.service._add_scheduled_task")
+@patch("orchestrator.core.schedules.service._update_scheduled_task")
+@patch("orchestrator.core.schedules.service._delete_scheduled_task")
 def test_workflow_scheduler_queue_update(mock_delete, mock_update, mock_create):
     payload = APSchedulerJobUpdate(
         schedule_id=uuid4(),
@@ -342,9 +342,9 @@ def test_workflow_scheduler_queue_update(mock_delete, mock_update, mock_create):
     mock_delete.assert_not_called()
 
 
-@patch("orchestrator.schedules.service._add_scheduled_task")
-@patch("orchestrator.schedules.service._update_scheduled_task")
-@patch("orchestrator.schedules.service._delete_scheduled_task")
+@patch("orchestrator.core.schedules.service._add_scheduled_task")
+@patch("orchestrator.core.schedules.service._update_scheduled_task")
+@patch("orchestrator.core.schedules.service._delete_scheduled_task")
 def test_workflow_scheduler_queue_delete(mock_delete, mock_update, mock_create):
     payload = APSchedulerJobDelete(
         schedule_id=uuid4(),
@@ -438,7 +438,7 @@ def test_enrich_all_schedule_with_workflow_id(scheduler_with_jobs, clear_all_sch
     assert enriched_tasks[2].workflow_id == str(workflow.workflow_id)
 
 
-@patch("orchestrator.schedules.service.get_workflow_by_workflow_id", return_value=None)
+@patch("orchestrator.core.schedules.service.get_workflow_by_workflow_id", return_value=None)
 def test_add_scheduled_task_raises_if_workflow_missing(mock_get_workflow):
     payload = APSchedulerJobCreate(
         name="Test",
@@ -448,7 +448,7 @@ def test_add_scheduled_task_raises_if_workflow_missing(mock_get_workflow):
         trigger_kwargs={"seconds": 10},
     )
 
-    with patch("orchestrator.schedules.service.db.session.begin"):
+    with patch("orchestrator.core.schedules.service.db.session.begin"):
         with pytest.raises(ValueError, match="Workflow with id"):
             _add_scheduled_task(payload, scheduler_connection=Mock())
 
@@ -486,7 +486,7 @@ def test_update_scheduled_task_no_trigger_does_not_reschedule():
     mock_job.modify.assert_called_once_with(name="NewName")
 
 
-@patch("orchestrator.schedules.service._delete_linker_entry")
+@patch("orchestrator.core.schedules.service._delete_linker_entry")
 def test_delete_scheduled_task_schedule_id_none(mock_delete_linker):
     payload = APSchedulerJobDelete(workflow_id=uuid4(), schedule_id=None)
 
@@ -498,7 +498,7 @@ def test_delete_scheduled_task_schedule_id_none(mock_delete_linker):
     mock_delete_linker.assert_called_once()
 
 
-@patch("orchestrator.schedules.service.redis_connection")
+@patch("orchestrator.core.schedules.service.redis_connection")
 def test_add_unique_scheduled_task_to_queue(mock_redis, scheduler_with_jobs):
     workflow_name = "task_validate_products"
     workflow = get_workflow_by_name(workflow_name)

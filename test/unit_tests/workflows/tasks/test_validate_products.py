@@ -16,7 +16,7 @@ def test_check_subscriptions(generic_subscription_1, generic_subscription_2):
     assert_complete(result)
 
 
-@mock.patch("orchestrator.workflows.tasks.validate_products.get_workflow_by_name")
+@mock.patch("orchestrator.core.workflows.tasks.validate_products.get_workflow_by_name")
 def test_check_workflows_validation_ignores_description_mismatch(mock_get_workflow_by_name):
     workflow_name = "dummy_workflow"
 
@@ -28,7 +28,7 @@ def test_check_workflows_validation_ignores_description_mismatch(mock_get_workfl
 
     with (
         mock.patch.object(
-            validate_products.orchestrator.workflows, "ALL_WORKFLOWS", {workflow_name: DummyLazyWorkflow()}
+            validate_products.orchestrator.core.workflows, "ALL_WORKFLOWS", {workflow_name: DummyLazyWorkflow()}
         ),
         mock.patch.object(
             validate_products, "generate_translations", return_value={"workflow": {workflow_name: "Dummy Workflow"}}
@@ -41,7 +41,7 @@ def test_check_workflows_validation_ignores_description_mismatch(mock_get_workfl
     assert result.unwrap() == {"check_workflows_for_matching_targets_and_descriptions": True}
 
 
-@mock.patch("orchestrator.workflows.tasks.validate_products.get_workflow_by_name")
+@mock.patch("orchestrator.core.workflows.tasks.validate_products.get_workflow_by_name")
 def test_check_workflows_validation_fails_on_target_mismatch(mock_get_workflow_by_name):
     workflow_name = "dummy_workflow"
 
@@ -52,7 +52,7 @@ def test_check_workflows_validation_fails_on_target_mismatch(mock_get_workflow_b
     db_workflow = WorkflowTable(name=workflow_name, target="MODIFY")
 
     with mock.patch.object(
-        validate_products.orchestrator.workflows, "ALL_WORKFLOWS", {workflow_name: DummyLazyWorkflow()}
+        validate_products.orchestrator.core.workflows, "ALL_WORKFLOWS", {workflow_name: DummyLazyWorkflow()}
     ):
         mock_get_workflow_by_name.return_value = db_workflow
         result = validate_products.check_workflows_for_matching_targets_and_descriptions({})
@@ -62,7 +62,7 @@ def test_check_workflows_validation_fails_on_target_mismatch(mock_get_workflow_b
     assert "none matching targets and names" in str(result.unwrap())
 
 
-@mock.patch("orchestrator.workflows.tasks.validate_products.get_workflow_by_name")
+@mock.patch("orchestrator.core.workflows.tasks.validate_products.get_workflow_by_name")
 def test_check_workflows_validation_fails_on_missing_translation(mock_get_workflow_by_name):
     workflow_name = "dummy_workflow"
 
@@ -72,7 +72,7 @@ def test_check_workflows_validation_fails_on_missing_translation(mock_get_workfl
 
     with (
         mock.patch.object(
-            validate_products.orchestrator.workflows, "ALL_WORKFLOWS", {workflow_name: DummyLazyWorkflow()}
+            validate_products.orchestrator.core.workflows, "ALL_WORKFLOWS", {workflow_name: DummyLazyWorkflow()}
         ),
         mock.patch.object(validate_products, "generate_translations", return_value={"workflow": {}}),
     ):
@@ -86,7 +86,7 @@ def test_check_workflows_validation_fails_on_missing_translation(mock_get_workfl
 
 def test_check_all_workflows_are_in_db_fails_on_mismatch():
     with (
-        mock.patch.object(validate_products.orchestrator.workflows, "ALL_WORKFLOWS", {"wf_code": object()}),
+        mock.patch.object(validate_products.orchestrator.core.workflows, "ALL_WORKFLOWS", {"wf_code": object()}),
         mock.patch.object(validate_products, "get_workflows", return_value=[SimpleNamespace(name="wf_db")]),
     ):
         result = validate_products.check_all_workflows_are_in_db({})
@@ -96,7 +96,7 @@ def test_check_all_workflows_are_in_db_fails_on_mismatch():
     assert "missing workflows" in str(result.unwrap())
 
 
-@mock.patch("orchestrator.workflows.tasks.validate_products.db")
+@mock.patch("orchestrator.core.workflows.tasks.validate_products.db")
 def test_check_subscription_models_validation_error(mock_db):
     sub = SimpleNamespace(subscription_id="sub-1")
     mock_db.session.scalars.return_value = [sub]
@@ -112,7 +112,7 @@ def test_check_subscription_models_validation_error(mock_db):
     assert isinstance(result.unwrap(), ProcessFailureError)
 
 
-@mock.patch("orchestrator.workflows.tasks.validate_products.db")
+@mock.patch("orchestrator.core.workflows.tasks.validate_products.db")
 def test_check_subscription_models_generic_exception(mock_db):
     sub = SimpleNamespace(subscription_id="sub-2")
     mock_db.session.scalars.return_value = [sub]
@@ -130,7 +130,7 @@ def test_check_subscription_models_generic_exception(mock_db):
     assert "unexpected error" in str(err)
 
 
-@mock.patch("orchestrator.workflows.tasks.validate_products.db")
+@mock.patch("orchestrator.core.workflows.tasks.validate_products.db")
 def test_check_that_active_products_have_a_modify_note_failure(mock_db):
     """Products without modify_note raise ProcessFailureError."""
     mock_db.session.scalars.side_effect = [
@@ -146,7 +146,7 @@ def test_check_that_active_products_have_a_modify_note_failure(mock_db):
     assert isinstance(result.unwrap(), ProcessFailureError)
 
 
-@mock.patch("orchestrator.workflows.tasks.validate_products.db")
+@mock.patch("orchestrator.core.workflows.tasks.validate_products.db")
 def test_check_subscription_models_success(mock_db):
     """All subscriptions load successfully."""
     sub = SimpleNamespace(subscription_id="sub-ok")

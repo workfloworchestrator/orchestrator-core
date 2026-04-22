@@ -82,7 +82,7 @@ Tasks and workflows are submitted on different queues:
 This allows for independent scaling of workers that handle low priority tasks and high priority workflows simply by letting the workers listen to different queues.
 For example, a user starting a CREATE workflow expects timely resolution, and shouldn't have to wait for a scheduled validation to complete in order to start their workflow.
 
-`"orchestrator.services.tasks"` is the namespace in orchestrator-core where the Celery tasks (i.e. Celery jobs, not Orchestrator tasks) can be found.
+`"orchestrator.core.services.tasks"` is the namespace in orchestrator-core where the Celery tasks (i.e. Celery jobs, not Orchestrator tasks) can be found.
 At the moment, 4 Celery tasks are defined as constants in `services/tasks.py`:
 
 1. `tasks.new_task`: start a new task (delivered on the Task queue)
@@ -204,7 +204,7 @@ class OrchestratorWorker(Celery):
 
 
 celery = OrchestratorWorker(
-    f"{app_settings.SERVICE_NAME}-worker", broker=str(app_settings.CACHE_URI.get_secret_value()), include=["orchestrator.services.tasks"]
+    f"{app_settings.SERVICE_NAME}-worker", broker=str(app_settings.CACHE_URI.get_secret_value()), include=["orchestrator.core.services.tasks"]
 )
 
 if app_settings.TESTING:

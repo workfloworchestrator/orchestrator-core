@@ -21,7 +21,7 @@ async def _disallow(_: OIDCUserModel | None = None) -> bool:
     return False
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
 def test_create_scheduled_task(mock_add, test_client):
     @workflow(target=Target.SYSTEM, authorize_callback=_allow)
     def create_task_wf():
@@ -89,9 +89,9 @@ def test_create_scheduled_task_unauthorized(test_client):
     )
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
-@patch("orchestrator.api.api_v1.endpoints.schedules.get_workflow_by_workflow_id")
-@patch("orchestrator.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.get_workflow_by_workflow_id")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids")
 def test_update_scheduled_task(
     mock_get_linker_entries_by_schedule_ids, mock_get_workflow_by_workflow_id, mock_add, test_client
 ):
@@ -138,7 +138,7 @@ def test_update_scheduled_task_schedule_not_found(test_client):
     assert response.json() == snapshot({"detail": "Schedule does not exist", "status": 404, "title": "Not Found"})
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids")
 def test_update_scheduled_task_task_not_found(mock_get_linker_entries_by_schedule_ids, test_client):
     body = {
         "schedule_id": str(uuid4()),
@@ -156,8 +156,8 @@ def test_update_scheduled_task_task_not_found(mock_get_linker_entries_by_schedul
     assert response.json() == snapshot({"detail": "Task does not exist", "status": 404, "title": "Not Found"})
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.get_workflow_by_workflow_id")
-@patch("orchestrator.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.get_workflow_by_workflow_id")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids")
 def test_update_scheduled_task_unauthorized(
     mock_get_linker_entries_by_schedule_ids, mock_get_workflow_by_workflow_id, test_client
 ):
@@ -190,7 +190,7 @@ def test_update_scheduled_task_unauthorized(
     )
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
 def test_delete_scheduled_task(mock_add, test_client):
     body = {
         "schedule_id": str(uuid4()),

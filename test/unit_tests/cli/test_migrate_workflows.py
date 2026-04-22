@@ -64,7 +64,7 @@ def test_add_workflow_returns_state_when_workflow_menu_cancelled():
     assert result == _state()
 
 
-@mock.patch("orchestrator.cli.migrate_workflows.get_workflow")
+@mock.patch("orchestrator.core.cli.migrate_workflows.get_workflow")
 def test_add_workflow_returns_state_when_workflow_cannot_be_loaded(mock_get_workflow):
     with _mock_product_types(["my_product_type"]), _mock_workflow_menus("my_product_type", "create_my_product"):
         mock_get_workflow.return_value = None
@@ -73,8 +73,8 @@ def test_add_workflow_returns_state_when_workflow_cannot_be_loaded(mock_get_work
     assert result == _state()
 
 
-@mock.patch("orchestrator.cli.migrate_workflows.get_user_input")
-@mock.patch("orchestrator.cli.migrate_workflows.get_workflow")
+@mock.patch("orchestrator.core.cli.migrate_workflows.get_user_input")
+@mock.patch("orchestrator.core.cli.migrate_workflows.get_workflow")
 def test_add_workflow_requires_description(mock_get_workflow, mock_get_user_input):
     with _mock_product_types(["my_product_type"]), _mock_workflow_menus("my_product_type", "create_my_product"):
         mock_get_workflow.return_value = SimpleNamespace(target=SimpleNamespace(value="CREATE"))
@@ -84,8 +84,8 @@ def test_add_workflow_requires_description(mock_get_workflow, mock_get_user_inpu
     assert result == _state()
 
 
-@mock.patch("orchestrator.cli.migrate_workflows.get_user_input")
-@mock.patch("orchestrator.cli.migrate_workflows.get_workflow")
+@mock.patch("orchestrator.core.cli.migrate_workflows.get_user_input")
+@mock.patch("orchestrator.core.cli.migrate_workflows.get_workflow")
 def test_add_workflow_adds_description(mock_get_workflow, mock_get_user_input):
     with _mock_product_types(["my_product_type"]), _mock_workflow_menus("my_product_type", "create_my_product"):
         mock_get_workflow.return_value = SimpleNamespace(target=SimpleNamespace(value="CREATE"))
@@ -103,8 +103,8 @@ def test_add_workflow_adds_description(mock_get_workflow, mock_get_user_input):
 
 
 @pytest.mark.parametrize("description", ["", None])
-@mock.patch("orchestrator.cli.migrate_workflows.get_user_input")
-@mock.patch("orchestrator.cli.migrate_workflows.get_workflow")
+@mock.patch("orchestrator.core.cli.migrate_workflows.get_user_input")
+@mock.patch("orchestrator.core.cli.migrate_workflows.get_workflow")
 def test_add_workflow_description_guard_handles_empty_and_none(mock_get_workflow, mock_get_user_input, description):
     with _mock_product_types(["my_product_type"]), _mock_workflow_menus("my_product_type", "create_my_product"):
         mock_get_workflow.return_value = SimpleNamespace(target=SimpleNamespace(value="CREATE"))
@@ -114,7 +114,7 @@ def test_add_workflow_description_guard_handles_empty_and_none(mock_get_workflow
     assert result == _state()
 
 
-@mock.patch("orchestrator.cli.migrate_workflows.get_user_input")
+@mock.patch("orchestrator.core.cli.migrate_workflows.get_user_input")
 def test_delete_workflow_adds_selected_item(mock_get_user_input):
     workflows = [_wf_row("wf_a", "CREATE", "A", "pt-a")]
     state = _state()
@@ -127,7 +127,7 @@ def test_delete_workflow_adds_selected_item(mock_get_user_input):
     ]
 
 
-@mock.patch("orchestrator.cli.migrate_workflows.get_user_input")
+@mock.patch("orchestrator.core.cli.migrate_workflows.get_user_input")
 def test_delete_workflow_returns_state_on_invalid_selection(mock_get_user_input):
     workflows = [_wf_row("wf_a")]
     state = _state()
@@ -138,7 +138,7 @@ def test_delete_workflow_returns_state_on_invalid_selection(mock_get_user_input)
     assert result == state
 
 
-@mock.patch("orchestrator.cli.migrate_workflows.get_user_input")
+@mock.patch("orchestrator.core.cli.migrate_workflows.get_user_input")
 def test_delete_dangling_workflows_cancel_keeps_state(mock_get_user_input):
     workflows = [_wf_row("wf_a")]
     state = _state()
@@ -149,7 +149,7 @@ def test_delete_dangling_workflows_cancel_keeps_state(mock_get_user_input):
     assert result == state
 
 
-@mock.patch("orchestrator.cli.migrate_workflows.get_user_input")
+@mock.patch("orchestrator.core.cli.migrate_workflows.get_user_input")
 def test_delete_dangling_workflows_confirm_adds_items(mock_get_user_input):
     workflows = [_wf_row("wf_a", "MODIFY", "to delete", "pt-a")]
     state = _state()
@@ -169,14 +169,14 @@ def _make_wizard_exit(abort: bool):
     return exit_choice
 
 
-@mock.patch("orchestrator.cli.migrate_workflows._prompt_user_menu")
+@mock.patch("orchestrator.core.cli.migrate_workflows._prompt_user_menu")
 def test_create_workflows_migration_wizard_abort_returns_empty_lists(mock__prompt_user_menu):
     mock__prompt_user_menu.return_value = _make_wizard_exit(abort=True)
     fake_db = SimpleNamespace(session=SimpleNamespace(scalars=lambda *_args, **_kwargs: []))
 
     with (
         mock.patch.object(migrate_workflows, "db", fake_db),
-        mock.patch.object(migrate_workflows.orchestrator.workflows, "ALL_WORKFLOWS", {}),
+        mock.patch.object(migrate_workflows.orchestrator.core.workflows, "ALL_WORKFLOWS", {}),
     ):
         to_add, to_delete = migrate_workflows.create_workflows_migration_wizard()
 
@@ -184,14 +184,14 @@ def test_create_workflows_migration_wizard_abort_returns_empty_lists(mock__promp
     assert to_delete == []
 
 
-@mock.patch("orchestrator.cli.migrate_workflows._prompt_user_menu")
+@mock.patch("orchestrator.core.cli.migrate_workflows._prompt_user_menu")
 def test_create_workflows_migration_wizard_finish_returns_state_lists(mock__prompt_user_menu):
     mock__prompt_user_menu.return_value = _make_wizard_exit(abort=False)
     fake_db = SimpleNamespace(session=SimpleNamespace(scalars=lambda *_args, **_kwargs: []))
 
     with (
         mock.patch.object(migrate_workflows, "db", fake_db),
-        mock.patch.object(migrate_workflows.orchestrator.workflows, "ALL_WORKFLOWS", {}),
+        mock.patch.object(migrate_workflows.orchestrator.core.workflows, "ALL_WORKFLOWS", {}),
     ):
         to_add, to_delete = migrate_workflows.create_workflows_migration_wizard()
 

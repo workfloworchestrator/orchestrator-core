@@ -105,7 +105,7 @@ def mock_db_subscription() -> MagicMock:
 
 @pytest.fixture
 def mock_load_model():
-    with patch("orchestrator.search.indexing.traverse.SubscriptionTraverser._load_model") as mock:
+    with patch("orchestrator.core.search.indexing.traverse.SubscriptionTraverser._load_model") as mock:
         yield mock
 
 
@@ -131,7 +131,7 @@ def mock_db_product(product_uuid: UUID) -> MagicMock:
 
 @pytest.fixture
 def mock_product_load_model():
-    with patch("orchestrator.search.indexing.traverse.ProductTraverser._load_model") as mock:
+    with patch("orchestrator.core.search.indexing.traverse.ProductTraverser._load_model") as mock:
         yield mock
 
 

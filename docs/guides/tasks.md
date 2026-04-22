@@ -189,8 +189,8 @@ To keep things organized and consistent (similar to how workflows are handled), 
 
 !!! Info
     In [v4.4.0] we switched from [schedule] package to [apscheduler] to allow schedules to be stored in the DB and retrieve schedule tasks from the API.
-    The apscheduler library has its own decorator to schedule tasks: `@scheduler.scheduled_job()` (from `orchestrator.schedules.scheduler`).
-    We therefore deprecated the old `@schedule` decorator (from `orchestrator.schedules.scheduling`) and made it forwards compatible.
+    The apscheduler library has its own decorator to schedule tasks: `@scheduler.scheduled_job()` (from `orchestrator.core.schedules.scheduler`).
+    We therefore deprecated the old `@schedule` decorator (from `orchestrator.core.schedules.scheduling`) and made it forwards compatible.
 
     In [v4.7.0] we deprecated `@scheduler.scheduled_job()` provided by [apscheduler] in favor of a more dynamic API based system described below.
     Although we no longer support the `@scheduler.scheduled_job()` decorator, it is still available because it is part of [apscheduler].
@@ -378,7 +378,7 @@ Example result for running `python main.py scheduler show-schedule`:
 [APScheduler scheduling docs]: https://apscheduler.readthedocs.io/en/master/userguide.html#scheduling-tasks
 [trigger docs]: https://apscheduler.readthedocs.io/en/master/api.html#triggers
 [registering-workflows]: ../../../getting-started/workflows#register-workflows
-[cli-docs]: ../../../reference-docs/cli/#orchestrator.cli.scheduler.show_schedule
+[cli-docs]: ../../../reference-docs/cli/#orchestrator.core.cli.scheduler.show_schedule
 [v4.4.0]: https://github.com/workfloworchestrator/orchestrator-core/releases/tag/4.4.0
 [v4.7.0]: https://github.com/workfloworchestrator/orchestrator-core/releases/tag/4.7.0
 [v4.7 upgrade guide]: ../guides/upgrading/4.7.md

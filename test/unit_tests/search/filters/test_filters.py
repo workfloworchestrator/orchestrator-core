@@ -1,4 +1,4 @@
-"""Tests for orchestrator.search.filters: StringFilter validation, PathFilter path transformation, FilterTree depth validation, and tree helper methods."""
+"""Tests for orchestrator.core.search.filters: StringFilter validation, PathFilter path transformation, FilterTree depth validation, and tree helper methods."""
 
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");

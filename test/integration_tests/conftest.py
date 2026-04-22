@@ -241,7 +241,7 @@ def register_celery_tasks(celery_session_app):
 @pytest.fixture(scope="session")
 def celery_includes():
     """Specify modules to import for task registration."""
-    return ["orchestrator.services.tasks"]
+    return ["orchestrator.core.services.tasks"]
 
 
 @pytest.fixture
@@ -254,7 +254,7 @@ def celery_timeout():
 def setup_test_celery(celery_session_app, monkeypatch):
     """Setup and teardown for Celery tests."""
     # Reset Celery app
-    monkeypatch.setattr("orchestrator.services.tasks._celery", None)
+    monkeypatch.setattr("orchestrator.core.services.tasks._celery", None)
 
     # Initialize Celery
     register_custom_serializer()

@@ -33,5 +33,7 @@ def fix_graphql_model_registration():
         internal_graphql_models.update(graphql_models)
         return internal_graphql_models
 
-    with mock.patch("orchestrator.graphql.schema.register_domain_models", side_effect=patched_register_domain_models):
+    with mock.patch(
+        "orchestrator.core.graphql.schema.register_domain_models", side_effect=patched_register_domain_models
+    ):
         yield

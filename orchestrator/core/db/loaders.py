@@ -104,24 +104,24 @@ def init_model_loaders() -> None:
     Is called once during startup of the application.
 
     As an example, an excerpt from one of the biggest models: ProductBlockTable
-        <class 'orchestrator.db.models.ProductBlockTable'>: {
+        <class 'orchestrator.core.db.models.ProductBlockTable'>: {
           'products': [
             AttrLoader(
               loader_fn=<function selectinload at 0x...>,
               attr=<sqlalchemy.orm.attributes.InstrumentedAttribute object at 0x...>,
-              next_model=<class 'orchestrator.db.models.ProductTable'>
+              next_model=<class 'orchestrator.core.db.models.ProductTable'>
             )
           ],
           'in_use_by': [
             AttrLoader(
               loader_fn=<function selectinload at 0x...>,
               attr=<sqlalchemy.orm.attributes.InstrumentedAttribute object at 0x...>,
-              next_model=<class 'orchestrator.db.models.ProductBlockTable'>
+              next_model=<class 'orchestrator.core.db.models.ProductBlockTable'>
             ),
             AttrLoader(
               loader_fn=<function joinedload at 0x...>,
               attr=<sqlalchemy.orm.attributes.InstrumentedAttribute object at 0x...>,
-              next_model=<class 'orchestrator.db.models.ProductBlockRelationTable'>
+              next_model=<class 'orchestrator.core.db.models.ProductBlockRelationTable'>
             )
           ],
           ...

@@ -60,10 +60,10 @@ def _build_patches(
     if cache_ctx is None:
         cache_ctx = MagicMock(return_value=_noop_context())
     return [
-        patch("orchestrator.search.indexing.tasks.ENTITY_CONFIG_REGISTRY", registry),
-        patch("orchestrator.search.indexing.tasks.db", mock_db),
-        patch("orchestrator.search.indexing.tasks.Indexer", mock_indexer_cls),
-        patch("orchestrator.search.indexing.tasks.cache_subscription_models", cache_ctx),
+        patch("orchestrator.core.search.indexing.tasks.ENTITY_CONFIG_REGISTRY", registry),
+        patch("orchestrator.core.search.indexing.tasks.db", mock_db),
+        patch("orchestrator.core.search.indexing.tasks.Indexer", mock_indexer_cls),
+        patch("orchestrator.core.search.indexing.tasks.cache_subscription_models", cache_ctx),
     ]
 
 
@@ -96,9 +96,9 @@ def test_get_entity_count(scalar_return, expected):
     mock_subquery = MagicMock()
 
     with (
-        patch("orchestrator.search.indexing.tasks.db", mock_db),
-        patch("orchestrator.search.indexing.tasks.select") as mock_select,
-        patch("orchestrator.search.indexing.tasks.func"),
+        patch("orchestrator.core.search.indexing.tasks.db", mock_db),
+        patch("orchestrator.core.search.indexing.tasks.select") as mock_select,
+        patch("orchestrator.core.search.indexing.tasks.func"),
     ):
         mock_stmt = MagicMock()
         mock_stmt.subquery.return_value = mock_subquery
@@ -187,11 +187,11 @@ def test_run_indexing_show_progress_triggers_entity_count():
     cache_ctx = MagicMock(return_value=_noop_context())
 
     with (
-        patch("orchestrator.search.indexing.tasks.ENTITY_CONFIG_REGISTRY", registry),
-        patch("orchestrator.search.indexing.tasks.db", mock_db),
-        patch("orchestrator.search.indexing.tasks.Indexer", mock_indexer_cls),
-        patch("orchestrator.search.indexing.tasks.cache_subscription_models", cache_ctx),
-        patch("orchestrator.search.indexing.tasks._get_entity_count", return_value=7) as mock_count,
+        patch("orchestrator.core.search.indexing.tasks.ENTITY_CONFIG_REGISTRY", registry),
+        patch("orchestrator.core.search.indexing.tasks.db", mock_db),
+        patch("orchestrator.core.search.indexing.tasks.Indexer", mock_indexer_cls),
+        patch("orchestrator.core.search.indexing.tasks.cache_subscription_models", cache_ctx),
+        patch("orchestrator.core.search.indexing.tasks._get_entity_count", return_value=7) as mock_count,
     ):
         run_indexing_for_entity(EntityType.SUBSCRIPTION, show_progress=True)
 
@@ -210,11 +210,11 @@ def test_run_indexing_show_progress_false_skips_entity_count():
     cache_ctx = MagicMock(return_value=_noop_context())
 
     with (
-        patch("orchestrator.search.indexing.tasks.ENTITY_CONFIG_REGISTRY", registry),
-        patch("orchestrator.search.indexing.tasks.db", mock_db),
-        patch("orchestrator.search.indexing.tasks.Indexer", mock_indexer_cls),
-        patch("orchestrator.search.indexing.tasks.cache_subscription_models", cache_ctx),
-        patch("orchestrator.search.indexing.tasks._get_entity_count") as mock_count,
+        patch("orchestrator.core.search.indexing.tasks.ENTITY_CONFIG_REGISTRY", registry),
+        patch("orchestrator.core.search.indexing.tasks.db", mock_db),
+        patch("orchestrator.core.search.indexing.tasks.Indexer", mock_indexer_cls),
+        patch("orchestrator.core.search.indexing.tasks.cache_subscription_models", cache_ctx),
+        patch("orchestrator.core.search.indexing.tasks._get_entity_count") as mock_count,
     ):
         run_indexing_for_entity(EntityType.SUBSCRIPTION, show_progress=False)
 

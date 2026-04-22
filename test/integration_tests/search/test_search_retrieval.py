@@ -145,7 +145,7 @@ class TestFuzzyRetrieval:
         )
 
         # Mock embedding generation to return None (simulating failure)
-        with patch("orchestrator.search.core.embedding.QueryEmbedder.generate_for_text_async", return_value=None):
+        with patch("orchestrator.core.search.core.embedding.QueryEmbedder.generate_for_text_async", return_value=None):
             response = await engine.execute_search(query, db.session)
 
         # Verify fuzzy retriever was used when embedding generation failed

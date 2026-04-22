@@ -1,4 +1,4 @@
-"""Tests for orchestrator.search.query.builder -- SQL query construction, path row processing, and ordering."""
+"""Tests for orchestrator.core.search.query.builder -- SQL query construction, path row processing, and ordering."""
 
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");

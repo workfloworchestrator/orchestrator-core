@@ -244,8 +244,7 @@ norecursedirs = [
     "docs",
     "test/unit_tests/cli/data/generate",
 ]
-testpaths = ["test/unit_tests", "orchestrator"]
-junit_suite_name = "orchestrator"
+testpaths = ["test/unit_tests"]
 asyncio_mode = "auto"
 
 # https://docs.python.org/3/library/warnings.html?highlight=warnings#describing-warning-filters
@@ -266,8 +265,8 @@ filterwarnings = [
 	"ignore:.*unclosed.*:ResourceWarning:redis",
 	"ignore:.*format_exc_info.*:DeprecationWarning:structlog",
 	# Intentional deprecation warning for ProcessStepSchema.executed field
-	"ignore:.*executed.*deprecated.*:DeprecationWarning:orchestrator.schemas.process",
-	"ignore:.*executed.*deprecated.*:DeprecationWarning:orchestrator.graphql",
+	"ignore:.*executed.*deprecated.*:DeprecationWarning:orchestrator.core.schemas.process",
+	"ignore:.*executed.*deprecated.*:DeprecationWarning:orchestrator.core.graphql",
 ]
 markers = [
     "workflow: Test that runs a complete workflow (Slow)",

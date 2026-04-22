@@ -1,4 +1,4 @@
-"""Tests for orchestrator.search.filters.numeric_filter: NumericRange validation, NumericValueFilter construction and SQL generation, and NumericRangeFilter BETWEEN expressions."""
+"""Tests for orchestrator.core.search.filters.numeric_filter: NumericRange validation, NumericValueFilter construction and SQL generation, and NumericRangeFilter BETWEEN expressions."""
 
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");

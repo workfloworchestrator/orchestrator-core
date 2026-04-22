@@ -588,7 +588,7 @@ from orchestrator.core.graphql.utils.override_class import override_class
 SubscriptionInterfaceType = Connection[
     Annotated[
         "SubscriptionInterface",
-        strawberry.lazy("orchestrator.graphql.schemas.subscription"),
+        strawberry.lazy("orchestrator.core.graphql.schemas.subscription"),
     ]
 ]
 

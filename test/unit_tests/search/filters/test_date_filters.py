@@ -1,4 +1,4 @@
-"""Tests for orchestrator.search.filters.date_filters: date string validation, DateRange, DateValueFilter, and DateRangeFilter."""
+"""Tests for orchestrator.core.search.filters.date_filters: date string validation, DateRange, DateValueFilter, and DateRangeFilter."""
 
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");

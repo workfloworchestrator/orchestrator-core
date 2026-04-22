@@ -652,7 +652,7 @@ def test_search_with_text_query(test_client_graphql) -> None:
         }
     )
     with patch(
-        "orchestrator.search.core.embedding.QueryEmbedder.generate_for_text_async",
+        "orchestrator.core.search.core.embedding.QueryEmbedder.generate_for_text_async",
         new=AsyncMock(return_value=fake_embedding),
     ):
         response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers=GRAPHQL_HEADERS)

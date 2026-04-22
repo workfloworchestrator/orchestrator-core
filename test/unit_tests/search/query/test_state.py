@@ -1,4 +1,4 @@
-"""Tests for orchestrator.search.query.state -- QueryState loading from UUID/string, error handling, and limit clamping."""
+"""Tests for orchestrator.core.search.query.state -- QueryState loading from UUID/string, error handling, and limit clamping."""
 
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,7 +44,7 @@ def _make_mock_search_query(
 def _patch_db_first(return_value):
     """Return a context manager that patches the db query chain used by QueryState.load_from_id."""
     return patch(
-        "orchestrator.search.query.state.db.session.query",
+        "orchestrator.core.search.query.state.db.session.query",
         return_value=MagicMock(filter_by=MagicMock(return_value=MagicMock(first=MagicMock(return_value=return_value)))),
     )
 

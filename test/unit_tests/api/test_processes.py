@@ -521,7 +521,7 @@ def test_resume_all_processes_multiple_calls(test_client, mocked_processes_resum
     # Disable Testing setting since we want to run async
     app_settings.TESTING = False
 
-    with mock.patch("orchestrator.services.processes.resume_process", new=resume_noop):
+    with mock.patch("orchestrator.core.services.processes.resume_process", new=resume_noop):
         responses = [test_client.put("/api/processes/resume-all") for _ in range(5)]
         responses.sort(key=lambda r: r.status_code)
         event.set()
@@ -545,7 +545,7 @@ def test_resume_all_processes_nothing_to_do(test_client):
 
 def test_resume_all_processes_value_error(test_client, mocked_processes_resumeall, caplog):
     """Test resuming all processes where one raises ValueError."""
-    with mock.patch("orchestrator.services.processes.resume_process") as mocked_resume:
+    with mock.patch("orchestrator.core.services.processes.resume_process") as mocked_resume:
         mocked_resume.side_effect = [
             None,
             ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG),
@@ -583,8 +583,8 @@ def test_create_process_reporter(test_client, fastapi_app, oidc_user, reporter, 
     url_params = {"reporter": reporter} if reporter is not None else {}
     fastapi_depends = {authenticate: lambda: oidc_user}
     with (
-        mock.patch("orchestrator.api.api_v1.endpoints.processes.get_workflow") as mock_get_workflow,
-        mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process,
+        mock.patch("orchestrator.core.api.api_v1.endpoints.processes.get_workflow") as mock_get_workflow,
+        mock.patch("orchestrator.core.api.api_v1.endpoints.processes.start_process") as mock_start_process,
         mock.patch.dict(fastapi_app.dependency_overrides, fastapi_depends),
     ):
         mock_get_workflow.return_value = fake_workflow
@@ -849,8 +849,8 @@ def process_on_await_callback(authorize_resume_workflow):
     return process_id
 
 
-@mock.patch("orchestrator.services.tasks.get_celery_task")
-@mock.patch("orchestrator.db")
+@mock.patch("orchestrator.core.services.tasks.get_celery_task")
+@mock.patch("orchestrator.core.db")
 @mock.patch.object(app_settings, "EXECUTOR", "celery")
 def test_continue_awaiting_process_endpoint(mock_db, mock_get_celery_task, test_client, process_on_await_callback):
     trigger_task = mock.MagicMock()
@@ -1132,7 +1132,7 @@ def test_internal_authorize_callback(test_client, fastapi_app_for_auth_callbacks
     async def disallow(_: AuthContext) -> bool:
         return False
 
-    with mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process:
+    with mock.patch("orchestrator.core.api.api_v1.endpoints.processes.start_process") as mock_start_process:
         # Just return a bogus UUID instead of actually starting a process.
         mock_start_process.return_value = uuid4()
 
@@ -1179,7 +1179,7 @@ def test_internal_retry_auth_callback(test_client, fastapi_app_for_auth_callback
     async def allow(_: AuthContext) -> bool:
         return True
 
-    with mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process:
+    with mock.patch("orchestrator.core.api.api_v1.endpoints.processes.start_process") as mock_start_process:
         # Just return a bogus UUID instead of actually starting a process.
         mock_start_process.return_value = uuid4()
 
@@ -1259,7 +1259,7 @@ def test_check_global_lock_raises_when_locked():
 
     with (
         mock.patch(
-            "orchestrator.api.api_v1.endpoints.processes.get_engine_settings_table",
+            "orchestrator.core.api.api_v1.endpoints.processes.get_engine_settings_table",
             return_value=engine_settings_mock,
         ),
         pytest.raises(Exception) as exc_info,
@@ -1277,7 +1277,7 @@ def test_check_global_lock_does_not_raise_when_unlocked():
     engine_settings_mock.global_lock = False
 
     with mock.patch(
-        "orchestrator.api.api_v1.endpoints.processes.get_engine_settings_table",
+        "orchestrator.core.api.api_v1.endpoints.processes.get_engine_settings_table",
         return_value=engine_settings_mock,
     ):
         # Should complete without raising.

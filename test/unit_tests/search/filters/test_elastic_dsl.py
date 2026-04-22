@@ -1,4 +1,4 @@
-"""Tests for orchestrator.search.filters.elastic_dsl: Elasticsearch DSL to FilterTree conversion, including term, range, wildcard, exists, and bool queries."""
+"""Tests for orchestrator.core.search.filters.elastic_dsl: Elasticsearch DSL to FilterTree conversion, including term, range, wildcard, exists, and bool queries."""
 
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");

@@ -26,7 +26,7 @@ input field type is used to display a dropdown input field on the input form.
 
 In the orchestrator, all access to the database is implemented using
 SQLAlchemy, and queries can be formulated using the classes from
-`orchestrator.db.models` that map to the tables in the database. The following
+`orchestrator.core.db.models` that map to the tables in the database. The following
 query is all that is needed to get a list of `active` `UserGroup`
 subscriptions:
 
@@ -49,7 +49,7 @@ subscriptions = db.session.scalars(stmt)
 ...
 ```
 
-The `orchestrator.forms.validators` package provides a standard input component
+The `orchestrator.core.forms.validators` package provides a standard input component
 called `choice_list` that will create the indicated enumeration and expects an
 iterator that returns tuples containing a label and a value. The iterator is
 created making use of the standard Python `zip` function. This input component

@@ -1,4 +1,4 @@
-"""Tests for orchestrator.search.query.results -- text truncation with highlights, aggregation response formatting, and filter field extraction."""
+"""Tests for orchestrator.core.search.query.results -- text truncation with highlights, aggregation response formatting, and filter field extraction."""
 
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");

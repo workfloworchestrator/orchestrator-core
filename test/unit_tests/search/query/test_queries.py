@@ -1,4 +1,4 @@
-"""Tests for orchestrator.search.query.queries -- query construction, validation, aggregation builders, and discriminated union routing."""
+"""Tests for orchestrator.core.search.query.queries -- query construction, validation, aggregation builders, and discriminated union routing."""
 
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");

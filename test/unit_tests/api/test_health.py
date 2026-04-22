@@ -23,7 +23,7 @@ def test_get_health(test_client):
     assert response.json() == "OK"
 
 
-@mock.patch("orchestrator.db.db.session")
+@mock.patch("orchestrator.core.db.db.session")
 def test_get_health_no_connection(mock_session, test_client):
     mock_session.execute.side_effect = OperationalError("THIS", "IS", "KABOOM")
     response = test_client.get("/api/health/")

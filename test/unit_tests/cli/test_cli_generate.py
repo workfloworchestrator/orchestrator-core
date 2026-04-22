@@ -37,7 +37,7 @@ def test_generate_product():
     assert result.exit_code == 0
 
 
-@mock.patch("orchestrator.cli.generator.generator.product_block.get_existing_product_blocks")
+@mock.patch("orchestrator.core.cli.generator.generator.product_block.get_existing_product_blocks")
 def test_generate_product_blocks(existing_product_blocks_mock):
     existing_product_blocks_mock.return_value = {
         "MyExistingProductBlock": "products.product_blocks.my_existing_product_block"

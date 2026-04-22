@@ -100,7 +100,7 @@ def test_get_cache_names(test_client):
 
 
 def test_clear_cache_invalid_name(test_client):
-    with patch("orchestrator.api.api_v1.endpoints.settings.create_redis_asyncio_client") as mock_redis:
+    with patch("orchestrator.core.api.api_v1.endpoints.settings.create_redis_asyncio_client") as mock_redis:
         mock_redis.return_value = AsyncMock()
         response = test_client.delete("/api/settings/cache/invalid")
     assert response.status_code == HTTPStatus.BAD_REQUEST

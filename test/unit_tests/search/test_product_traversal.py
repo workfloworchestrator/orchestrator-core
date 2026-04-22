@@ -109,7 +109,9 @@ def test_successful_load_model(product_uuid):
     mock_specialized_cls._init_instances.return_value = {}
 
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"MyProduct": mock_domain_cls}, clear=True):
-        with patch("orchestrator.search.indexing.traverse.lookup_specialized_type", return_value=mock_specialized_cls):
+        with patch(
+            "orchestrator.core.search.indexing.traverse.lookup_specialized_type", return_value=mock_specialized_cls
+        ):
             result = ProductTraverser._load_model(mock_product)
 
     assert result is not None
@@ -130,7 +132,7 @@ def test_lookup_specialized_type_fallback(product_uuid):
     mock_domain_cls._init_instances.return_value = {}
 
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"MyProduct": mock_domain_cls}, clear=True):
-        with patch("orchestrator.search.indexing.traverse.lookup_specialized_type", side_effect=Exception("boom")):
+        with patch("orchestrator.core.search.indexing.traverse.lookup_specialized_type", side_effect=Exception("boom")):
             result = ProductTraverser._load_model(mock_product)
 
     assert result is not None
@@ -146,7 +148,7 @@ def test_from_product_id_failure_returns_none(caplog):
     mock_domain_cls.from_product_id.side_effect = RuntimeError("db error")
 
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"MyProduct": mock_domain_cls}, clear=True):
-        with patch("orchestrator.search.indexing.traverse.lookup_specialized_type", return_value=mock_domain_cls):
+        with patch("orchestrator.core.search.indexing.traverse.lookup_specialized_type", return_value=mock_domain_cls):
             result = ProductTraverser._load_model(mock_product)
 
     assert result is None

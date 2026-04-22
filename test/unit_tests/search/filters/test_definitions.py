@@ -1,4 +1,4 @@
-"""Tests for orchestrator.search.filters.definitions: operators_for, value_schema_for, component_operators, and generate_definitions."""
+"""Tests for orchestrator.core.search.filters.definitions: operators_for, value_schema_for, component_operators, and generate_definitions."""
 
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");

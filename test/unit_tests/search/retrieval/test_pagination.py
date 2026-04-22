@@ -185,9 +185,9 @@ def test_first_page_saves_query_and_returns_cursor():
     mock_search_query.query_id = saved_query_id
 
     with (
-        patch("orchestrator.search.retrieval.pagination.SearchQueryTable") as mock_table,
-        patch("orchestrator.search.retrieval.pagination.db") as mock_db,
-        patch("orchestrator.search.query.state.QueryState"),
+        patch("orchestrator.core.search.retrieval.pagination.SearchQueryTable") as mock_table,
+        patch("orchestrator.core.search.retrieval.pagination.db") as mock_db,
+        patch("orchestrator.core.search.query.state.QueryState"),
     ):
         mock_table.from_state.return_value = mock_search_query
         encoded = encode_next_page_cursor(response, cursor=None, query=query_mock)
@@ -216,9 +216,9 @@ def test_first_page_uses_last_result_for_cursor():
     mock_search_query.query_id = saved_query_id
 
     with (
-        patch("orchestrator.search.retrieval.pagination.SearchQueryTable") as mock_table,
-        patch("orchestrator.search.retrieval.pagination.db"),
-        patch("orchestrator.search.query.state.QueryState"),
+        patch("orchestrator.core.search.retrieval.pagination.SearchQueryTable") as mock_table,
+        patch("orchestrator.core.search.retrieval.pagination.db"),
+        patch("orchestrator.core.search.query.state.QueryState"),
     ):
         mock_table.from_state.return_value = mock_search_query
         encoded = encode_next_page_cursor(response, cursor=None, query=query_mock)
@@ -242,8 +242,8 @@ def test_subsequent_page_reuses_cursor_query_id():
     query_mock = MagicMock()
 
     with (
-        patch("orchestrator.search.retrieval.pagination.SearchQueryTable") as mock_table,
-        patch("orchestrator.search.retrieval.pagination.db") as mock_db,
+        patch("orchestrator.core.search.retrieval.pagination.SearchQueryTable") as mock_table,
+        patch("orchestrator.core.search.retrieval.pagination.db") as mock_db,
     ):
         encoded = encode_next_page_cursor(response, cursor=existing_cursor, query=query_mock)
 
@@ -266,8 +266,8 @@ def test_subsequent_page_ignores_query_argument():
     different_query_mock = MagicMock()
 
     with (
-        patch("orchestrator.search.retrieval.pagination.SearchQueryTable"),
-        patch("orchestrator.search.retrieval.pagination.db"),
+        patch("orchestrator.core.search.retrieval.pagination.SearchQueryTable"),
+        patch("orchestrator.core.search.retrieval.pagination.db"),
     ):
         encoded = encode_next_page_cursor(response, cursor=existing_cursor, query=different_query_mock)
 

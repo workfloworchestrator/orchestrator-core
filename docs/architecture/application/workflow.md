@@ -50,7 +50,7 @@ There are two high-level kinds of workflows:
     - Not tied to a specific product and may not involve a subscription at all.
     - Can be scheduled to run periodically or triggered manually.
     - Useful for actions like cleanup jobs or triggering validations across multiple subscriptions.
-    - Examples can be found in `orchestrator.workflows.tasks`.
+    - Examples can be found in `orchestrator.core.workflows.tasks`.
 
 Workflows and tasks need to be registered in the database and initialized as a `LazyWorkflowInstance` to work, see [registering workflows] for more info.
 
@@ -191,15 +191,15 @@ Now this particular modify workflow can be run on subscriptions that are not in 
     specific usecases, such as editing a description that is only used within orchestrator.
 
 [registering workflows]: ../../getting-started/workflows.md#register-workflows
-[create_workflow]: ../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.create_workflow
-[modify_workflow]: ../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.modify_workflow
-[terminate_workflow]: ../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.terminate_workflow
-[validate_workflow]: ../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.validate_workflow
-[reconcile_workflow]: ../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.reconcile_workflow
-[functional docs for step]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.step
-[functional docs for retrystep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.retrystep
-[functional docs for inputstep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.inputstep
-[functional docs for conditional]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.conditional
+[create_workflow]: ../../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.create_workflow
+[modify_workflow]: ../../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.modify_workflow
+[terminate_workflow]: ../../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.terminate_workflow
+[validate_workflow]: ../../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.validate_workflow
+[reconcile_workflow]: ../../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.reconcile_workflow
+[functional docs for step]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.step
+[functional docs for retrystep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.retrystep
+[functional docs for inputstep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.inputstep
+[functional docs for conditional]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.conditional
 [functional docs for callback_step]: ../../reference-docs/workflows/callbacks.md
 [Reusable step functions and singledispatch usage]: ../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps
 [registering-workflows]: ../../getting-started/workflows.md#register-workflows

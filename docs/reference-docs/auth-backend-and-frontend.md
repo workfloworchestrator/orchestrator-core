@@ -283,7 +283,7 @@ app.register_graphql_authorization(graphql_authorization_instance)
 Certain `orchestrator-core` decorators accept authorization callbacks of type `type Authorizer = Callable[[AuthContext], Awaitable[bool]]`, which return True when the input user is authorized, otherwise False.
 In other words, authorization callbacks are async, take an `AuthContext` as an argument, and return a bool.
 
-See `orchestrator.utils.auth.AuthContext` as a reference for what data is available to your callback function.
+See `orchestrator.core.utils.auth.AuthContext` as a reference for what data is available to your callback function.
 
 A table (below) is available for comparing possible configuration states with the policy that will be enforced.
 

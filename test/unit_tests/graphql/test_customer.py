@@ -56,7 +56,7 @@ def test_change_customer_env_vars(test_client_graphql):
         mp.setenv("DEFAULT_CUSTOMER_SHORTCODE", "shortcode")
         mp.setenv("DEFAULT_CUSTOMER_IDENTIFIER", "123456")
         new_app_settings = AppSettings()
-        mp.setattr("orchestrator.graphql.resolvers.customer.app_settings", new_app_settings)
+        mp.setattr("orchestrator.core.graphql.resolvers.customer.app_settings", new_app_settings)
         response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=get_customers_query(), headers=GRAPHQL_HEADERS)
 
     assert HTTPStatus.OK == response.status_code

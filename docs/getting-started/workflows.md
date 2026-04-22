@@ -330,10 +330,10 @@ def load_subscription_info(subscription: NodeEnrollment) -> FormGenerator:
 
 This approach ensures that the workflow has all the necessary context to safely tear down the subscription and associated resources.
 
-[create_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.create_workflow
-[modify_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.modify_workflow
-[terminate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.terminate_workflow
-[validate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.validate_workflow
-[workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflow.workflow
+[create_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.create_workflow
+[modify_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.modify_workflow
+[terminate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.terminate_workflow
+[validate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.validate_workflow
+[workflow]: ../reference-docs/workflows/workflows.md#orchestrator.core.workflow.workflow
 [workflow type]: ../architecture/application/workflow.md#subscription-workflow-types
 [lazy workflow instances]: https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/__init__.py

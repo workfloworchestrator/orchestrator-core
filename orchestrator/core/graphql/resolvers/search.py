@@ -13,7 +13,7 @@
 
 """GraphQL resolvers for search operations.
 
-Mirrors the REST API endpoints in orchestrator.api.api_v1.endpoints.search,
+Mirrors the REST API endpoints in orchestrator.core.api.api_v1.endpoints.search,
 delegating to the same service layer (engine, QueryState, definitions).
 """
 

@@ -26,8 +26,8 @@ async def test_websocket_events_invalidate_cache_async(test_client):
         assert websocket.receive_json() == {"name": "invalidateCache", "value": {"type": "foobar", "id": "bar"}}
 
 
-@mock.patch("orchestrator.websocket.websocket_manager.authorize_websocket")
-@mock.patch("orchestrator.websocket.websocket_manager.authenticate_websocket")
+@mock.patch("orchestrator.core.websocket.websocket_manager.authorize_websocket")
+@mock.patch("orchestrator.core.websocket.websocket_manager.authenticate_websocket")
 async def test_websocket_events_invalid_protocol(mock_user, mock_security, test_client):
     # when: we create a websocket connection with an invalid protocol
     with raises(WebSocketDisconnect) as error_info:
@@ -41,8 +41,8 @@ async def test_websocket_events_invalid_protocol(mock_user, mock_security, test_
     assert error_info.value.code == status.WS_1002_PROTOCOL_ERROR
 
 
-@mock.patch("orchestrator.websocket.websocket_manager.authorize_websocket")
-@mock.patch("orchestrator.websocket.websocket_manager.authenticate_websocket")
+@mock.patch("orchestrator.core.websocket.websocket_manager.authorize_websocket")
+@mock.patch("orchestrator.core.websocket.websocket_manager.authenticate_websocket")
 async def test_websocket_events_not_authenticated(mock_authenticate_websocket, mock_authorize_websocket, test_client):
     # given: the user is not authenticated
     mock_authenticate_websocket.side_effect = AsyncMock(side_effect=HTTPException(status_code=401))
@@ -61,8 +61,8 @@ async def test_websocket_events_not_authenticated(mock_authenticate_websocket, m
     assert mock_authorize_websocket.call_count == 0
 
 
-@mock.patch("orchestrator.websocket.websocket_manager.authorize_websocket")
-@mock.patch("orchestrator.websocket.websocket_manager.authenticate_websocket")
+@mock.patch("orchestrator.core.websocket.websocket_manager.authorize_websocket")
+@mock.patch("orchestrator.core.websocket.websocket_manager.authenticate_websocket")
 async def test_websocket_events_not_authorized(mock_user, mock_security, test_client):
     # given: the user is authenticated but not authorized
     mock_user.side_effect = AsyncMock(return_value={"active": True})
@@ -83,8 +83,8 @@ async def test_websocket_events_not_authorized(mock_user, mock_security, test_cl
     assert mock_security.call_count == 1
 
 
-@mock.patch("orchestrator.websocket.websocket_manager.authorize_websocket")
-@mock.patch("orchestrator.websocket.websocket_manager.authenticate_websocket")
+@mock.patch("orchestrator.core.websocket.websocket_manager.authorize_websocket")
+@mock.patch("orchestrator.core.websocket.websocket_manager.authenticate_websocket")
 async def test_websocket_events_authorized(mock_user, mock_security, test_client):
     # given: the user is authenticated and authorized
     mock_user.side_effect = AsyncMock(return_value={"active": True})

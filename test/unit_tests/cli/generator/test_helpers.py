@@ -100,7 +100,7 @@ def test_insert_into_imports_no_from() -> None:
 
 
 def test_path_to_module() -> None:
-    assert path_to_module(Path("orchestrator/cli/generator")) == "orchestrator.cli.generator"
+    assert path_to_module(Path("orchestrator/core/cli/generator")) == "orchestrator.core.cli.generator"
 
 
 @pytest.mark.parametrize(

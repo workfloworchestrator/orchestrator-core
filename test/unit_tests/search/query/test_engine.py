@@ -1,4 +1,4 @@
-"""Tests for orchestrator.search.query.engine -- retriever override selection, search pagination, export, and aggregation."""
+"""Tests for orchestrator.core.search.query.engine -- retriever override selection, search pagination, export, and aggregation."""
 
 # Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -179,7 +179,7 @@ async def test_execute_search_pagination(num_results: int, expected_has_more: bo
     mock_response = SearchResponse(results=results, metadata=SearchMetadata.empty())
     query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=limit)
 
-    with patch("orchestrator.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)):
+    with patch("orchestrator.core.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)):
         response = await execute_search(query, db_session=MagicMock())
 
     assert response.has_more is expected_has_more
@@ -202,8 +202,8 @@ async def test_execute_export_entity_ids_passed_to_fetch_export_data():
     query = ExportQuery(entity_type=EntityType.SUBSCRIPTION)
 
     with (
-        patch("orchestrator.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)),
-        patch("orchestrator.search.query.engine.fetch_export_data", return_value=expected_export) as mock_fetch,
+        patch("orchestrator.core.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)),
+        patch("orchestrator.core.search.query.engine.fetch_export_data", return_value=expected_export) as mock_fetch,
     ):
         result = await execute_export(query, db_session=MagicMock())
 
@@ -218,8 +218,8 @@ async def test_execute_export_empty_results_returns_empty_list():
     query = ExportQuery(entity_type=EntityType.SUBSCRIPTION)
 
     with (
-        patch("orchestrator.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)),
-        patch("orchestrator.search.query.engine.fetch_export_data", return_value=[]) as mock_fetch,
+        patch("orchestrator.core.search.query.engine._execute_search", new=AsyncMock(return_value=mock_response)),
+        patch("orchestrator.core.search.query.engine.fetch_export_data", return_value=[]) as mock_fetch,
     ):
         result = await execute_export(query, db_session=MagicMock())
 
@@ -246,10 +246,12 @@ async def test_execute_aggregation_simple_count_uses_build_simple_count_query():
     mock_db.execute.return_value = mock_mappings
 
     with (
-        patch("orchestrator.search.query.engine.build_candidate_query", return_value=mock_candidate),
-        patch("orchestrator.search.query.engine.build_simple_count_query", return_value=mock_agg_query) as mock_simple,
-        patch("orchestrator.search.query.engine.build_aggregation_query") as mock_grouped,
-        patch("orchestrator.search.query.engine.format_aggregation_response") as mock_format,
+        patch("orchestrator.core.search.query.engine.build_candidate_query", return_value=mock_candidate),
+        patch(
+            "orchestrator.core.search.query.engine.build_simple_count_query", return_value=mock_agg_query
+        ) as mock_simple,
+        patch("orchestrator.core.search.query.engine.build_aggregation_query") as mock_grouped,
+        patch("orchestrator.core.search.query.engine.format_aggregation_response") as mock_format,
     ):
         mock_format.return_value = MagicMock()
         await execute_aggregation(query, mock_db)
@@ -272,13 +274,13 @@ async def test_execute_aggregation_grouped_count_uses_build_aggregation_query():
     mock_db.execute.return_value = mock_mappings
 
     with (
-        patch("orchestrator.search.query.engine.build_candidate_query", return_value=mock_candidate),
-        patch("orchestrator.search.query.engine.build_simple_count_query") as mock_simple,
+        patch("orchestrator.core.search.query.engine.build_candidate_query", return_value=mock_candidate),
+        patch("orchestrator.core.search.query.engine.build_simple_count_query") as mock_simple,
         patch(
-            "orchestrator.search.query.engine.build_aggregation_query",
+            "orchestrator.core.search.query.engine.build_aggregation_query",
             return_value=(mock_agg_query, ["subscription_status"]),
         ) as mock_grouped,
-        patch("orchestrator.search.query.engine.format_aggregation_response") as mock_format,
+        patch("orchestrator.core.search.query.engine.format_aggregation_response") as mock_format,
     ):
         mock_format.return_value = MagicMock()
         await execute_aggregation(query, mock_db)
@@ -301,9 +303,9 @@ async def test_execute_aggregation_format_response_called_with_correct_args():
     mock_db.execute.return_value = mock_mappings
 
     with (
-        patch("orchestrator.search.query.engine.build_candidate_query", return_value=mock_candidate),
-        patch("orchestrator.search.query.engine.build_simple_count_query", return_value=mock_agg_query),
-        patch("orchestrator.search.query.engine.format_aggregation_response") as mock_format,
+        patch("orchestrator.core.search.query.engine.build_candidate_query", return_value=mock_candidate),
+        patch("orchestrator.core.search.query.engine.build_simple_count_query", return_value=mock_agg_query),
+        patch("orchestrator.core.search.query.engine.format_aggregation_response") as mock_format,
     ):
         mock_format.return_value = MagicMock()
         await execute_aggregation(query, mock_db)

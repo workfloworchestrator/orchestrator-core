@@ -81,8 +81,8 @@ def stuck_resumed_note_workflow():
 
 
 @pytest.mark.workflow
-@mock.patch("orchestrator.services.processes.resume_process")
-@mock.patch("orchestrator.services.processes.restart_process")
+@mock.patch("orchestrator.core.services.processes.resume_process")
+@mock.patch("orchestrator.core.services.processes.restart_process")
 def test_resume_workflow(
     mock_restart_process, mock_resume_process, waiting_process, stuck_created_note_process, stuck_resumed_note_workflow
 ):
@@ -108,7 +108,7 @@ def test_resume_workflow(
     assert mock_restart_process.call_count == 1
 
 
-@mock.patch("orchestrator.services.processes.resume_process")
+@mock.patch("orchestrator.core.services.processes.resume_process")
 def test_resume_workflow_non_204(mock_resume_process, waiting_process):
     mock_resume_process.side_effect = Exception("Failed to resume")
 
@@ -132,8 +132,8 @@ def test_resume_workflow_non_204(mock_resume_process, waiting_process):
     mock_resume_process.assert_called_once()
 
 
-@mock.patch("orchestrator.services.processes.resume_process")
-@mock.patch("orchestrator.services.processes.restart_process")
+@mock.patch("orchestrator.core.services.processes.resume_process")
+@mock.patch("orchestrator.core.services.processes.restart_process")
 def test_restart_created_workflows_exception(mock_restart_process, mock_resume_process, stuck_created_note_process):
     mock_restart_process.side_effect = Exception("restart failed")
 
@@ -146,7 +146,7 @@ def test_restart_created_workflows_exception(mock_restart_process, mock_resume_p
     assert mock_restart_process.call_count == 1
 
 
-@mock.patch("orchestrator.services.processes.resume_process")
+@mock.patch("orchestrator.core.services.processes.resume_process")
 def test_resume_process_not_found(mock_resume_process):
     """When process_id doesn't exist in DB, resume skips it via continue."""
     from orchestrator.core.workflows.tasks.resume_workflows import resume_found_workflows
@@ -164,7 +164,7 @@ def test_resume_process_not_found(mock_resume_process):
     mock_resume_process.assert_not_called()
 
 
-@mock.patch("orchestrator.services.processes.restart_process")
+@mock.patch("orchestrator.core.services.processes.restart_process")
 def test_restart_process_not_found(mock_restart_process):
     """When process_id doesn't exist in DB, restart skips it via continue."""
     from orchestrator.core.workflows.tasks.resume_workflows import restart_created_workflows

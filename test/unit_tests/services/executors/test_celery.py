@@ -16,9 +16,9 @@ from orchestrator.core.services.tasks import NEW_TASK, RESUME_WORKFLOW
 from orchestrator.core.workflow import ProcessStatus
 
 
-@mock.patch("orchestrator.services.tasks.get_celery_task")
-@mock.patch("orchestrator.services.executors.celery.get_workflow_by_name")
-@mock.patch("orchestrator.services.executors.celery.delete_process")
+@mock.patch("orchestrator.core.services.tasks.get_celery_task")
+@mock.patch("orchestrator.core.services.executors.celery.get_workflow_by_name")
+@mock.patch("orchestrator.core.services.executors.celery.delete_process")
 def test_celery_start_process(mock_delete_process, mock_get_workflow_by_name, mock_get_celery_task):
     pstat = MagicMock()
 
@@ -35,9 +35,9 @@ def test_celery_start_process(mock_delete_process, mock_get_workflow_by_name, mo
     mock_delete_process.assert_not_called()
 
 
-@mock.patch("orchestrator.services.tasks.get_celery_task")
-@mock.patch("orchestrator.services.executors.celery.get_workflow_by_name")
-@mock.patch("orchestrator.services.executors.celery.delete_process")
+@mock.patch("orchestrator.core.services.tasks.get_celery_task")
+@mock.patch("orchestrator.core.services.executors.celery.get_workflow_by_name")
+@mock.patch("orchestrator.core.services.executors.celery.delete_process")
 def test_celery_start_process_connection_error_should_delete_process(
     mock_delete_process, mock_get_workflow_by_name, mock_get_celery_task
 ):
@@ -57,8 +57,8 @@ def test_celery_start_process_connection_error_should_delete_process(
     mock_get_workflow_by_name.assert_called_once()
 
 
-@mock.patch("orchestrator.services.tasks.get_celery_task")
-@mock.patch("orchestrator.services.executors.celery.db", return_value=MagicMock(session=MagicMock()))
+@mock.patch("orchestrator.core.services.tasks.get_celery_task")
+@mock.patch("orchestrator.core.services.executors.celery.db", return_value=MagicMock(session=MagicMock()))
 def test_celery_resume_process(mock_db, mock_get_celery_task):
     process = MagicMock(spec=ProcessTable)
     process.last_status = ProcessStatus.FAILED
@@ -80,9 +80,9 @@ def test_celery_resume_process(mock_db, mock_get_celery_task):
     assert process.last_status == ProcessStatus.RESUMED
 
 
-@mock.patch("orchestrator.services.executors.celery.set_process_status")
-@mock.patch("orchestrator.services.tasks.get_celery_task")
-@mock.patch("orchestrator.services.executors.celery.db", return_value=MagicMock(session=MagicMock()))
+@mock.patch("orchestrator.core.services.executors.celery.set_process_status")
+@mock.patch("orchestrator.core.services.tasks.get_celery_task")
+@mock.patch("orchestrator.core.services.executors.celery.db", return_value=MagicMock(session=MagicMock()))
 def test_celery_resume_process_connection_error_should_revert_process_status(
     mock_db, mock_get_celery_task, mock_celery_set_process_status
 ):
@@ -104,7 +104,7 @@ def test_celery_resume_process_connection_error_should_revert_process_status(
     mock_celery_set_process_status.assert_called_once_with(process.process_id, ProcessStatus.FAILED)
 
 
-@mock.patch("orchestrator.services.executors.celery.db", return_value=MagicMock(session=MagicMock()))
+@mock.patch("orchestrator.core.services.executors.celery.db", return_value=MagicMock(session=MagicMock()))
 @pytest.mark.parametrize("status", RESUMABLE_STATUSES)
 def test_celery_set_process_status_resumed_valid_statuses(mock_db, status):
     process = MagicMock(spec=ProcessTable)
@@ -121,7 +121,7 @@ def test_celery_set_process_status_resumed_valid_statuses(mock_db, status):
     mock_db.session.rollback.assert_not_called()
 
 
-@mock.patch("orchestrator.services.executors.celery.db", return_value=MagicMock(session=MagicMock()))
+@mock.patch("orchestrator.core.services.executors.celery.db", return_value=MagicMock(session=MagicMock()))
 @pytest.mark.parametrize("status", [status for status in ProcessStatus if status not in RESUMABLE_STATUSES])
 def test_celery_set_process_status_resumed_invalid_statuses(mock_db, status):
     process = MagicMock(spec=ProcessTable)

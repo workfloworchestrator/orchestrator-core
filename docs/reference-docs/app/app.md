@@ -6,7 +6,7 @@ The app.py module is used in `orchestrator-core` for actually running the entire
 
 The code for the WFO's Fast API backend is very well documented, so look through the functions used in this module here:
 
-::: orchestrator.app
+::: orchestrator.core.app
     options:
         heading_level: 3
 

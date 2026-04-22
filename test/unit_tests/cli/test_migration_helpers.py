@@ -110,8 +110,8 @@ def test_create_migration_file_nothing_to_do(capsys: pytest.CaptureFixture) -> N
     assert "Nothing to do" in captured.out
 
 
-@mock.patch("orchestrator.cli.migration_helpers.command")
-@mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
+@mock.patch("orchestrator.core.cli.migration_helpers.command")
+@mock.patch("orchestrator.core.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_generates_revision(
     mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock
 ) -> None:
@@ -129,8 +129,8 @@ def test_create_migration_file_generates_revision(
     mock_command.revision.assert_called_once()
 
 
-@mock.patch("orchestrator.cli.migration_helpers.command")
-@mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
+@mock.patch("orchestrator.core.cli.migration_helpers.command")
+@mock.patch("orchestrator.core.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_with_preamble(
     mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock, tmp_path: Path
 ) -> None:
@@ -150,8 +150,8 @@ def test_create_migration_file_with_preamble(
     assert "# preamble" in written
 
 
-@mock.patch("orchestrator.cli.migration_helpers.command")
-@mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
+@mock.patch("orchestrator.core.cli.migration_helpers.command")
+@mock.patch("orchestrator.core.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_branch_data_exists_fallback(
     mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock
 ) -> None:
@@ -177,8 +177,8 @@ def test_create_migration_file_branch_data_exists_fallback(
     assert second_kwargs.get("head") == "data@head"
 
 
-@mock.patch("orchestrator.cli.migration_helpers.command")
-@mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
+@mock.patch("orchestrator.core.cli.migration_helpers.command")
+@mock.patch("orchestrator.core.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_multiple_heads_fallback(
     mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock
 ) -> None:
@@ -202,8 +202,8 @@ def test_create_migration_file_multiple_heads_fallback(
     assert second_kwargs.get("head") == "data@head"
 
 
-@mock.patch("orchestrator.cli.migration_helpers.command")
-@mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
+@mock.patch("orchestrator.core.cli.migration_helpers.command")
+@mock.patch("orchestrator.core.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_database_not_up_to_date_raises(
     mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock
 ) -> None:
@@ -218,8 +218,8 @@ def test_create_migration_file_database_not_up_to_date_raises(
         create_migration_file(cfg, "    op.execute('up')\n", "", "message")
 
 
-@mock.patch("orchestrator.cli.migration_helpers.command")
-@mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
+@mock.patch("orchestrator.core.cli.migration_helpers.command")
+@mock.patch("orchestrator.core.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_unrelated_command_error_propagates(
     mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock
 ) -> None:

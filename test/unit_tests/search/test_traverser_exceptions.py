@@ -43,9 +43,9 @@ def test_subscription_traverser_model_load_error():
 
     mock_model_class = MagicMock()
 
-    with patch("orchestrator.search.indexing.traverse.SUBSCRIPTION_MODEL_REGISTRY") as mock_registry:
+    with patch("orchestrator.core.search.indexing.traverse.SUBSCRIPTION_MODEL_REGISTRY") as mock_registry:
         mock_registry.get.return_value = mock_model_class
-        with patch("orchestrator.search.indexing.traverse.lookup_specialized_type") as mock_lookup:
+        with patch("orchestrator.core.search.indexing.traverse.lookup_specialized_type") as mock_lookup:
             mock_specialized_class = MagicMock()
             mock_lookup.return_value = mock_specialized_class
             mock_specialized_class.from_subscription.side_effect = ValueError("Some error")

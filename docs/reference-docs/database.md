@@ -13,13 +13,13 @@ The WFO database is built on top of the [SQLAlchemy](https://www.sqlalchemy.org/
 
 ## Setting Up the Database Initially
 
-With a blank WFO instance, to setup the database properly, you simply need to run the `init` CLI command. More docs on how to use that command can be found [here.](cli.md#orchestrator.cli.database.init)
+With a blank WFO instance, to setup the database properly, you simply need to run the `init` CLI command. More docs on how to use that command can be found [here.](cli.md#orchestrator.core.cli.database.init)
 
 ## Saving a Transaction in Your Workflow
 
 An important thing to understand about interacting with the database inside of workflow steps is that saving to the database in disabled during the workflow step. When a subsription is returned at the end of a step, then all of the appropriate saving in the database occurs. You can see how we do this with the `WrappedSession` class we made around the SQLAlchemy `Session` object:
 
-::: orchestrator.db.database.WrappedSession
+::: orchestrator.core.db.database.WrappedSession
     options:
         heading_level: 3
 
@@ -33,4 +33,4 @@ Only a single head is supported. The script directory has multiple heads (due br
 Run `alembic branches` to see the divergence(s).
 ```
 
-Thankfully alembic is great at handling this and you can use the WFO CLI `db merge` command to resolve this, [documented in depth here.](cli.md#orchestrator.cli.database.merge)
+Thankfully alembic is great at handling this and you can use the WFO CLI `db merge` command to resolve this, [documented in depth here.](cli.md#orchestrator.core.cli.database.merge)
