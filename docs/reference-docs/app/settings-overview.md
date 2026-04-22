@@ -98,7 +98,7 @@ The Lifecycle Validation Mode can be set using the `LIFECYCLE_VALIDATION_MODE` e
 
 !!! example "Error in `strict` mode"
     ```bash
-    2025-09-26 13:46:56 [error    ] Subscription of type <class 'products.product_types.l3vpn.L3Vpn'> should use <class 'products.product_types.l3vpn.L3VpnProvisioning'> for lifecycle status 'provisioning' [orchestrator.domain.lifecycle] func=re_deploy_nso process_id=6a483f61-c21d-47be-8390-bbd608c59a77 workflow_name=create_l3vpn
+    2025-09-26 13:46:56 [error    ] Subscription of type <class 'products.product_types.l3vpn.L3Vpn'> should use <class 'products.product_types.l3vpn.L3VpnProvisioning'> for lifecycle status 'provisioning' [orchestrator.core.domain.lifecycle] func=re_deploy_nso process_id=6a483f61-c21d-47be-8390-bbd608c59a77 workflow_name=create_l3vpn
     ```
 
 !!! warning
@@ -107,7 +107,7 @@ The Lifecycle Validation Mode can be set using the `LIFECYCLE_VALIDATION_MODE` e
 
 !!! example "Warning in `loose` mode"
     ```bash
-    2025-09-26 13:46:56 [warning    ] Subscription of type <class 'products.product_types.l3vpn.L3Vpn'> should use <class 'products.product_types.l3vpn.L3VpnProvisioning'> for lifecycle status 'provisioning' [orchestrator.domain.lifecycle] func=re_deploy_nso
+    2025-09-26 13:46:56 [warning    ] Subscription of type <class 'products.product_types.l3vpn.L3Vpn'> should use <class 'products.product_types.l3vpn.L3VpnProvisioning'> for lifecycle status 'provisioning' [orchestrator.core.domain.lifecycle] func=re_deploy_nso
     ```
 - `ignored`: The application will ignore all lifecycle validation issues and run normally.
 

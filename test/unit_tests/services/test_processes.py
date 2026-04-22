@@ -184,7 +184,7 @@ def test_db_log_step_strips_subscription_models_inside_transactional(
     )
 
 
-@mock.patch("orchestrator.services.executors.threadpool._run_process_async")
+@mock.patch("orchestrator.core.services.executors.threadpool._run_process_async")
 def test_thread_start_process_does_not_leak_open_transaction(mock_run_async, simple_workflow):
     """thread_start_process must not leave the empty-scope session with an open transaction after returning.
 
