@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 
@@ -12,7 +25,7 @@ def test_expose_settings():
         db_password: SecretStr = "test_password"  # noqa: S105
         debug_mode: bool = True
         secret_test: SecretStr = "test_secret"  # noqa: S105
-        uri: SecretPostgresDsn = "postgresql://user:password@localhost/dbname"
+        uri: SecretPostgresDsn = "postgresql+psycopg://user:password@localhost/dbname"
         cache_uri: SecretRedisDsn = "rediss://user:password@localhost/dbname"
 
     my_settings = MySettings()

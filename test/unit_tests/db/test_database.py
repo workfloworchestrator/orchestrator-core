@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -135,3 +135,29 @@ def test_transactional_disables_commit_inside_block() -> None:
         captured["disabled"] = db.session.info.get("disabled")
     assert captured["disabled"] is True
     assert db.session.info.get("disabled") is False
+
+
+def test_transactional_nested_does_not_commit_or_rollback() -> None:
+    """Nested transactional() must not commit or rollback even after a real session operation."""
+    db = _make_db(disabled=True)  # simulate already inside an outer transactional()
+    log = MagicMock()
+
+    with transactional(db, log):
+        db.session.add(MagicMock())  # simulate a real write
+
+    db.session.commit.assert_not_called()
+    db.session.rollback.assert_not_called()
+
+
+def test_transactional_nested_propagates_exception_without_rollback() -> None:
+    """Nested transactional() must propagate exceptions without rollback after a real session operation."""
+    db = _make_db(disabled=True)
+    log = MagicMock()
+
+    with pytest.raises(RuntimeError, match="inner failed"):
+        with transactional(db, log):
+            db.session.add(MagicMock())  # simulate a real write
+            raise RuntimeError("inner failed")
+
+    db.session.commit.assert_not_called()
+    db.session.rollback.assert_not_called()

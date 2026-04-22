@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT, ESnet.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -40,6 +40,7 @@ from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.types import BroadcastFunc
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import StartPredicateError, error_state_to_dict
+from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.websocket import broadcast_invalidate_status_counts, broadcast_process_update_to_websocket
 from orchestrator.workflow import (
     CALLBACK_TOKEN_KEY,
@@ -238,7 +239,12 @@ def _get_current_step_to_update(
     """
     step_state: State = process_state.unwrap()
     current_step = None
-    last_db_step = p.steps[-1] if len(p.steps) else None
+    last_db_step = db.session.scalars(
+        select(ProcessStepTable)
+        .where(ProcessStepTable.process_id == p.process_id)
+        .order_by(ProcessStepTable.completed_at.desc())
+        .limit(1)
+    ).first()
 
     # Core internal: __step_name_override
     step_name = step_state.pop("__step_name_override", step.name)
@@ -324,18 +330,17 @@ def _db_log_step(
     p = _update_process(stat.process_id, step, process_state)
     current_step = _get_current_step_to_update(stat, p, step, process_state)
 
+    # Serialize state to a plain dict now, before the outer transactional() flushes it.
+    # This ensures the next step never receives live SubscriptionModel instances and
+    # avoids re-evaluating expensive @computed_field properties on flush.
+    current_step.state = json_loads(json_dumps(current_step.state))
+
     db.session.add(p)
     db.session.add(current_step)
-    try:
-        db.session.commit()
-    except BaseException:
-        db.session.rollback()
-        raise
 
     if broadcast_func:
         broadcast_func(p.process_id)
 
-    # Return the state as stored in the database
     return process_state.__class__(current_step.state)
 
 

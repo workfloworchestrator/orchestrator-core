@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -79,6 +79,7 @@ from collections.abc import Sequence
 from contextlib import suppress
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Union
 from uuid import UUID
 
@@ -130,6 +131,8 @@ def to_serializable(o: Any) -> Any:
         TypeError: in case no conversion was possible.
 
     """
+    if isinstance(o, Decimal):
+        return str(o)
     if isinstance(o, UUID):
         return str(o)
     if is_ipaddress_type(o):

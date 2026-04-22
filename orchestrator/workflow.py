@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT, ESnet.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -197,7 +197,7 @@ class StepList(list[Step]):
         if isinstance(other, StepList):
             return StepList([*self, *other])
 
-        if hasattr(other, "__name__"):  # type:ignore
+        if hasattr(other, "__name__"):  # type: ignore
             raise ValueError(
                 f"Expected @step decorated function or type Step or StepList, got {type(other)} with name {other.__name__} instead."
             )
@@ -1531,13 +1531,14 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
 
         # Execute step
         try:
-            engine_status = get_engine_settings_table()
-            if engine_status.global_lock:
-                # Exiting from thread workflow engine is Paused or Pausing
-                consolelogger.info(
-                    "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
-                )
-                return process
+            with transactional(db, logger):
+                engine_status = get_engine_settings_table()
+                if engine_status.global_lock:
+                    # Exiting from thread workflow engine is Paused or Pausing
+                    consolelogger.info(
+                        "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
+                    )
+                    return process
 
             process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
             step_result_process = process.execute_step(step)
@@ -1550,7 +1551,9 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         # as bare exceptions are not JSON serializable
         result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
         result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
-        process = dblogstep(step, result_to_log)
+
+        with transactional(db, logger):
+            process = dblogstep(step, result_to_log)
         # If database logging failed, the workflow should fail. When it was successful just continue with the
         # result of the executed step.
         consolelogger.debug("Workflow step executed.", process_status=process.status)
@@ -1597,7 +1600,8 @@ def abort_wf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
 
         state = pstat.state.abort()
 
-        return logstep(pstat, abort_func, state)
+        with transactional(db, logger):
+            return logstep(pstat, abort_func, state)
     return pstat.state
 
 

@@ -16,7 +16,7 @@ This module contains the main `OrchestratorCore` class for the `FastAPI` backend
 provides the ability to run the CLI.
 """
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import sentry_sdk
 import structlog
@@ -42,7 +42,7 @@ from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.cli.main import app as cli_app
 from orchestrator.db import db, init_database
-from orchestrator.db.database import DBSessionMiddleware
+from orchestrator.db.database import BaseModel, DBSessionMiddleware
 from orchestrator.db.listeners import monitor_sqlalchemy_queries
 from orchestrator.db.loaders import init_model_loaders
 from orchestrator.distlock import init_distlock_manager
@@ -147,6 +147,18 @@ class OrchestratorCore(FastAPI):
 
         self.include_router(api_router, prefix="/api")
 
+        db_uri = str(base_settings.DATABASE_URI.get_secret_value())
+        if db_uri.startswith("postgresql://"):
+            import warnings
+
+            warnings.warn(
+                "DATABASE_URI uses 'postgresql://' dialect which defaults to psycopg2. "
+                "orchestrator-core has migrated to psycopg3. "
+                "Please update DATABASE_URI to use 'postgresql+psycopg://' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         init_database(base_settings)
 
         self.add_middleware(ClearStructlogContextASGIMiddleware)
@@ -241,6 +253,24 @@ class OrchestratorCore(FastAPI):
 
         """
         SUBSCRIPTION_MODEL_REGISTRY.update(product_to_subscription_model_mapping)
+
+    @staticmethod
+    def register_table(base_class: type[BaseModel], custom_class: type[BaseModel]) -> None:
+        """Copy extra column_properties from custom_class onto base_class's mapper.
+
+        Only column_property attributes are copied; relationships and hybrid
+        properties are not transferred.
+        """
+        from sqlalchemy import inspect as sa_inspect
+        from sqlalchemy.orm import Mapper
+
+        base_mapper = cast(Mapper[Any], sa_inspect(base_class))
+        custom_mapper = cast(Mapper[Any], sa_inspect(custom_class))
+        existing_keys = set(base_mapper.column_attrs.keys())
+
+        for key, attr in custom_mapper.column_attrs.items():
+            if key not in existing_keys:
+                base_mapper.add_property(key, attr)
 
     def register_graphql(
         self: "OrchestratorCore",

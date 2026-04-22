@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -256,7 +256,15 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
 
     It will roll back in case of error, commit otherwise. It will also disable the `commit()` method
     on `BaseModel.session` for the time `transactional` is in effect.
+
+    Reentrant: nested calls yield without committing or rolling back; the outermost call
+    owns the transaction. This prevents the inner safeguard rollback from discarding the
+    outer transaction's work.
     """
+    if db.session.info.get("disabled", False):
+        # Nested call: outer transactional() owns commit/rollback. Inner is a no-op.
+        yield
+        return
     try:
         with disable_commit(db, log):
             yield
