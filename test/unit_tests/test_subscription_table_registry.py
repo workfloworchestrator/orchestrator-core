@@ -26,8 +26,6 @@ def _cleanup_extra_field():
     yield
     base_mapper = sa_inspect(SubscriptionTable)
     base_mapper._props.pop("extra_field", None)
-    if "extra_field" in vars(SubscriptionTable):
-        delattr(SubscriptionTable, "extra_field")
 
 
 @pytest.mark.usefixtures("_cleanup_extra_field")
