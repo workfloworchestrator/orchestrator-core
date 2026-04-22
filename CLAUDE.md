@@ -12,7 +12,7 @@ uv run pytest test/unit_tests          # unit tests
 uv run pytest test/integration_tests   # integration tests
 uv run mypy orchestrator               # type check
 uv run ruff check orchestrator         # lint
-uv run ruff format orchestrator        # format (also: black)
+uv run ruff format orchestrator        # format
 pre-commit run --all-files             # format, lint, type check.
 ```
 
@@ -21,7 +21,7 @@ pre-commit run --all-files             # format, lint, type check.
 - **No relative imports** — all imports must be absolute (`ban-relative-imports = "all"`)
 - Type annotations required everywhere (mypy strict)
 - Docstring convention: Google style
-- Formatter: black + ruff
+- Formatter: ruff
 
 ## Code Rules
 - Code shoule be as `pure` as possible with no side effects.

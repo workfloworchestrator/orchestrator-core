@@ -99,7 +99,6 @@ docs = [
 ]
 dev = [
     "apache-license-check>=1.0.0",
-    "black>=25.1.0",
     "blinker>=1.9.0",
     "bump2version",
     "deepdiff>=8.5.0",
@@ -119,7 +118,7 @@ dev = [
     "pytest-httpx>=0.29.0",
     "pytest-xdist>=3.7.0",
     "requests-mock>=1.12.1",
-    "ruff>=0.12.0",
+    "ruff>=0.15.11",
     "sqlalchemy[mypy]>=2.0.41",
     "toml>=0.10.2",
     "types-aiofiles>=24.1.0.20250606",
@@ -146,26 +145,6 @@ dev = [
 [build-system]
 requires = ["uv_build>=0.11.7,<0.12"]
 build-backend = "uv_build"
-
-[tool.black]
-line-length = 120
-target-version = ["py310"]
-exclude = '''
-(
-  /(
-      \.eggs         # exclude a few common directories in the
-    | \.git          # root of the project
-    | \.hg
-    | \.mypy_cache
-    | \.ruff_cache
-    | \.tox
-    | \.venv
-    | venv
-    | test/unit_tests/cli/data/generate
-    | orchestrator/vendor
-  )/
-)
-'''
 
 [tool.nitpick]
 style = [

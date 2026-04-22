@@ -7,7 +7,7 @@ from typing import Callable
 def remove_imports(text: str, module: str, symbol: str) -> tuple[str, bool]:
     """Find imports and remove them.
 
-    Assumes code is formatted through Black to keep the regex somewhat readable.
+    Assumes code is formatted through ruff to keep the regex somewhat readable.
     """
     text_orig = text
 

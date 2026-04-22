@@ -208,7 +208,7 @@ def without_existing_blocks(product_blocks: list[dict]) -> list[dict]:
 
 def insert_into_imports(content: list[str], new_import: str) -> list[str]:
     # Note: we may consider using a real Python parser here someday, but for now this is ok and formatting
-    # gets done by isort and black.
+    # gets done by isort and ruff.
     def produce() -> Generator:
         not_inserted_yet = True
         for line in content:
