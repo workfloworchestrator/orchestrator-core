@@ -277,3 +277,22 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
         # Extra safeguard rollback. If the commit failed there is still a failed transaction open.
         # BTW: without a transaction in progress this method is a pass-through.
         db.session.rollback()
+
+
+def _strip_sqlalchemy_driver(dsn: str) -> str:
+    """Strip SQLAlchemy driver prefix so psycopg3 gets a plain libpq URI.
+
+    psycopg3 only accepts postgresql+psycopg:// or key=value format — not postgresql+psycopg://.
+    SQLAlchemy uses the +driver suffix to select the DBAPI; strip it before connecting.
+
+    Examples:
+        >>> _strip_sqlalchemy_driver("postgresql+psycopg://user:pw@host/db")
+        'postgresql://user:pw@host/db'
+        >>> _strip_sqlalchemy_driver("postgresql+psycopg2://user:pw@host/db")
+        'postgresql://user:pw@host/db'
+        >>> _strip_sqlalchemy_driver("postgresql://user:pw@host/db")
+        'postgresql://user:pw@host/db'
+        >>> _strip_sqlalchemy_driver("postgres+psycopg://user:pw@host/db")
+        'postgres://user:pw@host/db'
+    """
+    return re.sub(r"^(postgresql|postgres)\+[^:]+://", r"\1://", dsn)

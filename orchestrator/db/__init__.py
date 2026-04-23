@@ -14,7 +14,7 @@ from typing import Any, cast
 
 from structlog import get_logger
 
-from orchestrator.db.database import BaseModel as DbBaseModel
+from orchestrator.db.database import BaseModel as DbBaseModel, _strip_sqlalchemy_driver
 from orchestrator.db.database import Database, transactional
 from orchestrator.db.models import (  # noqa: F401
     AgentRunTable,
@@ -70,7 +70,7 @@ db = cast(Database, wrapped_db)
 
 # The Global Database is set after calling this function
 def init_database(settings: AppSettings) -> Database:
-    db_uri = str(settings.DATABASE_URI.get_secret_value())
+    db_uri = _strip_sqlalchemy_driver(str(settings.DATABASE_URI.get_secret_value()))
     if db_uri.startswith("postgresql://"):
         import warnings
 

@@ -15,6 +15,7 @@
 This module contains the main `OrchestratorCore` class for the `FastAPI` backend and
 provides the ability to run the CLI.
 """
+
 from collections.abc import Callable
 from typing import Any, cast
 
@@ -42,7 +43,7 @@ from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.cli.main import app as cli_app
 from orchestrator.db import db, init_database
-from orchestrator.db.database import BaseModel, DBSessionMiddleware
+from orchestrator.db.database import BaseModel, DBSessionMiddleware, _strip_sqlalchemy_driver
 from orchestrator.db.listeners import monitor_sqlalchemy_queries
 from orchestrator.db.loaders import init_model_loaders
 from orchestrator.distlock import init_distlock_manager
@@ -147,7 +148,7 @@ class OrchestratorCore(FastAPI):
 
         self.include_router(api_router, prefix="/api")
 
-        db_uri = str(base_settings.DATABASE_URI.get_secret_value())
+        db_uri = _strip_sqlalchemy_driver(str(base_settings.DATABASE_URI.get_secret_value()))
         if db_uri.startswith("postgresql://"):
             import warnings
 
