@@ -9,6 +9,7 @@ repos:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --show-fixes]
         exclude: vulture_whitelist\.py
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -23,27 +24,6 @@ repos:
       - id: debug-statements
       - id: requirements-txt-fixer
       - id: detect-private-key
-  # Commented out due to errors with strawberry-ext-mypy plugin
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: v1.4.1
-  #   hooks:
-  #     - id: mypy
-  #       additional_dependencies:
-  #         - pydantic<2.0.0
-  #         - types-toml
-  #         - types-pytz
-  #         - types-python-dateutil
-  #         - types-requests
-  #         - types-Deprecated
-  #         - types-redis
-  #         - types-orjson
-  #         - types-tabulate
-  #         - types-pyyaml
-  #         - strawberry-graphql
-  #       args:
-  #         - --no-warn-unused-ignores
-  #         - --allow-untyped-decorators
-  #       exclude: (test/.*|migrations/.*)
 
   # This hook uses the `mypy` executable installed in your local environment
   - repo: local
@@ -77,7 +57,7 @@ repos:
         exclude: vulture_whitelist\.py
       - id: python-use-type-annotations
       - id: python-check-mock-methods
-      - id: rst-backticks
+
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
     hooks:

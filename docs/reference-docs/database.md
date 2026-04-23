@@ -8,7 +8,7 @@ The WFO database is built on top of the [SQLAlchemy](https://www.sqlalchemy.org/
 
 ??? example "Example: `orchestrator-core/db/models.py`"
     ```python linenums="1"
-    {% include '../../orchestrator/db/models.py' %}
+    {% include '../../orchestrator/core/db/models.py' %}
     ```
 
 ## Setting Up the Database Initially

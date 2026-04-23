@@ -26,4 +26,4 @@ jobs:
         run: uv sync --no-dev --group docs
 
       - name: Test mkdocs build with --strict
-        run: uv run mkdocs build --strict
+        run: DISABLE_MKDOCS_2_WARNING=true uv run mkdocs build --strict
