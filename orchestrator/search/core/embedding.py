@@ -58,9 +58,21 @@ class QueryEmbedder:
     """A stateless, async utility for embedding real-time user queries."""
 
     @classmethod
-    async def generate_for_text_async(cls, text: str) -> list[float]:
+    async def generate_for_text_async(cls, text: str) -> list[float] | None:
+        """Generate an embedding vector for a single query text.
+
+        Returns a list of floats (the embedding) on success, or None if the embedding
+        could not be produced — either because the input text is empty or because the
+        embedding service is unavailable / returned an error.
+
+        Callers must treat None as "embedding unavailable" and fall back to fuzzy/
+        structured search rather than passing it to a vector similarity query.
+        """
         if not text:
-            return []
+            return None
+
+        # TODO add check (here or elsewhere) if embedding service is enabled at all, to avoid expensive i/o roundtrips
+
         try:
             resp = await llm_aembedding(
                 model=llm_settings.EMBEDDING_MODEL,
@@ -73,4 +85,4 @@ class QueryEmbedder:
             return resp.data[0]["embedding"][: llm_settings.EMBEDDING_DIMENSION]
         except Exception as e:
             logger.error("Async embedding generation failed", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
-            return []
+            return None
