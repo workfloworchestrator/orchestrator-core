@@ -82,7 +82,3 @@ repos:
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
-#  - repo: https://github.com/andreoliwa/nitpick
-#    rev: v0.35.0
-#    hooks:
-#      - id: nitpick-check

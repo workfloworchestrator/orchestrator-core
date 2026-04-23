@@ -146,12 +146,6 @@ dev = [
 requires = ["uv_build>=0.11.7,<0.12"]
 build-backend = "uv_build"
 
-[tool.nitpick]
-style = [
-"github://workfloworchestrator/nitpick-style@main/nitpick-style-orchestrator-core.toml",
-"./nitpick-style.toml"
-]
-
 [tool.ruff]
 exclude = [
     ".git",
