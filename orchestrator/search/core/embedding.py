@@ -43,11 +43,14 @@ class EmbeddingIndexer:
             )
             data = sorted(resp.data, key=lambda e: e["index"])
             return [row["embedding"][: llm_settings.EMBEDDING_DIMENSION] for row in data]
-        except (llm_exc.APIError, llm_exc.APIConnectionError, llm_exc.RateLimitError, llm_exc.Timeout) as e:
-            logger.error("Embedding request failed", error=str(e))
+        except llm_exc.APIConnectionError as e:
+            logger.error("Embedding service unreachable", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
+            return [[] for _ in texts]
+        except (llm_exc.APIError, llm_exc.RateLimitError, llm_exc.Timeout) as e:
+            logger.error("Embedding request failed", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
             return [[] for _ in texts]
         except Exception as e:
-            logger.error("Unexpected embedding error", error=str(e))
+            logger.error("Unexpected embedding error", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
             return [[] for _ in texts]
 
 
@@ -69,5 +72,5 @@ class QueryEmbedder:
             )
             return resp.data[0]["embedding"][: llm_settings.EMBEDDING_DIMENSION]
         except Exception as e:
-            logger.error("Async embedding generation failed", error=str(e))
+            logger.error("Async embedding generation failed", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
             return []
