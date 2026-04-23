@@ -140,6 +140,7 @@ class LLMSettings(BaseSettings):
 
     # The following settings are only needed for local models or system constraints.
     # By default, they are set conservative assuming a small model like All-MiniLM-L6-V2.
+    EMBEDDING_API_ENABLED: bool = False  # Set to True to use an embedding service
     EMBEDDING_API_KEY: str = ""  # Change per provider (Azure, etc).
     EMBEDDING_API_BASE: str | None = None
     EMBEDDING_FALLBACK_MAX_TOKENS: int | None = 512

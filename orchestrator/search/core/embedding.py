@@ -71,7 +71,11 @@ class QueryEmbedder:
         if not text:
             return None
 
-        # TODO add check (here or elsewhere) if embedding service is enabled at all, to avoid expensive i/o roundtrips
+        # TODO decide if this is the proper way/player to check if embedding service is enabled
+        #  This is needed to avoid expensive i/o roundtrips
+        if not llm_settings.EMBEDDING_API_ENABLED:
+            logger.debug("Embedding API not enabled, search functionality restricted to fuzzy/structured search")
+            return None
 
         try:
             resp = await llm_aembedding(
