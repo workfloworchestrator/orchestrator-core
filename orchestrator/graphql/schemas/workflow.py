@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import TYPE_CHECKING, Annotated
 
 import strawberry
@@ -7,6 +20,7 @@ from orchestrator.db import WorkflowTable
 from orchestrator.graphql.schemas.helpers import get_original_model
 from orchestrator.graphql.types import OrchestratorInfo
 from orchestrator.schemas import StepSchema, WorkflowSchema
+from orchestrator.utils.auth import AuthContext
 from orchestrator.workflows import get_workflow
 
 if TYPE_CHECKING:
@@ -37,5 +51,10 @@ class Workflow:
         oidc_user = await info.context.get_current_user
         workflow_table = get_original_model(self, WorkflowTable)
         workflow = get_workflow(workflow_table.name)
+        context = AuthContext(
+            workflow=workflow,
+            user=oidc_user,
+            action="start_workflow",
+        )
 
-        return await workflow.authorize_callback(oidc_user)  # type: ignore
+        return await workflow.authorize_callback(context)  # type: ignore

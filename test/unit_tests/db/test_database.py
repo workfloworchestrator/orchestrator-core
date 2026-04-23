@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -137,77 +137,26 @@ def test_transactional_disables_commit_inside_block() -> None:
     assert db.session.info.get("disabled") is False
 
 
-def test_transactional_disables_expire_on_commit_during_commit() -> None:
-    """expire_on_commit must be False during commit to prevent lazy-load queries.
-
-    With psycopg3 autobegin, any lazy-load query after commit starts an implicit
-    transaction that is never committed/rolled back, causing idle-in-transaction.
-    """
-    db = _make_db()
-    log = MagicMock()
-    captured_values: list[bool] = []
-
-    def capture_expire_on_commit() -> None:
-        captured_values.append(db.session.expire_on_commit)
-
-    db.session.commit.side_effect = capture_expire_on_commit
-    db.session.expire_on_commit = True  # Start with default
-
-    with transactional(db, log):
-        pass
-
-    # During commit, expire_on_commit should have been False
-    assert captured_values == [False]
-    # After transactional exits, expire_on_commit should be restored to True
-    assert db.session.expire_on_commit is True
-
-
-def test_transactional_restores_expire_on_commit_on_commit_failure() -> None:
-    """expire_on_commit must be restored even if commit raises."""
-    db = _make_db()
-    log = MagicMock()
-    db.session.expire_on_commit = True
-    db.session.commit.side_effect = RuntimeError("commit failed")
-
-    with pytest.raises(RuntimeError, match="commit failed"):
-        with transactional(db, log):
-            pass
-
-    assert db.session.expire_on_commit is True
-
-
 def test_transactional_nested_does_not_commit_or_rollback() -> None:
-    """When transactional() is called inside an outer transactional() (i.e. db.session
-    is already marked disabled), the inner call must not commit or rollback.
-
-    Otherwise the inner rollback (the 'safeguard rollback' in the finally) would
-    rollback the outer transaction's accumulated work and expire any ORM objects
-    loaded inside the inner block - causing ObjectDeletedError on subsequent
-    attribute access by the outer code. Concretely: thread_validate_workflow runs
-    thread_start_process inside an existing step's transactional() context;
-    thread_start_process now wraps retrieve_input_state in transactional(), and
-    without reentrance support its safeguard rollback breaks the outer step's
-    transaction and detaches the just-loaded InputStateTable instance.
-    """
+    """Nested transactional() must not commit or rollback even after a real session operation."""
     db = _make_db(disabled=True)  # simulate already inside an outer transactional()
     log = MagicMock()
 
     with transactional(db, log):
-        pass
+        db.session.add(MagicMock())  # simulate a real write
 
     db.session.commit.assert_not_called()
     db.session.rollback.assert_not_called()
 
 
 def test_transactional_nested_propagates_exception_without_rollback() -> None:
-    """Nested transactional() must propagate exceptions without committing or
-    rolling back; the outer transactional() owns commit/rollback semantics.
-    """
+    """Nested transactional() must propagate exceptions without rollback after a real session operation."""
     db = _make_db(disabled=True)
     log = MagicMock()
 
     with pytest.raises(RuntimeError, match="inner failed"):
         with transactional(db, log):
+            db.session.add(MagicMock())  # simulate a real write
             raise RuntimeError("inner failed")
 
     db.session.commit.assert_not_called()

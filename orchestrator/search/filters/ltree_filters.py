@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,14 +11,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
-from sqlalchemy import TEXT, bindparam
+from sqlalchemy import bindparam, cast
 from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.types import UserDefinedType
 from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.search.core.types import LTREE_SEPARATOR, FilterOp, SQLAColumn
+
+
+class _LQuery(UserDefinedType):
+    """PostgreSQL lquery type; ensures bindparams are cast to lquery, not varchar."""
+
+    cache_ok = True
+
+    def get_col_spec(self, **_kw: Any) -> str:
+        return "lquery"
+
+    def bind_expression(self, bindvalue: Any) -> Any:
+        return cast(bindvalue, self)
 
 
 class LtreeFilter(BaseModel):
@@ -45,12 +58,14 @@ class LtreeFilter(BaseModel):
                 ltree_value = Ltree(self.value)
                 return column.op("@>")(ltree_value)
             case FilterOp.MATCHES_LQUERY:
-                param = bindparam(None, self.value, type_=TEXT)
+                param = bindparam(None, self.value, type_=_LQuery())
                 return column.op("~")(param)
             case FilterOp.PATH_MATCH:
                 ltree_value = Ltree(path)
                 return column == ltree_value
             case FilterOp.HAS_COMPONENT | FilterOp.NOT_HAS_COMPONENT:
-                return column.op("~")(bindparam(None, f"*{LTREE_SEPARATOR}{self.value}{LTREE_SEPARATOR}*", type_=TEXT))
+                return column.op("~")(
+                    bindparam(None, f"*{LTREE_SEPARATOR}{self.value}{LTREE_SEPARATOR}*", type_=_LQuery())
+                )
             case FilterOp.ENDS_WITH:
-                return column.op("~")(bindparam(None, f"*{LTREE_SEPARATOR}{self.value}", type_=TEXT))
+                return column.op("~")(bindparam(None, f"*{LTREE_SEPARATOR}{self.value}", type_=_LQuery()))

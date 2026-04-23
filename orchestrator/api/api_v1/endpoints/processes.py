@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT, ESnet.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,6 +16,7 @@
 import asyncio
 import struct
 import zlib
+from collections.abc import AsyncGenerator
 from http import HTTPStatus
 from typing import Any
 from uuid import UUID
@@ -42,6 +43,9 @@ from orchestrator.db.filters.process import filter_processes
 from orchestrator.db.sorting import Sort, SortOrder
 from orchestrator.db.sorting.process import sort_processes
 from orchestrator.schemas import ProcessIdSchema, ProcessResumeAllSchema, ProcessSchema, ProcessStatusCounts, Reporter
+from orchestrator.schemas.process import ProcessPatchSchema
+from orchestrator.search.core.types import EntityType
+from orchestrator.search.indexing import run_indexing_for_entity
 from orchestrator.security import authenticate
 from orchestrator.services.process_broadcast_thread import api_broadcast_process_data
 from orchestrator.services.processes import (
@@ -58,7 +62,7 @@ from orchestrator.services.processes import (
 )
 from orchestrator.services.settings import get_engine_settings_table
 from orchestrator.settings import app_settings
-from orchestrator.utils.auth import Authorizer
+from orchestrator.utils.auth import AuthContext, Authorizer
 from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.utils.errors import StartPredicateError
 from orchestrator.websocket import (
@@ -192,8 +196,14 @@ async def new_process(
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
-    if not await workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to execute '{workflow_key}' workflow")
+    context = AuthContext(
+        user=user_model,
+        workflow=workflow,
+        action="start_workflow",
+    )
+
+    if not await workflow.authorize_callback(context):
+        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to start '{workflow_key}' workflow")
 
     try:
         process_id = await asyncio.to_thread(
@@ -225,17 +235,30 @@ async def resume_process_endpoint(
 ) -> None:
     process = await asyncio.to_thread(_get_process, process_id)
 
-    if not can_be_resumed(process.last_status):
-        raise_status(HTTPStatus.CONFLICT, f"Resuming a {process.last_status.lower()} workflow is not possible")
-
     pstat = load_process(process)
-    auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(pstat), pstat.workflow)
+    steps = get_steps_to_evaluate_for_rbac(pstat)
+    auth_resume, auth_retry = get_auth_callbacks(steps, pstat.workflow)
     if process.last_status == ProcessStatus.SUSPENDED:
-        if auth_resume is not None and not (await auth_resume(user_model)):
+        context = AuthContext(
+            user=user_model,
+            workflow=pstat.workflow,
+            step=steps[-1],
+            action="resume_workflow",
+        )
+        if auth_resume is not None and not (await auth_resume(context)):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to resume step")
     elif process.last_status in (ProcessStatus.FAILED, ProcessStatus.WAITING):
-        if auth_retry is not None and not (await auth_retry(user_model)):
+        context = AuthContext(
+            user=user_model,
+            workflow=pstat.workflow,
+            step=steps[-1],
+            action="retry_workflow",
+        )
+        if auth_retry is not None and not (await auth_retry(context)):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to retry step")
+
+    if not can_be_resumed(process.last_status):
+        raise_status(HTTPStatus.CONFLICT, f"Resuming a {process.last_status.lower()} workflow is not possible")
 
     await broadcast_invalidate_status_counts_async()
     broadcast_func = api_broadcast_process_data(request)
@@ -340,6 +363,38 @@ def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depen
         return
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
+
+
+async def _index_processes(process_id: UUID) -> AsyncGenerator[None, Any]:
+    yield
+    run_indexing_for_entity(EntityType.PROCESS, str(process_id))
+
+
+@router.patch(
+    "/{process_id}",
+    response_model=ProcessSchema,
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(_index_processes)],
+)
+async def update_process(
+    process_id: UUID,
+    data: ProcessPatchSchema = Body(...),
+) -> ProcessTable:
+    process = _get_process(process_id)
+    if not process:
+        raise_status(HTTPStatus.NOT_FOUND, f"Process id {process_id} not found")
+
+    return await _patch_process(data, process)
+
+
+async def _patch_process(data: ProcessPatchSchema, process: ProcessTable) -> ProcessTable:
+    updated_properties = data.model_dump(exclude_unset=True)  # `None` is allowed, but must be explicitly set
+
+    for field, value in updated_properties.items():
+        setattr(process, field, value)
+
+    db.session.commit()
+    return process
 
 
 @router.get("/status-counts", response_model=ProcessStatusCounts)

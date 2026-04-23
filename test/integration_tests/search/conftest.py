@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -25,16 +25,6 @@ from .helpers import index_subscription, load_ground_truth
 
 # Mark all tests in this directory with the search marker
 pytestmark = pytest.mark.search
-
-
-def pytest_ignore_collect(collection_path, config):
-    """Ignore collecting tests from this directory when search is disabled."""
-    from orchestrator.llm_settings import llm_settings
-
-    # Skip this entire directory if search is disabled
-    if not llm_settings.SEARCH_ENABLED:
-        return True
-    return False
 
 
 def pytest_addoption(parser):

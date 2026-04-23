@@ -1,11 +1,4 @@
-#!/usr/bin/env python3
-"""The main application module.
-
-This module contains the main `OrchestratorCore` class for the `FastAPI` backend and
-provides the ability to run the CLI.
-"""
-
-# Copyright 2019-2025 SURF, ESnet, GÉANT.
+# Copyright 2019-2026 SURF, ESnet, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,8 +10,13 @@ provides the ability to run the CLI.
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""The main application module.
+
+This module contains the main `OrchestratorCore` class for the `FastAPI` backend and
+provides the ability to run the CLI.
+"""
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import sentry_sdk
 import structlog
@@ -149,9 +147,6 @@ class OrchestratorCore(FastAPI):
 
         self.include_router(api_router, prefix="/api")
 
-        # Validate DATABASE_URI dialect before initializing the database.
-        # psycopg2-binary has been removed in favor of psycopg3; bare
-        # "postgresql://" URIs will cause a cryptic driver-not-found error.
         db_uri = str(base_settings.DATABASE_URI.get_secret_value())
         if db_uri.startswith("postgresql://"):
             import warnings
@@ -165,23 +160,6 @@ class OrchestratorCore(FastAPI):
             )
 
         init_database(base_settings)
-
-        from orchestrator.llm_settings import llm_settings
-
-        if llm_settings.SEARCH_ENABLED:
-            logger.info("Running search migration")
-            try:
-                from orchestrator.search.llm_migration import run_migration
-
-                with db.engine.begin() as connection:
-                    run_migration(connection)
-            except ImportError as e:
-                logger.error(
-                    "Unable to run search migration. Please install search dependencies: "
-                    "`pip install orchestrator-core[search]`",
-                    error=str(e),
-                )
-                raise
 
         self.add_middleware(ClearStructlogContextASGIMiddleware)
         self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET.get_secret_value())
@@ -278,24 +256,16 @@ class OrchestratorCore(FastAPI):
 
     @staticmethod
     def register_table(base_class: type[BaseModel], custom_class: type[BaseModel]) -> None:
-        """Register a custom table subclass as provider for a base table class.
+        """Copy extra column_properties from custom_class onto base_class's mapper.
 
-        Inspects the custom class mapper for column_properties not present on
-        the base class and copies them onto the base mapper. After this call,
-        all code that uses the base class will have access to the extra columns.
-
-        Note: Only column_property attributes are copied. Relationships,
-        hybrid properties, and other mapper attributes are not transferred.
-
-        Args:
-            base_class: The base table class (e.g. SubscriptionTable).
-            custom_class: A subclass that defines extra column_properties.
+        Only column_property attributes are copied; relationships and hybrid
+        properties are not transferred.
         """
         from sqlalchemy import inspect as sa_inspect
         from sqlalchemy.orm import Mapper
 
-        base_mapper: Mapper = sa_inspect(base_class)
-        custom_mapper: Mapper = sa_inspect(custom_class)
+        base_mapper = cast(Mapper[Any], sa_inspect(base_class))
+        custom_mapper = cast(Mapper[Any], sa_inspect(custom_class))
         existing_keys = set(base_mapper.column_attrs.keys())
 
         for key, attr in custom_mapper.column_attrs.items():

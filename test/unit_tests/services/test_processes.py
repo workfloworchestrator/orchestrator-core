@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import asyncio
 from http import HTTPStatus
 from threading import Event
@@ -141,25 +154,7 @@ def test_process_log_db_step_success(simple_workflow):
 def test_db_log_step_strips_subscription_models_inside_transactional(
     simple_workflow, generic_product_type_1, generic_subscription_1
 ):
-    """When _db_log_step runs inside transactional(), it must return a state without live
-    SubscriptionModel instances.
-
-    The next step's inject_args._get_sub_id() asserts that step state never contains live
-    SubscriptionModel instances. Historically this invariant was enforced implicitly: with
-    SQLAlchemy's expire_on_commit=True the in-process commit() inside _db_log_step would
-    expire current_step.state, so the subsequent attribute access would re-read the JSONB
-    column and yield the JSON-roundtripped (model_dump) form.
-
-    That implicit cleanup no longer holds:
-
-        1. Inside transactional() the inner db.session.commit() is a no-op
-           (disable_commit), so no expire/reload happens before _db_log_step returns.
-        2. With psycopg3 autobegin, a post-commit reload would itself open an unmanaged
-           transaction (idle-in-transaction risk).
-
-    _db_log_step must therefore perform the state cleanup explicitly so the invariant
-    holds regardless of the commit/expire dance.
-    """
+    """_db_log_step must return plain-dict state; live SubscriptionModel instances must be serialized out."""
     _, GenericProductOne = generic_product_type_1
     subscription = GenericProductOne.from_subscription(generic_subscription_1)
     assert isinstance(subscription, SubscriptionModel)  # sanity check on the fixture chain
@@ -189,9 +184,9 @@ def test_db_log_step_strips_subscription_models_inside_transactional(
     )
 
 
-def test_thread_start_process_does_not_leak_open_transaction(simple_workflow):
-    """thread_start_process must not leave the empty-scope session with an open
-    transaction after returning.
+@mock.patch("orchestrator.services.executors.threadpool._run_process_async")
+def test_thread_start_process_does_not_leak_open_transaction(mock_run_async, simple_workflow):
+    """thread_start_process must not leave the empty-scope session with an open transaction after returning.
 
     retrieve_input_state issues a SELECT that, with psycopg3 autobegin, opens a
     transaction; without an explicit commit/rollback the connection becomes
@@ -224,10 +219,7 @@ def test_thread_start_process_does_not_leak_open_transaction(simple_workflow):
 
     assert not db.session.in_transaction(), "precondition: clean session"
 
-    # Mock _run_process_async to skip actually running the workflow thread; we are
-    # only testing the pre-runwf section of thread_start_process.
-    with mock.patch("orchestrator.services.executors.threadpool._run_process_async"):
-        thread_start_process(pstat, user="user")
+    thread_start_process(pstat, user="user")
 
     assert not db.session.in_transaction(), (
         "thread_start_process left an open transaction on db.session - "

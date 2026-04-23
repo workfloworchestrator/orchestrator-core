@@ -1,3 +1,15 @@
+# Copyright 2019-2026 SURF, ESnet.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import time
 import uuid
 from http import HTTPStatus
@@ -20,11 +32,17 @@ from orchestrator.db import (
     db,
 )
 from orchestrator.security import authenticate
-from orchestrator.services.processes import RESUME_WORKFLOW_REMOVED_ERROR_MSG, can_be_resumed, shutdown_thread_pool
+from orchestrator.services.processes import (
+    RESUME_WORKFLOW_REMOVED_ERROR_MSG,
+    _get_process,
+    can_be_resumed,
+    shutdown_thread_pool,
+)
 from orchestrator.services.settings import get_engine_settings_table
 from orchestrator.services.tasks import RESUME_WORKFLOW
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
+from orchestrator.utils.auth import AuthContext
 from orchestrator.workflow import (
     CALLBACK_TOKEN_KEY,
     ProcessStatus,
@@ -465,6 +483,7 @@ def test_processes_filterable_response_model(
         "steps": None,
         "form": None,
         "workflow_target": "SYSTEM",
+        "note": None,
     }
 
 
@@ -628,7 +647,7 @@ def test_new_process_higher_version_invalid(test_client, generic_subscription_1)
 
 
 def test_unauthorized_to_run_process(test_client):
-    async def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
     @workflow(target=Target.CREATE, authorize_callback=disallow)
@@ -642,10 +661,10 @@ def test_unauthorized_to_run_process(test_client):
 
 @pytest.fixture
 def authorize_resume_workflow():
-    async def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
-    async def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: AuthContext) -> bool:
         return True
 
     class ConfirmForm(FormPage):
@@ -738,19 +757,19 @@ def test_unauthorized_resume_input_step(test_client, process_on_unauthorized_res
     assert HTTPStatus.FORBIDDEN == response.status_code
 
 
-async def _A(_: OIDCUserModel) -> bool:
+async def _A(_: AuthContext) -> bool:
     return True
 
 
-async def _B(_: OIDCUserModel) -> bool:
+async def _B(_: AuthContext) -> bool:
     return True
 
 
-async def _C(_: OIDCUserModel) -> bool:
+async def _C(_: AuthContext) -> bool:
     return True
 
 
-async def _D(_: OIDCUserModel) -> bool:
+async def _D(_: AuthContext) -> bool:
     return True
 
 
@@ -863,10 +882,10 @@ def test_continue_awaiting_process_endpoint_wrong_process_status(test_client, pr
 
 @pytest.fixture
 def authorize_step_group_retry_workflow():
-    async def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
-    async def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: AuthContext) -> bool:
         return True
 
     steps = StepList([])
@@ -938,10 +957,10 @@ def test_unauthorized_step_group_retry(test_client, process_on_unretriable_step_
 
 @pytest.fixture
 def authorize_step_retry_workflow():
-    async def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
-    async def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: AuthContext) -> bool:
         return True
 
     @step("authorized_retry", retry_auth_callback=allow)
@@ -1017,10 +1036,10 @@ def test_unauthorized_step_retry(test_client, process_on_unretriable_step):
 
 @pytest.fixture
 def authorize_retrystep_retry_workflow():
-    async def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
-    async def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: AuthContext) -> bool:
         return True
 
     @retrystep("authorized_retry", retry_auth_callback=allow)
@@ -1110,7 +1129,7 @@ def fastapi_app_for_auth_callbacks(fastapi_app):
 def test_internal_authorize_callback(test_client, fastapi_app_for_auth_callbacks):
     """Test RBAC callbacks can restrict access to internal workflows."""
 
-    async def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
     with mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process:
@@ -1154,10 +1173,10 @@ def internal_process_on_retry_step():
 def test_internal_retry_auth_callback(test_client, fastapi_app_for_auth_callbacks, internal_process_on_retry_step):
     """Test that RBAC callbacks can manage access to retrying internal workflows."""
 
-    async def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: AuthContext) -> bool:
         return False
 
-    async def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: AuthContext) -> bool:
         return True
 
     with mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process:
@@ -1457,3 +1476,42 @@ def test_get_steps_to_evaluate_for_rbac_with_remaining_steps():
     result_names = [s.name for s in result]
     # past steps (all but last 1) = [step_x, step_y], then first of remaining = step_z
     assert result_names == ["step_x", "step_y", "step_z"]
+
+
+def test_patch_process_add_note(test_client, started_process):
+    response = test_client.patch(f"/api/processes/{started_process}", json={"note": "A Test Note"})
+    assert HTTPStatus.OK == response.status_code
+    process = response.json()
+    assert process["note"] == "A Test Note"
+
+
+def test_patch_process_remove_note(test_client, started_process):
+    with db.scoped_session():
+        process_table = _get_process(started_process)
+        process_table.note = "REMOVE THIS NOTE"
+        db.session.add(process_table)
+        db.session.commit()
+
+    response = test_client.patch(f"/api/processes/{started_process}", json={"note": None})
+    process = response.json()
+    assert process["note"] is None
+
+    with db.scoped_session():
+        process_table = _get_process(started_process)
+        assert process_table.note is None
+
+
+def test_patch_process_update_note(test_client, started_process):
+    with db.scoped_session():
+        process_table = _get_process(started_process)
+        process_table.note = "ORIGINAL NOTE"
+        db.session.add(process_table)
+        db.session.commit()
+
+    response = test_client.patch(f"/api/processes/{started_process}", json={"note": "CHANGED"})
+    process = response.json()
+    assert process["note"] == "CHANGED"
+
+    with db.scoped_session():
+        process_table = _get_process(started_process)
+        assert process_table.note == "CHANGED"

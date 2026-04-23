@@ -1,4 +1,5 @@
-site_name: Workflow Orchestrator
+# workfloworchestrator.github.io uses site_name in the URL, don't change it
+site_name: Orchestrator Core
 site_description: An extensible workflow engine to manage customer facing resources and resource facing resources.
 site_url: https://workfloworchestrator.org/orchestrator-core
 theme:
@@ -79,6 +80,7 @@ plugins:
           'reference-docs/app/pause-and-resume.md': 'guides/pause-and-resume.md'
           'migration-guide/2.0.md': 'guides/upgrading/2.0.md'
           'migration-guide/3.0.md': 'guides/upgrading/3.0.md'
+          'migration-guide/4.0.md': 'guides/upgrading/4.0.md'
           'migration-guide/4.0.md': 'guides/upgrading/4.0.md'
 copyright: Copyright &copy; 2018 - 2024 Workflow Orchestrator Programme
 extra:
@@ -178,6 +180,7 @@ nav:
           - Creating Tasks and Schedules: guides/tasks.md
           - Scaling the Orchestrator: guides/scaling.md
           - Pausing the Orchestrator: guides/pause-and-resume.md
+          - Generating a Config File: guides/generate-config-file.md
           # These would ideally go here:
           # - Migrations:
           #       - Subscriptions
@@ -189,7 +192,7 @@ nav:
                 - v4.x: guides/upgrading/4.0.md
                 - v4.7: guides/upgrading/4.7.md
                 - v4.8: guides/upgrading/4.8.md
-                # - v5.0: guides/upgrading/5.0.md  # TODO: uncomment for final 5.0 release
+                - v5.0: guides/upgrading/5.0.md
     - Reference Documentation:
           - TL;DR: reference-docs/tldr.md
           - API docs:

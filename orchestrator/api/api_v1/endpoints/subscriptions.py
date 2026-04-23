@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -48,6 +48,7 @@ from orchestrator.services.subscriptions import (
 )
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
+from orchestrator.utils.auth import AuthContext
 from orchestrator.utils.deprecation_logger import deprecated_endpoint
 from orchestrator.utils.get_subscription_dict import get_subscription_dict
 from orchestrator.websocket import sync_invalidate_subscription_cache
@@ -87,8 +88,10 @@ def _authorized_subscription_workflows(
             workflow = get_workflow(workflow_dict["name"])
             if not workflow:
                 continue
+
+            context = AuthContext(user=current_user, workflow=workflow, action="start_workflow")
             if (
-                not workflow.authorize_callback(current_user)  # The current user isn't allowed to run this workflow
+                not workflow.authorize_callback(context)  # The current user isn't allowed to run this workflow
                 and "reason" not in workflow_dict  # and there isn't already a reason why this workflow cannot run
             ):
                 workflow_dict["reason"] = "subscription.insufficient_workflow_permissions"

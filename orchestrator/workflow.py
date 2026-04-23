@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT, ESnet.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -1550,20 +1550,9 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         # Convert ErrorState to ErrorDict when Failed or Waiting before writing to the database
         # as bare exceptions are not JSON serializable
         result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
-        # Wrap post-step logging in transactional() so all DB activity runs inside a managed
-        # transaction context. Two distinct query sources are covered here:
-        #   1. mutationlogger runs synchronously via on_success() and triggers structlog
-        #      serialization of the mutations dict. Pydantic evaluates @computed_field properties
-        #      during that serialization, e.g. corelink/peer title() which call from_subscription()
-        #      and execute a SELECT. Without a managed boundary, psycopg3 autobegin starts a
-        #      transaction that is never closed -> idle-in-transaction.
-        #   2. dblogstep -> safe_logstep -> _db_log_step does its own ProcessTable/ProcessStepTable
-        #      queries plus broadcast_func. Same autobegin issue.
-        # disable_commit() inside transactional() makes the inner db.session.commit() in
-        # _db_log_step a no-op; the outer transactional() commits on success or rolls back on
-        # failure (with a safeguard rollback in finally).
+        result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
+
         with transactional(db, logger):
-            result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
             process = dblogstep(step, result_to_log)
         # If database logging failed, the workflow should fail. When it was successful just continue with the
         # result of the executed step.
@@ -1611,7 +1600,8 @@ def abort_wf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
 
         state = pstat.state.abort()
 
-        return logstep(pstat, abort_func, state)
+        with transactional(db, logger):
+            return logstep(pstat, abort_func, state)
     return pstat.state
 
 

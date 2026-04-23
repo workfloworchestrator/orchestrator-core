@@ -1,5 +1,5 @@
 # Build stage
-FROM python:3.11-slim AS build
+FROM python:3.13-slim AS build
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git build-essential \
@@ -10,7 +10,7 @@ RUN pip install build --no-cache-dir
 RUN python -m build --wheel --outdir dist
 
 # Final stage
-FROM python:3.11-slim
+FROM python:3.13-slim
 ENV PIP_ROOT_USER_ACTION=ignore
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \

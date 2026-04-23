@@ -87,7 +87,7 @@ Or have a look at the Alembic migration version history with:
 python main.py db history
 ```
 
-That will display somthing like this:
+That will display something like this:
 
 ```text
 <base> (da5c9f4cce1c) -> 9cbc348cc1dc (data), Create data head.

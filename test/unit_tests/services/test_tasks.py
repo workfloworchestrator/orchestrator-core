@@ -1,10 +1,270 @@
-"""Tests for CeleryJobWorkerStatus: None handling from inspection API, valid data processing, and uninitialized Celery."""
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-from unittest.mock import MagicMock, patch
+"""Tests for orchestrator/services/tasks.py.
+
+Covers get_celery_task, register_custom_serializer, initialise_celery (including transactional wrapping),
+and CeleryJobWorkerStatus.
+"""
+
+from collections.abc import Generator
+from contextlib import contextmanager
+from typing import Any
+from unittest.mock import ANY, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 
-from orchestrator.services.tasks import CeleryJobWorkerStatus
+import orchestrator.services.tasks as tasks_module
+from orchestrator.services.tasks import (
+    NEW_TASK,
+    NEW_WORKFLOW,
+    RESUME_TASK,
+    RESUME_WORKFLOW,
+    CeleryJobWorkerStatus,
+    get_celery_task,
+    initialise_celery,
+    register_custom_serializer,
+)
+
+
+@pytest.fixture(autouse=True)
+def reset_celery_global():
+    """Restore the _celery global to its original value after each test.
+
+    initialise_celery() sets a module-level global; without cleanup, test
+    ordering can cause 'You can only initialise Celery once' failures.
+    """
+    original = tasks_module._celery
+    tasks_module._celery = None
+    yield
+    tasks_module._celery = original
+
+
+def _make_capturing_celery():
+    """Return a (mock_celery, captured) pair.
+
+    mock_celery.task acts as a real decorator factory instead of a MagicMock,
+    so that @celery_task(name=...) stores the *original* function in `captured`
+    rather than wrapping it in another MagicMock.  This lets tests invoke the
+    inner start_process / resume_process closures directly.
+    """
+    captured: dict = {}
+
+    def task_factory(**kwargs):
+        def decorator(fn):
+            captured[kwargs["name"]] = fn
+            return fn
+
+        return decorator
+
+    celery = MagicMock()
+    celery.task = task_factory
+    return celery, captured
+
+
+@contextmanager
+def _noop_transactional(db: Any, log: Any) -> Generator[None, None, None]:
+    yield
+
+
+# ---------------------------------------------------------------------------
+# get_celery_task
+# ---------------------------------------------------------------------------
+
+
+def test_get_celery_task_returns_signature_when_initialized():
+    mock_celery = MagicMock()
+    tasks_module._celery = mock_celery
+
+    result = get_celery_task("tasks.new_task")
+
+    mock_celery.signature.assert_called_once_with("tasks.new_task")
+    assert result is mock_celery.signature.return_value
+
+
+def test_get_celery_task_raises_when_not_initialized():
+    tasks_module._celery = None
+
+    with pytest.raises(AssertionError, match="Celery has not been initialised yet"):
+        get_celery_task("tasks.new_task")
+
+
+# ---------------------------------------------------------------------------
+# register_custom_serializer
+# ---------------------------------------------------------------------------
+
+
+@patch("orchestrator.services.tasks.registry")
+def test_register_custom_serializer_registers_orchestrator_json(mock_registry) -> None:
+    register_custom_serializer()
+    mock_registry.register.assert_called_once_with("orchestrator-json", ANY, ANY, "application/json", "utf-8")
+
+
+# ---------------------------------------------------------------------------
+# initialise_celery
+# ---------------------------------------------------------------------------
+
+
+def test_initialise_celery_raises_on_double_init():
+    tasks_module._celery = MagicMock()  # simulate already initialised
+
+    with pytest.raises(AssertionError, match="only initialise Celery once"):
+        initialise_celery(MagicMock())
+
+
+def test_initialise_celery_sets_task_routes():
+    celery, _ = _make_capturing_celery()
+
+    with patch("orchestrator.services.tasks.register_custom_serializer"):
+        initialise_celery(celery)
+
+    assert celery.conf.task_routes == {
+        NEW_TASK: {"queue": "new_tasks"},
+        NEW_WORKFLOW: {"queue": "new_workflows"},
+        RESUME_TASK: {"queue": "resume_tasks"},
+        RESUME_WORKFLOW: {"queue": "resume_workflows"},
+    }
+
+
+# ---------------------------------------------------------------------------
+# start_process (inner closure) — called by new_task / new_workflow
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def celery_start_fn():
+    """Return the inner start_process closure via the capturing celery pattern."""
+    celery, captured = _make_capturing_celery()
+    with patch("orchestrator.services.tasks.register_custom_serializer"):
+        initialise_celery(celery)
+    return captured[NEW_TASK]  # new_task delegates to start_process
+
+
+def test_start_process_wraps_db_reads_in_transactional(celery_start_fn):
+    """start_process must call transactional(db, ...) to prevent idle-in-transaction on psycopg3."""
+    process_id = uuid4()
+    mock_pstat = MagicMock()
+
+    with (
+        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional) as mock_tx,
+        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()),
+        patch("orchestrator.services.tasks.load_process", return_value=mock_pstat),
+        patch("orchestrator.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.services.tasks.thread_start_process"),
+    ):
+        celery_start_fn(process_id, "user")
+
+    mock_tx.assert_called_once_with(tasks_module.db, ANY)
+
+
+def test_start_process_returns_process_id_on_success(celery_start_fn):
+    process_id = uuid4()
+    mock_pstat = MagicMock()
+
+    with (
+        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional),
+        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()),
+        patch("orchestrator.services.tasks.load_process", return_value=mock_pstat),
+        patch("orchestrator.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.services.tasks.thread_start_process"),
+    ):
+        result = celery_start_fn(process_id, "user")
+
+    assert result == process_id
+
+
+@pytest.mark.parametrize("failing_fn", ["_get_process", "load_process", "thread_start_process"])
+def test_start_process_returns_none_on_exception(celery_start_fn, failing_fn):
+    process_id = uuid4()
+
+    with (
+        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional),
+        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()) as m_get,
+        patch("orchestrator.services.tasks.load_process", return_value=MagicMock()) as m_load,
+        patch("orchestrator.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.services.tasks.thread_start_process") as m_thread,
+    ):
+        target = {"_get_process": m_get, "load_process": m_load, "thread_start_process": m_thread}[failing_fn]
+        target.side_effect = RuntimeError("boom")
+        result = celery_start_fn(process_id, "user")
+
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# resume_process (inner closure) — called by resume_task / resume_workflow
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def celery_resume_fn():
+    """Return the inner resume_process closure via the capturing celery pattern."""
+    celery, captured = _make_capturing_celery()
+    with patch("orchestrator.services.tasks.register_custom_serializer"):
+        initialise_celery(celery)
+    return captured[RESUME_TASK]  # resume_task delegates to resume_process
+
+
+def test_resume_process_wraps_db_reads_in_transactional(celery_resume_fn):
+    """resume_process must call transactional(db, ...) to prevent idle-in-transaction on psycopg3."""
+    process_id = uuid4()
+
+    with (
+        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional) as mock_tx,
+        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()),
+        patch("orchestrator.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.services.tasks.thread_resume_process"),
+    ):
+        celery_resume_fn(process_id, "user")
+
+    mock_tx.assert_called_once_with(tasks_module.db, ANY)
+
+
+def test_resume_process_returns_process_id_on_success(celery_resume_fn):
+    process_id = uuid4()
+
+    with (
+        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional),
+        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()),
+        patch("orchestrator.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.services.tasks.thread_resume_process"),
+    ):
+        result = celery_resume_fn(process_id, "user")
+
+    assert result == process_id
+
+
+@pytest.mark.parametrize("failing_fn", ["_get_process", "thread_resume_process"])
+def test_resume_process_returns_none_on_exception(celery_resume_fn, failing_fn):
+    process_id = uuid4()
+
+    with (
+        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional),
+        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()) as m_get,
+        patch("orchestrator.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.services.tasks.thread_resume_process") as m_thread,
+    ):
+        target = {"_get_process": m_get, "thread_resume_process": m_thread}[failing_fn]
+        target.side_effect = RuntimeError("boom")
+        result = celery_resume_fn(process_id, "user")
+
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# CeleryJobWorkerStatus — Celery inspection API edge cases (None, partial, empty)
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture

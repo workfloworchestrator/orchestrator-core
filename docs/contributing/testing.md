@@ -1,278 +1,237 @@
 # Writing unit tests
 
-Notes and lessons learned about writing unit tests for workflows.
+This guide covers how to write unit tests for workflows and domain models in orchestrator-core.
+For setup instructions (database, running tests), see [development.md](development.md).
 
-Point the first, there are `test` and `test_esnet` file hierarchies. The latter is a clone of the former with all of the SN specific stuff torn out. Any of our stuff should go in `test_esnet` but in some cases will still reference code in the `test` hierarchy. This is covered later.
+## Test helpers
 
-## Domain model tests
-
-There is a test for the circuit transition domain models here:
-
-```shell
-orchestrator/test_esnet/unit_tests/domain/product_types/test_cts.py
-```
-
-These are relatively straightforward. There are basic imports which include the domain models being tested:
+Workflow tests use a set of helpers from `test.unit_tests.workflows`:
 
 ```python
-from server.db import Product, db
-from server.domain.product_blocks.cts import CircuitTransitionBlockInactive
-from server.domain.product_types.cts import CircuitTransition, CircuitTransitionInactive
-from server.types import SubscriptionLifecycle
+from test.unit_tests.workflows import (
+    WorkflowInstanceForTests,
+    assert_aborted,
+    assert_assignee,
+    assert_awaiting_callback,
+    assert_complete,
+    assert_failed,
+    assert_product_blocks_equal,
+    assert_state,
+    assert_state_equal,
+    assert_step_name,
+    assert_success,
+    assert_suspended,
+    assert_waiting,
+    extract_error,
+    extract_state,
+    resume_workflow,
+    run_workflow,
+    run_form_generator,
+)
 ```
 
-It pulls in the inactive version of the product block, plus the default and inactive product type models. Then just write functions. They seemed to have defined two kinds of test (you can put them in the same module).
+`run_workflow(workflow_key, input_data)` starts a workflow and returns `(result, process, step_log)`.
+`resume_workflow(process, step_log, input_data)` resumes a suspended workflow and returns `(result, step_log)`.
 
-### New
+The `assert_*` helpers for terminal state each raise with a descriptive message on failure:
 
-This test just creates a new model in the function. Super easy, instantiate the inactive version of the model and test that the default fields are properly defined.
+- `assert_complete(result)` — asserts the workflow completed successfully.
+- `assert_success(result)` — asserts the result is a success (use when you want to check `issuccess()` rather than `iscomplete()`).
+- `assert_failed(result)` — asserts the workflow failed.
+- `assert_suspended(result)` — asserts the workflow is suspended at an input step.
+- `assert_waiting(result)` — asserts the workflow is in a waiting state.
+- `assert_awaiting_callback(result)` — asserts the workflow is waiting for a callback.
+- `assert_aborted(result)` — asserts the workflow was aborted.
 
-### Save and load
+`assert_state(result, expected)` checks that the result state contains at least the keys in `expected`.
+`assert_state_equal(result, expected, excluded_keys=None)` checks the full state for equality, minus a set of excluded keys (defaults to `process_id`, `workflow_target`, `workflow_name`).
 
-This is commented and a bit more complex. In the `conftest.py` file at the root of the test directory a `pytest` fixture is defined that creates the model and saves it in the db.
+`assert_assignee(log, expected)` and `assert_step_name(log, expected)` inspect the last entry of the step log — useful for verifying which step a workflow stopped on and who it was assigned to.
 
-Then the test function loads the version from the db, checks the contents, makes some changes, save it, and load it up again.
+`assert_product_blocks_equal(expected, actual)` compares lists of product block instance dicts, sorting by block type before comparison.
 
-Also pretty simple but you mostly need to know where the fixtures get defined.
+`extract_state(result)` unwraps the state dict from a result; `extract_error(result)` pulls the error string from a failed result.
 
-## Workflow tests
+## Writing a workflow test
 
-There is a unit test for the ESnet circuit transition workflow here:
+### Simple workflow (no suspension)
 
-```shell
-orchestrator/test_esnet/unit_tests/workflows/cts/test_create_cts.py
-```
-
-It's mostly complete and is liberally commented.
-
-### Fundamental imports
-
-It uses the `pytest` framework, and some custom orchestrator code. So we need to pull in some imports for the framework and functions to run the workflow in the test. Finally, the function gets a decorator:
+Mark workflow tests with `@pytest.mark.workflow`. The `responses` HTTP mock fixture is active automatically (see [HTTP mocking](#http-mocking)); include it in the test signature only when you need to register mocks with `responses.add()`:
 
 ```python
-import uuid
 import pytest
-
-from server.db import Product, Subscription
-from test.unit_tests.workflows import (
-    assert_complete,
-    assert_failed,
-    extract_error,
-    extract_state,
-    run_workflow,
-    assert_suspended,
-    resume_workflow,
-)
-
+from orchestrator.db import ProductTable
+from sqlalchemy import select
+from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
 @pytest.mark.workflow
-def test_create_cts(responses):
-    pass
+def test_create_my_product(responses, db_session):
+    product = db_session.scalars(select(ProductTable).where(ProductTable.name == "MyProduct")).one()
+
+    result, process, step_log = run_workflow(
+        "create_my_product",
+        [{"product": product.product_id}, {"customer_id": CUSTOMER_ID, "field": "value"}],
+    )
+
+    assert_complete(result)
+    state = extract_state(result)
+    assert state["field"] == "value"
 ```
 
-### General flow
+The `input_data` argument is a list of dicts — one dict per form page in the workflow. Create workflows typically take `[{"product": product_id}, {...field inputs...}]`.
 
-To start it off, just define the initial input content in a data structure and feed it to a function that starts the workflow:
+### Multi-step workflow (with suspension)
 
-```python
-initial_state = [
-    {"product": str(product.product_id)},
-    {
-        "customer_id": ESNET_ORG_UUID,
-        "esnet5_circuit_id": "2",
-        "esnet6_circuit_id": "2",
-        "snow_ticket_assignee": "mgoode",
-        "noc_due_date": "2020-07-02 07:00:00",
-    },
-]
-
-result, process, step_log = run_workflow("create_circuit_transition", initial_state)
-assert_suspended(result)
-state = extract_state(result)
-```
-
-In this example it's a workflow suspends several times so the `assert_suspended` function is called. If the workflow doesn't have anything like that (ie: it's just one step) you can just let it go and call `assert_complete`. In the above example, you can pause, and examine the state object to make sure the contents are what is expected.
-
-To resume a multi-step/suspended workflow, you do this:
-
-```python
-confirm_complete_prework = {
-    "outbound_shipper": "fedex",
-    "return_shipper": "fedex",
-    "generate_shipping_details": "ACCEPTED",
-    "provider_receiving_ticket": "23432",
-    "provider_remote_hands_ticket": "345345",
-    "confirm_colo_and_ports": "ACCEPTED",
-    "complete_mops_info": "ACCEPTED",
-    "create_pmc_notification": "pmc notify",
-    "reserve_traffic_generator": "ACCEPTED",
-}
-
-result, step_log = resume_workflow(process, step_log, confirm_complete_prework)
-```
-
-One doesn't need to update the main state object, just create a fresh data structure of the new data and call `resume_workflow` - the new data will be added to the state object. Lather, rinse and repeat until the workflow is complete.
-
-### HTTP mocking
-
-One non-obvious facet of the test framework is that it forces one to mock any HTTP calls going to an external service. This is defined by a fixture in the `conftest.py` file - this is compatible with the http lib we are using.
-
-Consider a test function prototype:
+When a workflow suspends at an `inputstep`, assert the suspension, inspect state, then resume with the next form's data:
 
 ```python
 @pytest.mark.workflow
-def test_create_cts(responses):
-    product = Product.query.filter(Product.name == "Circuit Transition Service").one()
+def test_create_with_approval(responses, db_session):
+    product = db_session.scalars(select(ProductTable).where(ProductTable.name == "MyProduct")).one()
+
+    result, process, step_log = run_workflow(
+        "create_my_product",
+        [{"product": product.product_id}, {"customer_id": CUSTOMER_ID}],
+    )
+    assert_suspended(result)
+
+    state = extract_state(result)
+    assert state["customer_id"] == CUSTOMER_ID
+
+    result, step_log = resume_workflow(process, step_log, {"approved": True})
+    assert_complete(result)
 ```
 
-That responses arg being passed in is the aforementioned fixture. This is then passed into your mock classes:
+Pass only the new form's data to `resume_workflow` — it merges into the existing state automatically.
+Repeat the `assert_suspended` / `resume_workflow` cycle for each suspension point.
+
+### Testing an ad-hoc workflow
+
+To test a workflow defined inline (not registered in `ALL_WORKFLOWS`), use `WorkflowInstanceForTests` as a context manager:
 
 ```python
-esdb = EsdbMocks(responses)
-oauth = OAuthMocks(responses)
-snow = SnowMocks(responses)
+from orchestrator.targets import Target
+from orchestrator.workflow import begin, done, inputstep, step, workflow
+from test.unit_tests.workflows import WorkflowInstanceForTests, assert_complete, assert_suspended, resume_workflow, run_workflow
+
+def test_my_inline_workflow():
+    @step("Do work")
+    def do_work():
+        return {"result": 42}
+
+    @workflow(target=Target.CREATE)
+    def my_wf():
+        return begin >> do_work >> done
+
+    with WorkflowInstanceForTests(my_wf, "my_wf"):
+        result, process, step_log = run_workflow("my_wf", {})
+        assert_complete(result)
 ```
 
-`Product.name` needs to match the first argument of the `@create_workflow` decorator and needs to be defined as a product in the database or that call will fail.
+## HTTP mocking
 
-#### Defining a mock
+The `responses` fixture is `autouse=True`, meaning it is active for every test automatically.
+Any HTTP call that is not mocked will raise an exception and fail the test.
+Any mock that is registered but never called will also fail the test — register only what your workflow actually uses.
 
-Here is the constructor and a single method from a mock file:
+Register mocks before running the workflow:
 
 ```python
-class OAuthMocks:
-    def __init__(self, responses):
-        self.responses = responses
+@pytest.mark.workflow
+def test_with_external_call(responses, db_session):
+    responses.add(
+        "POST",
+        "https://external.example.com/api/endpoint",
+        body='{"status": "ok"}',
+        content_type="application/json",
+    )
 
-    def post_token(self):
-        response = r"""{
-  "access_token":"MTQ0NjJkZmQ5OTM2NDE1ZTZjNGZmZjI3",
-  "token_type":"bearer",
-  "expires_in":3600,
-  "refresh_token":"IwOGYzYTlmM2YxOTQ5MGE3YmNmMDFkNTVk",
-  "scope":"create"
-}"""
-        response = json.loads(response)
-
-        self.responses.add(
-            "POST",
-            f"/oauth_token.do",
-            body=json.dumps(response),
-            content_type="application/json",
-        )
+    result, process, step_log = run_workflow("my_workflow", [...])
+    assert_complete(result)
 ```
 
-Pretty basic - define what the return payload looks like. One defines an HTTP verb, URI and the like.
-
-Also, if you're mocking a call that contains a query string make sure to include the
+If your URL includes a query string, pass `match_querystring=True` to `responses.add()` or the mock will not match:
 
 ```python
-match_querystring = (True,)
-```
-
-flag to `responses.add()` or you'll go insane trying to figure out why it didn't register properly.
-
-Not going to lie, this part can get kind of tedious depending on the amount of calls you need to mock.
-
-#### Registering with the fixture (the non-obvious bit)
-
-The way this works is that rather than mimicking the name of the method being mocked, it does a look up using a two-tuple of the verb and the uri. And it needs to be registered with the fixture or else the lookup won't work. So back in the test function, one needs to do this before initiating the workflow:
-
-```python
-oauth = OAuthMocks(responses)
-...
-token = oauth.post_token()
-```
-
-Even though you haven't run the workflow yet, and you won't use the return value, doing that registers the verb/uri pair with the fixture. Then going forward when the code executes and there is an HTTP call to that verb/uri pair, the contents of that method will be returned (payload, headers, etc).
-
-And if you try to cheat, the fixture will stop you. Any un-mocked HTTP call will raise an exception.
-
-## Running the tests
-
-The tests need to be run inside the container. First, to enable "live" updating, add this to the `volumes` stanza of the docker compose file:
-
-```yaml
-      - ../test:/usr/src/app/test
-```
-
-Then shell into the container:
-
-```shell
-    docker exec -it backend /bin/bash
-```
-
-And run the test:
-
-```shell
-root@d30f71ee1afe:/usr/src/app# pytest -s test_esnet/unit_tests/workflows/cts/test_create_cts.py
-```
-
-The `-s` flag to `pytest` is needed if you want to see your print statements. Otherwise `pytest` will cheerfully eat them.
-
-### Gotchas and etc
-
-#### Executing multiple tasks
-
-The `test_esnet` tree is a clone of the SN `test` tree with all of the SN specific stuff removed. Some tests may still reference code in the `test` tree - utility testing code for example:
-
-```python
-from test.unit_tests.workflows import (
-    assert_complete,
-    assert_failed,
-    extract_error,
-    extract_state,
-    run_workflow,
-    assert_suspended,
-    resume_workflow,
+responses.add(
+    "GET",
+    "https://api.example.com/items?id=123",
+    body='{"id": 123}',
+    content_type="application/json",
+    match_querystring=True,
 )
 ```
 
-That's by design - those things are core orchestrator code so it stays put.
+Skipping the `match_querystring` flag on a query-string URL is a common source of mocks silently not matching.
 
-At some point we might want to crib off of SN code or modify it (like some of the mocking code for example) - if so, go ahead and move it into our tree. The goal of this is to have the `test_esnet` tree be pretty lean and just have our stuff in it. That way we can also just run the entire tree w/out worrying about their stuff.
+To opt a specific test out of the responses mock entirely, mark it with `@pytest.mark.noresponses`.
 
-#### Test DB
+## Writing subscription fixtures
 
-See `.env.example` on how to set the URI for the database the testing framework uses. The original default was to use your "production" local db which had the super helpful side effect of trashing your orchestrator state.
-
-#### Initial state
-
-The initial state for the form input is defined in a pretty straightforward way - at least for create workflows:
+When creating a subscription fixture in `conftest.py` for use in workflow tests, always set `insync=True`:
 
 ```python
-initial_state = [
-    {"product": str(product.product_id)},
-    {
-        "customer_id": ESNET_ORG_UUID,
-        "esnet5_circuit_id": "2",
-        "esnet6_circuit_id": "2",
-        "snow_ticket_assignee": "mgoode",
-        "noc_due_date": "2020-07-02 07:00:00",
-    },
-]
-
-result, process, step_log = run_workflow("create_circuit_transition", initial_state)
+gen_subscription = MyProductInactive.from_product_id(
+    product_id, customer_id=CUSTOMER_ID, insync=True
+)
 ```
 
-But there seems to be a gotcha when defining initial state for a terminate / etc workflow that modifies existing subscriptions:
+Omitting `insync=True` will cause any workflow test consuming that subscription to fail with a message about an active process — the framework thinks the subscription is mid-process and refuses to proceed.
+
+## Writing domain model tests
+
+Domain model tests exercise product types and product blocks directly, without running a workflow.
+
+### Testing default field values
 
 ```python
-# Yes, the initial state is a list of two identical dicts.
-# Why? I don't know. But I do know if you don't do this an
-# maddening form incomplete validation error will happen. -mmg
-initial_state = [
-    {"subscription_id": nes_subscription2},
-    {
-        "subscription_id": nes_subscription2,
-    },
-]
+from products.product_types.my_product import MyProductInactive
 
-result, process, step_log = run_workflow("terminate_node_enrollment", initial_state)
+def test_my_product_defaults():
+    subscription = MyProductInactive.from_product_id(product_id, customer_id=CUSTOMER_ID)
+    assert subscription.pb.some_field == "expected_default"
 ```
 
-So if one gets a vague form validation error when doing this, it might be something alone these lines.
+### Testing save and load
 
-#### insync = True
+Define a fixture in `conftest.py` that creates and persists the subscription, then load it from the database in the test:
 
-When defining a fixture in `conftest.py` to make an entry in the testing DB for a subscription that a unit test might consume, make sure to mark the subscription object `.insync = True`. Otherwise the unit test will fail thinking that it is attached to an active process.
+```python
+def test_my_product_save_and_load(my_product_subscription_id):
+    subscription = MyProduct.from_subscription(my_product_subscription_id)
+    assert subscription.status == SubscriptionLifecycle.ACTIVE
+
+    subscription.pb.some_field = "updated"
+    subscription.save()
+
+    reloaded = MyProduct.from_subscription(my_product_subscription_id)
+    assert reloaded.pb.some_field == "updated"
+```
+
+## Testing form generators
+
+Use `run_form_generator` to test multi-page form logic in isolation, without running a full workflow:
+
+```python
+from test.unit_tests.workflows import run_form_generator
+
+def test_my_form_generator():
+    forms, result = run_form_generator(
+        my_form_generator({"state_field": "value"}),
+        extra_inputs=[{"page_1_field": "input"}],
+    )
+    assert result["page_1_field"] == "input"
+    assert result["computed_field"] == "expected"
+```
+
+Note that `run_form_generator` intentionally bypasses Pydantic validation — ensure `extra_inputs` matches the expected types as if validation had run.
+
+## Test markers
+
+| Marker | When to use |
+|--------|-------------|
+| `@pytest.mark.workflow` | All workflow tests — required for correct test collection and fixtures |
+| `@pytest.mark.noresponses` | Tests that make real HTTP calls (rare; use with caution) |
+| `@pytest.mark.celery` | Tests requiring Celery worker support |
+| `@pytest.mark.search` | Tests requiring the `search` extra |
+| `@pytest.mark.acceptance` | Acceptance tests (handled separately from unit tests) |

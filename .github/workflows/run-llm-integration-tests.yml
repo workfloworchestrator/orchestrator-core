@@ -52,7 +52,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.11.3"
+          version: "0.11.7"
           python-version: ${{ matrix.python-version }}
 
       - name: Install project and dependencies
@@ -65,7 +65,6 @@ jobs:
           DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
           ENVIRONMENT: TESTING
           PYTHONPATH: .
-          SEARCH_ENABLED: true
           REDIS_HOST: redis
         run: |
           uv run pytest test/integration_tests/search -v -rs

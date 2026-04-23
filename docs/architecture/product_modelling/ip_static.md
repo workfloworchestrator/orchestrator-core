@@ -15,13 +15,51 @@ For this example, we chose to bundle the IP settings in a separate product
 block to make it possible to be reused by other products, but we could also
 just have extended the Ip_static_virtual_circuit product block.
 
-<img height="75%" src="../ip_static.png" title="IP Static Product Model" width="75%"/>
+```mermaid
+classDiagram
+    direction TB
+    namespace L2Point2PointProduct {
+        class Fixed Inputs {
+            +ip_routing_type: IPRoutingType
+        }
+        class IPStaticVirtualCircuitBlock {
+            inherits from L2Point2PointVirtualCircuitBlock
+            +ip_settings: IPSettingsBlock
+            +sap: IPStaticServiceAttachmentPointBlock
+        }
+        class IPStaticServiceAttachmentPointBlock {
+            inherits from L2Point2PointVirtualCircuitBlock
+            +customer_prefixes: list[IpamID]
+            +customer_ipv4_mtu: MTU
+            +customer_ipv6_mtu: MTU
+            +ptp_ipv4_ipam_id: IpamID
+            +ptp_ipv4_ipam_id: IpamID
+        }
+    }
+
+    IPStaticVirtualCircuitBlock "1" --> "1" IPStaticServiceAttachmentPointBlock
+```
+
+## class IPStaticProduct
+
+**Fixed Inputs:**
 
 * **ip_routing_type**: either Static or BGP, for this product set to Static
+
+**class IPStaticVirtualCircuit(L2Point2PointVirtualCircuit):**
+
+* **ip_settings**: IPSettingsBlock
+* **sap**: IPStaticServiceAttachmentPoint
+
+**class IPStaticServiceAttachmentPoint(L2Point2PointVirtualCircuit):**
+
 * **customer_prefixes**: list of IPAM ID’s of the customer IP prefixes
 * **customer_ipv4_mtu**: the customer IPv4 maximum transmission unit
 * **customer_ipv6_mtu**: the customer IPv6 maximum transmission unit
 * **ptp_ipv4_ipam_id**: the IPAM id of the IPv4 point-to-point prefix
 * **ptp_ipv6_ipam_id**: the IPAM id of the IPv6 point-to-point prefix
+
+**class IPSettingsBlock:**
+
 * **multicast**: enable multicast
 * **cert_filter**: enable CERT filter

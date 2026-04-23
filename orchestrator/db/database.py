@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,9 +18,8 @@ from typing import Any, ClassVar, cast
 from uuid import uuid4
 
 import structlog
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy.engine import Engine
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import Query, Session, as_declarative, scoped_session, sessionmaker
 from sqlalchemy.sql.schema import MetaData
@@ -168,28 +167,10 @@ ENGINE_ARGUMENTS = {
     "connect_args": {"connect_timeout": 10, "options": "-c timezone=UTC"},
     "pool_pre_ping": True,
     "pool_size": 60,
-    "pool_recycle": 3600,
     "json_serializer": json_dumps,
     "json_deserializer": json_loads,
 }
 SESSION_ARGUMENTS = {"class_": WrappedSession, "autocommit": False, "autoflush": True, "query_cls": SearchQuery}
-
-
-def _register_pool_events(engine: Engine) -> None:
-    """Register pool events to prevent idle-in-transaction connections.
-
-    psycopg3 uses autobegin, which means a connection may have an open
-    transaction when returned to the pool. This listener ensures a
-    rollback is issued on checkin to clean up any leftover transaction state.
-    """
-
-    @event.listens_for(engine, "checkin")
-    def _on_checkin(dbapi_connection: Any, connection_record: Any) -> None:
-        """Roll back any open transaction when a connection is returned to the pool."""
-        try:
-            dbapi_connection.rollback()
-        except Exception:
-            pass
 
 
 class Database:
@@ -206,13 +187,8 @@ class Database:
     def __init__(self, db_url: str) -> None:
         self.request_context: ContextVar[str] = ContextVar("request_context", default="")
         self.engine = create_engine(db_url, **ENGINE_ARGUMENTS)
-        _register_pool_events(self.engine)
         self.session_factory = sessionmaker(
-            bind=self.engine,
-            class_=WrappedSession,
-            autocommit=False,
-            autoflush=True,
-            query_cls=SearchQuery,
+            bind=self.engine, class_=WrappedSession, autocommit=False, autoflush=True, query_cls=SearchQuery
         )
 
         self.scoped_session = scoped_session(self.session_factory, self._scopefunc)
@@ -281,16 +257,9 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
     It will roll back in case of error, commit otherwise. It will also disable the `commit()` method
     on `BaseModel.session` for the time `transactional` is in effect.
 
-    expire_on_commit is temporarily disabled during commit so that ORM objects retain their
-    in-memory attribute values. This prevents lazy-load queries after commit that would start
-    unmanaged transactions with psycopg3's autobegin behavior.
-
-    Reentrant: if `transactional()` is called inside an outer `transactional()` (i.e. the
-    session is already marked disabled), the inner call yields without committing or rolling
-    back. Commit/rollback are owned by the outermost call. This avoids the inner safeguard
-    rollback expiring ORM objects loaded inside the inner block, which would break the outer
-    transaction (objects loaded inside the inner block would raise ObjectDeletedError on
-    subsequent attribute access by the outer code).
+    Reentrant: nested calls yield without committing or rolling back; the outermost call
+    owns the transaction. This prevents the inner safeguard rollback from discarding the
+    outer transaction's work.
     """
     if db.session.info.get("disabled", False):
         # Nested call: outer transactional() owns commit/rollback. Inner is a no-op.
@@ -300,11 +269,7 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
         with disable_commit(db, log):
             yield
         log.debug("Committing transaction.")
-        db.session.expire_on_commit = False
-        try:
-            db.session.commit()
-        finally:
-            db.session.expire_on_commit = True
+        db.session.commit()
     except Exception:
         log.warning("Rolling back transaction.")
         raise

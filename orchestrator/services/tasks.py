@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,10 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from functools import partial
+from typing import Any
 from uuid import UUID
 
 import structlog
-from celery import Celery, Task
+from celery import Celery
 from celery.app.control import Inspect
 from celery.utils.log import get_task_logger
 from kombu.serialization import registry
@@ -40,7 +41,7 @@ RESUME_TASK = "tasks.resume_task"
 RESUME_WORKFLOW = "tasks.resume_workflow"
 
 
-def get_celery_task(task_name: str) -> Task:
+def get_celery_task(task_name: str) -> Any:
     if _celery:
         return _celery.signature(task_name)
     raise AssertionError("Celery has not been initialised yet")
@@ -71,13 +72,8 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     def start_process(process_id: UUID, user: str) -> UUID | None:
         try:
-            # Wrap _get_process (joinedload of processes/process_steps/process_subscriptions/
-            # subscription) in transactional() so the SELECTs run inside a managed transaction.
-            # On a Celery worker the session uses the empty scope (no database_scope), so an
-            # unmanaged SELECT triggers psycopg3 autobegin and leaves the connection
-            # idle-in-transaction in pg_stat_activity until the next commit. Without this
-            # wrap that 'next commit' would not happen until the workflow run inside
-            # _run_process_async finishes (which uses a different scope/session entirely).
+            # Celery workers use the empty-scope session (no database_scope); wrap in
+            # transactional() to prevent psycopg3 autobegin leaving the connection idle-in-transaction.
             with transactional(db, local_logger):
                 process = _get_process(process_id)
                 pstat = load_process(process)
@@ -92,8 +88,7 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     def resume_process(process_id: UUID, user: str) -> UUID | None:
         try:
-            # See start_process: same idle-in-transaction concern on the Celery worker's
-            # empty-scope session for the joinedload SELECT issued by _get_process.
+            # Same idle-in-transaction concern as start_process: wrap DB reads in transactional().
             with transactional(db, local_logger):
                 process = _get_process(process_id)
                 ensure_correct_process_status(process_id, ProcessStatus.RESUMED)
@@ -106,22 +101,22 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     celery_task = partial(celery.task, log=local_logger, serializer="orchestrator-json")
 
-    @celery_task(name=NEW_TASK)  # type: ignore
+    @celery_task(name=NEW_TASK)  # type: ignore[untyped-decorator]
     def new_task(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Start task", process_id=process_id)
         return start_process(process_id, user=user)
 
-    @celery_task(name=NEW_WORKFLOW)  # type: ignore
+    @celery_task(name=NEW_WORKFLOW)  # type: ignore[untyped-decorator]
     def new_workflow(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Start workflow", process_id=process_id)
         return start_process(process_id, user=user)
 
-    @celery_task(name=RESUME_TASK)  # type: ignore
+    @celery_task(name=RESUME_TASK)  # type: ignore[untyped-decorator]
     def resume_task(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Resume task", process_id=process_id)
         return resume_process(process_id, user=user)
 
-    @celery_task(name=RESUME_WORKFLOW)  # type: ignore
+    @celery_task(name=RESUME_WORKFLOW)  # type: ignore[untyped-decorator]
     def resume_workflow(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Resume workflow", process_id=process_id)
         return resume_process(process_id, user=user)

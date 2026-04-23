@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT, ESnet.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -239,7 +239,12 @@ def _get_current_step_to_update(
     """
     step_state: State = process_state.unwrap()
     current_step = None
-    last_db_step = p.steps[-1] if len(p.steps) else None
+    last_db_step = db.session.scalars(
+        select(ProcessStepTable)
+        .where(ProcessStepTable.process_id == p.process_id)
+        .order_by(ProcessStepTable.completed_at.desc())
+        .limit(1)
+    ).first()
 
     # Core internal: __step_name_override
     step_name = step_state.pop("__step_name_override", step.name)
@@ -325,33 +330,13 @@ def _db_log_step(
     p = _update_process(stat.process_id, step, process_state)
     current_step = _get_current_step_to_update(stat, p, step, process_state)
 
-    # Replace current_step.state in place with its JSON-roundtripped form. This serializes
-    # any live SubscriptionModel (or other Pydantic/SQLAlchemy) instances via
-    # json.to_serializable -> model.model_dump() exactly once, producing a plain dict.
-    # Two problems are solved at once:
-    #   1. The next step receives a clean state (no live SubscriptionModel instances), so
-    #      inject_args._get_sub_id() does not raise its "no SubscriptionModel in state"
-    #      assertion. Previously this invariant was enforced implicitly via
-    #      SQLAlchemy expire_on_commit + a JSONB reload after commit, but with the inner
-    #      db.session.commit() here being a no-op inside transactional() (disable_commit),
-    #      that implicit reload no longer happens.
-    #   2. The subsequent SQLAlchemy flush of the JSONB column (triggered by the outer
-    #      transactional() commit in _exec_steps) now serializes a plain dict instead of
-    #      re-evaluating Pydantic @computed_field properties like corelink/peer/node
-    #      title() - which recursively load related subscription trees via
-    #      from_subscription() and can easily turn a workflow step into seconds of
-    #      idle-in-transaction time. Without this in-place replacement the computed
-    #      fields would be evaluated twice (once here, once at flush), doubling the
-    #      slowdown.
+    # Serialize state to a plain dict now, before the outer transactional() flushes it.
+    # This ensures the next step never receives live SubscriptionModel instances and
+    # avoids re-evaluating expensive @computed_field properties on flush.
     current_step.state = json_loads(json_dumps(current_step.state))
 
     db.session.add(p)
     db.session.add(current_step)
-    try:
-        db.session.commit()
-    except BaseException:
-        db.session.rollback()
-        raise
 
     if broadcast_func:
         broadcast_func(p.process_id)

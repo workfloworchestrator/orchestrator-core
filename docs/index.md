@@ -70,13 +70,7 @@ def workflow():
 
 There are a number of options for getting started:
 
-- First have a look at the [demo orchestrator](https://demo.workfloworchestrator.org/), where you can get a feel for creating subscriptions using workflows. It will take you to our demo environment, where you can see some of our examples in action.
 - For those of you who would like to see it working, take a look at [this repo](https://github.com/workfloworchestrator/example-orchestrator) and follow the README to setup a
   docker-compose so you can experiment on your localhost.
 - For those who are more adventurous, follow the guide on the [next page](getting-started/base.md) to
   start coding right away.
-
-<!-- Following line are not visible? -->
-[//]: # (- If you would like to see the workflow engine in action, click [here]&#40;https://demo.workfloworchestrator.org&#41; this )
-
-[//]: # (will take you to our demo environment, where you can see some of our examples in action.)
