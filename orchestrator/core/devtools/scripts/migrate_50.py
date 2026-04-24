@@ -28,13 +28,13 @@ def migrate_file(f: Path) -> bool:
     """Replace all orchestrator module imports."""
     text = f.read_text()
     text_orig = text
-    # First, we replace all "from orchestrator." with "from orchestrator.core."
-    rgx = r"from orchestrator\.(.+)"
-    text = re.sub(rgx, r"from orchestrator.core.\1", text)
+    # First, we replace all "from orchestrator" with "from orchestrator.core"
+    rgx = r"from orchestrator(?!\.core)(\..+)?"
+    text = re.sub(rgx, r"from orchestrator.core\1", text)
 
-    # Then, replace all "import orchestrator." with "import orchestrator.core."
-    rgx = r"import orchestrator\.(.+)"
-    text = re.sub(rgx, r"import orchestrator.core.\1", text)
+    # Then, replace all "import orchestrator" with "import orchestrator.core"
+    rgx = r"import orchestrator(?!\.core)(\..+)?"
+    text = re.sub(rgx, r"import orchestrator.core\1", text)
 
     was_updated = text_orig != text
     if was_updated:
