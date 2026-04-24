@@ -140,6 +140,7 @@ def test_differences_in_generated_code(expected_folder, actual_folder):
         actual_rev_id = _expected_to_actual_rev_id[expected_rev_id]
         return one((actual_folder / "migrations/versions/schema").glob(f"*_{actual_rev_id}_*.py"))
 
+    formatted_diff, relative = None, None
     for expected in expected_folder.rglob("*.py"):
         relative = expected.relative_to(expected_folder)
         actual = actual_folder / relative
@@ -165,6 +166,6 @@ def test_differences_in_generated_code(expected_folder, actual_folder):
 
         formatted_diff = "\n".join(diff)
         if formatted_diff:
-            print(f"\n{formatted_diff}")
+            print(f"Generated {relative} differs!\n{formatted_diff}\n")
 
-        assert not formatted_diff, f"generated {relative} differs, see expected vs actual in the stdout output"
+    assert not formatted_diff, "generated one or more file that differs, see expected vs actual in the stdout output"
