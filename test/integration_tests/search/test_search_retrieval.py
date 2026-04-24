@@ -22,6 +22,7 @@ from orchestrator.search.filters import EqualityFilter, FilterTree, PathFilter
 from orchestrator.search.query import engine
 from orchestrator.search.query.queries import SelectQuery
 from orchestrator.search.retrieval.pagination import PageCursor
+from orchestrator.settings import llm_settings
 from orchestrator.types import SubscriptionLifecycle
 
 from .fixtures import (
@@ -47,6 +48,10 @@ class TestSemanticRetrieval:
     All benchmark queries are multi-word, so fuzzy_term=None and they use SemanticRetriever.
     These tests validate rankings match ground truth.
     """
+
+    @pytest.fixture(autouse=True)
+    def enable_embedding_api(self, monkeypatch):
+        monkeypatch.setattr(llm_settings, "EMBEDDING_API_ENABLED", True)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -90,6 +95,10 @@ class TestHybridRetrieval:
     Single-word queries set both vector_query and fuzzy_term, triggering HybridRetriever.
     These tests validate rankings match ground truth.
     """
+
+    @pytest.fixture(autouse=True)
+    def enable_embedding_api(self, monkeypatch):
+        monkeypatch.setattr(llm_settings, "EMBEDDING_API_ENABLED", True)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
