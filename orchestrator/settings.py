@@ -143,6 +143,7 @@ class LLMSettings(BaseSettings):
     EMBEDDING_API_ENABLED: bool = False  # Set to True to use an embedding service
     EMBEDDING_API_KEY: str = ""  # Change per provider (Azure, etc).
     EMBEDDING_API_BASE: str | None = None
+    EMBEDDING_ENCODING_FORMAT: str = "float"  # e.g. "float", "base64" — depends on provider
     EMBEDDING_FALLBACK_MAX_TOKENS: int | None = 512
     EMBEDDING_MAX_BATCH_SIZE: int | None = None
 

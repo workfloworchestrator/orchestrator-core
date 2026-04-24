@@ -38,6 +38,7 @@ class EmbeddingIndexer:
                 input=[t.lower() for t in texts],
                 api_key=llm_settings.EMBEDDING_API_KEY,
                 api_base=llm_settings.EMBEDDING_API_BASE,
+                encoding_format=llm_settings.EMBEDDING_ENCODING_FORMAT,
                 timeout=llm_settings.LLM_TIMEOUT,
                 max_retries=llm_settings.LLM_MAX_RETRIES,
             )
@@ -81,6 +82,7 @@ class QueryEmbedder:
                 input=[text.lower()],
                 api_key=llm_settings.EMBEDDING_API_KEY,
                 api_base=llm_settings.EMBEDDING_API_BASE,
+                encoding_format=llm_settings.EMBEDDING_ENCODING_FORMAT,
                 timeout=5.0,
                 max_retries=0,  # No retries, prioritize speed.
             )
