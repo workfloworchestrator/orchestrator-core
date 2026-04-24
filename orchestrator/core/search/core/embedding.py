@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from typing import Any
 
 import structlog
 from litellm import aembedding as llm_aembedding
@@ -24,12 +24,20 @@ logger = structlog.get_logger(__name__)
 
 class EmbeddingIndexer:
     @classmethod
+    def _empty_embeddings(cls, texts: list[str]) -> list[list[Any]]:
+        return [[] for _ in texts]
+
+    @classmethod
     def get_embeddings_from_api_batch(cls, texts: list[str], dry_run: bool) -> list[list[float]]:
         if not texts:
             return []
         if dry_run:
             logger.debug("Dry Run: returning empty embeddings")
-            return [[] for _ in texts]
+            return EmbeddingIndexer._empty_embeddings(texts)
+
+        if not llm_settings.EMBEDDING_API_ENABLED:
+            logger.info("Embedding API not enabled, not generating embeddings")
+            return EmbeddingIndexer._empty_embeddings(texts)
 
         try:
             resp = llm_embedding(
@@ -45,13 +53,13 @@ class EmbeddingIndexer:
             return [row["embedding"][: llm_settings.EMBEDDING_DIMENSION] for row in data]
         except llm_exc.APIConnectionError as e:
             logger.error("Embedding service unreachable", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
-            return [[] for _ in texts]
+            return EmbeddingIndexer._empty_embeddings(texts)
         except (llm_exc.APIError, llm_exc.RateLimitError, llm_exc.Timeout) as e:
             logger.error("Embedding request failed", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
-            return [[] for _ in texts]
+            return EmbeddingIndexer._empty_embeddings(texts)
         except Exception as e:
             logger.error("Unexpected embedding error", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
-            return [[] for _ in texts]
+            return EmbeddingIndexer._empty_embeddings(texts)
 
 
 class QueryEmbedder:
