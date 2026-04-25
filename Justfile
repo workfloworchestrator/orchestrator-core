@@ -38,7 +38,7 @@ pytest-support-clean:
 # Serve orchestrator-core docs with live-reload
 docs-preview:
     @just sync
-    uv run mkdocs serve
+    uv run mkdocs serve --livereload
 
 # Run pre-commit on all files
 pre-commit:
