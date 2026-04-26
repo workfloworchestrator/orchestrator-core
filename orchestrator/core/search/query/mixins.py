@@ -76,6 +76,14 @@ class SearchMixin(BaseModel):
         description="Field paths to return as inline columns on each search result (e.g. ['subscription.status', 'subscription.product.name']).",
     )
 
+    @model_validator(mode="after")
+    def validate_retriever_requires_query_text(self) -> Self:
+        if self.retriever is not None and not self.query_text:
+            raise ValueError(
+                f"{self.retriever.value.capitalize()} retriever requested but no query text provided."
+            )
+        return self
+
     @property
     def vector_query(self) -> str | None:
         """Extract vector query from query text.

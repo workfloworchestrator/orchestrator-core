@@ -1,3 +1,9 @@
+"""Tests for orchestrator.core.search.query.engine -- search pagination, export, and aggregation.
+
+Retriever override selection now lives on `Retriever.route` and `Retriever.needs_embedding`;
+see `test_retriever_routing.py` for those.
+"""
+
 # Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,27 +17,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for orchestrator.core.search.query.engine -- retriever override selection, search pagination, export, and aggregation."""
-
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from orchestrator.core.search.core.types import EntityType, RetrieverType, SearchMetadata
-from orchestrator.core.search.query.engine import (
-    _get_retriever_from_override,
-    execute_aggregation,
-    execute_export,
-    execute_search,
-)
+from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.query.engine import execute_aggregation, execute_export, execute_search
 from orchestrator.core.search.query.queries import CountQuery, ExportQuery, SelectQuery
 from orchestrator.core.search.query.results import SearchResponse, SearchResult
-from orchestrator.core.search.retrieval.retrievers import (
-    FuzzyRetriever,
-    ProcessHybridRetriever,
-    RrfHybridRetriever,
-    SemanticRetriever,
-)
 
 pytestmark = pytest.mark.search
 
@@ -39,14 +32,6 @@ pytestmark = pytest.mark.search
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _make_query(retriever: RetrieverType | None, query_text: str | None, entity_type: EntityType) -> MagicMock:
-    q = MagicMock()
-    q.retriever = retriever
-    q.query_text = query_text
-    q.entity_type = entity_type
-    return q
 
 
 def _make_result(entity_id: str) -> SearchResult:
@@ -60,101 +45,6 @@ def _make_result(entity_id: str) -> SearchResult:
 
 def _empty_search_response() -> SearchResponse:
     return SearchResponse(results=[], metadata=SearchMetadata.empty())
-
-
-# ---------------------------------------------------------------------------
-# Tests: _get_retriever_from_override
-# ---------------------------------------------------------------------------
-
-
-def test_get_retriever_no_override_returns_none():
-    """query.retriever is None -> returns None."""
-    q = _make_query(None, "hello", EntityType.SUBSCRIPTION)
-    assert _get_retriever_from_override(q, None, None) is None
-
-
-@pytest.mark.parametrize(
-    "entity_type,expected_type",
-    [
-        pytest.param(EntityType.SUBSCRIPTION, FuzzyRetriever, id="subscription-fuzzy"),
-        pytest.param(EntityType.PRODUCT, FuzzyRetriever, id="product-fuzzy"),
-        pytest.param(EntityType.WORKFLOW, FuzzyRetriever, id="workflow-fuzzy"),
-        pytest.param(EntityType.PROCESS, ProcessHybridRetriever, id="process-fuzzy"),
-    ],
-)
-def test_get_retriever_fuzzy_override(entity_type: EntityType, expected_type: type):
-    """FUZZY override selects FuzzyRetriever or ProcessHybridRetriever for PROCESS."""
-    q = _make_query(RetrieverType.FUZZY, "hello", entity_type)
-    result = _get_retriever_from_override(q, None, None)
-    assert isinstance(result, expected_type)
-
-
-def test_get_retriever_semantic_override_with_embedding():
-    """SEMANTIC override with embedding -> SemanticRetriever."""
-    q = _make_query(RetrieverType.SEMANTIC, "hello", EntityType.SUBSCRIPTION)
-    embedding = [0.1, 0.2, 0.3]
-    result = _get_retriever_from_override(q, None, embedding)
-    assert isinstance(result, SemanticRetriever)
-
-
-def test_get_retriever_semantic_override_without_embedding_raises():
-    """SEMANTIC override without embedding -> ValueError."""
-    q = _make_query(RetrieverType.SEMANTIC, "hello", EntityType.SUBSCRIPTION)
-    with pytest.raises(ValueError, match="Semantic retriever requested but query embedding is not available"):
-        _get_retriever_from_override(q, None, None)
-
-
-@pytest.mark.parametrize(
-    "entity_type,expected_type",
-    [
-        pytest.param(EntityType.SUBSCRIPTION, RrfHybridRetriever, id="subscription-hybrid"),
-        pytest.param(EntityType.PRODUCT, RrfHybridRetriever, id="product-hybrid"),
-        pytest.param(EntityType.PROCESS, ProcessHybridRetriever, id="process-hybrid"),
-    ],
-)
-def test_get_retriever_hybrid_override_with_embedding(entity_type: EntityType, expected_type: type):
-    """HYBRID override with embedding selects RrfHybridRetriever or ProcessHybridRetriever."""
-    q = _make_query(RetrieverType.HYBRID, "hello", entity_type)
-    embedding = [0.1, 0.2, 0.3]
-    result = _get_retriever_from_override(q, None, embedding)
-    assert isinstance(result, expected_type)
-
-
-def test_get_retriever_hybrid_override_without_embedding_raises():
-    """HYBRID override without embedding -> ValueError."""
-    q = _make_query(RetrieverType.HYBRID, "hello", EntityType.SUBSCRIPTION)
-    with pytest.raises(ValueError, match="Hybrid retriever requested but query embedding is not available"):
-        _get_retriever_from_override(q, None, None)
-
-
-@pytest.mark.parametrize(
-    "retriever_type",
-    [
-        pytest.param(RetrieverType.FUZZY, id="fuzzy-no-text"),
-        pytest.param(RetrieverType.SEMANTIC, id="semantic-no-text"),
-        pytest.param(RetrieverType.HYBRID, id="hybrid-no-text"),
-    ],
-)
-def test_get_retriever_any_override_without_query_text_raises(retriever_type: RetrieverType):
-    """Any override without query_text -> ValueError."""
-    q = _make_query(retriever_type, None, EntityType.SUBSCRIPTION)
-    with pytest.raises(ValueError, match="retriever requested but no query text provided"):
-        _get_retriever_from_override(q, None, [0.1, 0.2])
-
-
-@pytest.mark.parametrize(
-    "retriever_type",
-    [
-        pytest.param(RetrieverType.FUZZY, id="fuzzy-empty-text"),
-        pytest.param(RetrieverType.SEMANTIC, id="semantic-empty-text"),
-        pytest.param(RetrieverType.HYBRID, id="hybrid-empty-text"),
-    ],
-)
-def test_get_retriever_any_override_with_empty_query_text_raises(retriever_type: RetrieverType):
-    """Any override with empty string query_text -> ValueError."""
-    q = _make_query(retriever_type, "", EntityType.SUBSCRIPTION)
-    with pytest.raises(ValueError, match="retriever requested but no query text provided"):
-        _get_retriever_from_override(q, None, [0.1, 0.2])
 
 
 # ---------------------------------------------------------------------------
