@@ -79,9 +79,7 @@ class SearchMixin(BaseModel):
     @model_validator(mode="after")
     def validate_retriever_requires_query_text(self) -> Self:
         if self.retriever is not None and not self.query_text:
-            raise ValueError(
-                f"{self.retriever.value.capitalize()} retriever requested but no query text provided."
-            )
+            raise ValueError(f"{self.retriever.value.capitalize()} retriever requested but no query text provided.")
         return self
 
     @property
