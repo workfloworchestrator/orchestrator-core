@@ -10,10 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from re import sub
 from typing import Any, ClassVar, cast
 from uuid import uuid4
 
@@ -295,4 +295,4 @@ def _strip_sqlalchemy_driver(dsn: str) -> str:
         >>> _strip_sqlalchemy_driver("postgres+psycopg://user:pw@host/db")
         'postgres://user:pw@host/db'
     """
-    return re.sub(r"^(postgresql|postgres)\+[^:]+://", r"\1://", dsn)
+    return sub(r"^(postgresql|postgres)\+[^:]+://", r"\1://", dsn)
