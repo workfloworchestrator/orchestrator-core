@@ -30,7 +30,7 @@ from nwastdlib.ex import show_ex
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db, transactional
 from orchestrator.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.distlock import distlock_manager
 from orchestrator.schemas.engine_settings import WorkerStatus
@@ -493,7 +493,8 @@ def create_process(
     }
 
     try:
-        state = post_form(workflow.initial_input_form, initial_state, user_inputs)
+        with transactional(db, logger):
+            state = post_form(workflow.initial_input_form, initial_state, user_inputs)
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
@@ -601,7 +602,8 @@ def resume_process(
         raise ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG)
 
     try:
-        user_input = post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [{}])
+        with transactional(db, logger):
+            user_input = post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [{}])
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
