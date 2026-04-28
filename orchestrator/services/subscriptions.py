@@ -37,6 +37,7 @@ from orchestrator.db import (
     SubscriptionInstanceValueTable,
     SubscriptionTable,
     db,
+    transactional,
 )
 from orchestrator.db.models import (
     SubscriptionCustomerDescriptionTable,
@@ -472,14 +473,13 @@ def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[U
     """
     if not subscription:
         return {"locked_relations": [], "unterminated_parents": [], "unterminated_in_use_by_subscriptions": []}
-    in_use_by_query = query_in_use_by_subscriptions(subscription.subscription_id)
 
-    unterminated_in_use_by_subscriptions = _terminated_filter(in_use_by_query)
-    locked_in_use_by_block_relations = _in_sync_filter(in_use_by_query)
-
-    depends_on_query = query_depends_on_subscriptions(subscription.subscription_id)
-
-    locked_depends_on_block_relations = _in_sync_filter(depends_on_query)
+    with transactional(db, logger):
+        in_use_by_query = query_in_use_by_subscriptions(subscription.subscription_id)
+        unterminated_in_use_by_subscriptions = _terminated_filter(in_use_by_query)
+        locked_in_use_by_block_relations = _in_sync_filter(in_use_by_query)
+        depends_on_query = query_depends_on_subscriptions(subscription.subscription_id)
+        locked_depends_on_block_relations = _in_sync_filter(depends_on_query)
 
     result = {
         "locked_relations": locked_in_use_by_block_relations + locked_depends_on_block_relations,
