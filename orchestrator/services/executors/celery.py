@@ -22,7 +22,7 @@ from sqlalchemy import select
 
 from orchestrator import app_settings
 from orchestrator.api.error_handling import raise_status
-from orchestrator.db import ProcessTable, db
+from orchestrator.db import ProcessTable, db, transactional
 from orchestrator.services.processes import (
     SYSTEM_USER,
     can_be_resumed,
@@ -49,7 +49,9 @@ def _celery_start_process(pstat: ProcessStat, user: str = SYSTEM_USER, **kwargs:
     """Client side call of Celery."""
     from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, get_celery_task
 
-    if not (wf_table := get_workflow_by_name(pstat.workflow.name)):
+    with transactional(db, logger):
+        wf_table = get_workflow_by_name(pstat.workflow.name)
+    if not wf_table:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow in Database does not exist")
 
     task_name = NEW_TASK if wf_table.is_task else NEW_WORKFLOW
