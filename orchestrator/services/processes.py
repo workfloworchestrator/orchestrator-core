@@ -494,22 +494,22 @@ def create_process(
 
     try:
         with transactional(db, logger):
+            logger.info("Dit is met een transactional")
             state = post_form(workflow.initial_input_form, initial_state, user_inputs)
+            pstat = ProcessStat(
+                process_id,
+                workflow=workflow,
+                state=Success(state | initial_state),
+                log=workflow.steps,
+                current_user=user,
+                user_model=user_model,
+            )
+            _db_create_process(pstat)
+            store_input_state(process_id, state | initial_state, "initial_state")
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
 
-    pstat = ProcessStat(
-        process_id,
-        workflow=workflow,
-        state=Success(state | initial_state),
-        log=workflow.steps,
-        current_user=user,
-        user_model=user_model,
-    )
-
-    _db_create_process(pstat)
-    store_input_state(process_id, state | initial_state, "initial_state")
     return pstat
 
 
@@ -603,12 +603,12 @@ def resume_process(
 
     try:
         with transactional(db, logger):
+            logger.info("Dit is met een transactional")
             user_input = post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [{}])
+            store_input_state(pstat.process_id, user_input, "user_input")
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
-
-    store_input_state(pstat.process_id, user_input, "user_input")
 
     resume_func = get_execution_context()["resume"]
     return resume_func(process, user=user, broadcast_func=broadcast_func)
