@@ -37,16 +37,20 @@ class EmbeddingIndexer:
                 input=[t.lower() for t in texts],
                 api_key=llm_settings.EMBEDDING_API_KEY,
                 api_base=llm_settings.EMBEDDING_API_BASE,
+                encoding_format=llm_settings.EMBEDDING_ENCODING_FORMAT,
                 timeout=llm_settings.LLM_TIMEOUT,
                 max_retries=llm_settings.LLM_MAX_RETRIES,
             )
             data = sorted(resp.data, key=lambda e: e["index"])
             return [row["embedding"][: llm_settings.EMBEDDING_DIMENSION] for row in data]
-        except (llm_exc.APIError, llm_exc.APIConnectionError, llm_exc.RateLimitError, llm_exc.Timeout) as e:
-            logger.error("Embedding request failed", error=str(e))
+        except llm_exc.APIConnectionError as e:
+            logger.error("Embedding service unreachable", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
+            return [[] for _ in texts]
+        except (llm_exc.APIError, llm_exc.RateLimitError, llm_exc.Timeout) as e:
+            logger.error("Embedding request failed", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
             return [[] for _ in texts]
         except Exception as e:
-            logger.error("Unexpected embedding error", error=str(e))
+            logger.error("Unexpected embedding error", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
             return [[] for _ in texts]
 
 
@@ -54,19 +58,34 @@ class QueryEmbedder:
     """A stateless, async utility for embedding real-time user queries."""
 
     @classmethod
-    async def generate_for_text_async(cls, text: str) -> list[float]:
+    async def generate_for_text_async(cls, text: str) -> list[float] | None:
+        """Generate an embedding vector for a single query text.
+
+        Returns a list of floats (the embedding) on success, or None if the embedding
+        could not be produced — either because the input text is empty or because the
+        embedding service is unavailable / returned an error.
+
+        Callers must treat None as "embedding unavailable" and fall back to fuzzy/
+        structured search rather than passing it to a vector similarity query.
+        """
         if not text:
-            return []
+            return None
+
+        if not llm_settings.EMBEDDING_API_ENABLED:
+            logger.debug("Embedding API not enabled, search functionality restricted to fuzzy/structured search")
+            return None
+
         try:
             resp = await llm_aembedding(
                 model=llm_settings.EMBEDDING_MODEL,
                 input=[text.lower()],
                 api_key=llm_settings.EMBEDDING_API_KEY,
                 api_base=llm_settings.EMBEDDING_API_BASE,
+                encoding_format=llm_settings.EMBEDDING_ENCODING_FORMAT,
                 timeout=5.0,
                 max_retries=0,  # No retries, prioritize speed.
             )
             return resp.data[0]["embedding"][: llm_settings.EMBEDDING_DIMENSION]
         except Exception as e:
-            logger.error("Async embedding generation failed", error=str(e))
-            return []
+            logger.error("Async embedding generation failed", api_base=llm_settings.EMBEDDING_API_BASE, error=str(e))
+            return None

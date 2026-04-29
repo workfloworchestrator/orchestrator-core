@@ -82,7 +82,8 @@ plugins:
           'migration-guide/3.0.md': 'guides/upgrading/3.0.md'
           'migration-guide/4.0.md': 'guides/upgrading/4.0.md'
           'migration-guide/4.0.md': 'guides/upgrading/4.0.md'
-copyright: Copyright &copy; 2018 - 2024 Workflow Orchestrator Programme
+          'contributing/testing.md': 'guides/testing.md'
+copyright: Copyright &copy; 2018 - 2026 Workflow Orchestrator Programme
 extra:
     generator: false
     social:
@@ -178,6 +179,7 @@ nav:
                 - Importing Existing Products: guides/product-modeling/imports.md
                 - Backfilling Existing Subscriptions: guides/product-modeling/backfilling.md
           - Creating Tasks and Schedules: guides/tasks.md
+          - Testing: guides/testing.md
           - Scaling the Orchestrator: guides/scaling.md
           - Pausing the Orchestrator: guides/pause-and-resume.md
           - Generating a Config File: guides/generate-config-file.md
@@ -275,7 +277,6 @@ nav:
     - Contributing:
           - Development setup: contributing/development.md
           - Guidelines: contributing/guidelines.md
-          - Testing: contributing/testing.md
 watch:
     - includes
     - orchestrator

@@ -1,0 +1,25 @@
+.git
+.venv
+__pycache__
+*.py[cod]
+*.so
+dist/
+*.egg-info/
+.eggs/
+.mypy_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Dev/IDE
+.env
+.vscode/
+.idea/
+.DS_Store
+
+# Docs and tests (not needed to build the wheel)
+docs/
+test/

@@ -1,7 +1,7 @@
 # Writing unit tests
 
-This guide covers how to write unit tests for workflows and domain models in orchestrator-core.
-For setup instructions (database, running tests), see [development.md](development.md).
+This guide covers how to write unit tests for workflows and domain models using orchestrator-core.
+For setup instructions (database, running tests), see [development.md](../contributing/development.md).
 
 ## Test helpers
 

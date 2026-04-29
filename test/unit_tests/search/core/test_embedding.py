@@ -215,7 +215,7 @@ def test_embedding_indexer_unexpected_error_returns_empty():
 )
 async def test_query_embedder_empty_or_none_returns_empty(text):
     result = await QueryEmbedder.generate_for_text_async(text)
-    assert result == []
+    assert result is None
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +262,7 @@ async def test_query_embedder_input_is_lowercased():
 
 
 @pytest.mark.asyncio
-async def test_query_embedder_exception_returns_empty_list():
+async def test_query_embedder_exception_returns_none():
     settings_mock = _make_settings_mock()
 
     with (
@@ -271,4 +271,4 @@ async def test_query_embedder_exception_returns_empty_list():
     ):
         result = await QueryEmbedder.generate_for_text_async("some text")
 
-    assert result == []
+    assert result is None
