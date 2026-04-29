@@ -223,6 +223,7 @@ module-root = ""
 
 [tool.pytest]
 addopts = [
+    "--import-mode=importlib",
     "--doctest-modules",
     "--doctest-ignore-import-errors"
 ]
@@ -238,8 +239,9 @@ norecursedirs = [
     "docs",
     "test/unit_tests/cli/data/generate",
 ]
-testpaths = ["test/unit_tests"]
+testpaths = ["test/unit_tests", "orchestrator/core"]
 asyncio_mode = "auto"
+consider_namespace_packages = true
 
 # https://docs.python.org/3/library/warnings.html?highlight=warnings#describing-warning-filters
 # filterwarnings line syntax is

@@ -22,7 +22,6 @@ repos:
       - id: check-yaml
         exclude: mkdocs.yml
       - id: debug-statements
-      - id: requirements-txt-fixer
       - id: detect-private-key
 
   # This hook uses the `mypy` executable installed in your local environment
