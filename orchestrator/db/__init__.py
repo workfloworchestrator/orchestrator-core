@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,8 +14,8 @@ from typing import Any, cast
 
 from structlog import get_logger
 
-from orchestrator.db.database import BaseModel as DbBaseModel, _strip_sqlalchemy_driver
-from orchestrator.db.database import Database, transactional
+from orchestrator.db.database import BaseModel as DbBaseModel
+from orchestrator.db.database import Database, _strip_sqlalchemy_driver, transactional
 from orchestrator.db.models import (  # noqa: F401
     AgentRunTable,
     EngineSettingsTable,
