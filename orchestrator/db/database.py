@@ -251,6 +251,33 @@ def disable_commit(db: Database, log: BoundLogger) -> Iterator:
 
 
 @contextmanager
+def read_only_transaction(db: Database, log: BoundLogger) -> Iterator:
+    """Run a read-only block and release the session's connection on exit.
+
+    With psycopg3, every SELECT implicitly opens a transaction that stays
+    idle-in-transaction until something commits, rolls back, or closes the
+    connection. Pure-read code paths shouldn't COMMIT (no work to persist) or
+    ROLLBACK (semantically wrong, and noisy in logs). Closing the session
+    returns its connection to the pool, which resets the transaction state
+    cleanly via the pool's reset-on-return behavior.
+
+    The scoped session itself is unaffected: subsequent ``db.session`` access
+    in the same scope returns the same session and checks out a fresh
+    connection on the next query.
+
+    Caveat: ORM instances loaded inside the block become detached on exit.
+    Attribute access on already-loaded columns/relationships still works
+    (their values are cached on the instance), but lazy loading triggers
+    ``DetachedInstanceError``. Eager-load anything needed after the block.
+    """
+    try:
+        yield
+    finally:
+        log.debug("Closing session to release read-only transaction.")
+        db.session.close()
+
+
+@contextmanager
 def transactional(db: Database, log: BoundLogger) -> Iterator:
     """Run a step function in an implicit transaction with automatic rollback or commit.
 

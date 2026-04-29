@@ -15,7 +15,7 @@ from typing import Any, cast
 from structlog import get_logger
 
 from orchestrator.db.database import BaseModel as DbBaseModel
-from orchestrator.db.database import Database, _strip_sqlalchemy_driver, transactional
+from orchestrator.db.database import Database, _strip_sqlalchemy_driver, read_only_transaction, transactional
 from orchestrator.db.models import (  # noqa: F401
     AgentRunTable,
     EngineSettingsTable,
@@ -87,6 +87,7 @@ def init_database(settings: AppSettings) -> Database:
 
 
 __all__ = [
+    "read_only_transaction",
     "transactional",
     "SearchQueryTable",
     "AgentRunTable",

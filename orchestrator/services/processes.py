@@ -501,7 +501,6 @@ def create_process(
 
     try:
         with transactional(db, logger):
-            logger.info("Dit is met een transactional")
             state = post_form(workflow.initial_input_form, initial_state, user_inputs)
             pstat = ProcessStat(
                 process_id,
@@ -613,7 +612,6 @@ def resume_process(
 
     try:
         with transactional(db, logger):
-            logger.info("Dit is met een transactional")
             user_input = post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [{}])
             # Flatten live Pydantic models to plain dicts BEFORE the JSONB write so that
             # @computed_field properties don't fire DB queries inside Session.flush().

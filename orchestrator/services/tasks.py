@@ -21,7 +21,7 @@ from celery.utils.log import get_task_logger
 from kombu.serialization import registry
 
 from orchestrator.db import db
-from orchestrator.db.database import transactional
+from orchestrator.db.database import read_only_transaction
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.services.executors.threadpool import thread_resume_process, thread_start_process
 from orchestrator.services.processes import _get_process, ensure_correct_process_status, load_process
@@ -72,9 +72,10 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     def start_process(process_id: UUID, user: str) -> UUID | None:
         try:
-            # Celery workers use the empty-scope session (no database_scope); wrap in
-            # transactional() to prevent psycopg3 autobegin leaving the connection idle-in-transaction.
-            with transactional(db, local_logger):
+            # Celery workers use the empty-scope session (no database_scope); close the
+            # session after the read-only block so psycopg3's implicit transaction ends
+            # and the connection returns to the pool.
+            with read_only_transaction(db, local_logger):
                 process = _get_process(process_id)
                 pstat = load_process(process)
                 ensure_correct_process_status(process_id, ProcessStatus.CREATED)
@@ -88,8 +89,9 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     def resume_process(process_id: UUID, user: str) -> UUID | None:
         try:
-            # Same idle-in-transaction concern as start_process: wrap DB reads in transactional().
-            with transactional(db, local_logger):
+            # Same idle-in-transaction concern as start_process: close the session
+            # after the read-only block.
+            with read_only_transaction(db, local_logger):
                 process = _get_process(process_id)
                 ensure_correct_process_status(process_id, ProcessStatus.RESUMED)
             thread_resume_process(process, user=user, broadcast_func=process_broadcast_fn)
