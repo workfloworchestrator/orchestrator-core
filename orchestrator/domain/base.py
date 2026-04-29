@@ -1386,27 +1386,26 @@ class SubscriptionModel(DomainModel):
         with transactional(db, logger):
             if not (subscription := cls._get_subscription(subscription_id)):
                 raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
-        product = cls._to_product_model(subscription.product)
+            product = cls._to_product_model(subscription.product)
 
-        status = SubscriptionLifecycle(subscription.status)
+            status = SubscriptionLifecycle(subscription.status)
 
-        if not cls.__base_type__:
-            # Import here to prevent cyclic imports
-            from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+            if not cls.__base_type__:
+                # Import here to prevent cyclic imports
+                from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
-            try:
-                cls = SUBSCRIPTION_MODEL_REGISTRY[subscription.product.name]  # type: ignore
-            except KeyError:
-                raise ProductNotInRegistryError(
-                    f"'{subscription.product.name}' is not found within the SUBSCRIPTION_MODEL_REGISTRY"
-                )
-            cls = lookup_specialized_type(cls, status)
-        elif not issubclass(cls, lookup_specialized_type(cls, status)):
-            raise ValueError(f"{cls} is not valid for lifecycle {status}")
+                try:
+                    cls = SUBSCRIPTION_MODEL_REGISTRY[subscription.product.name]  # type: ignore
+                except KeyError:
+                    raise ProductNotInRegistryError(
+                        f"'{subscription.product.name}' is not found within the SUBSCRIPTION_MODEL_REGISTRY"
+                    )
+                cls = lookup_specialized_type(cls, status)
+            elif not issubclass(cls, lookup_specialized_type(cls, status)):
+                raise ValueError(f"{cls} is not valid for lifecycle {status}")
 
-        fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
+            fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
 
-        with transactional(db, logger):
             instances = cls._load_root_instances(subscription_id)
 
         try:

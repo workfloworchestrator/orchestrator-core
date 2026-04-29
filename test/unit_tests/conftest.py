@@ -350,8 +350,21 @@ def db_session(database):
                 session.expire_all()
                 session.begin_nested()
 
+        # In tests we want a single shared Session bound to the outer test
+        # transaction so SAVEPOINT-based isolation works. Production opens new
+        # sessions per scope (HTTP request middleware, threadpool workflow
+        # workers) which join the outer test tx via *additional* SAVEPOINTs.
+        # When such a scope closes, its active nested tx rolls back, silently
+        # discarding writes made within it (e.g. workflow worker writes that
+        # the next test_client GET expects to see). Replacing database_scope()
+        # with a no-op keeps every code path on the test's single session.
+        @contextmanager
+        def _noop_database_scope(*args: Any, **kwargs: Any) -> Any:
+            yield db.wrapped_database
+
         try:
-            yield
+            with patch.object(db.wrapped_database, "database_scope", _noop_database_scope):
+                yield
         finally:
             # Ensure all connections are closed
             try:
