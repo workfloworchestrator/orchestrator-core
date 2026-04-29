@@ -28,6 +28,7 @@ from collections.abc import Iterator
 import psycopg
 import pytest
 from sqlalchemy.engine.url import make_url
+from sqlalchemy.orm import Session
 
 from orchestrator.db import db
 from orchestrator.db.database import transactional
@@ -72,11 +73,12 @@ def _idle_in_tx_pids(observer: psycopg.Connection, datname: str) -> list[tuple[i
         return list(cur.fetchall())
 
 
-def _backend_pid(session) -> int:  # type: ignore[no-untyped-def]
+def _backend_pid(session: Session) -> int:
     """Get the PostgreSQL backend PID for the current SQLAlchemy session connection."""
     raw = session.connection().connection.dbapi_connection
+    assert raw is not None, "Session has no active DBAPI connection"
     # psycopg3 connection exposes .info.backend_pid
-    return raw.info.backend_pid  # type: ignore[no-any-return]
+    return int(raw.info.backend_pid)
 
 
 def test_from_subscription_does_not_leak_idle_in_transaction(
