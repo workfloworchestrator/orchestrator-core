@@ -8,8 +8,8 @@ env:
   UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
 
@@ -18,17 +18,28 @@ jobs:
       with:
         # It is considered best practice to pin to a specific uv version.
         version: "0.11.7"
-        python-version: ${{ matrix.python-version }}
+        python-version: "3.x"
 
     - name: Build package
       run: uv build
 
-    - name: Publish package
-      run: uv publish
-      env:
-        UV_PUBLISH_USERNAME: ${{ secrets.FLIT_USERNAME }}
-        UV_PUBLISH_PASSWORD: ${{ secrets.FLIT_PASSWORD }}
+    - name: Upload dist artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
 
-# TODO Migrate to trusted publishing with OIDC https://docs.pypi.org/trusted-publishers/
-#    - name: Publish package distributions to PyPI
-#      uses: pypa/gh-action-pypi-publish@release/v1
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+    - name: Download dist artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
