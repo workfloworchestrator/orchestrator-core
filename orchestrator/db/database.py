@@ -265,18 +265,22 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
         # Nested call: outer transactional() owns commit/rollback. Inner is a no-op.
         yield
         return
+    committed = False
     try:
         with disable_commit(db, log):
             yield
         log.debug("Committing transaction.")
         db.session.commit()
+        committed = True
     except Exception:
         log.warning("Rolling back transaction.")
         raise
     finally:
-        # Extra safeguard rollback. If the commit failed there is still a failed transaction open.
-        # BTW: without a transaction in progress this method is a pass-through.
-        db.session.rollback()
+        # Safeguard rollback only if the commit didn't run (or raised). After a
+        # successful commit a redundant rollback would invalidate any outer
+        # SAVEPOINT (e.g. the pytest fixture's create_savepoint join mode).
+        if not committed:
+            db.session.rollback()
 
 
 def _strip_sqlalchemy_driver(dsn: str) -> str:
