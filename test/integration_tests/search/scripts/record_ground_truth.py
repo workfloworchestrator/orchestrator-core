@@ -21,9 +21,8 @@ from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.queries import SelectQuery
 from orchestrator.core.settings import llm_settings
-
-from ..fixtures import GROUND_TRUTH_QUERIES, TEST_PRODUCT, TEST_SUBSCRIPTIONS
-from ..helpers import GROUND_TRUTH_FILE, index_subscription, save_ground_truth
+from test.integration_tests.search.fixtures import GROUND_TRUTH_QUERIES, TEST_PRODUCT, TEST_SUBSCRIPTIONS
+from test.integration_tests.search.helpers import GROUND_TRUTH_FILE, index_subscription, save_ground_truth
 
 console = Console()
 

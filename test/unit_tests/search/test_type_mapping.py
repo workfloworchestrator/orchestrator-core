@@ -21,8 +21,7 @@ from uuid import UUID
 import pytest
 
 from orchestrator.core.search.core.types import FieldType
-
-from .fixtures.blocks import MTU, MTUChoice, PriorityIntEnum, RequiredIntList, StatusEnum
+from test.unit_tests.search.fixtures.blocks import MTU, MTUChoice, PriorityIntEnum, RequiredIntList, StatusEnum
 
 
 @pytest.mark.parametrize(

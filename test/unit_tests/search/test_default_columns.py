@@ -22,8 +22,7 @@ from orchestrator.core.schemas.search_requests import SearchRequest
 from orchestrator.core.search.core.types import EntityType, SearchMetadata
 from orchestrator.core.search.query.engine import execute_search
 from orchestrator.core.search.query.queries import SelectQuery
-
-from .fixtures.helpers import SIMPLE_SUBSCRIPTION_FILTER, make_column_row, make_search_row
+from test.unit_tests.search.fixtures.helpers import SIMPLE_SUBSCRIPTION_FILTER, make_column_row, make_search_row
 
 # --- include_columns toggle ---
 

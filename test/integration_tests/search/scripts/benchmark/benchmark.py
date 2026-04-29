@@ -23,9 +23,8 @@ from pathlib import Path
 from rich.console import Console
 
 from orchestrator.core.db import db
-
-from ...helpers import load_benchmark_queries, load_model_configs
-from .display import display_benchmark_results
+from test.integration_tests.search.helpers import load_benchmark_queries, load_model_configs
+from test.integration_tests.search.scripts.benchmark.display import display_benchmark_results
 
 console = Console()
 

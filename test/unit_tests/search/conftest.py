@@ -18,14 +18,13 @@ import pytest
 
 from orchestrator.core.domain.base import ProductModel
 from orchestrator.core.search.core.types import ExtractedField
-
-from .fixtures.expected_data.subscriptions import (
+from test.unit_tests.search.fixtures.expected_data.subscriptions import (
     get_complex_expected_fields,
     get_computed_property_expected_fields,
     get_nested_expected_fields,
     get_simple_expected_fields,
 )
-from .fixtures.factories import (
+from test.unit_tests.search.fixtures.factories import (
     create_complex_product_instance,
     create_complex_subscription_instance,
     create_computed_product_instance,
@@ -35,7 +34,7 @@ from .fixtures.factories import (
     create_simple_product_instance,
     create_simple_subscription_instance,
 )
-from .fixtures.subscriptions import (
+from test.unit_tests.search.fixtures.subscriptions import (
     ComplexSubscription,
     ComputedPropertySubscription,
     NestedSubscription,

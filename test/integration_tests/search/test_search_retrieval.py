@@ -24,8 +24,7 @@ from orchestrator.core.search.query.queries import SelectQuery
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.settings import llm_settings
 from orchestrator.core.types import SubscriptionLifecycle
-
-from .fixtures import (
+from test.integration_tests.search.fixtures import (
     PANCAKES_ID,
     QUERY_ASIAN_CUISINE,
     QUERY_BREAKFAST_SYRUP,
@@ -39,7 +38,7 @@ from .fixtures import (
     QUERY_VEGETARIAN_MEALS,
     TEST_SUBSCRIPTIONS,
 )
-from .helpers import get_expected_ranking
+from test.integration_tests.search.helpers import get_expected_ranking
 
 
 class TestSemanticRetrieval:

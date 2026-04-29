@@ -17,8 +17,7 @@ from uuid import UUID
 
 from orchestrator.core.domain.base import ProductModel
 from orchestrator.core.domain.lifecycle import ProductLifecycle
-
-from .blocks import (
+from test.unit_tests.search.fixtures.blocks import (
     BasicBlock,
     ComputedBlock,
     ContainerBlock,
@@ -30,7 +29,7 @@ from .blocks import (
     StatusEnum,
     UnionBlock,
 )
-from .subscriptions import (
+from test.unit_tests.search.fixtures.subscriptions import (
     ComplexSubscription,
     ComputedPropertySubscription,
     NestedSubscription,

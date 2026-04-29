@@ -19,9 +19,8 @@ import pytest
 from orchestrator.core.db import ProductTable, SubscriptionTable, db
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import EntityType
-
-from .fixtures import TEST_PRODUCT, TEST_SUBSCRIPTIONS
-from .helpers import index_subscription, load_ground_truth
+from test.integration_tests.search.fixtures import TEST_PRODUCT, TEST_SUBSCRIPTIONS
+from test.integration_tests.search.helpers import index_subscription, load_ground_truth
 
 # Mark all tests in this directory with the search marker
 pytestmark = pytest.mark.search

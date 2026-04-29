@@ -14,8 +14,7 @@
 from uuid import UUID
 
 from orchestrator.core.search.core.types import ExtractedField, FieldType
-
-from ..utils import fields
+from test.unit_tests.search.fixtures.utils import fields
 
 
 def get_simple_product_expected_fields(product_uuid: UUID) -> list[ExtractedField]:

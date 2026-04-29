@@ -25,7 +25,7 @@ from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import wrap_create_initial_input_form
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from test_orchestrator.products.test_product import TestProductInactive
+from test.acceptance_tests.fixtures.test_orchestrator.products.test_product import TestProductInactive
 
 logger = get_logger(__name__)
 

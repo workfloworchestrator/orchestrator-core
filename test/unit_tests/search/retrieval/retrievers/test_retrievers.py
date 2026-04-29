@@ -31,8 +31,7 @@ from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
 from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever, compute_rrf_hybrid_score_sql
 from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
 from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
-
-from .snapshot_helper import assert_sql_matches_snapshot
+from test.unit_tests.search.retrieval.retrievers.snapshot_helper import assert_sql_matches_snapshot
 
 
 def compile_query_to_sql(query) -> str:

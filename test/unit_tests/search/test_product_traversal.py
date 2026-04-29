@@ -23,8 +23,7 @@ from orchestrator.core.search.core.exceptions import ProductNotInRegistryError
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 from orchestrator.core.search.indexing.traverse import ProductTraverser
-
-from .fixtures.expected_data.products import (
+from test.unit_tests.search.fixtures.expected_data.products import (
     get_complex_product_expected_fields,
     get_computed_product_expected_fields,
     get_nested_product_expected_fields,

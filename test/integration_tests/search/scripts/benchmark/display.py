@@ -17,7 +17,7 @@ from collections import defaultdict
 from rich.console import Console
 from rich.table import Table
 
-from ...fixtures import TEST_SUBSCRIPTIONS
+from test.integration_tests.search.fixtures import TEST_SUBSCRIPTIONS
 
 console = Console()
 

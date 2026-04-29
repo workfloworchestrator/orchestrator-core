@@ -12,14 +12,13 @@
 # limitations under the License.
 
 
-from products.test_product import TestProduct
-
 from orchestrator.core import OrchestratorCore
 from orchestrator.core.cli.main import app as core_cli
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.core.services.subscriptions import WF_USABLE_MAP
 from orchestrator.core.settings import AppSettings
 from orchestrator.core.workflows import LazyWorkflowInstance
+from test.acceptance_tests.fixtures.test_orchestrator.products.test_product import TestProduct
 
 app = OrchestratorCore(base_settings=AppSettings())
 

@@ -14,7 +14,7 @@
 
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
-from test_orchestrator.product_blocks.test_product_blocks import (
+from test.acceptance_tests.fixtures.test_orchestrator.product_blocks.test_product_blocks import (
     TestProductBlock,
     TestProductBlockInactive,
     TestProductBlockProvisioning,

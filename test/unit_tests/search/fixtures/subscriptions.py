@@ -12,8 +12,7 @@
 # limitations under the License.
 
 from orchestrator.core.domain.base import SubscriptionModel
-
-from .blocks import BasicBlock, ComputedBlock, ContainerListBlock, OuterBlock
+from test.unit_tests.search.fixtures.blocks import BasicBlock, ComputedBlock, ContainerListBlock, OuterBlock
 
 
 class SimpleSubscription(SubscriptionModel, is_base=True):
