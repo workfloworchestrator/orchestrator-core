@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -215,11 +215,15 @@ def _invert_range_to_or(
 ) -> FilterTree:
     """Invert a BETWEEN range filter to OR of inverted bounds (< start OR > end)."""
     lo = PathFilter(
-        path=pf.path, condition=value_filter_cls(op=FilterOp.LT, value=range_val.start), value_kind=pf.value_kind
-    )  # type: ignore[arg-type]
+        path=pf.path,
+        condition=value_filter_cls(op=FilterOp.LT, value=range_val.start),  # type: ignore[arg-type]
+        value_kind=pf.value_kind,
+    )
     hi = PathFilter(
-        path=pf.path, condition=value_filter_cls(op=FilterOp.GT, value=range_val.end), value_kind=pf.value_kind
-    )  # type: ignore[arg-type]
+        path=pf.path,
+        condition=value_filter_cls(op=FilterOp.GT, value=range_val.end),  # type: ignore[arg-type]
+        value_kind=pf.value_kind,
+    )
     return FilterTree(op=BooleanOperator.OR, children=[lo, hi])
 
 

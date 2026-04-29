@@ -16,7 +16,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 from functools import partial
 from http import HTTPStatus
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import structlog
@@ -30,7 +30,14 @@ from nwastdlib.ex import show_ex
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db, transactional
+from orchestrator.db import (
+    EngineSettingsTable,
+    ProcessStepTable,
+    ProcessSubscriptionTable,
+    ProcessTable,
+    db,
+    transactional,
+)
 from orchestrator.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.distlock import distlock_manager
 from orchestrator.schemas.engine_settings import WorkerStatus
@@ -507,7 +514,8 @@ def create_process(
             _db_create_process(pstat)
             # Flatten live Pydantic models to plain dicts BEFORE the JSONB write so that
             # @computed_field properties don't fire DB queries inside Session.flush().
-            store_input_state(process_id, json_loads(json_dumps(state | initial_state)), "initial_state")
+            flat_state = cast(dict[str, Any], json_loads(json_dumps(state | initial_state)))
+            store_input_state(process_id, flat_state, "initial_state")
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
@@ -609,7 +617,8 @@ def resume_process(
             user_input = post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [{}])
             # Flatten live Pydantic models to plain dicts BEFORE the JSONB write so that
             # @computed_field properties don't fire DB queries inside Session.flush().
-            store_input_state(pstat.process_id, json_loads(json_dumps(user_input)), "user_input")
+            flat_user_input = cast(dict[str, Any], json_loads(json_dumps(user_input)))
+            store_input_state(pstat.process_id, flat_user_input, "user_input")
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
