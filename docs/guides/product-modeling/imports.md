@@ -29,21 +29,41 @@ user input from a form page, but could also be provided programmatically by eith
 called. Data sources can include external API resources, CSV- or YAML files, etc. If desired, interaction with all
 external provisioning systems can be skipped, resulting in a creation workflow that could be as simple as follows.
 
-```python
-from orchestrator.core.workflow import StepList, begin
-from orchestrator.core.workflows.steps import store_process_subscription
-from orchestrator.core.workflows.utils import create_workflow
+=== "`orchestrator-core` ≥ 5.0"
 
-@create_workflow("Create imported Node")
-def create_imported_node() -> StepList:
-    """Workflow to import a Node without provisioning it."""
-    return (
-        begin
-        >> create_subscription
-        >> store_process_subscription()
-        >> initialize_subscription
-    )
-```
+    ```python
+    from orchestrator.core.workflow import StepList, begin
+    from orchestrator.core.workflows.steps import store_process_subscription
+    from orchestrator.core.workflows.utils import create_workflow
+
+    @create_workflow("Create imported Node")
+    def create_imported_node() -> StepList:
+        """Workflow to import a Node without provisioning it."""
+        return (
+            begin
+            >> create_subscription
+            >> store_process_subscription()
+            >> initialize_subscription
+        )
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.workflow import StepList, begin
+    from orchestrator.workflows.steps import store_process_subscription
+    from orchestrator.workflows.utils import create_workflow
+
+    @create_workflow("Create imported Node")
+    def create_imported_node() -> StepList:
+        """Workflow to import a Node without provisioning it."""
+        return (
+            begin
+            >> create_subscription
+            >> store_process_subscription()
+            >> initialize_subscription
+        )
+    ```
 
 ## Importing Products
 With the `ImportedNode` part of the service database, we need a modification workflow to take the imported product to a
@@ -54,25 +74,49 @@ This workflow is another place where external provisioning could take place, but
 straightforward workflow alike the example given earlier. For the modification of importing the `Node` product, the
 following serves as an example.
 
-```python
-from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.core.workflows.utils import modify_workflow
+=== "`orchestrator-core` ≥ 5.0"
 
-@step("Create new Node subscription")
-def import_node_subscription(subscription_id: UUIDstr) -> State:
-    """Take an ImportedNode subscription, and turn it into a Node subscription."""
-    imported_node = ImportedNode.from_subscription(subscription_id)
-    new_product_id = get_product_id_by_name(ProductName.NODE)
-    new_subscription = Node.from_other_product(imported_node, new_product_id)
+    ```python
+    from orchestrator.core.workflow import StepList, begin, step
+    from orchestrator.core.workflows.utils import modify_workflow
 
-    return {"subscription": new_subscription}
+    @step("Create new Node subscription")
+    def import_node_subscription(subscription_id: UUIDstr) -> State:
+        """Take an ImportedNode subscription, and turn it into a Node subscription."""
+        imported_node = ImportedNode.from_subscription(subscription_id)
+        new_product_id = get_product_id_by_name(ProductName.NODE)
+        new_subscription = Node.from_other_product(imported_node, new_product_id)
+
+        return {"subscription": new_subscription}
 
 
-@modify_workflow("Import Node", target=Target.MODIFY)
-def import_node() -> StepList:
-    """Modify into a Node subscription to complete the import."""
-    return begin >> import_node_subscription
-```
+    @modify_workflow("Import Node", target=Target.MODIFY)
+    def import_node() -> StepList:
+        """Modify into a Node subscription to complete the import."""
+        return begin >> import_node_subscription
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.workflow import StepList, begin, step
+    from orchestrator.workflows.utils import modify_workflow
+
+    @step("Create new Node subscription")
+    def import_node_subscription(subscription_id: UUIDstr) -> State:
+        """Take an ImportedNode subscription, and turn it into a Node subscription."""
+        imported_node = ImportedNode.from_subscription(subscription_id)
+        new_product_id = get_product_id_by_name(ProductName.NODE)
+        new_subscription = Node.from_other_product(imported_node, new_product_id)
+
+        return {"subscription": new_subscription}
+
+
+    @modify_workflow("Import Node", target=Target.MODIFY)
+    def import_node() -> StepList:
+        """Modify into a Node subscription to complete the import."""
+        return begin >> import_node_subscription
+    ```
 
 In this workflow, the existing `ImportedNode` subscription is modified into a `Node` subscription, and is stored in the
 service database. Now, the import has been completed, and the imported variety of the product has been replaced with a

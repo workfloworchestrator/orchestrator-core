@@ -230,49 +230,97 @@ Graphql Authorization decisions can be made based on request properties and user
 
 Below is an example illustrating how to override the default configurations:
 
-```python
-from orchestrator.core import OrchestratorCore, app_settings
-from oauth2_lib.fastapi import OIDCAuth, OIDCUserModel, Authorization, RequestPath, GraphqlAuthorization
-from oauth2_lib.settings import oauth2lib_settings
-from httpx import AsyncClient
-from starlette.requests import HTTPConnection
-from typing import Optional
+=== "`orchestrator-core` ≥ 5.0"
 
-class CustomOIDCAuth(OIDCAuth):
-    async def userinfo(self, async_request: AsyncClient, token: str) -> OIDCUserModel:
-        # Custom implementation to fetch user information
-        return OIDCUserModel(
-            sub="user-sub",
-            email="example-user@company.org",
-            # ...
-        )
+    ```python
+    from orchestrator.core import OrchestratorCore, app_settings
+    from oauth2_lib.fastapi import OIDCAuth, OIDCUserModel, Authorization, RequestPath, GraphqlAuthorization
+    from oauth2_lib.settings import oauth2lib_settings
+    from httpx import AsyncClient
+    from starlette.requests import HTTPConnection
+    from typing import Optional
 
-class CustomAuthorization(Authorization):
-    async def authorize(self, request: HTTPConnection, user: OIDCUserModel) -> Optional[bool]:
-        # Implement custom authorization logic
-        return True
+    class CustomOIDCAuth(OIDCAuth):
+        async def userinfo(self, async_request: AsyncClient, token: str) -> OIDCUserModel:
+            # Custom implementation to fetch user information
+            return OIDCUserModel(
+                sub="user-sub",
+                email="example-user@company.org",
+                # ...
+            )
 
-class CustomGraphqlAuthorization(GraphqlAuthorization):
-    async def authorize(self, request: RequestPath, user: OIDCUserModel) -> Optional[bool]:
-        # Implement custom GraphQL authorization logic
-        return True
+    class CustomAuthorization(Authorization):
+        async def authorize(self, request: HTTPConnection, user: OIDCUserModel) -> Optional[bool]:
+            # Implement custom authorization logic
+            return True
 
-oidc_instance = CustomOIDCAuth(
-    openid_url=oauth2lib_settings.OIDC_BASE_URL,
-    openid_config_url=oauth2lib_settings.OIDC_CONF_URL,
-    resource_server_id=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_ID,
-    resource_server_secret=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_SECRET,
-    oidc_user_model_cls=OIDCUserModel,
-)
+    class CustomGraphqlAuthorization(GraphqlAuthorization):
+        async def authorize(self, request: RequestPath, user: OIDCUserModel) -> Optional[bool]:
+            # Implement custom GraphQL authorization logic
+            return True
 
-authorization_instance = CustomAuthorization()
-graphql_authorization_instance = CustomGraphqlAuthorization()
+    oidc_instance = CustomOIDCAuth(
+        openid_url=oauth2lib_settings.OIDC_BASE_URL,
+        openid_config_url=oauth2lib_settings.OIDC_CONF_URL,
+        resource_server_id=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_ID,
+        resource_server_secret=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_SECRET,
+        oidc_user_model_cls=OIDCUserModel,
+    )
 
-app = OrchestratorCore(base_settings=app_settings)
-app.register_authentication(oidc_instance)
-app.register_authorization(authorization_instance)
-app.register_graphql_authorization(graphql_authorization_instance)
-```
+    authorization_instance = CustomAuthorization()
+    graphql_authorization_instance = CustomGraphqlAuthorization()
+
+    app = OrchestratorCore(base_settings=app_settings)
+    app.register_authentication(oidc_instance)
+    app.register_authorization(authorization_instance)
+    app.register_graphql_authorization(graphql_authorization_instance)
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator import OrchestratorCore, app_settings
+    from oauth2_lib.fastapi import OIDCAuth, OIDCUserModel, Authorization, RequestPath, GraphqlAuthorization
+    from oauth2_lib.settings import oauth2lib_settings
+    from httpx import AsyncClient
+    from starlette.requests import HTTPConnection
+    from typing import Optional
+
+    class CustomOIDCAuth(OIDCAuth):
+        async def userinfo(self, async_request: AsyncClient, token: str) -> OIDCUserModel:
+            # Custom implementation to fetch user information
+            return OIDCUserModel(
+                sub="user-sub",
+                email="example-user@company.org",
+                # ...
+            )
+
+    class CustomAuthorization(Authorization):
+        async def authorize(self, request: HTTPConnection, user: OIDCUserModel) -> Optional[bool]:
+            # Implement custom authorization logic
+            return True
+
+    class CustomGraphqlAuthorization(GraphqlAuthorization):
+        async def authorize(self, request: RequestPath, user: OIDCUserModel) -> Optional[bool]:
+            # Implement custom GraphQL authorization logic
+            return True
+
+    oidc_instance = CustomOIDCAuth(
+        openid_url=oauth2lib_settings.OIDC_BASE_URL,
+        openid_config_url=oauth2lib_settings.OIDC_CONF_URL,
+        resource_server_id=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_ID,
+        resource_server_secret=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_SECRET,
+        oidc_user_model_cls=OIDCUserModel,
+    )
+
+    authorization_instance = CustomAuthorization()
+    graphql_authorization_instance = CustomGraphqlAuthorization()
+
+    app = OrchestratorCore(base_settings=app_settings)
+    app.register_authentication(oidc_instance)
+    app.register_authorization(authorization_instance)
+    app.register_graphql_authorization(graphql_authorization_instance)
+    ```
 
 ## Authorization and Workflows {: .beta }
 
@@ -538,15 +586,29 @@ For brevity, the `_callback` parameter suffix has been ommitted.
 Users of Workflow Orchestrator can't directly access the `@workflow` decorators of tasks and workflows defined within `orchestrator-core`.
 However, authorization callbacks can still be passed via the `OrchestratorCore` class when initializing your WFO application.
 
-```python
-from orchestrator.core import OrchestratorCore
+=== "`orchestrator-core` ≥ 5.0"
 
-app = OrchestratorCore()
+    ```python
+    from orchestrator.core import OrchestratorCore
 
-# Let foo and bar be Authorizers
-app.register_internal_authorize_callback(foo)
-app.register_internal_retry_auth_callback(bar)
-```
+    app = OrchestratorCore()
+
+    # Let foo and bar be Authorizers
+    app.register_internal_authorize_callback(foo)
+    app.register_internal_retry_auth_callback(bar)
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator import OrchestratorCore
+
+    app = OrchestratorCore()
+
+    # Let foo and bar be Authorizers
+    app.register_internal_authorize_callback(foo)
+    app.register_internal_retry_auth_callback(bar)
+    ```
 
 If these callbacks are not registered, these workflows can be started and retried by all users by default.
 
@@ -555,21 +617,41 @@ For more on application startup, see the [Settings Overview page][settings-overv
 ### Examples
 Assume we have the following function that can be used to create callbacks:
 
-```python
-from orchestrator.core.utils.auth import AuthContext
-from orchestrator.core.workflows.utils import Authorizer
+=== "`orchestrator-core` ≥ 5.0"
 
-def allow_roles(*roles) -> Authorizer:
-    async def f(context: AuthContext) -> bool:
-        if is_admin(context.user):  # Relative to your authorization provider
-            return True
-        for role in roles:
-            if has_role(context.user, role):  # Relative to your authorization provider
+    ```python
+    from orchestrator.core.utils.auth import AuthContext
+    from orchestrator.core.workflows.utils import Authorizer
+
+    def allow_roles(*roles) -> Authorizer:
+        async def f(context: AuthContext) -> bool:
+            if is_admin(context.user):  # Relative to your authorization provider
                 return True
-        return False
+            for role in roles:
+                if has_role(context.user, role):  # Relative to your authorization provider
+                    return True
+            return False
 
-    return f
-```
+        return f
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.utils.auth import AuthContext
+    from orchestrator.workflows.utils import Authorizer
+
+    def allow_roles(*roles) -> Authorizer:
+        async def f(context: AuthContext) -> bool:
+            if is_admin(context.user):  # Relative to your authorization provider
+                return True
+            for role in roles:
+                if has_role(context.user, role):  # Relative to your authorization provider
+                    return True
+            return False
+
+        return f
+    ```
 
 We can now construct a variety of authorization policies.
 

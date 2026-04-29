@@ -133,101 +133,201 @@ When using the Celery executor, you'll need to do this again for the worker inst
 
 Below is an example implementation of a Celery worker with Websocket support, which can be updated to your project's needs.
 
-```python
-"""This module contains functions and classes necessary for celery worker processes.
+=== "`orchestrator-core` ≥ 5.0"
 
-The application flow looks like this when EXECUTOR = "celery" (and websockets are enabled):
+    ```python
+    """This module contains functions and classes necessary for celery worker processes.
 
-- FastAPI application validates form input, and places a task on celery queue (create new process).
-  - If websockets are enabled, a connection should exist already b/t the client and backend.
-- FastAPI application begins watching Redis pubsub channel for process updates from celery.
-- Celery worker picks up task from queue and begins executing.
-- On each step completion, it publishes state information to Redis pubsub channel.
-- FastAPI application grabs this information and publishes it to the client websocket connection.
-"""
+    The application flow looks like this when EXECUTOR = "celery" (and websockets are enabled):
 
-from structlog import get_logger
-from uuid import UUID
+    - FastAPI application validates form input, and places a task on celery queue (create new process).
+    - If websockets are enabled, a connection should exist already b/t the client and backend.
+    - FastAPI application begins watching Redis pubsub channel for process updates from celery.
+    - Celery worker picks up task from queue and begins executing.
+    - On each step completion, it publishes state information to Redis pubsub channel.
+    - FastAPI application grabs this information and publishes it to the client websocket connection.
+    """
 
-from celery import Celery
-from celery.signals import worker_shutting_down
-from nwastdlib.debugging import start_debugger
-from orchestrator.core.db import init_database
-from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.core.types import BroadcastFunc
-from orchestrator.core.websocket import broadcast_process_update_to_websocket, init_websocket_manager
-from orchestrator.core.websocket.websocket_manager import WebSocketManager
-from orchestrator.core.workflows import ALL_WORKFLOWS
+    from structlog import get_logger
+    from uuid import UUID
 
-# Substitute your_orch with your org's Orchestrator instance.
-# class AppSettings(OrchSettings):
-#     ...
-#
-# app_settings = AppSettings()
-from your_orch.settings import app_settings
+    from celery import Celery
+    from celery.signals import worker_shutting_down
+    from nwastdlib.debugging import start_debugger
+    from orchestrator.core.db import init_database
+    from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+    from orchestrator.core.types import BroadcastFunc
+    from orchestrator.core.websocket import broadcast_process_update_to_websocket, init_websocket_manager
+    from orchestrator.core.websocket.websocket_manager import WebSocketManager
+    from orchestrator.core.workflows import ALL_WORKFLOWS
 
-
-logger = get_logger(__name__)
-
-
-def process_broadcast_fn(process_id: UUID) -> None:
-    # Catch all exceptions as broadcasting failure is noncritical to workflow completion
-    try:
-        broadcast_process_update_to_websocket(process_id)
-    except Exception as e:
-        logger.exception(e)
+    # Substitute your_orch with your org's Orchestrator instance.
+    # class AppSettings(OrchSettings):
+    #     ...
+    #
+    # app_settings = AppSettings()
+    from your_orch.settings import app_settings
 
 
-class OrchestratorWorker(Celery):
-    websocket_manager: WebSocketManager
-    process_broadcast_fn: BroadcastFunc
-
-    def on_init(self) -> None:
-        # Depending on how you gate your debug settings, you can do something like this:
-        # if app_settings.DEBUG:
-        #     start_debugger()
-
-        init_database(app_settings)
-
-        # Prepare the wrapped_websocket_manager
-        # Note: cannot prepare the redis connections here as broadcasting is async
-        self.websocket_manager = init_websocket_manager(app_settings)
-        self.process_broadcast_fn = process_broadcast_fn
-
-        # Load the product and workflow modules to register them with the application
-        import your_orch.products
-        import your_orch.workflows
+    logger = get_logger(__name__)
 
 
-    def close(self) -> None:
-        super().close()
+    def process_broadcast_fn(process_id: UUID) -> None:
+        # Catch all exceptions as broadcasting failure is noncritical to workflow completion
+        try:
+            broadcast_process_update_to_websocket(process_id)
+        except Exception as e:
+            logger.exception(e)
 
 
-celery = OrchestratorWorker(
-    f"{app_settings.SERVICE_NAME}-worker", broker=str(app_settings.CACHE_URI.get_secret_value()), include=["orchestrator.core.services.tasks"]
-)
+    class OrchestratorWorker(Celery):
+        websocket_manager: WebSocketManager
+        process_broadcast_fn: BroadcastFunc
 
-if app_settings.TESTING:
-    celery.conf.update(backend=str(app_settings.CACHE_URI.get_secret_value()), task_ignore_result=False)
-else:
-    celery.conf.update(task_ignore_result=True)
+        def on_init(self) -> None:
+            # Depending on how you gate your debug settings, you can do something like this:
+            # if app_settings.DEBUG:
+            #     start_debugger()
 
-celery.conf.update(
-    result_expires=3600,
-    worker_prefetch_multiplier=1,
-    worker_send_task_event=True,
-    task_send_sent_event=True,
-)
-```
+            init_database(app_settings)
+
+            # Prepare the wrapped_websocket_manager
+            # Note: cannot prepare the redis connections here as broadcasting is async
+            self.websocket_manager = init_websocket_manager(app_settings)
+            self.process_broadcast_fn = process_broadcast_fn
+
+            # Load the product and workflow modules to register them with the application
+            import your_orch.products
+            import your_orch.workflows
+
+
+        def close(self) -> None:
+            super().close()
+
+
+    celery = OrchestratorWorker(
+        f"{app_settings.SERVICE_NAME}-worker", broker=str(app_settings.CACHE_URI.get_secret_value()), include=["orchestrator.core.services.tasks"]
+    )
+
+    if app_settings.TESTING:
+        celery.conf.update(backend=str(app_settings.CACHE_URI.get_secret_value()), task_ignore_result=False)
+    else:
+        celery.conf.update(task_ignore_result=True)
+
+    celery.conf.update(
+        result_expires=3600,
+        worker_prefetch_multiplier=1,
+        worker_send_task_event=True,
+        task_send_sent_event=True,
+    )
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+      ```python
+    """This module contains functions and classes necessary for celery worker processes.
+
+    The application flow looks like this when EXECUTOR = "celery" (and websockets are enabled):
+
+    - FastAPI application validates form input, and places a task on celery queue (create new process).
+    - If websockets are enabled, a connection should exist already b/t the client and backend.
+    - FastAPI application begins watching Redis pubsub channel for process updates from celery.
+    - Celery worker picks up task from queue and begins executing.
+    - On each step completion, it publishes state information to Redis pubsub channel.
+    - FastAPI application grabs this information and publishes it to the client websocket connection.
+    """
+
+    from structlog import get_logger
+    from uuid import UUID
+
+    from celery import Celery
+    from celery.signals import worker_shutting_down
+    from nwastdlib.debugging import start_debugger
+    from orchestrator.db import init_database
+    from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+    from orchestrator.types import BroadcastFunc
+    from orchestrator.websocket import broadcast_process_update_to_websocket, init_websocket_manager
+    from orchestrator.websocket.websocket_manager import WebSocketManager
+    from orchestrator.workflows import ALL_WORKFLOWS
+
+    # Substitute your_orch with your org's Orchestrator instance.
+    # class AppSettings(OrchSettings):
+    #     ...
+    #
+    # app_settings = AppSettings()
+    from your_orch.settings import app_settings
+
+
+    logger = get_logger(__name__)
+
+
+    def process_broadcast_fn(process_id: UUID) -> None:
+        # Catch all exceptions as broadcasting failure is noncritical to workflow completion
+        try:
+            broadcast_process_update_to_websocket(process_id)
+        except Exception as e:
+            logger.exception(e)
+
+
+    class OrchestratorWorker(Celery):
+        websocket_manager: WebSocketManager
+        process_broadcast_fn: BroadcastFunc
+
+        def on_init(self) -> None:
+            # Depending on how you gate your debug settings, you can do something like this:
+            # if app_settings.DEBUG:
+            #     start_debugger()
+
+            init_database(app_settings)
+
+            # Prepare the wrapped_websocket_manager
+            # Note: cannot prepare the redis connections here as broadcasting is async
+            self.websocket_manager = init_websocket_manager(app_settings)
+            self.process_broadcast_fn = process_broadcast_fn
+
+            # Load the product and workflow modules to register them with the application
+            import your_orch.products
+            import your_orch.workflows
+
+
+        def close(self) -> None:
+            super().close()
+
+
+    celery = OrchestratorWorker(
+        f"{app_settings.SERVICE_NAME}-worker", broker=str(app_settings.CACHE_URI.get_secret_value()), include=["orchestrator.services.tasks"]
+    )
+
+    if app_settings.TESTING:
+        celery.conf.update(backend=str(app_settings.CACHE_URI.get_secret_value()), task_ignore_result=False)
+    else:
+        celery.conf.update(task_ignore_result=True)
+
+    celery.conf.update(
+        result_expires=3600,
+        worker_prefetch_multiplier=1,
+        worker_send_task_event=True,
+        task_send_sent_event=True,
+    )
+    ```
 
 Create a file with the above, for example `my_orchestrator/celery_client.py`.
 
 Next, update your `main.py` and `wsgi.py` to include the following imports:
 
-```python
-from orchestrator.core.services.tasks import initialise_celery
-from my_orchestrator.celery_client import celery
-```
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.services.tasks import initialise_celery
+    from my_orchestrator.celery_client import celery
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.services.tasks import initialise_celery
+    from my_orchestrator.celery_client import celery
+    ```
 
 And finally, ensure both files include `initialise_celery(celery)` in the initialization of the CLI or API app.
 

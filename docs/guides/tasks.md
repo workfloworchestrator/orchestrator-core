@@ -29,38 +29,7 @@ Four things need to happen to register a task:
 Here is a very bare-bones task file:
 
 
-=== "2.x - 4.x"
-
-    /// attention
-    This syntax will continue to work, but there is a new syntax available from 5.0.
-    ///
-
-    ```python
-    # workflows/tasks/nightly_sync.py
-
-    import structlog
-    import time
-
-    from orchestrator.core.targets import Target
-    from orchestrator.core.types import State
-    from orchestrator.core.workflow import StepList, done, init, step, workflow
-
-    logger = structlog.get_logger(__name__)
-
-
-    @step("NSO calls")
-    def nso_calls() -> State:
-        logger.info("Start NSO calls", ran_at=time.time())
-        time.sleep(5)  # Do stuff
-        logger.info("NSO calls finished", done_at=time.time())
-
-
-    @workflow("Nightly sync", target=Target.SYSTEM)
-    def task_sync_from() -> StepList:
-        return init >> nso_calls >> done
-    ```
-
-=== ":material-new-box: 5.0 +"
+=== "`orchestrator-core` ≥ 5.0"
 
     ```python
     # workflows/tasks/nightly_sync.py
@@ -88,6 +57,37 @@ Here is a very bare-bones task file:
         return begin >> nso_calls
     ```
 
+=== "`orchestrator-core` < 5.0"
+
+    /// attention
+    This syntax will continue to work, but there is a new syntax available from 5.0.
+    ///
+
+    ```python
+    # workflows/tasks/nightly_sync.py
+
+    import structlog
+    import time
+
+    from orchestrator.targets import Target
+    from orchestrator.types import State
+    from orchestrator.workflow import StepList, done, init, step, workflow
+
+    logger = structlog.get_logger(__name__)
+
+
+    @step("NSO calls")
+    def nso_calls() -> State:
+        logger.info("Start NSO calls", ran_at=time.time())
+        time.sleep(5)  # Do stuff
+        logger.info("NSO calls finished", done_at=time.time())
+
+
+    @workflow("Nightly sync", target=Target.SYSTEM)
+    def task_sync_from() -> StepList:
+        return init >> nso_calls >> done
+    ```
+
 Like a Workflow, a Task will need to be registered in your workflows module:
 
 ```python
@@ -103,27 +103,53 @@ Like other workflows, a task needs to be [registered in the database][registerin
 in addition to being defined in the code.
 However, instead of `create_workflow`, simply use the `create_task` helper instead.
 
-```python
-from orchestrator.core.migrations.helpers import create_task, delete_workflow
+=== "`orchestrator-core` ≥ 5.0"
 
-new_tasks = [
-    {
-        "name": "task_sync_from",
-        "description": "Nightly validate and NSO sync",
-    }
-]
+    ```python
+    from orchestrator.core.migrations.helpers import create_task, delete_workflow
 
-def upgrade() -> None:
-    conn = op.get_bind()
-    for task in new_tasks:
-        create_task(conn, task)
+    new_tasks = [
+        {
+            "name": "task_sync_from",
+            "description": "Nightly validate and NSO sync",
+        }
+    ]
+
+    def upgrade() -> None:
+        conn = op.get_bind()
+        for task in new_tasks:
+            create_task(conn, task)
 
 
-def downgrade() -> None:
-    conn = op.get_bind()
-    for task in new_tasks:
-        delete_workflow(conn, task["name"])
-```
+    def downgrade() -> None:
+        conn = op.get_bind()
+        for task in new_tasks:
+            delete_workflow(conn, task["name"])
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.migrations.helpers import create_task, delete_workflow
+
+    new_tasks = [
+        {
+            "name": "task_sync_from",
+            "description": "Nightly validate and NSO sync",
+        }
+    ]
+
+    def upgrade() -> None:
+        conn = op.get_bind()
+        for task in new_tasks:
+            create_task(conn, task)
+
+
+    def downgrade() -> None:
+        conn = op.get_bind()
+        for task in new_tasks:
+            delete_workflow(conn, task["name"])
+    ```
 
 ### Running the task in the UI
 
@@ -154,8 +180,8 @@ Continuing with our previous example:
 ```python
 # schedules/nightly_sync.py
 
-from orchestrator.core.schedules.scheduler import scheduler
-from orchestrator.core.services.processes import start_process
+from orchestrator.schedules.scheduler import scheduler
+from orchestrator.services.processes import start_process
 
 
 # previously `scheduler()` which is now deprecated
@@ -189,8 +215,8 @@ To keep things organized and consistent (similar to how workflows are handled), 
 
 !!! Info
     In [v4.4.0] we switched from [schedule] package to [apscheduler] to allow schedules to be stored in the DB and retrieve schedule tasks from the API.
-    The apscheduler library has its own decorator to schedule tasks: `@scheduler.scheduled_job()` (from `orchestrator.core.schedules.scheduler`).
-    We therefore deprecated the old `@schedule` decorator (from `orchestrator.core.schedules.scheduling`) and made it forwards compatible.
+    The apscheduler library has its own decorator to schedule tasks: `@scheduler.scheduled_job()` (from `orchestrator.schedules.scheduler`).
+    We therefore deprecated the old `@schedule` decorator (from `orchestrator.schedules.scheduling`) and made it forwards compatible.
 
     In [v4.7.0] we deprecated `@scheduler.scheduled_job()` provided by [apscheduler] in favor of a more dynamic API based system described below.
     Although we no longer support the `@scheduler.scheduled_job()` decorator, it is still available because it is part of [apscheduler].
@@ -353,7 +379,7 @@ If you want to see all schedules, you can:
 Example result for running `python main.py scheduler show-schedule`:
 
 ```
-                                                                                Scheduled Tasks  
+                                                                                Scheduled Tasks
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
 ┃ id                                             ┃ name                                                           ┃ source    ┃ next run time             ┃ trigger           ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩

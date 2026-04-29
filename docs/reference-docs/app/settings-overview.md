@@ -8,29 +8,57 @@ Per default, the application settings are used to configure the application. The
 
 An example of the settings is shown below:
 
-```python
-from oauth2_lib.settings import oauth2lib_settings
-from orchestrator.core.settings import BaseSettings
-from orchestrator.core.services.settings_env_variables import expose_settings
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from oauth2_lib.settings import oauth2lib_settings
+    from orchestrator.core.settings import BaseSettings
+    from orchestrator.core.services.settings_env_variables import expose_settings
 
 
-class AppSettings(BaseSettings):
-    TESTING: bool = True
-    SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
-    CORS_ORIGINS: str = "*"
-    ...
-    EXPOSE_SETTINGS: bool = False
-    EXPOSE_OAUTH_SETTINGS: bool = False
+    class AppSettings(BaseSettings):
+        TESTING: bool = True
+        SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
+        CORS_ORIGINS: str = "*"
+        ...
+        EXPOSE_SETTINGS: bool = False
+        EXPOSE_OAUTH_SETTINGS: bool = False
 
 
-app_settings = AppSettings()
+    app_settings = AppSettings()
 
-if app_settings.EXPOSE_SETTINGS:
-    expose_settings("app_settings", app_settings)
+    if app_settings.EXPOSE_SETTINGS:
+        expose_settings("app_settings", app_settings)
 
-if app_settings.EXPOSE_OAUTH_SETTINGS:
-    expose_settings("oauth2lib_settings", oauth2lib_settings)
-```
+    if app_settings.EXPOSE_OAUTH_SETTINGS:
+        expose_settings("oauth2lib_settings", oauth2lib_settings)
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from oauth2_lib.settings import oauth2lib_settings
+    from orchestrator.settings import BaseSettings
+    from orchestrator.services.settings_env_variables import expose_settings
+
+
+    class AppSettings(BaseSettings):
+        TESTING: bool = True
+        SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
+        CORS_ORIGINS: str = "*"
+        ...
+        EXPOSE_SETTINGS: bool = False
+        EXPOSE_OAUTH_SETTINGS: bool = False
+
+
+    app_settings = AppSettings()
+
+    if app_settings.EXPOSE_SETTINGS:
+        expose_settings("app_settings", app_settings)
+
+    if app_settings.EXPOSE_OAUTH_SETTINGS:
+        expose_settings("oauth2lib_settings", oauth2lib_settings)
+    ```
 
 What you see above is the default settings for the application. The settings are defined in the
 `orchestrator.core.settings.py` module and can be used to configure the application.
@@ -66,18 +94,35 @@ The `app_settings` in the example above is a name of the settings class that is 
 In order to expose your settings, you need to register them using the `expose_settings()` function. This function takes
 two arguments: the name of the settings class and the instance of the settings class.
 
-```python
-from orchestrator.core.settings import expose_settings, BaseSettings
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.settings import expose_settings, BaseSettings
 
 
-class MySettings(BaseSettings):
-    debug: bool = True
+    class MySettings(BaseSettings):
+        debug: bool = True
 
 
-my_settings = MySettings()
+    my_settings = MySettings()
 
-expose_settings("my_settings", my_settings)
-```
+    expose_settings("my_settings", my_settings)
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.settings import expose_settings, BaseSettings
+
+
+    class MySettings(BaseSettings):
+        debug: bool = True
+
+
+    my_settings = MySettings()
+
+    expose_settings("my_settings", my_settings)
+    ```
 
 ## Lifecycle Validation Mode
 

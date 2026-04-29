@@ -69,16 +69,31 @@ workon example-orchestrator
 
 Create a `main.py` file with the following content:
 
-``` python
-from orchestrator.core import OrchestratorCore
-from orchestrator.core.cli.main import app as core_cli
-from orchestrator.core.settings import AppSettings
+=== "`orchestrator-core` ≥ 5.0"
 
-app = OrchestratorCore(base_settings=AppSettings())
+    ``` python
+    from orchestrator.core import OrchestratorCore
+    from orchestrator.core.cli.main import app as core_cli
+    from orchestrator.core.settings import AppSettings
 
-if __name__ == "__main__":
-    core_cli()
-```
+    app = OrchestratorCore(base_settings=AppSettings())
+
+    if __name__ == "__main__":
+        core_cli()
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ``` python
+    from orchestrator import OrchestratorCore
+    from orchestrator.cli.main import app as core_cli
+    from orchestrator.settings import AppSettings
+
+    app = OrchestratorCore(base_settings=AppSettings())
+
+    if __name__ == "__main__":
+        core_cli()
+    ```
 
 Commit the just created main.py to git:
 

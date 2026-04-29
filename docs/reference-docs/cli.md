@@ -104,11 +104,14 @@ Arguments
         - `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
     - renaming a resource type to existing resource type: `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
 
-**Example**
+#### Example
 
 You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will use these models (taken out of [example-orchestrator](https://github.com/workfloworchestrator/example-orchestrator-beginner)):
 
-- UserGroup Block:
+##### UserGroup Block
+
+=== "`orchestrator-core` ≥ 5.0"
+
     ```python
     from orchestrator.core.domain.base import SubscriptionModel, ProductBlockModel
     from orchestrator.core.types import SubscriptionLifecycle
@@ -137,7 +140,40 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
         group_id: int
     ```
 
-- UserGroup Product:
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.domain.base import SubscriptionModel, ProductBlockModel
+    from orchestrator.types import SubscriptionLifecycle
+
+
+    class UserGroupBlockInactive(
+        ProductBlockModel,
+        lifecycle=[SubscriptionLifecycle.INITIAL],
+        product_block_name="UserGroupBlock",
+    ):
+        group_name: str | None = None
+        group_id: int | None = None
+
+
+    class UserGroupBlockProvisioning(
+        UserGroupBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        group_name: str
+        group_id: int | None = None
+
+
+    class UserGroupBlock(
+        UserGroupBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    ):
+        group_name: str
+        group_id: int
+    ```
+
+##### UserGroup Product
+
+=== "`orchestrator-core` ≥ 5.0"
+
     ```python
     from orchestrator.core.domain.base import SubscriptionModel
     from orchestrator.core.types import SubscriptionLifecycle
@@ -165,7 +201,39 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
         settings: UserGroupBlock
     ```
 
-- User Block:
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.domain.base import SubscriptionModel
+    from orchestrator.types import SubscriptionLifecycle
+
+    from products.product_blocks.user_group import (
+        UserGroupBlock,
+        UserGroupBlockInactive,
+        UserGroupBlockProvisioning,
+    )
+
+
+    class UserGroupInactive(
+        SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.INITIAL]
+    ):
+        settings: UserGroupBlockInactive
+
+
+    class UserGroupProvisioning(
+        UserGroupInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        settings: UserGroupBlockProvisioning
+
+
+    class UserGroup(UserGroupProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        settings: UserGroupBlock
+    ```
+
+##### User Block
+
+=== "`orchestrator-core` ≥ 5.0"
+
     ```python
     from orchestrator.core.domain.base import ProductBlockModel
     from orchestrator.core.types import SubscriptionLifecycle
@@ -204,7 +272,50 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
         user_id: int
     ```
 
-- User Product:
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.domain.base import ProductBlockModel
+    from orchestrator.types import SubscriptionLifecycle
+
+    from products.product_blocks.user_group import (
+        UserGroupBlock,
+        UserGroupBlockInactive,
+        UserGroupBlockProvisioning,
+    )
+
+
+    class UserBlockInactive(
+        ProductBlockModel,
+        lifecycle=[SubscriptionLifecycle.INITIAL],
+        product_block_name="UserBlock",
+    ):
+        group: UserGroupBlockInactive
+        username: str | None = None
+        age: int | None = None
+        user_id: int | None = None
+
+
+    class UserBlockProvisioning(
+        UserBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        group: UserGroupBlockProvisioning
+        username: str
+        age: int | None = None
+        user_id: int | None = None
+
+
+    class UserBlock(UserBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        group: UserGroupBlock
+        username: str
+        age: int | None = None
+        user_id: int
+    ```
+
+##### User Product
+
+=== "`orchestrator-core` ≥ 5.0"
+
     ```python
     from orchestrator.core.domain.base import SubscriptionModel
     from orchestrator.core.types import SubscriptionLifecycle, strEnum
@@ -236,7 +347,43 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
         settings: UserBlock
     ```
 
-- `SUBSCRIPTION_MODEL_REGISTRY`:
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.domain.base import SubscriptionModel
+    from orchestrator.types import SubscriptionLifecycle, strEnum
+
+    from products.product_blocks.user import (
+        UserBlock,
+        UserBlockInactive,
+        UserBlockProvisioning,
+    )
+
+
+    class Affiliation(strEnum):
+        internal = "internal"
+        external = "external"
+
+
+    class UserInactive(SubscriptionModel, is_base=True):
+        affiliation: Affiliation
+        settings: UserBlockInactive
+
+
+    class UserProvisioning(UserInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+        affiliation: Affiliation
+        settings: UserBlockProvisioning
+
+
+    class User(UserProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        affiliation: Affiliation
+        settings: UserBlock
+    ```
+
+##### `SUBSCRIPTION_MODEL_REGISTRY`
+
+=== "`orchestrator-core` ≥ 5.0"
+
     ```python
     from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 
@@ -253,7 +400,25 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
     )
     ```
 
-Running the command:
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+
+    from products.product_types.user import User
+    from products.product_types.user_group import UserGroup
+
+    # Register models to actual definitions for deserialization purposes
+    SUBSCRIPTION_MODEL_REGISTRY.update(
+        {
+            "User group": UserGroup,
+            "User internal": User,
+            "User external": User,
+        }
+    )
+    ```
+
+#### Running the command
 
 - only with a message
     ``` bash
@@ -452,9 +617,9 @@ configuration file.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---python-version - Python version for generated code [default: 3.11]  
---skip-existing-blocks - If set, the migration will not contain product blocks for which a python implementation exists [default: False]  
+--config-file - The configuration file [default: None]
+--python-version - Python version for generated code [default: 3.11]
+--skip-existing-blocks - If set, the migration will not contain product blocks for which a python implementation exists [default: False]
 
 ### product
 
@@ -464,11 +629,11 @@ from a configuration file.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.11]  
---folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
 
 ### product-blocks
 
@@ -478,11 +643,11 @@ domain models from a configuration file.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.11]  
---folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
 
 ### unit-tests
 
@@ -492,11 +657,11 @@ configuration file.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.11]  
---tdd - Force test driven development with failing asserts [default: True]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
+--tdd - Force test driven development with failing asserts [default: True]
 
 ### workflows
 
@@ -509,11 +674,11 @@ steps to the create, modify and terminate workflows.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.11]  
---folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default:  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default:
 None]
 --custom-templates - Custom templates folder [default: None]
 

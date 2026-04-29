@@ -105,20 +105,20 @@ Workflows are composed of one or more **steps**, where each step is executed seq
 
 The orchestrator supports several kinds of steps to cover different use cases:
 
-- **`step`** [functional docs for step]  
+- **`step`** [functional docs for step]
   Executes specific business logic or external API calls as part of the subscription process.
 
-- **`retrystep`** [functional docs for retrystep]  
+- **`retrystep`** [functional docs for retrystep]
   Similar to `step`, but designed for operations that may fail intermittently. These steps will automatically be retried periodically on failure.
 
-- **`inputstep`** [functional docs for inputstep]  
+- **`inputstep`** [functional docs for inputstep]
   Pauses the workflow to request and receive user input during execution.
 
-- **`conditional`** [functional docs for conditional]  
-  Conditionally executes the step based on environment variables or process state.  
+- **`conditional`** [functional docs for conditional]
+  Conditionally executes the step based on environment variables or process state.
   If the condition evaluates to false, the step is skipped entirely.
 
-- **`callback_step`** [functional docs for callback_step]  
+- **`callback_step`** [functional docs for callback_step]
   Pauses workflow execution while waiting for a external event to complete.
 
 For a practical example of how to define reusable workflow steps—and how to leverage singledispatch for type-specific logic—see:
@@ -138,17 +138,33 @@ This behavior can be changed in the `WF_USABLE_MAP` data structure:
 
 > note: Terminate workflows are by default, allowed to run on subscriptions in any lifecycle state unless explicitly restricted in this map.
 
-```python
-from orchestrator.core.services.subscriptions import WF_USABLE_MAP
+=== "`orchestrator-core` ≥ 5.0"
 
-WF_USABLE_MAP.update(
-    {
-        "validate_node_enrollment": ["active", "provisioning"],
-        "provision_node_enrollment": ["active", "provisioning"],
-        "modify_node_enrollment": ["provisioning"],
-    }
-)
-```
+    ```python
+    from orchestrator.core.services.subscriptions import WF_USABLE_MAP
+
+    WF_USABLE_MAP.update(
+        {
+            "validate_node_enrollment": ["active", "provisioning"],
+            "provision_node_enrollment": ["active", "provisioning"],
+            "modify_node_enrollment": ["provisioning"],
+        }
+    )
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.services.subscriptions import WF_USABLE_MAP
+
+    WF_USABLE_MAP.update(
+        {
+            "validate_node_enrollment": ["active", "provisioning"],
+            "provision_node_enrollment": ["active", "provisioning"],
+            "modify_node_enrollment": ["provisioning"],
+        }
+    )
+    ```
 
 Now validate and provision can be run on subscriptions in either `ACTIVE` or `PROVISIONING` states and modify can *only* be run on subscriptions in the `PROVISIONING` state.
 
@@ -157,15 +173,29 @@ Now validate and provision can be run on subscriptions in either `ACTIVE` or `PR
 By default, only terminate workflows are prohibited from running on subscriptions with unterminated `in_use_by` subscriptions.
 This behavior can be changed in the `WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS` data structure:
 
-```python
-from orchestrator.core.services.subscriptions import WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS
+=== "`orchestrator-core` ≥ 5.0"
 
-WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS.update(
-    {
-        "modify_node_enrollment": True
-    }
-)
-```
+    ```python
+    from orchestrator.core.services.subscriptions import WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS
+
+    WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS.update(
+        {
+            "modify_node_enrollment": True
+        }
+    )
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.services.subscriptions import WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS
+
+    WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS.update(
+        {
+            "modify_node_enrollment": True
+        }
+    )
+    ```
 
 With this configuration, both terminate and modify will not run on subscriptions with unterminated `in_use_by` subscriptions.
 
@@ -174,15 +204,29 @@ With this configuration, both terminate and modify will not run on subscriptions
 By default, only system workflows (tasks) are allowed to run on subscriptions that are not in sync.
 This behavior can be changed with the `WF_USABLE_WHILE_OUT_OF_SYNC` data structure:
 
-```python
-from orchestrator.core.services.subscriptions import WF_USABLE_WHILE_OUT_OF_SYNC
+=== "`orchestrator-core` ≥ 5.0"
 
-WF_USABLE_WHILE_OUT_OF_SYNC.extend(
-    [
-        "modify_description"
-    ]
-)
-```
+    ```python
+    from orchestrator.core.services.subscriptions import WF_USABLE_WHILE_OUT_OF_SYNC
+
+    WF_USABLE_WHILE_OUT_OF_SYNC.extend(
+        [
+            "modify_description"
+        ]
+    )
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.services.subscriptions import WF_USABLE_WHILE_OUT_OF_SYNC
+
+    WF_USABLE_WHILE_OUT_OF_SYNC.extend(
+        [
+            "modify_description"
+        ]
+    )
+    ```
 
 Now this particular modify workflow can be run on subscriptions that are not in sync.
 

@@ -35,20 +35,39 @@ from the rest of the code.
 
 Create the file `products/__init__.py` and add the following code:
 
-```python
-from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+=== "`orchestrator-core` ≥ 5.0"
 
-from products.product_types.user import User
-from products.product_types.user_group import UserGroup
+    ```python
+    from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 
-SUBSCRIPTION_MODEL_REGISTRY.update(
-    {
-        "User Group": UserGroup,
-        "User internal": User,
-        "User external": User,
-    }
-)
-```
+    from products.product_types.user import User
+    from products.product_types.user_group import UserGroup
+
+    SUBSCRIPTION_MODEL_REGISTRY.update(
+        {
+            "User Group": UserGroup,
+            "User internal": User,
+            "User external": User,
+        }
+    )
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+
+    from products.product_types.user import User
+    from products.product_types.user_group import UserGroup
+
+    SUBSCRIPTION_MODEL_REGISTRY.update(
+        {
+            "User Group": UserGroup,
+            "User internal": User,
+            "User external": User,
+        }
+    )
+    ```
 
 To make Python execute this code, add the following import statement to
 `main.py`:

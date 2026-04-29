@@ -49,30 +49,60 @@ performance and errors more effectively.
 **3. Update `main.py` file**
 
 Add the following code to the `main.py` file of the `orchestrator-core` application:
-```python
-from orchestrator.core import OrchestratorCore
-from orchestrator.core.cli.main import app as core_cli
-from orchestrator.core.settings import AppSettings
-from my_orchestrator.settings import my_settings
 
-app = OrchestratorCore(base_settings=AppSettings())
+=== "`orchestrator-core` ≥ 5.0"
 
-if app.base_settings.TRACING_ENABLED and app.base_settings.ENVIRONMENT != "local":
-    from orchestrator.core.app import sentry_integrations
-    from sentry_sdk.integrations.httpx import HttpxIntegration
+    ```python
+    from orchestrator.core import OrchestratorCore
+    from orchestrator.core.cli.main import app as core_cli
+    from orchestrator.core.settings import AppSettings
+    from my_orchestrator.settings import my_settings
 
-    sentry_integrations.append(HttpxIntegration())
+    app = OrchestratorCore(base_settings=AppSettings())
 
-    app.add_sentry(
-        my_settings.SENTRY_DSN,
-        my_settings.TRACE_SAMPLE_RATE,
-        app.base_settings.SERVICE_NAME,
-        app.base_settings.ENVIRONMENT,
-    )
+    if app.base_settings.TRACING_ENABLED and app.base_settings.ENVIRONMENT != "local":
+        from orchestrator.core.app import sentry_integrations
+        from sentry_sdk.integrations.httpx import HttpxIntegration
 
-if __name__ == "__main__":
-    core_cli()
-```
+        sentry_integrations.append(HttpxIntegration())
+
+        app.add_sentry(
+            my_settings.SENTRY_DSN,
+            my_settings.TRACE_SAMPLE_RATE,
+            app.base_settings.SERVICE_NAME,
+            app.base_settings.ENVIRONMENT,
+        )
+
+    if __name__ == "__main__":
+        core_cli()
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator import OrchestratorCore
+    from orchestrator.cli.main import app as core_cli
+    from orchestrator.settings import AppSettings
+    from my_orchestrator.settings import my_settings
+
+    app = OrchestratorCore(base_settings=AppSettings())
+
+    if app.base_settings.TRACING_ENABLED and app.base_settings.ENVIRONMENT != "local":
+        from orchestrator.app import sentry_integrations
+        from sentry_sdk.integrations.httpx import HttpxIntegration
+
+        sentry_integrations.append(HttpxIntegration())
+
+        app.add_sentry(
+            my_settings.SENTRY_DSN,
+            my_settings.TRACE_SAMPLE_RATE,
+            app.base_settings.SERVICE_NAME,
+            app.base_settings.ENVIRONMENT,
+        )
+
+    if __name__ == "__main__":
+        core_cli()
+    ```
 
 !!! note
     - It's recommended to use separate Sentry projects for different environments (production,
