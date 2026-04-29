@@ -347,9 +347,7 @@ def upgrade() -> None:
     )
     # ### end Alembic commands ###
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE TYPE public.tsq_state AS (
             search_query text,
             parentheses_stack integer,
@@ -360,13 +358,9 @@ def upgrade() -> None:
             previous_char text,
             tokens text[]
             )
-        """
-        )
-    )
+        """))
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE FUNCTION public.array_nremove(anyarray, anyelement, integer) RETURNS anyarray
             LANGUAGE sql IMMUTABLE
             AS $_$
@@ -392,12 +386,8 @@ def upgrade() -> None:
                 WHERE index NOT IN (SELECT position FROM replaced_positions)
             ), $1[1:0]);
         $_$;
-        """
-        )
-    )
-    conn.execute(
-        sa.text(
-            """
+        """))
+    conn.execute(sa.text("""
         CREATE FUNCTION public.fixed_inputs_trigger() RETURNS trigger
             LANGUAGE plpgsql
             AS $$
@@ -406,12 +396,8 @@ def upgrade() -> None:
             RETURN NEW;
         END
         $$;
-        """
-        )
-    )
-    conn.execute(
-        sa.text(
-            """
+        """))
+    conn.execute(sa.text("""
         CREATE FUNCTION public.generate_subscription_tsv(sub_id uuid) RETURNS tsvector
             LANGUAGE plpgsql
             AS $$
@@ -511,13 +497,9 @@ def upgrade() -> None:
             RETURN gen_tsv;
         END
         $$;
-        """
-        )
-    )
+        """))
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE FUNCTION public.products_trigger() RETURNS trigger
             LANGUAGE plpgsql
             AS $$
@@ -526,12 +508,8 @@ def upgrade() -> None:
             RETURN NEW;
         END
         $$;
-        """
-        )
-    )
-    conn.execute(
-        sa.text(
-            """
+        """))
+    conn.execute(sa.text("""
         CREATE FUNCTION public.subscription_customer_descriptions_trigger() RETURNS trigger
             LANGUAGE plpgsql
             AS $$
@@ -540,12 +518,8 @@ def upgrade() -> None:
             RETURN NEW;
         END
         $$;
-        """
-        )
-    )
-    conn.execute(
-        sa.text(
-            """
+        """))
+    conn.execute(sa.text("""
         CREATE FUNCTION public.subscription_instance_values_trigger() RETURNS trigger
             LANGUAGE plpgsql
             AS $$
@@ -560,13 +534,9 @@ def upgrade() -> None:
             RETURN NEW;
         END
         $$;
-        """
-        )
-    )
+        """))
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE FUNCTION public.subscriptions_ins_trigger() RETURNS trigger
             LANGUAGE plpgsql
             AS $$
@@ -600,13 +570,9 @@ def upgrade() -> None:
             RETURN NEW;
         END
         $$;
-        """
-        )
-    )
+        """))
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE FUNCTION public.subscriptions_upd_trigger() RETURNS trigger
             LANGUAGE plpgsql
             AS $$
@@ -621,13 +587,9 @@ def upgrade() -> None:
             RETURN NULL;
         END
         $$;
-        """
-        )
-    )
+        """))
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE FUNCTION public.tsq_append_current_token(state public.tsq_state) RETURNS public.tsq_state
             LANGUAGE plpgsql IMMUTABLE
             AS $$
@@ -639,13 +601,9 @@ def upgrade() -> None:
             RETURN state;
         END;
         $$;
-        """
-        )
-    )
+        """))
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE FUNCTION public.tsq_process_tokens(config regconfig, tokens text[]) RETURNS tsquery
             LANGUAGE plpgsql IMMUTABLE
             AS $$
@@ -701,13 +659,9 @@ def upgrade() -> None:
             RETURN to_tsquery(config, result_query);
         END;
         $$;
-        """
-        )
-    )
+        """))
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE FUNCTION public.tsq_tokenize(search_query text) RETURNS text[]
             LANGUAGE plpgsql IMMUTABLE
             AS $$
@@ -751,61 +705,41 @@ def upgrade() -> None:
             RETURN state.tokens;
         END;
         $$;
-        """
-        )
-    )
+        """))
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE FUNCTION public.tsq_parse(config regconfig, search_query text) RETURNS tsquery
             LANGUAGE sql IMMUTABLE
             AS $$
             SELECT tsq_process_tokens(config, tsq_tokenize(search_query));
         $$;
-        """
-        )
-    )
+        """))
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE FUNCTION public.tsq_parse(config text, search_query text) RETURNS tsquery
             LANGUAGE sql IMMUTABLE
             AS $$
             SELECT tsq_parse(config::regconfig, search_query);
         $$;
-        """
-        )
-    )
+        """))
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE FUNCTION public.tsq_parse(search_query text) RETURNS tsquery
             LANGUAGE sql IMMUTABLE
             AS $$
             SELECT tsq_parse(get_current_ts_config(), search_query);
         $$;
-        """
-        )
-    )
+        """))
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE FUNCTION public.tsq_process_tokens(tokens text[]) RETURNS tsquery
             LANGUAGE sql IMMUTABLE
             AS $$
             SELECT tsq_process_tokens(get_current_ts_config(), tokens);
         $$;
-        """
-        )
-    )
+        """))
 
-    conn.execute(
-        sa.text(
-            """
+    conn.execute(sa.text("""
         CREATE FUNCTION public.tsq_tokenize_character(state public.tsq_state) RETURNS public.tsq_state
             LANGUAGE plpgsql IMMUTABLE
             AS $$
@@ -849,9 +783,7 @@ def upgrade() -> None:
             RETURN state;
         END;
         $$;
-        """
-        )
-    )
+        """))
 
     conn.execute(
         sa.text(

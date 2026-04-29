@@ -132,8 +132,7 @@ def get_subscriptions_query_with_relations(
     in_use_by_filter: dict[str, str] | None = None,
     in_use_by_subscription_filter: dict[str, str] | None = None,
 ) -> bytes:
-    query = build_subscriptions_relation_query(
-        """{
+    query = build_subscriptions_relation_query("""{
     page {
       description
       subscriptionId
@@ -173,8 +172,7 @@ def get_subscriptions_query_with_relations(
       hasNextPage
     }
   }
-    """
-    )
+    """)
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",

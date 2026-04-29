@@ -31,8 +31,7 @@ def upgrade() -> None:
     try:
         op.alter_column("processes", "workflow_id", nullable=False)
     except IntegrityError:
-        raise Exception(
-            """
+        raise Exception("""
         Migration failed due to processes.workflow rows that have a workflow name that no longer exists.
 
         After this update, each process must be linked to a workflow.
@@ -41,13 +40,10 @@ def upgrade() -> None:
         1) Make a backup of the processes that are not linked to a workflow (i.e. processes.workflow does match a workflows.name).
         2) Manually delete the rows in processes that are not linked to a workflow.
         3) Re-run this migration.
-        """
-        )
+        """)
 
-    op.execute(
-        """ALTER TABLE processes
-        ADD CONSTRAINT processes_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES workflows (workflow_id);"""
-    )
+    op.execute("""ALTER TABLE processes
+        ADD CONSTRAINT processes_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES workflows (workflow_id);""")
     op.drop_column("processes", "workflow")
 
     # Add deleted_at column to workflows table

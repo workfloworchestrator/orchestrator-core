@@ -34,8 +34,7 @@ def upgrade() -> None:
     # sa.select
     # ### end Alembic commands ###
     # Backfill started_at field correctly using proper aliasing
-    op.execute(
-        """
+    op.execute("""
         WITH backfill_started_at AS (
             SELECT
                 ps1.stepid,
@@ -54,8 +53,7 @@ def upgrade() -> None:
         SET started_at = b.new_started_at
         FROM backfill_started_at b
         WHERE process_steps.stepid = b.stepid;
-    """
-    )
+    """)
 
 
 def downgrade() -> None:

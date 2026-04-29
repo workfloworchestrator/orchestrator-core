@@ -94,7 +94,7 @@ def _filter_comparable(field: ColumnClause, value_converter: Callable[[str], Any
         range_comparison_op = next((op for op in [">=", "<=", ">", "<"] if v.startswith(op)), "")
         if range_comparison_op:
             op = RANGE_TYPES.get(range_comparison_op)
-            return op(field, value_converter(v[len(range_comparison_op) :]))  # type:ignore
+            return op(field, value_converter(v[len(range_comparison_op) :]))  # type: ignore
         return _default_clause(node)
 
     return _clause_gen

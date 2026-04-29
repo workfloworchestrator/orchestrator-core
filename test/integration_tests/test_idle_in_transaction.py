@@ -138,6 +138,5 @@ def test_repeat_from_subscription_no_growing_leak(
 
     after = len(_idle_in_tx_pids(observer, datname))
     assert after <= baseline, (
-        f"idle-in-tx connection count grew from {baseline} to {after} after 4 reads; "
-        "indicates a per-call leak"
+        f"idle-in-tx connection count grew from {baseline} to {after} after 4 reads; " "indicates a per-call leak"
     )
