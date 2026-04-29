@@ -324,60 +324,14 @@ def db_session(database):
         database: fixture for providing an initialized database.
 
     """
-    from sqlalchemy import event
-
     with closing(db.wrapped_database.engine.connect()) as test_connection:
-        # join_transaction_mode="create_savepoint" makes app-side commit()/rollback()
-        # operate on a SAVEPOINT inside the outer test transaction. Without it, an
-        # app code path that calls db.session.rollback() (e.g. transactional()'s
-        # safeguard rollback on FormValidationError) would roll back the outer test
-        # transaction and discard fixture data added before the test ran.
-        db.wrapped_database.session_factory = sessionmaker(
-            **SESSION_ARGUMENTS, bind=test_connection, join_transaction_mode="create_savepoint"
-        )
+        db.wrapped_database.session_factory = sessionmaker(**SESSION_ARGUMENTS, bind=test_connection)
         db.wrapped_database.scoped_session = scoped_session(db.session_factory, db._scopefunc)
         BaseModel.set_query(cast(SearchQuery, db.wrapped_database.scoped_session.query_property()))
 
         trans = test_connection.begin()
-
-        # When a savepoint ends (commit or rollback) we immediately begin a new one,
-        # so subsequent app-side commits in the same test still scope to a savepoint
-        # inside the outer test transaction (avoids PendingRollbackError on tests
-        # that commit/rollback repeatedly or across threads).
-        @event.listens_for(db.wrapped_database.session_factory, "after_transaction_end")  # type: ignore[untyped-decorator]
-        def restart_savepoint(session: Any, transaction: Any) -> None:
-            if transaction.nested and not transaction._parent.nested:
-                session.expire_all()
-                session.begin_nested()
-
-        # Production database_scope() yields then *removes* the scoped session,
-        # which calls Session.close() and rolls back any active nested
-        # transaction. With join_transaction_mode="create_savepoint" + the
-        # restart_savepoint listener above, the session always has an active
-        # SAVEPOINT at scope-exit time. In tests where multiple scopes nest
-        # (HTTP middleware → workflow worker), the inner scope's commits
-        # release SAVEPOINTs *into* the outer scope's SAVEPOINT, and that
-        # outer SAVEPOINT then rolls back on close — silently discarding
-        # writes made by the inner scope. Patching the scope to commit
-        # before remove releases the SAVEPOINT into the outer test tx, where
-        # it stays until trans.rollback() at fixture teardown.
-        @contextmanager
-        def _commit_then_close_scope(*args: Any, **kwargs: Any) -> Any:
-            token = db.wrapped_database.request_context.set(str(uuid4()))
-            db.wrapped_database.scoped_session(**kwargs)
-            try:
-                yield db.wrapped_database
-            finally:
-                try:
-                    db.session.commit()
-                except Exception:
-                    db.session.rollback()
-                db.wrapped_database.scoped_session.remove()
-                db.wrapped_database.request_context.reset(token)
-
         try:
-            with patch.object(db.wrapped_database, "database_scope", _commit_then_close_scope):
-                yield
+            yield
         finally:
             # Ensure all connections are closed
             try:

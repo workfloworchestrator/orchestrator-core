@@ -12,8 +12,6 @@
 # limitations under the License.
 import time
 import uuid
-from collections.abc import Callable
-from concurrent.futures import Future
 from http import HTTPStatus
 from threading import Condition, Event
 from unittest import mock
@@ -510,11 +508,7 @@ def test_resume_all_processes(test_client, mocked_processes_resumeall):
     assert response.json()["count"] == 3
 
 
-@mock.patch("orchestrator.services.processes.get_thread_pool")
-@mock.patch("orchestrator.services.processes.resume_process")
-def test_resume_all_processes_multiple_calls(
-    mock_resume_process, mock_get_thread_pool, test_client, mocked_processes_resumeall
-):
+def test_resume_all_processes_multiple_calls(test_client, mocked_processes_resumeall):
     """Test only 1 of multiple resume-all calls is successful.
 
     This uses the "MemoryDistlockManager" reference implementation.
@@ -524,58 +518,15 @@ def test_resume_all_processes_multiple_calls(
     def resume_noop(*args, **kwargs):
         event.wait(2)  # To keep the lock open for a while
 
-    mock_resume_process.side_effect = resume_noop
-
-    # The pytest db_session fixture binds the session_factory to a single
-    # shared test_connection with join_transaction_mode="create_savepoint".
-    # When _async_resume_processes submits its background `run()` to a real
-    # ThreadPoolExecutor, that worker thread issues queries (and thus
-    # SAVEPOINT/RELEASE) on the same DBAPI connection that the test thread is
-    # still using to drive the TestClient. SQLAlchemy connections and their
-    # savepoint stacks are not thread-safe; the concurrent access leaves the
-    # connection in an "invalid savepoint" state and breaks fixture teardown
-    # with PendingRollbackError.
-    #
-    # We don't actually need real OS-thread concurrency to exercise the
-    # MemoryDistlockManager: the lock is acquired in the request handler
-    # *before* `run()` is submitted, and only released by `run()` itself.
-    # Replacing the executor with one that defers execution makes all five
-    # requests observe the lock as held (so 1 OK + 4 CONFLICT) without any
-    # second thread touching the test's DB connection. The deferred jobs are
-    # then executed serially on the test thread after we've collected the
-    # responses, which still exercises the real `run()` body and lock release
-    # path.
-    deferred_jobs: list[tuple[Future, Callable, tuple, dict]] = []
-
-    class _DeferredExecutor:
-        def submit(self, fn, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003, ANN201
-            future: Future = Future()
-            deferred_jobs.append((future, fn, args, kwargs))
-            return future
-
-        def shutdown(self, wait=True):  # noqa: ANN001, ANN201
-            pass
-
-    mock_get_thread_pool.return_value = _DeferredExecutor()
-
     # Disable Testing setting since we want to run async
     app_settings.TESTING = False
-    try:
+
+    with mock.patch("orchestrator.services.processes.resume_process", new=resume_noop):
         responses = [test_client.put("/api/processes/resume-all") for _ in range(5)]
         responses.sort(key=lambda r: r.status_code)
-        # The mocked `resume_noop` would block for 2s if executed; signal it
-        # immediately so the deferred job below completes promptly.
         event.set()
 
-        # Now run the deferred jobs on this thread so the real `run()` body
-        # (including distlock release) executes against the test connection.
-        for future, fn, args, kwargs in deferred_jobs:
-            try:
-                future.set_result(fn(*args, **kwargs))
-            except BaseException as exc:  # pragma: no cover - safety net
-                future.set_exception(exc)
-    finally:
-        app_settings.TESTING = True
+    app_settings.TESTING = True
 
     assert responses[0].status_code == HTTPStatus.OK
     assert responses[0].json()["count"] == 3
