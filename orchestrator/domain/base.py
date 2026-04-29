@@ -46,6 +46,7 @@ from orchestrator.db import (
     SubscriptionInstanceValueTable,
     SubscriptionTable,
     db,
+    transactional,
 )
 from orchestrator.db.queries.subscription_instance import get_subscription_instance_dict
 from orchestrator.domain.helpers import (
@@ -1382,8 +1383,9 @@ class SubscriptionModel(DomainModel):
         if cached_model := get_from_cache(subscription_id):
             return cast(S, cached_model)
 
-        if not (subscription := cls._get_subscription(subscription_id)):
-            raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
+        with transactional(db, logger):
+            if not (subscription := cls._get_subscription(subscription_id)):
+                raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
         product = cls._to_product_model(subscription.product)
 
         status = SubscriptionLifecycle(subscription.status)
@@ -1404,7 +1406,8 @@ class SubscriptionModel(DomainModel):
 
         fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
 
-        instances = cls._load_root_instances(subscription_id)
+        with transactional(db, logger):
+            instances = cls._load_root_instances(subscription_id)
 
         try:
             model = cls(
