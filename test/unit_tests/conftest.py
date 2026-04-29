@@ -350,20 +350,33 @@ def db_session(database):
                 session.expire_all()
                 session.begin_nested()
 
-        # In tests we want a single shared Session bound to the outer test
-        # transaction so SAVEPOINT-based isolation works. Production opens new
-        # sessions per scope (HTTP request middleware, threadpool workflow
-        # workers) which join the outer test tx via *additional* SAVEPOINTs.
-        # When such a scope closes, its active nested tx rolls back, silently
-        # discarding writes made within it (e.g. workflow worker writes that
-        # the next test_client GET expects to see). Replacing database_scope()
-        # with a no-op keeps every code path on the test's single session.
+        # Production database_scope() yields then *removes* the scoped session,
+        # which calls Session.close() and rolls back any active nested
+        # transaction. With join_transaction_mode="create_savepoint" + the
+        # restart_savepoint listener above, the session always has an active
+        # SAVEPOINT at scope-exit time. In tests where multiple scopes nest
+        # (HTTP middleware → workflow worker), the inner scope's commits
+        # release SAVEPOINTs *into* the outer scope's SAVEPOINT, and that
+        # outer SAVEPOINT then rolls back on close — silently discarding
+        # writes made by the inner scope. Patching the scope to commit
+        # before remove releases the SAVEPOINT into the outer test tx, where
+        # it stays until trans.rollback() at fixture teardown.
         @contextmanager
-        def _noop_database_scope(*args: Any, **kwargs: Any) -> Any:
-            yield db.wrapped_database
+        def _commit_then_close_scope(*args: Any, **kwargs: Any) -> Any:
+            token = db.wrapped_database.request_context.set(str(uuid4()))
+            db.wrapped_database.scoped_session(**kwargs)
+            try:
+                yield db.wrapped_database
+            finally:
+                try:
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                db.wrapped_database.scoped_session.remove()
+                db.wrapped_database.request_context.reset(token)
 
         try:
-            with patch.object(db.wrapped_database, "database_scope", _noop_database_scope):
+            with patch.object(db.wrapped_database, "database_scope", _commit_then_close_scope):
                 yield
         finally:
             # Ensure all connections are closed
