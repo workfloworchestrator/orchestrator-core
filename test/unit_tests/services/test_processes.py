@@ -1095,7 +1095,7 @@ def test_create_process_rolls_back_on_form_not_complete(mock_get_workflow, mock_
     def _select_then_raise(*args, **kwargs):
         # Simulate a form generator that SELECTs subscription data before its first yield.
         db.session.execute(select(ProcessTable).limit(1))
-        raise FormNotCompleteError()
+        raise FormNotCompleteError({})
 
     mock_post_form.side_effect = _select_then_raise
 
@@ -1131,7 +1131,7 @@ def test_resume_process_rolls_back_on_form_not_complete(mock_load_process, mock_
 
     def _select_then_raise(*args, **kwargs):
         db.session.execute(select(ProcessTable).limit(1))
-        raise FormNotCompleteError()
+        raise FormNotCompleteError({})
 
     mock_post_form.side_effect = _select_then_raise
 
