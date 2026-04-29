@@ -934,26 +934,26 @@ def test_start_process(
     mock_get_process.return_value = MagicMock(spec=ProcessTable)
     mock_db.return_value = MagicMock(session=MagicMock())
 
-    result = start_process(mock.sentinel.wf_name, [{"a": 2}], mock.sentinel.user)
+    result = start_process(str(mock.sentinel.wf_name), [{"a": 2}], str(mock.sentinel.user))
 
     initial_state = {
         "a": 1,
         "process_id": mock.ANY,
-        "reporter": mock.sentinel.user,
-        "workflow_name": mock.sentinel.wf_name,
-        "workflow_target": Target.SYSTEM,
+        "reporter": str(mock.sentinel.user),
+        "workflow_name": str(mock.sentinel.wf_name),
+        "workflow_target": Target.SYSTEM.value,
     }
     mock_store_input_state.assert_called_once_with(mock.ANY, initial_state, "initial_state")
     mock_retrieve_input_state.assert_called_once_with(mock.ANY, "initial_state", False)
     pstat = mock_db_create_process.call_args[0][0]
     assert result == mock.sentinel.process_id
-    assert pstat.current_user == mock.sentinel.user
+    assert pstat.current_user == str(mock.sentinel.user)
     assert pstat.state.status == StepStatus.SUCCESS
     assert pstat.workflow == wf
     assert pstat.state.unwrap() == {
         "process_id": mock.ANY,
-        "reporter": mock.sentinel.user,
-        "workflow_name": mock.sentinel.wf_name,
+        "reporter": str(mock.sentinel.user),
+        "workflow_name": str(mock.sentinel.wf_name),
         "workflow_target": Target.SYSTEM,
         "a": 1,
     }
@@ -962,8 +962,8 @@ def test_start_process(
         mock.ANY,
         {
             "process_id": mock.ANY,
-            "reporter": mock.sentinel.user,
-            "workflow_name": mock.sentinel.wf_name,
+            "reporter": str(mock.sentinel.user),
+            "workflow_name": str(mock.sentinel.wf_name),
             "workflow_target": Target.SYSTEM,
         },
         [{"a": 2}],
@@ -1104,9 +1104,9 @@ def test_create_process_rolls_back_on_form_not_complete(mock_get_workflow, mock_
     with pytest.raises(FormNotCompleteError):
         create_process("name")
 
-    assert not db.session.in_transaction(), (
-        "create_process left an open transaction - post_form ran outside transactional() context"
-    )
+    assert (
+        not db.session.in_transaction()
+    ), "create_process left an open transaction - post_form ran outside transactional() context"
 
 
 @mock.patch("orchestrator.services.processes.post_form")
@@ -1140,9 +1140,9 @@ def test_resume_process_rolls_back_on_form_not_complete(mock_load_process, mock_
     with pytest.raises(FormNotCompleteError):
         resume_process(process, user_inputs=None, user=mock.sentinel.user)
 
-    assert not db.session.in_transaction(), (
-        "resume_process left an open transaction - post_form ran outside transactional() context"
-    )
+    assert (
+        not db.session.in_transaction()
+    ), "resume_process left an open transaction - post_form ran outside transactional() context"
 
 
 @mock.patch("orchestrator.services.processes.load_process")
