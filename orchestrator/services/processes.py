@@ -505,7 +505,9 @@ def create_process(
                 user_model=user_model,
             )
             _db_create_process(pstat)
-            store_input_state(process_id, state | initial_state, "initial_state")
+            # Flatten live Pydantic models to plain dicts BEFORE the JSONB write so that
+            # @computed_field properties don't fire DB queries inside Session.flush().
+            store_input_state(process_id, json_loads(json_dumps(state | initial_state)), "initial_state")
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
@@ -605,7 +607,9 @@ def resume_process(
         with transactional(db, logger):
             logger.info("Dit is met een transactional")
             user_input = post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [{}])
-            store_input_state(pstat.process_id, user_input, "user_input")
+            # Flatten live Pydantic models to plain dicts BEFORE the JSONB write so that
+            # @computed_field properties don't fire DB queries inside Session.flush().
+            store_input_state(pstat.process_id, json_loads(json_dumps(user_input)), "user_input")
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
