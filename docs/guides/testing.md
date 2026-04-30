@@ -58,25 +58,49 @@ The `assert_*` helpers for terminal state each raise with a descriptive message 
 
 Mark workflow tests with `@pytest.mark.workflow`. The `responses` HTTP mock fixture is active automatically (see [HTTP mocking](#http-mocking)); include it in the test signature only when you need to register mocks with `responses.add()`:
 
-```python
-import pytest
-from orchestrator.db import ProductTable
-from sqlalchemy import select
-from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
+=== "`orchestrator-core` ≥ 5.0"
 
-@pytest.mark.workflow
-def test_create_my_product(responses, db_session):
-    product = db_session.scalars(select(ProductTable).where(ProductTable.name == "MyProduct")).one()
+    ```python
+    import pytest
+    from orchestrator.core.db import ProductTable
+    from sqlalchemy import select
+    from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
-    result, process, step_log = run_workflow(
-        "create_my_product",
-        [{"product": product.product_id}, {"customer_id": CUSTOMER_ID, "field": "value"}],
-    )
+    @pytest.mark.workflow
+    def test_create_my_product(responses, db_session):
+        product = db_session.scalars(select(ProductTable).where(ProductTable.name == "MyProduct")).one()
 
-    assert_complete(result)
-    state = extract_state(result)
-    assert state["field"] == "value"
-```
+        result, process, step_log = run_workflow(
+            "create_my_product",
+            [{"product": product.product_id}, {"customer_id": CUSTOMER_ID, "field": "value"}],
+        )
+
+        assert_complete(result)
+        state = extract_state(result)
+        assert state["field"] == "value"
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    import pytest
+    from orchestrator.db import ProductTable
+    from sqlalchemy import select
+    from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
+
+    @pytest.mark.workflow
+    def test_create_my_product(responses, db_session):
+        product = db_session.scalars(select(ProductTable).where(ProductTable.name == "MyProduct")).one()
+
+        result, process, step_log = run_workflow(
+            "create_my_product",
+            [{"product": product.product_id}, {"customer_id": CUSTOMER_ID, "field": "value"}],
+        )
+
+        assert_complete(result)
+        state = extract_state(result)
+        assert state["field"] == "value"
+    ```
 
 The `input_data` argument is a list of dicts — one dict per form page in the workflow. Create workflows typically take `[{"product": product_id}, {...field inputs...}]`.
 
@@ -109,24 +133,47 @@ Repeat the `assert_suspended` / `resume_workflow` cycle for each suspension poin
 
 To test a workflow defined inline (not registered in `ALL_WORKFLOWS`), use `WorkflowInstanceForTests` as a context manager:
 
-```python
-from orchestrator.targets import Target
-from orchestrator.workflow import begin, done, inputstep, step, workflow
-from test.unit_tests.workflows import WorkflowInstanceForTests, assert_complete, assert_suspended, resume_workflow, run_workflow
+=== "`orchestrator-core` ≥ 5.0"
 
-def test_my_inline_workflow():
-    @step("Do work")
-    def do_work():
-        return {"result": 42}
+    ```python
+    from orchestrator.core.targets import Target
+    from orchestrator.core.workflow import begin, done, inputstep, step, workflow
+    from test.unit_tests.workflows import WorkflowInstanceForTests, assert_complete, assert_suspended, resume_workflow, run_workflow
 
-    @workflow(target=Target.CREATE)
-    def my_wf():
-        return begin >> do_work >> done
+    def test_my_inline_workflow():
+        @step("Do work")
+        def do_work():
+            return {"result": 42}
 
-    with WorkflowInstanceForTests(my_wf, "my_wf"):
-        result, process, step_log = run_workflow("my_wf", {})
-        assert_complete(result)
-```
+        @workflow(target=Target.CREATE)
+        def my_wf():
+            return begin >> do_work >> done
+
+        with WorkflowInstanceForTests(my_wf, "my_wf"):
+            result, process, step_log = run_workflow("my_wf", {})
+            assert_complete(result)
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.targets import Target
+    from orchestrator.workflow import begin, done, inputstep, step, workflow
+    from test.unit_tests.workflows import WorkflowInstanceForTests, assert_complete, assert_suspended, resume_workflow, run_workflow
+
+    def test_my_inline_workflow():
+        @step("Do work")
+        def do_work():
+            return {"result": 42}
+
+        @workflow(target=Target.CREATE)
+        def my_wf():
+            return begin >> do_work >> done
+
+        with WorkflowInstanceForTests(my_wf, "my_wf"):
+            result, process, step_log = run_workflow("my_wf", {})
+            assert_complete(result)
+    ```
 
 ## HTTP mocking
 

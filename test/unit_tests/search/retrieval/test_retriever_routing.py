@@ -1,11 +1,4 @@
-"""Tests for Retriever.route() dispatch logic and constructed retriever attributes.
-
-Verifies that the correct retriever subclass is selected based on the combination
-of fuzzy_term, entity_type, query_embedding, and vector_query/query_text inputs,
-and that constructed retrievers carry the expected attributes.
-"""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,17 +11,24 @@ and that constructed retrievers carry the expected attributes.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for Retriever.route() dispatch logic and constructed retriever attributes.
+
+Verifies that the correct retriever subclass is selected based on the combination
+of fuzzy_term, entity_type, query_embedding, and vector_query/query_text inputs,
+and that constructed retrievers carry the expected attributes.
+"""
+
 from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.search.core.types import EntityType
-from orchestrator.search.retrieval.retrievers.base import Retriever
-from orchestrator.search.retrieval.retrievers.fuzzy import FuzzyRetriever
-from orchestrator.search.retrieval.retrievers.hybrid import RrfHybridRetriever
-from orchestrator.search.retrieval.retrievers.process import ProcessHybridRetriever
-from orchestrator.search.retrieval.retrievers.semantic import SemanticRetriever
-from orchestrator.search.retrieval.retrievers.structured import StructuredRetriever
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.retrieval.retrievers.base import Retriever
+from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
+from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
+from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
+from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
+from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 
 pytestmark = pytest.mark.search
 

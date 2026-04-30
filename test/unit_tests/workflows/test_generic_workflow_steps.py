@@ -1,10 +1,23 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from sqlalchemy import select
 
-from orchestrator.config.assignee import Assignee
-from orchestrator.db import InputStateTable
-from orchestrator.utils.functional import orig
-from orchestrator.workflow import begin, done, inputstep, step, workflow
-from orchestrator.workflows.steps import unsync
+from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.db import InputStateTable
+from orchestrator.core.utils.functional import orig
+from orchestrator.core.workflow import begin, done, inputstep, step, workflow
+from orchestrator.core.workflows.steps import unsync
 from pydantic_forms.core import FormPage
 from test.unit_tests.workflows import (
     WorkflowInstanceForTests,
@@ -84,7 +97,7 @@ def test_resume_input_state(db_session):
         assert_suspended(result)
         result, step_log = resume_workflow(process, step_log, {"stad": "Maastricht"})
         assert_complete(result)
-        from orchestrator.db import db
+        from orchestrator.core.db import db
 
         input_states = db.session.scalars(
             select(InputStateTable)

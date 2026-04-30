@@ -12,15 +12,31 @@ It's definitely worth poking around in that module to see the various input type
 
 To use the pydantic forms, you must import the `FormPage` class:
 
-```python
-from orchestrator.forms import FormPage, ReadOnlyField
-```
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.forms import FormPage, ReadOnlyField
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.forms import FormPage, ReadOnlyField
+    ```
 
 Additionally, the validators module exposes validators that also function as "input type widgets". Here is an example of importing some of the built-in validators for use in a workflow:
 
-```python
-from orchestrator.forms.validators import CustomerId, choice_list, Choice
-```
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.forms.validators import CustomerId, choice_list, Choice
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.forms.validators import CustomerId, choice_list, Choice
+    ```
 
 You can, of course, define you own validators as well simply by using pydantic validators, as described in the [pydantic documentation.](https://docs.pydantic.dev/latest/concepts/validators/)
 
@@ -73,20 +89,39 @@ The `zip()` maneuver takes the list and makes it into a dict with the same keys 
 
 Confirming actions is a common bit of functionality. This bit of code displays a read only payload from an external system, lets the user check that value and then approve that the payload is correct as a form of a dry run:
 
-```python
-from orchestrator.forms import FormPage, ReadOnlyField
-from orchestrator.forms.validators import Accept, LongText
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.forms import FormPage, ReadOnlyField
+    from orchestrator.core.forms.validators import Accept, LongText
 
 
-def confirm_dry_run_results(dry_run_results: str) -> State:
-    class ConfirmDryRun(FormPage):
-        nso_dry_run_results: LongText = ReadOnlyField(dry_run_results)
-        confirm_dry_run_results: Accept
+    def confirm_dry_run_results(dry_run_results: str) -> State:
+        class ConfirmDryRun(FormPage):
+            nso_dry_run_results: LongText = ReadOnlyField(dry_run_results)
+            confirm_dry_run_results: Accept
 
-    user_input = yield ConfirmDryRun
+        user_input = yield ConfirmDryRun
 
-    return user_input
-```
+        return user_input
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.forms import FormPage, ReadOnlyField
+    from orchestrator.forms.validators import Accept, LongText
+
+
+    def confirm_dry_run_results(dry_run_results: str) -> State:
+        class ConfirmDryRun(FormPage):
+            nso_dry_run_results: LongText = ReadOnlyField(dry_run_results)
+            confirm_dry_run_results: Accept
+
+        user_input = yield ConfirmDryRun
+
+        return user_input
+    ```
 
 #### Generic Python Types
 
@@ -135,7 +170,7 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
     return {**user_input.dict(), **user_input_node.dict()}
 ```
 
-For multistep forms especially, it can be useful to use the `orchestrator.forms.SubmitFormPage` class, which is just a subclass of `orchestrator.forms.FormPage` that has some metadata informing the frontend that this form is the last page in the flow so it can style the submit button differently. This is entirely optional.
+For multistep forms especially, it can be useful to use the `orchestrator.core.forms.SubmitFormPage` class, which is just a subclass of `orchestrator.core.forms.FormPage` that has some metadata informing the frontend that this form is the last page in the flow so it can style the submit button differently. This is entirely optional.
 
 ### Custom Form Fields
 

@@ -33,62 +33,122 @@ be populated by orchestrator.
 Here is an example that makes a HTTP request to a service that executes
 an Ansible playbook:
 
-```python
-from orchestrator import step
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core import step
 
 
-@step("Execute an ansible playbook")
-def call_ansible_playbook(
-    subscription: L2vpnProvisioning,
-    callback_route: str,
-    *,
-    dry_run: bool,
-) -> None:
-    inventory = f"{port_A.node.node_name}\n{port_B.node.node_name}"
-    port_A = subscription.virtual_circuit.saps[0].port
-    port_B = subscription.virtual_circuit.saps[1].port
+    @step("Execute an ansible playbook")
+    def call_ansible_playbook(
+        subscription: L2vpnProvisioning,
+        callback_route: str,
+        *,
+        dry_run: bool,
+    ) -> None:
+        inventory = f"{port_A.node.node_name}\n{port_B.node.node_name}"
+        port_A = subscription.virtual_circuit.saps[0].port
+        port_B = subscription.virtual_circuit.saps[1].port
 
-    extra_vars = {
-        "vlan": subscription.virtual_circuit.saps[0].vlan,
-        "SiteA": f"{port_A.node.node_name}",
-        "interfaceA": port_A.port_name,
-        "SiteB": f"{port_B.node.node_name}",
-        "interfaceB": port_B.port_name,
-    }
+        extra_vars = {
+            "vlan": subscription.virtual_circuit.saps[0].vlan,
+            "SiteA": f"{port_A.node.node_name}",
+            "interfaceA": port_A.port_name,
+            "SiteB": f"{port_B.node.node_name}",
+            "interfaceB": port_B.port_name,
+        }
 
-    callback_url = f"http://orchestrator{callback_route}"
+        callback_url = f"http://orchestrator{callback_route}"
 
-    parameters = {
-        "playbook_name": "playbook.yml",
-        "inventory": inventory,
-        "extra_vars": extra_vars,
-        "callback": callback_url,
-    }
+        parameters = {
+            "playbook_name": "playbook.yml",
+            "inventory": inventory,
+            "extra_vars": extra_vars,
+            "callback": callback_url,
+        }
 
-    url = f"http://ansible-proxy/api/playbook/"
-    request = requests.post(url, json=parameters, timeout=10)
-    request.raise_for_status()
-```
+        url = f"http://ansible-proxy/api/playbook/"
+        request = requests.post(url, json=parameters, timeout=10)
+        request.raise_for_status()
+    ```
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator import step
+
+
+    @step("Execute an ansible playbook")
+    def call_ansible_playbook(
+        subscription: L2vpnProvisioning,
+        callback_route: str,
+        *,
+        dry_run: bool,
+    ) -> None:
+        inventory = f"{port_A.node.node_name}\n{port_B.node.node_name}"
+        port_A = subscription.virtual_circuit.saps[0].port
+        port_B = subscription.virtual_circuit.saps[1].port
+
+        extra_vars = {
+            "vlan": subscription.virtual_circuit.saps[0].vlan,
+            "SiteA": f"{port_A.node.node_name}",
+            "interfaceA": port_A.port_name,
+            "SiteB": f"{port_B.node.node_name}",
+            "interfaceB": port_B.port_name,
+        }
+
+        callback_url = f"http://orchestrator{callback_route}"
+
+        parameters = {
+            "playbook_name": "playbook.yml",
+            "inventory": inventory,
+            "extra_vars": extra_vars,
+            "callback": callback_url,
+        }
+
+        url = f"http://ansible-proxy/api/playbook/"
+        request = requests.post(url, json=parameters, timeout=10)
+        request.raise_for_status()
+    ```
 
 However, this step is not included directly in the step list. To
 supplement it, we will need an additional function which also
 provides the validation step.
 
-```python
-from orchestrator.workflow import Step, callback_step
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.workflow import Step, callback_step
 
 
-def callback_interaction(provisioning_step: Step) -> StepList:
-    return (
-        begin
-        >> callback_step(
-            name=provisioning_step.name,
-            action_step=provisioning_step,
-            validate_step=_evaluate_callback_results,
+    def callback_interaction(provisioning_step: Step) -> StepList:
+        return (
+            begin
+            >> callback_step(
+                name=provisioning_step.name,
+                action_step=provisioning_step,
+                validate_step=_evaluate_callback_results,
+            )
+            >> _show_callback_results
         )
-        >> _show_callback_results
-    )
-```
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.workflow import Step, callback_step
+
+
+    def callback_interaction(provisioning_step: Step) -> StepList:
+        return (
+            begin
+            >> callback_step(
+                name=provisioning_step.name,
+                action_step=provisioning_step,
+                validate_step=_evaluate_callback_results,
+            )
+            >> _show_callback_results
+        )
+    ```
 
 We also have to provide the evaluation function, and the confirmation step.
 
@@ -108,66 +168,133 @@ UI. In the above example, the service responds with this payload:
 This allows us, in this example, to use the return code from Ansible to make
 the pass/fail decision on the step:
 
-```python
-from orchestrator import step
-from orchestrator.utils.errors import ProcessFailureError
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core import step
+    from orchestrator.core.utils.errors import ProcessFailureError
 
 
-@step("Evaluate callback result")
-def _evaluate_callback_results(callback_result: dict) -> State:
-    if callback_result["return_code"] != 0:
-        raise ProcessFailureError(message="Callback failure", details=callback_result)
+    @step("Evaluate callback result")
+    def _evaluate_callback_results(callback_result: dict) -> State:
+        if callback_result["return_code"] != 0:
+            raise ProcessFailureError(message="Callback failure", details=callback_result)
 
-    return {"callback_result": callback_result}
-```
+        return {"callback_result": callback_result}
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator import step
+    from orchestrator.utils.errors import ProcessFailureError
+
+
+    @step("Evaluate callback result")
+    def _evaluate_callback_results(callback_result: dict) -> State:
+        if callback_result["return_code"] != 0:
+            raise ProcessFailureError(message="Callback failure", details=callback_result)
+
+        return {"callback_result": callback_result}
+    ```
 
 Then we also need the step that presents the results to the operator and
 requests confirmation before proceeding:
 
-```python
-from orchestrator.config.assignee import Assignee
-from orchestrator.forms import FormPage
-from orchestrator.workflow import Step, inputstep
-from pydantic_forms.validators import LongText
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.config.assignee import Assignee
+    from orchestrator.core.forms import FormPage
+    from orchestrator.core.workflow import Step, inputstep
+    from pydantic_forms.validators import LongText
 
 
-@inputstep("Confirm provisioning proxy results", assignee=Assignee("SYSTEM"))
-def _show_callback_results(state: State) -> FormGenerator:
-    if "callback_result" not in state:
+    @inputstep("Confirm provisioning proxy results", assignee=Assignee("SYSTEM"))
+    def _show_callback_results(state: State) -> FormGenerator:
+        if "callback_result" not in state:
+            return state
+
+        class ConfirmRunPage(FormPage):
+            class Config:
+                title: str = (
+                    f"Execution for {state['subscription']['product']['name']} completed."
+                )
+
+            run_status: str = state["callback_result"]["status"]
+            run_results: LongText = json.dumps(state["callback_result"], indent=4)
+
+        yield ConfirmRunPage
+        state.pop("run_results")
         return state
+    ```
 
-    class ConfirmRunPage(FormPage):
-        class Config:
-            title: str = (
-                f"Execution for {state['subscription']['product']['name']} completed."
-            )
+=== "`orchestrator-core` < 5.0"
 
-        run_status: str = state["callback_result"]["status"]
-        run_results: LongText = json.dumps(state["callback_result"], indent=4)
+    ```python
+    from orchestrator.config.assignee import Assignee
+    from orchestrator.forms import FormPage
+    from orchestrator.workflow import Step, inputstep
+    from pydantic_forms.validators import LongText
 
-    yield ConfirmRunPage
-    state.pop("run_results")
-    return state
-```
+
+    @inputstep("Confirm provisioning proxy results", assignee=Assignee("SYSTEM"))
+    def _show_callback_results(state: State) -> FormGenerator:
+        if "callback_result" not in state:
+            return state
+
+        class ConfirmRunPage(FormPage):
+            class Config:
+                title: str = (
+                    f"Execution for {state['subscription']['product']['name']} completed."
+                )
+
+            run_status: str = state["callback_result"]["status"]
+            run_results: LongText = json.dumps(state["callback_result"], indent=4)
+
+        yield ConfirmRunPage
+        state.pop("run_results")
+        return state
+    ```
 
 Finally, we wire this all up in our StepList. Instead of including the step
 directly, provide the step as a parameter to the interaction function:
 
-```python
-from orchestrator.types import SubscriptionLifecycle
-from orchestrator.workflows.utils import create_workflow
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.types import SubscriptionLifecycle
+    from orchestrator.core.workflows.utils import create_workflow
 
 
-@create_workflow("Example workflow", initial_input_form=initial_input_form_generator)
-def create_l2vpn() -> StepList:
-    return (
-        begin
-        >> construct_model
-        >> store_process_subscription()
-        >> callback_interaction(call_ansible_playbook)
-        >> set_status(SubscriptionLifecycle.ACTIVE)
-    )
-```
+    @create_workflow("Example workflow", initial_input_form=initial_input_form_generator)
+    def create_l2vpn() -> StepList:
+        return (
+            begin
+            >> construct_model
+            >> store_process_subscription()
+            >> callback_interaction(call_ansible_playbook)
+            >> set_status(SubscriptionLifecycle.ACTIVE)
+        )
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.types import SubscriptionLifecycle
+    from orchestrator.workflows.utils import create_workflow
+
+
+    @create_workflow("Example workflow", initial_input_form=initial_input_form_generator)
+    def create_l2vpn() -> StepList:
+        return (
+            begin
+            >> construct_model
+            >> store_process_subscription()
+            >> callback_interaction(call_ansible_playbook)
+            >> set_status(SubscriptionLifecycle.ACTIVE)
+        )
+    ```
 
 ## Callback progress during execution
 

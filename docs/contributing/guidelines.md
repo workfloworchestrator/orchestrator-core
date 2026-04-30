@@ -95,7 +95,7 @@ Creating a new release is done by the developers of the project and the procedur
 
 When creating new features they can be released in so-called `pre-releases` on github.
 Depending on the feature type the developer will need to run `bumpversion (major|minor|patch)` and then `bumpversion build --allow-dirty` to create a new release candidate.
-This command will update the `.bumpversion.cfg` and the `orchestrator/__init__.py` files.
+This command will update the `.bumpversion.cfg` and the `pyproject.toml` files.
 
 The next step would be to "Create a new release" -> "Fill in the tag and check the box, create tag upon release" and
 use the checkbox "pre-release."

@@ -1,10 +1,4 @@
-"""Tests for PageCursor encode/decode roundtrips and encode_next_page_cursor logic.
-
-Covers cursor serialization, URL-safe base64 encoding, error handling for invalid
-cursors, first-page vs subsequent-page cursor generation, and DB persistence behavior.
-"""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,16 +11,22 @@ cursors, first-page vs subsequent-page cursor generation, and DB persistence beh
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for PageCursor encode/decode roundtrips and encode_next_page_cursor logic.
+
+Covers cursor serialization, URL-safe base64 encoding, error handling for invalid
+cursors, first-page vs subsequent-page cursor generation, and DB persistence behavior.
+"""
+
 import base64
 from unittest.mock import MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
 
-from orchestrator.search.core.exceptions import InvalidCursorError
-from orchestrator.search.core.types import EntityType, SearchMetadata
-from orchestrator.search.query.results import SearchResponse, SearchResult
-from orchestrator.search.retrieval.pagination import PageCursor, encode_next_page_cursor
+from orchestrator.core.search.core.exceptions import InvalidCursorError
+from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.query.results import SearchResponse, SearchResult
+from orchestrator.core.search.retrieval.pagination import PageCursor, encode_next_page_cursor
 
 pytestmark = pytest.mark.search
 
@@ -185,9 +185,9 @@ def test_first_page_saves_query_and_returns_cursor():
     mock_search_query.query_id = saved_query_id
 
     with (
-        patch("orchestrator.search.retrieval.pagination.SearchQueryTable") as mock_table,
-        patch("orchestrator.search.retrieval.pagination.db") as mock_db,
-        patch("orchestrator.search.query.state.QueryState"),
+        patch("orchestrator.core.search.retrieval.pagination.SearchQueryTable") as mock_table,
+        patch("orchestrator.core.search.retrieval.pagination.db") as mock_db,
+        patch("orchestrator.core.search.query.state.QueryState"),
     ):
         mock_table.from_state.return_value = mock_search_query
         encoded = encode_next_page_cursor(response, cursor=None, query=query_mock)
@@ -216,9 +216,9 @@ def test_first_page_uses_last_result_for_cursor():
     mock_search_query.query_id = saved_query_id
 
     with (
-        patch("orchestrator.search.retrieval.pagination.SearchQueryTable") as mock_table,
-        patch("orchestrator.search.retrieval.pagination.db"),
-        patch("orchestrator.search.query.state.QueryState"),
+        patch("orchestrator.core.search.retrieval.pagination.SearchQueryTable") as mock_table,
+        patch("orchestrator.core.search.retrieval.pagination.db"),
+        patch("orchestrator.core.search.query.state.QueryState"),
     ):
         mock_table.from_state.return_value = mock_search_query
         encoded = encode_next_page_cursor(response, cursor=None, query=query_mock)
@@ -242,8 +242,8 @@ def test_subsequent_page_reuses_cursor_query_id():
     query_mock = MagicMock()
 
     with (
-        patch("orchestrator.search.retrieval.pagination.SearchQueryTable") as mock_table,
-        patch("orchestrator.search.retrieval.pagination.db") as mock_db,
+        patch("orchestrator.core.search.retrieval.pagination.SearchQueryTable") as mock_table,
+        patch("orchestrator.core.search.retrieval.pagination.db") as mock_db,
     ):
         encoded = encode_next_page_cursor(response, cursor=existing_cursor, query=query_mock)
 
@@ -266,8 +266,8 @@ def test_subsequent_page_ignores_query_argument():
     different_query_mock = MagicMock()
 
     with (
-        patch("orchestrator.search.retrieval.pagination.SearchQueryTable"),
-        patch("orchestrator.search.retrieval.pagination.db"),
+        patch("orchestrator.core.search.retrieval.pagination.SearchQueryTable"),
+        patch("orchestrator.core.search.retrieval.pagination.db"),
     ):
         encoded = encode_next_page_cursor(response, cursor=existing_cursor, query=different_query_mock)
 

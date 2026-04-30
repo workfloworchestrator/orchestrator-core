@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from datetime import datetime
 from unittest import mock
 from uuid import uuid4
@@ -9,20 +22,20 @@ from pydantic import BaseModel, Field, ValidationError, conlist
 from sqlalchemy import func, select
 from sqlalchemy.exc import NoResultFound
 
-from orchestrator.db import (
+from orchestrator.core.db import (
     ProductTable,
     SubscriptionInstanceRelationTable,
     SubscriptionInstanceTable,
     SubscriptionInstanceValueTable,
     db,
 )
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.domain.base import (
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain.base import (
     ProductBlockModel,
     SubscriptionModel,
 )
-from orchestrator.domain.lifecycle import ProductLifecycle
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.domain.lifecycle import ProductLifecycle
+from orchestrator.core.types import SubscriptionLifecycle
 from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (
     ProductBlockListNestedForTestInactive,
 )

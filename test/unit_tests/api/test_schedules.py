@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for schedules API: create, update, delete scheduled tasks with authorization checks."""
 
 from http import HTTPStatus
@@ -7,9 +20,9 @@ from uuid import uuid4
 from inline_snapshot import snapshot
 
 from oauth2_lib.fastapi import OIDCUserModel
-from orchestrator.db.models import WorkflowApschedulerJob, WorkflowTable
-from orchestrator.targets import Target
-from orchestrator.workflow import done, init, workflow
+from orchestrator.core.db.models import WorkflowApschedulerJob, WorkflowTable
+from orchestrator.core.targets import Target
+from orchestrator.core.workflow import done, init, workflow
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
 
@@ -21,7 +34,7 @@ async def _disallow(_: OIDCUserModel | None = None) -> bool:
     return False
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
 def test_create_scheduled_task(mock_add, test_client):
     @workflow(target=Target.SYSTEM, authorize_callback=_allow)
     def create_task_wf():
@@ -89,9 +102,9 @@ def test_create_scheduled_task_unauthorized(test_client):
     )
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
-@patch("orchestrator.api.api_v1.endpoints.schedules.get_workflow_by_workflow_id")
-@patch("orchestrator.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.get_workflow_by_workflow_id")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids")
 def test_update_scheduled_task(
     mock_get_linker_entries_by_schedule_ids, mock_get_workflow_by_workflow_id, mock_add, test_client
 ):
@@ -138,7 +151,7 @@ def test_update_scheduled_task_schedule_not_found(test_client):
     assert response.json() == snapshot({"detail": "Schedule does not exist", "status": 404, "title": "Not Found"})
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids")
 def test_update_scheduled_task_task_not_found(mock_get_linker_entries_by_schedule_ids, test_client):
     body = {
         "schedule_id": str(uuid4()),
@@ -156,8 +169,8 @@ def test_update_scheduled_task_task_not_found(mock_get_linker_entries_by_schedul
     assert response.json() == snapshot({"detail": "Task does not exist", "status": 404, "title": "Not Found"})
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.get_workflow_by_workflow_id")
-@patch("orchestrator.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.get_workflow_by_workflow_id")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids")
 def test_update_scheduled_task_unauthorized(
     mock_get_linker_entries_by_schedule_ids, mock_get_workflow_by_workflow_id, test_client
 ):
@@ -190,7 +203,7 @@ def test_update_scheduled_task_unauthorized(
     )
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
 def test_delete_scheduled_task(mock_add, test_client):
     body = {
         "schedule_id": str(uuid4()),

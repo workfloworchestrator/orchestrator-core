@@ -1,4 +1,4 @@
-# Copyright 2019-2025 GÉANT, SURF, ESnet
+# Copyright 2019-2026 GÉANT, SURF, ESnet
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,9 +13,9 @@
 
 import pytest
 
-from orchestrator.utils.state import inject_args
-from orchestrator.workflow import StepList, begin, step
-from orchestrator.workflows.utils import ensure_provisioning_status
+from orchestrator.core.utils.state import inject_args
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.utils import ensure_provisioning_status
 
 
 @step("Dummy Step Success")

@@ -1,10 +1,10 @@
 # orchestrator-core — Claude Code Guide
 
 ## Project
-- **Package**: `orchestrator-core` (SURF), module `orchestrator`
-- **Version**: see `orchestrator/__init__.py`
+- **Package**: `orchestrator-core` (SURF), module `orchestrator.core`
+- **Version**: see `pyproject.toml`
 - **Stack**: FastAPI, SQLAlchemy, Pydantic v2, Strawberry GraphQL, LiteLLM
-- **Python**: 3.11–3.14 | **Package manager**: `uv` | **Build**: flit
+- **Python**: 3.11–3.14 | **Package manager**: `uv` | **Build**: `uv`
 
 ## Common Commands
 ```bash
@@ -12,7 +12,7 @@ uv run pytest test/unit_tests          # unit tests
 uv run pytest test/integration_tests   # integration tests
 uv run mypy orchestrator               # type check
 uv run ruff check orchestrator         # lint
-uv run ruff format orchestrator        # format (also: black)
+uv run ruff format orchestrator        # format
 pre-commit run --all-files             # format, lint, type check.
 ```
 
@@ -21,7 +21,7 @@ pre-commit run --all-files             # format, lint, type check.
 - **No relative imports** — all imports must be absolute (`ban-relative-imports = "all"`)
 - Type annotations required everywhere (mypy strict)
 - Docstring convention: Google style
-- Formatter: black + ruff
+- Formatter: ruff
 
 ## Code Rules
 - Code shoule be as `pure` as possible with no side effects.
@@ -37,7 +37,7 @@ pre-commit run --all-files             # format, lint, type check.
 
 ## Key Directories
 ```
-orchestrator/
+orchestrator/core/
   api/         REST API (FastAPI routers)
   cli/         CLI (typer/click)
   db/          SQLAlchemy models, queries, filters, sorting
@@ -53,7 +53,7 @@ test/
   integration_tests/
   acceptance_tests/
 docs/
-  reference-docs/  Refernce documentation a bit outdated but still useful
+  reference-docs/  Reference documentation a bit outdated but still useful
   architecture     Application architecure
 ```
 

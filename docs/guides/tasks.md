@@ -29,7 +29,35 @@ Four things need to happen to register a task:
 Here is a very bare-bones task file:
 
 
-=== "2.x - 4.x"
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    # workflows/tasks/nightly_sync.py
+
+    import structlog
+    import time
+
+    from pydantic_forms.types import State
+
+    from orchestrator.core.workflow import StepList, step, begin
+    from orchestrator.core.workflows.utils import task
+
+    logger = structlog.get_logger(__name__)
+
+
+    @step("NSO calls")
+    def nso_calls() -> State:
+        logger.info("Start NSO calls", ran_at=time.time())
+        time.sleep(5)  # Do stuff
+        logger.info("NSO calls finished", done_at=time.time())
+
+
+    @task("Nightly sync")
+    def task_sync_from() -> StepList:
+        return begin >> nso_calls
+    ```
+
+=== "`orchestrator-core` < 5.0"
 
     /// attention
     This syntax will continue to work, but there is a new syntax available from 5.0.
@@ -60,34 +88,6 @@ Here is a very bare-bones task file:
         return init >> nso_calls >> done
     ```
 
-=== ":material-new-box: 5.0 +"
-
-    ```python
-    # workflows/tasks/nightly_sync.py
-
-    import structlog
-    import time
-
-    from pydantic_forms.types import State
-
-    from orchestrator.workflow import StepList, step, begin
-    from orchestrator.workflows.utils import task
-
-    logger = structlog.get_logger(__name__)
-
-
-    @step("NSO calls")
-    def nso_calls() -> State:
-        logger.info("Start NSO calls", ran_at=time.time())
-        time.sleep(5)  # Do stuff
-        logger.info("NSO calls finished", done_at=time.time())
-
-
-    @task("Nightly sync")
-    def task_sync_from() -> StepList:
-        return begin >> nso_calls
-    ```
-
 Like a Workflow, a Task will need to be registered in your workflows module:
 
 ```python
@@ -103,27 +103,53 @@ Like other workflows, a task needs to be [registered in the database][registerin
 in addition to being defined in the code.
 However, instead of `create_workflow`, simply use the `create_task` helper instead.
 
-```python
-from orchestrator.migrations.helpers import create_task, delete_workflow
+=== "`orchestrator-core` ≥ 5.0"
 
-new_tasks = [
-    {
-        "name": "task_sync_from",
-        "description": "Nightly validate and NSO sync",
-    }
-]
+    ```python
+    from orchestrator.core.migrations.helpers import create_task, delete_workflow
 
-def upgrade() -> None:
-    conn = op.get_bind()
-    for task in new_tasks:
-        create_task(conn, task)
+    new_tasks = [
+        {
+            "name": "task_sync_from",
+            "description": "Nightly validate and NSO sync",
+        }
+    ]
+
+    def upgrade() -> None:
+        conn = op.get_bind()
+        for task in new_tasks:
+            create_task(conn, task)
 
 
-def downgrade() -> None:
-    conn = op.get_bind()
-    for task in new_tasks:
-        delete_workflow(conn, task["name"])
-```
+    def downgrade() -> None:
+        conn = op.get_bind()
+        for task in new_tasks:
+            delete_workflow(conn, task["name"])
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.migrations.helpers import create_task, delete_workflow
+
+    new_tasks = [
+        {
+            "name": "task_sync_from",
+            "description": "Nightly validate and NSO sync",
+        }
+    ]
+
+    def upgrade() -> None:
+        conn = op.get_bind()
+        for task in new_tasks:
+            create_task(conn, task)
+
+
+    def downgrade() -> None:
+        conn = op.get_bind()
+        for task in new_tasks:
+            delete_workflow(conn, task["name"])
+    ```
 
 ### Running the task in the UI
 
@@ -353,7 +379,7 @@ If you want to see all schedules, you can:
 Example result for running `python main.py scheduler show-schedule`:
 
 ```
-                                                                                Scheduled Tasks  
+                                                                                Scheduled Tasks
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
 ┃ id                                             ┃ name                                                           ┃ source    ┃ next run time             ┃ trigger           ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
@@ -377,8 +403,8 @@ Example result for running `python main.py scheduler show-schedule`:
 [OrTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.combining.OrTrigger
 [APScheduler scheduling docs]: https://apscheduler.readthedocs.io/en/master/userguide.html#scheduling-tasks
 [trigger docs]: https://apscheduler.readthedocs.io/en/master/api.html#triggers
-[registering-workflows]: ../../../getting-started/workflows#register-workflows
-[cli-docs]: ../../../reference-docs/cli/#orchestrator.cli.scheduler.show_schedule
+[registering-workflows]: ../getting-started/workflows.md#register-workflows
+[cli-docs]: ../reference-docs/cli.md/#orchestrator.core.cli.scheduler.show_schedule
 [v4.4.0]: https://github.com/workfloworchestrator/orchestrator-core/releases/tag/4.4.0
 [v4.7.0]: https://github.com/workfloworchestrator/orchestrator-core/releases/tag/4.7.0
 [v4.7 upgrade guide]: ../guides/upgrading/4.7.md

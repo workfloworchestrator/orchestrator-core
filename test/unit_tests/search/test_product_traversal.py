@@ -1,6 +1,4 @@
-"""Tests for ProductTraverser: end-to-end field extraction, ltree sanitization, load_model error handling."""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,18 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for ProductTraverser: end-to-end field extraction, ltree sanitization, load_model error handling."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.domain.lifecycle import ProductLifecycle
-from orchestrator.search.core.exceptions import ProductNotInRegistryError
-from orchestrator.search.core.types import EntityType
-from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
-from orchestrator.search.indexing.traverse import ProductTraverser
-
-from .fixtures.expected_data.products import (
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain.lifecycle import ProductLifecycle
+from orchestrator.core.search.core.exceptions import ProductNotInRegistryError
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+from orchestrator.core.search.indexing.traverse import ProductTraverser
+from test.unit_tests.search.fixtures.expected_data.products import (
     get_complex_product_expected_fields,
     get_computed_product_expected_fields,
     get_nested_product_expected_fields,
@@ -109,7 +108,9 @@ def test_successful_load_model(product_uuid):
     mock_specialized_cls._init_instances.return_value = {}
 
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"MyProduct": mock_domain_cls}, clear=True):
-        with patch("orchestrator.search.indexing.traverse.lookup_specialized_type", return_value=mock_specialized_cls):
+        with patch(
+            "orchestrator.core.search.indexing.traverse.lookup_specialized_type", return_value=mock_specialized_cls
+        ):
             result = ProductTraverser._load_model(mock_product)
 
     assert result is not None
@@ -130,7 +131,7 @@ def test_lookup_specialized_type_fallback(product_uuid):
     mock_domain_cls._init_instances.return_value = {}
 
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"MyProduct": mock_domain_cls}, clear=True):
-        with patch("orchestrator.search.indexing.traverse.lookup_specialized_type", side_effect=Exception("boom")):
+        with patch("orchestrator.core.search.indexing.traverse.lookup_specialized_type", side_effect=Exception("boom")):
             result = ProductTraverser._load_model(mock_product)
 
     assert result is not None
@@ -146,7 +147,7 @@ def test_from_product_id_failure_returns_none(caplog):
     mock_domain_cls.from_product_id.side_effect = RuntimeError("db error")
 
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"MyProduct": mock_domain_cls}, clear=True):
-        with patch("orchestrator.search.indexing.traverse.lookup_specialized_type", return_value=mock_domain_cls):
+        with patch("orchestrator.core.search.indexing.traverse.lookup_specialized_type", return_value=mock_domain_cls):
             result = ProductTraverser._load_model(mock_product)
 
     assert result is None

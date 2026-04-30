@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,21 +19,21 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.config.assignee import Assignee
-from orchestrator.domain.lifecycle import ProductLifecycle
-from orchestrator.schemas.engine_settings import EngineSettingsSchema
-from orchestrator.schemas.fixed_input import FixedInputSchema
-from orchestrator.schemas.process import ProcessBaseSchema
-from orchestrator.schemas.product import ProductBaseSchema
-from orchestrator.schemas.product_block import ProductBlockSchema
-from orchestrator.schemas.resource_type import ResourceTypeSchema
-from orchestrator.schemas.search import ProductSchema as SearchProductSchema
-from orchestrator.schemas.subscription import SubscriptionSchema
-from orchestrator.schemas.subscription_descriptions import SubscriptionDescriptionSchema
-from orchestrator.schemas.workflow import WorkflowSchema
-from orchestrator.targets import Target
-from orchestrator.types import SubscriptionLifecycle
-from orchestrator.workflow import ProcessStatus
+from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.domain.lifecycle import ProductLifecycle
+from orchestrator.core.schemas.engine_settings import EngineSettingsSchema
+from orchestrator.core.schemas.fixed_input import FixedInputSchema
+from orchestrator.core.schemas.process import ProcessBaseSchema
+from orchestrator.core.schemas.product import ProductBaseSchema
+from orchestrator.core.schemas.product_block import ProductBlockSchema
+from orchestrator.core.schemas.resource_type import ResourceTypeSchema
+from orchestrator.core.schemas.search import ProductSchema as SearchProductSchema
+from orchestrator.core.schemas.subscription import SubscriptionSchema
+from orchestrator.core.schemas.subscription_descriptions import SubscriptionDescriptionSchema
+from orchestrator.core.schemas.workflow import WorkflowSchema
+from orchestrator.core.targets import Target
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import ProcessStatus
 
 NOW = datetime.now(tz=timezone.utc)
 

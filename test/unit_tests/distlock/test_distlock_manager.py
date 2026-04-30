@@ -1,4 +1,4 @@
-# Copyright 2019-2022 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,10 +18,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from orchestrator.distlock import WrappedDistLockManager, empty_fn
-from orchestrator.distlock.distlock_manager import DistLockManager
-from orchestrator.distlock.managers.memory_distlock_manager import MemoryDistLockManager
-from orchestrator.distlock.managers.redis_distlock_manager import RedisDistLockManager
+from orchestrator.core.distlock import WrappedDistLockManager, empty_fn
+from orchestrator.core.distlock.distlock_manager import DistLockManager
+from orchestrator.core.distlock.managers.memory_distlock_manager import MemoryDistLockManager
+from orchestrator.core.distlock.managers.redis_distlock_manager import RedisDistLockManager
 
 # --- DistLockManager backend selection ---
 
@@ -84,7 +84,7 @@ async def test_disconnect_redis_skipped_when_not_connected() -> None:
 
 def test_wrapped_no_wrappee_returns_none_for_method(caplog: pytest.LogCaptureFixture) -> None:
     wrapped = WrappedDistLockManager()
-    with caplog.at_level(logging.WARNING, logger="orchestrator.distlock"):
+    with caplog.at_level(logging.WARNING, logger="orchestrator.core.distlock"):
         assert wrapped.connect_redis is None
     assert "No DistLockManager configured" in caplog.text
 
@@ -125,7 +125,7 @@ def test_wrapped_update_replaces_wrappee() -> None:
 
 @pytest.fixture
 def _save_restore_wrapped_manager():
-    from orchestrator.distlock import wrapped_distlock_manager
+    from orchestrator.core.distlock import wrapped_distlock_manager
 
     original = wrapped_distlock_manager.wrapped_distlock_manager
     yield
@@ -134,7 +134,7 @@ def _save_restore_wrapped_manager():
 
 @pytest.mark.usefixtures("_save_restore_wrapped_manager")
 def test_init_distlock_manager_redis_backend() -> None:
-    from orchestrator.distlock import init_distlock_manager, wrapped_distlock_manager
+    from orchestrator.core.distlock import init_distlock_manager, wrapped_distlock_manager
 
     mock_settings = MagicMock()
     mock_settings.ENABLE_DISTLOCK_MANAGER = True

@@ -1,6 +1,4 @@
-"""Tests for FieldType.from_type_hint: basic types, lists, unions, literals, annotated, enums, and edge cases."""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for FieldType.from_type_hint: basic types, lists, unions, literals, annotated, enums, and edge cases."""
+
 from datetime import datetime
 from enum import Enum, IntEnum
 from typing import Annotated, List, Literal, Union
@@ -20,9 +20,8 @@ from uuid import UUID
 
 import pytest
 
-from orchestrator.search.core.types import FieldType
-
-from .fixtures.blocks import MTU, MTUChoice, PriorityIntEnum, RequiredIntList, StatusEnum
+from orchestrator.core.search.core.types import FieldType
+from test.unit_tests.search.fixtures.blocks import MTU, MTUChoice, PriorityIntEnum, RequiredIntList, StatusEnum
 
 
 @pytest.mark.parametrize(
@@ -79,7 +78,7 @@ def test_unknown_type_defaults_to_string():
 
 
 def test_product_block_model_returns_block():
-    from orchestrator.domain.base import ProductBlockModel
+    from orchestrator.core.domain.base import ProductBlockModel
 
     class TestBlock(ProductBlockModel):
         pass

@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -22,10 +22,9 @@ from pathlib import Path
 
 from rich.console import Console
 
-from orchestrator.db import db
-
-from ...helpers import load_benchmark_queries, load_model_configs
-from .display import display_benchmark_results
+from orchestrator.core.db import db
+from test.integration_tests.search.helpers import load_benchmark_queries, load_model_configs
+from test.integration_tests.search.scripts.benchmark.display import display_benchmark_results
 
 console = Console()
 

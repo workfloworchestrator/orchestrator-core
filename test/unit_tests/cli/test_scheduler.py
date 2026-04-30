@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for CLI scheduler commands: run, force, show-schedule, and load-initial-schedule."""
 
 import re
@@ -6,7 +19,7 @@ from unittest import mock
 
 from typer.testing import CliRunner
 
-from orchestrator.cli.scheduler import app
+from orchestrator.core.cli.scheduler import app
 
 runner = CliRunner()
 
@@ -34,7 +47,7 @@ def test_run_keyboard_interrupt_exits_130():
     cm = mock.MagicMock()
     cm.__enter__ = mock.MagicMock(side_effect=KeyboardInterrupt)
     cm.__exit__ = mock.MagicMock(return_value=False)
-    with mock.patch("orchestrator.cli.scheduler.get_scheduler", return_value=cm):
+    with mock.patch("orchestrator.core.cli.scheduler.get_scheduler", return_value=cm):
         result = runner.invoke(app, ["run"])
     assert result.exit_code == 130
 
@@ -43,7 +56,7 @@ def test_run_keyboard_interrupt_exits_130():
 
 
 def test_force_task_not_found_exits_with_error():
-    with mock.patch("orchestrator.cli.scheduler.get_scheduler_task", return_value=None):
+    with mock.patch("orchestrator.core.cli.scheduler.get_scheduler_task", return_value=None):
         result = runner.invoke(app, ["force", "nonexistent-task"])
     assert result.exit_code == 1
     assert "not found" in result.output
@@ -51,7 +64,7 @@ def test_force_task_not_found_exits_with_error():
 
 def test_force_task_executes_successfully():
     task = _make_task(args=[1], kwargs={"flag": True})
-    with mock.patch("orchestrator.cli.scheduler.get_scheduler_task", return_value=task):
+    with mock.patch("orchestrator.core.cli.scheduler.get_scheduler_task", return_value=task):
         result = runner.invoke(app, ["force", "task-1"])
     assert result.exit_code == 0
     assert "executed successfully" in result.output
@@ -60,7 +73,7 @@ def test_force_task_executes_successfully():
 def test_force_task_execution_fails_exits_with_error():
     task = _make_task()
     task.func = mock.Mock(side_effect=RuntimeError("boom"))
-    with mock.patch("orchestrator.cli.scheduler.get_scheduler_task", return_value=task):
+    with mock.patch("orchestrator.core.cli.scheduler.get_scheduler_task", return_value=task):
         result = runner.invoke(app, ["force", "task-1"])
     assert result.exit_code == 1
     assert "failed" in result.output
@@ -71,7 +84,7 @@ def test_force_task_no_args_kwargs_uses_defaults():
     task = _make_task(args=None, kwargs=None)
     call_log = []
     task.func = lambda *a, **k: call_log.append((a, k))
-    with mock.patch("orchestrator.cli.scheduler.get_scheduler_task", return_value=task):
+    with mock.patch("orchestrator.core.cli.scheduler.get_scheduler_task", return_value=task):
         result = runner.invoke(app, ["force", "task-1"])
     assert result.exit_code == 0
     assert call_log == [((), {})]
@@ -86,7 +99,7 @@ def _mock_schedule_deps(workflow_map: dict):
     def _get_workflow(name):
         return workflow_map.get(name)
 
-    return mock.patch("orchestrator.cli.scheduler.get_workflow_by_name", side_effect=_get_workflow)
+    return mock.patch("orchestrator.core.cli.scheduler.get_workflow_by_name", side_effect=_get_workflow)
 
 
 def _make_workflow(name: str):
@@ -105,7 +118,7 @@ def test_load_initial_schedule_all_workflows_found():
     workflow_map = {name: _make_workflow(name) for name in wf_names}
     with (
         _mock_schedule_deps(workflow_map),
-        mock.patch("orchestrator.cli.scheduler.add_unique_scheduled_task_to_queue") as mock_add,
+        mock.patch("orchestrator.core.cli.scheduler.add_unique_scheduled_task_to_queue") as mock_add,
     ):
         result = runner.invoke(app, ["load-initial-schedule"])
     assert result.exit_code == 0
@@ -122,7 +135,7 @@ def test_load_initial_schedule_one_missing_skips():
     workflow_map = {name: _make_workflow(name) for name in wf_names}
     with (
         _mock_schedule_deps(workflow_map),
-        mock.patch("orchestrator.cli.scheduler.add_unique_scheduled_task_to_queue") as mock_add,
+        mock.patch("orchestrator.core.cli.scheduler.add_unique_scheduled_task_to_queue") as mock_add,
     ):
         result = runner.invoke(app, ["load-initial-schedule"])
     assert result.exit_code == 0
@@ -133,7 +146,7 @@ def test_load_initial_schedule_one_missing_skips():
 def test_load_initial_schedule_all_missing():
     with (
         _mock_schedule_deps({}),
-        mock.patch("orchestrator.cli.scheduler.add_unique_scheduled_task_to_queue") as mock_add,
+        mock.patch("orchestrator.core.cli.scheduler.add_unique_scheduled_task_to_queue") as mock_add,
     ):
         result = runner.invoke(app, ["load-initial-schedule"])
     assert result.exit_code == 0
@@ -146,8 +159,8 @@ def test_load_initial_schedule_all_missing():
 
 def test_show_schedule_empty():
     with (
-        mock.patch("orchestrator.cli.scheduler.get_all_scheduler_tasks", return_value=[]),
-        mock.patch("orchestrator.schedules.service.get_linker_entries_by_schedule_ids", return_value=[]),
+        mock.patch("orchestrator.core.cli.scheduler.get_all_scheduler_tasks", return_value=[]),
+        mock.patch("orchestrator.core.schedules.service.get_linker_entries_by_schedule_ids", return_value=[]),
     ):
         result = runner.invoke(app, ["show-schedule"])
     assert result.exit_code == 0
@@ -165,8 +178,10 @@ def test_show_schedule_with_tasks():
     linker_entry = SimpleNamespace(schedule_id="api-task")
 
     with (
-        mock.patch("orchestrator.cli.scheduler.get_all_scheduler_tasks", return_value=[task_api, task_dec]),
-        mock.patch("orchestrator.schedules.service.get_linker_entries_by_schedule_ids", return_value=[linker_entry]),
+        mock.patch("orchestrator.core.cli.scheduler.get_all_scheduler_tasks", return_value=[task_api, task_dec]),
+        mock.patch(
+            "orchestrator.core.schedules.service.get_linker_entries_by_schedule_ids", return_value=[linker_entry]
+        ),
     ):
         result = runner.invoke(app, ["show-schedule"], env={"COLUMNS": "300", "LINES": "200"})
     assert result.exit_code == 0

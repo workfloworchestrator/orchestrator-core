@@ -1,4 +1,4 @@
-# Copyright 2019-2026 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,7 +19,7 @@ from uuid import uuid4
 import pytest
 import strawberry.scalars
 
-from orchestrator.graphql.schemas.search import (
+from orchestrator.core.graphql.schemas.search import (
     AggregationPairType,
     ComponentInfoType,
     CursorInfoType,
@@ -39,20 +39,20 @@ from orchestrator.graphql.schemas.search import (
     VisualizationKind,
     VisualizationType,
 )
-from orchestrator.graphql.search_inputs import (
+from orchestrator.core.graphql.search_inputs import (
     FilterConditionInput,
     FilterTreeInput,
     PathFilterInput,
     SearchInput,
     StructuredOrderByInput,
 )
-from orchestrator.search.core.types import BooleanOperator, EntityType, FilterOp, RetrieverType, UIType
-from orchestrator.search.filters.base import EqualityFilter, FilterTree, PathFilter, StringFilter
-from orchestrator.search.filters.date_filters import DateRangeFilter, DateValueFilter
-from orchestrator.search.filters.ltree_filters import LtreeFilter
-from orchestrator.search.filters.numeric_filter import NumericRangeFilter, NumericValueFilter
-from orchestrator.search.query.mixins import OrderDirection
-from orchestrator.search.query.queries import SelectQuery
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, RetrieverType, UIType
+from orchestrator.core.search.filters.base import EqualityFilter, FilterTree, PathFilter, StringFilter
+from orchestrator.core.search.filters.date_filters import DateRangeFilter, DateValueFilter
+from orchestrator.core.search.filters.ltree_filters import LtreeFilter
+from orchestrator.core.search.filters.numeric_filter import NumericRangeFilter, NumericValueFilter
+from orchestrator.core.search.query.mixins import OrderDirection
+from orchestrator.core.search.query.queries import SelectQuery
 from test.unit_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
 
 
@@ -652,7 +652,7 @@ def test_search_with_text_query(test_client_graphql) -> None:
         }
     )
     with patch(
-        "orchestrator.search.core.embedding.QueryEmbedder.generate_for_text_async",
+        "orchestrator.core.search.core.embedding.QueryEmbedder.generate_for_text_async",
         new=AsyncMock(return_value=fake_embedding),
     ):
         response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers=GRAPHQL_HEADERS)

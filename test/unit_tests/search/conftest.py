@@ -16,16 +16,15 @@ from uuid import UUID
 
 import pytest
 
-from orchestrator.domain.base import ProductModel
-from orchestrator.search.core.types import ExtractedField
-
-from .fixtures.expected_data.subscriptions import (
+from orchestrator.core.domain.base import ProductModel
+from orchestrator.core.search.core.types import ExtractedField
+from test.unit_tests.search.fixtures.expected_data.subscriptions import (
     get_complex_expected_fields,
     get_computed_property_expected_fields,
     get_nested_expected_fields,
     get_simple_expected_fields,
 )
-from .fixtures.factories import (
+from test.unit_tests.search.fixtures.factories import (
     create_complex_product_instance,
     create_complex_subscription_instance,
     create_computed_product_instance,
@@ -35,7 +34,7 @@ from .fixtures.factories import (
     create_simple_product_instance,
     create_simple_subscription_instance,
 )
-from .fixtures.subscriptions import (
+from test.unit_tests.search.fixtures.subscriptions import (
     ComplexSubscription,
     ComputedPropertySubscription,
     NestedSubscription,
@@ -105,14 +104,14 @@ def mock_db_subscription() -> MagicMock:
 
 @pytest.fixture
 def mock_load_model():
-    with patch("orchestrator.search.indexing.traverse.SubscriptionTraverser._load_model") as mock:
+    with patch("orchestrator.core.search.indexing.traverse.SubscriptionTraverser._load_model") as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_db_product(product_uuid: UUID) -> MagicMock:
     """Provides a mock SQLAlchemy ProductTable object that mimics a real database entity."""
-    from orchestrator.domain.lifecycle import ProductLifecycle
+    from orchestrator.core.domain.lifecycle import ProductLifecycle
 
     def create_mock_db_product(product_id: UUID | None = None, product_name: str = "TestProduct"):
         mock_product = MagicMock()
@@ -131,7 +130,7 @@ def mock_db_product(product_uuid: UUID) -> MagicMock:
 
 @pytest.fixture
 def mock_product_load_model():
-    with patch("orchestrator.search.indexing.traverse.ProductTraverser._load_model") as mock:
+    with patch("orchestrator.core.search.indexing.traverse.ProductTraverser._load_model") as mock:
         yield mock
 
 

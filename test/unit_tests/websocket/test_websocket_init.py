@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for websocket module init: WrappedWebSocketManager (enabled/disabled delegation, raising when unconfigured), broadcast helpers, and sync wrappers."""
 
 from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
@@ -5,7 +18,7 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.websocket import (
+from orchestrator.core.websocket import (
     WS_CHANNELS,
     WrappedWebSocketManager,
     broadcast_invalidate_cache,
@@ -20,8 +33,8 @@ from orchestrator.websocket import (
     sync_broadcast_invalidate_cache,
     sync_invalidate_subscription_cache,
 )
-from orchestrator.websocket.websocket_manager import WebSocketManager
-from orchestrator.workflow import ProcessStatus
+from orchestrator.core.websocket.websocket_manager import WebSocketManager
+from orchestrator.core.workflow import ProcessStatus
 
 # --- empty_fn ---
 
@@ -95,7 +108,7 @@ def test_wrapped_update_stores_wrappee(enabled: bool):
 # --- init_websocket_manager ---
 
 
-@patch("orchestrator.websocket.WebSocketManager")
+@patch("orchestrator.core.websocket.WebSocketManager")
 def test_init_websocket_manager_creates_and_updates(MockWSM):
     mock_instance = MagicMock()
     MockWSM.return_value = mock_instance
@@ -133,9 +146,9 @@ def test_is_process_active(process_status, expected):
 
 @pytest.mark.asyncio
 async def test_broadcast_event_sends_to_events_channel():
-    with patch("orchestrator.websocket.websocket_manager") as mock_wsm:
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
         mock_wsm.broadcast_data = AsyncMock()
-        from orchestrator.websocket import _broadcast_event
+        from orchestrator.core.websocket import _broadcast_event
 
         await _broadcast_event("testEvent", {"foo": "bar"})
         mock_wsm.broadcast_data.assert_awaited_once_with(
@@ -152,7 +165,7 @@ async def test_broadcast_event_sends_to_events_channel():
 )
 @pytest.mark.asyncio
 async def test_invalidate_subscription_cache(invalidate_all: bool, expected_call_count: int):
-    with patch("orchestrator.websocket.websocket_manager") as mock_wsm:
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
         mock_wsm.broadcast_data = AsyncMock()
         await invalidate_subscription_cache(uuid4(), invalidate_all=invalidate_all)
         assert mock_wsm.broadcast_data.await_count == expected_call_count
@@ -167,7 +180,7 @@ async def test_invalidate_subscription_cache(invalidate_all: bool, expected_call
 )
 @pytest.mark.asyncio
 async def test_broadcast_invalidate_status_counts_async(enabled: bool):
-    with patch("orchestrator.websocket.websocket_manager") as mock_wsm:
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
         mock_wsm.enabled = enabled
         mock_wsm.broadcast_data = AsyncMock()
         await broadcast_invalidate_status_counts_async()
@@ -182,9 +195,9 @@ async def test_broadcast_invalidate_status_counts_async(enabled: bool):
         pytest.param(False, False, id="disabled"),
     ],
 )
-@patch("orchestrator.websocket.sync_broadcast_invalidate_cache")
+@patch("orchestrator.core.websocket.sync_broadcast_invalidate_cache")
 def test_broadcast_invalidate_status_counts_sync(mock_sync, enabled: bool, sync_called: bool):
-    with patch("orchestrator.websocket.websocket_manager") as mock_wsm:
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
         mock_wsm.enabled = enabled
         broadcast_invalidate_status_counts()
         if sync_called:
@@ -200,9 +213,9 @@ def test_broadcast_invalidate_status_counts_sync(mock_sync, enabled: bool, sync_
         pytest.param(False, 0, id="disabled"),
     ],
 )
-@patch("orchestrator.websocket.sync_broadcast_invalidate_cache")
+@patch("orchestrator.core.websocket.sync_broadcast_invalidate_cache")
 def test_broadcast_process_update_sync(mock_sync, enabled: bool, expected_call_count: int):
-    with patch("orchestrator.websocket.websocket_manager") as mock_wsm:
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
         mock_wsm.enabled = enabled
         broadcast_process_update_to_websocket(uuid4())
         assert mock_sync.call_count == expected_call_count
@@ -217,7 +230,7 @@ def test_broadcast_process_update_sync(mock_sync, enabled: bool, expected_call_c
 )
 @pytest.mark.asyncio
 async def test_broadcast_process_update_async(enabled: bool, expected_call_count: int):
-    with patch("orchestrator.websocket.websocket_manager") as mock_wsm:
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
         mock_wsm.enabled = enabled
         mock_wsm.broadcast_data = AsyncMock()
         await broadcast_process_update_to_websocket_async(uuid4())
@@ -227,14 +240,14 @@ async def test_broadcast_process_update_async(enabled: bool, expected_call_count
 # --- sync wrappers ---
 
 
-@patch("orchestrator.websocket.anyio")
+@patch("orchestrator.core.websocket.anyio")
 def test_sync_broadcast_invalidate_cache(mock_anyio):
     cache_obj = {"type": "test"}
     sync_broadcast_invalidate_cache(cache_obj)
     mock_anyio.run.assert_called_once_with(broadcast_invalidate_cache, cache_obj)
 
 
-@patch("orchestrator.websocket.anyio")
+@patch("orchestrator.core.websocket.anyio")
 def test_sync_invalidate_subscription_cache(mock_anyio):
     sub_id = uuid4()
     sync_invalidate_subscription_cache(sub_id, True)

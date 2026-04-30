@@ -1,11 +1,4 @@
-"""Tests for search query validation and filter compatibility.
-
-Covers exception raising for empty paths, missing paths, incompatible filter types,
-invalid entity prefixes, invalid ltree patterns, filter tree validation, successful
-validation paths, filter type compatibility matrix, and structured order_by validation.
-"""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,12 +11,19 @@ validation paths, filter type compatibility matrix, and structured order_by vali
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for search query validation and filter compatibility.
+
+Covers exception raising for empty paths, missing paths, incompatible filter types,
+invalid entity prefixes, invalid ltree patterns, filter tree validation, successful
+validation paths, filter type compatibility matrix, and structured order_by validation.
+"""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.search.core.types import BooleanOperator, EntityType, FieldType, FilterOp, UIType
-from orchestrator.search.filters import (
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FieldType, FilterOp, UIType
+from orchestrator.core.search.filters import (
     DateValueFilter,
     EqualityFilter,
     FilterTree,
@@ -32,14 +32,14 @@ from orchestrator.search.filters import (
     PathFilter,
     StringFilter,
 )
-from orchestrator.search.query.exceptions import (
+from orchestrator.core.search.query.exceptions import (
     EmptyFilterPathError,
     IncompatibleFilterTypeError,
     InvalidEntityPrefixError,
     InvalidLtreePatternError,
     PathNotFoundError,
 )
-from orchestrator.search.query.validation import (
+from orchestrator.core.search.query.validation import (
     complete_filter_validation,
     is_filter_compatible_with_field_type,
     validate_filter_tree,
@@ -69,7 +69,7 @@ async def test_empty_filter_path_raises_error(path):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 async def test_path_not_found_raises_error(mock_validate_path):
     """Non-existent paths raise PathNotFoundError."""
     mock_validate_path.return_value = None
@@ -83,7 +83,7 @@ async def test_path_not_found_raises_error(mock_validate_path):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 async def test_incompatible_filter_type_raises_error(mock_validate_path):
     """Incompatible filter types raise IncompatibleFilterTypeError."""
     mock_validate_path.return_value = FieldType.STRING.value
@@ -97,7 +97,7 @@ async def test_incompatible_filter_type_raises_error(mock_validate_path):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 async def test_invalid_entity_prefix_raises_error(mock_validate_path):
     """Wrong entity prefixes raise InvalidEntityPrefixError."""
     mock_validate_path.return_value = FieldType.STRING.value
@@ -109,7 +109,7 @@ async def test_invalid_entity_prefix_raises_error(mock_validate_path):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.is_lquery_syntactically_valid")
+@patch("orchestrator.core.search.query.validation.is_lquery_syntactically_valid")
 async def test_invalid_ltree_pattern_raises_error(mock_is_valid):
     """Invalid ltree patterns raise InvalidLtreePatternError."""
     mock_is_valid.return_value = False
@@ -134,7 +134,7 @@ async def test_validate_filter_tree_with_none():
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 async def test_validate_filter_tree_propagates_exceptions(mock_validate_path):
     """validate_filter_tree propagates specific exceptions from individual filters."""
     mock_validate_path.return_value = None
@@ -154,7 +154,7 @@ async def test_validate_filter_tree_propagates_exceptions(mock_validate_path):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 @pytest.mark.parametrize(
     "field_type,filter_condition,value_kind",
     [
@@ -177,7 +177,7 @@ async def test_successful_filter_validation(mock_validate_path, field_type, filt
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 async def test_wildcard_path_bypasses_entity_prefix_check(mock_validate_path):
     """Wildcard paths ('*') bypass entity prefix validation."""
     mock_validate_path.return_value = FieldType.STRING.value
@@ -189,8 +189,8 @@ async def test_wildcard_path_bypasses_entity_prefix_check(mock_validate_path):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.is_lquery_syntactically_valid", return_value=True)
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.is_lquery_syntactically_valid", return_value=True)
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 async def test_ltree_filter_takes_special_path(mock_validate_path, mock_lquery_valid):
     """LtreeFilter takes special validation path and does not call validate_filter_path."""
     filter_with_ltree = PathFilter(
@@ -274,7 +274,7 @@ def test_unknown_filter_type_triggers_attribute_error():
 # ---------------------------------------------------------------------------
 
 
-@patch("orchestrator.search.query.validation.get_ai_search_index_by_entity_type_and_path")
+@patch("orchestrator.core.search.query.validation.get_ai_search_index_by_entity_type_and_path")
 def test_validate_structured_order_by_element(mock_get_index):
     """Valid order_by element passes validation."""
     element = "subscription.element.not.exist"
@@ -289,7 +289,7 @@ def test_validate_structured_order_by_element_without_request():
     validate_structured_order_by_element(EntityType.SUBSCRIPTION, None)
 
 
-@patch("orchestrator.search.query.validation.get_ai_search_index_by_entity_type_and_path")
+@patch("orchestrator.core.search.query.validation.get_ai_search_index_by_entity_type_and_path")
 def test_validate_structured_order_by_element_not_existing(mock_get_index):
     """Non-existent order_by element raises ValueError."""
     element = "subscription.element.not.exist"

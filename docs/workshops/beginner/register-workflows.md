@@ -9,11 +9,21 @@ Registering workflow functions in the code is done by creating appropriate `Lazy
 
 For example, the `LazyWorkflowInstance` for the `UserGroup` create workflow looks like this:
 
-```python
-from orchestrator.workflows import LazyWorkflowInstance
+=== "`orchestrator-core` ≥ 5.0"
 
-LazyWorkflowInstance("workflows.user_group.create_user_group", "create_user_group")
-```
+    ```python
+    from orchestrator.core.workflows import LazyWorkflowInstance
+
+    LazyWorkflowInstance("workflows.user_group.create_user_group", "create_user_group")
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.workflows import LazyWorkflowInstance
+
+    LazyWorkflowInstance("workflows.user_group.create_user_group", "create_user_group")
+    ```
 
 Add the `LazyWorkflowInstance` calls for all six workflows to `workflows/__init__. py`, and add `import workflows` to `main.py` so the instances are created as part of the workflow package.
 
@@ -71,18 +81,35 @@ This will create an empty database migration in the folder
 
 To add all User and UserGroup workflows in bulk a list of `Dict` is created, for only the UserGroup create workflow the list looks like this:
 
-```python
-from orchestrator.targets import Target
+=== "`orchestrator-core` ≥ 5.0"
 
-new_workflows = [
-    {
-        "name": "create_user_group",
-        "target": Target.CREATE,
-        "description": "Create user group",
-        "product_type": "UserGroup",
-    },
-]
-```
+    ```python
+    from orchestrator.core.targets import Target
+
+    new_workflows = [
+        {
+            "name": "create_user_group",
+            "target": Target.CREATE,
+            "description": "Create user group",
+            "product_type": "UserGroup",
+        },
+    ]
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.targets import Target
+
+    new_workflows = [
+        {
+            "name": "create_user_group",
+            "target": Target.CREATE,
+            "description": "Create user group",
+            "product_type": "UserGroup",
+        },
+    ]
+    ```
 
 This registers the workflow function `create_user_group` as a create workflow for the `UserGroup` product.
 
@@ -90,21 +117,41 @@ Add a list of `Dict`s describing the create, modify and terminate workflows for 
 
 The migration `upgrade` and `downgrade` functions will just loop through the list:
 
-```python
-from orchestrator.migrations.helpers import create_workflow, delete_workflow
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.migrations.helpers import create_workflow, delete_workflow
 
 
-def upgrade() -> None:
-    conn = op.get_bind()
-    for workflow in new_workflows:
-        create_workflow(conn, workflow)
+    def upgrade() -> None:
+        conn = op.get_bind()
+        for workflow in new_workflows:
+            create_workflow(conn, workflow)
 
 
-def downgrade() -> None:
-    conn = op.get_bind()
-    for workflow in new_workflows:
-        delete_workflow(conn, workflow["name"])
-```
+    def downgrade() -> None:
+        conn = op.get_bind()
+        for workflow in new_workflows:
+            delete_workflow(conn, workflow["name"])
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.migrations.helpers import create_workflow, delete_workflow
+
+
+    def upgrade() -> None:
+        conn = op.get_bind()
+        for workflow in new_workflows:
+            create_workflow(conn, workflow)
+
+
+    def downgrade() -> None:
+        conn = op.get_bind()
+        for workflow in new_workflows:
+            delete_workflow(conn, workflow["name"])
+    ```
 
 Run the migration with the following command:
 

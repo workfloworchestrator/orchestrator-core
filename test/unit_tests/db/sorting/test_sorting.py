@@ -1,4 +1,4 @@
-# Copyright 2019-2023 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.db.sorting.sorting import (
+from orchestrator.core.db.sorting.sorting import (
     Sort,
     SortOrder,
     generic_apply_sorting,
@@ -94,7 +94,7 @@ def test_apply_sorting_error_calls_handler(exc_type: type) -> None:
 
 def test_apply_sorting_problem_detail_calls_handler() -> None:
     """ProblemDetailException from a sort function is also caught and forwarded to the error handler."""
-    from orchestrator.api.error_handling import ProblemDetailException
+    from orchestrator.core.api.error_handling import ProblemDetailException
 
     query = MagicMock()
     error_handler = MagicMock()

@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,7 +13,7 @@
 
 from typing import List, Tuple
 
-from orchestrator.search.core.types import ExtractedField, FieldType
+from orchestrator.core.search.core.types import ExtractedField, FieldType
 
 
 def fields(field_data: List[Tuple[str, str, FieldType]]) -> List[ExtractedField]:

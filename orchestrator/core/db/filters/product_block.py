@@ -1,0 +1,39 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import structlog
+from sqlalchemy import BinaryExpression
+
+from orchestrator.core.db import ProductBlockTable, ProductTable, ResourceTypeTable
+from orchestrator.core.db.filters import create_memoized_field_list, generic_filter_from_clauses
+from orchestrator.core.db.filters.search_filters import default_inferred_column_clauses, node_to_str_val
+from orchestrator.core.utils.search_query import Node
+
+logger = structlog.get_logger(__name__)
+
+
+def products_clause(node: Node) -> BinaryExpression:
+    return ProductBlockTable.products.any(ProductTable.name.ilike(node_to_str_val(node)))
+
+
+def resource_types_clause(node: Node) -> BinaryExpression:
+    return ProductBlockTable.resource_types.any(ResourceTypeTable.resource_type.ilike(node_to_str_val(node)))
+
+
+PRODUCT_BLOCK_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProductBlockTable) | {
+    "product": products_clause,
+    "resource_type": resource_types_clause,
+}
+
+product_block_filter_fields = create_memoized_field_list(PRODUCT_BLOCK_TABLE_COLUMN_CLAUSES)
+filter_product_blocks = generic_filter_from_clauses(PRODUCT_BLOCK_TABLE_COLUMN_CLAUSES)

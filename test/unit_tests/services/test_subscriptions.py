@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import datetime
 from copy import deepcopy
 from uuid import uuid4
@@ -6,15 +19,15 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import MultipleResultsFound
 
-from orchestrator.db import ProductTable, db
-from orchestrator.domain import SubscriptionModel
-from orchestrator.services.subscriptions import (
+from orchestrator.core.db import ProductTable, db
+from orchestrator.core.domain import SubscriptionModel
+from orchestrator.core.services.subscriptions import (
     build_extended_domain_model,
     format_extended_domain_model,
     get_subscription,
     retrieve_subscription_by_subscription_instance_value,
 )
-from orchestrator.utils.json import json_dumps, json_loads
+from orchestrator.core.utils.json import json_dumps, json_loads
 from test.unit_tests import fixtures
 
 CORRECT_SUBSCRIPTION = str(uuid4())

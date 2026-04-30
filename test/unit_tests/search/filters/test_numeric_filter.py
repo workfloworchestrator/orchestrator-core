@@ -1,6 +1,4 @@
-"""Tests for orchestrator.search.filters.numeric_filter: NumericRange validation, NumericValueFilter construction and SQL generation, and NumericRangeFilter BETWEEN expressions."""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,13 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for orchestrator.core.search.filters.numeric_filter: NumericRange validation, NumericValueFilter construction and SQL generation, and NumericRangeFilter BETWEEN expressions."""
+
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import String, column
 from sqlalchemy.sql.elements import ColumnElement
 
-from orchestrator.search.core.types import FilterOp
-from orchestrator.search.filters.numeric_filter import NumericRange, NumericRangeFilter, NumericValueFilter
+from orchestrator.core.search.core.types import FilterOp
+from orchestrator.core.search.filters.numeric_filter import NumericRange, NumericRangeFilter, NumericValueFilter
 
 pytestmark = pytest.mark.search
 

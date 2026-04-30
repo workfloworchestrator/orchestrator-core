@@ -4,36 +4,64 @@ You can use the `api/settings/overview` endpoint to get an overview of the setti
 This endpoint provides a JSON response that contains the settings that are defined in the application. The settings are
 grouped by their names and sensitive values are masked for security reasons.
 Per default, the application settings are used to configure the application. The settings are defined in the
-`orchestrator.settings.py` module and can be used to configure the application.
+`orchestrator.core.settings.py` module and can be used to configure the application.
 
 An example of the settings is shown below:
 
-```python
-from oauth2_lib.settings import oauth2lib_settings
-from orchestrator.settings import BaseSettings
-from orchestrator.services.settings_env_variables import expose_settings
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from oauth2_lib.settings import oauth2lib_settings
+    from orchestrator.core.settings import BaseSettings
+    from orchestrator.core.services.settings_env_variables import expose_settings
 
 
-class AppSettings(BaseSettings):
-    TESTING: bool = True
-    SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
-    CORS_ORIGINS: str = "*"
-    ...
-    EXPOSE_SETTINGS: bool = False
-    EXPOSE_OAUTH_SETTINGS: bool = False
+    class AppSettings(BaseSettings):
+        TESTING: bool = True
+        SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
+        CORS_ORIGINS: str = "*"
+        ...
+        EXPOSE_SETTINGS: bool = False
+        EXPOSE_OAUTH_SETTINGS: bool = False
 
 
-app_settings = AppSettings()
+    app_settings = AppSettings()
 
-if app_settings.EXPOSE_SETTINGS:
-    expose_settings("app_settings", app_settings)
+    if app_settings.EXPOSE_SETTINGS:
+        expose_settings("app_settings", app_settings)
 
-if app_settings.EXPOSE_OAUTH_SETTINGS:
-    expose_settings("oauth2lib_settings", oauth2lib_settings)
-```
+    if app_settings.EXPOSE_OAUTH_SETTINGS:
+        expose_settings("oauth2lib_settings", oauth2lib_settings)
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from oauth2_lib.settings import oauth2lib_settings
+    from orchestrator.settings import BaseSettings
+    from orchestrator.services.settings_env_variables import expose_settings
+
+
+    class AppSettings(BaseSettings):
+        TESTING: bool = True
+        SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
+        CORS_ORIGINS: str = "*"
+        ...
+        EXPOSE_SETTINGS: bool = False
+        EXPOSE_OAUTH_SETTINGS: bool = False
+
+
+    app_settings = AppSettings()
+
+    if app_settings.EXPOSE_SETTINGS:
+        expose_settings("app_settings", app_settings)
+
+    if app_settings.EXPOSE_OAUTH_SETTINGS:
+        expose_settings("oauth2lib_settings", oauth2lib_settings)
+    ```
 
 What you see above is the default settings for the application. The settings are defined in the
-`orchestrator.settings.py` module and can be used to configure the application.
+`orchestrator.core.settings.py` module and can be used to configure the application.
 The `EXPOSE_SETTINGS` and `EXPOSE_OAUTH_SETTINGS` flags are used to control whether the settings should be exposed via
 the `api/settings/overview` endpoint, the result looks like this:
 
@@ -66,18 +94,35 @@ The `app_settings` in the example above is a name of the settings class that is 
 In order to expose your settings, you need to register them using the `expose_settings()` function. This function takes
 two arguments: the name of the settings class and the instance of the settings class.
 
-```python
-from orchestrator.settings import expose_settings, BaseSettings
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.settings import expose_settings, BaseSettings
 
 
-class MySettings(BaseSettings):
-    debug: bool = True
+    class MySettings(BaseSettings):
+        debug: bool = True
 
 
-my_settings = MySettings()
+    my_settings = MySettings()
 
-expose_settings("my_settings", my_settings)
-```
+    expose_settings("my_settings", my_settings)
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.settings import expose_settings, BaseSettings
+
+
+    class MySettings(BaseSettings):
+        debug: bool = True
+
+
+    my_settings = MySettings()
+
+    expose_settings("my_settings", my_settings)
+    ```
 
 ## Lifecycle Validation Mode
 
@@ -98,7 +143,7 @@ The Lifecycle Validation Mode can be set using the `LIFECYCLE_VALIDATION_MODE` e
 
 !!! example "Error in `strict` mode"
     ```bash
-    2025-09-26 13:46:56 [error    ] Subscription of type <class 'products.product_types.l3vpn.L3Vpn'> should use <class 'products.product_types.l3vpn.L3VpnProvisioning'> for lifecycle status 'provisioning' [orchestrator.domain.lifecycle] func=re_deploy_nso process_id=6a483f61-c21d-47be-8390-bbd608c59a77 workflow_name=create_l3vpn
+    2025-09-26 13:46:56 [error    ] Subscription of type <class 'products.product_types.l3vpn.L3Vpn'> should use <class 'products.product_types.l3vpn.L3VpnProvisioning'> for lifecycle status 'provisioning' [orchestrator.core.domain.lifecycle] func=re_deploy_nso process_id=6a483f61-c21d-47be-8390-bbd608c59a77 workflow_name=create_l3vpn
     ```
 
 !!! warning
@@ -107,7 +152,7 @@ The Lifecycle Validation Mode can be set using the `LIFECYCLE_VALIDATION_MODE` e
 
 !!! example "Warning in `loose` mode"
     ```bash
-    2025-09-26 13:46:56 [warning    ] Subscription of type <class 'products.product_types.l3vpn.L3Vpn'> should use <class 'products.product_types.l3vpn.L3VpnProvisioning'> for lifecycle status 'provisioning' [orchestrator.domain.lifecycle] func=re_deploy_nso
+    2025-09-26 13:46:56 [warning    ] Subscription of type <class 'products.product_types.l3vpn.L3Vpn'> should use <class 'products.product_types.l3vpn.L3VpnProvisioning'> for lifecycle status 'provisioning' [orchestrator.core.domain.lifecycle] func=re_deploy_nso
     ```
 - `ignored`: The application will ignore all lifecycle validation issues and run normally.
 
@@ -118,12 +163,12 @@ The following rules apply when exposing settings:
 ### Rules for Masking Secrets
 
 - `SecretStr` from `from pydantic import SecretStr` are masked.
-- `SecretPostgresDsn` from `from orchestrator.settings import SecretPostgresDsn` is masked.
-- `SecretRedisDsn` from `from orchestrator.settings import SecretRedisDsn` is masked.
+- `SecretPostgresDsn` from `from orchestrator.core.settings import SecretPostgresDsn` is masked.
+- `SecretRedisDsn` from `from orchestrator.core.settings import SecretRedisDsn` is masked.
 
 ## Overview of AppSettings class
 
 Toggle the source code block below to get a complete overview of the current application settings.
-::: orchestrator.settings.AppSettings
+::: orchestrator.core.settings.AppSettings
     options:
         heading_level: 4

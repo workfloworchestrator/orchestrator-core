@@ -53,21 +53,41 @@ Use the following skeleton to create the file `user_group.py` in the
 user group product block in the lifecycle states `INITIAL`, `PROVISIONING` and
 `ACTIVE`:
 
-```python
-from typing import Optional
+=== "`orchestrator-core` ≥ 5.0"
 
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SubscriptionLifecycle
+    ```python
+    from typing import Optional
 
-# UserGroupBlockInactive with all resource types optional
-...
+    from orchestrator.core.domain.base import ProductBlockModel
+    from orchestrator.core.types import SubscriptionLifecycle
 
-# UserGroupBlockProvisioning with only resource type group_id optional
-...
+    # UserGroupBlockInactive with all resource types optional
+    ...
 
-# UserGroupBlock with all resource types mandatory
-...
-```
+    # UserGroupBlockProvisioning with only resource type group_id optional
+    ...
+
+    # UserGroupBlock with all resource types mandatory
+    ...
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from typing import Optional
+
+    from orchestrator.domain.base import ProductBlockModel
+    from orchestrator.types import SubscriptionLifecycle
+
+    # UserGroupBlockInactive with all resource types optional
+    ...
+
+    # UserGroupBlockProvisioning with only resource type group_id optional
+    ...
+
+    # UserGroupBlock with all resource types mandatory
+    ...
+    ```
 
 !!! example
 
@@ -85,25 +105,49 @@ Use the following skeleton to create the file `user_group.py` in the
 `UserGroupProvisioning` and `UserGroup` domain models describing the user group
 product in its different lifecycle states:
 
-```python
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.types import SubscriptionLifecycle
+=== "`orchestrator-core` ≥ 5.0"
 
-from products.product_blocks.user_group import (
-    UserGroupBlock,
-    UserGroupBlockInactive,
-    UserGroupBlockProvisioning,
-)
+    ```python
+    from orchestrator.core.domain.base import SubscriptionModel
+    from orchestrator.core.types import SubscriptionLifecycle
 
-# UserGroupInactive
-...
+    from products.product_blocks.user_group import (
+        UserGroupBlock,
+        UserGroupBlockInactive,
+        UserGroupBlockProvisioning,
+    )
 
-# UserGroupProvisioning
-...
+    # UserGroupInactive
+    ...
 
-# UserGroup
-...
-```
+    # UserGroupProvisioning
+    ...
+
+    # UserGroup
+    ...
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.domain.base import SubscriptionModel
+    from orchestrator.types import SubscriptionLifecycle
+
+    from products.product_blocks.user_group import (
+        UserGroupBlock,
+        UserGroupBlockInactive,
+        UserGroupBlockProvisioning,
+    )
+
+    # UserGroupInactive
+    ...
+
+    # UserGroupProvisioning
+    ...
+
+    # UserGroup
+    ...
+    ```
 
 !!! example
 
@@ -117,27 +161,53 @@ Use the following skeleton to create the file `user.py` in the
 `UserBlockProvisioning` and `UserBlock` domain models describing the user group
 product block in its different lifecycle states:
 
-```python
-from typing import Optional
+=== "`orchestrator-core` ≥ 5.0"
 
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SubscriptionLifecycle
+    ```python
+    from typing import Optional
 
-from products.product_blocks.user_group import (
-    UserGroupBlock,
-    UserGroupBlockInactive,
-    UserGroupBlockProvisioning,
-)
+    from orchestrator.core.domain.base import ProductBlockModel
+    from orchestrator.core.types import SubscriptionLifecycle
 
-# UserBlockInactive with only product block reference group mandatory
-...
+    from products.product_blocks.user_group import (
+        UserGroupBlock,
+        UserGroupBlockInactive,
+        UserGroupBlockProvisioning,
+    )
 
-# UserBlockProvisioning with only resource type user_id and age optional
-...
+    # UserBlockInactive with only product block reference group mandatory
+    ...
 
-# UserBlock with only resource type age optional
-...
-```
+    # UserBlockProvisioning with only resource type user_id and age optional
+    ...
+
+    # UserBlock with only resource type age optional
+    ...
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from typing import Optional
+
+    from orchestrator.domain.base import ProductBlockModel
+    from orchestrator.types import SubscriptionLifecycle
+
+    from products.product_blocks.user_group import (
+        UserGroupBlock,
+        UserGroupBlockInactive,
+        UserGroupBlockProvisioning,
+    )
+
+    # UserBlockInactive with only product block reference group mandatory
+    ...
+
+    # UserBlockProvisioning with only resource type user_id and age optional
+    ...
+
+    # UserBlock with only resource type age optional
+    ...
+    ```
 
 !!! example
 
@@ -155,31 +225,61 @@ Note that the `strEnum` type from the orchestrator is used, which uses the
 standard python module `enum` to define an enumeration of strings, to create a
 type to be used for the fixed input `affiliation`.
 
-```python
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.types import SubscriptionLifecycle, strEnum
+=== "`orchestrator-core` ≥ 5.0"
 
-from products.product_blocks.user import (
-    UserBlock,
-    UserBlockInactive,
-    UserBlockProvisioning,
-)
+    ```python
+    from orchestrator.core.domain.base import SubscriptionModel
+    from orchestrator.core.types import SubscriptionLifecycle, strEnum
 
-
-class Affiliation(strEnum):
-    internal = "internal"
-    external = "external"
+    from products.product_blocks.user import (
+        UserBlock,
+        UserBlockInactive,
+        UserBlockProvisioning,
+    )
 
 
-# UserInactive(SubscriptionModel
-...
+    class Affiliation(strEnum):
+        internal = "internal"
+        external = "external"
 
-# UserProvisioning
-...
 
-# User
-...
-```
+    # UserInactive(SubscriptionModel
+    ...
+
+    # UserProvisioning
+    ...
+
+    # User
+    ...
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.domain.base import SubscriptionModel
+    from orchestrator.types import SubscriptionLifecycle, strEnum
+
+    from products.product_blocks.user import (
+        UserBlock,
+        UserBlockInactive,
+        UserBlockProvisioning,
+    )
+
+
+    class Affiliation(strEnum):
+        internal = "internal"
+        external = "external"
+
+
+    # UserInactive(SubscriptionModel
+    ...
+
+    # UserProvisioning
+    ...
+
+    # User
+    ...
+    ```
 
 !!! example
 

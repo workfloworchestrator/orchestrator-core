@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,7 +18,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.schemas.schedules import (
+from orchestrator.core.schemas.schedules import (
     APSchedulerJobCreate,
     APSchedulerJobDelete,
     APSchedulerJobUpdate,

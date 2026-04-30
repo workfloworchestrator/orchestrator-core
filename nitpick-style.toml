@@ -1,2 +1,0 @@
-[nitpick.files."setup.cfg"]
-comma_separated_values = ["mypy.plugins"]

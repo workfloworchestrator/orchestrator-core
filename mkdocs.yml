@@ -82,6 +82,7 @@ plugins:
           'migration-guide/3.0.md': 'guides/upgrading/3.0.md'
           'migration-guide/4.0.md': 'guides/upgrading/4.0.md'
           'migration-guide/4.0.md': 'guides/upgrading/4.0.md'
+          'migration-guide/5.0.md': 'guides/upgrading/5.0.md'
           'contributing/testing.md': 'guides/testing.md'
 copyright: Copyright &copy; 2018 - 2026 Workflow Orchestrator Programme
 extra:
@@ -166,6 +167,9 @@ nav:
                             - L2 VPN: architecture/product_modelling/l2_vpn.md
                             - IP Static: architecture/product_modelling/ip_static.md
                       - Product Block Graph: architecture/product_modelling/product_block_graph.md
+                - Extensibility:
+                      - Packaging: architecture/extensibility/packaging.md
+                      - Optional Modules: architecture/extensibility/modules.md
     - Guides:
           - Getting Started:
                 - Prerequisites: getting-started/versions.md

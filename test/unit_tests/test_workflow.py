@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from copy import deepcopy
 from functools import reduce
 from typing import Any, NoReturn
@@ -7,13 +20,13 @@ from uuid import UUID, uuid4
 import pytest
 
 from nwastdlib import const
-from orchestrator.api.api_v1.endpoints.processes import get_steps_to_evaluate_for_rbac
-from orchestrator.config.assignee import Assignee
-from orchestrator.db import db
-from orchestrator.services.processes import SYSTEM_USER
-from orchestrator.targets import Target
-from orchestrator.utils.errors import error_state_to_dict
-from orchestrator.workflow import (
+from orchestrator.core.api.api_v1.endpoints.processes import get_steps_to_evaluate_for_rbac
+from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.db import db
+from orchestrator.core.services.processes import SYSTEM_USER
+from orchestrator.core.targets import Target
+from orchestrator.core.utils.errors import error_state_to_dict
+from orchestrator.core.workflow import (
     Abort,
     Complete,
     Failed,
@@ -40,7 +53,7 @@ from orchestrator.workflow import (
     step_group,
     workflow,
 )
-from orchestrator.workflow import _purestep as purestep
+from orchestrator.core.workflow import _purestep as purestep
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from test.unit_tests.workflows import (

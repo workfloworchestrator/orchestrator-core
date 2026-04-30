@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from collections.abc import Generator
 from datetime import datetime, timedelta
 from typing import Any
@@ -7,10 +20,10 @@ import pytest
 import pytz
 from sqlalchemy import delete, select
 
-from orchestrator.config.assignee import Assignee
-from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
-from orchestrator.db.models import WorkflowTable
-from orchestrator.workflow import done, init, inputstep, step, workflow
+from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.core.db.models import WorkflowTable
+from orchestrator.core.workflow import done, init, inputstep, step, workflow
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, UUIDstr
 from pydantic_forms.validators import Choice

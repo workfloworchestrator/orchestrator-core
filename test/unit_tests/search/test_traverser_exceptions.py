@@ -1,6 +1,4 @@
-"""Tests for traverser exception handling: ProductNotInRegistryError, ModelLoadError, computed property failures."""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,14 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for traverser exception handling: ProductNotInRegistryError, ModelLoadError, computed property failures."""
+
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 import pytest
 
-from orchestrator.db import ProcessTable, SubscriptionTable
-from orchestrator.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
-from orchestrator.search.indexing.traverse import ProcessTraverser, ProductTraverser, SubscriptionTraverser
+from orchestrator.core.db import ProcessTable, SubscriptionTable
+from orchestrator.core.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
+from orchestrator.core.search.indexing.traverse import ProcessTraverser, ProductTraverser, SubscriptionTraverser
 
 
 def test_subscription_traverser_product_not_in_registry():
@@ -43,9 +43,9 @@ def test_subscription_traverser_model_load_error():
 
     mock_model_class = MagicMock()
 
-    with patch("orchestrator.search.indexing.traverse.SUBSCRIPTION_MODEL_REGISTRY") as mock_registry:
+    with patch("orchestrator.core.search.indexing.traverse.SUBSCRIPTION_MODEL_REGISTRY") as mock_registry:
         mock_registry.get.return_value = mock_model_class
-        with patch("orchestrator.search.indexing.traverse.lookup_specialized_type") as mock_lookup:
+        with patch("orchestrator.core.search.indexing.traverse.lookup_specialized_type") as mock_lookup:
             mock_specialized_class = MagicMock()
             mock_lookup.return_value = mock_specialized_class
             mock_specialized_class.from_subscription.side_effect = ValueError("Some error")
@@ -134,7 +134,7 @@ def test_get_fields_unexpected_exception_propagates():
 def test_traverse_handles_computed_property_exception(caplog):
     from pydantic import BaseModel, computed_field
 
-    from orchestrator.search.indexing.traverse import BaseTraverser
+    from orchestrator.core.search.indexing.traverse import BaseTraverser
 
     class TestModel(BaseModel):
         normal_field: str = "test_value"

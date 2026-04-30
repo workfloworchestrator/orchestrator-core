@@ -90,38 +90,75 @@ Our usecase for this is that we use an external GraphQL source as our customers 
 This is an basic example of how to extend the query.
 You can do the same to extend Mutation.
 
-```python
-from orchestrator.graphql import Query, Mutation, OrchestratorQuery
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.graphql import Query, Mutation, OrchestratorQuery
 
 
-# Queries
-def resolve_new(info) -> str:
-    return "resolve new..."
+    # Queries
+    def resolve_new(info) -> str:
+        return "resolve new..."
 
 
-# with customers.
-@strawberry.federation.type(description="Orchestrator queries")
-class NewQuery(Query):
-    other_processes: Connection[ProcessType] = authenticated_field(
-        resolver=resolve_processes,
-        description="resolve_processes used for another field",
-    )
-    new: str = strawberry.field(resolve_new, description="new resolver")
+    # with customers.
+    @strawberry.federation.type(description="Orchestrator queries")
+    class NewQuery(Query):
+        other_processes: Connection[ProcessType] = authenticated_field(
+            resolver=resolve_processes,
+            description="resolve_processes used for another field",
+        )
+        new: str = strawberry.field(resolve_new, description="new resolver")
 
-# without customers.
-@strawberry.federation.type(description="Orchestrator queries")
-class NewQueryWithoutCustomers(OrchestratorQuery):
-    other_processes: Connection[ProcessType] = authenticated_field(
-        resolver=resolve_processes,
-        description="resolve_processes used for another field",
-    )
-    new: str = strawberry.field(resolve_new, description="new resolver")
+    # without customers.
+    @strawberry.federation.type(description="Orchestrator queries")
+    class NewQueryWithoutCustomers(OrchestratorQuery):
+        other_processes: Connection[ProcessType] = authenticated_field(
+            resolver=resolve_processes,
+            description="resolve_processes used for another field",
+        )
+        new: str = strawberry.field(resolve_new, description="new resolver")
 
 
-app = OrchestratorCore(base_settings=AppSettings())
-# register SUBSCRIPTION_MODEL_REGISTRY
-app.register_graphql(query=NewQuery)
-```
+    app = OrchestratorCore(base_settings=AppSettings())
+    # register SUBSCRIPTION_MODEL_REGISTRY
+    app.register_graphql(query=NewQuery)
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.graphql import Query, Mutation, OrchestratorQuery
+
+
+    # Queries
+    def resolve_new(info) -> str:
+        return "resolve new..."
+
+
+    # with customers.
+    @strawberry.federation.type(description="Orchestrator queries")
+    class NewQuery(Query):
+        other_processes: Connection[ProcessType] = authenticated_field(
+            resolver=resolve_processes,
+            description="resolve_processes used for another field",
+        )
+        new: str = strawberry.field(resolve_new, description="new resolver")
+
+    # without customers.
+    @strawberry.federation.type(description="Orchestrator queries")
+    class NewQueryWithoutCustomers(OrchestratorQuery):
+        other_processes: Connection[ProcessType] = authenticated_field(
+            resolver=resolve_processes,
+            description="resolve_processes used for another field",
+        )
+        new: str = strawberry.field(resolve_new, description="new resolver")
+
+
+    app = OrchestratorCore(base_settings=AppSettings())
+    # register SUBSCRIPTION_MODEL_REGISTRY
+    app.register_graphql(query=NewQuery)
+    ```
 
 ## Adding federated types to the GraphQL
 
@@ -131,45 +168,89 @@ Within a federation, it is possible to add orchestrator data to GraphQL types fr
 
 Here is an example for when instead of overriding the customers resolver, you instead use a different GraphQL source (know that not storing any customer data in the orchestator will make filtering and sorting unavailable and very tricky to implement):
 
-```python
-import strawberry
-from sqlalchemy import select
+=== "`orchestrator-core` ≥ 5.0"
 
-from oauth2_lib.strawberry import authenticated_field
-from orchestrator.db import db
-from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.schemas.subscription import SubscriptionInterface
-from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+    ```python
+    import strawberry
+    from sqlalchemy import select
+
+    from oauth2_lib.strawberry import authenticated_field
+    from orchestrator.core.db import db
+    from orchestrator.core.graphql.pagination import Connection
+    from orchestrator.core.graphql.schemas.subscription import SubscriptionInterface
+    from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 
 
-@strawberry.federation.type(description="Customer", keys=["customer_id"])
-class Customer:
-    customer_id: str
+    @strawberry.federation.type(description="Customer", keys=["customer_id"])
+    class Customer:
+        customer_id: str
 
-    @classmethod
-    async def resolve_reference(cls, customer_id: str) -> "Customer":  # noqa: N803
-        return Customer(customer_id=customer_id)
+        @classmethod
+        async def resolve_reference(cls, customer_id: str) -> "Customer":  # noqa: N803
+            return Customer(customer_id=customer_id)
 
-    @authenticated_field(description="Returns subscriptions of a customer")  # type: ignore
-    async def subscriptions(
-        self,
-        info: OrchestratorInfo,
-        filter_by: list[GraphqlFilter] | None = None,
-        sort_by: list[GraphqlSort] | None = None,
-        first: int = 10,
-        after: int = 0,
-    ) -> Connection[SubscriptionInterface]:
-        from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
+        @authenticated_field(description="Returns subscriptions of a customer")  # type: ignore
+        async def subscriptions(
+            self,
+            info: OrchestratorInfo,
+            filter_by: list[GraphqlFilter] | None = None,
+            sort_by: list[GraphqlSort] | None = None,
+            first: int = 10,
+            after: int = 0,
+        ) -> Connection[SubscriptionInterface]:
+            from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
 
-        filter_by_customer_id = (filter_by or []) + [GraphqlFilter(field="customerId", value=str(self.uuid))]  # type: ignore
-        return await resolve_subscriptions(info, filter_by_customer_id, sort_by, first, after)
+            filter_by_customer_id = (filter_by or []) + [GraphqlFilter(field="customerId", value=str(self.uuid))]  # type: ignore
+            return await resolve_subscriptions(info, filter_by_customer_id, sort_by, first, after)
 
-UPDATED_GRAPHQL_MODELS = DEFAULT_GRAPHQL_MODELS | {
-    "Customer": Customer,
-}
+    UPDATED_GRAPHQL_MODELS = DEFAULT_GRAPHQL_MODELS | {
+        "Customer": Customer,
+    }
 
-app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
-```
+    app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    import strawberry
+    from sqlalchemy import select
+
+    from oauth2_lib.strawberry import authenticated_field
+    from orchestrator.db import db
+    from orchestrator.graphql.pagination import Connection
+    from orchestrator.graphql.schemas.subscription import SubscriptionInterface
+    from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+
+
+    @strawberry.federation.type(description="Customer", keys=["customer_id"])
+    class Customer:
+        customer_id: str
+
+        @classmethod
+        async def resolve_reference(cls, customer_id: str) -> "Customer":  # noqa: N803
+            return Customer(customer_id=customer_id)
+
+        @authenticated_field(description="Returns subscriptions of a customer")  # type: ignore
+        async def subscriptions(
+            self,
+            info: OrchestratorInfo,
+            filter_by: list[GraphqlFilter] | None = None,
+            sort_by: list[GraphqlSort] | None = None,
+            first: int = 10,
+            after: int = 0,
+        ) -> Connection[SubscriptionInterface]:
+            from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
+
+            filter_by_customer_id = (filter_by or []) + [GraphqlFilter(field="customerId", value=str(self.uuid))]  # type: ignore
+            return await resolve_subscriptions(info, filter_by_customer_id, sort_by, first, after)
+
+    UPDATED_GRAPHQL_MODELS = DEFAULT_GRAPHQL_MODELS | {
+        "Customer": Customer,
+    }
+
+    app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
+    ```
 
 Types that are added in this way but aren't used in a resolver, will be viewable outside of a federation inside the types in the GraphQL UI interface.
 
@@ -182,37 +263,73 @@ This functionality is to make metadata descriptive in a `__schema__` for the fro
 
 example how to update the `__schema__`:
 
-```python
-from orchestrator.graphql.schemas.subscription import MetadataDict
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.graphql.schemas.subscription import MetadataDict
 
 
-class Metadata(BaseModel):
-    some_metadata_prop: list[str]
+    class Metadata(BaseModel):
+        some_metadata_prop: list[str]
 
 
-MetadataDict.update({"metadata": Metadata})
-```
+    MetadataDict.update({"metadata": Metadata})
+    ```
 
-This will result in json schema:
+    This will result in json schema:
 
-```Json
-{
-    "title": "Metadata",
-    "type": "object",
-    "properties": {
-        "some_metadata_prop": {
-            "title": "Some Metadata Prop",
-            "type": "array",
-            "items": {
-                "type": "string"
+    ```Json
+    {
+        "title": "Metadata",
+        "type": "object",
+        "properties": {
+            "some_metadata_prop": {
+                "title": "Some Metadata Prop",
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
             }
-        }
-    },
-    "required": [
-        "some_metadata_prop"
-    ]
-}
-```
+        },
+        "required": [
+            "some_metadata_prop"
+        ]
+    }
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.graphql.schemas.subscription import MetadataDict
+
+
+    class Metadata(BaseModel):
+        some_metadata_prop: list[str]
+
+
+    MetadataDict.update({"metadata": Metadata})
+    ```
+
+    This will result in json schema:
+
+    ```Json
+    {
+        "title": "Metadata",
+        "type": "object",
+        "properties": {
+            "some_metadata_prop": {
+                "title": "Some Metadata Prop",
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            }
+        },
+        "required": [
+            "some_metadata_prop"
+        ]
+    }
+    ```
 
 ## Domain Models Auto Registration for GraphQL
 
@@ -232,31 +349,61 @@ To handle this situation, you must manually create the GraphQL type for that `Pr
 
 Here's an example of how to do it:
 
-```python
-# product_block_file.py
-import strawberry
-from typing import Annotated
-from app.product_blocks import ProductBlock
-from orchestrator.graphql import DEFAULT_GRAPHQL_MODELS
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    # product_block_file.py
+    import strawberry
+    from typing import Annotated
+    from app.product_blocks import ProductBlock
+    from orchestrator.core.graphql import DEFAULT_GRAPHQL_MODELS
 
 
-# It is necessary to use pydantic type, so that other product blocks can recognize it when typing to GraphQL.
-@strawberry.experimental.pydantic.type(model=ProductBlock)
-class ProductBlockGraphql:
-    name: strawberry.auto
-    self_reference_block: Annotated[
-        "ProductBlockGraphql", strawberry.lazy(".product_block_file")
-    ] | None = None
-    ...
+    # It is necessary to use pydantic type, so that other product blocks can recognize it when typing to GraphQL.
+    @strawberry.experimental.pydantic.type(model=ProductBlock)
+    class ProductBlockGraphql:
+        name: strawberry.auto
+        self_reference_block: Annotated[
+            "ProductBlockGraphql", strawberry.lazy(".product_block_file")
+        ] | None = None
+        ...
 
 
-# Add the ProductBlockGraphql type to GRAPHQL_MODELS, which skips its auto-register and used for products or product blocks dependant on it.
-UPDATED_GRAPHQL_MODELS = DEFAULT_GRAPHQL_MODELS | {
-    "ProductBlockGraphql": ProductBlockGraphql,
-}
+    # Add the ProductBlockGraphql type to GRAPHQL_MODELS, which skips its auto-register and used for products or product blocks dependant on it.
+    UPDATED_GRAPHQL_MODELS = DEFAULT_GRAPHQL_MODELS | {
+        "ProductBlockGraphql": ProductBlockGraphql,
+    }
 
-app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
-```
+    app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    # product_block_file.py
+    import strawberry
+    from typing import Annotated
+    from app.product_blocks import ProductBlock
+    from orchestrator.graphql import DEFAULT_GRAPHQL_MODELS
+
+
+    # It is necessary to use pydantic type, so that other product blocks can recognize it when typing to GraphQL.
+    @strawberry.experimental.pydantic.type(model=ProductBlock)
+    class ProductBlockGraphql:
+        name: strawberry.auto
+        self_reference_block: Annotated[
+            "ProductBlockGraphql", strawberry.lazy(".product_block_file")
+        ] | None = None
+        ...
+
+
+    # Add the ProductBlockGraphql type to GRAPHQL_MODELS, which skips its auto-register and used for products or product blocks dependant on it.
+    UPDATED_GRAPHQL_MODELS = DEFAULT_GRAPHQL_MODELS | {
+        "ProductBlockGraphql": ProductBlockGraphql,
+    }
+
+    app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
+    ```
 
 By following this example, you can effectively create the necessary GraphQL type for `ProductBlock` and ensure proper registration with `app.register_graphql()`. This will help you avoid any `Cannot find a Strawberry Type` scenarios and enable smooth integration of domain models with GraphQL.
 
@@ -267,25 +414,49 @@ Scalar types enable smooth integration of these special types into the GraphQL s
 
 Here's an example of how to add a new scalar:
 
-```python
-import strawberry
-from typing import NewType
-from orchestrator.graphql import SCALAR_OVERRIDES
+=== "`orchestrator-core` ≥ 5.0"
 
-VlanRangesType = strawberry.scalar(
-    name="VlanRangesType",
-    description="Represent the Orchestrator VlanRanges data type",
-    serialize=lambda v: v.to_list_of_tuples(),
-    parse_value=lambda v: v,
-)
+    ```python
+    import strawberry
+    from typing import NewType
+    from orchestrator.core.graphql import SCALAR_OVERRIDES
 
-# Add the scalar to the SCALAR_OVERRIDES dictionary, with the type in the product block as the key and the scalar as the value
-UPDATED_SCALAR_OVERRIDES = SCALAR_OVERRIDES | {
-    VlanRanges: VlanRangesType,
-}
+    VlanRangesType = strawberry.scalar(
+        name="VlanRangesType",
+        description="Represent the Orchestrator VlanRanges data type",
+        serialize=lambda v: v.to_list_of_tuples(),
+        parse_value=lambda v: v,
+    )
 
-app.register_graphql(other_params..., scalar_overrides=UPDATED_SCALAR_OVERRIDES)
-```
+    # Add the scalar to the SCALAR_OVERRIDES dictionary, with the type in the product block as the key and the scalar as the value
+    UPDATED_SCALAR_OVERRIDES = SCALAR_OVERRIDES | {
+        VlanRanges: VlanRangesType,
+    }
+
+    app.register_graphql(other_params..., scalar_overrides=UPDATED_SCALAR_OVERRIDES)
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    import strawberry
+    from typing import NewType
+    from orchestrator.graphql import SCALAR_OVERRIDES
+
+    VlanRangesType = strawberry.scalar(
+        name="VlanRangesType",
+        description="Represent the Orchestrator VlanRanges data type",
+        serialize=lambda v: v.to_list_of_tuples(),
+        parse_value=lambda v: v,
+    )
+
+    # Add the scalar to the SCALAR_OVERRIDES dictionary, with the type in the product block as the key and the scalar as the value
+    UPDATED_SCALAR_OVERRIDES = SCALAR_OVERRIDES | {
+        VlanRanges: VlanRangesType,
+    }
+
+    app.register_graphql(other_params..., scalar_overrides=UPDATED_SCALAR_OVERRIDES)
+    ```
 
 You can find more examples of scalar usage in the `orchestrator/graphql/types.py` file.
 For additional information on Scalars, please refer to the Strawberry documentation on Scalars: https://strawberry.rocks/docs/types/scalars.
@@ -466,11 +637,21 @@ class ExampleProduct(ExampleProductInactive, lifecycle=[SubscriptionLifecycle.AC
 The problem with this is that Strawberry automatically uses the alias name and doesn't camelcase it so the Strawberry field becomes `property_example`.
 To fix it and have CamelCasing, we can prevent aliases from being used in `strawberry.type` using the created mapping `USE_PYDANTIC_ALIAS_MODEL_MAPPING`:
 
-```python
-from orchestrator.graphql.autoregistration import USE_PYDANTIC_ALIAS_MODEL_MAPPING
+=== "`orchestrator-core` ≥ 5.0"
 
-USE_PYDANTIC_ALIAS_MODEL_MAPPING.update({"ExampleProductSubscription": False})
-```
+    ```python
+    from orchestrator.core.graphql.autoregistration import USE_PYDANTIC_ALIAS_MODEL_MAPPING
+
+    USE_PYDANTIC_ALIAS_MODEL_MAPPING.update({"ExampleProductSubscription": False})
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.graphql.autoregistration import USE_PYDANTIC_ALIAS_MODEL_MAPPING
+
+    USE_PYDANTIC_ALIAS_MODEL_MAPPING.update({"ExampleProductSubscription": False})
+    ```
 
 which would now give us a Strawberry field `aliasedPropertyExample`.
 To name it `propertyExample` you can't override the function property name and have two choices:
@@ -516,48 +697,95 @@ app.register_graphql(subscription_interface=custom_subscription_interface)
 
 Quick example (for more indebt check customerType override):
 
-```python
-import strawberry
-from orchestrator.graphql.utils.override_class import override_class
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    import strawberry
+    from orchestrator.core.graphql.utils.override_class import override_class
 
 
-# Define a Strawberry type representing an example entity
-@strawberry.type()
-class ExampleType:
-    @strawberry.field(description="Existing field")  # type: ignore
-    def existing(self) -> int:
+    # Define a Strawberry type representing an example entity
+    @strawberry.type()
+    class ExampleType:
+        @strawberry.field(description="Existing field")  # type: ignore
+        def existing(self) -> int:
+            return 1
+
+
+    # Define a Strawberry type for example queries
+    @strawberry.type(description="Example queries")
+    class Query:
+        example: ExampleType = strawberry.field(resolver=lambda: ExampleType())
+
+
+    # Create a resolver for updating the existing field
+    async def update_existing_resolver() -> str:
+        return "updated to new type"
+
+
+    # Create a Strawberry field with the resolver for the existing field
+    existing_field = strawberry.field(resolver=update_existing_resolver, description="update existing field")  # type: ignore
+    # Assign a new name to the Strawberry field; this name will override the existing field in the class
+    existing_field.name = "existing"
+
+
+    # Create a new field with a resolver
+    async def new_resolver() -> int:
         return 1
 
 
-# Define a Strawberry type for example queries
-@strawberry.type(description="Example queries")
-class Query:
-    example: ExampleType = strawberry.field(resolver=lambda: ExampleType())
+    new_field = strawberry.field(resolver=new_resolver, description="a new field")  # type: ignore
+    # Assign a name that is not present in the class yet
+    new_field.name = "new"
+
+    # Use the override_class function to replace fields in the ExampleType
+    override_class(ExampleType, [new_field, existing_field])
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    import strawberry
+    from orchestrator.graphql.utils.override_class import override_class
 
 
-# Create a resolver for updating the existing field
-async def update_existing_resolver() -> str:
-    return "updated to new type"
+    # Define a Strawberry type representing an example entity
+    @strawberry.type()
+    class ExampleType:
+        @strawberry.field(description="Existing field")  # type: ignore
+        def existing(self) -> int:
+            return 1
 
 
-# Create a Strawberry field with the resolver for the existing field
-existing_field = strawberry.field(resolver=update_existing_resolver, description="update existing field")  # type: ignore
-# Assign a new name to the Strawberry field; this name will override the existing field in the class
-existing_field.name = "existing"
+    # Define a Strawberry type for example queries
+    @strawberry.type(description="Example queries")
+    class Query:
+        example: ExampleType = strawberry.field(resolver=lambda: ExampleType())
 
 
-# Create a new field with a resolver
-async def new_resolver() -> int:
-    return 1
+    # Create a resolver for updating the existing field
+    async def update_existing_resolver() -> str:
+        return "updated to new type"
 
 
-new_field = strawberry.field(resolver=new_resolver, description="a new field")  # type: ignore
-# Assign a name that is not present in the class yet
-new_field.name = "new"
+    # Create a Strawberry field with the resolver for the existing field
+    existing_field = strawberry.field(resolver=update_existing_resolver, description="update existing field")  # type: ignore
+    # Assign a new name to the Strawberry field; this name will override the existing field in the class
+    existing_field.name = "existing"
 
-# Use the override_class function to replace fields in the ExampleType
-override_class(ExampleType, [new_field, existing_field])
-```
+
+    # Create a new field with a resolver
+    async def new_resolver() -> int:
+        return 1
+
+
+    new_field = strawberry.field(resolver=new_resolver, description="a new field")  # type: ignore
+    # Assign a name that is not present in the class yet
+    new_field.name = "new"
+
+    # Use the override_class function to replace fields in the ExampleType
+    override_class(ExampleType, [new_field, existing_field])
+    ```
 
 ### Overriding CustomerType and Resolvers
 
@@ -570,150 +798,299 @@ Below, I present an example illustrating how to override the `CustomerType` and 
 
 Here's a generic override for the `CustomerType` that introduces a new `subscriptions` relation:
 
-```python
-from typing import Annotated
+=== "`orchestrator-core` ≥ 5.0"
 
-import strawberry
+    ```python
+    from typing import Annotated
 
-from oauth2_lib.strawberry import authenticated_field
-from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.schemas.customer import CustomerType
-from orchestrator.graphql.schemas.subscription import (
-    SubscriptionInterface,
-)  # noqa: F401
-from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.graphql.utils.override_class import override_class
+    import strawberry
 
-# Type annotation for better readability rather than having this directly as a return type
-SubscriptionInterfaceType = Connection[
-    Annotated[
-        "SubscriptionInterface",
-        strawberry.lazy("orchestrator.graphql.schemas.subscription"),
+    from oauth2_lib.strawberry import authenticated_field
+    from orchestrator.core.graphql.pagination import Connection
+    from orchestrator.core.graphql.schemas.customer import CustomerType
+    from orchestrator.core.graphql.schemas.subscription import (
+        SubscriptionInterface,
+    )  # noqa: F401
+    from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+    from orchestrator.core.graphql.utils.override_class import override_class
+
+    # Type annotation for better readability rather than having this directly as a return type
+    SubscriptionInterfaceType = Connection[
+        Annotated[
+            "SubscriptionInterface",
+            strawberry.lazy("orchestrator.core.graphql.schemas.subscription"),
+        ]
     ]
-]
 
 
-# Resolver for fetching subscriptions of a customer
-async def resolve_subscriptions(
-    root: CustomerType,
-    info: OrchestratorInfo,
-    filter_by: list[GraphqlFilter] | None = None,
-    sort_by: list[GraphqlSort] | None = None,
-    first: int = 10,
-    after: int = 0,
-) -> SubscriptionInterfaceType:
-    from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
+    # Resolver for fetching subscriptions of a customer
+    async def resolve_subscriptions(
+        root: CustomerType,
+        info: OrchestratorInfo,
+        filter_by: list[GraphqlFilter] | None = None,
+        sort_by: list[GraphqlSort] | None = None,
+        first: int = 10,
+        after: int = 0,
+    ) -> SubscriptionInterfaceType:
+        from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
 
-    # Include the filter for the customer ID; since 'customerId' exists in the subscription, filtering updates are not required.
-    filter_by_customer_id = (filter_by or []) + [GraphqlFilter(field="customerId", value=str(root.customer_id))]  # type: ignore
-    return await resolve_subscriptions(
-        info, filter_by_customer_id, sort_by, first, after
+        # Include the filter for the customer ID; since 'customerId' exists in the subscription, filtering updates are not required.
+        filter_by_customer_id = (filter_by or []) + [GraphqlFilter(field="customerId", value=str(root.customer_id))]  # type: ignore
+        return await resolve_subscriptions(
+            info, filter_by_customer_id, sort_by, first, after
+        )
+
+
+    # Create an authenticated field for customer subscriptions
+    customer_subscriptions_field = authenticated_field(
+        resolver=resolve_subscriptions, description="Returns subscriptions of a customer"
     )
+    # Assign a new name to the Strawberry field; this name will add the 'subscriptions' field in the class
+    customer_subscriptions_field.name = "subscriptions"
+
+    # Override the CustomerType with the new 'subscriptions' field
+    override_class(CustomerType, [customer_subscriptions_field])
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from typing import Annotated
+
+    import strawberry
+
+    from oauth2_lib.strawberry import authenticated_field
+    from orchestrator.graphql.pagination import Connection
+    from orchestrator.graphql.schemas.customer import CustomerType
+    from orchestrator.graphql.schemas.subscription import (
+        SubscriptionInterface,
+    )  # noqa: F401
+    from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+    from orchestrator.graphql.utils.override_class import override_class
+
+    # Type annotation for better readability rather than having this directly as a return type
+    SubscriptionInterfaceType = Connection[
+        Annotated[
+            "SubscriptionInterface",
+            strawberry.lazy("orchestrator.graphql.schemas.subscription"),
+        ]
+    ]
 
 
-# Create an authenticated field for customer subscriptions
-customer_subscriptions_field = authenticated_field(
-    resolver=resolve_subscriptions, description="Returns subscriptions of a customer"
-)
-# Assign a new name to the Strawberry field; this name will add the 'subscriptions' field in the class
-customer_subscriptions_field.name = "subscriptions"
+    # Resolver for fetching subscriptions of a customer
+    async def resolve_subscriptions(
+        root: CustomerType,
+        info: OrchestratorInfo,
+        filter_by: list[GraphqlFilter] | None = None,
+        sort_by: list[GraphqlSort] | None = None,
+        first: int = 10,
+        after: int = 0,
+    ) -> SubscriptionInterfaceType:
+        from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
-# Override the CustomerType with the new 'subscriptions' field
-override_class(CustomerType, [customer_subscriptions_field])
-```
+        # Include the filter for the customer ID; since 'customerId' exists in the subscription, filtering updates are not required.
+        filter_by_customer_id = (filter_by or []) + [GraphqlFilter(field="customerId", value=str(root.customer_id))]  # type: ignore
+        return await resolve_subscriptions(
+            info, filter_by_customer_id, sort_by, first, after
+        )
+
+
+    # Create an authenticated field for customer subscriptions
+    customer_subscriptions_field = authenticated_field(
+        resolver=resolve_subscriptions, description="Returns subscriptions of a customer"
+    )
+    # Assign a new name to the Strawberry field; this name will add the 'subscriptions' field in the class
+    customer_subscriptions_field.name = "subscriptions"
+
+    # Override the CustomerType with the new 'subscriptions' field
+    override_class(CustomerType, [customer_subscriptions_field])
+    ```
 
 #### CustomerType Resolver Override
 
 In this example code, we introduce a resolver override for the `CustomerType`. The scenario involves a supplementary `CustomerTable` in the database, encompassing the default values of `CustomerType`—namely, `customer_id`, `fullname`, and `shortcode`.
 
-```python
-import structlog
-from sqlalchemy import func, select
+=== "`orchestrator-core` ≥ 5.0"
 
-from orchestrator.db import db
-from orchestrator.db.filters import Filter
-from orchestrator.db.range.range import apply_range_to_statement
-from orchestrator.db.sorting import Sort
-from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.resolvers.helpers import rows_from_statement
-from orchestrator.graphql.schemas.customer import CustomerType
-from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.graphql.utils.create_resolver_error_handler import (
-    create_resolver_error_handler,
-)
-from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
-from orchestrator.utils.search_query import create_sqlalchemy_select
-from your_customer_table_location.db.models import CustomerTable
+    ```python
+    import structlog
+    from sqlalchemy import func, select
 
-# # Import custom sorting and filtering modules used with `sort_by` and `filter_by`.
-# from sort_loc import sort_customers, sort_customers_fields
-# from filter_loc import filter_customers, filter_customers_fields
-
-logger = structlog.get_logger(__name__)
-
-
-# Queries
-def resolve_customers(
-    info: OrchestratorInfo,
-    filter_by: list[GraphqlFilter] | None = None,
-    sort_by: list[GraphqlSort] | None = None,
-    first: int = 10,
-    after: int = 0,
-    query: str | None = None,
-) -> Connection[CustomerType]:
-    # ---- DEFAULT RESOLVER LOGIC ----
-    _error_handler = create_resolver_error_handler(info)
-
-    pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []  # type: ignore
-    pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []  # type: ignore
-    logger.debug(
-        "resolve_customers() called",
-        range=[after, after + first],
-        sort=pydantic_sort_by,
-        filter=pydantic_filter_by,
+    from orchestrator.core.db import db
+    from orchestrator.core.db.filters import Filter
+    from orchestrator.core.db.range.range import apply_range_to_statement
+    from orchestrator.core.db.sorting import Sort
+    from orchestrator.core.graphql.pagination import Connection
+    from orchestrator.core.graphql.resolvers.helpers import rows_from_statement
+    from orchestrator.core.graphql.schemas.customer import CustomerType
+    from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+    from orchestrator.core.graphql.utils.create_resolver_error_handler import (
+        create_resolver_error_handler,
     )
-    # ---- END OF DEFAULT RESOLVER LOGIC ----
+    from orchestrator.core.graphql.utils.to_graphql_result_page import to_graphql_result_page
+    from orchestrator.core.utils.search_query import create_sqlalchemy_select
+    from your_customer_table_location.db.models import CustomerTable
 
-    select_stmt = select(CustomerTable)
+    # # Import custom sorting and filtering modules used with `sort_by` and `filter_by`.
+    # from sort_loc import sort_customers, sort_customers_fields
+    # from filter_loc import filter_customers, filter_customers_fields
 
-    # # Include custom filtering logic if imported
-    # select_stmt = filter_customers(select_stmt, pydantic_filter_by, _error_handler)
+    logger = structlog.get_logger(__name__)
 
-    if query is not None:
-        stmt = create_sqlalchemy_select(
-            select_stmt,
-            query,
-            mappings={},
-            base_table=CustomerTable,
-            join_key=CustomerTable.customer_id,
+
+    # Queries
+    def resolve_customers(
+        info: OrchestratorInfo,
+        filter_by: list[GraphqlFilter] | None = None,
+        sort_by: list[GraphqlSort] | None = None,
+        first: int = 10,
+        after: int = 0,
+        query: str | None = None,
+    ) -> Connection[CustomerType]:
+        # ---- DEFAULT RESOLVER LOGIC ----
+        _error_handler = create_resolver_error_handler(info)
+
+        pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []  # type: ignore
+        pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []  # type: ignore
+        logger.debug(
+            "resolve_customers() called",
+            range=[after, after + first],
+            sort=pydantic_sort_by,
+            filter=pydantic_filter_by,
         )
-    else:
-        stmt = select_stmt
+        # ---- END OF DEFAULT RESOLVER LOGIC ----
 
-    # # Include custom sorting logic if imported
-    # stmt = sort_customers(stmt, pydantic_sort_by, _error_handler)
+        select_stmt = select(CustomerTable)
 
-    # ---- DEFAULT RESOLVER LOGIC ----
-    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
-    stmt = apply_range_to_statement(stmt, after, after + first + 1)
+        # # Include custom filtering logic if imported
+        # select_stmt = filter_customers(select_stmt, pydantic_filter_by, _error_handler)
 
-    customers = rows_from_statement(stmt, CustomerTable)
-    graphql_customers = [
-        CustomerType(
-            customer_id=c.customer_id, fullname=c.fullname, shortcode=c.shortcode
+        if query is not None:
+            stmt = create_sqlalchemy_select(
+                select_stmt,
+                query,
+                mappings={},
+                base_table=CustomerTable,
+                join_key=CustomerTable.customer_id,
+            )
+        else:
+            stmt = select_stmt
+
+        # # Include custom sorting logic if imported
+        # stmt = sort_customers(stmt, pydantic_sort_by, _error_handler)
+
+        # ---- DEFAULT RESOLVER LOGIC ----
+        total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+        stmt = apply_range_to_statement(stmt, after, after + first + 1)
+
+        customers = rows_from_statement(stmt, CustomerTable)
+        graphql_customers = [
+            CustomerType(
+                customer_id=c.customer_id, fullname=c.fullname, shortcode=c.shortcode
+            )
+            for c in customers
+        ]
+        return to_graphql_result_page(
+            graphql_customers,
+            first,
+            after,
+            total,
+            sort_customers_fields,
+            filter_customers_fields,
         )
-        for c in customers
-    ]
-    return to_graphql_result_page(
-        graphql_customers,
-        first,
-        after,
-        total,
-        sort_customers_fields,
-        filter_customers_fields,
+        # ---- END OF DEFAULT RESOLVER LOGIC ----
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    import structlog
+    from sqlalchemy import func, select
+
+    from orchestrator.db import db
+    from orchestrator.db.filters import Filter
+    from orchestrator.db.range.range import apply_range_to_statement
+    from orchestrator.db.sorting import Sort
+    from orchestrator.graphql.pagination import Connection
+    from orchestrator.graphql.resolvers.helpers import rows_from_statement
+    from orchestrator.graphql.schemas.customer import CustomerType
+    from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+    from orchestrator.graphql.utils.create_resolver_error_handler import (
+        create_resolver_error_handler,
     )
-    # ---- END OF DEFAULT RESOLVER LOGIC ----
-```
+    from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
+    from orchestrator.utils.search_query import create_sqlalchemy_select
+    from your_customer_table_location.db.models import CustomerTable
+
+    # # Import custom sorting and filtering modules used with `sort_by` and `filter_by`.
+    # from sort_loc import sort_customers, sort_customers_fields
+    # from filter_loc import filter_customers, filter_customers_fields
+
+    logger = structlog.get_logger(__name__)
+
+
+    # Queries
+    def resolve_customers(
+        info: OrchestratorInfo,
+        filter_by: list[GraphqlFilter] | None = None,
+        sort_by: list[GraphqlSort] | None = None,
+        first: int = 10,
+        after: int = 0,
+        query: str | None = None,
+    ) -> Connection[CustomerType]:
+        # ---- DEFAULT RESOLVER LOGIC ----
+        _error_handler = create_resolver_error_handler(info)
+
+        pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []  # type: ignore
+        pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []  # type: ignore
+        logger.debug(
+            "resolve_customers() called",
+            range=[after, after + first],
+            sort=pydantic_sort_by,
+            filter=pydantic_filter_by,
+        )
+        # ---- END OF DEFAULT RESOLVER LOGIC ----
+
+        select_stmt = select(CustomerTable)
+
+        # # Include custom filtering logic if imported
+        # select_stmt = filter_customers(select_stmt, pydantic_filter_by, _error_handler)
+
+        if query is not None:
+            stmt = create_sqlalchemy_select(
+                select_stmt,
+                query,
+                mappings={},
+                base_table=CustomerTable,
+                join_key=CustomerTable.customer_id,
+            )
+        else:
+            stmt = select_stmt
+
+        # # Include custom sorting logic if imported
+        # stmt = sort_customers(stmt, pydantic_sort_by, _error_handler)
+
+        # ---- DEFAULT RESOLVER LOGIC ----
+        total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+        stmt = apply_range_to_statement(stmt, after, after + first + 1)
+
+        customers = rows_from_statement(stmt, CustomerTable)
+        graphql_customers = [
+            CustomerType(
+                customer_id=c.customer_id, fullname=c.fullname, shortcode=c.shortcode
+            )
+            for c in customers
+        ]
+        return to_graphql_result_page(
+            graphql_customers,
+            first,
+            after,
+            total,
+            sort_customers_fields,
+            filter_customers_fields,
+        )
+        # ---- END OF DEFAULT RESOLVER LOGIC ----
+    ```
 
 #### CustomerType Related Type Overrides
 

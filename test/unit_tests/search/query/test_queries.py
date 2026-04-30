@@ -1,6 +1,4 @@
-"""Tests for orchestrator.search.query.queries -- query construction, validation, aggregation builders, and discriminated union routing."""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,12 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for orchestrator.core.search.query.queries -- query construction, validation, aggregation builders, and discriminated union routing."""
+
 from unittest.mock import MagicMock
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from orchestrator.search.aggregations import (
+from orchestrator.core.search.aggregations import (
     AggregationType,
     BaseAggregation,
     CountAggregation,
@@ -26,11 +26,11 @@ from orchestrator.search.aggregations import (
     TemporalGrouping,
     TemporalPeriod,
 )
-from orchestrator.search.core.types import EntityType, QueryOperation
-from orchestrator.search.filters import FilterTree
-from orchestrator.search.query.builder import build_aggregation_query, build_candidate_query
-from orchestrator.search.query.mixins import OrderBy, OrderDirection
-from orchestrator.search.query.queries import AggregateQuery, CountQuery, ExportQuery, Query, SelectQuery
+from orchestrator.core.search.core.types import EntityType, QueryOperation
+from orchestrator.core.search.filters import FilterTree
+from orchestrator.core.search.query.builder import build_aggregation_query, build_candidate_query
+from orchestrator.core.search.query.mixins import OrderBy, OrderDirection
+from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, Query, SelectQuery
 
 pytestmark = pytest.mark.search
 

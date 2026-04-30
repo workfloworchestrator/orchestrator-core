@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -21,9 +21,9 @@ import pytest
 import pytz
 from pydantic import BaseModel
 
-from orchestrator.schemas.base import OrchestratorBaseModel
-from orchestrator.utils.datetime import nowtz
-from orchestrator.utils.json import from_serializable, json_dumps, json_loads, non_none_dict, to_serializable
+from orchestrator.core.schemas.base import OrchestratorBaseModel
+from orchestrator.core.utils.datetime import nowtz
+from orchestrator.core.utils.json import from_serializable, json_dumps, json_loads, non_none_dict, to_serializable
 
 
 def test_serialization_datetime():

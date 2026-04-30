@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import difflib
 import pprint
 from collections.abc import Callable
@@ -8,14 +21,14 @@ from typing import cast
 
 import structlog
 
-from orchestrator.db import ProcessTable, WorkflowTable, db
-from orchestrator.services.input_state import store_input_state
-from orchestrator.services.processes import StateMerger, create_process
-from orchestrator.targets import Target
-from orchestrator.utils.json import json_dumps, json_loads
-from orchestrator.workflow import Process as WFProcess
-from orchestrator.workflow import ProcessStat, Step, Success, Workflow, runwf
-from orchestrator.workflows import ALL_WORKFLOWS, LazyWorkflowInstance
+from orchestrator.core.db import ProcessTable, WorkflowTable, db
+from orchestrator.core.services.input_state import store_input_state
+from orchestrator.core.services.processes import StateMerger, create_process
+from orchestrator.core.targets import Target
+from orchestrator.core.utils.json import json_dumps, json_loads
+from orchestrator.core.workflow import Process as WFProcess
+from orchestrator.core.workflow import ProcessStat, Step, Success, Workflow, runwf
+from orchestrator.core.workflows import ALL_WORKFLOWS, LazyWorkflowInstance
 from pydantic_forms.core import post_form
 from pydantic_forms.types import FormGenerator, InputForm, State
 from test.unit_tests.config import IMS_CIRCUIT_ID, PORT_SUBSCRIPTION_ID
@@ -43,27 +56,27 @@ def _raise_exception(state):
 
 
 def assert_success(result):
-    assert (
-        result.on_failed(_raise_exception).on_waiting(_raise_exception).issuccess()
-    ), f"Unexpected process status. Expected Success, but was: {result}"
+    assert result.on_failed(_raise_exception).on_waiting(_raise_exception).issuccess(), (
+        f"Unexpected process status. Expected Success, but was: {result}"
+    )
 
 
 def assert_waiting(result):
-    assert result.on_failed(
-        _raise_exception
-    ).iswaiting(), f"Unexpected process status. Expected Waiting, but was: {result}"
+    assert result.on_failed(_raise_exception).iswaiting(), (
+        f"Unexpected process status. Expected Waiting, but was: {result}"
+    )
 
 
 def assert_awaiting_callback(result):
-    assert result.on_failed(
-        _raise_exception
-    ).isawaitingcallback(), f"Unexpected process status. Expected AwaitingCallback, but was: {result}"
+    assert result.on_failed(_raise_exception).isawaitingcallback(), (
+        f"Unexpected process status. Expected AwaitingCallback, but was: {result}"
+    )
 
 
 def assert_suspended(result):
-    assert result.on_failed(
-        _raise_exception
-    ).issuspend(), f"Unexpected process status. Expected Suspend, but was: {result}"
+    assert result.on_failed(_raise_exception).issuspend(), (
+        f"Unexpected process status. Expected Suspend, but was: {result}"
+    )
 
 
 def assert_aborted(result):
@@ -75,9 +88,9 @@ def assert_failed(result):
 
 
 def assert_complete(result):
-    assert result.on_failed(
-        _raise_exception
-    ).iscomplete(), f"Unexpected process status. Expected Complete, but was: {result}"
+    assert result.on_failed(_raise_exception).iscomplete(), (
+        f"Unexpected process status. Expected Complete, but was: {result}"
+    )
 
 
 def assert_state(result, expected):
@@ -120,7 +133,7 @@ def extract_state(result):
 
 
 def extract_error(result):
-    from orchestrator.workflow import Process
+    from orchestrator.core.workflow import Process
 
     assert isinstance(result, Process), f"Expected a Process, but got {repr(result)} of type {type(result)}"
     assert not isinstance(result.s, Process), "Result contained a Process in a Process, this should not happen"
@@ -279,9 +292,9 @@ def assert_product_blocks_equal(expected, actual):
 
     expected_product_block_names = [list(p.keys())[0] for p in expected]
     actual_product_block_names = [list(p.keys())[0] for p in actual]
-    assert (
-        expected_product_block_names == actual_product_block_names
-    ), f"Expected the following product blocks: {expected_product_block_names}, but got {actual_product_block_names}"
+    assert expected_product_block_names == actual_product_block_names, (
+        f"Expected the following product blocks: {expected_product_block_names}, but got {actual_product_block_names}"
+    )
 
     for expected_pb, actual_pb in zip(expected, actual):
         for expected_instance_values, actual_instance_values in zip(expected_pb.values(), actual_pb.values()):
@@ -289,9 +302,9 @@ def assert_product_blocks_equal(expected, actual):
             actual_tuples = set(reduce(accumulate_list_of_tuples, actual_instance_values, []))
             missing_instance_values = expected_tuples - actual_tuples
             unexpected_instance_values = actual_tuples - expected_tuples
-            assert (
-                not missing_instance_values
-            ), f"Missing instance value(s): {missing_instance_values}; Unexpected: {unexpected_instance_values}"
+            assert not missing_instance_values, (
+                f"Missing instance value(s): {missing_instance_values}; Unexpected: {unexpected_instance_values}"
+            )
             assert not unexpected_instance_values, f"Unexpected instance values: {unexpected_instance_values}"
 
 

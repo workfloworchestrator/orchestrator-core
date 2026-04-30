@@ -1,4 +1,4 @@
-# Copyright 2022-2026 SURF, ESnet.
+# Copyright 2022-2026 SURF, ESnet, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -55,7 +55,7 @@ def test_process(test_client_graphql, mocked_processes):
     }
 
 
-@mock.patch("orchestrator.graphql.schemas.process.get_workflow")
+@mock.patch("orchestrator.core.graphql.schemas.process.get_workflow")
 def test_process_is_allowed_with_historic_workflow_only_left_in_db(
     mock_get_workflow, test_client_graphql, mocked_processes, test_workflow_soft_deleted
 ):

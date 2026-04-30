@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import re
 from difflib import context_diff
 from filecmp import dircmp
@@ -7,7 +20,7 @@ import pytest
 import structlog
 from more_itertools import one
 
-from orchestrator.cli.generate import app as generate_app
+from orchestrator.core.cli.generate import app as generate_app
 from test.unit_tests.cli.helpers import absolute_path
 
 logger = structlog.get_logger()
@@ -84,9 +97,9 @@ def get_revision_ids(folder):
         _date, filename_rev_id, *_rest = migration_file.name.split("_")
         rev_ids = dict(re.findall(r'(.+) = "([0-9a-z]+)"', migration_file.read_text()))
         migration_rev_id = rev_ids["revision"]
-        assert (
-            filename_rev_id == migration_rev_id
-        ), f"Migration file {showfile(migration_file)} has a different revision id in name and body"
+        assert filename_rev_id == migration_rev_id, (
+            f"Migration file {showfile(migration_file)} has a different revision id in name and body"
+        )
         rev_id_to_file[migration_rev_id] = migration_file
         revision_chain[rev_ids.get("down_revision", "base")] = migration_rev_id
 
@@ -127,6 +140,7 @@ def test_differences_in_generated_code(expected_folder, actual_folder):
         actual_rev_id = _expected_to_actual_rev_id[expected_rev_id]
         return one((actual_folder / "migrations/versions/schema").glob(f"*_{actual_rev_id}_*.py"))
 
+    formatted_diff, relative = None, None
     for expected in expected_folder.rglob("*.py"):
         relative = expected.relative_to(expected_folder)
         actual = actual_folder / relative
@@ -152,6 +166,6 @@ def test_differences_in_generated_code(expected_folder, actual_folder):
 
         formatted_diff = "\n".join(diff)
         if formatted_diff:
-            print(f"\n{formatted_diff}")
+            print(f"Generated {relative} differs!\n{formatted_diff}\n")
 
-        assert not formatted_diff, f"generated {relative} differs, see expected vs actual in the stdout output"
+    assert not formatted_diff, "generated one or more file that differs, see expected vs actual in the stdout output"

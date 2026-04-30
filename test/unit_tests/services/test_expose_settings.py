@@ -14,8 +14,8 @@
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 
-from orchestrator.services.settings_env_variables import expose_settings, get_all_exposed_settings
-from orchestrator.settings import SecretPostgresDsn, SecretRedisDsn
+from orchestrator.core.services.settings_env_variables import expose_settings, get_all_exposed_settings
+from orchestrator.core.settings import SecretPostgresDsn, SecretRedisDsn
 
 
 def test_expose_settings():

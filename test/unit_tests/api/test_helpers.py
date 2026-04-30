@@ -15,7 +15,7 @@ import warnings
 
 import pytest
 
-from orchestrator.api.helpers import (
+from orchestrator.core.api.helpers import (
     add_subscription_search_query_filter,
     get_in,
     getattr_in,
@@ -148,7 +148,7 @@ def test_subscription_search_query_filter_emits_deprecation_warning():
     """TSV search should emit a deprecation warning pointing to LLM search."""
     from sqlalchemy import select
 
-    from orchestrator.db import SubscriptionTable
+    from orchestrator.core.db import SubscriptionTable
 
     stmt = select(SubscriptionTable)
     with warnings.catch_warnings(record=True) as w:

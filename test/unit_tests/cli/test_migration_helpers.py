@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for CLI migration helpers: Alembic operations, version detection, and error handling."""
 
 from pathlib import Path
@@ -6,7 +19,7 @@ from unittest import mock
 import pytest
 from alembic.util.exc import CommandError
 
-from orchestrator.cli.migration_helpers import (
+from orchestrator.core.cli.migration_helpers import (
     _insert_preamble,
     create_migration_file,
     remove_core_as_down_revision,
@@ -110,8 +123,8 @@ def test_create_migration_file_nothing_to_do(capsys: pytest.CaptureFixture) -> N
     assert "Nothing to do" in captured.out
 
 
-@mock.patch("orchestrator.cli.migration_helpers.command")
-@mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
+@mock.patch("orchestrator.core.cli.migration_helpers.command")
+@mock.patch("orchestrator.core.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_generates_revision(
     mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock
 ) -> None:
@@ -129,8 +142,8 @@ def test_create_migration_file_generates_revision(
     mock_command.revision.assert_called_once()
 
 
-@mock.patch("orchestrator.cli.migration_helpers.command")
-@mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
+@mock.patch("orchestrator.core.cli.migration_helpers.command")
+@mock.patch("orchestrator.core.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_with_preamble(
     mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock, tmp_path: Path
 ) -> None:
@@ -150,8 +163,8 @@ def test_create_migration_file_with_preamble(
     assert "# preamble" in written
 
 
-@mock.patch("orchestrator.cli.migration_helpers.command")
-@mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
+@mock.patch("orchestrator.core.cli.migration_helpers.command")
+@mock.patch("orchestrator.core.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_branch_data_exists_fallback(
     mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock
 ) -> None:
@@ -177,8 +190,8 @@ def test_create_migration_file_branch_data_exists_fallback(
     assert second_kwargs.get("head") == "data@head"
 
 
-@mock.patch("orchestrator.cli.migration_helpers.command")
-@mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
+@mock.patch("orchestrator.core.cli.migration_helpers.command")
+@mock.patch("orchestrator.core.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_multiple_heads_fallback(
     mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock
 ) -> None:
@@ -202,8 +215,8 @@ def test_create_migration_file_multiple_heads_fallback(
     assert second_kwargs.get("head") == "data@head"
 
 
-@mock.patch("orchestrator.cli.migration_helpers.command")
-@mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
+@mock.patch("orchestrator.core.cli.migration_helpers.command")
+@mock.patch("orchestrator.core.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_database_not_up_to_date_raises(
     mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock
 ) -> None:
@@ -218,8 +231,8 @@ def test_create_migration_file_database_not_up_to_date_raises(
         create_migration_file(cfg, "    op.execute('up')\n", "", "message")
 
 
-@mock.patch("orchestrator.cli.migration_helpers.command")
-@mock.patch("orchestrator.cli.migration_helpers.ScriptDirectory")
+@mock.patch("orchestrator.core.cli.migration_helpers.command")
+@mock.patch("orchestrator.core.cli.migration_helpers.ScriptDirectory")
 def test_create_migration_file_unrelated_command_error_propagates(
     mock_script_dir: mock.MagicMock, mock_command: mock.MagicMock
 ) -> None:

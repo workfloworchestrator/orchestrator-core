@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,7 +16,7 @@ from ipaddress import IPv4Address, IPv6Address
 
 import structlog
 
-from orchestrator.devtools.populator import Populator
+from orchestrator.core.devtools.populator import Populator
 from pydantic_forms.types import UUIDstr
 
 logger = structlog.get_logger(__name__)

@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,9 +12,9 @@
 # limitations under the License.
 
 
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.types import SubscriptionLifecycle
-from test_orchestrator.product_blocks.test_product_blocks import (
+from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.types import SubscriptionLifecycle
+from test.acceptance_tests.fixtures.test_orchestrator.product_blocks.test_product_blocks import (
     TestProductBlock,
     TestProductBlockInactive,
     TestProductBlockProvisioning,

@@ -15,7 +15,7 @@ import pytest
 from psycopg import errors as psycopg_errors
 from sqlalchemy.exc import ProgrammingError
 
-from orchestrator.metrics.dbutils import handle_missing_tables
+from orchestrator.core.metrics.dbutils import handle_missing_tables
 
 
 def test_handle_missing_tables_passes_through_normally() -> None:

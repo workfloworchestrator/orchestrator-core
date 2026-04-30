@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,16 +18,16 @@ import pytest
 import sqlalchemy as sa
 import structlog
 
-from orchestrator.db import db, init_database
-from orchestrator.migrations.helpers import (
+from orchestrator.core.db import db, init_database
+from orchestrator.core.migrations.helpers import (
     create_product_blocks,
     create_products,
     create_workflow,
     delete_workflow,
     ensure_default_workflows,
 )
-from orchestrator.settings import AppSettings
-from orchestrator.targets import Target
+from orchestrator.core.settings import AppSettings
+from orchestrator.core.targets import Target
 
 logger = structlog.get_logger(__name__)
 

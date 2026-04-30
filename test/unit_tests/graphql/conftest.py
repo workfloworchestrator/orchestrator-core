@@ -1,8 +1,21 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from unittest import mock
 
 import pytest
 
-from orchestrator.graphql.autoregistration import register_domain_models
+from orchestrator.core.graphql.autoregistration import register_domain_models
 
 
 @pytest.fixture(autouse=True)
@@ -33,5 +46,7 @@ def fix_graphql_model_registration():
         internal_graphql_models.update(graphql_models)
         return internal_graphql_models
 
-    with mock.patch("orchestrator.graphql.schema.register_domain_models", side_effect=patched_register_domain_models):
+    with mock.patch(
+        "orchestrator.core.graphql.schema.register_domain_models", side_effect=patched_register_domain_models
+    ):
         yield

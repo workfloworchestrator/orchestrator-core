@@ -1,0 +1,55 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import structlog
+
+from orchestrator.core.db.filters import Filter
+from orchestrator.core.db.sorting import Sort
+from orchestrator.core.graphql.pagination import Connection
+from orchestrator.core.graphql.resolvers.helpers import make_async
+from orchestrator.core.graphql.schemas.scheduled_task import ScheduledTaskGraphql
+from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+from orchestrator.core.graphql.utils import create_resolver_error_handler, to_graphql_result_page
+from orchestrator.core.graphql.utils.is_query_detailed import is_querying_page_data
+from orchestrator.core.schedules.scheduler import (
+    get_scheduler_tasks,
+    scheduled_task_filter_keys,
+    scheduled_task_sort_keys,
+)
+
+logger = structlog.get_logger(__name__)
+
+
+@make_async
+def resolve_scheduled_tasks(
+    info: OrchestratorInfo,
+    filter_by: list[GraphqlFilter] | None = None,
+    sort_by: list[GraphqlSort] | None = None,
+    first: int = 10,
+    after: int = 0,
+) -> Connection[ScheduledTaskGraphql]:
+    _error_handler = create_resolver_error_handler(info)
+
+    pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
+    pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
+    scheduled_tasks, total = get_scheduler_tasks(
+        first=first, after=after, filter_by=pydantic_filter_by, sort_by=pydantic_sort_by, error_handler=_error_handler
+    )
+
+    graphql_scheduled_tasks = []
+    if is_querying_page_data(info):
+        graphql_scheduled_tasks = [ScheduledTaskGraphql.from_pydantic(p) for p in scheduled_tasks]
+
+    return to_graphql_result_page(
+        graphql_scheduled_tasks, first, after, total, scheduled_task_filter_keys, scheduled_task_sort_keys
+    )

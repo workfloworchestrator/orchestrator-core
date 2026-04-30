@@ -1,0 +1,272 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import structlog
+from sqlalchemy import Select, func, select
+from sqlalchemy.orm import Session
+
+from orchestrator.core.search.core.types import EntityType, RetrieverType, SearchMetadata
+from orchestrator.core.search.query.results import (
+    QueryResultsResponse,
+    SearchResponse,
+    format_aggregation_response,
+    format_search_response,
+)
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers import (
+    FuzzyRetriever,
+    ProcessHybridRetriever,
+    Retriever,
+    RrfHybridRetriever,
+    SemanticRetriever,
+)
+from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
+
+from .builder import (
+    build_aggregation_query,
+    build_candidate_query,
+    build_response_columns_query,
+    build_simple_count_query,
+    process_response_columns,
+)
+from .export import fetch_export_data
+from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
+
+logger = structlog.get_logger(__name__)
+
+
+def _get_retriever_from_override(
+    query: SelectQuery | ExportQuery,
+    cursor: PageCursor | None,
+    query_embedding: list[float] | None,
+) -> Retriever | None:
+    """Get retriever instance from explicit override, or None if no override.
+
+    Args:
+        query: Query that may have a retriever override
+        cursor: Pagination cursor
+        query_embedding: Pre-computed embedding (may be None)
+
+    Returns:
+        Retriever instance matching the requested type, or None if no override specified
+
+    Raises:
+        ValueError: If override requirements aren't met (e.g., no query text or embedding)
+    """
+    if query.retriever is None:
+        return None
+
+    retriever_type = query.retriever
+
+    # Validate query_text (required for all retriever types)
+    if not query.query_text:
+        raise ValueError(f"{retriever_type.value.capitalize()} retriever requested but no query text provided.")
+
+    is_process = query.entity_type == EntityType.PROCESS
+
+    if retriever_type == RetrieverType.FUZZY:
+        return (
+            ProcessHybridRetriever(None, query.query_text, cursor)
+            if is_process
+            else FuzzyRetriever(query.query_text, cursor)
+        )
+    if retriever_type == RetrieverType.SEMANTIC:
+        if query_embedding is None:
+            raise ValueError(
+                "Semantic retriever requested but query embedding is not available. "
+                "Embedding generation may have failed."
+            )
+        return SemanticRetriever(query_embedding, cursor)
+    if query_embedding is None:
+        raise ValueError(
+            "Hybrid retriever requested but query embedding is not available. Embedding generation may have failed."
+        )
+    return (
+        ProcessHybridRetriever(query_embedding, query.query_text, cursor)
+        if is_process
+        else RrfHybridRetriever(query_embedding, query.query_text, cursor)
+    )
+
+
+def _create_cursor_info(
+    final_stmt: Select,
+    db_session: Session,
+    cursor: PageCursor | None,
+    query: SelectQuery | ExportQuery,
+    query_embedding: list[float] | None,
+    candidate_query: Select,
+    row_count: int,
+) -> tuple[int | None, int | None, int | None]:
+    total_count_stmt = Retriever.route(query, None, query_embedding).apply(candidate_query) if cursor else final_stmt
+    total_items_or_none = db_session.scalar(select(func.count()).select_from(total_count_stmt.subquery()))
+    total_items = total_items_or_none or 0
+    count_with_cursor_or_none = (
+        db_session.scalar(select(func.count()).select_from(final_stmt.subquery())) if cursor else total_items
+    )
+    count_with_cursor = count_with_cursor_or_none or 0
+    start_cursor = total_items - count_with_cursor
+    row_end_cursor_count = row_count - (2 if row_count > query.limit else 1)
+    end_cursor = start_cursor + row_end_cursor_count
+    return total_items, start_cursor, end_cursor
+
+
+async def _execute_search(
+    query: SelectQuery | ExportQuery,
+    db_session: Session,
+    limit: int,
+    cursor: PageCursor | None = None,
+    query_embedding: list[float] | None = None,
+) -> SearchResponse:
+    """Internal implementation to execute search with specified query.
+
+    Args:
+        query: The SELECT or EXPORT query with vector, fuzzy, or filter criteria.
+        db_session: The active SQLAlchemy session for executing the query.
+        limit: Maximum number of results to return.
+        cursor: Optional pagination cursor.
+        query_embedding: Optional pre-computed query embedding to use instead of generating a new one.
+
+    Returns:
+        SearchResponse with results and embedding (for internal use).
+    """
+    if not query.vector_query and not query.filters and not query.fuzzy_term:
+        logger.warning("No search criteria provided (vector_query, fuzzy_term, or filters).")
+        return SearchResponse(results=[], metadata=SearchMetadata.empty())
+
+    candidate_query = build_candidate_query(query)
+
+    if query.vector_query and not query_embedding:
+        from orchestrator.core.search.core.embedding import QueryEmbedder
+
+        query_embedding = await QueryEmbedder.generate_for_text_async(query.vector_query)
+
+    # Get retriever (from override or automatic routing)
+    retriever = _get_retriever_from_override(query, cursor, query_embedding) or Retriever.route(
+        query, cursor, query_embedding
+    )
+    logger.debug("Using retriever", retriever_type=retriever.__class__.__name__)
+
+    final_stmt = retriever.apply(candidate_query)
+    final_stmt_with_limit = final_stmt.limit(limit)
+    logger.debug(final_stmt_with_limit)
+
+    result = db_session.execute(final_stmt_with_limit).mappings().all()
+    result_rows = list(result)
+    row_count = len(result_rows)
+
+    total_items: int | None = None
+    start_cursor: int | None = None
+    end_cursor: int | None = None
+    if isinstance(retriever, StructuredRetriever) and row_count > 0:
+        total_items, start_cursor, end_cursor = _create_cursor_info(
+            final_stmt, db_session, cursor, query, query_embedding, candidate_query, row_count
+        )
+
+    column_data: dict[str, dict[str, str | None]] | None = None
+    if query.response_columns and result_rows:
+        entity_ids = [str(row.entity_id) for row in result_rows]
+        col_stmt = build_response_columns_query(entity_ids, query.entity_type, query.response_columns)
+        col_rows = db_session.execute(col_stmt).all()
+        column_data = process_response_columns(col_rows, query.response_columns)
+
+    return format_search_response(
+        result_rows, query, retriever.metadata, query_embedding, total_items, start_cursor, end_cursor, column_data
+    )
+
+
+async def execute_search(
+    query: SelectQuery,
+    db_session: Session,
+    cursor: PageCursor | None = None,
+    query_embedding: list[float] | None = None,
+) -> SearchResponse:
+    """Execute a SELECT search query.
+
+    This executes a SELECT action search using vector/fuzzy/filter search with ranking.
+
+    Args:
+        query: SelectQuery with search criteria
+        db_session: Database session
+        cursor: Optional pagination cursor
+        query_embedding: Optional pre-computed embedding
+
+    Returns:
+        SearchResponse with ranked results
+    """
+
+    # Fetch one extra to determine if there is a next page
+    fetch_limit = query.limit + 1 if query.limit > 0 else query.limit
+    response = await _execute_search(query, db_session, fetch_limit, cursor, query_embedding)
+    has_more = len(response.results) > query.limit and query.limit > 0
+
+    # Trim to requested limit
+    response.results = response.results[: query.limit]
+    response.has_more = has_more
+
+    return response
+
+
+async def execute_export(
+    query: ExportQuery,
+    db_session: Session,
+    query_embedding: list[float] | None = None,
+) -> list[dict]:
+    """Execute a search and export flattened entity data.
+
+    Args:
+        query: ExportQuery with search criteria
+        db_session: Database session
+        query_embedding: Optional pre-computed embedding
+
+    Returns:
+        List of flattened entity records suitable for export.
+    """
+    search_response = await _execute_search(
+        query=query,
+        db_session=db_session,
+        limit=query.limit,
+        query_embedding=query_embedding,
+    )
+
+    entity_ids = [res.entity_id for res in search_response.results]
+    return fetch_export_data(query.entity_type, entity_ids)
+
+
+async def execute_aggregation(
+    query: CountQuery | AggregateQuery,
+    db_session: Session,
+) -> QueryResultsResponse:
+    """Execute aggregation query and return formatted results.
+
+    Args:
+        query: CountQuery or AggregateQuery
+        db_session: Database session
+
+    Returns:
+        QueryResultsResponse with results and metadata
+    """
+    candidate_query = build_candidate_query(query)
+
+    if isinstance(query, CountQuery) and not query.group_by and not query.temporal_group_by:
+        # Simple count without grouping
+        agg_query = build_simple_count_query(candidate_query)
+        group_column_names: list[str] = []
+    else:
+        # Grouped aggregation - needs pivoting
+        agg_query, group_column_names = build_aggregation_query(query, candidate_query)
+
+    logger.debug("Executing aggregation query", sql=str(agg_query))
+
+    result_rows = db_session.execute(agg_query).mappings().all()
+
+    return format_aggregation_response(result_rows, group_column_names, query)

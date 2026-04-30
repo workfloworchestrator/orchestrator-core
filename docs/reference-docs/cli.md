@@ -40,7 +40,7 @@ installation. [default: None]
 
 Interact with the application database. By default, does nothing, specify `main.py db --help` for more information.
 
-::: orchestrator.cli.database
+::: orchestrator.core.cli.database
     options:
       docstring_style: google
       separate_signature: false
@@ -104,11 +104,44 @@ Arguments
         - `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
     - renaming a resource type to existing resource type: `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
 
-**Example**
+#### Example
 
 You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will use these models (taken out of [example-orchestrator](https://github.com/workfloworchestrator/example-orchestrator-beginner)):
 
-- UserGroup Block:
+##### UserGroup Block
+
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.domain.base import SubscriptionModel, ProductBlockModel
+    from orchestrator.core.types import SubscriptionLifecycle
+
+
+    class UserGroupBlockInactive(
+        ProductBlockModel,
+        lifecycle=[SubscriptionLifecycle.INITIAL],
+        product_block_name="UserGroupBlock",
+    ):
+        group_name: str | None = None
+        group_id: int | None = None
+
+
+    class UserGroupBlockProvisioning(
+        UserGroupBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        group_name: str
+        group_id: int | None = None
+
+
+    class UserGroupBlock(
+        UserGroupBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    ):
+        group_name: str
+        group_id: int
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
     ```python
     from orchestrator.domain.base import SubscriptionModel, ProductBlockModel
     from orchestrator.types import SubscriptionLifecycle
@@ -137,7 +170,39 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
         group_id: int
     ```
 
-- UserGroup Product:
+##### UserGroup Product
+
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.domain.base import SubscriptionModel
+    from orchestrator.core.types import SubscriptionLifecycle
+
+    from products.product_blocks.user_group import (
+        UserGroupBlock,
+        UserGroupBlockInactive,
+        UserGroupBlockProvisioning,
+    )
+
+
+    class UserGroupInactive(
+        SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.INITIAL]
+    ):
+        settings: UserGroupBlockInactive
+
+
+    class UserGroupProvisioning(
+        UserGroupInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        settings: UserGroupBlockProvisioning
+
+
+    class UserGroup(UserGroupProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        settings: UserGroupBlock
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
     ```python
     from orchestrator.domain.base import SubscriptionModel
     from orchestrator.types import SubscriptionLifecycle
@@ -165,7 +230,50 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
         settings: UserGroupBlock
     ```
 
-- User Block:
+##### User Block
+
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.domain.base import ProductBlockModel
+    from orchestrator.core.types import SubscriptionLifecycle
+
+    from products.product_blocks.user_group import (
+        UserGroupBlock,
+        UserGroupBlockInactive,
+        UserGroupBlockProvisioning,
+    )
+
+
+    class UserBlockInactive(
+        ProductBlockModel,
+        lifecycle=[SubscriptionLifecycle.INITIAL],
+        product_block_name="UserBlock",
+    ):
+        group: UserGroupBlockInactive
+        username: str | None = None
+        age: int | None = None
+        user_id: int | None = None
+
+
+    class UserBlockProvisioning(
+        UserBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        group: UserGroupBlockProvisioning
+        username: str
+        age: int | None = None
+        user_id: int | None = None
+
+
+    class UserBlock(UserBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        group: UserGroupBlock
+        username: str
+        age: int | None = None
+        user_id: int
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
     ```python
     from orchestrator.domain.base import ProductBlockModel
     from orchestrator.types import SubscriptionLifecycle
@@ -204,7 +312,43 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
         user_id: int
     ```
 
-- User Product:
+##### User Product
+
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.domain.base import SubscriptionModel
+    from orchestrator.core.types import SubscriptionLifecycle, strEnum
+
+    from products.product_blocks.user import (
+        UserBlock,
+        UserBlockInactive,
+        UserBlockProvisioning,
+    )
+
+
+    class Affiliation(strEnum):
+        internal = "internal"
+        external = "external"
+
+
+    class UserInactive(SubscriptionModel, is_base=True):
+        affiliation: Affiliation
+        settings: UserBlockInactive
+
+
+    class UserProvisioning(UserInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+        affiliation: Affiliation
+        settings: UserBlockProvisioning
+
+
+    class User(UserProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        affiliation: Affiliation
+        settings: UserBlock
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
     ```python
     from orchestrator.domain.base import SubscriptionModel
     from orchestrator.types import SubscriptionLifecycle, strEnum
@@ -236,7 +380,28 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
         settings: UserBlock
     ```
 
-- `SUBSCRIPTION_MODEL_REGISTRY`:
+##### `SUBSCRIPTION_MODEL_REGISTRY`
+
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+
+    from products.product_types.user import User
+    from products.product_types.user_group import UserGroup
+
+    # Register models to actual definitions for deserialization purposes
+    SUBSCRIPTION_MODEL_REGISTRY.update(
+        {
+            "User group": UserGroup,
+            "User internal": User,
+            "User external": User,
+        }
+    )
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
     ```python
     from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
@@ -253,7 +418,7 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
     )
     ```
 
-Running the command:
+#### Running the command
 
 - only with a message
     ``` bash
@@ -272,7 +437,7 @@ Running the command:
 
 The command will first go through all products and map the differences with the database. debug log example:
 ```bash
-2022-10-27 11:45:10 [debug] ProductTable blocks diff [orchestrator.domain.base] fixed_inputs_in_db=set() fixed_inputs_model=set() missing_fixed_inputs_in_db=set() missing_fixed_inputs_in_model=set() missing_product_blocks_in_db=set() missing_product_blocks_in_model=set() product_block_db=User group product_blocks_in_db={'UserGroupBlock'} product_blocks_in_model={'UserGroupBlock'}
+2022-10-27 11:45:10 [debug] ProductTable blocks diff [orchestrator.core.domain.base] fixed_inputs_in_db=set() fixed_inputs_model=set() missing_fixed_inputs_in_db=set() missing_fixed_inputs_in_model=set() missing_product_blocks_in_db=set() missing_product_blocks_in_model=set() product_block_db=User group product_blocks_in_db={'UserGroupBlock'} product_blocks_in_model={'UserGroupBlock'}
 ```
 
 You will be prompted with inputs when updates are found.
@@ -305,29 +470,29 @@ You will be prompted with inputs when updates are found.
         ```
     - with 1 and 1, the log level difference would look like:
         ```bash
-        2023-02-08 14:11:25 [info] update_block_resource_types [orchestrator.cli.migrate_domain_models] update_block_resource_types={'UserBlock': {'age': 'user_age'}}
+        2023-02-08 14:11:25 [info] update_block_resource_types [orchestrator.core.cli.migrate_domain_models] update_block_resource_types={'UserBlock': {'age': 'user_age'}}
         ```
 
 
 It will log the differences on info level:
 
 ``` bash
-2022-10-27 11:45:10 [info] create_products                   [orchestrator.cli.migrate_domain_models] create_products={'User group': <class 'products.product_types.user_group.UserGroup'>, 'User internal': <class 'products.product_types.user.User'>, 'User external': <class 'products.product_types.user.User'>}
-2022-10-27 11:45:10 [info] delete_products                   [orchestrator.cli.migrate_domain_models] delete_products=set()
-2022-10-27 11:45:10 [info] create_product_fixed_inputs       [orchestrator.cli.migrate_domain_models] create_product_fixed_inputs={'affiliation': {'User external', 'User internal'}}
-2022-10-27 11:45:10 [info] update_product_fixed_inputs       [orchestrator.cli.migrate_domain_models] update_product_fixed_inputs={}
-2022-10-27 11:45:10 [info] delete_product_fixed_inputs       [orchestrator.cli.migrate_domain_models] delete_product_fixed_inputs={}
-2022-10-27 11:45:10 [info] create_product_to_block_relations [orchestrator.cli.migrate_domain_models] create_product_to_block_relations={'UserGroupBlock': {'User group'}, 'UserBlock': {'User external', 'User internal'}}
-2022-10-27 11:45:10 [info] delete_product_to_block_relations [orchestrator.cli.migrate_domain_models] delete_product_to_block_relations={}
-2022-10-27 11:45:10 [info] create_resource_types             [orchestrator.cli.migrate_domain_models] create_resource_types={'username', 'age', 'group_name', 'user_id', 'group_id'}
-2022-10-27 11:45:10 [info] rename_resource_types             [orchestrator.cli.migrate_domain_models] rename_resource_types={}
-2022-10-27 11:45:10 [info] delete_resource_types             [orchestrator.cli.migrate_domain_models] delete_resource_types=set()
-2022-10-27 11:45:10 [info] create_resource_type_relations    [orchestrator.cli.migrate_domain_models] create_resource_type_relations={'group_name': {'UserGroupBlock'}, 'group_id': {'UserGroupBlock'}, 'username': {'UserBlock'}, 'age': {'UserBlock'}, 'user_id': {'UserBlock'}}
-2022-10-27 11:45:10 [info] delete_resource_type_relations    [orchestrator.cli.migrate_domain_models] delete_resource_type_relations={}
-2022-10-27 11:45:10 [info] create_product_blocks             [orchestrator.cli.migrate_domain_models] create_blocks={'UserGroupBlock': <class 'products.product_blocks.user_group.UserGroupBlock'>, 'UserBlock': <class 'products.product_blocks.user.UserBlock'>}
-2022-10-27 11:45:10 [info] delete_product_blocks             [orchestrator.cli.migrate_domain_models] delete_blocks=set()
-2022-10-27 11:45:10 [info] create_product_block_relations    [orchestrator.cli.migrate_domain_models] create_product_block_relations={'UserGroupBlock': {'UserBlock'}}
-2022-10-27 11:45:10 [info] delete_product_block_relations    [orchestrator.cli.migrate_domain_models] delete_product_block_relations={}
+2022-10-27 11:45:10 [info] create_products                   [orchestrator.core.cli.migrate_domain_models] create_products={'User group': <class 'products.product_types.user_group.UserGroup'>, 'User internal': <class 'products.product_types.user.User'>, 'User external': <class 'products.product_types.user.User'>}
+2022-10-27 11:45:10 [info] delete_products                   [orchestrator.core.cli.migrate_domain_models] delete_products=set()
+2022-10-27 11:45:10 [info] create_product_fixed_inputs       [orchestrator.core.cli.migrate_domain_models] create_product_fixed_inputs={'affiliation': {'User external', 'User internal'}}
+2022-10-27 11:45:10 [info] update_product_fixed_inputs       [orchestrator.core.cli.migrate_domain_models] update_product_fixed_inputs={}
+2022-10-27 11:45:10 [info] delete_product_fixed_inputs       [orchestrator.core.cli.migrate_domain_models] delete_product_fixed_inputs={}
+2022-10-27 11:45:10 [info] create_product_to_block_relations [orchestrator.core.cli.migrate_domain_models] create_product_to_block_relations={'UserGroupBlock': {'User group'}, 'UserBlock': {'User external', 'User internal'}}
+2022-10-27 11:45:10 [info] delete_product_to_block_relations [orchestrator.core.cli.migrate_domain_models] delete_product_to_block_relations={}
+2022-10-27 11:45:10 [info] create_resource_types             [orchestrator.core.cli.migrate_domain_models] create_resource_types={'username', 'age', 'group_name', 'user_id', 'group_id'}
+2022-10-27 11:45:10 [info] rename_resource_types             [orchestrator.core.cli.migrate_domain_models] rename_resource_types={}
+2022-10-27 11:45:10 [info] delete_resource_types             [orchestrator.core.cli.migrate_domain_models] delete_resource_types=set()
+2022-10-27 11:45:10 [info] create_resource_type_relations    [orchestrator.core.cli.migrate_domain_models] create_resource_type_relations={'group_name': {'UserGroupBlock'}, 'group_id': {'UserGroupBlock'}, 'username': {'UserBlock'}, 'age': {'UserBlock'}, 'user_id': {'UserBlock'}}
+2022-10-27 11:45:10 [info] delete_resource_type_relations    [orchestrator.core.cli.migrate_domain_models] delete_resource_type_relations={}
+2022-10-27 11:45:10 [info] create_product_blocks             [orchestrator.core.cli.migrate_domain_models] create_blocks={'UserGroupBlock': <class 'products.product_blocks.user_group.UserGroupBlock'>, 'UserBlock': <class 'products.product_blocks.user.UserBlock'>}
+2022-10-27 11:45:10 [info] delete_product_blocks             [orchestrator.core.cli.migrate_domain_models] delete_blocks=set()
+2022-10-27 11:45:10 [info] create_product_block_relations    [orchestrator.core.cli.migrate_domain_models] create_product_block_relations={'UserGroupBlock': {'UserBlock'}}
+2022-10-27 11:45:10 [info] delete_product_block_relations    [orchestrator.core.cli.migrate_domain_models] delete_product_block_relations={}
 ```
 
 You will be asked to confirm the actions in order to continue:
@@ -343,7 +508,7 @@ After confirming, it will start generating the SQL, logging the SQL on debug lev
     Supply the production description: User group product<br>
     Supply the product tag: GROUP<br>
     ```sql
-    2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.helpers] sql_string=INSERT INTO products (name, description, product_type, tag, status) VALUES ('User group', 'User group product', 'UserGroup', 'GROUP', 'active') RETURNING products.product_id
+    2022-10-27 11:45:10 [debug] generated SQL [orchestrator.core.cli.domain_gen_helpers.helpers] sql_string=INSERT INTO products (name, description, product_type, tag, status) VALUES ('User group', 'User group product', 'UserGroup', 'GROUP', 'active') RETURNING products.product_id
     ```
 
 
@@ -353,7 +518,7 @@ After confirming, it will start generating the SQL, logging the SQL on debug lev
     Supply fixed input value for product **User internal** and fixed input <span style="color:magenta">affiliation</span>: internal<br>
     Supply fixed input value for product **User external** and fixed input <span style="color:magenta">affiliation</span>: external<br>
     ```sql
-    2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.helpers] sql_string=INSERT INTO fixed_inputs (name, value, product_id) VALUES ('affiliation', 'internal', (SELECT products.product_id FROM products WHERE products.name IN ('User internal'))), ('affiliation', 'external', (SELECT products.product_id FROM products WHERE products.name IN ('User external')))
+    2022-10-27 11:45:10 [debug] generated SQL [orchestrator.core.cli.domain_gen_helpers.helpers] sql_string=INSERT INTO fixed_inputs (name, value, product_id) VALUES ('affiliation', 'internal', (SELECT products.product_id FROM products WHERE products.name IN ('User internal'))), ('affiliation', 'external', (SELECT products.product_id FROM products WHERE products.name IN ('User external')))
     ```
 
 - new product block:
@@ -363,7 +528,7 @@ After confirming, it will start generating the SQL, logging the SQL on debug lev
     Supply the product block description: User group settings<br>
     Supply the product block tag: UGS<br>
     ```sql
-    2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.helpers] sql_string=`#!sql INSERT INTO product_blocks (name, description, tag, status) VALUES ('UserGroupBlock', 'User group settings', 'UGS', 'active') RETURNING product_blocks.product_block_id`
+    2022-10-27 11:45:10 [debug] generated SQL [orchestrator.core.cli.domain_gen_helpers.helpers] sql_string=`#!sql INSERT INTO product_blocks (name, description, tag, status) VALUES ('UserGroupBlock', 'User group settings', 'UGS', 'active') RETURNING product_blocks.product_block_id`
     ```
 
 - new resource type:
@@ -371,7 +536,7 @@ After confirming, it will start generating the SQL, logging the SQL on debug lev
     > <u>**Create resource types**</u><br>
     Supply description for new resource type <span style="color:magenta">group_name</span>: Unique name of user group
     ```sql
-    2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.helpers] sql_string=INSERT INTO resource_types (resource_type, description) VALUES ('group_name', 'Unique name of user group') RETURNING resource_types.resource_type_id
+    2022-10-27 11:45:10 [debug] generated SQL [orchestrator.core.cli.domain_gen_helpers.helpers] sql_string=INSERT INTO resource_types (resource_type, description) VALUES ('group_name', 'Unique name of user group') RETURNING resource_types.resource_type_id
     ```
 
 - default value for resource type per product block (necessary for adding a default value to existing instances):
@@ -379,7 +544,7 @@ After confirming, it will start generating the SQL, logging the SQL on debug lev
     > <u>**Create subscription instance values**</u><br>
     Supply default subscription instance value for resource type <span style="color:magenta">group_name</span> and product block **UserGroupBlock**: group
     ```sql
-    2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.resource_type_helpers] sql_string=
+    2022-10-27 11:45:10 [debug] generated SQL [orchestrator.core.cli.domain_gen_helpers.resource_type_helpers] sql_string=
                     WITH subscription_instance_ids AS (
                         SELECT subscription_instances.subscription_instance_id
                         FROM   subscription_instances
@@ -404,7 +569,7 @@ After confirming, it will start generating the SQL, logging the SQL on debug lev
 Last part generates the migration with the generated SQL:
 ```text
 Generating migration file
-2022-10-27 11:45:10 [info] Version Locations [orchestrator.cli.database] locations=/home/tjeerddie/projects_surf/example-orchestrator/migrations/versions/schema /home/tjeerddie/projects_surf/example-orchestrator/.venv/lib/python3.10/site-packages/orchestrator/migrations/versions/schema
+2022-10-27 11:45:10 [info] Version Locations [orchestrator.core.cli.database] locations=/home/tjeerddie/projects_surf/example-orchestrator/migrations/versions/schema /home/tjeerddie/projects_surf/example-orchestrator/.venv/lib/python3.10/site-packages/orchestrator/migrations/versions/schema
   Generating /home/tjeerddie/projects_surf/example-orchestrator/migrations/versions/schema/2022-10-27_a8946b2d1647_test.py ...  done
 Migration generated. Don't forget to create a database backup before migrating!
 ```
@@ -452,9 +617,9 @@ configuration file.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---python-version - Python version for generated code [default: 3.11]  
---skip-existing-blocks - If set, the migration will not contain product blocks for which a python implementation exists [default: False]  
+--config-file - The configuration file [default: None]
+--python-version - Python version for generated code [default: 3.11]
+--skip-existing-blocks - If set, the migration will not contain product blocks for which a python implementation exists [default: False]
 
 ### product
 
@@ -464,11 +629,11 @@ from a configuration file.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.11]  
---folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
 
 ### product-blocks
 
@@ -478,11 +643,11 @@ domain models from a configuration file.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.11]  
---folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
 
 ### unit-tests
 
@@ -492,11 +657,11 @@ configuration file.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.11]  
---tdd - Force test driven development with failing asserts [default: True]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
+--tdd - Force test driven development with failing asserts [default: True]
 
 ### workflows
 
@@ -509,11 +674,11 @@ steps to the create, modify and terminate workflows.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.11]  
---folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default:  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default:
 None]
 --custom-templates - Custom templates folder [default: None]
 
@@ -525,7 +690,7 @@ None]
 
 Commands to interact with the scheduler and scheduled jobs.
 
-::: orchestrator.cli.scheduler
+::: orchestrator.core.cli.scheduler
     options:
       docstring_style: google
       separate_signature: false

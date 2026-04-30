@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,8 +14,8 @@
 
 from uuid import UUID
 
-from orchestrator.domain.lifecycle import ProductLifecycle
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.domain.lifecycle import ProductLifecycle
+from orchestrator.core.types import SubscriptionLifecycle
 
 # =============================================================================
 # Product

@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,8 +15,8 @@
 from ipaddress import IPv4Address, IPv6Address
 from uuid import UUID
 
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.types import SubscriptionLifecycle
 
 
 class TestProductBlockInactive(ProductBlockModel, product_block_name="Test Product Block"):

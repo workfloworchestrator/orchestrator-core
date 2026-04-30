@@ -1,3 +1,17 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 """Integration test configuration."""
 
 import os
@@ -10,8 +24,8 @@ import structlog
 from celery import Celery
 from sqlalchemy import select
 
-from orchestrator.db import ProcessTable, WorkflowTable, db
-from orchestrator.services.tasks import (
+from orchestrator.core.db import ProcessTable, WorkflowTable, db
+from orchestrator.core.services.tasks import (
     NEW_TASK,
     NEW_WORKFLOW,
     RESUME_TASK,
@@ -19,9 +33,9 @@ from orchestrator.services.tasks import (
     initialise_celery,
     register_custom_serializer,
 )
-from orchestrator.settings import AppSettings
-from orchestrator.targets import Target
-from orchestrator.workflow import ProcessStatus
+from orchestrator.core.settings import AppSettings
+from orchestrator.core.targets import Target
+from orchestrator.core.workflow import ProcessStatus
 from test.unit_tests.conftest import (  # noqa: F401,E402
     database,
     db_session,
@@ -241,7 +255,7 @@ def register_celery_tasks(celery_session_app):
 @pytest.fixture(scope="session")
 def celery_includes():
     """Specify modules to import for task registration."""
-    return ["orchestrator.services.tasks"]
+    return ["orchestrator.core.services.tasks"]
 
 
 @pytest.fixture
@@ -254,7 +268,7 @@ def celery_timeout():
 def setup_test_celery(celery_session_app, monkeypatch):
     """Setup and teardown for Celery tests."""
     # Reset Celery app
-    monkeypatch.setattr("orchestrator.services.tasks._celery", None)
+    monkeypatch.setattr("orchestrator.core.services.tasks._celery", None)
 
     # Initialize Celery
     register_custom_serializer()

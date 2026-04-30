@@ -16,12 +16,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.db import ProductTable, SubscriptionTable, db
-from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.types import EntityType
-
-from .fixtures import TEST_PRODUCT, TEST_SUBSCRIPTIONS
-from .helpers import index_subscription, load_ground_truth
+from orchestrator.core.db import ProductTable, SubscriptionTable, db
+from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.search.core.types import EntityType
+from test.integration_tests.search.fixtures import TEST_PRODUCT, TEST_SUBSCRIPTIONS
+from test.integration_tests.search.helpers import index_subscription, load_ground_truth
 
 # Mark all tests in this directory with the search marker
 pytestmark = pytest.mark.search
@@ -96,7 +95,7 @@ def maybe_run_benchmark(request, worker_id, database):
         capman.suspend_global_capture(in_=True)
 
     # Setup test data
-    from orchestrator.db import ProductTable, SubscriptionTable
+    from orchestrator.core.db import ProductTable, SubscriptionTable
 
     with db.session as session:
         product = ProductTable(**TEST_PRODUCT)
@@ -174,7 +173,7 @@ def mock_embeddings(embedding_fixtures: dict[str, list[float]]):
 
         return mock_response
 
-    with patch("orchestrator.search.core.embedding.llm_aembedding", side_effect=mock_embedding_async):
+    with patch("orchestrator.core.search.core.embedding.llm_aembedding", side_effect=mock_embedding_async):
         yield
 
 

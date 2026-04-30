@@ -1,4 +1,4 @@
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 
 from products.product_types.example2 import Example2
 

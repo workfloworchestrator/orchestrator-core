@@ -1,4 +1,4 @@
-# Copyright 2022 SURF.
+# Copyright 2022-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,11 +18,11 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy import select
 
-from orchestrator import app_settings
-from orchestrator.db import SubscriptionMetadataTable, db
-from orchestrator.db.models import SubscriptionCustomerDescriptionTable, SubscriptionTable
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core import app_settings
+from orchestrator.core.db import SubscriptionMetadataTable, db
+from orchestrator.core.db.models import SubscriptionCustomerDescriptionTable, SubscriptionTable
+from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.types import SubscriptionLifecycle
 from test.unit_tests.config import GRAPHQL_ENDPOINT
 from test.unit_tests.conftest import do_refresh_subscriptions_search_view
 
@@ -69,7 +69,7 @@ query SubscriptionQuery(
 def patch_metadata_dict():
     from pydantic import BaseModel
 
-    from orchestrator.graphql.schemas.subscription import MetadataDict
+    from orchestrator.core.graphql.schemas.subscription import MetadataDict
 
     class Metadata(BaseModel):
         some_metadata_prop: list[str]

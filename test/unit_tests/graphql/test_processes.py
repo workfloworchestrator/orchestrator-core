@@ -1,4 +1,4 @@
-# Copyright 2022-2026 SURF, ESnet.
+# Copyright 2022-2026 SURF, ESnet, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
-from orchestrator import app_settings
+from orchestrator.core import app_settings
 from test.unit_tests.config import GRAPHQL_ENDPOINT
 from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 

@@ -1,4 +1,4 @@
-# Copyright 2019-2026 SURF, ESnet.
+# Copyright 2019-2026 SURF, ESnet, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,8 +12,8 @@
 # limitations under the License.
 
 from oauth2_lib.fastapi import OIDCUserModel
-from orchestrator.utils.auth import AuthContext
-from orchestrator.workflow import (
+from orchestrator.core.utils.auth import AuthContext
+from orchestrator.core.workflow import (
     begin,
     done,
     step,

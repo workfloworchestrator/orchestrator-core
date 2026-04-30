@@ -1,10 +1,4 @@
-"""Tests for ProcessHybridRetriever SQL query generation.
-
-Covers semantic distance expression, indexed candidates, JSONB candidates,
-the apply() method (CTEs, UNION ALL, RRF scoring, pagination), and metadata.
-"""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,16 +11,22 @@ the apply() method (CTEs, UNION ALL, RRF scoring, pagination), and metadata.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for ProcessHybridRetriever SQL query generation.
+
+Covers semantic distance expression, indexed candidates, JSONB candidates,
+the apply() method (CTEs, UNION ALL, RRF scoring, pagination), and metadata.
+"""
+
 import uuid
 
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.dialects import postgresql
 
-from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.types import SearchMetadata
-from orchestrator.search.retrieval.pagination import PageCursor
-from orchestrator.search.retrieval.retrievers.process import ProcessHybridRetriever
+from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.search.core.types import SearchMetadata
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
 
 pytestmark = pytest.mark.search
 

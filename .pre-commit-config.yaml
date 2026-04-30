@@ -1,24 +1,15 @@
 default_language_version:
   python: python3
-exclude: ^test/unit_tests/cli/data/generate/.*\.py|orchestrator/vendor.*
+exclude: ^test/unit_tests/cli/data/generate/.*\.py|orchestrator/core/vendor.*
 repos:
-  - repo: https://github.com/psf/black
-    rev: 25.1.0
-    hooks:
-      - id: black
-  # - repo: https://github.com/asottile/blacken-docs
-  #   rev: 1.16.0
-  #   hooks:
-  #     - id: blacken-docs
-  #       additional_dependencies: [ black==23.12.1 ]
-  # Disabling since this cannot parse bit shift operators how we've overloaded them and you can't ignore lines.
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.9.6
+    rev: v0.15.11
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --show-fixes]
         exclude: vulture_whitelist\.py
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -31,29 +22,7 @@ repos:
       - id: check-yaml
         exclude: mkdocs.yml
       - id: debug-statements
-      - id: requirements-txt-fixer
       - id: detect-private-key
-  # Commented out due to errors with strawberry-ext-mypy plugin
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: v1.4.1
-  #   hooks:
-  #     - id: mypy
-  #       additional_dependencies:
-  #         - pydantic<2.0.0
-  #         - types-toml
-  #         - types-pytz
-  #         - types-python-dateutil
-  #         - types-requests
-  #         - types-Deprecated
-  #         - types-redis
-  #         - types-orjson
-  #         - types-tabulate
-  #         - types-pyyaml
-  #         - strawberry-graphql
-  #       args:
-  #         - --no-warn-unused-ignores
-  #         - --allow-untyped-decorators
-  #       exclude: (test/.*|migrations/.*)
 
   # This hook uses the `mypy` executable installed in your local environment
   - repo: local
@@ -80,6 +49,14 @@ repos:
         require_serial: true
         pass_filenames: false
 
+  - repo: https://github.com/sbrunner/hooks
+    rev: 1.7.0
+    hooks:
+      - id: copyright-required
+        name: copyright headers are present
+        files: (.*\.py$)
+        exclude: (^test/unit_tests/cli/data/generate/.*\.py$|^vulture_whitelist\.py$)
+
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
     hooks:
@@ -87,12 +64,8 @@ repos:
         exclude: vulture_whitelist\.py
       - id: python-use-type-annotations
       - id: python-check-mock-methods
-      - id: rst-backticks
+
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
-#  - repo: https://github.com/andreoliwa/nitpick
-#    rev: v0.35.0
-#    hooks:
-#      - id: nitpick-check
