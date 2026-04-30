@@ -49,6 +49,14 @@ repos:
         require_serial: true
         pass_filenames: false
 
+  - repo: https://github.com/sbrunner/hooks
+    rev: 1.7.0
+    hooks:
+      - id: copyright-required
+        name: copyright headers are present and contain the current year
+        files: (.*\.py)
+        exclude: (test/unit_tests/cli/data/generate/*\.py)
+
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
     hooks:

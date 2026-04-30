@@ -23,9 +23,9 @@ fi
 for CONFIG_FILE in /Users/hanst/Sources/workfloworchestrator/example-orchestrator-advanced/product_models/*.yaml
 #for CONFIG_FILE in product_models/circuit.yaml
 do
-    PYTHONPATH=. python ./orchestrator/cli/main.py generate product --config-file "${CONFIG_FILE}" --no-dryrun --force
-    PYTHONPATH=. python ./orchestrator/cli/main.py generate product-blocks --config-file "${CONFIG_FILE}" --no-dryrun --force
-    PYTHONPATH=. python ./orchestrator/cli/main.py generate workflows --config-file "${CONFIG_FILE}" --no-dryrun --force
-    PYTHONPATH=. python ./orchestrator/cli/main.py generate migration --config-file "${CONFIG_FILE}" --no-dryrun --force
-    PYTHONPATH=. python ./orchestrator/cli/main.py generate unit-tests --config-file "${CONFIG_FILE}" --no-dryrun --force
+    PYTHONPATH=. python ./orchestrator/core/cli/main.py generate product --config-file "${CONFIG_FILE}" --no-dryrun --force
+    PYTHONPATH=. python ./orchestrator/core/cli/main.py generate product-blocks --config-file "${CONFIG_FILE}" --no-dryrun --force
+    PYTHONPATH=. python ./orchestrator/core/cli/main.py generate workflows --config-file "${CONFIG_FILE}" --no-dryrun --force
+    PYTHONPATH=. python ./orchestrator/core/cli/main.py generate migration --config-file "${CONFIG_FILE}" --no-dryrun --force
+    PYTHONPATH=. python ./orchestrator/core/cli/main.py generate unit-tests --config-file "${CONFIG_FILE}" --no-dryrun --force
 done

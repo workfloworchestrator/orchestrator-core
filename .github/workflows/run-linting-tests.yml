@@ -5,12 +5,12 @@ name: Linting tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_call:
   pull_request:
 
 env:
-  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
+  UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.11', '3.12', '3.13', '3.14']
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
       fail-fast: false
 
     steps:
