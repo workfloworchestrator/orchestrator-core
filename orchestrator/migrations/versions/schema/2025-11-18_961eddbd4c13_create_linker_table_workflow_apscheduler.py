@@ -1,3 +1,4 @@
+# Copyright 2019-2026 SURF, GÉANT.
 """Create linker table workflow_apscheduler.
 
 Revision ID: 961eddbd4c13
@@ -50,20 +51,26 @@ def _create_apscheduler_jobs_table_if_not_exists() -> None:
     conn = op.get_bind()
     inspector = sa.inspect(conn)
     if "apscheduler_jobs" not in inspector.get_table_names():
-        op.execute(sa.text("""
+        op.execute(
+            sa.text(
+                """
                 CREATE TABLE apscheduler_jobs
                 (
                     id            VARCHAR(191) NOT NULL PRIMARY KEY,
                     next_run_time DOUBLE PRECISION,
                     job_state     bytea NOT NULL
                 );
-                """))
+                """
+            )
+        )
 
 
 def _create_workflows_table_if_not_exists() -> None:
     # Notice the VARCHAR(512) for schedule_id to accommodate longer IDs
     # This so that if APScheduler changes its ID format in the future, we are covered.
-    op.execute(sa.text("""
+    op.execute(
+        sa.text(
+            """
                 CREATE TABLE workflows_apscheduler_jobs (
                     workflow_id UUID NOT NULL,
                     schedule_id VARCHAR(512) NOT NULL,
@@ -76,7 +83,9 @@ def _create_workflows_table_if_not_exists() -> None:
                             ON DELETE CASCADE,
                     CONSTRAINT uq_workflow_schedule UNIQUE (workflow_id, schedule_id)
                 );
-            """))
+            """
+        )
+    )
 
     op.create_index("ix_workflows_apscheduler_jobs_schedule_id", "workflows_apscheduler_jobs", ["schedule_id"])
 
@@ -88,7 +97,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(sa.text("""
+    op.execute(
+        sa.text(
+            """
             DROP TABLE IF EXISTS workflows_apscheduler_jobs;
-            """))
+            """
+        )
+    )
     _downgrade_create_workflows()

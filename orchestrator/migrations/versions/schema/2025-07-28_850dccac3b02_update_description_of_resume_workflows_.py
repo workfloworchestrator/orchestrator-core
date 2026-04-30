@@ -1,3 +1,4 @@
+# Copyright 2019-2026 SURF, GÉANT.
 """Update description of resume workflows task.
 
 Revision ID: 850dccac3b02
@@ -16,16 +17,20 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("""
+    op.execute(
+        """
         UPDATE workflows
         SET description = 'Resume all workflows that are stuck on tasks with the status ''waiting'', ''created'' or ''resumed'''
         WHERE name = 'task_resume_workflows';
-    """)
+    """
+    )
 
 
 def downgrade() -> None:
-    op.execute("""
+    op.execute(
+        """
         UPDATE workflows
         SET description = 'Resume all workflows that are stuck on tasks with the status ''waiting'''
         WHERE name = 'task_resume_workflows';
-    """)
+    """
+    )

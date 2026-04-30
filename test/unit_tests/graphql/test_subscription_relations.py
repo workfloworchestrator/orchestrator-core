@@ -1,4 +1,4 @@
-# Copyright 2022 SURF.
+# Copyright 2022-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -132,7 +132,8 @@ def get_subscriptions_query_with_relations(
     in_use_by_filter: dict[str, str] | None = None,
     in_use_by_subscription_filter: dict[str, str] | None = None,
 ) -> bytes:
-    query = build_subscriptions_relation_query("""{
+    query = build_subscriptions_relation_query(
+        """{
     page {
       description
       subscriptionId
@@ -172,7 +173,8 @@ def get_subscriptions_query_with_relations(
       hasNextPage
     }
   }
-    """)
+    """
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",

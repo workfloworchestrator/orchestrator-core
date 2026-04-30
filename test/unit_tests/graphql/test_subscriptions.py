@@ -1,4 +1,4 @@
-# Copyright 2022 SURF.
+# Copyright 2022-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -85,7 +85,8 @@ def get_subscriptions_query(
     sort_by: list | None = None,
     query_string: str | None = None,
 ) -> bytes:
-    gql_query = build_subscriptions_query("""{
+    gql_query = build_subscriptions_query(
+        """{
     page {
       description
       subscriptionId
@@ -126,7 +127,8 @@ def get_subscriptions_query(
       hasNextPage
     }
   }
-""")
+"""
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",
@@ -149,7 +151,8 @@ def get_subscriptions_query_with_relations(
     sort_by: list[dict[str, str]] | None = None,
     query_string: str | None = None,
 ) -> bytes:
-    query = build_subscriptions_query("""{
+    query = build_subscriptions_query(
+        """{
     page {
       description
       subscriptionId
@@ -218,7 +221,8 @@ def get_subscriptions_query_with_relations(
       hasNextPage
     }
   }
-    """)
+    """
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",
@@ -241,7 +245,8 @@ def get_subscriptions_product_block_json_schema_query(
     sort_by: list[dict[str, str]] | None = None,
     query_string: str | None = None,
 ) -> bytes:
-    query = build_subscriptions_query("""{
+    query = build_subscriptions_query(
+        """{
     page {
       _schema
     }
@@ -253,7 +258,8 @@ def get_subscriptions_product_block_json_schema_query(
       hasNextPage
     }
   }
-    """)
+    """
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",
@@ -276,7 +282,8 @@ def get_subscriptions_product_generic_one(
     sort_by: list[dict[str, str]] | None = None,
     query_string: str | None = None,
 ) -> bytes:
-    query = build_subscriptions_query("""{
+    query = build_subscriptions_query(
+        """{
     page {
       ... on GenericProductOneSubscription {
         description
@@ -308,7 +315,8 @@ def get_subscriptions_product_generic_one(
       hasNextPage
     }
   }
-    """)
+    """
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",
@@ -331,7 +339,8 @@ def get_subscriptions_product_sub_list_union(
     sort_by: list[str] | None = None,
     query_string: str | None = None,
 ) -> bytes:
-    query = build_subscriptions_query("""{
+    query = build_subscriptions_query(
+        """{
     page {
       ... on ProductSubListUnionSubscription {
         description
@@ -368,7 +377,8 @@ def get_subscriptions_product_sub_list_union(
       hasNextPage
     }
   }
-    """)
+    """
+    )
 
     return json.dumps(
         {
@@ -392,14 +402,16 @@ def get_subscriptions_with_metadata_and_schema_query(
     sort_by: list[dict[str, str]] | None = None,
     query_string: str | None = None,
 ) -> bytes:
-    gql_query = build_subscriptions_query("""{
+    gql_query = build_subscriptions_query(
+        """{
     page {
       subscriptionId
       metadata
       _metadataSchema
     }
   }
-    """)
+    """
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",

@@ -35,12 +35,14 @@ def get_current_embedding_dimension() -> int | None:
         Current dimension size or None if no records exist or column doesn't exist
     """
     try:
-        query = text("""
+        query = text(
+            """
             SELECT vector_dims(embedding) as dimension
             FROM ai_search_index
             WHERE embedding IS NOT NULL
             LIMIT 1
-        """)
+        """
+        )
         result = db.session.execute(query).fetchone()
         if result and result[0]:
             return result[0]

@@ -64,7 +64,9 @@ def upgrade() -> None:
     conn.execute(text(create_enum_sql))
 
     # Create ai_search_index table with IF NOT EXISTS (for existing installations)
-    conn.execute(text(f"""
+    conn.execute(
+        text(
+            f"""
             CREATE TABLE IF NOT EXISTS {TABLE} (
                 entity_type TEXT NOT NULL,
                 entity_id UUID NOT NULL,
@@ -76,7 +78,9 @@ def upgrade() -> None:
                 value_type field_type NOT NULL DEFAULT '{FieldType.STRING.value}',
                 CONSTRAINT pk_ai_search_index PRIMARY KEY (entity_id, path)
             );
-            """))
+            """
+        )
+    )
 
     # Drop default on value_type
     conn.execute(text(f"ALTER TABLE {TABLE} ALTER COLUMN value_type DROP DEFAULT;"))
@@ -109,17 +113,23 @@ def upgrade() -> None:
     )
 
     # Create agent_runs table
-    conn.execute(text("""
+    conn.execute(
+        text(
+            """
             CREATE TABLE IF NOT EXISTS agent_runs (
                 run_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 agent_type VARCHAR(50) NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
             );
-            """))
+            """
+        )
+    )
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_runs_created_at ON agent_runs (created_at);"))
 
     # Add thread_id column to agent_runs if it doesn't exist (backwards compat)
-    conn.execute(text("""
+    conn.execute(
+        text(
+            """
             DO $$
             BEGIN
                 IF NOT EXISTS (
@@ -132,11 +142,15 @@ def upgrade() -> None:
                     ALTER TABLE agent_runs ALTER COLUMN thread_id SET NOT NULL;
                 END IF;
             END $$;
-            """))
+            """
+        )
+    )
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_runs_thread_id ON agent_runs (thread_id);"))
 
     # Create search_queries table
-    conn.execute(text(f"""
+    conn.execute(
+        text(
+            f"""
             CREATE TABLE IF NOT EXISTS search_queries (
                 query_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 run_id UUID,
@@ -146,13 +160,17 @@ def upgrade() -> None:
                 executed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
                 CONSTRAINT fk_search_queries_run_id FOREIGN KEY (run_id) REFERENCES agent_runs(run_id) ON DELETE CASCADE
             );
-            """))
+            """
+        )
+    )
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_search_queries_run_id ON search_queries (run_id);"))
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_search_queries_executed_at ON search_queries (executed_at);"))
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_search_queries_query_id ON search_queries (query_id);"))
 
     # Create graph_snapshots table for pydantic-graph state persistence
-    conn.execute(text("""
+    conn.execute(
+        text(
+            """
             CREATE TABLE IF NOT EXISTS graph_snapshots (
                 snapshot_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 run_id UUID NOT NULL,
@@ -162,7 +180,9 @@ def upgrade() -> None:
                 CONSTRAINT fk_graph_snapshots_run_id FOREIGN KEY (run_id) REFERENCES agent_runs(run_id) ON DELETE CASCADE,
                 CONSTRAINT uq_graph_snapshots_run_sequence UNIQUE (run_id, sequence_number)
             );
-            """))
+            """
+        )
+    )
     conn.execute(
         text(
             "CREATE INDEX IF NOT EXISTS ix_graph_snapshots_run_id_sequence ON graph_snapshots (run_id, sequence_number);"

@@ -1,3 +1,4 @@
+# Copyright 2019-2026 SURF, GÉANT.
 """Add version column to subscription and subscription customer descriptions.
 
 Revision ID: 4c5859620539
@@ -23,7 +24,9 @@ def upgrade() -> None:
     )
     op.add_column("subscriptions", sa.Column("version", sa.Integer(), server_default="1", nullable=False))
 
-    conn.execute(sa.text("""
+    conn.execute(
+        sa.text(
+            """
 CREATE OR REPLACE FUNCTION increment_version()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -41,7 +44,9 @@ CREATE TRIGGER subscription_customer_descriptions_increment_version_trigger
 BEFORE UPDATE ON subscription_customer_descriptions
 FOR EACH ROW
 EXECUTE FUNCTION increment_version();
-    """))
+    """
+        )
+    )
 
 
 def downgrade() -> None:
@@ -49,8 +54,12 @@ def downgrade() -> None:
     op.drop_column("subscriptions", "version")
     op.drop_column("subscription_customer_descriptions", "version")
 
-    conn.execute(sa.text("""
+    conn.execute(
+        sa.text(
+            """
 DROP TRIGGER IF EXISTS subscriptions_increment_version_trigger on subscriptions;
 DROP TRIGGER IF EXISTS subscription_customer_descriptions_increment_version_trigger on subscription_customer_descriptions;
 DROP FUNCTION IF EXISTS increment_version;
-"""))
+"""
+        )
+    )
