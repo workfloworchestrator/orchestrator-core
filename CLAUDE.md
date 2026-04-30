@@ -53,7 +53,7 @@ test/
   integration_tests/
   acceptance_tests/
 docs/
-  reference-docs/  Refernce documentation a bit outdated but still useful
+  reference-docs/  Reference documentation a bit outdated but still useful
   architecture     Application architecure
 ```
 
