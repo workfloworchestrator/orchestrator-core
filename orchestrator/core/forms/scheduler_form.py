@@ -106,10 +106,10 @@ def _check_authorize(workflow: Workflow, user_model: OIDCUserModel | None) -> bo
     return bool(result)
 
 
-def get_tasks(user_model: OIDCUserModel | None) -> dict[str, tuple[Workflow, UUID]]:
+def get_tasks(user_model: OIDCUserModel | None) -> dict[str, tuple[Workflow, UUID, str]]:
     tasks = db.session.scalars(select(WorkflowTable))
     return {
-        task_row.name: (workflow, task_row.workflow_id)
+        task_row.name: (workflow, task_row.workflow_id, task_row.description)
         for task_row in tasks
         if (workflow := get_workflow(task_row.name)) and _check_authorize(workflow, user_model)
     }
@@ -141,7 +141,7 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
 
     user_model = OIDCUserModel(**_user_model) if (_user_model := state.get("user_model")) else None
     tasks = get_tasks(user_model)
-    task_choices = {name: task[0].description for name, task in tasks.items()}
+    task_choices = {name: description for name, (_, _, description) in tasks.items()}
 
     class ScheduleTaskChoiceForm(FormPage):
         task: Choice("TaskChoices", task_choices)  # type: ignore
@@ -149,18 +149,17 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
     schedule_task_form = yield ScheduleTaskChoiceForm
 
     task_name = schedule_task_form.task.name
-    task, workflow_id = tasks[task_name]
+    task, workflow_id, description = tasks[task_name]
 
     user_inputs = []
     if has_initial_form(task):
         form_state = {"workflow_target": task.target.value, "workflow_name": task.name} | state
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         sync_gen = task.initial_input_form(form_state)
         data = None
         while True:
             done, result = await loop.run_in_executor(None, form_generator_send, sync_gen, data)
             if done:
-                form_state = result
                 break
             data = yield result
             user_inputs.append(data)
@@ -208,5 +207,5 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
         "trigger_kwargs": trigger_kwargs,
         "user_inputs": user_inputs,
         "scheduled_type": "create",
-        "name": task.description,
+        "name": description,
     }
