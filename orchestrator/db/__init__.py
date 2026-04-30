@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,7 +15,7 @@ from typing import Any, cast
 from structlog import get_logger
 
 from orchestrator.db.database import BaseModel as DbBaseModel
-from orchestrator.db.database import Database, transactional
+from orchestrator.db.database import Database, _strip_sqlalchemy_driver, read_only_transaction, transactional
 from orchestrator.db.models import (  # noqa: F401
     AgentRunTable,
     EngineSettingsTable,
@@ -70,11 +70,24 @@ db = cast(Database, wrapped_db)
 
 # The Global Database is set after calling this function
 def init_database(settings: AppSettings) -> Database:
-    wrapped_db.update(Database(str(settings.DATABASE_URI.get_secret_value())))
+    db_uri = _strip_sqlalchemy_driver(str(settings.DATABASE_URI.get_secret_value()))
+    if db_uri.startswith("postgresql://"):
+        import warnings
+
+        warnings.warn(
+            "DATABASE_URI uses 'postgresql://' dialect which defaults to psycopg2. "
+            "orchestrator-core has migrated to psycopg3. "
+            "Please update DATABASE_URI to use 'postgresql+psycopg://' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+    wrapped_db.update(Database(db_uri))
     return db
 
 
 __all__ = [
+    "read_only_transaction",
     "transactional",
     "SearchQueryTable",
     "AgentRunTable",

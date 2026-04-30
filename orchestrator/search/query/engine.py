@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -89,7 +89,7 @@ def _get_retriever_from_override(
         return SemanticRetriever(query_embedding, cursor)
     if query_embedding is None:
         raise ValueError(
-            "Hybrid retriever requested but query embedding is not available. " "Embedding generation may have failed."
+            "Hybrid retriever requested but query embedding is not available. Embedding generation may have failed."
         )
     return (
         ProcessHybridRetriever(query_embedding, query.query_text, cursor)

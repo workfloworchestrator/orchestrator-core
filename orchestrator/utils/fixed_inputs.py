@@ -1,4 +1,4 @@
-# Copyright 2019-2024 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -36,7 +36,7 @@ def fixed_input_configuration() -> dict[str, Any]:  # noqa: C901
             product = products.get_product_by_name(product_name)
         except NoResultFound:
             logger.error(
-                "Couldn't resolve product with fixed inputs for a domain model, due to a product_name " "mismatch.",
+                "Couldn't resolve product with fixed inputs for a domain model, due to a product_name mismatch.",
                 product_name=product_name,
             )
 

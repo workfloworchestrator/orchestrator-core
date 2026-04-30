@@ -1,3 +1,4 @@
+# Copyright 2019-2026 SURF, GÉANT.
 """Fix tsv triggers.
 
 Revision ID: 3323bcb934e7

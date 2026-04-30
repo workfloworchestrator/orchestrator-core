@@ -10,10 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from re import sub
 from typing import Any, ClassVar, cast
 from uuid import uuid4
 
@@ -251,6 +251,33 @@ def disable_commit(db: Database, log: BoundLogger) -> Iterator:
 
 
 @contextmanager
+def read_only_transaction(db: Database, log: BoundLogger) -> Iterator:
+    """Run a read-only block and release the session's connection on exit.
+
+    With psycopg3, every SELECT implicitly opens a transaction that stays
+    idle-in-transaction until something commits, rolls back, or closes the
+    connection. Pure-read code paths shouldn't COMMIT (no work to persist) or
+    ROLLBACK (semantically wrong, and noisy in logs). Closing the session
+    returns its connection to the pool, which resets the transaction state
+    cleanly via the pool's reset-on-return behavior.
+
+    The scoped session itself is unaffected: subsequent ``db.session`` access
+    in the same scope returns the same session and checks out a fresh
+    connection on the next query.
+
+    Caveat: ORM instances loaded inside the block become detached on exit.
+    Attribute access on already-loaded columns/relationships still works
+    (their values are cached on the instance), but lazy loading triggers
+    ``DetachedInstanceError``. Eager-load anything needed after the block.
+    """
+    try:
+        yield
+    finally:
+        log.debug("Closing session to release read-only transaction.")
+        db.session.close()
+
+
+@contextmanager
 def transactional(db: Database, log: BoundLogger) -> Iterator:
     """Run a step function in an implicit transaction with automatic rollback or commit.
 
@@ -265,15 +292,38 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
         # Nested call: outer transactional() owns commit/rollback. Inner is a no-op.
         yield
         return
+    committed = False
     try:
         with disable_commit(db, log):
             yield
         log.debug("Committing transaction.")
         db.session.commit()
+        committed = True
     except Exception:
         log.warning("Rolling back transaction.")
         raise
     finally:
-        # Extra safeguard rollback. If the commit failed there is still a failed transaction open.
-        # BTW: without a transaction in progress this method is a pass-through.
-        db.session.rollback()
+        # Safeguard rollback only if the commit didn't run (or raised). After a
+        # successful commit a redundant rollback would invalidate any outer
+        # SAVEPOINT (e.g. the pytest fixture's create_savepoint join mode).
+        if not committed:
+            db.session.rollback()
+
+
+def _strip_sqlalchemy_driver(dsn: str) -> str:
+    """Normalize a PostgreSQL DSN so SQLAlchemy selects the psycopg3 driver.
+
+    Converts ``+psycopg2`` driver suffixes to ``+psycopg`` (psycopg3).
+    DSNs that already use ``+psycopg`` or have no driver suffix are returned unchanged.
+
+    Examples:
+        >>> _strip_sqlalchemy_driver("postgresql+psycopg2://user:pw@host/db")
+        'postgresql+psycopg://user:pw@host/db'
+        >>> _strip_sqlalchemy_driver("postgresql+psycopg://user:pw@host/db")
+        'postgresql+psycopg://user:pw@host/db'
+        >>> _strip_sqlalchemy_driver("postgresql://user:pw@host/db")
+        'postgresql://user:pw@host/db'
+        >>> _strip_sqlalchemy_driver("postgres+psycopg2://user:pw@host/db")
+        'postgres+psycopg://user:pw@host/db'
+    """
+    return sub(r"^(postgresql|postgres)\+psycopg2://", r"\1+psycopg://", dsn)

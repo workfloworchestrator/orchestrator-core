@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -26,7 +26,7 @@ def get_all_validations(fields: list[dict]) -> list:
 
 def get_validation_imports(validations: list) -> list:
     def format_validator(validation: dict) -> str:
-        return f'{validation["validation"]["id"]}_validator'
+        return f"{validation['validation']['id']}_validator"
 
     return [format_validator(validation) for validation in validations]
 

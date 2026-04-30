@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -69,7 +69,6 @@ FilterCondition = (
 
 
 class PathFilter(BaseModel):
-
     path: str = Field(description="The ltree path of the field to filter on, e.g., 'subscription.customer_id'.")
     condition: FilterCondition = Field(description="The filter condition to apply.")
 

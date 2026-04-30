@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -116,7 +116,7 @@ def generate_product_blocks(context: ProdGenContext) -> None:
         # Store generated block so that dependent blocks can import it
         name = get_product_block_file_name(product_block)
         module_name = f"{get_product_blocks_module()}.{name}"
-        generated_product_blocks[f'{product_block["type"]}Block'] = module_name
+        generated_product_blocks[f"{product_block['type']}Block"] = module_name
 
     product_blocks = config.get("product_blocks", [])
     sorted_product_blocks = sort_product_blocks_by_dependencies(product_blocks)

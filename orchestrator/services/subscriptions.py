@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -37,6 +37,7 @@ from orchestrator.db import (
     SubscriptionInstanceValueTable,
     SubscriptionTable,
     db,
+    transactional,
 )
 from orchestrator.db.models import (
     SubscriptionCustomerDescriptionTable,
@@ -255,6 +256,7 @@ def update_subscription(subscription_id: str, **attrs: dict | UUIDstr | str | da
 
 
 def retrieve_node_subscriptions_by_name(node_name: str) -> list[SubscriptionTable]:
+
     stmt = (
         select(SubscriptionTable)
         .join(ProductTable)
@@ -281,6 +283,7 @@ def retrieve_subscription_by_subscription_instance_value(
     Returns: Subscription or None
 
     """
+
     stmt = (
         select(SubscriptionTable)
         .join(SubscriptionInstanceTable)
@@ -363,6 +366,7 @@ def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: list[s
 
     The query can be used to add extra filters when/where needed.
     """
+
     # Find relations through resource types
     resource_type_relations = (
         SubscriptionTable.query.join(SubscriptionInstanceTable)
@@ -400,6 +404,7 @@ def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[
 
     The query can be used to add extra filters when/where needed.
     """
+
     # Find relations through resource types
     resource_type_relations = (
         SubscriptionInstanceTable.query.join(SubscriptionInstanceValueTable)
@@ -432,6 +437,7 @@ def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[
 
 
 def _terminated_filter(query: Query) -> list[UUID]:
+
     return list(
         more_itertools.flatten(
             query.filter(SubscriptionTable.status != "terminated").with_entities(SubscriptionTable.subscription_id)
@@ -440,6 +446,7 @@ def _terminated_filter(query: Query) -> list[UUID]:
 
 
 def _in_sync_filter(query: Query) -> list[UUID]:
+
     return list(
         more_itertools.flatten(
             query.filter(not_(SubscriptionTable.insync)).with_entities(SubscriptionTable.subscription_id)
@@ -466,14 +473,13 @@ def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[U
     """
     if not subscription:
         return {"locked_relations": [], "unterminated_parents": [], "unterminated_in_use_by_subscriptions": []}
-    in_use_by_query = query_in_use_by_subscriptions(subscription.subscription_id)
 
-    unterminated_in_use_by_subscriptions = _terminated_filter(in_use_by_query)
-    locked_in_use_by_block_relations = _in_sync_filter(in_use_by_query)
-
-    depends_on_query = query_depends_on_subscriptions(subscription.subscription_id)
-
-    locked_depends_on_block_relations = _in_sync_filter(depends_on_query)
+    with transactional(db, logger):
+        in_use_by_query = query_in_use_by_subscriptions(subscription.subscription_id)
+        unterminated_in_use_by_subscriptions = _terminated_filter(in_use_by_query)
+        locked_in_use_by_block_relations = _in_sync_filter(in_use_by_query)
+        depends_on_query = query_depends_on_subscriptions(subscription.subscription_id)
+        locked_depends_on_block_relations = _in_sync_filter(depends_on_query)
 
     result = {
         "locked_relations": locked_in_use_by_block_relations + locked_depends_on_block_relations,
@@ -490,6 +496,7 @@ def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[U
 
 
 def get_relations(subscription_id: UUIDstr) -> dict[str, list[UUID]]:
+
     subscription_table = db.session.get(
         SubscriptionTable,
         subscription_id,
@@ -701,10 +708,12 @@ def format_extended_domain_model(subscription: dict, filter_owner_relations: boo
 
 
 def get_subscriptions_on_product_table() -> list[SubscriptionTable]:
+
     select_query = select(SubscriptionTable).join(ProductTable)
     return list(db.session.scalars(select_query))
 
 
 def get_subscriptions_on_product_table_in_sync(in_sync: bool = True) -> list[SubscriptionTable]:
+
     select_query = select(SubscriptionTable).join(ProductTable).filter(SubscriptionTable.insync.is_(in_sync))
     return list(db.session.scalars(select_query))

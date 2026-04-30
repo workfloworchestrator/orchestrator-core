@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT, ESnet.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -145,6 +145,7 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
         @classmethod
         def subscription_validator(cls, subscription_id: UUID) -> UUID:
             """Run validator for initial_input_forms to check if the subscription exists and that this workflow is valid to run for this subscription."""
+
             subscription = db.session.get(SubscriptionTable, subscription_id)
             if subscription is None:
                 raise ValueError("Subscription not found")
@@ -166,6 +167,7 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
 
         @model_validator(mode="after")
         def version_validator(self) -> Self:
+
             current_version = db.session.scalars(
                 select(SubscriptionTable.version).where(SubscriptionTable.subscription_id == self.subscription_id)
             ).one()

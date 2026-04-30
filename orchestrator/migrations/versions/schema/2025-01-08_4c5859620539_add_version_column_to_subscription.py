@@ -1,3 +1,4 @@
+# Copyright 2019-2026 SURF, GÉANT.
 """Add version column to subscription and subscription customer descriptions.
 
 Revision ID: 4c5859620539

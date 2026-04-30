@@ -37,7 +37,7 @@ from starlette.responses import Response
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import add_response_range
-from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
+from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db, read_only_transaction
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import filter_processes
 from orchestrator.db.sorting import Sort, SortOrder
@@ -235,7 +235,8 @@ async def resume_process_endpoint(
 ) -> None:
     process = await asyncio.to_thread(_get_process, process_id)
 
-    pstat = load_process(process)
+    with read_only_transaction(db, logger):
+        pstat = load_process(process)
     steps = get_steps_to_evaluate_for_rbac(pstat)
     auth_resume, auth_retry = get_auth_callbacks(steps, pstat.workflow)
     if process.last_status == ProcessStatus.SUSPENDED:

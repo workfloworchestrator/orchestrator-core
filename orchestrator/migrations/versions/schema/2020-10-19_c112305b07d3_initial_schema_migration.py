@@ -1,3 +1,4 @@
+# Copyright 2019-2026 SURF, GÉANT.
 """Initial schema migration.
 
 Revision ID: c112305b07d3

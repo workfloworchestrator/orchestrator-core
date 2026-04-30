@@ -1,4 +1,4 @@
-# Copyright 2019-2023 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,7 +16,13 @@ from uuid import UUID
 import structlog
 from sqlalchemy import BinaryExpression, ColumnElement, false, select
 
-from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
+from orchestrator.db import (
+    ProcessSubscriptionTable,
+    ProcessTable,
+    ProductTable,
+    SubscriptionTable,
+    WorkflowTable,
+)
 from orchestrator.db.filters import create_memoized_field_list, generic_filter_from_clauses
 from orchestrator.db.filters.search_filters import (
     default_inferred_column_clauses,

@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -39,10 +39,10 @@ class ApiException(Exception):  # noqa: N818
     def __init__(self, status: HTTPStatus | None = None, reason: str | None = None, http_resp: object | None = None):
         super().__init__(status, reason, http_resp)
         if http_resp:
-            self.status = http_resp.status  # type:ignore
-            self.reason = http_resp.reason  # type:ignore
-            self.body = http_resp.data  # type:ignore
-            self.headers = http_resp.getheaders()  # type:ignore
+            self.status = http_resp.status  # type: ignore
+            self.reason = http_resp.reason  # type: ignore
+            self.body = http_resp.data  # type: ignore
+            self.headers = http_resp.getheaders()  # type: ignore
         else:
             self.status = status
             self.reason = reason
@@ -51,7 +51,7 @@ class ApiException(Exception):  # noqa: N818
 
     def __str__(self) -> str:
         """Create custom error messages for exception."""
-        error_message = "({})\n" "Reason: {}\n".format(self.status, self.reason)
+        error_message = "({})\nReason: {}\n".format(self.status, self.reason)
         if self.headers:
             error_message += f"HTTP response headers: {self.headers}\n"
 

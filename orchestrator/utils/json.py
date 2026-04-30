@@ -74,6 +74,7 @@ decoding functions differently then `default` and `object_hook` is that they are
 :func:`json.dumps` and :func:`json.loads`.
 
 """
+
 import re
 from collections.abc import Sequence
 from contextlib import suppress

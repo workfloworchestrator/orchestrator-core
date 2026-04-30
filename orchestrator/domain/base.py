@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, ESnet, GÉANT.
+# Copyright 2019-2026 SURF, ESnet, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -46,6 +46,7 @@ from orchestrator.db import (
     SubscriptionInstanceValueTable,
     SubscriptionTable,
     db,
+    transactional,
 )
 from orchestrator.db.queries.subscription_instance import get_subscription_instance_dict
 from orchestrator.domain.helpers import (
@@ -744,7 +745,7 @@ class ProductBlockModel(DomainModel):
         This makes sure we always have a specific instance.
         """
         if not cls.__base_type__:
-            cls = ProductBlockModel.registry.get(other.name, cls)  # type:ignore
+            cls = ProductBlockModel.registry.get(other.name, cls)  # type: ignore
             cls = lookup_specialized_type(cls, status)
 
         data = cls._data_from_lifecycle(other, status, subscription_id)
@@ -783,7 +784,7 @@ class ProductBlockModel(DomainModel):
             status = SubscriptionLifecycle(subscription_instance.subscription.status)
 
         if not cls.__base_type__:
-            cls = ProductBlockModel.registry.get(subscription_instance.product_block.name, cls)  # type:ignore
+            cls = ProductBlockModel.registry.get(subscription_instance.product_block.name, cls)  # type: ignore
             cls = lookup_specialized_type(cls, status)
 
         elif not issubclass(cls, lookup_specialized_type(cls, status)):
@@ -1220,6 +1221,7 @@ class SubscriptionModel(DomainModel):
             description = f"Initial subscription of {product.description}"
 
         subscription_id = uuid4()
+
         subscription = SubscriptionTable(
             subscription_id=subscription_id,
             product_id=product_id,
@@ -1269,7 +1271,7 @@ class SubscriptionModel(DomainModel):
             # Import here to prevent cyclic imports
             from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
-            cls = SUBSCRIPTION_MODEL_REGISTRY.get(other.product.name, cls)  # type:ignore
+            cls = SUBSCRIPTION_MODEL_REGISTRY.get(other.product.name, cls)  # type: ignore
             cls = lookup_specialized_type(cls, status)
 
         # this will raise ValueError when wrong lifecycle transitions are detected in the new domain model
@@ -1336,7 +1338,7 @@ class SubscriptionModel(DomainModel):
             # Import here to prevent cyclic imports
             from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
-            cls = SUBSCRIPTION_MODEL_REGISTRY.get(subscription.product.name, cls)  # type:ignore
+            cls = SUBSCRIPTION_MODEL_REGISTRY.get(subscription.product.name, cls)  # type: ignore
             cls = lookup_specialized_type(cls, status)
         elif not issubclass(cls, lookup_specialized_type(cls, status)):
             raise ValueError(f"{cls} is not valid for lifecycle {status}")
@@ -1348,7 +1350,7 @@ class SubscriptionModel(DomainModel):
             instances = {name: product_block}
         else:
             # TODO test using cls._load_root_instances() here as well
-            instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)  # type:ignore
+            instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)  # type: ignore
 
         try:
             model = cls(
@@ -1381,29 +1383,30 @@ class SubscriptionModel(DomainModel):
         if cached_model := get_from_cache(subscription_id):
             return cast(S, cached_model)
 
-        if not (subscription := cls._get_subscription(subscription_id)):
-            raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
-        product = cls._to_product_model(subscription.product)
+        with transactional(db, logger):
+            if not (subscription := cls._get_subscription(subscription_id)):
+                raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
+            product = cls._to_product_model(subscription.product)
 
-        status = SubscriptionLifecycle(subscription.status)
+            status = SubscriptionLifecycle(subscription.status)
 
-        if not cls.__base_type__:
-            # Import here to prevent cyclic imports
-            from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+            if not cls.__base_type__:
+                # Import here to prevent cyclic imports
+                from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
-            try:
-                cls = SUBSCRIPTION_MODEL_REGISTRY[subscription.product.name]  # type:ignore
-            except KeyError:
-                raise ProductNotInRegistryError(
-                    f"'{subscription.product.name}' is not found within the SUBSCRIPTION_MODEL_REGISTRY"
-                )
-            cls = lookup_specialized_type(cls, status)
-        elif not issubclass(cls, lookup_specialized_type(cls, status)):
-            raise ValueError(f"{cls} is not valid for lifecycle {status}")
+                try:
+                    cls = SUBSCRIPTION_MODEL_REGISTRY[subscription.product.name]  # type: ignore
+                except KeyError:
+                    raise ProductNotInRegistryError(
+                        f"'{subscription.product.name}' is not found within the SUBSCRIPTION_MODEL_REGISTRY"
+                    )
+                cls = lookup_specialized_type(cls, status)
+            elif not issubclass(cls, lookup_specialized_type(cls, status)):
+                raise ValueError(f"{cls} is not valid for lifecycle {status}")
 
-        fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
+            fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
 
-        instances = cls._load_root_instances(subscription_id)
+            instances = cls._load_root_instances(subscription_id)
 
         try:
             model = cls(
@@ -1491,6 +1494,12 @@ class SubscriptionModel(DomainModel):
             db.session.delete(instance)
 
         db.session.flush()
+
+        # subscriptions.version is bumped by a BEFORE UPDATE trigger; refresh
+        # so the in-memory model matches what a subsequent from_subscription()
+        # would load.
+        db.session.refresh(sub, attribute_names=["version"])
+        self.version = sub.version
 
     @property
     def db_model(self) -> SubscriptionTable | None:

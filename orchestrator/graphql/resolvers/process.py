@@ -17,10 +17,10 @@ from pydantic.alias_generators import to_camel as to_lower_camel
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from orchestrator.db import ProcessTable, db
+from orchestrator.db import ProcessTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import PROCESS_TABLE_COLUMN_CLAUSES, filter_processes, process_filter_fields
-from orchestrator.db.models import ProcessSubscriptionTable, SubscriptionTable
+from orchestrator.db.models import ProcessSubscriptionTable
 from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.process import process_sort_fields, sort_processes
@@ -80,6 +80,7 @@ def resolve_processes(
     logger.debug("resolve_processes() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
     # Hardcoded loaders required for _enrich_process
+
     default_loaders = [
         selectinload(ProcessTable.process_subscriptions)
         .selectinload(ProcessSubscriptionTable.subscription)

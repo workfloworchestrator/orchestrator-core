@@ -1,3 +1,4 @@
+# Copyright 2019-2026 SURF, GÉANT.
 """Create linker table workflow_apscheduler.
 
 Revision ID: 961eddbd4c13

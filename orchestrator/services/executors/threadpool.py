@@ -19,7 +19,7 @@ from sqlalchemy import select
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import ProcessTable, db
-from orchestrator.db.database import transactional
+from orchestrator.db.database import read_only_transaction
 from orchestrator.services.input_state import InputType, retrieve_input_state
 from orchestrator.services.processes import (
     RESUME_WORKFLOW_REMOVED_ERROR_MSG,
@@ -81,11 +81,12 @@ def thread_start_process(
     # enforce an update to the process status to properly show the process
     _set_process_status_running(pstat.process_id)
 
-    # Celery workers use the empty-scope session (no database_scope); wrap in
-    # transactional() to prevent psycopg3 autobegin leaving the connection idle-in-transaction.
-    with transactional(db, logger):
-        input_data = retrieve_input_state(pstat.process_id, "initial_state", False)
-    pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
+    # Celery workers use the empty-scope session (no database_scope); close the session
+    # after the read so psycopg3's implicit transaction ends. Extract input_state inside
+    # the block — the row is detached after close().
+    with read_only_transaction(db, logger):
+        input_state = retrieve_input_state(pstat.process_id, "initial_state", False).input_state
+    pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_state)))
 
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
@@ -99,8 +100,9 @@ def thread_resume_process(
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
-    # Same idle-in-transaction concern as thread_start_process: wrap DB reads in transactional().
-    with transactional(db, logger):
+    # Same idle-in-transaction concern as thread_start_process: close session after reads.
+    # Extract input_state inside the block — the row is detached after close().
+    with read_only_transaction(db, logger):
         pstat = load_process(process)
         if pstat.workflow == removed_workflow:
             raise ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG)
@@ -108,11 +110,11 @@ def thread_resume_process(
         # retrieve_input_str is for the edge case when workflow engine stops whilst there is an existing 'CREATED' process queue'ed.
         # It will have become a `RUNNING` process that gets resumed and this should fetch initial_state instead of user_input.
         retrieve_input_str: InputType = "user_input" if process.steps else "initial_state"
-        input_data = retrieve_input_state(process.process_id, retrieve_input_str, False)
+        input_state = retrieve_input_state(process.process_id, retrieve_input_str, False).input_state
 
     if user:
         pstat.update(current_user=user)
-    pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
+    pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_state)))
 
     # enforce an update to the process status to properly show the process
     _set_process_status_running(process.process_id)

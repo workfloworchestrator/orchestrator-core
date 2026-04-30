@@ -23,7 +23,6 @@ logger = structlog.get_logger(__name__)
 
 
 class EmbeddingIndexer:
-
     @classmethod
     def get_embeddings_from_api_batch(cls, texts: list[str], dry_run: bool) -> list[list[float]]:
         if not texts:

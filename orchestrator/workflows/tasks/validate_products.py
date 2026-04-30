@@ -20,7 +20,13 @@ from sqlalchemy import not_, select
 from sqlalchemy.orm import joinedload
 
 import orchestrator.workflows
-from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, WorkflowTable, db
+from orchestrator.db import (
+    FixedInputTable,
+    ProductTable,
+    SubscriptionTable,
+    WorkflowTable,
+    db,
+)
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services import products
 from orchestrator.services.products import get_products
@@ -68,7 +74,7 @@ def check_workflows_for_matching_targets_and_descriptions() -> State:
             # Note: description is no longer validated here as it can be changed via UI/API
             if wf.target != db_workflow.target or wf.name != db_workflow.name:
                 message = (
-                    f"Workflow {wf.name}: {wf.target} <=> {db_workflow.target}, " f"{wf.name} <=> {db_workflow.name}. "
+                    f"Workflow {wf.name}: {wf.target} <=> {db_workflow.target}, {wf.name} <=> {db_workflow.name}. "
                 )
                 workflow_assertions.append(message)
 
@@ -144,7 +150,9 @@ def check_db_fixed_input_config() -> State:
         data["by_tag"][tag] = []
     for fi in fixed_inputs:
         fi_data: dict = first_true(
-            fixed_input_configuration["fixed_inputs"], {}, lambda i: i["name"] == fi.name  # noqa: B023
+            fixed_input_configuration["fixed_inputs"],
+            {},
+            lambda i: i["name"] == fi.name,  # noqa: B023
         )
         if not fi_data:
             errors.append(fi)

@@ -1,3 +1,4 @@
+# Copyright 2019-2026 SURF, GÉANT.
 """Update description of resume workflows task.
 
 Revision ID: 850dccac3b02

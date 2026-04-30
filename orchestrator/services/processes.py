@@ -16,7 +16,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 from functools import partial
 from http import HTTPStatus
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import structlog
@@ -30,7 +30,14 @@ from nwastdlib.ex import show_ex
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.db import (
+    EngineSettingsTable,
+    ProcessStepTable,
+    ProcessSubscriptionTable,
+    ProcessTable,
+    db,
+    transactional,
+)
 from orchestrator.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.distlock import distlock_manager
 from orchestrator.schemas.engine_settings import WorkerStatus
@@ -493,22 +500,25 @@ def create_process(
     }
 
     try:
-        state = post_form(workflow.initial_input_form, initial_state, user_inputs)
+        with transactional(db, logger):
+            state = post_form(workflow.initial_input_form, initial_state, user_inputs)
+            pstat = ProcessStat(
+                process_id,
+                workflow=workflow,
+                state=Success(state | initial_state),
+                log=workflow.steps,
+                current_user=user,
+                user_model=user_model,
+            )
+            _db_create_process(pstat)
+            # Flatten live Pydantic models to plain dicts BEFORE the JSONB write so that
+            # @computed_field properties don't fire DB queries inside Session.flush().
+            flat_state = cast(dict[str, Any], json_loads(json_dumps(state | initial_state)))
+            store_input_state(process_id, flat_state, "initial_state")
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
 
-    pstat = ProcessStat(
-        process_id,
-        workflow=workflow,
-        state=Success(state | initial_state),
-        log=workflow.steps,
-        current_user=user,
-        user_model=user_model,
-    )
-
-    _db_create_process(pstat)
-    store_input_state(process_id, state | initial_state, "initial_state")
     return pstat
 
 
@@ -601,12 +611,15 @@ def resume_process(
         raise ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG)
 
     try:
-        user_input = post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [{}])
+        with transactional(db, logger):
+            user_input = post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [{}])
+            # Flatten live Pydantic models to plain dicts BEFORE the JSONB write so that
+            # @computed_field properties don't fire DB queries inside Session.flush().
+            flat_user_input = cast(dict[str, Any], json_loads(json_dumps(user_input)))
+            store_input_state(pstat.process_id, flat_user_input, "user_input")
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
-
-    store_input_state(pstat.process_id, user_input, "user_input")
 
     resume_func = get_execution_context()["resume"]
     return resume_func(process, user=user, broadcast_func=broadcast_func)

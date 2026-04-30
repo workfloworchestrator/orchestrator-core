@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -96,10 +96,11 @@ async def format_subscription(info: OrchestratorInfo, subscription: Subscription
         return await get_subscription_details(info, subscription)
 
     strawberry_type = get_subscription_graphql_type(info, "subscription")
-    return strawberry_type.from_pydantic(subscription)  # type:ignore
+    return strawberry_type.from_pydantic(subscription)  # type: ignore
 
 
 async def resolve_subscription(info: OrchestratorInfo, id: UUID) -> SubscriptionInterface | None:
+
     stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == id)
 
     if subscription := await run_in_threadpool(db.session.scalar, stmt):

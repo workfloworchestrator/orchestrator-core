@@ -146,6 +146,7 @@ def subscriptions_search(
     range_ = list(map(int, range.split(","))) if range else None
     sort_ = sort.split(",") if sort else None
     logger.info("subscriptions_search() called", range=range_, sort=sort_)
+
     stmt = select(SubscriptionTable, SubscriptionMetadataTable.metadata_).join_from(
         SubscriptionTable, SubscriptionMetadataTable, isouter=True
     )
@@ -171,6 +172,7 @@ def subscriptions_search(
 def subscription_workflows_by_id(
     subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate)
 ) -> dict[str, list[dict[str, list[Any] | str]]]:
+
     subscription = db.session.get(
         SubscriptionTable,
         subscription_id,

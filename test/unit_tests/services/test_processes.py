@@ -38,6 +38,7 @@ from orchestrator.services.processes import (
     _db_log_step,
     _get_process,
     _run_process_async,
+    create_process,
     load_process,
     resume_process,
     safe_logstep,
@@ -68,7 +69,7 @@ from orchestrator.workflow import (
 )
 from orchestrator.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core.translations import translations
-from pydantic_forms.exceptions import FormValidationError
+from pydantic_forms.exceptions import FormNotCompleteError, FormValidationError
 from test.unit_tests.fixtures.workflows import initial_input_form, step1, step2
 from test.unit_tests.workflows import WorkflowInstanceForTests, run_workflow, store_workflow
 
@@ -933,26 +934,26 @@ def test_start_process(
     mock_get_process.return_value = MagicMock(spec=ProcessTable)
     mock_db.return_value = MagicMock(session=MagicMock())
 
-    result = start_process(mock.sentinel.wf_name, [{"a": 2}], mock.sentinel.user)
+    result = start_process(str(mock.sentinel.wf_name), [{"a": 2}], str(mock.sentinel.user))
 
     initial_state = {
         "a": 1,
         "process_id": mock.ANY,
-        "reporter": mock.sentinel.user,
-        "workflow_name": mock.sentinel.wf_name,
-        "workflow_target": Target.SYSTEM,
+        "reporter": str(mock.sentinel.user),
+        "workflow_name": str(mock.sentinel.wf_name),
+        "workflow_target": Target.SYSTEM.value,
     }
     mock_store_input_state.assert_called_once_with(mock.ANY, initial_state, "initial_state")
     mock_retrieve_input_state.assert_called_once_with(mock.ANY, "initial_state", False)
     pstat = mock_db_create_process.call_args[0][0]
     assert result == mock.sentinel.process_id
-    assert pstat.current_user == mock.sentinel.user
+    assert pstat.current_user == str(mock.sentinel.user)
     assert pstat.state.status == StepStatus.SUCCESS
     assert pstat.workflow == wf
     assert pstat.state.unwrap() == {
         "process_id": mock.ANY,
-        "reporter": mock.sentinel.user,
-        "workflow_name": mock.sentinel.wf_name,
+        "reporter": str(mock.sentinel.user),
+        "workflow_name": str(mock.sentinel.wf_name),
         "workflow_target": Target.SYSTEM,
         "a": 1,
     }
@@ -961,8 +962,8 @@ def test_start_process(
         mock.ANY,
         {
             "process_id": mock.ANY,
-            "reporter": mock.sentinel.user,
-            "workflow_name": mock.sentinel.wf_name,
+            "reporter": str(mock.sentinel.user),
+            "workflow_name": str(mock.sentinel.wf_name),
             "workflow_target": Target.SYSTEM,
         },
         [{"a": 2}],
@@ -1075,6 +1076,73 @@ def test_resume_process_form_error(mock_load_process, mock_post_form):
         state.unwrap(),
         user_inputs=[{}],
     )
+
+
+@mock.patch("orchestrator.services.processes.post_form")
+@mock.patch("orchestrator.services.processes.get_workflow")
+def test_create_process_rolls_back_on_form_not_complete(mock_get_workflow, mock_post_form):
+    """create_process must not leave an open transaction when post_form raises FormNotCompleteError.
+
+    With psycopg3 autobegin, any SELECT inside post_form opens a transaction on the
+    connection. FormNotCompleteError is the normal signal for a multi-page form asking
+    for more user input; without a transactional() wrapper around post_form the
+    connection would become idle-in-transaction after the HTTP response is sent.
+    """
+    wf = make_workflow(lambda: None, "description", None, Target.SYSTEM, StepList())
+    wf.name = "name"
+    mock_get_workflow.return_value = wf
+
+    def _select_then_raise(*args, **kwargs):
+        # Simulate a form generator that SELECTs subscription data before its first yield.
+        db.session.execute(select(ProcessTable).limit(1))
+        raise FormNotCompleteError({})
+
+    mock_post_form.side_effect = _select_then_raise
+
+    assert not db.session.in_transaction(), "precondition: clean session"
+
+    with pytest.raises(FormNotCompleteError):
+        create_process("name")
+
+    assert (
+        not db.session.in_transaction()
+    ), "create_process left an open transaction - post_form ran outside transactional() context"
+
+
+@mock.patch("orchestrator.services.processes.post_form")
+@mock.patch("orchestrator.services.processes.load_process")
+def test_resume_process_rolls_back_on_form_not_complete(mock_load_process, mock_post_form):
+    """resume_process must not leave an open transaction when post_form raises FormNotCompleteError.
+
+    Same psycopg3 autobegin concern as test_create_process_rolls_back_on_form_not_complete,
+    but for the resume path.
+    """
+    wf = workflow()(lambda: init >> step1 >> step2)
+    process_id = uuid4()
+    state = Waiting({"steps": [1]})
+    pstat = ProcessStat(process_id, wf, state, wf.steps[1:], current_user="user")
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=uuid4(),
+        last_status=ProcessStatus.SUSPENDED,
+        created_by=SYSTEM_USER,
+    )
+    mock_load_process.return_value = pstat
+
+    def _select_then_raise(*args, **kwargs):
+        db.session.execute(select(ProcessTable).limit(1))
+        raise FormNotCompleteError({})
+
+    mock_post_form.side_effect = _select_then_raise
+
+    assert not db.session.in_transaction(), "precondition: clean session"
+
+    with pytest.raises(FormNotCompleteError):
+        resume_process(process, user_inputs=None, user=mock.sentinel.user)
+
+    assert (
+        not db.session.in_transaction()
+    ), "resume_process left an open transaction - post_form ran outside transactional() context"
 
 
 @mock.patch("orchestrator.services.processes.load_process")

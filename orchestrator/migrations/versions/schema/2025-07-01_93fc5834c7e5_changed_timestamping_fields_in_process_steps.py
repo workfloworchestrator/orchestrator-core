@@ -1,3 +1,4 @@
+# Copyright 2019-2026 SURF, GÉANT.
 """Changed timestamping fields in process_steps.
 
 Revision ID: 93fc5834c7e5

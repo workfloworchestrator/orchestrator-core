@@ -1,4 +1,4 @@
-# Copyright 2019-2023 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -94,7 +94,7 @@ def _filter_comparable(field: ColumnClause, value_converter: Callable[[str], Any
         range_comparison_op = next((op for op in [">=", "<=", ">", "<"] if v.startswith(op)), "")
         if range_comparison_op:
             op = RANGE_TYPES.get(range_comparison_op)
-            return op(field, value_converter(v[len(range_comparison_op) :]))  # type:ignore
+            return op(field, value_converter(v[len(range_comparison_op) :]))  # type: ignore
         return _default_clause(node)
 
     return _clause_gen

@@ -1,3 +1,4 @@
+# Copyright 2019-2026 SURF, GÉANT.
 """Add workflow_id to processes table.
 
 Revision ID: 048219045729
