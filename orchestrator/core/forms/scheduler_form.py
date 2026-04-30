@@ -17,7 +17,7 @@ from typing import Annotated
 from uuid import UUID
 
 import structlog
-from pydantic import StringConstraints
+from pydantic import ConfigDict, StringConstraints
 from sqlalchemy import select
 from typing_extensions import TypedDict
 
@@ -139,11 +139,13 @@ def form_generator_send(form_generator: FormGenerator, data: dict | None) -> tup
 async def configure_schedule_form(state: State) -> FormGeneratorAsync:
     from orchestrator.core.forms import FormPage, SubmitFormPage
 
+    _model_config = ConfigDict(title="Create new schedule")
     user_model = OIDCUserModel(**_user_model) if (_user_model := state.get("user_model")) else None
     tasks = get_tasks(user_model)
     task_choices = {name: description for name, (_, _, description) in tasks.items()}
 
     class ScheduleTaskChoiceForm(FormPage):
+        model_config = _model_config
         task: Choice("TaskChoices", task_choices)  # type: ignore
 
     schedule_task_form = yield ScheduleTaskChoiceForm
@@ -165,6 +167,7 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
             user_inputs.append(data)
 
     class ScheduleTypeForm(FormPage):
+        model_config = _model_config
         task: read_only_field(schedule_task_form.task)  # type: ignore
         schedule_type: ScheduleTypeEnum
 
@@ -175,6 +178,7 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
     DateTimeField = to_timestamp_field(min_date=current_date)
 
     class ScheduleDateForm(SubmitFormPage):
+        model_config = _model_config
         task: read_only_field(schedule_type_form.task)  # type: ignore
         schedule_type: read_only_field(schedule_type_form.schedule_type)  # type: ignore
 
