@@ -1495,6 +1495,12 @@ class SubscriptionModel(DomainModel):
 
         db.session.flush()
 
+        # subscriptions.version is bumped by a BEFORE UPDATE trigger; refresh
+        # so the in-memory model matches what a subsequent from_subscription()
+        # would load.
+        db.session.refresh(sub, attribute_names=["version"])
+        self.version = sub.version
+
     @property
     def db_model(self) -> SubscriptionTable | None:
         if not self._db_model:
