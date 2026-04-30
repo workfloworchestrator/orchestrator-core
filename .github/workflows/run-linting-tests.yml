@@ -45,7 +45,10 @@ jobs:
           path: ~/.cache/pre-commit
           key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
 
+      - name: Check edited files contain an up-to-date copyright header
+        run: uv run pre-commit run copyright-required
+
       - name: Run remaining pre-commit hooks
         run: uv run pre-commit run --all-files
         env:
-          SKIP: mypy
+          SKIP: mypy,copyright-required

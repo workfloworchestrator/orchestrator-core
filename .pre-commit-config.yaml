@@ -53,9 +53,9 @@ repos:
     rev: 1.7.0
     hooks:
       - id: copyright-required
-        name: copyright headers are present and contain the current year
-        files: (.*\.py)
-        exclude: (test/unit_tests/cli/data/generate/*\.py)
+        name: copyright headers are present
+        files: (.*\.py$)
+        exclude: (^test/unit_tests/cli/data/generate/.*\.py$|^vulture_whitelist\.py$)
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0

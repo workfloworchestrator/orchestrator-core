@@ -224,7 +224,7 @@ Below is an example implementation of a Celery worker with Websocket support, wh
 
 === "`orchestrator-core` < 5.0"
 
-      ```python
+    ```python
     """This module contains functions and classes necessary for celery worker processes.
 
     The application flow looks like this when EXECUTOR = "celery" (and websockets are enabled):
