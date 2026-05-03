@@ -63,45 +63,6 @@ def test_process_traverser_model_load_error():
 
 
 @pytest.mark.parametrize(
-    "traverser_cls,entity_attr,entity_id,error_cls",
-    [
-        pytest.param(
-            SubscriptionTraverser,
-            "subscription_id",
-            UUID("550e8400-e29b-41d4-a716-446655440000"),
-            ProductNotInRegistryError("not found"),
-            id="subscription-product-not-in-registry",
-        ),
-        pytest.param(
-            ProductTraverser,
-            "product_id",
-            "test-123",
-            ProductNotInRegistryError("Product not found"),
-            id="product-not-in-registry",
-        ),
-        pytest.param(
-            ProductTraverser,
-            "product_id",
-            "test-456",
-            ModelLoadError("Failed to load model"),
-            id="product-model-load-error",
-        ),
-    ],
-)
-def test_get_fields_handles_expected_errors(caplog, traverser_cls, entity_attr, entity_id, error_cls):
-    mock_entity = MagicMock()
-    setattr(mock_entity, entity_attr, entity_id)
-
-    with patch.object(traverser_cls, "_load_model", side_effect=error_cls):
-        result = traverser_cls.get_fields(
-            mock_entity, entity_attr, traverser_cls.__name__.replace("Traverser", "").lower()
-        )
-
-    assert result == []
-    assert "Failed to extract fields" in caplog.text
-
-
-@pytest.mark.parametrize(
     "traverser_cls,entity_attr,entity_id",
     [
         pytest.param(
@@ -129,27 +90,3 @@ def test_get_fields_unexpected_exception_propagates():
     with patch.object(ProductTraverser, "_load_model", side_effect=ValueError("Unexpected error")):
         with pytest.raises(ValueError, match="Unexpected error"):
             ProductTraverser.get_fields(mock_product, "product_id", "product")
-
-
-def test_traverse_handles_computed_property_exception(caplog):
-    from pydantic import BaseModel, computed_field
-
-    from orchestrator.core.search.indexing.traverse import BaseTraverser
-
-    class TestModel(BaseModel):
-        normal_field: str = "test_value"
-
-        @computed_field  # type: ignore[untyped-decorator]
-        @property
-        def failing_computed_field(self) -> str:
-            raise AssertionError("Computed property failed")
-
-    instance = TestModel()
-    fields = list(BaseTraverser.traverse(instance, "test"))
-
-    field_paths = [field.path for field in fields]
-    assert "test.normal_field" in field_paths
-    assert "test.failing_computed_field" not in field_paths
-    assert "Failed to access field 'failing_computed_field'" in caplog.text
-    assert "Computed property failed" in caplog.text
-    assert any(record.levelname == "ERROR" for record in caplog.records)

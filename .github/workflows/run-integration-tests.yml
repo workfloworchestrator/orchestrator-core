@@ -1,0 +1,122 @@
+name: Integration tests
+
+# Single PR/push entry point for the entire test suite:
+#   1) ``unit-tests`` runs the reusable ``run-unit-tests.yml`` workflow across
+#      the full Python matrix (no services). Required gate.
+#   2) ``standard-integration-tests`` runs after the unit gate on a deliberately
+#      narrow service-matrix to keep PR feedback fast.
+#   3) ``celery-integration-tests`` runs the Celery suite (reusable workflow).
+#   4) ``llm-search-integration-tests`` runs the LLM/embedding suite (reusable
+#      workflow). Skipped on forks because it needs the LLM secrets.
+#
+# Each integration job ``needs: unit-tests`` so unit tests run exactly once
+# per PR and integration jobs only execute when units are green.
+
+on:
+  push:
+    branches: [main]
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+
+env:
+  UV_LOCKED: true
+
+jobs:
+  unit-tests:
+    name: Unit tests (gate)
+    uses: ./.github/workflows/run-unit-tests.yml
+    secrets: inherit
+
+  standard-integration-tests:
+    name: Standard integration tests (Python ${{ matrix.python-version }} / Postgres ${{ matrix.postgres-version }} / Redis ${{ matrix.redis-version }})
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    strategy:
+      # Narrow matrix: oldest + newest supported Python × Postgres, with the
+      # Redis version pinned per row. Wider matrices are a follow-up
+      # (scheduled-build.yml currently runs only the unit workflow).
+      matrix:
+        include:
+          - python-version: "3.11"
+            postgres-version: "15"
+            redis-version: "7"
+          - python-version: "3.14"
+            postgres-version: "17"
+            redis-version: "8"
+      fail-fast: false
+    container: ubuntu:latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg${{ matrix.postgres-version }}
+        env:
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_USER: nwa
+          POSTGRES_DB: orchestrator-core-test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:${{ matrix.redis-version }}
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v6
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          version: "0.11.7"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the project
+        run: uv sync --all-extras --dev
+
+      - name: Run integration tests (DB + Redis + FastAPI app + workflows)
+        # Excludes:
+        #   - Celery tests: covered by run-pytest-celery.yml
+        #   - LLM/embedding search tests: covered by run-llm-integration-tests.yml
+        # The DB-backed (non-LLM) search tests under test/integration_tests/search/
+        # ARE included here.
+        run: |
+          uv run pytest test/integration_tests \
+            --ignore=test/integration_tests/test_with_pytest_celery.py \
+            --ignore=test/integration_tests/search/llm \
+            --cov-branch --cov=orchestrator --cov-report=xml
+        env:
+          DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
+          CACHE_URI: redis://redis
+          POSTGRES_HOST: postgres
+          ENVIRONMENT: TESTING
+
+      - name: Install codecov dependencies
+        run: apt-get update && apt-get install -y git curl gpg
+
+      - name: "Upload coverage to Codecov"
+        uses: codecov/codecov-action@v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+          files: ./coverage.xml
+          flags: integration
+
+  celery-integration-tests:
+    name: Celery integration tests (gate)
+    needs: unit-tests
+    uses: ./.github/workflows/run-pytest-celery.yml
+    secrets: inherit
+
+  llm-search-integration-tests:
+    name: LLM/embedding search integration tests (gate)
+    needs: unit-tests
+    # Skip on forks: the LLM workflow needs CODECOV_TOKEN and is also typically
+    # gated by upstream LLM credentials managed in the source repo.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}
+    uses: ./.github/workflows/run-llm-integration-tests.yml
+    secrets: inherit
