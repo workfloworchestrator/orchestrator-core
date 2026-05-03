@@ -120,6 +120,7 @@ dev = [
     "requests-mock>=1.12.1",
     "ruff>=0.15.11",
     "sqlalchemy[mypy]>=2.0.41",
+    "testcontainers[postgres,redis]>=4.7.2",
     "toml>=0.10.2",
     "types-aiofiles>=24.1.0.20250606",
     "types-certifi>=2021.10.8.3",
@@ -221,6 +222,21 @@ override-dependencies = [
 module-name = "orchestrator.core"
 module-root = ""
 
+# Default ``uv run pytest`` invocation collects pure unit tests and doctests in
+# orchestrator/core. Integration tests are NOT collected by default — they
+# require Postgres + Redis (provided either via env vars, the docker-compose
+# stack under docker/pytest-support, or via testcontainers when Docker is
+# available locally).
+#
+# Integration tests are split into three suites that mirror CI:
+#   * standard:  uv run pytest test/integration_tests \
+#                  --ignore=test/integration_tests/test_with_pytest_celery.py \
+#                  --ignore=test/integration_tests/search/llm
+#   * celery:    uv run pytest test/integration_tests/test_with_pytest_celery.py
+#   * llm:       uv run pytest test/integration_tests/search/llm
+#
+# ``uv run pytest test/integration_tests`` (no ignores) runs the union of all
+# three; see docs/guides/testing.md for details.
 [tool.pytest]
 addopts = [
     "--import-mode=importlib",
@@ -265,13 +281,19 @@ filterwarnings = [
 	"ignore:.*executed.*deprecated.*:DeprecationWarning:orchestrator.core.graphql",
 ]
 markers = [
+    # Test category — directory layout is the primary separation; markers are
+    # secondary and only used for selective runs within a category.
+    "integration: Integration test (requires Postgres, Redis, FastAPI app or Celery)",
+    "postgres: Test requires a Postgres database",
+    "redis: Test requires a Redis cache",
+    # Per-feature markers
     "workflow: Test that runs a complete workflow (Slow)",
     "acceptance: Acceptance Tests. Needs special handling.",
-	"regression: Tests that cover bugs that are fixed to prevent them from regressing",
-	"celery: Tests that require celery functionality",
-	"search: Tests that require search/indexing functionality",
-	"agent: Tests that require agentic functionality and the agent extra dependencies",
-	"noresponses: Skip HTTP response mocking for this test (use with caution)",
+    "regression: Tests that cover bugs that are fixed to prevent them from regressing",
+    "celery: Tests that require celery functionality",
+    "search: Tests that require search/indexing functionality",
+    "agent: Tests that require agentic functionality and the agent extra dependencies",
+    "noresponses: Skip HTTP response mocking for this test (use with caution)",
 ]
 
 [tool.mypy]

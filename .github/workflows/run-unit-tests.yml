@@ -1,46 +1,25 @@
 name: Unit tests
+
+# Pure unit tests: no Postgres, no Redis, no Docker. Reusable workflow only —
+# this is invoked from ``run-integration-tests.yml`` as the first job (gate)
+# so that PRs and pushes run the unit suite exactly once per Python version.
+# It can also be triggered manually via the GitHub UI.
+
 on:
-  push:
-    branches: [main]
   workflow_call:
-  pull_request:
+  workflow_dispatch:
 
 env:
   UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged
 
 jobs:
-  container_job:
-    name: Unit tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
+  unit-tests:
+    name: Unit tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
-        postgres-version: ["15", "16", "17"]
       fail-fast: false
-    container: ubuntu:latest
-    services:
-      postgres:
-        image: pgvector/pgvector:pg${{ matrix.postgres-version }}
-
-        # Provide the password for postgres
-        env:
-          POSTGRES_PASSWORD: nwa
-          POSTGRES_USER: nwa
-        # Set health checks to wait until postgres has started
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        # Docker Hub image
-        image: redis
-        # Set health checks to wait until redis has started
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - name: Check out repository code
         uses: actions/checkout@v6
@@ -57,17 +36,26 @@ jobs:
         # --dev: group 'dev' from [dependency-groups]
         run: uv sync --all-extras --dev
 
-      - name: Run tests
-        run: CACHE_URI=redis://redis DATABASE_URI=postgresql+psycopg://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB uv run pytest --cov-branch --cov=orchestrator --cov-report=xml --ignore=test --ignore=orchestrator/devtools --ignore=examples --ignore=docs
-        env:
-          POSTGRES_DB: orchestrator-core-test
-          POSTGRES_USER: nwa
-          POSTGRES_PASSWORD: nwa
-          POSTGRES_HOST: postgres
-          ENVIRONMENT: TESTING
+      - name: Assert no integration env vars leak into the unit suite
+        # Hard contract: unit tests must run with no Postgres, no Redis, no
+        # Docker. If anything sets DATABASE_URI / CACHE_URI in the environment
+        # (e.g. a future workflow refactor), fail loud here rather than have
+        # a unit test silently start touching a real service.
+        run: |
+          if [ -n "${DATABASE_URI:-}" ] || [ -n "${CACHE_URI:-}" ]; then
+            echo "::error::DATABASE_URI / CACHE_URI must not be set for the unit-test job."
+            exit 1
+          fi
 
-      - name: Install codecov dependencies
-        run: apt-get update && apt-get install -y git curl gpg
+      - name: Run unit tests + doctests (no Postgres, no Redis)
+        run: |
+          unset DATABASE_URI CACHE_URI
+          uv run pytest test/unit_tests orchestrator/core \
+            --cov-branch --cov=orchestrator --cov-report=xml \
+            --ignore=orchestrator/core/devtools \
+            --ignore=examples --ignore=docs
+        env:
+          ENVIRONMENT: TESTING
 
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v6
