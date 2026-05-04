@@ -67,7 +67,7 @@ dependencies = [
     "strawberry-graphql>=0.311.3",
     "structlog>=25.4.0",
     "tabulate==0.10.0",
-    "typer==0.24.2",
+    "typer==0.25.1",
     "uvicorn[standard]~=0.46.0",
     "litellm>=1.80.0",
 ]
