@@ -1,9 +1,3 @@
-"""Tests for orchestrator.core.search.query.engine -- search pagination, export, and aggregation.
-
-Retriever override selection now lives on `Retriever.route` and `Retriever.needs_embedding`;
-see `test_retriever_routing.py` for those.
-"""
-
 # Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
