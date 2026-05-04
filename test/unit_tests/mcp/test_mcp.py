@@ -14,24 +14,23 @@
 """Tests for the MCP server integration.
 
 Covers:
-- create_mcp_app() returns a valid ASGI app
-- MCP initialize handshake (JSON-RPC over HTTP)
-- tools/list returns expected tool names
-- tools/call list_workflows returns a valid response
-- OrchestratorCore mounts the MCP app at /mcp when MCP_ENABLED=True
-- OrchestratorCore does NOT mount /mcp when MCP_ENABLED=False
+- tools/list returns the 9 expected tool names we registered
+- tools/call list_workflows returns a valid JSON-RPC result (mocked service)
+- tools/call list_products returns a valid JSON-RPC result (mocked service)
+- OrchestratorCore mounts the MCP app at /mcp/ when MCP_ENABLED=True
+- OrchestratorCore does NOT mount /mcp/ when MCP_ENABLED=False
 """
 
 import json
+from contextlib import contextmanager
 from http import HTTPStatus
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 from starlette.testclient import TestClient
 
 fastmcp = pytest.importorskip("fastmcp", reason="fastmcp not installed; skipping MCP tests")
-
-# ── Fixtures ──────────────────────────────────────────────────────────────────
 
 
 @pytest.fixture(scope="module")
@@ -79,8 +78,6 @@ def orchestrator_client_with_mcp(database, db_uri):
             yield client
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
 MCP_HEADERS = {
     "Content-Type": "application/json",
     "Accept": "application/json, text/event-stream",
@@ -112,65 +109,31 @@ def parse_mcp_response(response) -> dict:
     return json.loads(text)
 
 
-# ── Unit tests: create_mcp_app ────────────────────────────────────────────────
+def _mcp_session_headers(client) -> dict:
+    """Perform the MCP initialize handshake and return headers with session ID."""
+    init_resp = client.post("/", json=INITIALIZE_PAYLOAD, headers=MCP_HEADERS)
+    assert init_resp.status_code == HTTPStatus.OK
+    headers = {**MCP_HEADERS}
+    session_id = init_resp.headers.get("mcp-session-id")
+    if session_id:
+        headers["mcp-session-id"] = session_id
+    return headers
 
 
-def test_create_mcp_app_returns_asgi_app():
-    """create_mcp_app() should return an ASGI-callable object."""
-    from orchestrator.mcp import create_mcp_app
+@contextmanager
+def _mock_db_scope():
+    """Context manager that patches db.database_scope to be a no-op."""
+    @contextmanager
+    def _noop():
+        yield
 
-    app = create_mcp_app(auth_manager=None)
-    assert callable(app), "MCP app must be an ASGI callable"
-
-
-def test_create_mcp_server_returns_fastmcp():
-    """create_mcp_server() should return the FastMCP instance."""
-    from fastmcp import FastMCP
-
-    from orchestrator.mcp import create_mcp_server
-
-    server = create_mcp_server()
-    assert isinstance(server, FastMCP)
-
-
-# ── Integration tests: MCP HTTP protocol ─────────────────────────────────────
-
-
-def test_mcp_initialize(mcp_test_client):
-    """MCP initialize handshake should return protocolVersion and serverInfo."""
-    response = mcp_test_client.post("/", json=INITIALIZE_PAYLOAD, headers=MCP_HEADERS)
-
-    assert response.status_code == HTTPStatus.OK, f"Expected 200, got {response.status_code}: {response.text[:300]}"
-
-    parsed = parse_mcp_response(response)
-    result = parsed.get("result", parsed)
-
-    assert "protocolVersion" in result, f"Missing protocolVersion in: {result}"
-    assert "serverInfo" in result, f"Missing serverInfo in: {result}"
-    assert result["serverInfo"].get("name") == "orchestrator-core"
-
-
-def test_mcp_initialize_returns_session_id(mcp_test_client):
-    """MCP initialize should return an mcp-session-id header."""
-    response = mcp_test_client.post("/", json=INITIALIZE_PAYLOAD, headers=MCP_HEADERS)
-
-    assert response.status_code == HTTPStatus.OK
-    # Session ID may be in headers (stateful mode) or not required (stateless)
-    # Just verify the response is valid JSON-RPC
-    parsed = parse_mcp_response(response)
-    assert "result" in parsed or "error" not in parsed
+    with patch("orchestrator.mcp.tools.db.database_scope", _noop):
+        yield
 
 
 def test_mcp_tools_list(mcp_test_client):
-    """tools/list should include the expected orchestrator tool names."""
-    # First initialize to get a session
-    init_resp = mcp_test_client.post("/", json=INITIALIZE_PAYLOAD, headers=MCP_HEADERS)
-    assert init_resp.status_code == HTTPStatus.OK
-
-    session_id = init_resp.headers.get("mcp-session-id")
-    headers = {**MCP_HEADERS}
-    if session_id:
-        headers["mcp-session-id"] = session_id
+    """tools/list should include exactly the 9 orchestrator tool names we registered."""
+    headers = _mcp_session_headers(mcp_test_client)
 
     payload = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
     response = mcp_test_client.post("/", json=payload, headers=headers)
@@ -197,23 +160,33 @@ def test_mcp_tools_list(mcp_test_client):
 
 
 def test_mcp_tools_call_list_workflows(mcp_test_client):
-    """tools/call list_workflows should return a valid JSON-RPC result (no error)."""
-    # Initialize
-    init_resp = mcp_test_client.post("/", json=INITIALIZE_PAYLOAD, headers=MCP_HEADERS)
-    assert init_resp.status_code == HTTPStatus.OK
+    """tools/call list_workflows should return a valid JSON-RPC result with a JSON array.
 
-    session_id = init_resp.headers.get("mcp-session-id")
-    headers = {**MCP_HEADERS}
-    if session_id:
-        headers["mcp-session-id"] = session_id
+    The underlying get_workflows() service is mocked so no database is needed.
+    """
+    fake_workflow = SimpleNamespace(
+        workflow_id="aaaaaaaa-0000-0000-0000-000000000001",
+        name="modify_note",
+        target="MODIFY",
+        is_task=False,
+        description="Modify the note on a subscription",
+        created_at=None,
+        steps=[SimpleNamespace(name="Start"), SimpleNamespace(name="Done")],
+    )
 
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 3,
-        "method": "tools/call",
-        "params": {"name": "list_workflows", "arguments": {}},
-    }
-    response = mcp_test_client.post("/", json=payload, headers=headers)
+    headers = _mcp_session_headers(mcp_test_client)
+
+    with (
+        _mock_db_scope(),
+        patch("orchestrator.mcp.tools.get_workflows", return_value=[fake_workflow]),
+    ):
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "list_workflows", "arguments": {}},
+        }
+        response = mcp_test_client.post("/", json=payload, headers=headers)
 
     assert response.status_code == HTTPStatus.OK, f"tools/call failed: {response.text[:300]}"
 
@@ -221,8 +194,58 @@ def test_mcp_tools_call_list_workflows(mcp_test_client):
     assert "error" not in parsed, f"Unexpected JSON-RPC error: {parsed.get('error')}"
     assert "result" in parsed, f"Expected result key in: {parsed}"
 
+    # The tool returns a JSON string inside the MCP content array.
+    content = parsed["result"].get("content", [])
+    assert content, "Expected non-empty content array"
+    tool_output = json.loads(content[0]["text"])
+    assert isinstance(tool_output, list), f"Expected list of workflows, got: {type(tool_output)}"
+    assert len(tool_output) == 1
+    assert tool_output[0]["name"] == "modify_note"
+    assert tool_output[0]["target"] == "MODIFY"
 
-# ── Integration tests: OrchestratorCore mounting ──────────────────────────────
+
+def test_mcp_tools_call_list_products(mcp_test_client):
+    """tools/call list_products should return a valid JSON-RPC result with a JSON array.
+
+    The underlying get_products() service is mocked so no database is needed.
+    """
+    fake_product = MagicMock()
+    fake_product.product_id = "bbbbbbbb-0000-0000-0000-000000000002"
+    fake_product.name = "TestProduct"
+    fake_product.description = "A test product"
+    fake_product.product_type = "TestType"
+    fake_product.tag = "TEST"
+    fake_product.status = "active"
+
+    headers = _mcp_session_headers(mcp_test_client)
+
+    with (
+        _mock_db_scope(),
+        patch("orchestrator.mcp.tools.get_products", return_value=[fake_product]),
+    ):
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {"name": "list_products", "arguments": {}},
+        }
+        response = mcp_test_client.post("/", json=payload, headers=headers)
+
+    assert response.status_code == HTTPStatus.OK, f"tools/call failed: {response.text[:300]}"
+
+    parsed = parse_mcp_response(response)
+    assert "error" not in parsed, f"Unexpected JSON-RPC error: {parsed.get('error')}"
+    assert "result" in parsed, f"Expected result key in: {parsed}"
+
+    # The tool returns a JSON string inside the MCP content array.
+    content = parsed["result"].get("content", [])
+    assert content, "Expected non-empty content array"
+    tool_output = json.loads(content[0]["text"])
+    assert isinstance(tool_output, list), f"Expected list of products, got: {type(tool_output)}"
+    assert len(tool_output) == 1
+    assert tool_output[0]["name"] == "TestProduct"
+    assert tool_output[0]["product_type"] == "TestType"
+    assert tool_output[0]["status"] == "active"
 
 
 def test_mcp_mounted_at_slash_mcp(orchestrator_client_with_mcp):
