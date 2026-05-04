@@ -20,7 +20,6 @@ to access request.app.auth_manager (which doesn't work in sub-apps).
 """
 
 from http import HTTPStatus
-from typing import Any
 
 import structlog
 from starlette.requests import Request
@@ -52,7 +51,7 @@ class MCPAuthMiddleware:
         auth_manager: The AuthManager instance from the parent OrchestratorCore.
     """
 
-    def __init__(self, app: ASGIApp, auth_manager: Any) -> None:
+    def __init__(self, app: ASGIApp, auth_manager) -> None:
         self.app = app
         self.auth_manager = auth_manager
 
@@ -96,7 +95,7 @@ class MCPAuthMiddleware:
         # authorized=None means auth is disabled (OAUTH2_ACTIVE=False); treat as permitted.
         # authorized=False means the policy explicitly denied the request.
         if authorized is False:
-            logger.debug("MCP request denied by authorization policy", user=self._resolve_user_name(user))
+            logger.debug("MCP request denied by authorization policy", user=user.user_name if user else "unknown")
             response = JSONResponse(
                 status_code=HTTPStatus.FORBIDDEN,
                 content={"error": "forbidden", "message": "Authorization policy denied the request"},
@@ -108,27 +107,6 @@ class MCPAuthMiddleware:
         if "state" not in scope:
             scope["state"] = {}
         scope["state"]["mcp_user"] = user
-        scope["state"]["mcp_user_name"] = self._resolve_user_name(user)
+        scope["state"]["mcp_user_name"] = user.user_name if user else "unknown"
 
         await self.app(scope, receive, send)
-
-    @staticmethod
-    def _resolve_user_name(user: Any) -> str:
-        """Resolve a display name from the OIDCUserModel.
-
-        Tries OIDC standard claims in priority order:
-          1. ``name``               — full display name
-          2. ``preferred_username`` — login / username claim
-          3. ``sub``                — subject identifier (always present in a valid token)
-          4. ``"unknown"``          — last-resort sentinel (should not occur after mandatory auth)
-
-        Note: ``OIDCUserModel.user_name`` is a property that always returns ``""`` and is
-        therefore intentionally excluded from this chain.
-        """
-        if user is None:
-            return "unknown"
-        for attr in ("name", "preferred_username", "sub"):
-            value = getattr(user, attr, None) if not isinstance(user, dict) else user.get(attr)
-            if value:
-                return value
-        return "unknown"
