@@ -96,7 +96,7 @@ class MCPAuthMiddleware:
         # authorized=None means auth is disabled (OAUTH2_ACTIVE=False); treat as permitted.
         # authorized=False means the policy explicitly denied the request.
         if authorized is False:
-            logger.warning("MCP request denied by authorization policy", user=self._resolve_user_name(user))
+            logger.debug("MCP request denied by authorization policy", user=self._resolve_user_name(user))
             response = JSONResponse(
                 status_code=HTTPStatus.FORBIDDEN,
                 content={"error": "forbidden", "message": "Authorization policy denied the request"},
