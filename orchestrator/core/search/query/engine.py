@@ -15,7 +15,7 @@ import structlog
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
-from orchestrator.core.search.core.types import EntityType, RetrieverType, SearchMetadata
+from orchestrator.core.search.core.types import SearchMetadata
 from orchestrator.core.search.query.results import (
     QueryResultsResponse,
     SearchResponse,
@@ -23,13 +23,7 @@ from orchestrator.core.search.query.results import (
     format_search_response,
 )
 from orchestrator.core.search.retrieval.pagination import PageCursor
-from orchestrator.core.search.retrieval.retrievers import (
-    FuzzyRetriever,
-    ProcessHybridRetriever,
-    Retriever,
-    RrfHybridRetriever,
-    SemanticRetriever,
-)
+from orchestrator.core.search.retrieval.retrievers import Retriever
 from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 
 from .builder import (
@@ -43,59 +37,6 @@ from .export import fetch_export_data
 from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
 
 logger = structlog.get_logger(__name__)
-
-
-def _get_retriever_from_override(
-    query: SelectQuery | ExportQuery,
-    cursor: PageCursor | None,
-    query_embedding: list[float] | None,
-) -> Retriever | None:
-    """Get retriever instance from explicit override, or None if no override.
-
-    Args:
-        query: Query that may have a retriever override
-        cursor: Pagination cursor
-        query_embedding: Pre-computed embedding (may be None)
-
-    Returns:
-        Retriever instance matching the requested type, or None if no override specified
-
-    Raises:
-        ValueError: If override requirements aren't met (e.g., no query text or embedding)
-    """
-    if query.retriever is None:
-        return None
-
-    retriever_type = query.retriever
-
-    # Validate query_text (required for all retriever types)
-    if not query.query_text:
-        raise ValueError(f"{retriever_type.value.capitalize()} retriever requested but no query text provided.")
-
-    is_process = query.entity_type == EntityType.PROCESS
-
-    if retriever_type == RetrieverType.FUZZY:
-        return (
-            ProcessHybridRetriever(None, query.query_text, cursor)
-            if is_process
-            else FuzzyRetriever(query.query_text, cursor)
-        )
-    if retriever_type == RetrieverType.SEMANTIC:
-        if query_embedding is None:
-            raise ValueError(
-                "Semantic retriever requested but query embedding is not available. "
-                "Embedding generation may have failed."
-            )
-        return SemanticRetriever(query_embedding, cursor)
-    if query_embedding is None:
-        raise ValueError(
-            "Hybrid retriever requested but query embedding is not available. Embedding generation may have failed."
-        )
-    return (
-        ProcessHybridRetriever(query_embedding, query.query_text, cursor)
-        if is_process
-        else RrfHybridRetriever(query_embedding, query.query_text, cursor)
-    )
 
 
 def _create_cursor_info(
@@ -145,15 +86,12 @@ async def _execute_search(
 
     candidate_query = build_candidate_query(query)
 
-    if query.vector_query and not query_embedding:
+    if Retriever.needs_embedding(query) and not query_embedding and query.vector_query:
         from orchestrator.core.search.core.embedding import QueryEmbedder
 
         query_embedding = await QueryEmbedder.generate_for_text_async(query.vector_query)
 
-    # Get retriever (from override or automatic routing)
-    retriever = _get_retriever_from_override(query, cursor, query_embedding) or Retriever.route(
-        query, cursor, query_embedding
-    )
+    retriever = Retriever.route(query, cursor, query_embedding)
     logger.debug("Using retriever", retriever_type=retriever.__class__.__name__)
 
     final_stmt = retriever.apply(candidate_query)
