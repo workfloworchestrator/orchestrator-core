@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for indexing task orchestration: entity counting and run_indexing_for_entity.
 
 Covers count retrieval, indexer invocation, entity_id forwarding, dry_run/force_index
@@ -10,8 +23,8 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 from sqlalchemy.orm import Query
 
-from orchestrator.search.core.types import EntityType
-from orchestrator.search.indexing.tasks import _get_entity_count, run_indexing_for_entity
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.indexing.tasks import _get_entity_count, run_indexing_for_entity
 
 pytestmark = pytest.mark.search
 
@@ -60,10 +73,10 @@ def _build_patches(
     if cache_ctx is None:
         cache_ctx = MagicMock(return_value=_noop_context())
     return [
-        patch("orchestrator.search.indexing.tasks.ENTITY_CONFIG_REGISTRY", registry),
-        patch("orchestrator.search.indexing.tasks.db", mock_db),
-        patch("orchestrator.search.indexing.tasks.Indexer", mock_indexer_cls),
-        patch("orchestrator.search.indexing.tasks.cache_subscription_models", cache_ctx),
+        patch("orchestrator.core.search.indexing.tasks.ENTITY_CONFIG_REGISTRY", registry),
+        patch("orchestrator.core.search.indexing.tasks.db", mock_db),
+        patch("orchestrator.core.search.indexing.tasks.Indexer", mock_indexer_cls),
+        patch("orchestrator.core.search.indexing.tasks.cache_subscription_models", cache_ctx),
     ]
 
 
@@ -96,9 +109,9 @@ def test_get_entity_count(scalar_return, expected):
     mock_subquery = MagicMock()
 
     with (
-        patch("orchestrator.search.indexing.tasks.db", mock_db),
-        patch("orchestrator.search.indexing.tasks.select") as mock_select,
-        patch("orchestrator.search.indexing.tasks.func"),
+        patch("orchestrator.core.search.indexing.tasks.db", mock_db),
+        patch("orchestrator.core.search.indexing.tasks.select") as mock_select,
+        patch("orchestrator.core.search.indexing.tasks.func"),
     ):
         mock_stmt = MagicMock()
         mock_stmt.subquery.return_value = mock_subquery
@@ -187,11 +200,11 @@ def test_run_indexing_show_progress_triggers_entity_count():
     cache_ctx = MagicMock(return_value=_noop_context())
 
     with (
-        patch("orchestrator.search.indexing.tasks.ENTITY_CONFIG_REGISTRY", registry),
-        patch("orchestrator.search.indexing.tasks.db", mock_db),
-        patch("orchestrator.search.indexing.tasks.Indexer", mock_indexer_cls),
-        patch("orchestrator.search.indexing.tasks.cache_subscription_models", cache_ctx),
-        patch("orchestrator.search.indexing.tasks._get_entity_count", return_value=7) as mock_count,
+        patch("orchestrator.core.search.indexing.tasks.ENTITY_CONFIG_REGISTRY", registry),
+        patch("orchestrator.core.search.indexing.tasks.db", mock_db),
+        patch("orchestrator.core.search.indexing.tasks.Indexer", mock_indexer_cls),
+        patch("orchestrator.core.search.indexing.tasks.cache_subscription_models", cache_ctx),
+        patch("orchestrator.core.search.indexing.tasks._get_entity_count", return_value=7) as mock_count,
     ):
         run_indexing_for_entity(EntityType.SUBSCRIPTION, show_progress=True)
 
@@ -210,11 +223,11 @@ def test_run_indexing_show_progress_false_skips_entity_count():
     cache_ctx = MagicMock(return_value=_noop_context())
 
     with (
-        patch("orchestrator.search.indexing.tasks.ENTITY_CONFIG_REGISTRY", registry),
-        patch("orchestrator.search.indexing.tasks.db", mock_db),
-        patch("orchestrator.search.indexing.tasks.Indexer", mock_indexer_cls),
-        patch("orchestrator.search.indexing.tasks.cache_subscription_models", cache_ctx),
-        patch("orchestrator.search.indexing.tasks._get_entity_count") as mock_count,
+        patch("orchestrator.core.search.indexing.tasks.ENTITY_CONFIG_REGISTRY", registry),
+        patch("orchestrator.core.search.indexing.tasks.db", mock_db),
+        patch("orchestrator.core.search.indexing.tasks.Indexer", mock_indexer_cls),
+        patch("orchestrator.core.search.indexing.tasks.cache_subscription_models", cache_ctx),
+        patch("orchestrator.core.search.indexing.tasks._get_entity_count") as mock_count,
     ):
         run_indexing_for_entity(EntityType.SUBSCRIPTION, show_progress=False)
 

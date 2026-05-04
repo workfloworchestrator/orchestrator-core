@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,7 +17,7 @@ from uuid import UUID
 
 import pytest
 
-from orchestrator.utils.docs import INDENT3, get_doc_title, make_field_doc, make_ref
+from orchestrator.core.utils.docs import INDENT3, get_doc_title, make_field_doc, make_ref
 
 
 class _ClassWithDoc:

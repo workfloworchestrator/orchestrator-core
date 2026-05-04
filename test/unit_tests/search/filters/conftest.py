@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,8 +14,8 @@
 
 import pytest
 
-from orchestrator.search.core.types import BooleanOperator, FilterOp, UIType
-from orchestrator.search.filters import EqualityFilter, FilterTree, PathFilter, StringFilter
+from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
+from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter, StringFilter
 
 
 @pytest.fixture

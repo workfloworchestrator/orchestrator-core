@@ -100,33 +100,65 @@ with one string input field to ask the user for the name of the user group.
 Use the skeleton below to create the file
 `workflows/user_group/create_user_group.py`:
 
-```python
-from uuid import uuid4
+=== "`orchestrator-core` ≥ 5.0"
 
-from orchestrator.forms import FormPage
-from orchestrator.targets import Target
-from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
-from orchestrator.workflow import done, init, step, workflow
-from orchestrator.workflows.steps import resync, set_status, store_process_subscription
-from orchestrator.workflows.utils import wrap_create_initial_input_form
+    ```python
+    from uuid import uuid4
 
-from products.product_types.user_group import UserGroupInactive, UserGroupProvisioning
+    from orchestrator.core.forms import FormPage
+    from orchestrator.core.targets import Target
+    from orchestrator.core.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
+    from orchestrator.core.workflow import done, init, step, workflow
+    from orchestrator.core.workflows.steps import resync, set_status, store_process_subscription
+    from orchestrator.core.workflows.utils import wrap_create_initial_input_form
 
-# initial input form generator
-...
+    from products.product_types.user_group import UserGroupInactive, UserGroupProvisioning
 
-# create subscription step
-...
+    # initial input form generator
+    ...
 
-# initialize subscription step
-...
+    # create subscription step
+    ...
 
-# provision user group step
-...
+    # initialize subscription step
+    ...
 
-# create user group workflow
-...
-```
+    # provision user group step
+    ...
+
+    # create user group workflow
+    ...
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from uuid import uuid4
+
+    from orchestrator.forms import FormPage
+    from orchestrator.targets import Target
+    from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
+    from orchestrator.workflow import done, init, step, workflow
+    from orchestrator.workflows.steps import resync, set_status, store_process_subscription
+    from orchestrator.workflows.utils import wrap_create_initial_input_form
+
+    from products.product_types.user_group import UserGroupInactive, UserGroupProvisioning
+
+    # initial input form generator
+    ...
+
+    # create subscription step
+    ...
+
+    # initialize subscription step
+    ...
+
+    # provision user group step
+    ...
+
+    # create user group workflow
+    ...
+    ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
 group create workflow ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/user_group/create_user_group.py)

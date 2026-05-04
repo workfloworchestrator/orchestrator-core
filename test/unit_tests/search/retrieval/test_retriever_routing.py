@@ -1,11 +1,4 @@
-"""Tests for Retriever.route() dispatch logic and constructed retriever attributes.
-
-Verifies that the correct retriever subclass is selected based on the combination
-of fuzzy_term, entity_type, query_embedding, and vector_query/query_text inputs,
-and that constructed retrievers carry the expected attributes.
-"""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,17 +11,24 @@ and that constructed retrievers carry the expected attributes.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for Retriever.route() dispatch logic and constructed retriever attributes.
+
+Verifies that the correct retriever subclass is selected based on the combination
+of fuzzy_term, entity_type, query_embedding, and vector_query/query_text inputs,
+and that constructed retrievers carry the expected attributes.
+"""
+
 from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.search.core.types import EntityType
-from orchestrator.search.retrieval.retrievers.base import Retriever
-from orchestrator.search.retrieval.retrievers.fuzzy import FuzzyRetriever
-from orchestrator.search.retrieval.retrievers.hybrid import RrfHybridRetriever
-from orchestrator.search.retrieval.retrievers.process import ProcessHybridRetriever
-from orchestrator.search.retrieval.retrievers.semantic import SemanticRetriever
-from orchestrator.search.retrieval.retrievers.structured import StructuredRetriever
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.retrieval.retrievers.base import Retriever
+from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
+from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
+from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
+from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
+from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 
 pytestmark = pytest.mark.search
 
@@ -44,6 +44,7 @@ def _make_query(
     query_text: str | None = None,
 ) -> MagicMock:
     query = MagicMock()
+    query.retriever = None  # auto-routing; explicit overrides are tested separately
     query.fuzzy_term = fuzzy_term
     query.entity_type = entity_type
     query.vector_query = vector_query
@@ -60,11 +61,15 @@ def _make_query(
 @pytest.mark.parametrize(
     "fuzzy_term,entity_type,query_embedding,vector_query,query_text,expected_type",
     [
-        pytest.param(FUZZY_TERM, EntityType.SUBSCRIPTION, EMBEDDING, None, None, RrfHybridRetriever, id="hybrid"),
         pytest.param(
-            FUZZY_TERM, EntityType.PROCESS, EMBEDDING, None, None, ProcessHybridRetriever, id="hybrid_process"
+            FUZZY_TERM, EntityType.SUBSCRIPTION, EMBEDDING, MagicMock(), None, RrfHybridRetriever, id="hybrid"
         ),
-        pytest.param(None, EntityType.SUBSCRIPTION, EMBEDDING, None, None, SemanticRetriever, id="semantic_only"),
+        pytest.param(
+            FUZZY_TERM, EntityType.PROCESS, EMBEDDING, MagicMock(), None, ProcessHybridRetriever, id="hybrid_process"
+        ),
+        pytest.param(
+            None, EntityType.SUBSCRIPTION, EMBEDDING, MagicMock(), None, SemanticRetriever, id="semantic_only"
+        ),
         pytest.param(FUZZY_TERM, EntityType.SUBSCRIPTION, None, None, None, FuzzyRetriever, id="fuzzy_only"),
         pytest.param(FUZZY_TERM, EntityType.PROCESS, None, None, None, ProcessHybridRetriever, id="fuzzy_process"),
         pytest.param(None, EntityType.SUBSCRIPTION, None, None, None, StructuredRetriever, id="structured"),
@@ -108,7 +113,7 @@ def test_retriever_routing(
 
 def test_semantic_carries_embedding() -> None:
     """SemanticRetriever stores the query embedding."""
-    query = _make_query()
+    query = _make_query(vector_query=MagicMock())
     retriever = Retriever.route(query, cursor=None, query_embedding=EMBEDDING)
     assert isinstance(retriever, SemanticRetriever)
     assert retriever.vector_query == EMBEDDING

@@ -25,8 +25,8 @@ from uuid import uuid4
 
 import pytest
 
-import orchestrator.services.tasks as tasks_module
-from orchestrator.services.tasks import (
+import orchestrator.core.services.tasks as tasks_module
+from orchestrator.core.services.tasks import (
     NEW_TASK,
     NEW_WORKFLOW,
     RESUME_TASK,
@@ -105,7 +105,7 @@ def test_get_celery_task_raises_when_not_initialized():
 # ---------------------------------------------------------------------------
 
 
-@patch("orchestrator.services.tasks.registry")
+@patch("orchestrator.core.services.tasks.registry")
 def test_register_custom_serializer_registers_orchestrator_json(mock_registry) -> None:
     register_custom_serializer()
     mock_registry.register.assert_called_once_with("orchestrator-json", ANY, ANY, "application/json", "utf-8")
@@ -126,7 +126,7 @@ def test_initialise_celery_raises_on_double_init():
 def test_initialise_celery_sets_task_routes():
     celery, _ = _make_capturing_celery()
 
-    with patch("orchestrator.services.tasks.register_custom_serializer"):
+    with patch("orchestrator.core.services.tasks.register_custom_serializer"):
         initialise_celery(celery)
 
     assert celery.conf.task_routes == {
@@ -146,7 +146,7 @@ def test_initialise_celery_sets_task_routes():
 def celery_start_fn():
     """Return the inner start_process closure via the capturing celery pattern."""
     celery, captured = _make_capturing_celery()
-    with patch("orchestrator.services.tasks.register_custom_serializer"):
+    with patch("orchestrator.core.services.tasks.register_custom_serializer"):
         initialise_celery(celery)
     return captured[NEW_TASK]  # new_task delegates to start_process
 
@@ -157,11 +157,11 @@ def test_start_process_wraps_db_reads_in_transactional(celery_start_fn):
     mock_pstat = MagicMock()
 
     with (
-        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional) as mock_tx,
-        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()),
-        patch("orchestrator.services.tasks.load_process", return_value=mock_pstat),
-        patch("orchestrator.services.tasks.ensure_correct_process_status"),
-        patch("orchestrator.services.tasks.thread_start_process"),
+        patch("orchestrator.core.services.tasks.transactional", side_effect=_noop_transactional) as mock_tx,
+        patch("orchestrator.core.services.tasks._get_process", return_value=MagicMock()),
+        patch("orchestrator.core.services.tasks.load_process", return_value=mock_pstat),
+        patch("orchestrator.core.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.core.services.tasks.thread_start_process"),
     ):
         celery_start_fn(process_id, "user")
 
@@ -173,11 +173,11 @@ def test_start_process_returns_process_id_on_success(celery_start_fn):
     mock_pstat = MagicMock()
 
     with (
-        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional),
-        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()),
-        patch("orchestrator.services.tasks.load_process", return_value=mock_pstat),
-        patch("orchestrator.services.tasks.ensure_correct_process_status"),
-        patch("orchestrator.services.tasks.thread_start_process"),
+        patch("orchestrator.core.services.tasks.transactional", side_effect=_noop_transactional),
+        patch("orchestrator.core.services.tasks._get_process", return_value=MagicMock()),
+        patch("orchestrator.core.services.tasks.load_process", return_value=mock_pstat),
+        patch("orchestrator.core.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.core.services.tasks.thread_start_process"),
     ):
         result = celery_start_fn(process_id, "user")
 
@@ -189,11 +189,11 @@ def test_start_process_returns_none_on_exception(celery_start_fn, failing_fn):
     process_id = uuid4()
 
     with (
-        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional),
-        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()) as m_get,
-        patch("orchestrator.services.tasks.load_process", return_value=MagicMock()) as m_load,
-        patch("orchestrator.services.tasks.ensure_correct_process_status"),
-        patch("orchestrator.services.tasks.thread_start_process") as m_thread,
+        patch("orchestrator.core.services.tasks.transactional", side_effect=_noop_transactional),
+        patch("orchestrator.core.services.tasks._get_process", return_value=MagicMock()) as m_get,
+        patch("orchestrator.core.services.tasks.load_process", return_value=MagicMock()) as m_load,
+        patch("orchestrator.core.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.core.services.tasks.thread_start_process") as m_thread,
     ):
         target = {"_get_process": m_get, "load_process": m_load, "thread_start_process": m_thread}[failing_fn]
         target.side_effect = RuntimeError("boom")
@@ -211,7 +211,7 @@ def test_start_process_returns_none_on_exception(celery_start_fn, failing_fn):
 def celery_resume_fn():
     """Return the inner resume_process closure via the capturing celery pattern."""
     celery, captured = _make_capturing_celery()
-    with patch("orchestrator.services.tasks.register_custom_serializer"):
+    with patch("orchestrator.core.services.tasks.register_custom_serializer"):
         initialise_celery(celery)
     return captured[RESUME_TASK]  # resume_task delegates to resume_process
 
@@ -221,10 +221,10 @@ def test_resume_process_wraps_db_reads_in_transactional(celery_resume_fn):
     process_id = uuid4()
 
     with (
-        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional) as mock_tx,
-        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()),
-        patch("orchestrator.services.tasks.ensure_correct_process_status"),
-        patch("orchestrator.services.tasks.thread_resume_process"),
+        patch("orchestrator.core.services.tasks.transactional", side_effect=_noop_transactional) as mock_tx,
+        patch("orchestrator.core.services.tasks._get_process", return_value=MagicMock()),
+        patch("orchestrator.core.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.core.services.tasks.thread_resume_process"),
     ):
         celery_resume_fn(process_id, "user")
 
@@ -235,10 +235,10 @@ def test_resume_process_returns_process_id_on_success(celery_resume_fn):
     process_id = uuid4()
 
     with (
-        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional),
-        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()),
-        patch("orchestrator.services.tasks.ensure_correct_process_status"),
-        patch("orchestrator.services.tasks.thread_resume_process"),
+        patch("orchestrator.core.services.tasks.transactional", side_effect=_noop_transactional),
+        patch("orchestrator.core.services.tasks._get_process", return_value=MagicMock()),
+        patch("orchestrator.core.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.core.services.tasks.thread_resume_process"),
     ):
         result = celery_resume_fn(process_id, "user")
 
@@ -250,10 +250,10 @@ def test_resume_process_returns_none_on_exception(celery_resume_fn, failing_fn):
     process_id = uuid4()
 
     with (
-        patch("orchestrator.services.tasks.transactional", side_effect=_noop_transactional),
-        patch("orchestrator.services.tasks._get_process", return_value=MagicMock()) as m_get,
-        patch("orchestrator.services.tasks.ensure_correct_process_status"),
-        patch("orchestrator.services.tasks.thread_resume_process") as m_thread,
+        patch("orchestrator.core.services.tasks.transactional", side_effect=_noop_transactional),
+        patch("orchestrator.core.services.tasks._get_process", return_value=MagicMock()) as m_get,
+        patch("orchestrator.core.services.tasks.ensure_correct_process_status"),
+        patch("orchestrator.core.services.tasks.thread_resume_process") as m_thread,
     ):
         target = {"_get_process": m_get, "thread_resume_process": m_thread}[failing_fn]
         target.side_effect = RuntimeError("boom")
@@ -289,7 +289,7 @@ def test_celery_job_worker_status_handles_none_from_inspection_api(mock_celery):
     mock_celery.control.inspect.return_value = mock_inspect
 
     # Initialize celery so _celery global is set
-    with patch("orchestrator.services.tasks._celery", mock_celery):
+    with patch("orchestrator.core.services.tasks._celery", mock_celery):
         # Should not raise TypeError: object of type 'NoneType' has no len()
         status = CeleryJobWorkerStatus()
 
@@ -321,7 +321,7 @@ def test_celery_job_worker_status_with_valid_inspection_data(mock_celery):
 
     mock_celery.control.inspect.return_value = mock_inspect
 
-    with patch("orchestrator.services.tasks._celery", mock_celery):
+    with patch("orchestrator.core.services.tasks._celery", mock_celery):
         status = CeleryJobWorkerStatus()
 
         assert status.number_of_workers_online == 2
@@ -341,7 +341,7 @@ def test_celery_job_worker_status_with_mixed_none_and_valid_data(mock_celery):
 
     mock_celery.control.inspect.return_value = mock_inspect
 
-    with patch("orchestrator.services.tasks._celery", mock_celery):
+    with patch("orchestrator.core.services.tasks._celery", mock_celery):
         status = CeleryJobWorkerStatus()
 
         assert status.number_of_workers_online == 1
@@ -361,7 +361,7 @@ def test_celery_job_worker_status_with_empty_dicts(mock_celery):
 
     mock_celery.control.inspect.return_value = mock_inspect
 
-    with patch("orchestrator.services.tasks._celery", mock_celery):
+    with patch("orchestrator.core.services.tasks._celery", mock_celery):
         status = CeleryJobWorkerStatus()
 
         assert status.number_of_workers_online == 0
@@ -372,8 +372,8 @@ def test_celery_job_worker_status_with_empty_dicts(mock_celery):
 
 def test_celery_job_worker_status_without_celery_initialized():
     """Test that CeleryJobWorkerStatus handles case when Celery is not initialized."""
-    with patch("orchestrator.services.tasks._celery", None):
-        with patch("orchestrator.services.tasks.logger") as mock_logger:
+    with patch("orchestrator.core.services.tasks._celery", None):
+        with patch("orchestrator.core.services.tasks.logger") as mock_logger:
             # Should not crash, just log error
             status = CeleryJobWorkerStatus()
 

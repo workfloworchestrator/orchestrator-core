@@ -16,8 +16,8 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select
 from sqlalchemy.orm import column_property
 
-from orchestrator.app import OrchestratorCore
-from orchestrator.db.models import SubscriptionTable
+from orchestrator.core.app import OrchestratorCore
+from orchestrator.core.db.models import SubscriptionTable
 
 
 @pytest.fixture()
@@ -60,7 +60,7 @@ def test_register_table_is_idempotent():
 @pytest.mark.usefixtures("_cleanup_extra_field")
 def test_register_table_column_accessible_in_query(generic_subscription_1):
     """After register_table, custom column_properties should be accessible in queries."""
-    from orchestrator.db import db
+    from orchestrator.core.db import db
 
     class CustomSubscriptionTable(SubscriptionTable):
         extra_field = column_property(

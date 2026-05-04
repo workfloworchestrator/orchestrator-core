@@ -46,21 +46,43 @@ export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-cor
 
 Create a `main.py` file for running the CLI.
 
-```python
-from orchestrator.cli.main import app as core_cli
+=== "`orchestrator-core` ≥ 5.0"
 
-if __name__ == "__main__":
-    core_cli()
-```
+    ```python
+    from orchestrator.core.cli.main import app as core_cli
+
+    if __name__ == "__main__":
+        core_cli()
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.cli.main import app as core_cli
+
+    if __name__ == "__main__":
+        core_cli()
+    ```
 
 Create a `wsgi.py` file for running the web server.
 
-```python
-from orchestrator import OrchestratorCore
-from orchestrator.settings import AppSettings
+=== "`orchestrator-core` ≥ 5.0"
 
-app = OrchestratorCore(base_settings=AppSettings())
-```
+    ```python
+    from orchestrator.core import OrchestratorCore
+    from orchestrator.core.settings import AppSettings
+
+    app = OrchestratorCore(base_settings=AppSettings())
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator import OrchestratorCore
+    from orchestrator.settings import AppSettings
+
+    app = OrchestratorCore(base_settings=AppSettings())
+    ```
 
 ### Step 4 - Run the database migrations
 

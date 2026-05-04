@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from http import HTTPStatus
 from unittest import mock
 from unittest.mock import AsyncMock, Mock, patch
@@ -6,9 +19,9 @@ from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 from sqlalchemy.exc import SQLAlchemyError
 
-from orchestrator.db import db
-from orchestrator.services.settings import get_engine_settings_table
-from orchestrator.services.settings_env_variables import expose_settings, get_all_exposed_settings
+from orchestrator.core.db import db
+from orchestrator.core.services.settings import get_engine_settings_table
+from orchestrator.core.services.settings_env_variables import expose_settings, get_all_exposed_settings
 
 
 def test_get_engine_status(test_client):
@@ -100,7 +113,7 @@ def test_get_cache_names(test_client):
 
 
 def test_clear_cache_invalid_name(test_client):
-    with patch("orchestrator.api.api_v1.endpoints.settings.create_redis_asyncio_client") as mock_redis:
+    with patch("orchestrator.core.api.api_v1.endpoints.settings.create_redis_asyncio_client") as mock_redis:
         mock_redis.return_value = AsyncMock()
         response = test_client.delete("/api/settings/cache/invalid")
     assert response.status_code == HTTPStatus.BAD_REQUEST

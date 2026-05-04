@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,14 +18,14 @@ from uuid import UUID
 from pydantic import ConfigDict
 from structlog import get_logger
 
-from orchestrator.forms.validators import CustomerId
-from orchestrator.types import SubscriptionLifecycle
-from orchestrator.workflow import StepList, begin, done, step, workflow
-from orchestrator.workflows.steps import store_process_subscription
-from orchestrator.workflows.utils import wrap_create_initial_input_form
+from orchestrator.core.forms.validators import CustomerId
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import StepList, begin, done, step, workflow
+from orchestrator.core.workflows.steps import store_process_subscription
+from orchestrator.core.workflows.utils import wrap_create_initial_input_form
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from test_orchestrator.products.test_product import TestProductInactive
+from test.acceptance_tests.fixtures.test_orchestrator.products.test_product import TestProductInactive
 
 logger = get_logger(__name__)
 

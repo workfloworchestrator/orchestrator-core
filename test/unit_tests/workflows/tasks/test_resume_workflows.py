@@ -1,13 +1,26 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from unittest import mock
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
 
-from orchestrator.config.assignee import Assignee
-from orchestrator.db import ProcessStepTable, ProcessTable, WorkflowTable, db
-from orchestrator.targets import Target
-from orchestrator.workflow import ProcessStatus
+from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.db import ProcessStepTable, ProcessTable, WorkflowTable, db
+from orchestrator.core.targets import Target
+from orchestrator.core.workflow import ProcessStatus
 from test.unit_tests.workflows import assert_complete, assert_state, extract_state, run_workflow
 
 
@@ -81,8 +94,8 @@ def stuck_resumed_note_workflow():
 
 
 @pytest.mark.workflow
-@mock.patch("orchestrator.services.processes.resume_process")
-@mock.patch("orchestrator.services.processes.restart_process")
+@mock.patch("orchestrator.core.services.processes.resume_process")
+@mock.patch("orchestrator.core.services.processes.restart_process")
 def test_resume_workflow(
     mock_restart_process, mock_resume_process, waiting_process, stuck_created_note_process, stuck_resumed_note_workflow
 ):
@@ -108,7 +121,7 @@ def test_resume_workflow(
     assert mock_restart_process.call_count == 1
 
 
-@mock.patch("orchestrator.services.processes.resume_process")
+@mock.patch("orchestrator.core.services.processes.resume_process")
 def test_resume_workflow_non_204(mock_resume_process, waiting_process):
     mock_resume_process.side_effect = Exception("Failed to resume")
 
@@ -132,8 +145,8 @@ def test_resume_workflow_non_204(mock_resume_process, waiting_process):
     mock_resume_process.assert_called_once()
 
 
-@mock.patch("orchestrator.services.processes.resume_process")
-@mock.patch("orchestrator.services.processes.restart_process")
+@mock.patch("orchestrator.core.services.processes.resume_process")
+@mock.patch("orchestrator.core.services.processes.restart_process")
 def test_restart_created_workflows_exception(mock_restart_process, mock_resume_process, stuck_created_note_process):
     mock_restart_process.side_effect = Exception("restart failed")
 
@@ -146,10 +159,10 @@ def test_restart_created_workflows_exception(mock_restart_process, mock_resume_p
     assert mock_restart_process.call_count == 1
 
 
-@mock.patch("orchestrator.services.processes.resume_process")
+@mock.patch("orchestrator.core.services.processes.resume_process")
 def test_resume_process_not_found(mock_resume_process):
     """When process_id doesn't exist in DB, resume skips it via continue."""
-    from orchestrator.workflows.tasks.resume_workflows import resume_found_workflows
+    from orchestrator.core.workflows.tasks.resume_workflows import resume_found_workflows
 
     nonexistent_id = str(uuid4())
     result = resume_found_workflows(
@@ -164,10 +177,10 @@ def test_resume_process_not_found(mock_resume_process):
     mock_resume_process.assert_not_called()
 
 
-@mock.patch("orchestrator.services.processes.restart_process")
+@mock.patch("orchestrator.core.services.processes.restart_process")
 def test_restart_process_not_found(mock_restart_process):
     """When process_id doesn't exist in DB, restart skips it via continue."""
-    from orchestrator.workflows.tasks.resume_workflows import restart_created_workflows
+    from orchestrator.core.workflows.tasks.resume_workflows import restart_created_workflows
 
     nonexistent_id = str(uuid4())
     result = restart_created_workflows({"created_state_process_ids": [nonexistent_id]})

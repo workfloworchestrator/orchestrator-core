@@ -1,6 +1,4 @@
-"""Tests for orchestrator.search.filters: StringFilter validation, PathFilter path transformation, FilterTree depth validation, and tree helper methods."""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,12 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for orchestrator.core.search.filters: StringFilter validation, PathFilter path transformation, FilterTree depth validation, and tree helper methods."""
 
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.search.core.types import BooleanOperator, FilterOp
-from orchestrator.search.filters import FilterTree, PathFilter, StringFilter
+from orchestrator.core.search.core.types import BooleanOperator, FilterOp
+from orchestrator.core.search.filters import FilterTree, PathFilter, StringFilter
 
 pytestmark = pytest.mark.search
 

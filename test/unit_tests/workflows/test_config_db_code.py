@@ -1,15 +1,28 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from more_itertools.more import one
 from more_itertools.recipes import first_true
 from sqlalchemy import not_, select
 from sqlalchemy.orm import joinedload
 
-from orchestrator.db import ProductTable, WorkflowTable, db
-from orchestrator.db.models import FixedInputTable
-from orchestrator.services import products
-from orchestrator.services.products import get_products
-from orchestrator.targets import Target
-from orchestrator.utils.fixed_inputs import fixed_input_configuration as fi_configuration
-from orchestrator.workflows import ALL_WORKFLOWS
+from orchestrator.core.db import ProductTable, WorkflowTable, db
+from orchestrator.core.db.models import FixedInputTable
+from orchestrator.core.services import products
+from orchestrator.core.services.products import get_products
+from orchestrator.core.targets import Target
+from orchestrator.core.utils.fixed_inputs import fixed_input_configuration as fi_configuration
+from orchestrator.core.workflows import ALL_WORKFLOWS
 
 
 def test_all_workflows_have_matching_targets_and_descriptions():
@@ -27,7 +40,7 @@ def test_all_products_have_at_least_one_workflow():
         select(ProductTable).where(not_(ProductTable.workflows.any())).with_only_columns(ProductTable.name)
     ).all()
     assert len(prods_without_wf) == 0, (
-        f"These products do not have a workflow " f"associated with them: {', '.join(prods_without_wf)}."
+        f"These products do not have a workflow associated with them: {', '.join(prods_without_wf)}."
     )
 
 
@@ -39,7 +52,7 @@ def test_all_non_system_workflows_have_at_least_one_product(generic_product_1):
     ).all()
 
     assert len(wfs_without_prod) == 0, (
-        f"These workflows do not have a product " f"associated with them: {', '.join(wfs_without_prod)}."
+        f"These workflows do not have a product associated with them: {', '.join(wfs_without_prod)}."
     )
 
 
@@ -64,7 +77,9 @@ def test_db_fixed_input_config():
 
     for fi in fixed_inputs:
         fi_data = first_true(
-            fixed_input_configuration["fixed_inputs"], None, lambda i: i["name"] == fi.name  # noqa: B023
+            fixed_input_configuration["fixed_inputs"],
+            None,
+            lambda i: i["name"] == fi.name,  # noqa: B023
         )
         assert fi_data, fi
         assert fi.value in fi_data["values"], fi

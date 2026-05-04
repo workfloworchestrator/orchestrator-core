@@ -1,3 +1,17 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 # type: ignore
 
 from uuid import UUID, uuid4
@@ -5,9 +19,9 @@ from uuid import UUID, uuid4
 import pytest
 
 from nwastdlib import const
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.types import SubscriptionLifecycle
-from orchestrator.utils.state import _build_arguments, extract, form_inject_args, inject_args
+from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.utils.state import _build_arguments, extract, form_inject_args, inject_args
 from pydantic_forms.core import FormPage, post_form
 from pydantic_forms.types import State
 
@@ -681,8 +695,8 @@ def test_build_arguments_subscription_model_list_any_guard(monkeypatch):
     """Test that list[Any] for SubscriptionModel raises ValueError with expected message."""
     from typing import Any
 
-    from orchestrator.domain.base import SubscriptionModel
-    from orchestrator.types import is_list_type
+    from orchestrator.core.domain.base import SubscriptionModel
+    from orchestrator.core.types import is_list_type
 
     # Create a function with list[Any] annotation that would trigger the guard
     def step_func(models: list[Any]):
@@ -697,7 +711,7 @@ def test_build_arguments_subscription_model_list_any_guard(monkeypatch):
             return True
         return original_is_list_type(annotation, target_type)
 
-    monkeypatch.setattr("orchestrator.utils.state.is_list_type", patched_is_list_type)
+    monkeypatch.setattr("orchestrator.core.utils.state.is_list_type", patched_is_list_type)
 
     state = {"models": []}
 

@@ -1,10 +1,23 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import time
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.services.worker_status_monitor import WorkerStatusMonitor, get_worker_status_monitor
-from orchestrator.settings import ExecutorType
+from orchestrator.core.services.worker_status_monitor import WorkerStatusMonitor, get_worker_status_monitor
+from orchestrator.core.settings import ExecutorType
 
 
 @pytest.fixture
@@ -25,10 +38,10 @@ def test_monitor_starts_with_zero_count():
 def test_monitor_updates_count_periodically(monitor):
     """Test that monitor updates the count periodically from workers."""
     # Mock ThreadPoolWorkerStatus to return a specific count
-    with patch("orchestrator.services.worker_status_monitor.app_settings") as mock_settings:
+    with patch("orchestrator.core.services.worker_status_monitor.app_settings") as mock_settings:
         mock_settings.EXECUTOR = ExecutorType.THREADPOOL
 
-        with patch("orchestrator.services.processes.ThreadPoolWorkerStatus") as mock_status:
+        with patch("orchestrator.core.services.processes.ThreadPoolWorkerStatus") as mock_status:
             mock_instance = MagicMock()
             mock_instance.number_of_running_jobs = 3
             mock_status.return_value = mock_instance
@@ -42,10 +55,10 @@ def test_monitor_updates_count_periodically(monitor):
 
 def test_monitor_caches_count_for_fast_access(monitor):
     """Test that getting count doesn't trigger worker inspection each time."""
-    with patch("orchestrator.services.worker_status_monitor.app_settings") as mock_settings:
+    with patch("orchestrator.core.services.worker_status_monitor.app_settings") as mock_settings:
         mock_settings.EXECUTOR = ExecutorType.THREADPOOL
 
-        with patch("orchestrator.services.processes.ThreadPoolWorkerStatus") as mock_status:
+        with patch("orchestrator.core.services.processes.ThreadPoolWorkerStatus") as mock_status:
             mock_instance = MagicMock()
             mock_instance.number_of_running_jobs = 5
             mock_status.return_value = mock_instance
@@ -74,10 +87,10 @@ def test_monitor_caches_count_for_fast_access(monitor):
 
 def test_monitor_handles_worker_inspection_errors_gracefully(monitor):
     """Test that monitor keeps previous count if worker inspection fails."""
-    with patch("orchestrator.services.worker_status_monitor.app_settings") as mock_settings:
+    with patch("orchestrator.core.services.worker_status_monitor.app_settings") as mock_settings:
         mock_settings.EXECUTOR = ExecutorType.THREADPOOL
 
-        with patch("orchestrator.services.processes.ThreadPoolWorkerStatus") as mock_status:
+        with patch("orchestrator.core.services.processes.ThreadPoolWorkerStatus") as mock_status:
             # First update succeeds
             mock_instance = MagicMock()
             mock_instance.number_of_running_jobs = 4
@@ -100,10 +113,10 @@ def test_monitor_with_celery_executor():
     monitor.start()
 
     try:
-        with patch("orchestrator.services.worker_status_monitor.app_settings") as mock_settings:
+        with patch("orchestrator.core.services.worker_status_monitor.app_settings") as mock_settings:
             mock_settings.EXECUTOR = ExecutorType.WORKER
 
-            with patch("orchestrator.services.tasks.CeleryJobWorkerStatus") as mock_status:
+            with patch("orchestrator.core.services.tasks.CeleryJobWorkerStatus") as mock_status:
                 mock_instance = MagicMock()
                 mock_instance.number_of_running_jobs = 7
                 mock_status.return_value = mock_instance
@@ -121,10 +134,10 @@ def test_monitor_with_threadpool_executor():
     monitor.start()
 
     try:
-        with patch("orchestrator.services.worker_status_monitor.app_settings") as mock_settings:
+        with patch("orchestrator.core.services.worker_status_monitor.app_settings") as mock_settings:
             mock_settings.EXECUTOR = ExecutorType.THREADPOOL
 
-            with patch("orchestrator.services.processes.ThreadPoolWorkerStatus") as mock_status:
+            with patch("orchestrator.core.services.processes.ThreadPoolWorkerStatus") as mock_status:
                 mock_instance = MagicMock()
                 mock_instance.number_of_running_jobs = 2
                 mock_status.return_value = mock_instance
@@ -154,7 +167,7 @@ def test_monitor_stops_cleanly():
 def test_get_worker_status_monitor_returns_singleton():
     """Test that get_worker_status_monitor returns the same instance."""
     # Reset the global instance for this test
-    import orchestrator.services.worker_status_monitor as wsm_module
+    import orchestrator.core.services.worker_status_monitor as wsm_module
 
     original_monitor = wsm_module._monitor
     wsm_module._monitor = None
@@ -177,10 +190,10 @@ def test_monitor_count_reflects_workers_not_database_status(monitor):
 
     This is the core difference from the old implementation.
     """
-    with patch("orchestrator.services.worker_status_monitor.app_settings") as mock_settings:
+    with patch("orchestrator.core.services.worker_status_monitor.app_settings") as mock_settings:
         mock_settings.EXECUTOR = ExecutorType.THREADPOOL
 
-        with patch("orchestrator.services.processes.ThreadPoolWorkerStatus") as mock_status:
+        with patch("orchestrator.core.services.processes.ThreadPoolWorkerStatus") as mock_status:
             # Simulate: Database has 10 processes with "running" status,
             # but only 2 actual workers executing
             mock_instance = MagicMock()
@@ -198,10 +211,10 @@ def test_monitor_shows_zero_when_engine_paused(monitor):
 
     This proves Mark90's concern is addressed: we show reality, not stale DB status.
     """
-    with patch("orchestrator.services.worker_status_monitor.app_settings") as mock_settings:
+    with patch("orchestrator.core.services.worker_status_monitor.app_settings") as mock_settings:
         mock_settings.EXECUTOR = ExecutorType.THREADPOOL
 
-        with patch("orchestrator.services.processes.ThreadPoolWorkerStatus") as mock_status:
+        with patch("orchestrator.core.services.processes.ThreadPoolWorkerStatus") as mock_status:
             # Simulate: Engine is paused, no workers executing
             # (even if DB has processes with "running" status)
             mock_instance = MagicMock()
@@ -218,10 +231,10 @@ def test_monitor_thread_safe_concurrent_access(monitor):
     """Test that multiple threads can safely access the count."""
     import threading
 
-    with patch("orchestrator.services.worker_status_monitor.app_settings") as mock_settings:
+    with patch("orchestrator.core.services.worker_status_monitor.app_settings") as mock_settings:
         mock_settings.EXECUTOR = ExecutorType.THREADPOOL
 
-        with patch("orchestrator.services.processes.ThreadPoolWorkerStatus") as mock_status:
+        with patch("orchestrator.core.services.processes.ThreadPoolWorkerStatus") as mock_status:
             mock_instance = MagicMock()
             mock_instance.number_of_running_jobs = 5
             mock_status.return_value = mock_instance

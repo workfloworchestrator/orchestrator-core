@@ -1,4 +1,4 @@
-# Copyright 2019-2025 GÉANT, SURF, ESnet
+# Copyright 2019-2026 GÉANT, SURF, ESnet
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,8 +12,8 @@
 # limitations under the License.
 import pytest
 
-from orchestrator.db import db
-from orchestrator.db.models import InputStateTable, ProcessTable
+from orchestrator.core.db import db
+from orchestrator.core.db.models import InputStateTable, ProcessTable
 
 
 @pytest.fixture

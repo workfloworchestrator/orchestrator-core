@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for ProcessDataBroadcastThread: dispatch selection (queue/ws/nop), exception swallowing, and thread lifecycle."""
 
 import queue
@@ -8,14 +21,14 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.services.process_broadcast_thread import (
+from orchestrator.core.services.process_broadcast_thread import (
     ProcessDataBroadcastThread,
     _broadcast_queue_put_fn,
     _broadcast_ws_fn,
     _nop,
     api_broadcast_process_data,
 )
-from orchestrator.websocket.websocket_manager import WebSocketManager
+from orchestrator.core.websocket.websocket_manager import WebSocketManager
 
 # ---------------------------------------------------------------------------
 # _nop
@@ -40,7 +53,7 @@ def test_nop_accepts_any_uuid():
 
 def test_broadcast_ws_fn_calls_broadcast_process_update():
     process_id = uuid4()
-    with patch("orchestrator.services.process_broadcast_thread.broadcast_process_update_to_websocket") as mock_fn:
+    with patch("orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket") as mock_fn:
         _broadcast_ws_fn(process_id)
     mock_fn.assert_called_once_with(process_id)
 
@@ -48,7 +61,7 @@ def test_broadcast_ws_fn_calls_broadcast_process_update():
 def test_broadcast_ws_fn_swallows_exceptions():
     process_id = uuid4()
     with patch(
-        "orchestrator.services.process_broadcast_thread.broadcast_process_update_to_websocket",
+        "orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket",
         side_effect=RuntimeError("ws failure"),
     ):
         # Must not raise
@@ -104,7 +117,7 @@ def test_api_broadcast_process_data_returns_ws_fn_when_no_thread_but_ws_enabled(
     mock_request = MagicMock()
     mock_request.app.broadcast_thread = None
 
-    with patch("orchestrator.services.process_broadcast_thread.websocket_manager") as mock_ws_manager:
+    with patch("orchestrator.core.services.process_broadcast_thread.websocket_manager") as mock_ws_manager:
         mock_ws_manager.enabled = True
         result = api_broadcast_process_data(mock_request)
 
@@ -115,7 +128,7 @@ def test_api_broadcast_process_data_returns_nop_when_no_thread_and_ws_disabled()
     mock_request = MagicMock()
     mock_request.app.broadcast_thread = None
 
-    with patch("orchestrator.services.process_broadcast_thread.websocket_manager") as mock_ws_manager:
+    with patch("orchestrator.core.services.process_broadcast_thread.websocket_manager") as mock_ws_manager:
         mock_ws_manager.enabled = False
         result = api_broadcast_process_data(mock_request)
 
@@ -172,7 +185,7 @@ def test_process_data_broadcast_thread_processes_queue_item(mock_ws_manager):
         return None
 
     with patch(
-        "orchestrator.services.process_broadcast_thread.broadcast_process_update_to_websocket_async",
+        "orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket_async",
         side_effect=lambda _pid: _noop_coroutine(),
     ) as mock_async_broadcast:
         thread = ProcessDataBroadcastThread(mock_ws_manager, daemon=True)

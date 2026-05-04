@@ -5,12 +5,12 @@ To read more about the architectural design of workflows check out [the architec
 To see more details about the workflow lifecycle states and functions, read on to the next section.
 
 
-::: orchestrator.workflow.ProcessStatus
+::: orchestrator.core.workflow.ProcessStatus
     options:
         heading_level: 3
 
 
-::: orchestrator.workflows.utils
+::: orchestrator.core.workflows.utils
     options:
         heading_level: 3
         members:
@@ -21,13 +21,13 @@ To see more details about the workflow lifecycle states and functions, read on t
         - reconcile_workflow
         - workflow
 
-::: orchestrator.workflow.workflow
+::: orchestrator.core.workflow.workflow
     options:
         heading_level: 3
 
 
 ## Workflow helpers to register them in DB
-::: orchestrator.migrations.helpers
+::: orchestrator.core.migrations.helpers
     options:
         heading_level: 3
     members:

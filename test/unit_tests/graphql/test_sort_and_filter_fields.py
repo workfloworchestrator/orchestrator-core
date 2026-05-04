@@ -1,4 +1,4 @@
-# Copyright 2022 SURF.
+# Copyright 2022-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,18 +15,18 @@ from http import HTTPStatus
 
 import pytest
 
-from orchestrator.db.filters.process import process_filter_fields
-from orchestrator.db.filters.product import product_filter_fields
-from orchestrator.db.filters.product_block import product_block_filter_fields
-from orchestrator.db.filters.resource_type import resource_type_filter_fields
-from orchestrator.db.filters.subscription import subscription_filter_fields
-from orchestrator.db.filters.workflow import workflow_filter_fields
-from orchestrator.db.sorting.process import process_sort_fields
-from orchestrator.db.sorting.product import product_sort_fields
-from orchestrator.db.sorting.product_block import product_block_sort_fields
-from orchestrator.db.sorting.resource_type import resource_type_sort_fields
-from orchestrator.db.sorting.subscription import subscription_sort_fields
-from orchestrator.db.sorting.workflow import workflow_sort_fields
+from orchestrator.core.db.filters.process import process_filter_fields
+from orchestrator.core.db.filters.product import product_filter_fields
+from orchestrator.core.db.filters.product_block import product_block_filter_fields
+from orchestrator.core.db.filters.resource_type import resource_type_filter_fields
+from orchestrator.core.db.filters.subscription import subscription_filter_fields
+from orchestrator.core.db.filters.workflow import workflow_filter_fields
+from orchestrator.core.db.sorting.process import process_sort_fields
+from orchestrator.core.db.sorting.product import product_sort_fields
+from orchestrator.core.db.sorting.product_block import product_block_sort_fields
+from orchestrator.core.db.sorting.resource_type import resource_type_sort_fields
+from orchestrator.core.db.sorting.subscription import subscription_sort_fields
+from orchestrator.core.db.sorting.workflow import workflow_sort_fields
 from test.unit_tests.config import GRAPHQL_ENDPOINT
 
 

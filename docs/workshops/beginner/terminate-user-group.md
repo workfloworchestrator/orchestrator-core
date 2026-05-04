@@ -31,14 +31,27 @@ form is used to ask the user if he/she really wants to terminate the
 subscription. This is done by using a `Label` to show a question on the input
 form:
 
-```python
-from orchestrator.forms.validators import Label
+=== "`orchestrator-core` ≥ 5.0"
 
-...
-    class TerminateForm(FormPage):
-        are_you_sure: Label = f"Are you sure you want to remove {subscription.description}?"
-...
-```
+    ```python
+    from orchestrator.core.forms.validators import Label
+
+    ...
+        class TerminateForm(FormPage):
+            are_you_sure: Label = f"Are you sure you want to remove {subscription.description}?"
+    ...
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.forms.validators import Label
+
+    ...
+        class TerminateForm(FormPage):
+            are_you_sure: Label = f"Are you sure you want to remove {subscription.description}?"
+    ...
+    ```
 
 Remember that you can use the standard product method `from_subscription()` to
 fetch the subscription from the database.
@@ -54,26 +67,51 @@ input from the `State` because there was no user input given.
 Use the skeleton below to create the file
 `workflows/user_group/terminate_user_group.py`:
 
-```python
-from orchestrator.forms import FormPage
-from orchestrator.forms.validators import Label
-from orchestrator.targets import Target
-from orchestrator.types import InputForm, State, SubscriptionLifecycle, UUIDstr
-from orchestrator.workflow import done, init, step, workflow
-from orchestrator.workflows.steps import resync, set_status, store_process_subscription, unsync
-from orchestrator.workflows.utils import wrap_modify_initial_input_form
+=== "`orchestrator-core` ≥ 5.0"
 
-from products import UserGroup
+    ```python
+    from orchestrator.core.forms import FormPage
+    from orchestrator.core.forms.validators import Label
+    from orchestrator.core.targets import Target
+    from orchestrator.core.types import InputForm, State, SubscriptionLifecycle, UUIDstr
+    from orchestrator.core.workflow import done, init, step, workflow
+    from orchestrator.core.workflows.steps import resync, set_status, store_process_subscription, unsync
+    from orchestrator.core.workflows.utils import wrap_modify_initial_input_form
 
-# initial input form generator
-...
+    from products import UserGroup
 
-# deprovision user group step
-...
+    # initial input form generator
+    ...
 
-# terminate user group workflow
-...
-```
+    # deprovision user group step
+    ...
+
+    # terminate user group workflow
+    ...
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.forms import FormPage
+    from orchestrator.forms.validators import Label
+    from orchestrator.targets import Target
+    from orchestrator.types import InputForm, State, SubscriptionLifecycle, UUIDstr
+    from orchestrator.workflow import done, init, step, workflow
+    from orchestrator.workflows.steps import resync, set_status, store_process_subscription, unsync
+    from orchestrator.workflows.utils import wrap_modify_initial_input_form
+
+    from products import UserGroup
+
+    # initial input form generator
+    ...
+
+    # deprovision user group step
+    ...
+
+    # terminate user group workflow
+    ...
+    ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
 group terminate workflow ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/user_group/terminate_user_group.py)

@@ -4,31 +4,37 @@ on:
   release:
     types: [created]
 
-env:
-  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
-
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
-
-    - name: Install uv and set the python version
+    - name: Install uv and set the Python version
       uses: astral-sh/setup-uv@v8.1.0
       with:
-        # It is considered best practice to pin to a specific uv version.
-        version: "0.11.7"
-        python-version: ${{ matrix.python-version }}
-
+        version: "0.11.8"
+        python-version: "3.13"
     - name: Build package
       run: uv build
-
-    - name: Publish package
-      run: uv publish
       env:
-        UV_PUBLISH_USERNAME: ${{ secrets.FLIT_USERNAME }}
-        UV_PUBLISH_PASSWORD: ${{ secrets.FLIT_PASSWORD }}
+        UV_LOCKED: true
+    - name: Upload dist artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: dist
+        path: dist/
 
-# TODO Migrate to trusted publishing with OIDC https://docs.pypi.org/trusted-publishers/
-#    - name: Publish package distributions to PyPI
-#      uses: pypa/gh-action-pypi-publish@release/v1
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+    - name: Download dist artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: dist
+        path: dist/
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1

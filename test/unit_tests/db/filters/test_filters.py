@@ -1,4 +1,4 @@
-# Copyright 2019-2023 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy import column, select, table
 
-from orchestrator.db.filters.filters import (
+from orchestrator.core.db.filters.filters import (
     Filter,
     _filter_to_node,
     _filters_to_and_expr,

@@ -19,10 +19,10 @@ from pathlib import Path
 
 from sqlalchemy_utils.types.ltree import Ltree
 
-from orchestrator.db import SubscriptionTable
-from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.types import EntityType, FieldType
-from orchestrator.settings import llm_settings
+from orchestrator.core.db import SubscriptionTable
+from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.search.core.types import EntityType, FieldType
+from orchestrator.core.settings import llm_settings
 
 GROUND_TRUTH_FILE = Path(__file__).parent / "data" / "ground_truth.json"
 MODELS_FILE = GROUND_TRUTH_FILE.parent / "models.json"

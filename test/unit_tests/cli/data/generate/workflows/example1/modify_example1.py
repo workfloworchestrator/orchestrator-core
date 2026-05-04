@@ -1,13 +1,26 @@
+# Copyright 2024-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import Annotated
 
 import structlog
-from orchestrator.domain import SubscriptionModel
-from orchestrator.forms import FormPage
-from orchestrator.forms.validators import CustomerId, Divider
-from orchestrator.types import SubscriptionLifecycle
-from orchestrator.workflow import StepList, begin, step
-from orchestrator.workflows.steps import set_status
-from orchestrator.workflows.utils import modify_workflow
+from orchestrator.core.domain import SubscriptionModel
+from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import CustomerId, Divider
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.steps import set_status
+from orchestrator.core.workflows.utils import modify_workflow
 from pydantic import AfterValidator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import read_only_field

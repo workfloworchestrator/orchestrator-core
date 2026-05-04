@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for WebSocketManager: authorization, Memory/Broadcast backend connect/disconnect, data broadcasting, and channel cleanup."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -7,9 +20,9 @@ from fastapi import WebSocket, status
 from fastapi.exceptions import HTTPException
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
-from orchestrator.websocket.managers.broadcast_websocket_manager import BroadcastWebsocketManager
-from orchestrator.websocket.managers.memory_websocket_manager import MemoryWebsocketManager
-from orchestrator.websocket.websocket_manager import WebSocketManager
+from orchestrator.core.websocket.managers.broadcast_websocket_manager import BroadcastWebsocketManager
+from orchestrator.core.websocket.managers.memory_websocket_manager import MemoryWebsocketManager
+from orchestrator.core.websocket.websocket_manager import WebSocketManager
 
 REDIS_URL = "redis://localhost:6379"
 MEMORY_URL = "memory://"
@@ -66,8 +79,8 @@ def test_websocket_manager_backend_selection(url: str, expected_type: type):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.websocket.websocket_manager.authorize_websocket", new_callable=AsyncMock)
-@patch("orchestrator.websocket.websocket_manager.authenticate_websocket", new_callable=AsyncMock)
+@patch("orchestrator.core.websocket.websocket_manager.authorize_websocket", new_callable=AsyncMock)
+@patch("orchestrator.core.websocket.websocket_manager.authenticate_websocket", new_callable=AsyncMock)
 async def test_authorize_success_returns_none(mock_authn, mock_authz, wsm):
     mock_authn.return_value = {"user": "test"}
     mock_ws = AsyncMock(spec=WebSocket)
@@ -78,7 +91,7 @@ async def test_authorize_success_returns_none(mock_authn, mock_authz, wsm):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.websocket.websocket_manager.authenticate_websocket", new_callable=AsyncMock)
+@patch("orchestrator.core.websocket.websocket_manager.authenticate_websocket", new_callable=AsyncMock)
 async def test_authorize_http_exception_returns_error(mock_authn, wsm):
     exc = HTTPException(status_code=403, detail="Forbidden")
     mock_authn.side_effect = exc
@@ -88,8 +101,8 @@ async def test_authorize_http_exception_returns_error(mock_authn, wsm):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.websocket.websocket_manager.authorize_websocket", new_callable=AsyncMock)
-@patch("orchestrator.websocket.websocket_manager.authenticate_websocket", new_callable=AsyncMock)
+@patch("orchestrator.core.websocket.websocket_manager.authorize_websocket", new_callable=AsyncMock)
+@patch("orchestrator.core.websocket.websocket_manager.authenticate_websocket", new_callable=AsyncMock)
 async def test_authorize_no_user_returns_none(mock_authn, mock_authz, wsm):
     mock_authn.return_value = None
     mock_ws = AsyncMock(spec=WebSocket)
@@ -296,7 +309,9 @@ async def test_memory_disconnect_redis_noop(memory_mgr):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.websocket.managers.broadcast_websocket_manager.run_until_first_complete", new_callable=AsyncMock)
+@patch(
+    "orchestrator.core.websocket.managers.broadcast_websocket_manager.run_until_first_complete", new_callable=AsyncMock
+)
 async def test_broadcast_connect_normal(mock_run, broadcast_mgr):
     ws = _make_broadcast_ws()
     await broadcast_mgr.connect(ws, "ch1")
@@ -305,7 +320,9 @@ async def test_broadcast_connect_normal(mock_run, broadcast_mgr):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.websocket.managers.broadcast_websocket_manager.run_until_first_complete", new_callable=AsyncMock)
+@patch(
+    "orchestrator.core.websocket.managers.broadcast_websocket_manager.run_until_first_complete", new_callable=AsyncMock
+)
 async def test_broadcast_connect_exception_cleanup(mock_run, broadcast_mgr):
     ws = _make_broadcast_ws()
     mock_run.side_effect = RuntimeError("boom")
@@ -445,7 +462,7 @@ async def test_broadcast_publishes_to_all_channels():
     mock_pipeline_ctx.__aenter__ = AsyncMock(return_value=mock_pipe)
     mock_pipeline_ctx.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("orchestrator.websocket.managers.broadcast_websocket_manager.RedisBroadcast") as MockBroadcast:
+    with patch("orchestrator.core.websocket.managers.broadcast_websocket_manager.RedisBroadcast") as MockBroadcast:
         mock_instance = MagicMock()
         mock_instance.pipeline = MagicMock(return_value=mock_pipeline_ctx)
         MockBroadcast.return_value = mock_instance

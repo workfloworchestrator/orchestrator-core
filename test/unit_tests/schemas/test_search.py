@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,14 +16,14 @@
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.schemas.search import (
+from orchestrator.core.schemas.search import (
     ExportResponse,
     PageInfoSchema,
     PathsResponse,
     SearchResultsSchema,
 )
-from orchestrator.search.core.types import UIType
-from orchestrator.search.query.builder import LeafInfo
+from orchestrator.core.search.core.types import UIType
+from orchestrator.core.search.query.builder import LeafInfo
 
 
 def test_search_results_data_default_factory_creates_independent_lists() -> None:

@@ -1,4 +1,4 @@
-# Copyright 2019-2026 SURF, ESnet.
+# Copyright 2019-2026 SURF, ESnet, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -22,28 +22,28 @@ from inline_snapshot import snapshot
 from sqlalchemy import select
 
 from oauth2_lib.fastapi import OIDCUserModel
-from orchestrator.api.api_v1.endpoints.processes import get_auth_callbacks
-from orchestrator.config.assignee import Assignee
-from orchestrator.db import (
+from orchestrator.core.api.api_v1.endpoints.processes import get_auth_callbacks
+from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
     SubscriptionTable,
     db,
 )
-from orchestrator.security import authenticate
-from orchestrator.services.processes import (
+from orchestrator.core.security import authenticate
+from orchestrator.core.services.processes import (
     RESUME_WORKFLOW_REMOVED_ERROR_MSG,
     _get_process,
     can_be_resumed,
     shutdown_thread_pool,
 )
-from orchestrator.services.settings import get_engine_settings_table
-from orchestrator.services.tasks import RESUME_WORKFLOW
-from orchestrator.settings import app_settings
-from orchestrator.targets import Target
-from orchestrator.utils.auth import AuthContext
-from orchestrator.workflow import (
+from orchestrator.core.services.settings import get_engine_settings_table
+from orchestrator.core.services.tasks import RESUME_WORKFLOW
+from orchestrator.core.settings import app_settings
+from orchestrator.core.targets import Target
+from orchestrator.core.utils.auth import AuthContext
+from orchestrator.core.workflow import (
     CALLBACK_TOKEN_KEY,
     ProcessStatus,
     StepList,
@@ -57,7 +57,7 @@ from orchestrator.workflow import (
     step_group,
     workflow,
 )
-from orchestrator.workflows.tasks.cleanup_tasks_log import task_clean_up_tasks
+from orchestrator.core.workflows.tasks.cleanup_tasks_log import task_clean_up_tasks
 from pydantic_forms.core import FormPage
 from test.unit_tests.helpers import URL_STR_TYPE
 from test.unit_tests.workflows import WorkflowInstanceForTests
@@ -166,9 +166,9 @@ def test_long_running_pause(test_client, long_running_workflow):
     app_settings.TESTING = False
     # Start the workflow
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{}])
-    assert (
-        HTTPStatus.CREATED == response.status_code
-    ), f"Invalid response status code (response data: {response.json()})"
+    assert HTTPStatus.CREATED == response.status_code, (
+        f"Invalid response status code (response data: {response.json()})"
+    )
 
     process_id = response.json()["id"]
 
@@ -238,9 +238,9 @@ def test_service_unavailable_engine_locked(test_client, test_workflow):
 def test_complete_workflow(test_client, test_workflow):
     response = test_client.post(f"/api/processes/{test_workflow.name}", json=[{}])
 
-    assert (
-        HTTPStatus.CREATED == response.status_code
-    ), f"Invalid response status code (response data: {response.json()})"
+    assert HTTPStatus.CREATED == response.status_code, (
+        f"Invalid response status code (response data: {response.json()})"
+    )
 
     process_id = response.json()["id"]
 
@@ -521,7 +521,7 @@ def test_resume_all_processes_multiple_calls(test_client, mocked_processes_resum
     # Disable Testing setting since we want to run async
     app_settings.TESTING = False
 
-    with mock.patch("orchestrator.services.processes.resume_process", new=resume_noop):
+    with mock.patch("orchestrator.core.services.processes.resume_process", new=resume_noop):
         responses = [test_client.put("/api/processes/resume-all") for _ in range(5)]
         responses.sort(key=lambda r: r.status_code)
         event.set()
@@ -545,7 +545,7 @@ def test_resume_all_processes_nothing_to_do(test_client):
 
 def test_resume_all_processes_value_error(test_client, mocked_processes_resumeall, caplog):
     """Test resuming all processes where one raises ValueError."""
-    with mock.patch("orchestrator.services.processes.resume_process") as mocked_resume:
+    with mock.patch("orchestrator.core.services.processes.resume_process") as mocked_resume:
         mocked_resume.side_effect = [
             None,
             ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG),
@@ -583,8 +583,8 @@ def test_create_process_reporter(test_client, fastapi_app, oidc_user, reporter, 
     url_params = {"reporter": reporter} if reporter is not None else {}
     fastapi_depends = {authenticate: lambda: oidc_user}
     with (
-        mock.patch("orchestrator.api.api_v1.endpoints.processes.get_workflow") as mock_get_workflow,
-        mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process,
+        mock.patch("orchestrator.core.api.api_v1.endpoints.processes.get_workflow") as mock_get_workflow,
+        mock.patch("orchestrator.core.api.api_v1.endpoints.processes.start_process") as mock_start_process,
         mock.patch.dict(fastapi_app.dependency_overrides, fastapi_depends),
     ):
         mock_get_workflow.return_value = fake_workflow
@@ -849,8 +849,8 @@ def process_on_await_callback(authorize_resume_workflow):
     return process_id
 
 
-@mock.patch("orchestrator.services.tasks.get_celery_task")
-@mock.patch("orchestrator.db")
+@mock.patch("orchestrator.core.services.tasks.get_celery_task")
+@mock.patch("orchestrator.core.db")
 @mock.patch.object(app_settings, "EXECUTOR", "celery")
 def test_continue_awaiting_process_endpoint(mock_db, mock_get_celery_task, test_client, process_on_await_callback):
     trigger_task = mock.MagicMock()
@@ -1132,7 +1132,7 @@ def test_internal_authorize_callback(test_client, fastapi_app_for_auth_callbacks
     async def disallow(_: AuthContext) -> bool:
         return False
 
-    with mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process:
+    with mock.patch("orchestrator.core.api.api_v1.endpoints.processes.start_process") as mock_start_process:
         # Just return a bogus UUID instead of actually starting a process.
         mock_start_process.return_value = uuid4()
 
@@ -1179,7 +1179,7 @@ def test_internal_retry_auth_callback(test_client, fastapi_app_for_auth_callback
     async def allow(_: AuthContext) -> bool:
         return True
 
-    with mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process:
+    with mock.patch("orchestrator.core.api.api_v1.endpoints.processes.start_process") as mock_start_process:
         # Just return a bogus UUID instead of actually starting a process.
         mock_start_process.return_value = uuid4()
 
@@ -1213,7 +1213,7 @@ def test_internal_retry_auth_callback(test_client, fastapi_app_for_auth_callback
     ],
 )
 def test_resolve_user_name(reporter, user_attrs, expected):
-    from orchestrator.api.api_v1.endpoints.processes import resolve_user_name
+    from orchestrator.core.api.api_v1.endpoints.processes import resolve_user_name
 
     resolved_user = OIDCUserModel(user_attrs) if user_attrs is not None else None
     result = resolve_user_name(reporter=reporter, resolved_user=resolved_user)
@@ -1252,14 +1252,14 @@ def test_status_counts_with_processes(test_client, mocked_processes):
 
 def test_check_global_lock_raises_when_locked():
     """check_global_lock() must raise a 503 HTTPException when engine is locked."""
-    from orchestrator.api.api_v1.endpoints.processes import check_global_lock
+    from orchestrator.core.api.api_v1.endpoints.processes import check_global_lock
 
     engine_settings_mock = mock.MagicMock()
     engine_settings_mock.global_lock = True
 
     with (
         mock.patch(
-            "orchestrator.api.api_v1.endpoints.processes.get_engine_settings_table",
+            "orchestrator.core.api.api_v1.endpoints.processes.get_engine_settings_table",
             return_value=engine_settings_mock,
         ),
         pytest.raises(Exception) as exc_info,
@@ -1271,13 +1271,13 @@ def test_check_global_lock_raises_when_locked():
 
 def test_check_global_lock_does_not_raise_when_unlocked():
     """check_global_lock() must not raise when the engine is not locked."""
-    from orchestrator.api.api_v1.endpoints.processes import check_global_lock
+    from orchestrator.core.api.api_v1.endpoints.processes import check_global_lock
 
     engine_settings_mock = mock.MagicMock()
     engine_settings_mock.global_lock = False
 
     with mock.patch(
-        "orchestrator.api.api_v1.endpoints.processes.get_engine_settings_table",
+        "orchestrator.core.api.api_v1.endpoints.processes.get_engine_settings_table",
         return_value=engine_settings_mock,
     ):
         # Should complete without raising.
@@ -1301,14 +1301,14 @@ def test_check_global_lock_via_endpoint_returns_503(test_client, test_workflow):
 
 def test_calculate_processes_crc32_checksum_empty_list():
     """An empty list must produce a checksum of 0 (initial value, no iterations)."""
-    from orchestrator.api.api_v1.endpoints.processes import _calculate_processes_crc32_checksum
+    from orchestrator.core.api.api_v1.endpoints.processes import _calculate_processes_crc32_checksum
 
     assert _calculate_processes_crc32_checksum([]) == 0
 
 
 def test_calculate_processes_crc32_checksum_deterministic(started_process):
     """The same list of processes always produces the same checksum."""
-    from orchestrator.api.api_v1.endpoints.processes import _calculate_processes_crc32_checksum
+    from orchestrator.core.api.api_v1.endpoints.processes import _calculate_processes_crc32_checksum
 
     process = db.session.get(ProcessTable, started_process)
     assert process is not None
@@ -1323,7 +1323,7 @@ def test_calculate_processes_crc32_checksum_differs_for_different_inputs(started
     """Different process lists produce different checksums."""
     from uuid import uuid4 as _uuid4
 
-    from orchestrator.api.api_v1.endpoints.processes import _calculate_processes_crc32_checksum
+    from orchestrator.core.api.api_v1.endpoints.processes import _calculate_processes_crc32_checksum
 
     process_a = db.session.get(ProcessTable, started_process)
     assert process_a is not None
@@ -1399,7 +1399,7 @@ def test_processes_filterable_empty_filter_param_ignored(test_client):
 
 def test_get_steps_to_evaluate_for_rbac_empty_log():
     """When pstat.log is empty, all workflow steps are returned."""
-    from orchestrator.api.api_v1.endpoints.processes import get_steps_to_evaluate_for_rbac
+    from orchestrator.core.api.api_v1.endpoints.processes import get_steps_to_evaluate_for_rbac
 
     @step("step_a")
     def step_a():
@@ -1419,7 +1419,7 @@ def test_get_steps_to_evaluate_for_rbac_empty_log():
         retry_auth_callback=None,
     )
 
-    from orchestrator.workflow import ProcessStat
+    from orchestrator.core.workflow import ProcessStat
 
     pstat = ProcessStat(
         process_id=uuid4(),
@@ -1436,7 +1436,7 @@ def test_get_steps_to_evaluate_for_rbac_empty_log():
 
 def test_get_steps_to_evaluate_for_rbac_with_remaining_steps():
     """When pstat.log has remaining steps, result is past steps + first remaining step."""
-    from orchestrator.api.api_v1.endpoints.processes import get_steps_to_evaluate_for_rbac
+    from orchestrator.core.api.api_v1.endpoints.processes import get_steps_to_evaluate_for_rbac
 
     @step("step_x")
     def step_x():
@@ -1460,7 +1460,7 @@ def test_get_steps_to_evaluate_for_rbac_with_remaining_steps():
         retry_auth_callback=None,
     )
 
-    from orchestrator.workflow import ProcessStat
+    from orchestrator.core.workflow import ProcessStat
 
     # Simulate that step_z is still remaining (step_x and step_y are done).
     remaining = StepList([step_z])

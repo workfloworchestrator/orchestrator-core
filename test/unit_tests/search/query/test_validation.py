@@ -1,6 +1,4 @@
-"""Tests for orchestrator.search.query.validation -- filter compatibility, complete filter validation, aggregation/temporal/grouping/order-by field validation."""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,14 +11,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for orchestrator.core.search.query.validation -- filter compatibility, complete filter validation, aggregation/temporal/grouping/order-by field validation."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.search.aggregations import AggregationType
-from orchestrator.search.core.types import EntityType, FieldType, FilterOp, UIType
-from orchestrator.search.filters import DateValueFilter, EqualityFilter, LtreeFilter, NumericValueFilter, PathFilter
-from orchestrator.search.query.exceptions import (
+from orchestrator.core.search.aggregations import AggregationType
+from orchestrator.core.search.core.types import EntityType, FieldType, FilterOp, UIType
+from orchestrator.core.search.filters import (
+    DateValueFilter,
+    EqualityFilter,
+    LtreeFilter,
+    NumericValueFilter,
+    PathFilter,
+)
+from orchestrator.core.search.query.exceptions import (
     EmptyFilterPathError,
     IncompatibleAggregationTypeError,
     IncompatibleFilterTypeError,
@@ -29,8 +35,8 @@ from orchestrator.search.query.exceptions import (
     InvalidLtreePatternError,
     PathNotFoundError,
 )
-from orchestrator.search.query.mixins import OrderBy, OrderDirection
-from orchestrator.search.query.validation import (
+from orchestrator.core.search.query.mixins import OrderBy, OrderDirection
+from orchestrator.core.search.query.validation import (
     complete_filter_validation,
     is_filter_compatible_with_field_type,
     validate_aggregation_field,
@@ -84,7 +90,7 @@ def test_filter_compatibility_matrix(filter_condition, field_type: FieldType, ex
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.is_lquery_syntactically_valid")
+@patch("orchestrator.core.search.query.validation.is_lquery_syntactically_valid")
 async def test_complete_filter_ltree_valid_syntax_passes(mock_is_valid: MagicMock):
     """LtreeFilter with valid syntax should not raise."""
     mock_is_valid.return_value = True
@@ -97,7 +103,7 @@ async def test_complete_filter_ltree_valid_syntax_passes(mock_is_valid: MagicMoc
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.is_lquery_syntactically_valid")
+@patch("orchestrator.core.search.query.validation.is_lquery_syntactically_valid")
 async def test_complete_filter_ltree_invalid_syntax_raises(mock_is_valid: MagicMock):
     """LtreeFilter with invalid syntax raises InvalidLtreePatternError."""
     mock_is_valid.return_value = False
@@ -130,7 +136,7 @@ async def test_complete_filter_empty_path_raises(path: str):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 async def test_complete_filter_path_not_found_raises(mock_vfp: MagicMock):
     """Path absent from index raises PathNotFoundError."""
     mock_vfp.return_value = None
@@ -144,7 +150,7 @@ async def test_complete_filter_path_not_found_raises(mock_vfp: MagicMock):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 async def test_complete_filter_incompatible_type_raises(mock_vfp: MagicMock):
     """Numeric operator on a string field raises IncompatibleFilterTypeError."""
     mock_vfp.return_value = FieldType.STRING.value
@@ -158,7 +164,7 @@ async def test_complete_filter_incompatible_type_raises(mock_vfp: MagicMock):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 async def test_complete_filter_wrong_entity_prefix_raises(mock_vfp: MagicMock):
     """Path with wrong entity prefix raises InvalidEntityPrefixError."""
     mock_vfp.return_value = FieldType.STRING.value
@@ -172,7 +178,7 @@ async def test_complete_filter_wrong_entity_prefix_raises(mock_vfp: MagicMock):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 async def test_complete_filter_valid_path_passes(mock_vfp: MagicMock):
     """A correctly-typed path with the right entity prefix should not raise."""
     mock_vfp.return_value = FieldType.STRING.value
@@ -185,7 +191,7 @@ async def test_complete_filter_valid_path_passes(mock_vfp: MagicMock):
 
 
 @pytest.mark.asyncio
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 async def test_complete_filter_wildcard_path_skips_prefix_check(mock_vfp: MagicMock):
     """Paths starting with '*' bypass the entity-prefix check."""
     mock_vfp.return_value = FieldType.STRING.value
@@ -223,7 +229,7 @@ AGGREGATION_TYPE_COMPATIBILITY_MATRIX = [
 
 
 @pytest.mark.parametrize("agg_type, field_type, should_raise", AGGREGATION_TYPE_COMPATIBILITY_MATRIX)
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_aggregation_field_compatibility(
     mock_vfp: MagicMock, agg_type: AggregationType, field_type: FieldType, should_raise: bool
 ):
@@ -235,7 +241,7 @@ def test_validate_aggregation_field_compatibility(
         validate_aggregation_field(agg_type, "subscription.field")
 
 
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_aggregation_field_path_not_found_raises(mock_vfp: MagicMock):
     mock_vfp.return_value = None
     with pytest.raises(PathNotFoundError):
@@ -257,7 +263,7 @@ TEMPORAL_GROUPING_FIELD_TYPE_MATRIX = [
 
 
 @pytest.mark.parametrize("field_type, should_raise", TEMPORAL_GROUPING_FIELD_TYPE_MATRIX)
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_temporal_grouping_field_type_matrix(mock_vfp: MagicMock, field_type: FieldType, should_raise: bool):
     mock_vfp.return_value = field_type.value
     if should_raise:
@@ -267,7 +273,7 @@ def test_validate_temporal_grouping_field_type_matrix(mock_vfp: MagicMock, field
         validate_temporal_grouping_field("subscription.some_field")
 
 
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_temporal_grouping_field_path_not_found_raises(mock_vfp: MagicMock):
     mock_vfp.return_value = None
     with pytest.raises(PathNotFoundError):
@@ -279,33 +285,33 @@ def test_validate_temporal_grouping_field_path_not_found_raises(mock_vfp: MagicM
 # =============================================================================
 
 
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_grouping_fields_all_paths_found_passes(mock_vfp: MagicMock):
     mock_vfp.return_value = FieldType.STRING.value
     validate_grouping_fields(["subscription.status", "subscription.product.name"])
 
 
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_grouping_fields_one_path_not_found_raises(mock_vfp: MagicMock):
     mock_vfp.side_effect = [FieldType.STRING.value, None]
     with pytest.raises(PathNotFoundError):
         validate_grouping_fields(["subscription.status", "subscription.missing"])
 
 
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_grouping_fields_empty_list_passes(mock_vfp: MagicMock):
     validate_grouping_fields([])
     mock_vfp.assert_not_called()
 
 
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_grouping_fields_single_path_not_found_raises(mock_vfp: MagicMock):
     mock_vfp.return_value = None
     with pytest.raises(PathNotFoundError):
         validate_grouping_fields(["subscription.nonexistent"])
 
 
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_grouping_fields_validates_each_path_once(mock_vfp: MagicMock):
     mock_vfp.return_value = FieldType.STRING.value
     paths = ["subscription.status", "subscription.product.name", "subscription.start_date"]
@@ -327,27 +333,27 @@ def test_validate_order_by_fields_empty_list_passes():
     validate_order_by_fields([])
 
 
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_order_by_fields_path_with_dot_found_passes(mock_vfp: MagicMock):
     mock_vfp.return_value = FieldType.STRING.value
     validate_order_by_fields([OrderBy(field="subscription.status", direction=OrderDirection.ASC)])
 
 
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_order_by_fields_path_with_dot_not_found_raises(mock_vfp: MagicMock):
     mock_vfp.return_value = None
     with pytest.raises(PathNotFoundError):
         validate_order_by_fields([OrderBy(field="subscription.missing", direction=OrderDirection.DESC)])
 
 
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_order_by_fields_alias_without_dot_skipped(mock_vfp: MagicMock):
     """Aggregation aliases (no dot) are skipped and validate_filter_path is not called."""
     validate_order_by_fields([OrderBy(field="count", direction=OrderDirection.DESC)])
     mock_vfp.assert_not_called()
 
 
-@patch("orchestrator.search.query.validation.validate_filter_path")
+@patch("orchestrator.core.search.query.validation.validate_filter_path")
 def test_validate_order_by_fields_mixed_alias_and_path(mock_vfp: MagicMock):
     """Aliases are skipped; only path-based fields are validated."""
     mock_vfp.return_value = FieldType.STRING.value
@@ -370,7 +376,7 @@ def test_validate_structured_order_by_element_none_request_passes():
     validate_structured_order_by_element(EntityType.SUBSCRIPTION, None)
 
 
-@patch("orchestrator.search.query.validation.get_ai_search_index_by_entity_type_and_path")
+@patch("orchestrator.core.search.query.validation.get_ai_search_index_by_entity_type_and_path")
 def test_validate_structured_order_by_element_valid_passes(mock_get: MagicMock):
     mock_get.return_value = {"path": "subscription.status"}
     request_mock = MagicMock()
@@ -378,7 +384,7 @@ def test_validate_structured_order_by_element_valid_passes(mock_get: MagicMock):
     validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock)
 
 
-@patch("orchestrator.search.query.validation.get_ai_search_index_by_entity_type_and_path")
+@patch("orchestrator.core.search.query.validation.get_ai_search_index_by_entity_type_and_path")
 def test_validate_structured_order_by_element_invalid_raises(mock_get: MagicMock):
     element = "subscription.nonexistent"
     mock_get.return_value = None
@@ -395,7 +401,7 @@ def test_validate_structured_order_by_element_none_entity_type_skips():
     validate_structured_order_by_element(None, request_mock)
 
 
-@patch("orchestrator.search.query.validation.get_ai_search_index_by_entity_type_and_path")
+@patch("orchestrator.core.search.query.validation.get_ai_search_index_by_entity_type_and_path")
 def test_validate_structured_order_by_element_no_order_by_passes(mock_get: MagicMock):
     """Request with order_by=None should not trigger validation."""
     request_mock = MagicMock()

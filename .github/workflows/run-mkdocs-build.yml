@@ -17,7 +17,7 @@ jobs:
         uses: astral-sh/setup-uv@v8.1.0
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.11.7"
+          version: "0.11.8"
           python-version: ${{ matrix.python-version }}
 
       - name: Install the project
@@ -26,4 +26,4 @@ jobs:
         run: uv sync --no-dev --group docs
 
       - name: Test mkdocs build with --strict
-        run: uv run mkdocs build --strict
+        run: DISABLE_MKDOCS_2_WARNING=true uv run mkdocs build --strict

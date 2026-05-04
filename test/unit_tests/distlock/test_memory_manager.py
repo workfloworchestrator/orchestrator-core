@@ -1,4 +1,4 @@
-# Copyright 2019-2022 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,7 +19,7 @@ from time import sleep, time
 
 import pytest
 
-from orchestrator.distlock.managers.memory_distlock_manager import MemoryDistLockManager
+from orchestrator.core.distlock.managers.memory_distlock_manager import MemoryDistLockManager
 
 
 @pytest.fixture

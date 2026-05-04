@@ -1,0 +1,166 @@
+# Copyright 2022-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from ipaddress import IPv4Address, IPv4Interface, IPv6Address, IPv6Interface
+
+# Map some Orchestrator types to scalars
+from typing import Any, TypeVar
+
+import strawberry
+from graphql import GraphQLError, GraphQLNamedType
+from strawberry.dataloader import DataLoader
+from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
+from strawberry.types import Info
+from strawberry.types.info import RootValueType
+
+from nwastdlib.vlans import VlanRanges
+from oauth2_lib.fastapi import AuthManager
+from oauth2_lib.strawberry import OauthContext
+from orchestrator.core.db.filters import Filter
+from orchestrator.core.db.sorting import Sort, SortOrder
+from orchestrator.core.graphql.loaders.subscriptions import (
+    LastValidationLoaderType,
+    SubsLoaderType,
+    depends_on_subs_loader,
+    in_use_by_subs_loader,
+    last_validation_datetime_loader,
+)
+from orchestrator.core.services.process_broadcast_thread import ProcessDataBroadcastThread
+
+StrawberryPydanticModel = TypeVar("StrawberryPydanticModel", bound=StrawberryTypeFromPydantic)
+StrawberryModelType = dict[str, StrawberryPydanticModel]
+
+
+def serialize_to_string(value: Any) -> str:
+    return str(value)
+
+
+def serialize_vlan(vlan: VlanRanges) -> list[tuple[int, int]]:
+    return vlan.to_list_of_tuples()
+
+
+class OrchestratorContext(OauthContext):
+    broadcast_thread: ProcessDataBroadcastThread | None
+    graphql_models: StrawberryModelType
+
+    def __init__(
+        self,
+        auth_manager: AuthManager,
+        broadcast_thread: ProcessDataBroadcastThread | None = None,
+        graphql_models: StrawberryModelType | None = None,
+    ):
+        self.errors: list[GraphQLError] = []
+        self.broadcast_thread = broadcast_thread
+        self.graphql_models = graphql_models or {}
+        self.core_in_use_by_subs_loader: SubsLoaderType = DataLoader(load_fn=in_use_by_subs_loader)
+        self.core_depends_on_subs_loader: SubsLoaderType = DataLoader(load_fn=depends_on_subs_loader)
+        self.core_last_validation_datetime_loader: LastValidationLoaderType = DataLoader(
+            load_fn=last_validation_datetime_loader
+        )
+        super().__init__(auth_manager)
+
+
+OrchestratorInfo = Info[OrchestratorContext, RootValueType]
+
+
+@strawberry.experimental.pydantic.input(model=Sort)
+class GraphqlSort:
+    field: str = strawberry.field(description="Field to sort on")
+    order: SortOrder = strawberry.field(default=SortOrder.ASC, description="Sort order (ASC or DESC")
+
+
+@strawberry.experimental.pydantic.input(model=Filter)
+class GraphqlFilter:
+    field: str = strawberry.field(description="Field to filter on")
+    value: str = strawberry.field(description="Value to sort the field on")
+
+
+VlanRangesType = strawberry.scalar(
+    name="VlanRangesType",
+    description="Represent the Orchestrator VlanRanges data type",
+    serialize=serialize_vlan,
+    parse_value=lambda v: v,
+)
+
+IPv4AddressType = strawberry.scalar(
+    name="IPv4AddressType",
+    description="Represent the Orchestrator IPv4Address data type",
+    serialize=serialize_to_string,
+    parse_value=lambda v: v,
+)
+
+IPv6AddressType = strawberry.scalar(
+    name="IPv6AddressType",
+    description="Represent the Orchestrator IPv6Address data type",
+    serialize=serialize_to_string,
+    parse_value=lambda v: v,
+)
+
+IPv4InterfaceType = strawberry.scalar(
+    name="IPv4InterfaceType",
+    description="Represent the Orchestrator IPv4Interface data type",
+    serialize=serialize_to_string,
+    parse_value=lambda v: v,
+)
+
+IPv6InterfaceType = strawberry.scalar(
+    name="IPv6InterfaceType",
+    description="Represent the Orchestrator IPv6Interface data type",
+    serialize=serialize_to_string,
+    parse_value=lambda v: v,
+)
+
+# TODO: Remove Hack to prevent the error: `Redefinition of reserved type 'Int'`
+if hasattr(GraphQLNamedType, "reserved_types"):
+    GraphQLNamedType.reserved_types.pop("Int", None)
+
+IntType = strawberry.scalar(
+    name="Int",
+    description="An arbitrary precision integer",
+    serialize=lambda v: v,
+    parse_value=lambda v: v,
+)
+
+JSONType = strawberry.scalar(
+    name="JSONType",
+    serialize=lambda v: v,
+    parse_value=lambda v: v,
+)
+
+ScalarOverrideType = dict
+SCALAR_OVERRIDES: ScalarOverrideType = {
+    dict: JSONType,
+    VlanRanges: VlanRangesType,
+    IPv4Address: IPv4AddressType,
+    IPv6Address: IPv6AddressType,
+    IPv4Interface: IPv4InterfaceType,
+    IPv6Interface: IPv6InterfaceType,
+    int: IntType,
+}
+
+
+@strawberry.type(description="User permissions on a specific process")
+class FormUserPermissionsType:
+    retryAllowed: bool
+    resumeAllowed: bool
+
+
+@strawberry.type(description="Generic class to capture errors")
+class MutationError:
+    message: str = strawberry.field(description="Error message")
+    details: str | None = strawberry.field(description="Details of error cause", default=None)
+
+
+@strawberry.type(description="Error class if a resource couldn't be found (404)")
+class NotFoundError(MutationError):  # noqa: N818
+    pass

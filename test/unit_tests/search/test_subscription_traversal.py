@@ -1,6 +1,4 @@
-"""Tests for SubscriptionTraverser: end-to-end model traversal for simple, nested, and computed property subscriptions."""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,11 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for SubscriptionTraverser: end-to-end model traversal for simple, nested, and computed property subscriptions."""
+
 import pytest
 
-from orchestrator.search.core.types import EntityType
-from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
-from orchestrator.search.indexing.traverse import SubscriptionTraverser
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+from orchestrator.core.search.indexing.traverse import SubscriptionTraverser
 
 
 def _assert_traverse_fields_match(mock_load_model, mock_db_subscription, subscription_instance, expected_fields):

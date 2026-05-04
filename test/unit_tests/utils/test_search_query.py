@@ -1,12 +1,25 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import uuid
 
 import pytest
 from sqlalchemy import Column, Integer, String, func, select
 
-from orchestrator.db import db
-from orchestrator.db.database import BaseModel
-from orchestrator.db.helpers import to_sql_string
-from orchestrator.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor, create_sqlalchemy_select
+from orchestrator.core.db import db
+from orchestrator.core.db.database import BaseModel
+from orchestrator.core.db.helpers import to_sql_string
+from orchestrator.core.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor, create_sqlalchemy_select
 
 
 class MyTable(BaseModel):

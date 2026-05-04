@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for Indexer public API.
 
 Content hashing, text preparation, record creation, change detection,
@@ -10,8 +23,8 @@ from uuid import UUID
 import pytest
 from sqlalchemy_utils.types.ltree import Ltree
 
-from orchestrator.search.core.types import EntityType, ExtractedField, FieldType
-from orchestrator.search.indexing.indexer import Indexer
+from orchestrator.core.search.core.types import EntityType, ExtractedField, FieldType
+from orchestrator.core.search.indexing.indexer import Indexer
 
 # Test constants
 ENTITY_ID = "12345678-1234-1234-1234-123456789abc"
@@ -194,15 +207,15 @@ def test_force_index_ignores_existing_hashes(mock_config, mock_entity):
 
 def test_get_max_tokens_from_model(indexer):
     """Test retrieving max tokens from model."""
-    with patch("orchestrator.search.indexing.indexer.get_max_tokens", return_value=8191):
+    with patch("orchestrator.core.search.indexing.indexer.get_max_tokens", return_value=8191):
         assert indexer._get_max_tokens() == 8191
 
 
 def test_get_max_tokens_fallback(indexer):
     """Test fallback when model is not recognized."""
     with (
-        patch("orchestrator.search.indexing.indexer.get_max_tokens", side_effect=Exception("Unknown model")),
-        patch("orchestrator.search.indexing.indexer.llm_settings.EMBEDDING_FALLBACK_MAX_TOKENS", 8000),
+        patch("orchestrator.core.search.indexing.indexer.get_max_tokens", side_effect=Exception("Unknown model")),
+        patch("orchestrator.core.search.indexing.indexer.llm_settings.EMBEDDING_FALLBACK_MAX_TOKENS", 8000),
     ):
         assert indexer._get_max_tokens() == 8000
 
@@ -218,11 +231,11 @@ def test_dry_run_no_database_writes(mock_config, mock_entity):
 
     with (
         patch(
-            "orchestrator.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
+            "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
             return_value=[[0.1, 0.2], [0.3, 0.4]],
         ),
         patch(
-            "orchestrator.search.indexing.indexer.Indexer._get_all_existing_hashes",
+            "orchestrator.core.search.indexing.indexer.Indexer._get_all_existing_hashes",
             return_value={},
         ),
     ):
@@ -253,9 +266,9 @@ def test_generate_upsert_batches(indexer, field_path, field_value, field_type):
 
     if should_have_embedding:
         with (
-            patch("orchestrator.search.indexing.indexer.encode", return_value=[1, 2, 3, 4, 5]),
+            patch("orchestrator.core.search.indexing.indexer.encode", return_value=[1, 2, 3, 4, 5]),
             patch(
-                "orchestrator.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
+                "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
                 return_value=[[0.1, 0.2]],
             ),
         ):
@@ -279,7 +292,7 @@ def test_tokenization_failure_skips_field(indexer):
         (ENTITY_ID, ExtractedField(path="description", value="Text", value_type=FieldType.STRING)),
     ]
 
-    with patch("orchestrator.search.indexing.indexer.encode", side_effect=Exception("Tokenization error")):
+    with patch("orchestrator.core.search.indexing.indexer.encode", side_effect=Exception("Tokenization error")):
         batches = list(indexer._generate_upsert_batches(fields_to_upsert))
 
     assert batches == []
@@ -292,7 +305,7 @@ def test_field_exceeds_context_window(indexer):
     ]
 
     with (
-        patch("orchestrator.search.indexing.indexer.encode", return_value=[1] * 10000),
+        patch("orchestrator.core.search.indexing.indexer.encode", return_value=[1] * 10000),
         patch.object(indexer, "_get_max_tokens", return_value=8191),
     ):
         batches = list(indexer._generate_upsert_batches(fields_to_upsert))
@@ -310,7 +323,7 @@ def test_embedding_count_mismatch_raises_error(indexer):
     """Test that embedding count mismatch raises an error."""
     with (
         patch(
-            "orchestrator.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
+            "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
             return_value=[[0.1]],
         ),
         pytest.raises(ValueError, match="Embedding mismatch"),

@@ -1,4 +1,4 @@
-# Copyright 2019-2026 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,12 +17,12 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.forms.validators import ProductId, product_id
+from orchestrator.core.forms.validators import ProductId, product_id
 from pydantic_forms.core import FormPage
 from test.unit_tests.helpers import URL_MISSING, URL_PARSING, URL_VALUE
 
 
-@mock.patch("orchestrator.forms.validators.product_id.get_product_by_id")
+@mock.patch("orchestrator.core.forms.validators.product_id.get_product_by_id")
 def test_product_id(mock_get_product_by_id):
     product_x_id = uuid4()
     product_y_id = uuid4()
@@ -75,7 +75,7 @@ def stringify_exceptions(error_list):
     return list_copy
 
 
-@mock.patch("orchestrator.forms.validators.product_id.get_product_by_id")
+@mock.patch("orchestrator.core.forms.validators.product_id.get_product_by_id")
 def test_product_id_nok(mock_get_product_by_id):
     product_x_id = uuid4()
     product_y_id = uuid4()

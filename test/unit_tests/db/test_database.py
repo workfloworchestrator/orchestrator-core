@@ -1,4 +1,4 @@
-# Copyright 2019-2026 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.db.database import (
+from orchestrator.core.db.database import (
     WrappedSession,
     disable_commit,
     transactional,
@@ -51,7 +51,7 @@ def _make_session(disabled: bool = False, custom_logger: MagicMock | None = None
 )
 def test_wrapped_session_commit_respects_disabled_flag(disabled: bool, expect_super_called: bool) -> None:
     session = _make_session(disabled=disabled)
-    with patch("orchestrator.db.database.Session.commit") as mock_super:
+    with patch("orchestrator.core.db.database.Session.commit") as mock_super:
         session.commit()
     assert mock_super.called == expect_super_called
 
@@ -59,7 +59,7 @@ def test_wrapped_session_commit_respects_disabled_flag(disabled: bool, expect_su
 def test_wrapped_session_commit_disabled_logs_warning() -> None:
     mock_log = MagicMock()
     session = _make_session(disabled=True, custom_logger=mock_log)
-    with patch("orchestrator.db.database.Session.commit"):
+    with patch("orchestrator.core.db.database.Session.commit"):
         session.commit()
     mock_log.warning.assert_called_once()
 

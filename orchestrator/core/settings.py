@@ -1,0 +1,212 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import secrets
+import string
+from pathlib import Path
+from typing import Annotated, Literal
+
+from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, Secret, SecretStr
+from pydantic.main import BaseModel
+from pydantic_settings import BaseSettings
+
+from oauth2_lib.settings import oauth2lib_settings
+from orchestrator.core.services.settings_env_variables import expose_settings
+from orchestrator.core.utils.auth import AuthContext, Authorizer
+from pydantic_forms.types import strEnum
+
+SecretRedisDsn = Secret[RedisDsn]
+SecretPostgresDsn = Secret[PostgresDsn]
+
+EMBEDDING_DIMENSION_MIN = 100
+EMBEDDING_DIMENSION_MAX = 2000
+EMBEDDING_DIMENSION_DEFAULT = 1536
+
+EMBEDDING_DIMENSION_FIELD = Annotated[
+    int,
+    Field(
+        ge=EMBEDDING_DIMENSION_MIN,
+        le=EMBEDDING_DIMENSION_MAX,
+        default=EMBEDDING_DIMENSION_DEFAULT,
+        description="Embedding dimension: when embeddings are generated at a higher resolution than this setting, the least significant numbers will be truncated",
+    ),
+]
+
+
+class ExecutorType(strEnum):
+    WORKER = "celery"
+    THREADPOOL = "threadpool"
+
+
+class LifecycleValidationMode(strEnum):
+    STRICT = "strict"
+    LOOSE = "loose"
+    IGNORED = "ignored"
+
+
+class AppSettings(BaseSettings):
+    TESTING: bool = True
+    SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
+    CORS_ORIGINS: str = "*"
+    CORS_ALLOW_METHODS: list[str] = ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS", "HEAD"]
+    CORS_ALLOW_HEADERS: list[str] = ["If-None-Match", "Authorization", "If-Match", "Content-Type"]
+    CORS_EXPOSE_HEADERS: list[str] = [
+        "Cache-Control",
+        "Content-Language",
+        "Content-Length",
+        "Content-Type",
+        "Expires",
+        "Last-Modified",
+        "Pragma",
+        "Content-Range",
+        "ETag",
+    ]
+    ENVIRONMENT: str = "local"
+    EXECUTOR: str = ExecutorType.THREADPOOL
+    WORKFLOWS_SWAGGER_HOST: str = "localhost"
+    WORKFLOWS_GUI_URI: str = "http://localhost:3000"
+    BASE_URL: str = "http://localhost:8080"  # Base URL for the API (used for generating export URLs)
+    DATABASE_URI: SecretPostgresDsn = "postgresql+psycopg://nwa:nwa@localhost/orchestrator-core"  # type: ignore
+    MAX_WORKERS: int = 5
+    WORKER_STATUS_INTERVAL: int = Field(
+        5, description="Interval in seconds for updating worker status count in the background monitor"
+    )
+    MAIL_SERVER: str = "localhost"
+    MAIL_PORT: int = 25
+    MAIL_STARTTLS: bool = False
+    CACHE_URI: SecretRedisDsn = "redis://localhost:6379/0"  # type: ignore
+    REDIS_RETRY_COUNT: NonNegativeInt = Field(
+        2, description="Number of retries for redis connection errors/timeouts, 0 to disable"
+    )  # More info: https://redis-py.readthedocs.io/en/stable/retry.html
+    ENABLE_DISTLOCK_MANAGER: bool = True
+    DISTLOCK_BACKEND: str = "memory"
+    CC_NOC: int = 0
+    SERVICE_NAME: str = "orchestrator-core"
+    LOGGING_HOST: str = "localhost"
+    LOG_LEVEL: str = "DEBUG"
+    SLACK_ENGINE_SETTINGS_HOOK_ENABLED: bool = False
+    SLACK_ENGINE_SETTINGS_HOOK_URL: str = ""
+    TRACING_ENABLED: bool = False
+    TRACE_HOST: str = "http://localhost:4317"
+    TRANSLATIONS_DIR: Path | None = None
+    WEBSOCKET_BROADCASTER_URL: SecretStr = "memory://"  # type: ignore
+    ENABLE_WEBSOCKETS: bool = True
+    DISABLE_INSYNC_CHECK: bool = False
+    DEFAULT_PRODUCT_WORKFLOWS: list[str] = ["modify_note"]
+    SKIP_MODEL_FOR_MIGRATION_DB_DIFF: list[str] = []
+    SERVE_GRAPHQL_UI: str | None = "graphiql"
+    FEDERATION_VERSION: Literal[
+        "2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8", "2.9", "2.10", "2.11"
+    ] = "2.9"
+    DEFAULT_CUSTOMER_FULLNAME: str = "Default::Orchestrator-Core Customer"
+    DEFAULT_CUSTOMER_SHORTCODE: str = "default-cust"
+    DEFAULT_CUSTOMER_IDENTIFIER: str = "59289a57-70fb-4ff5-9c93-10fe67b12434"
+    TASK_LOG_RETENTION_DAYS: int = 3
+    ENABLE_GRAPHQL_DEPRECATION_CHECKER: bool = True
+    ENABLE_GRAPHQL_PROFILING_EXTENSION: bool = False
+    ENABLE_GRAPHQL_STATS_EXTENSION: bool = False
+    ENABLE_PROMETHEUS_METRICS_ENDPOINT: bool = False
+    VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS: bool = False
+    FILTER_BY_MODE: Literal["partial", "exact"] = "exact"
+    EXPOSE_SETTINGS: bool = False
+    EXPOSE_OAUTH_SETTINGS: bool = False
+    LIFECYCLE_VALIDATION_MODE: LifecycleValidationMode = LifecycleValidationMode.LOOSE
+
+
+app_settings = AppSettings()
+
+
+class LLMSettings(BaseSettings):
+    # Embedding settings
+    EMBEDDING_DIMENSION: EMBEDDING_DIMENSION_FIELD = 1536
+    EMBEDDING_MODEL: str = Field(
+        "openai/text-embedding-3-small",
+        pattern=r".+/.+",
+        description="Embedding model in 'vendor/model' format. See litellm docs for supported models.",
+    )
+    EMBEDDING_SAFE_MARGIN_PERCENT: float = Field(
+        0.1, description="Safety margin as a percentage (e.g., 0.1 for 10%) for token budgeting.", ge=0, le=1
+    )
+
+    # The following settings are only needed for local models or system constraints.
+    # By default, they are set conservative assuming a small model like All-MiniLM-L6-V2.
+    EMBEDDING_API_ENABLED: bool = False  # Set to True to use an embedding service
+    EMBEDDING_API_KEY: str = ""  # Change per provider (Azure, etc).
+    EMBEDDING_API_BASE: str | None = None
+    EMBEDDING_ENCODING_FORMAT: str = "float"  # e.g. "float", "base64" — depends on provider
+    EMBEDDING_FALLBACK_MAX_TOKENS: int | None = 512
+    EMBEDDING_MAX_BATCH_SIZE: int | None = None
+
+    # General LiteLLM settings
+    LLM_MAX_RETRIES: int = 3
+    LLM_TIMEOUT: int = 30
+
+    # Toggle creation of extensions
+    LLM_FORCE_EXTENSION_MIGRATION: bool = False
+
+
+llm_settings = LLMSettings()
+
+# Set oauth2lib_settings variables to the same (default) value of settings
+oauth2lib_settings.SERVICE_NAME = app_settings.SERVICE_NAME
+oauth2lib_settings.ENVIRONMENT = app_settings.ENVIRONMENT
+
+if app_settings.EXPOSE_SETTINGS:
+    expose_settings("app_settings", app_settings)
+if app_settings.EXPOSE_OAUTH_SETTINGS:
+    expose_settings("oauth2lib_settings", oauth2lib_settings)
+
+
+class Authorizers(BaseModel):
+    # Callbacks specifically for orchestrator-core callbacks.
+    # Separate from defaults for user-defined workflows and steps.
+    internal_authorize_callback: Authorizer | None = None
+    internal_retry_auth_callback: Authorizer | None = None
+
+    async def authorize_callback(self, context: AuthContext | None) -> bool:
+        """This is the authorize_callback to be registered for workflows defined within orchestrator-core.
+
+        If Authorizers.internal_authorize_callback is None, this function will return True.
+        i.e. any user will be authorized to start all internal workflows.
+        """
+        if self.internal_authorize_callback is None:
+            return True
+        return await self.internal_authorize_callback(context)
+
+    async def retry_auth_callback(self, context: AuthContext | None) -> bool:
+        """This is the retry_auth_callback to be registered for workflows defined within orchestrator-core.
+
+        If Authorizers.internal_retry_auth_callback is None, this function will return True.
+        i.e. any user will be authorized to retry all internal workflows on failure.
+        """
+        if self.internal_retry_auth_callback is None:
+            return True
+        return await self.internal_retry_auth_callback(context)
+
+
+_authorizers = Authorizers()
+
+
+def get_authorizers() -> Authorizers:
+    """Acquire singleton of app authorizers to assign these callbacks at app setup.
+
+    Ensures downstream users can acquire singleton without being tempted to do
+    from orchestrator.core.settings import authorizers
+    authorizers = my_authorizers
+    or
+    from orchestrator.core import settings
+    settings.authorizers = my_authorizers
+
+    ...each of which goes wrong in its own way.
+    """
+    return _authorizers

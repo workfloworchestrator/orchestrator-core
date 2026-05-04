@@ -1,3 +1,16 @@
+# Copyright 2024-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Add example4 product.
 
 Revision ID: 380a5b0c928c
@@ -9,8 +22,14 @@ Create Date: 2024-06-07 10:23:26.761903
 from uuid import uuid4
 
 from alembic import op
-from orchestrator.migrations.helpers import create, create_workflow, delete, delete_workflow, ensure_default_workflows
-from orchestrator.targets import Target
+from orchestrator.core.migrations.helpers import (
+    create,
+    create_workflow,
+    delete,
+    delete_workflow,
+    ensure_default_workflows,
+)
+from orchestrator.core.targets import Target
 
 # revision identifiers, used by Alembic.
 revision = "380a5b0c928c"

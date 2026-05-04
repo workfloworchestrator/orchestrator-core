@@ -1,6 +1,4 @@
-"""Tests for orchestrator.search.filters.definitions: operators_for, value_schema_for, component_operators, and generate_definitions."""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,10 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for orchestrator.core.search.filters.definitions: operators_for, value_schema_for, component_operators, and generate_definitions."""
+
 import pytest
 
-from orchestrator.search.core.types import FieldType, FilterOp, UIType
-from orchestrator.search.filters.definitions import (
+from orchestrator.core.search.core.types import FieldType, FilterOp, UIType
+from orchestrator.core.search.filters.definitions import (
     TypeDefinition,
     component_operators,
     generate_definitions,

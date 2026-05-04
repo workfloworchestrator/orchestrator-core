@@ -13,7 +13,7 @@ A Product Block is a reusable collection of product attributes that lives under 
 
 Breaking this product block down a bit more, we see 3 classes, `NodeBlockInactive`, `NodeBlockProvisioning`, and finally `NodeBlock`. These three classes are built off of each-other, with the lowest level class (`NodeBlockInactive`) based off of the `ProductBlockModel` base class. These classes have a number of attributes, referred to as "Resource Types", which you can [read more about here](./model_attributes.md#resource-types). Looking at this `ProductBlockModel` base class tells us a lot about how to use it in our workflows:
 
-::: orchestrator.domain.base.ProductBlockModel
+::: orchestrator.core.domain.base.ProductBlockModel
     options:
         heading_level: 3
 

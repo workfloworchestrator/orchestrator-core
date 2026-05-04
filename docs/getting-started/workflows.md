@@ -7,7 +7,7 @@ A **workflow** is the combination of:
 - An **initial input form** — used to collect input from the user.
 - A sequence of **workflow steps** — defining the logic to be executed.
 
-For a more detailed explanation, see  
+For a more detailed explanation, see
 👉 [Detailed explanation of workflows](../architecture/application/workflow.md)
 
 ---
@@ -26,15 +26,29 @@ The decorated function must return a chain of steps using the `>>` operator to d
 
 ### Minimal create workflow example
 
-```python
-from orchestrator.workflows.utils import create_workflow
-from orchestrator.workflow import StepList, begin
+=== "`orchestrator-core` ≥ 5.0"
+
+    ```python
+    from orchestrator.core.workflows.utils import create_workflow
+    from orchestrator.core.workflow import StepList, begin
 
 
-@create_workflow(initial_input_form=initial_input_form_generator)
-def create_product_subscription() -> StepList:
-    return begin >> create_subscription
-```
+    @create_workflow(initial_input_form=initial_input_form_generator)
+    def create_product_subscription() -> StepList:
+        return begin >> create_subscription
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.workflows.utils import create_workflow
+    from orchestrator.workflow import StepList, begin
+
+
+    @create_workflow(initial_input_form=initial_input_form_generator)
+    def create_product_subscription() -> StepList:
+        return begin >> create_subscription
+    ```
 
 In this example:
 
@@ -78,7 +92,7 @@ In this step:
 - The return value includes a new key `subscription`, which will be available to the next step in the workflow.
 
 Every workflow starts with the builtin step `init` and ends with the builtin step `done`,
- with an arbitrary list of other builtin steps or custom steps in between.  
+ with an arbitrary list of other builtin steps or custom steps in between.
 the [workflow type] decorators have these included and can use `begin >> your_step`.
 
 Domain models as parameters are subject to special processing.
@@ -114,11 +128,21 @@ Workflow functions must be registered by creating a `LazyWorkflowInstance`, whic
 
 Example — registering the `create_user_group` workflow:
 
-```python
-from orchestrator.workflows import LazyWorkflowInstance
+=== "`orchestrator-core` ≥ 5.0"
 
-LazyWorkflowInstance("workflows.user_group.create_user_group", "create_user_group")
-```
+    ```python
+    from orchestrator.core.workflows import LazyWorkflowInstance
+
+    LazyWorkflowInstance("workflows.user_group.create_user_group", "create_user_group")
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.workflows import LazyWorkflowInstance
+
+    LazyWorkflowInstance("workflows.user_group.create_user_group", "create_user_group")
+    ```
 
 To ensure the workflows are discovered at runtime:
 
@@ -188,18 +212,35 @@ For the migration we will make use of the migration helper functions `create_wor
 
 To add all User and UserGroup workflows in bulk a list of `Dict` is created, for only the UserGroup create workflow the list looks like this:
 
-```python
-from orchestrator.targets import Target
+=== "`orchestrator-core` ≥ 5.0"
 
-new_workflows = [
-    {
-        "name": "create_user_group",
-        "target": Target.CREATE,
-        "description": "Create user group",
-        "product_type": "UserGroup",
-    },
-]
-```
+    ```python
+    from orchestrator.core.targets import Target
+
+    new_workflows = [
+        {
+            "name": "create_user_group",
+            "target": Target.CREATE,
+            "description": "Create user group",
+            "product_type": "UserGroup",
+        },
+    ]
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.targets import Target
+
+    new_workflows = [
+        {
+            "name": "create_user_group",
+            "target": Target.CREATE,
+            "description": "Create user group",
+            "product_type": "UserGroup",
+        },
+    ]
+    ```
 
 This registers the workflow function `create_user_group` as a create workflow for the `UserGroup` product.
 
@@ -207,21 +248,41 @@ Add a list of `Dict`s describing the create, modify and terminate workflows for 
 
 The migration `upgrade` and `downgrade` functions will just loop through the list:
 
-```python
-from orchestrator.migrations.helpers import create_workflow, delete_workflow
+=== "`orchestrator-core` ≥ 5.0"
+
+      ```python
+      from orchestrator.core.migrations.helpers import create_workflow, delete_workflow
 
 
-def upgrade() -> None:
-    conn = op.get_bind()
-    for workflow in new_workflows:
-        create_workflow(conn, workflow)
+      def upgrade() -> None:
+          conn = op.get_bind()
+          for workflow in new_workflows:
+              create_workflow(conn, workflow)
 
 
-def downgrade() -> None:
-    conn = op.get_bind()
-    for workflow in new_workflows:
-        delete_workflow(conn, workflow["name"])
-```
+      def downgrade() -> None:
+          conn = op.get_bind()
+          for workflow in new_workflows:
+              delete_workflow(conn, workflow["name"])
+      ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.migrations.helpers import create_workflow, delete_workflow
+
+
+    def upgrade() -> None:
+        conn = op.get_bind()
+        for workflow in new_workflows:
+            create_workflow(conn, workflow)
+
+
+    def downgrade() -> None:
+        conn = op.get_bind()
+        for workflow in new_workflows:
+            delete_workflow(conn, workflow["name"])
+    ```
 
 Run the migration with the following command:
 
@@ -330,10 +391,10 @@ def load_subscription_info(subscription: NodeEnrollment) -> FormGenerator:
 
 This approach ensures that the workflow has all the necessary context to safely tear down the subscription and associated resources.
 
-[create_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.create_workflow
-[modify_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.modify_workflow
-[terminate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.terminate_workflow
-[validate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.validate_workflow
-[workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflow.workflow
+[create_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.create_workflow
+[modify_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.modify_workflow
+[terminate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.terminate_workflow
+[validate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.validate_workflow
+[workflow]: ../reference-docs/workflows/workflows.md#orchestrator.core.workflow.workflow
 [workflow type]: ../architecture/application/workflow.md#subscription-workflow-types
 [lazy workflow instances]: https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/__init__.py

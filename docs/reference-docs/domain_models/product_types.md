@@ -16,19 +16,19 @@ A Product Type (often referred to simply as a product) is the top level object o
 
 Breaking this product down a bit more, we see 3 classes, `NodeInactive`, `NodeProvisioning`, and finally `Node`. These three classes are built off of each-other, with the lowest level class (`NodeInactive`) based off of the `SubscriptionModel` base class. Each class has two simple attributes, one is the Fixed Input of `Node_Type`, and the other is the root product block `node`. Each one of these classes represents the `Node` product in its various lifecycle states, which are defined here in the `SubscriptionLifecycle` enum:
 
-::: orchestrator.types.SubscriptionLifecycle
+::: orchestrator.core.types.SubscriptionLifecycle
     options:
         heading_level: 3
 
 To fully understand the Subscription Model, it's best to look at the `SubscriptionModel` itself in the code. Here you can also see the various methods available for use on these Subscription instances when you are using them in your workflow code:
 
-::: orchestrator.domain.base.SubscriptionModel
+::: orchestrator.core.domain.base.SubscriptionModel
     options:
         heading_level: 3
 
 It is also quite helpful to see how the Product Type is stored in the database—To see this, look at the `ProductTable` model as it shows all of the attributes stored in the database to store your WFO products:
 
-::: orchestrator.db.models.ProductTable
+::: orchestrator.core.db.models.ProductTable
     options:
         heading_level: 3
 

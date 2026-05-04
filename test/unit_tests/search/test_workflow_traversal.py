@@ -1,6 +1,4 @@
-"""Tests for WorkflowTraverser: basic field extraction from WorkflowTable entities."""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,13 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for WorkflowTraverser: basic field extraction from WorkflowTable entities."""
+
 from datetime import datetime
 from uuid import UUID
 
-from orchestrator.db import WorkflowTable
-from orchestrator.search.core.types import EntityType, FieldType
-from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
-from orchestrator.targets import Target
+from orchestrator.core.db import WorkflowTable
+from orchestrator.core.search.core.types import EntityType, FieldType
+from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+from orchestrator.core.targets import Target
 
 _EXPECTED_FIELDS = {
     "workflow.workflow_id": ("660e8400-e29b-41d4-a716-446655440000", FieldType.UUID),

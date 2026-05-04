@@ -22,7 +22,7 @@ For understanding the various attributes that can live on a domain model, let's 
 
 A resource type is simply an attribute on a product block's python class. These are used to store values on a domain model that are *__mutable__* and will be changed over the lifecycle of the product. These are type-annotated so that they can be safely serialized and de-serialized from the database and so that pydantic can validate what you store on your domain model. When these attributes are added to a domain model, the appropriate database table must be populated via a migration. This can be handled automatically for you by [the `migrate-domain-models` command in the WFO CLI](../cli.md#migrate-domain-models). To better understand how this looks from a database standpoint, you can see the database table that needs to be populated here:
 
-::: orchestrator.db.models.ResourceTypeTable
+::: orchestrator.core.db.models.ResourceTypeTable
     options:
         heading_level: 3
 
@@ -35,7 +35,7 @@ You can see what a generated migration looks like that includes a new resource-t
 
 Finally, when a domain model is populated, the values that you put onto the subscription are stored in the `SubscriptionInstanceValueTable` in the database, as seen here:
 
-::: orchestrator.db.models.SubscriptionInstanceValueTable
+::: orchestrator.core.db.models.SubscriptionInstanceValueTable
     options:
         heading_level: 3
 
@@ -43,7 +43,7 @@ Finally, when a domain model is populated, the values that you put onto the subs
 
 Fixed inputs are an *__immutable__* attribute that will not be changed over the lifecycle of the product. These are attributes with a hard-coded value that live on the root of the Product Type class definition. Fixed Inputs *__only__* live on Product Types, *__not__* Product Blocks. To better understand how this looks from a database standpoint, you can see the database table that needs to be populated here:
 
-::: orchestrator.db.models.FixedInputTable
+::: orchestrator.core.db.models.FixedInputTable
     options:
         heading_level: 3
 

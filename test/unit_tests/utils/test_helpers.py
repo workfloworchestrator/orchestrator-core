@@ -1,4 +1,4 @@
-# Copyright 2022-2023 SURF.
+# Copyright 2022-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,7 +17,7 @@ from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 
 import pytest
 
-from orchestrator.utils.helpers import (
+from orchestrator.core.utils.helpers import (
     camel_to_snake,
     create_filter_string,
     get_target_values,
@@ -181,7 +181,7 @@ def test_map_to_type_no_warning_when_disabled(caplog: pytest.LogCaptureFixture) 
         def __init__(self, x: int) -> None:
             self.x = x
 
-    with caplog.at_level(logging.WARNING, logger="orchestrator.utils.helpers"):
+    with caplog.at_level(logging.WARNING, logger="orchestrator.core.utils.helpers"):
         map_to_type(Foo, {"x": 1, "unknown": 99}, warn_if_missing=False)
     assert caplog.records == []
 

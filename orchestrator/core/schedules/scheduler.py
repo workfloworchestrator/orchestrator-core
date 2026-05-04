@@ -1,0 +1,217 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from contextlib import contextmanager
+from datetime import datetime
+from typing import Any, Generator
+
+from apscheduler.executors.pool import ThreadPoolExecutor
+from apscheduler.jobstores.sqlalchemy import Job, SQLAlchemyJobStore
+from apscheduler.schedulers.background import BackgroundScheduler
+from more_itertools import partition
+from pydantic import BaseModel
+
+from orchestrator.core.db import db
+from orchestrator.core.db.filters import Filter
+from orchestrator.core.db.filters.filters import CallableErrorHandler
+from orchestrator.core.db.sorting import Sort
+from orchestrator.core.db.sorting.sorting import SortOrder
+from orchestrator.core.schedules.service import get_linker_entries_by_schedule_ids
+from orchestrator.core.utils.helpers import camel_to_snake, to_camel
+
+executors = {
+    "default": ThreadPoolExecutor(1),
+}
+job_defaults = {
+    "coalesce": True,
+}
+
+scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
+
+
+@contextmanager
+def get_scheduler_store() -> Generator[SQLAlchemyJobStore, Any, None]:
+    store = SQLAlchemyJobStore(engine=db.engine)
+    try:
+        yield store
+    finally:
+        store.shutdown()
+
+
+def get_all_scheduler_tasks() -> list[Job]:
+    with get_scheduler_store() as scheduler_store:
+        return scheduler_store.get_all_jobs()
+
+
+def get_scheduler_task(job_id: str) -> Job | None:
+    with get_scheduler_store() as scheduler_store:
+        return scheduler_store.lookup_job(job_id)
+
+
+@contextmanager
+def get_scheduler(paused: bool = False) -> Generator[BackgroundScheduler, Any, None]:
+    with get_scheduler_store() as store:
+        try:
+            scheduler.add_jobstore(store)
+        except ValueError:
+            pass
+        scheduler.start(paused=paused)
+
+        try:
+            yield scheduler
+        finally:
+            scheduler.shutdown()
+
+
+class ScheduledTask(BaseModel):
+    id: str
+    workflow_id: str | None = None
+    name: str | None = None
+    next_run_time: datetime | None = None
+    trigger: str
+
+
+scheduled_task_keys = set(ScheduledTask.model_fields.keys())
+scheduled_task_filter_keys = sorted(scheduled_task_keys | {to_camel(key) for key in scheduled_task_keys})
+scheduled_task_sort_keys = scheduled_task_filter_keys
+
+
+def scheduled_task_in_filter(job: ScheduledTask, filter_by: list[Filter]) -> bool:
+    return any(f.value.lower() in getattr(job, camel_to_snake(f.field), "").lower() for f in filter_by)
+
+
+def filter_scheduled_tasks(
+    scheduled_tasks: list[ScheduledTask],
+    handle_filter_error: CallableErrorHandler,
+    filter_by: list[Filter] | None = None,
+) -> list[ScheduledTask]:
+    if not filter_by:
+        return scheduled_tasks
+
+    try:
+        invalid_filters, valid_filters = partition(lambda x: x.field in scheduled_task_filter_keys, filter_by)
+
+        if invalid_list := [item.field for item in invalid_filters]:
+            handle_filter_error(
+                "Invalid filter arguments", invalid_filters=invalid_list, valid_filter_keys=scheduled_task_filter_keys
+            )
+
+        valid_filter_list = list(valid_filters)
+        return [task for task in scheduled_tasks if scheduled_task_in_filter(task, valid_filter_list)]
+    except Exception as e:
+        handle_filter_error(str(e))
+        return []
+
+
+def _invert(value: Any) -> Any:
+    """Invert value for descending order."""
+    if isinstance(value, (int, float)):
+        return -value
+    if isinstance(value, str):
+        return tuple(-ord(c) for c in value)
+    if isinstance(value, datetime):
+        return -value.timestamp()
+    return value
+
+
+def sort_key(sort_field: str, sort_order: SortOrder) -> Any:
+    def _sort_key(task: Any) -> Any:
+        value = getattr(task, camel_to_snake(sort_field), None)
+        if sort_field == "next_run_time" and value is None:
+            return float("inf") if sort_order == SortOrder.ASC else float("-inf")
+        return value if sort_order == SortOrder.ASC else _invert(value)
+
+    return _sort_key
+
+
+def sort_scheduled_tasks(
+    scheduled_tasks: list[ScheduledTask], handle_sort_error: CallableErrorHandler, sort_by: list[Sort] | None = None
+) -> list[ScheduledTask]:
+    if not sort_by:
+        return scheduled_tasks
+
+    try:
+        invalid_sorting, valid_sorting = partition(lambda x: x.field in scheduled_task_sort_keys, sort_by)
+        if invalid_list := [item.field for item in invalid_sorting]:
+            handle_sort_error(
+                "Invalid sort arguments", invalid_sorting=invalid_list, valid_sort_keys=scheduled_task_sort_keys
+            )
+
+        valid_sort_list = list(valid_sorting)
+        return sorted(
+            scheduled_tasks, key=lambda task: tuple(sort_key(sort.field, sort.order)(task) for sort in valid_sort_list)
+        )
+    except Exception as e:
+        handle_sort_error(str(e))
+        return []
+
+
+def default_error_handler(message: str, **context) -> None:  # type: ignore
+    from orchestrator.core.graphql.utils.create_resolver_error_handler import _format_context
+
+    raise ValueError(f"{message} {_format_context(context)}")
+
+
+def enrich_with_workflow_id(
+    scheduled_tasks: list[ScheduledTask],
+    include_decorator_scheduled_tasks: bool = False,
+) -> list[ScheduledTask]:
+    """Adds workflow_id to scheduled tasks via linker table.
+
+    If include_decorator_scheduled_tasks is False, tasks without a workflow_id in the linker table
+    are excluded from the result.
+    """
+    schedule_ids = [task.id for task in scheduled_tasks]
+
+    entries = {
+        str(entry.schedule_id): str(entry.workflow_id) for entry in get_linker_entries_by_schedule_ids(schedule_ids)
+    }
+
+    return [
+        ScheduledTask(
+            id=task.id,
+            workflow_id=workflow_id,
+            name=task.name,
+            next_run_time=task.next_run_time,
+            trigger=str(task.trigger),
+        )
+        for task in scheduled_tasks
+        if (workflow_id := entries.get(task.id)) is not None or include_decorator_scheduled_tasks
+    ]
+
+
+def get_scheduler_tasks(
+    first: int = 10,
+    after: int = 0,
+    filter_by: list[Filter] | None = None,
+    sort_by: list[Sort] | None = None,
+    error_handler: CallableErrorHandler = default_error_handler,
+) -> tuple[list[ScheduledTask], int]:
+    scheduled_tasks = get_all_scheduler_tasks()
+    scheduled_tasks = filter_scheduled_tasks(scheduled_tasks, error_handler, filter_by)
+    scheduled_tasks = sort_scheduled_tasks(scheduled_tasks, error_handler, sort_by)
+    scheduled_tasks = enrich_with_workflow_id(scheduled_tasks)
+
+    total = len(scheduled_tasks)
+    paginated_tasks = scheduled_tasks[after : after + first + 1]
+
+    return [
+        ScheduledTask(
+            id=task.id,
+            workflow_id=task.workflow_id,
+            name=task.name,
+            next_run_time=task.next_run_time,
+            trigger=str(task.trigger),
+        )
+        for task in paginated_tasks
+    ], total

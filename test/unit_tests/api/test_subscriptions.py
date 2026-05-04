@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from http import HTTPStatus
 from ipaddress import IPv4Address
 from unittest import mock
@@ -7,8 +20,8 @@ import pytest
 
 from nwastdlib.url import URL
 from oauth2_lib.fastapi import OIDCUserModel
-from orchestrator.api.helpers import product_block_paths
-from orchestrator.db import (
+from orchestrator.core.api.helpers import product_block_paths
+from orchestrator.core.db import (
     FixedInputTable,
     ProcessSubscriptionTable,
     ProcessTable,
@@ -20,17 +33,17 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.db.models import SubscriptionInstanceRelationTable, WorkflowTable
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.services.subscriptions import (
+from orchestrator.core.db.models import SubscriptionInstanceRelationTable, WorkflowTable
+from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.services.subscriptions import (
     RELATION_RESOURCE_TYPES,
     _generate_etag,
     build_extended_domain_model,
     get_subscription,
     unsync,
 )
-from orchestrator.targets import Target
-from orchestrator.workflow import ProcessStatus, done, init, workflow
+from orchestrator.core.targets import Target
+from orchestrator.core.workflow import ProcessStatus, done, init, workflow
 from test.unit_tests.config import (
     IMS_CIRCUIT_ID,
     INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
@@ -788,7 +801,7 @@ def test_subscription_detail_with_in_use_by_ids_filtered_self(test_client, produ
     assert not response.json()["block"]["sub_block"]["in_use_by_ids"]
 
 
-@mock.patch("orchestrator.api.api_v1.endpoints.subscriptions.get_subscription_dict")
+@mock.patch("orchestrator.core.api.api_v1.endpoints.subscriptions.get_subscription_dict")
 def test_subscription_detail_special_fields(mock_from_redis, test_client):
     """Test that a subscription with special field types is correctly serialized by Pydantic.
 

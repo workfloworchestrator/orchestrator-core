@@ -17,7 +17,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import delete
 
-from orchestrator.db import (
+from orchestrator.core.db import (
     FixedInputTable,
     ProductBlockTable,
     ProductTable,

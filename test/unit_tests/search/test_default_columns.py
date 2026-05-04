@@ -1,6 +1,4 @@
-"""Tests for response_columns: include_columns toggle and end-to-end data flow through search engine."""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,17 +11,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for response_columns: include_columns toggle and end-to-end data flow through search engine."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from orchestrator.api.api_v1.endpoints.search import _perform_search_and_fetch
-from orchestrator.schemas.search_requests import SearchRequest
-from orchestrator.search.core.types import EntityType, SearchMetadata
-from orchestrator.search.query.engine import execute_search
-from orchestrator.search.query.queries import SelectQuery
-
-from .fixtures.helpers import SIMPLE_SUBSCRIPTION_FILTER, make_column_row, make_search_row
+from orchestrator.core.api.api_v1.endpoints.search import _perform_search_and_fetch
+from orchestrator.core.schemas.search_requests import SearchRequest
+from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.query.engine import execute_search
+from orchestrator.core.search.query.queries import SelectQuery
+from test.unit_tests.search.fixtures.helpers import SIMPLE_SUBSCRIPTION_FILTER, make_column_row, make_search_row
 
 # --- include_columns toggle ---
 
@@ -44,8 +43,10 @@ async def test_include_columns_toggle(include_columns, input_cols, expected_cols
     mock_response = MagicMock(results=[], metadata=SearchMetadata.empty())
 
     with (
-        patch("orchestrator.api.api_v1.endpoints.search.engine.execute_search", new_callable=AsyncMock) as mock_execute,
-        patch("orchestrator.api.api_v1.endpoints.search.db"),
+        patch(
+            "orchestrator.core.api.api_v1.endpoints.search.engine.execute_search", new_callable=AsyncMock
+        ) as mock_execute,
+        patch("orchestrator.core.api.api_v1.endpoints.search.db"),
     ):
         mock_execute.return_value = mock_response
         await _perform_search_and_fetch(EntityType.SUBSCRIPTION, request, include_columns=include_columns)

@@ -1,14 +1,27 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import json
 
 from sqlalchemy import select, text
 
-from orchestrator.cli.database import migrate_domain_models
-from orchestrator.db import db
-from orchestrator.db.models import ProductTable, ResourceTypeTable
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.services.resource_types import get_resource_types
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.core.cli.database import migrate_domain_models
+from orchestrator.core.db import db
+from orchestrator.core.db.models import ProductTable, ResourceTypeTable
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.services.resource_types import get_resource_types
+from orchestrator.core.types import SubscriptionLifecycle
 from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 
 

@@ -1,4 +1,4 @@
-# Copyright 2019-2026 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,14 +18,14 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.db import ProcessTable, db
-from orchestrator.workflow import (
+from orchestrator.core.db import ProcessTable, db
+from orchestrator.core.workflow import (
     PredicateContext,
     ProcessStatus,
     RunPredicateFail,
     RunPredicatePass,
 )
-from orchestrator.workflows.predicates import no_uncompleted_instance
+from orchestrator.core.workflows.predicates import no_uncompleted_instance
 
 
 @pytest.fixture

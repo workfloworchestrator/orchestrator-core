@@ -40,20 +40,39 @@ A predicate is any callable that accepts a `PredicateContext` and returns a `Run
 
 ### Simple function
 
-```python
-from orchestrator.workflow import PredicateContext, RunPredicateFail, RunPredicatePass, RunPredicateResult, workflow
+=== "`orchestrator-core` ≥ 5.0"
 
-def is_maintenance_window(context: PredicateContext) -> RunPredicateResult:
-    from datetime import datetime
-    now = datetime.now()
-    if 2 <= now.hour <= 6:
-        return RunPredicatePass()
-    return RunPredicateFail(f"Workflow '{context.workflow_key}' can only run during maintenance window (02:00-06:00)")
+    ```python
+    from orchestrator.core.workflow import PredicateContext, RunPredicateFail, RunPredicatePass, RunPredicateResult, workflow
 
-@workflow("Risky migration", run_predicate=is_maintenance_window)
-def risky_migration():
-    ...
-```
+    def is_maintenance_window(context: PredicateContext) -> RunPredicateResult:
+        from datetime import datetime
+        now = datetime.now()
+        if 2 <= now.hour <= 6:
+            return RunPredicatePass()
+        return RunPredicateFail(f"Workflow '{context.workflow_key}' can only run during maintenance window (02:00-06:00)")
+
+    @workflow("Risky migration", run_predicate=is_maintenance_window)
+    def risky_migration():
+        ...
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from orchestrator.workflow import PredicateContext, RunPredicateFail, RunPredicatePass, RunPredicateResult, workflow
+
+    def is_maintenance_window(context: PredicateContext) -> RunPredicateResult:
+        from datetime import datetime
+        now = datetime.now()
+        if 2 <= now.hour <= 6:
+            return RunPredicatePass()
+        return RunPredicateFail(f"Workflow '{context.workflow_key}' can only run during maintenance window (02:00-06:00)")
+
+    @workflow("Risky migration", run_predicate=is_maintenance_window)
+    def risky_migration():
+        ...
+    ```
 
 ### Lambda
 

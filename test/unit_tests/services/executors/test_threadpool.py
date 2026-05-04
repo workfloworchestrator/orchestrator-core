@@ -1,25 +1,38 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from unittest import mock
 from unittest.mock import MagicMock, call
 from uuid import uuid4
 
 import pytest
 
-from orchestrator.db import ProcessTable
-from orchestrator.services.executors.threadpool import (
+from orchestrator.core.db import ProcessTable
+from orchestrator.core.services.executors.threadpool import (
     _set_process_status_running,
     thread_resume_process,
     thread_start_process,
 )
-from orchestrator.services.processes import RESUME_WORKFLOW_REMOVED_ERROR_MSG, START_WORKFLOW_REMOVED_ERROR_MSG
-from orchestrator.targets import Target
-from orchestrator.workflow import (
+from orchestrator.core.services.processes import RESUME_WORKFLOW_REMOVED_ERROR_MSG, START_WORKFLOW_REMOVED_ERROR_MSG
+from orchestrator.core.targets import Target
+from orchestrator.core.workflow import (
     ProcessStat,
     ProcessStatus,
     Success,
     make_workflow,
     step,
 )
-from orchestrator.workflows.removed_workflow import removed_workflow
+from orchestrator.core.workflows.removed_workflow import removed_workflow
 
 
 def mock_process_data():
@@ -46,7 +59,7 @@ def mock_process_data():
     return pstat, process, wf, mock_update_pstat, initial_state_dict
 
 
-@mock.patch("orchestrator.services.executors.threadpool.db")
+@mock.patch("orchestrator.core.services.executors.threadpool.db")
 def test_set_process_status_running(mock_db):
     mock_process = MagicMock()
     mock_process.last_status = ProcessStatus.CREATED
@@ -62,7 +75,7 @@ def test_set_process_status_running(mock_db):
     mock_db.session.rollback.assert_not_called()
 
 
-@mock.patch("orchestrator.services.executors.threadpool.db")
+@mock.patch("orchestrator.core.services.executors.threadpool.db")
 def test_set_process_status_running_errors_if_already_running(mock_db):
     mock_process = MagicMock()
     mock_process.last_status = ProcessStatus.RUNNING
@@ -78,7 +91,7 @@ def test_set_process_status_running_errors_if_already_running(mock_db):
     mock_db.session.commit.assert_not_called()
 
 
-@mock.patch("orchestrator.services.executors.threadpool.db")
+@mock.patch("orchestrator.core.services.executors.threadpool.db")
 def test_set_process_status_running_errors_if_not_found(mock_db):
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = None
@@ -93,9 +106,9 @@ def test_set_process_status_running_errors_if_not_found(mock_db):
     mock_db.session.commit.assert_not_called()
 
 
-@mock.patch("orchestrator.services.executors.threadpool._set_process_status_running")
-@mock.patch("orchestrator.services.executors.threadpool.retrieve_input_state")
-@mock.patch("orchestrator.services.executors.threadpool._run_process_async")
+@mock.patch("orchestrator.core.services.executors.threadpool._set_process_status_running")
+@mock.patch("orchestrator.core.services.executors.threadpool.retrieve_input_state")
+@mock.patch("orchestrator.core.services.executors.threadpool._run_process_async")
 def test_thread_start_process(
     mock_run_process_async,
     mock_retrieve_input_state,
@@ -129,10 +142,10 @@ def test_thread_start_process_errors_with_removed_workflow():
         thread_start_process(pstat)
 
 
-@mock.patch("orchestrator.services.executors.threadpool._set_process_status_running")
-@mock.patch("orchestrator.services.executors.threadpool.retrieve_input_state")
-@mock.patch("orchestrator.services.executors.threadpool._run_process_async")
-@mock.patch("orchestrator.services.executors.threadpool.load_process")
+@mock.patch("orchestrator.core.services.executors.threadpool._set_process_status_running")
+@mock.patch("orchestrator.core.services.executors.threadpool.retrieve_input_state")
+@mock.patch("orchestrator.core.services.executors.threadpool._run_process_async")
+@mock.patch("orchestrator.core.services.executors.threadpool.load_process")
 def test_thread_resume_process_resumed(
     mock_load_process,
     mock_run_process_async,
@@ -162,10 +175,10 @@ def test_thread_resume_process_resumed(
     assert result == process_id
 
 
-@mock.patch("orchestrator.services.executors.threadpool._set_process_status_running")
-@mock.patch("orchestrator.services.executors.threadpool.retrieve_input_state")
-@mock.patch("orchestrator.services.executors.threadpool._run_process_async")
-@mock.patch("orchestrator.services.executors.threadpool.load_process")
+@mock.patch("orchestrator.core.services.executors.threadpool._set_process_status_running")
+@mock.patch("orchestrator.core.services.executors.threadpool.retrieve_input_state")
+@mock.patch("orchestrator.core.services.executors.threadpool._run_process_async")
+@mock.patch("orchestrator.core.services.executors.threadpool.load_process")
 def test_thread_resume_process_with_created_process_that_is_resumed_by_workflow_engine_stop_and_start(
     mock_load_process,
     mock_run_process_async,
@@ -190,7 +203,7 @@ def test_thread_resume_process_with_created_process_that_is_resumed_by_workflow_
     mock_retrieve_input_state.assert_called_once_with(pstat.process_id, "initial_state", False)
 
 
-@mock.patch("orchestrator.services.executors.threadpool.load_process")
+@mock.patch("orchestrator.core.services.executors.threadpool.load_process")
 def test_thread_resume_process_errors_workflow_removed(mock_load_process):
     pstat = MagicMock(spec=ProcessStat)
     pstat.workflow = removed_workflow

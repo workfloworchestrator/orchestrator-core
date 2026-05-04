@@ -1,10 +1,4 @@
-"""Tests for retriever SQL structure generation and RRF score computation.
-
-Covers StructuredRetriever, FuzzyRetriever, SemanticRetriever, and RrfHybridRetriever
-query building, pagination, metadata, and the compute_rrf_hybrid_score_sql function.
-"""
-
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,22 +11,27 @@ query building, pagination, metadata, and the compute_rrf_hybrid_score_sql funct
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tests for retriever SQL structure generation and RRF score computation.
+
+Covers StructuredRetriever, FuzzyRetriever, SemanticRetriever, and RrfHybridRetriever
+query building, pagination, metadata, and the compute_rrf_hybrid_score_sql function.
+"""
+
 import uuid
 
 import pytest
 from sqlalchemy import literal, select
 from sqlalchemy.dialects import postgresql
 
-from orchestrator.db import db
-from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.query.mixins import OrderDirection, StructuredOrderBy
-from orchestrator.search.retrieval.pagination import PageCursor
-from orchestrator.search.retrieval.retrievers.fuzzy import FuzzyRetriever
-from orchestrator.search.retrieval.retrievers.hybrid import RrfHybridRetriever, compute_rrf_hybrid_score_sql
-from orchestrator.search.retrieval.retrievers.semantic import SemanticRetriever
-from orchestrator.search.retrieval.retrievers.structured import StructuredRetriever
-
-from .snapshot_helper import assert_sql_matches_snapshot
+from orchestrator.core.db import db
+from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.search.query.mixins import OrderDirection, StructuredOrderBy
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
+from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever, compute_rrf_hybrid_score_sql
+from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
+from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
+from test.unit_tests.search.retrieval.retrievers.snapshot_helper import assert_sql_matches_snapshot
 
 
 def compile_query_to_sql(query) -> str:

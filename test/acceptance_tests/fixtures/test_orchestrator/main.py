@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,14 +12,13 @@
 # limitations under the License.
 
 
-from products.test_product import TestProduct
-
-from orchestrator import OrchestratorCore
-from orchestrator.cli.main import app as core_cli
-from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.services.subscriptions import WF_USABLE_MAP
-from orchestrator.settings import AppSettings
-from orchestrator.workflows import LazyWorkflowInstance
+from orchestrator.core import OrchestratorCore
+from orchestrator.core.cli.main import app as core_cli
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.services.subscriptions import WF_USABLE_MAP
+from orchestrator.core.settings import AppSettings
+from orchestrator.core.workflows import LazyWorkflowInstance
+from test.acceptance_tests.fixtures.test_orchestrator.products.test_product import TestProduct
 
 app = OrchestratorCore(base_settings=AppSettings())
 

@@ -33,29 +33,57 @@ user_group_id: user_group_selector() = [str(subscription.user.group.owner_subscr
 Use the skeleton below to create the file `workflows/user/modify_user.py`, and
 note that the `user_group_selector` from the create workflow is being reused:
 
-```python
-from typing import List, Optional
+=== "`orchestrator-core` ≥ 5.0"
 
-from orchestrator.forms import FormPage
-from orchestrator.targets import Target
-from orchestrator.types import FormGenerator, State, UUIDstr
-from orchestrator.workflow import done, init, step, workflow
-from orchestrator.workflows.steps import resync, store_process_subscription, unsync
-from orchestrator.workflows.utils import wrap_modify_initial_input_form
+    ```python
+    from typing import List, Optional
 
-from products.product_types.user import User
-from products.product_types.user_group import UserGroup
-from workflows.user.create_user import user_group_selector
+    from orchestrator.core.forms import FormPage
+    from orchestrator.core.targets import Target
+    from orchestrator.core.types import FormGenerator, State, UUIDstr
+    from orchestrator.core.workflow import done, init, step, workflow
+    from orchestrator.core.workflows.steps import resync, store_process_subscription, unsync
+    from orchestrator.core.workflows.utils import wrap_modify_initial_input_form
 
-# initial input form generator
-...
+    from products.product_types.user import User
+    from products.product_types.user_group import UserGroup
+    from workflows.user.create_user import user_group_selector
 
-# modify user step
-...
+    # initial input form generator
+    ...
 
-# modify user workflow
-...
-```
+    # modify user step
+    ...
+
+    # modify user workflow
+    ...
+    ```
+
+=== "`orchestrator-core` < 5.0"
+
+    ```python
+    from typing import List, Optional
+
+    from orchestrator.forms import FormPage
+    from orchestrator.targets import Target
+    from orchestrator.types import FormGenerator, State, UUIDstr
+    from orchestrator.workflow import done, init, step, workflow
+    from orchestrator.workflows.steps import resync, store_process_subscription, unsync
+    from orchestrator.workflows.utils import wrap_modify_initial_input_form
+
+    from products.product_types.user import User
+    from products.product_types.user_group import UserGroup
+    from workflows.user.create_user import user_group_selector
+
+    # initial input form generator
+    ...
+
+    # modify user step
+    ...
+
+    # modify user workflow
+    ...
+    ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
 modfiy workflow ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/user/modify_user.py)

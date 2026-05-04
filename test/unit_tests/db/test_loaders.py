@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.db.loaders import AttrLoader, get_query_loaders_for_model_paths
+from orchestrator.core.db.loaders import AttrLoader, get_query_loaders_for_model_paths
 
 
 def _make_attr_loader(name: str = "field") -> AttrLoader:
@@ -38,13 +38,13 @@ def _make_joined_loader(result: MagicMock) -> MagicMock:
 @pytest.fixture()
 def _clear_model_loaders():
     """Ensure _MODEL_LOADERS is populated via our mock, not leftover state."""
-    with patch("orchestrator.db.loaders._MODEL_LOADERS", {}):
+    with patch("orchestrator.core.db.loaders._MODEL_LOADERS", {}):
         yield
 
 
 def test_empty_paths_returns_empty(_clear_model_loaders) -> None:
     root = MagicMock()
-    with patch("orchestrator.db.loaders._lookup_attr_loaders", return_value=[]):
+    with patch("orchestrator.core.db.loaders._lookup_attr_loaders", return_value=[]):
         result = get_query_loaders_for_model_paths(root, [])
     assert result == []
 
@@ -54,7 +54,7 @@ def test_single_level_path(_clear_model_loaders) -> None:
     root = MagicMock()
     loader = _make_attr_loader("products")
 
-    with patch("orchestrator.db.loaders._lookup_attr_loaders", return_value=[loader]):
+    with patch("orchestrator.core.db.loaders._lookup_attr_loaders", return_value=[loader]):
         result = get_query_loaders_for_model_paths(root, ["products"])
 
     assert len(result) == 1
@@ -73,7 +73,7 @@ def test_multi_level_path(_clear_model_loaders) -> None:
             return [loader_blocks]
         return []
 
-    with patch("orchestrator.db.loaders._lookup_attr_loaders", side_effect=lookup):
+    with patch("orchestrator.core.db.loaders._lookup_attr_loaders", side_effect=lookup):
         result = get_query_loaders_for_model_paths(root, ["products.blocks"])
 
     assert len(result) == 1
@@ -83,7 +83,7 @@ def test_unknown_field_produces_no_loader(_clear_model_loaders) -> None:
     """A path that doesn't match any relationship is silently skipped."""
     root = MagicMock()
 
-    with patch("orchestrator.db.loaders._lookup_attr_loaders", return_value=[]):
+    with patch("orchestrator.core.db.loaders._lookup_attr_loaders", return_value=[]):
         result = get_query_loaders_for_model_paths(root, ["nonexistent"])
 
     assert result == []
@@ -99,7 +99,7 @@ def test_partial_match_stops_at_unknown_segment(_clear_model_loaders) -> None:
             return [loader_products]
         return []
 
-    with patch("orchestrator.db.loaders._lookup_attr_loaders", side_effect=lookup):
+    with patch("orchestrator.core.db.loaders._lookup_attr_loaders", side_effect=lookup):
         result = get_query_loaders_for_model_paths(root, ["products.nonexistent"])
 
     # Partial match on 'products' still produces a loader
@@ -111,7 +111,7 @@ def test_duplicate_paths_deduplicated(_clear_model_loaders) -> None:
     root = MagicMock()
     loader = _make_attr_loader("products")
 
-    with patch("orchestrator.db.loaders._lookup_attr_loaders", return_value=[loader]):
+    with patch("orchestrator.core.db.loaders._lookup_attr_loaders", return_value=[loader]):
         result = get_query_loaders_for_model_paths(root, ["products", "products"])
 
     assert len(result) == 1
@@ -130,7 +130,7 @@ def test_subpath_filtered_when_longer_path_exists(_clear_model_loaders) -> None:
             return [loader_blocks]
         return []
 
-    with patch("orchestrator.db.loaders._lookup_attr_loaders", side_effect=lookup):
+    with patch("orchestrator.core.db.loaders._lookup_attr_loaders", side_effect=lookup):
         result = get_query_loaders_for_model_paths(root, ["products", "products.blocks"])
 
     # Only the longer path 'products.blocks' should produce a loader
@@ -150,7 +150,7 @@ def test_independent_paths_both_included(_clear_model_loaders) -> None:
             return [loader_workflows]
         return []
 
-    with patch("orchestrator.db.loaders._lookup_attr_loaders", side_effect=lookup):
+    with patch("orchestrator.core.db.loaders._lookup_attr_loaders", side_effect=lookup):
         result = get_query_loaders_for_model_paths(root, ["products", "workflows"])
 
     assert len(result) == 2

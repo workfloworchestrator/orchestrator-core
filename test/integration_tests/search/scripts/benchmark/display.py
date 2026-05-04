@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,7 +17,7 @@ from collections import defaultdict
 from rich.console import Console
 from rich.table import Table
 
-from ...fixtures import TEST_SUBSCRIPTIONS
+from test.integration_tests.search.fixtures import TEST_SUBSCRIPTIONS
 
 console = Console()
 

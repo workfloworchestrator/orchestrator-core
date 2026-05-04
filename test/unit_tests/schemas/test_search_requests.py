@@ -1,4 +1,4 @@
-# Copyright 2019-2026 SURF.
+# Copyright 2019-2026 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,9 +16,9 @@
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.schemas.search_requests import SearchRequest
-from orchestrator.search.core.types import EntityType, RetrieverType
-from orchestrator.search.query.mixins import StructuredOrderBy
+from orchestrator.core.schemas.search_requests import SearchRequest
+from orchestrator.core.search.core.types import EntityType, RetrieverType
+from orchestrator.core.search.query.mixins import StructuredOrderBy
 
 
 @pytest.mark.parametrize(

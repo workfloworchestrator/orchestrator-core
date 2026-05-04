@@ -40,9 +40,9 @@ async def reindex_with_model(model_config, target_dimension: int, console) -> No
     """
     from sqlalchemy import text
 
-    from orchestrator.cli.search.resize_embedding import alter_embedding_column_dimension
-    from orchestrator.db import SubscriptionTable, db
-    from orchestrator.search.core.embedding import EmbeddingIndexer
+    from orchestrator.core.cli.search.resize_embedding import alter_embedding_column_dimension
+    from orchestrator.core.db import SubscriptionTable, db
+    from orchestrator.core.search.core.embedding import EmbeddingIndexer
     from test.integration_tests.search.fixtures import TEST_SUBSCRIPTIONS
     from test.integration_tests.search.helpers import index_subscription
 
@@ -101,13 +101,13 @@ async def benchmark_single_model(
     os.environ["EMBEDDING_DIMENSION"] = str(target_dimension)
 
     # Now safe to import orchestrator modules - they'll use correct dimension
-    from orchestrator.db import db
-    from orchestrator.db.database import Database
-    from orchestrator.search.core.embedding import EmbeddingIndexer
-    from orchestrator.search.core.types import EntityType
-    from orchestrator.search.query import engine
-    from orchestrator.search.query.queries import SelectQuery
-    from orchestrator.settings import llm_settings
+    from orchestrator.core.db import db
+    from orchestrator.core.db.database import Database
+    from orchestrator.core.search.core.embedding import EmbeddingIndexer
+    from orchestrator.core.search.core.types import EntityType
+    from orchestrator.core.search.query import engine
+    from orchestrator.core.search.query.queries import SelectQuery
+    from orchestrator.core.settings import llm_settings
     from test.integration_tests.search.helpers import ModelConfig, load_benchmark_queries
     from test.integration_tests.search.scripts.benchmark.benchmark import BenchmarkResult
     from test.integration_tests.search.scripts.benchmark.metrics import (

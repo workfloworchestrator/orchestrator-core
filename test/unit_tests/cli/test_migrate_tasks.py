@@ -1,3 +1,16 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for CLI migrate_tasks: task discovery, workflow migration, and task registration."""
 
 from types import SimpleNamespace
@@ -5,8 +18,8 @@ from unittest import mock
 
 import pytest
 
-import orchestrator.cli.migrate_tasks as migrate_tasks
-import orchestrator.workflows
+import orchestrator.core.cli.migrate_tasks as migrate_tasks
+import orchestrator.core.workflows
 
 
 def _state():
@@ -164,7 +177,7 @@ def _mock_db_tasks(tasks):
 
 def _mock_all_workflows(workflow_names: list[str]):
     return mock.patch.dict(
-        orchestrator.workflows.ALL_WORKFLOWS,
+        orchestrator.core.workflows.ALL_WORKFLOWS,
         {name: object() for name in workflow_names},
         clear=True,
     )
