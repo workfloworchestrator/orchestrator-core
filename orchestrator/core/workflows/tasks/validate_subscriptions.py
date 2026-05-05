@@ -60,7 +60,6 @@ def validate_subscriptions() -> None:
 
 
 @workflow(
-    "Validate subscriptions",
     target=Target.SYSTEM,
     authorize_callback=authorizers.authorize_callback,
     retry_auth_callback=authorizers.retry_auth_callback,
