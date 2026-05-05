@@ -42,7 +42,7 @@ from orchestrator.core import __version__
 from orchestrator.core.api.api_v1.api import api_router
 from orchestrator.core.api.error_handling import ProblemDetailException
 from orchestrator.core.cli.main import app as cli_app
-from orchestrator.core.db import db, init_database
+from orchestrator.core.db import db, init_database, warn_db_uri_scheme
 from orchestrator.core.db.database import BaseModel, DBSessionMiddleware
 from orchestrator.core.db.listeners import monitor_sqlalchemy_queries
 from orchestrator.core.db.loaders import init_model_loaders
@@ -149,16 +149,7 @@ class OrchestratorCore(FastAPI):
         self.include_router(api_router, prefix="/api")
 
         db_uri = str(base_settings.DATABASE_URI.get_secret_value())
-        if db_uri.startswith("postgresql://"):
-            import warnings
-
-            warnings.warn(
-                "DATABASE_URI uses 'postgresql://' dialect which defaults to psycopg2. "
-                "orchestrator-core has migrated to psycopg3. "
-                "Please update DATABASE_URI to use 'postgresql+psycopg://' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
+        warn_db_uri_scheme(db_uri)
 
         init_database(base_settings)
 
