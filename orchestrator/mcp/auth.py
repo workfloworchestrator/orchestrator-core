@@ -26,7 +26,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from orchestrator.security import http_bearer_extractor
+from orchestrator.core.security import http_bearer_extractor
 
 logger = structlog.get_logger(__name__)
 

@@ -39,22 +39,22 @@ from mcp.types import ToolAnnotations
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db
-from orchestrator.forms import generate_form
+from orchestrator.core.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db
+from orchestrator.core.forms import generate_form
 from orchestrator.mcp.server import mcp
-from orchestrator.services.processes import (
+from orchestrator.core.services.processes import (
     _get_process,
     abort_process,
     load_process,
     resume_process,
     start_process,
 )
-from orchestrator.services.products import get_products
-from orchestrator.services.subscriptions import get_subscription, subscription_workflows
-from orchestrator.services.workflows import get_workflows
-from orchestrator.utils.enrich_process import enrich_process
-from orchestrator.utils.json import json_dumps
-from orchestrator.workflows import get_workflow
+from orchestrator.core.services.products import get_products
+from orchestrator.core.services.subscriptions import get_subscription, subscription_workflows
+from orchestrator.core.services.workflows import get_workflows
+from orchestrator.core.utils.enrich_process import enrich_process
+from orchestrator.core.utils.json import json_dumps
+from orchestrator.core.workflows import get_workflow
 from pydantic_forms.exceptions import FormValidationError
 
 logger = structlog.get_logger(__name__)

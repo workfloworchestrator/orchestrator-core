@@ -55,7 +55,7 @@ def orchestrator_client_with_mcp(database, db_uri):
     from oauth2_lib.settings import oauth2lib_settings
 
     from orchestrator import OrchestratorCore
-    from orchestrator.settings import app_settings
+    from orchestrator.core.settings import app_settings
 
     with (
         patch.multiple(
@@ -70,7 +70,7 @@ def orchestrator_client_with_mcp(database, db_uri):
             # second OrchestratorCore is created alongside the session-level one.
             ENABLE_PROMETHEUS_METRICS_ENDPOINT=False,
         ),
-        patch("orchestrator.llm_settings.llm_settings.MCP_ENABLED", True),
+        patch("orchestrator.core.settings.llm_settings.MCP_ENABLED", True),
     ):
         app = OrchestratorCore(base_settings=app_settings)
         # TestClient context manager drives on_startup / on_shutdown callbacks.
@@ -268,7 +268,7 @@ def test_mcp_not_mounted_when_disabled(database, db_uri):
     from oauth2_lib.settings import oauth2lib_settings
 
     from orchestrator import OrchestratorCore
-    from orchestrator.settings import app_settings
+    from orchestrator.core.settings import app_settings
 
     with (
         patch.multiple(
@@ -284,7 +284,7 @@ def test_mcp_not_mounted_when_disabled(database, db_uri):
             ENABLE_PROMETHEUS_METRICS_ENDPOINT=False,
         ),
         # MCP_ENABLED defaults to False — no patch needed, but be explicit
-        patch("orchestrator.llm_settings.llm_settings.MCP_ENABLED", False),
+        patch("orchestrator.core.settings.llm_settings.MCP_ENABLED", False),
     ):
         app = OrchestratorCore(base_settings=app_settings)
         # TestClient context manager drives on_startup / on_shutdown callbacks.
