@@ -47,6 +47,7 @@ from orchestrator.core.db import (
     SubscriptionMetadataTable,
     WorkflowTable,
     db,
+    warn_db_uri_scheme,
 )
 from orchestrator.core.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.core.db.models import WorkflowApschedulerJob
@@ -218,6 +219,7 @@ def make_db_uri(worker_id):
     else:
         print(f"Start with default DATABASE_URI {DEFAULT_DATABASE_URI!r}")
         database_uri = DEFAULT_DATABASE_URI
+    warn_db_uri_scheme(database_uri)
 
     if worker_id == "master":
         # pytest is being run without any workers
