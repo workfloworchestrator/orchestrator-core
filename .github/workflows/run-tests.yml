@@ -107,13 +107,13 @@ jobs:
           flags: integration
 
   celery-integration-tests:
-    name: Celery integration tests (gate)
+    name: Celery integration tests
     needs: unit-tests
     uses: ./.github/workflows/run-pytest-celery.yml
     secrets: inherit
 
   llm-search-integration-tests:
-    name: LLM/embedding search integration tests (gate)
+    name: LLM/embedding search integration tests
     needs: unit-tests
     # Skip on forks: the LLM workflow needs CODECOV_TOKEN and is also typically
     # gated by upstream LLM credentials managed in the source repo.
