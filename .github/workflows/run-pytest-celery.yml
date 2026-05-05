@@ -1,5 +1,5 @@
 # Celery integration tests. Reusable only — invoked from
-# ``run-integration-tests.yml`` after the unit-test gate passes, so the unit
+# ``run-tests.yml`` after the unit-test gate passes, so the unit
 # matrix runs at most once per PR.
 
 name: Pytest Celery Tests

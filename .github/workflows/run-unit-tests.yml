@@ -1,7 +1,7 @@
 name: Unit tests
 
 # Pure unit tests: no Postgres, no Redis, no Docker. Reusable workflow only —
-# this is invoked from ``run-integration-tests.yml`` as the first job (gate)
+# this is invoked from ``run-tests.yml`` as the first job (gate)
 # so that PRs and pushes run the unit suite exactly once per Python version.
 # It can also be triggered manually via the GitHub UI.
 
