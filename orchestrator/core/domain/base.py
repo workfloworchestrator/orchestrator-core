@@ -1322,7 +1322,7 @@ class SubscriptionModel(DomainModel):
     @classmethod
     def from_other_product(
         cls: type[S],
-        old_instantiation: S,
+        old_instantiation: "SubscriptionModel",
         new_product_id: UUID | str,
         new_root: tuple[str, ProductBlockModel] | None = None,
     ) -> S:
