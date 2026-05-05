@@ -19,7 +19,7 @@ from pydantic import ValidationError
 
 from orchestrator.core.forms.validators import ProductId, product_id
 from pydantic_forms.core import FormPage
-from test.unit_tests.helpers import URL_MISSING, URL_PARSING, URL_VALUE
+from test.helpers import URL_MISSING, URL_PARSING, URL_VALUE
 
 
 @mock.patch("orchestrator.core.forms.validators.product_id.get_product_by_id")

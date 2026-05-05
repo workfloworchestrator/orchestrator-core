@@ -13,7 +13,6 @@
 
 """Tests for DistLockManager (backend selection, connect/disconnect idempotency) and WrappedDistLockManager (delegation, disabled mode, update)."""
 
-import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -80,13 +79,6 @@ async def test_disconnect_redis_skipped_when_not_connected() -> None:
 
 
 # --- WrappedDistLockManager ---
-
-
-def test_wrapped_no_wrappee_returns_none_for_method(caplog: pytest.LogCaptureFixture) -> None:
-    wrapped = WrappedDistLockManager()
-    with caplog.at_level(logging.WARNING, logger="orchestrator.core.distlock"):
-        assert wrapped.connect_redis is None
-    assert "No DistLockManager configured" in caplog.text
 
 
 def test_wrapped_no_wrappee_raises_for_property() -> None:

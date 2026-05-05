@@ -19,27 +19,8 @@ from orchestrator.core.api.helpers import (
     add_subscription_search_query_filter,
     get_in,
     getattr_in,
-    product_block_paths,
     update_in,
 )
-
-
-def test_product_block_paths(sub_list_union_overlap_subscription_1):
-    paths = product_block_paths(sub_list_union_overlap_subscription_1)
-    assert paths == [
-        "product",
-        "test_block.sub_block",
-        "test_block.sub_block_2",
-        "test_block.sub_block_list.0",
-        "test_block",
-        "list_union_blocks.0",
-        "list_union_blocks.1",
-    ]
-
-    # Check that SubscriptionModel and subscription dict work the same
-    assert product_block_paths(sub_list_union_overlap_subscription_1) == product_block_paths(
-        sub_list_union_overlap_subscription_1.model_dump()
-    )
 
 
 class BasicObject:

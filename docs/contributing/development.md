@@ -26,33 +26,116 @@ More details in [About UV](#about-uv).
 
 ## Running tests
 
-Run the unit-test suite to verify a correct setup.
+The test suite is split across four pytest invocations. See the
+[testing guide](../guides/testing.md) for the full picture; the short version:
 
-### Step 1 - Create a database
+| Layer | Command | Needs Postgres / Redis? |
+|-------|---------|-------------------------|
+| Unit tests + doctests | `uv run pytest` | No |
+| Standard integration tests | `uv run pytest test/integration_tests --ignore=test/integration_tests/test_with_pytest_celery.py --ignore=test/integration_tests/search/llm` | Yes (Postgres + Redis) |
+| Celery integration tests | `uv run pytest test/integration_tests/test_with_pytest_celery.py` | Yes (Postgres + Redis) |
+| LLM/embedding search tests | `uv run pytest test/integration_tests/search/llm` | Yes (Postgres + Redis + LLM keys) |
 
-Setup a postgres database (see [Getting Started](../getting-started/base.md#step-2-setup-the-database)).
+The Celery and LLM suites run as their own GitHub Actions workflows
+(`run-pytest-celery.yml`, `run-llm-integration-tests.yml`). The "standard"
+command above is what `run-tests.yml` runs.
 
-Create a database and user:
+`uv run pytest test/integration_tests` (no `--ignore` flags) runs the union of
+all three integration suites; only use it if you specifically want to exercise
+everything in one go and have all prerequisites in place.
 
-``` shell
-createuser -sP nwa
-createdb orchestrator-core-test -O nwa
+### Run unit tests (no services required)
+
+```shell
+uv run pytest
 ```
 
-Set the password to something simple, like `nwa`.
+This runs every test under `test/unit_tests/` plus the doctests in
+`orchestrator/core`. No Postgres, no Redis, no Docker — fast feedback for
+day-to-day development.
 
-### Step 2 - Run tests
+### Run integration tests
 
-Ensure the application can reach the database:
-```
+Integration tests need Postgres and Redis. Pick whichever provisioning style
+fits your workflow.
+
+**Pick the right `CACHE_URI` for your Redis setup:**
+
+| Setup | `CACHE_URI` |
+|-------|-------------|
+| Manually started Redis with no AUTH (e.g. `brew services start redis`, GitHub Actions service container) | `redis://localhost:6379/0` |
+| Bundled `docker/pytest-support/docker-compose.yaml` (Redis with password `nwa`) | `redis://:nwa@localhost:6379/0` |
+| Ephemeral testcontainers (auto-set; you don't write this URI) | _generated_ |
+
+The Postgres URI in all the examples below assumes you started Postgres with
+the conventional `nwa` / `nwa` credentials. Adjust if yours differ.
+
+**Option A — Bring your own services (env vars, passwordless Redis):**
+
+```shell
 export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
+export CACHE_URI=redis://localhost:6379/0
+uv run pytest test/integration_tests \
+  --ignore=test/integration_tests/test_with_pytest_celery.py \
+  --ignore=test/integration_tests/search/llm
 ```
 
-``` shell
-uv run pytest test/unit_tests
+This matches CI. It is also what `example-orchestrator` and other downstream
+consumers rely on, so the env-var contract is supported.
+
+**Option B — Use the bundled docker-compose stack (Redis password `nwa`):**
+
+```shell
+docker compose -f docker/pytest-support/docker-compose.yaml up -d
+export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
+export CACHE_URI=redis://:nwa@localhost:6379/0   # note the ':nwa@' password
+uv run pytest test/integration_tests \
+  --ignore=test/integration_tests/test_with_pytest_celery.py \
+  --ignore=test/integration_tests/search/llm
 ```
 
-If you do not encounter any failures in the test, you should be able to develop features in the orchestrator-core.
+**Option C — Let testcontainers start ephemeral services:**
+
+If `DATABASE_URI` and `CACHE_URI` are *both unset*, the test runner starts a
+disposable Postgres and Redis container for the test session via
+[testcontainers](https://testcontainers-python.readthedocs.io/) and removes
+them on exit. Requires Docker to be running.
+
+```shell
+unset DATABASE_URI CACHE_URI
+uv run pytest test/integration_tests \
+  --ignore=test/integration_tests/test_with_pytest_celery.py \
+  --ignore=test/integration_tests/search/llm
+```
+
+If Docker is unreachable and no env vars are set, the runner aborts with a
+clear message pointing at the three options above.
+
+### Run the Celery integration tests
+
+The Celery suite uses the same `CACHE_URI` rules — the snippet below assumes
+passwordless Redis. For the docker-compose stack use
+`CACHE_URI=redis://:nwa@localhost:6379/0` instead.
+
+```shell
+export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
+export CACHE_URI=redis://localhost:6379/0
+uv run pytest test/integration_tests/test_with_pytest_celery.py
+```
+
+### Run the LLM/embedding search tests
+
+Same `CACHE_URI` rules as above. The snippet assumes passwordless Redis.
+
+```shell
+export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
+export CACHE_URI=redis://localhost:6379/0
+# plus the LLM credentials documented in test/integration_tests/search/llm/README.md
+uv run pytest test/integration_tests/search/llm
+```
+
+If you do not encounter any failures, you should be able to develop features
+in the orchestrator-core.
 
 
 ## Adding to the documentation

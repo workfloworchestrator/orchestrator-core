@@ -22,7 +22,6 @@ from orchestrator.core.workflows.utils import (
     create_workflow,
     ensure_provisioning_status,
     modify_workflow,
-    obsolete_step,
     reconcile_workflow,
     task,
     terminate_workflow,
@@ -165,11 +164,6 @@ def test_empty_description_does_not_emit_warning(decorator_factory):
     description_warnings = [w for w in warnings_record if issubclass(w.category, DeprecationWarning)]
     assert description_warnings == []
     assert test_workflow.description == ""
-
-
-def test_obsolete_step():
-    result = obsolete_step({})
-    assert result.issuccess()
 
 
 def test_ensure_provisioning_status():

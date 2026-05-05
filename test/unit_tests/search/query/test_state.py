@@ -42,11 +42,18 @@ def _make_mock_search_query(
 
 
 def _patch_db_first(return_value):
-    """Return a context manager that patches the db query chain used by QueryState.load_from_id."""
-    return patch(
-        "orchestrator.core.search.query.state.db.session.query",
-        return_value=MagicMock(filter_by=MagicMock(return_value=MagicMock(first=MagicMock(return_value=return_value)))),
-    )
+    """Return a context manager that patches the db query chain used by QueryState.load_from_id.
+
+    Replaces the module-level ``db`` symbol with a ``MagicMock`` whose chain
+    ``session.query(...).filter_by(...).first()`` returns ``return_value``.
+    Patching the symbol itself (rather than ``db.session.query``) avoids
+    resolving the ``WrappedDatabase`` ``__getattr__`` chain, which raises
+    ``RuntimeWarning`` when no real database is configured. This keeps the
+    test pure and runnable under the unit conftest.
+    """
+    mock_db = MagicMock()
+    mock_db.session.query.return_value.filter_by.return_value.first.return_value = return_value
+    return patch("orchestrator.core.search.query.state.db", new=mock_db)
 
 
 # =============================================================================
