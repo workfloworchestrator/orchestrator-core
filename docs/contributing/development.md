@@ -38,7 +38,7 @@ The test suite is split across four pytest invocations. See the
 
 The Celery and LLM suites run as their own GitHub Actions workflows
 (`run-pytest-celery.yml`, `run-llm-integration-tests.yml`). The "standard"
-command above is what `run-integration-tests.yml` runs.
+command above is what `run-tests.yml` runs.
 
 `uv run pytest test/integration_tests` (no `--ignore` flags) runs the union of
 all three integration suites; only use it if you specifically want to exercise

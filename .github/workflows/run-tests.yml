@@ -1,4 +1,4 @@
-name: Integration tests
+name: Tests
 
 # Single PR/push entry point for the entire test suite:
 #   1) ``unit-tests`` runs the reusable ``run-unit-tests.yml`` workflow across
