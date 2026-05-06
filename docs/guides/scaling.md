@@ -152,7 +152,7 @@ Below is an example implementation of a Celery worker with Websocket support, wh
     from uuid import UUID
 
     from celery import Celery
-    from celery.signals import worker_shutting_down
+    from celery.signals import task_postrun, worker_shutting_down
     from nwastdlib.debugging import start_debugger
     from orchestrator.core.db import init_database
     from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
@@ -171,6 +171,17 @@ Below is an example implementation of a Celery worker with Websocket support, wh
 
     logger = get_logger(__name__)
 
+    @task_postrun.connect
+    def cleanup_session_after_task(**kwargs: Any) -> None:
+        """Prevent idle-in-transaction connections after Celery task completion.
+
+        psycopg3 autobegin starts implicit transactions on any query. If code
+        executes queries outside a transactional() context (e.g., during model
+        serialization after a workflow step), those transactions are never
+        committed/rolled back. This handler ensures cleanup after every task.
+        """
+        db.session.rollback()
+        db.scoped_session.remove()
 
     def process_broadcast_fn(process_id: UUID) -> None:
         # Catch all exceptions as broadcasting failure is noncritical to workflow completion
@@ -199,6 +210,13 @@ Below is an example implementation of a Celery worker with Websocket support, wh
             # Load the product and workflow modules to register them with the application
             import your_orch.products
             import your_orch.workflows
+
+            # If you have custom SQLAlchemy models, register them here
+            from orchestrator.core.app import OrchestratorCore
+            from orchestrator.core.db import SubscriptionTable
+            from your_orch.db.models import MySubscriptionTable
+
+            OrchestratorCore.register_table(SubscriptionTable, MySubscriptionTable)
 
 
         def close(self) -> None:
