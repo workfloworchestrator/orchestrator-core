@@ -13,12 +13,7 @@
 
 """Unit tests for MCPAuthMiddleware.
 
-Covers our auth middleware's decision logic:
-- Missing/invalid token: returns 401 with JSON error
-- authorized=None (auth disabled): passes through, user stored in scope
-- authorized=True: passes through, user stored in scope
-- authorized=False: returns 403 with JSON error
-- authorize() raises: returns 403 with JSON error
+Covers our auth middleware's decision logic.
 """
 
 import json
@@ -28,9 +23,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-pytest.importorskip("fastmcp", reason="fastmcp not installed; skipping MCP tests")
-
-from orchestrator.mcp.auth import MCPAuthMiddleware  # noqa: E402
+from orchestrator.mcp.auth import MCPAuthMiddleware
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
