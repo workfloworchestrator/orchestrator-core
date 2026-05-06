@@ -34,6 +34,7 @@ from typing import Any
 from uuid import UUID
 
 import structlog
+from fastapi import HTTPException
 from mcp.types import ToolAnnotations
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
@@ -76,8 +77,6 @@ _WRITE = ToolAnnotations(
     idempotentHint=False,
     openWorldHint=False,
 )
-
-
 def _error_response(error_type: str, message: str, details: Any = None) -> str:
     """Create a standardized error response string."""
     response: dict[str, Any] = {"error": error_type, "message": message}
@@ -99,8 +98,8 @@ def list_workflows(
     Use this to discover what workflows are available before starting one.
 
     Args:
-        target: Filter by workflow target. Valid values: "create", "modify",
-            "terminate", "system", "validate", "reconcile". Leave empty for all.
+        target: Filter by workflow target. Valid values: "CREATE", "MODIFY",
+            "TERMINATE", "SYSTEM", "VALIDATE", "RECONCILE" (case-insensitive). Leave empty for all.
         is_task: Filter by whether the workflow is a background task (True)
             or a user-facing workflow (False). Leave empty for all.
 
@@ -124,7 +123,6 @@ def list_workflows(
                     "is_task": wf.is_task,
                     "description": wf.description,
                     "created_at": str(wf.created_at) if wf.created_at else None,
-                    "steps": [{"name": s.name} for s in (wf.steps or [])],
                 }
                 for wf in workflows
             ]
@@ -317,8 +315,8 @@ def resume_workflow_process(
             return json_dumps({"process_id": process_id, "status": "resumed"})
     except Exception as e:
         logger.error("resume_workflow_process failed", process_id=process_id, error=str(e))
-        if hasattr(e, "detail"):
-            return _error_response("validation_error", str(e), getattr(e, "detail", None))
+        if isinstance(e, HTTPException):
+            return _error_response("validation_error", str(e), e.detail)
         return _error_response("resume_error", str(e))
 
 
@@ -383,7 +381,6 @@ def get_process_status(process_id: str) -> str:
                 "created_by": process.created_by,
                 "is_task": process.is_task,
                 "failed_reason": process.failed_reason,
-                "traceback": process.traceback,
             }
 
             # Include form schema if process is suspended
@@ -467,14 +464,14 @@ def list_recent_processes(
 
 @mcp.tool(annotations=_READ_ONLY)
 def get_subscription_details(subscription_id: str) -> str:
-    """Get detailed information about a subscription including its product blocks.
+    """Get detailed information about a subscription and its associated product.
 
     Args:
         subscription_id: UUID of the subscription.
 
     Returns:
         JSON with subscription details: subscription_id, description, status,
-        insync, product name/type, customer_id, start_date, and product block tree.
+        insync, product name/type, customer_id, start_date, end_date, and note.
     """
     try:
         with db.database_scope():
