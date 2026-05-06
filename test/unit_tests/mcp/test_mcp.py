@@ -46,7 +46,7 @@ def orchestrator_client_with_mcp(database, db_uri):
     """
     from oauth2_lib.settings import oauth2lib_settings
 
-    from orchestrator.core.app import OrchestratorCore
+    from orchestrator.core import OrchestratorCore
     from orchestrator.core.settings import app_settings
 
     with (
@@ -262,7 +262,7 @@ def test_mcp_not_mounted_when_disabled(database, db_uri):
     """When MCP_ENABLED=False (default), /mcp/ should return 404."""
     from oauth2_lib.settings import oauth2lib_settings
 
-    from orchestrator import OrchestratorCore
+    from orchestrator.core import OrchestratorCore
     from orchestrator.core.settings import app_settings
 
     with (
