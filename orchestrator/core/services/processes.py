@@ -407,7 +407,7 @@ def _db_log_process_ex(process_id: UUID, ex: Exception) -> None:
         raise
 
 
-def get_process(process_id: UUID) -> ProcessTable:
+def _get_process(process_id: UUID) -> ProcessTable:
     process = db.session.get(
         ProcessTable,
         process_id,
@@ -742,7 +742,7 @@ async def _async_resume_processes(
         try:
             for _proc in processes:
                 try:
-                    process = get_process(_proc.process_id)
+                    process = _get_process(_proc.process_id)
                     if process.last_status == ProcessStatus.RUNNING:
                         # Process has been started by something else in the meantime
                         logger.info("Cannot resume a running process", process_id=_proc.process_id)
