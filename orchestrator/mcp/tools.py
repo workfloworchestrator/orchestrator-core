@@ -43,7 +43,7 @@ from orchestrator.core.forms import generate_form
 from orchestrator.mcp.server import mcp
 from orchestrator.core.services.processes import (
     abort_process,
-    get_process,
+    _get_process,
     load_process,
     resume_process,
     start_process,
@@ -309,7 +309,7 @@ def resume_workflow_process(
     """
     try:
         with db.database_scope():
-            process = get_process(UUID(process_id))
+            process = _get_process(UUID(process_id))
             resume_process(
                 process,
                 user_inputs=form_inputs,
@@ -343,7 +343,7 @@ def abort_workflow_process(
     """
     try:
         with db.database_scope():
-            process = get_process(UUID(process_id))
+            process = _get_process(UUID(process_id))
             abort_process(process, user)
             return json_dumps({"process_id": process_id, "status": "aborted"})
     except Exception as e:
@@ -371,7 +371,7 @@ def get_process_status(process_id: str) -> str:
     """
     try:
         with db.database_scope():
-            process = get_process(UUID(process_id))
+            process = _get_process(UUID(process_id))
             pstat = load_process(process)
             enriched = enrich_process(process, pstat)
 
