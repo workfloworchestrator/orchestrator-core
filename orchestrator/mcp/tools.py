@@ -114,7 +114,7 @@ def list_workflows(
                 filters["target"] = target.upper()
             if is_task is not None:
                 filters["is_task"] = is_task
-            workflows = get_workflows(filters=filters if filters else None, include_steps=True)
+            workflows = get_workflows(filters=filters if filters else None, include_steps=False)
             result = [
                 {
                     "workflow_id": str(wf.workflow_id),
