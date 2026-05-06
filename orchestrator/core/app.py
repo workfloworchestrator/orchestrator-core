@@ -187,6 +187,18 @@ class OrchestratorCore(FastAPI):
 
         self.include_router(api_router, prefix="/api")
 
+        db_uri = str(base_settings.DATABASE_URI.get_secret_value())
+        if db_uri.startswith("postgresql://"):
+            import warnings
+
+            warnings.warn(
+                "DATABASE_URI uses 'postgresql://' dialect which defaults to psycopg2. "
+                "orchestrator-core has migrated to psycopg3. "
+                "Please update DATABASE_URI to use 'postgresql+psycopg://' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         if mcp_app is not None:
             self.mount("/mcp", mcp_app)
             logger.info("MCP server mounted at /mcp")
