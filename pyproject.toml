@@ -49,6 +49,7 @@ dependencies = [
     "more-itertools~=11.0.1",
     "nwa-stdlib~=1.11.0",
     "oauth2-lib>=2.6.1",
+    "numpy>=1.24",
     "orjson==3.11.8",
     "pgvector>=0.4.1",
     "prometheus-client==0.25.0",
@@ -82,6 +83,7 @@ Source = "https://github.com/workfloworchestrator/orchestrator-core"
 celery = [
     "celery~=5.6.0",
 ]
+mcp = ["fastmcp>=2.0.0"]
 
 # Local dependencies for development
 [dependency-groups]

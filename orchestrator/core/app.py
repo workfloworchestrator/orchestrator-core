@@ -16,7 +16,9 @@ This module contains the main `OrchestratorCore` class for the `FastAPI` backend
 provides the ability to run the CLI.
 """
 
+import asyncio
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from typing import Any, cast
 
 import sentry_sdk
@@ -57,7 +59,7 @@ from orchestrator.core.log_config import LOGGER_OVERRIDES
 from orchestrator.core.metrics import ORCHESTRATOR_METRICS_REGISTRY, initialize_default_metrics
 from orchestrator.core.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.core.services.worker_status_monitor import get_worker_status_monitor
-from orchestrator.core.settings import AppSettings, ExecutorType, app_settings, get_authorizers
+from orchestrator.core.settings import AppSettings, ExecutorType, app_settings, get_authorizers, llm_settings
 from orchestrator.core.utils.auth import Authorizer
 from orchestrator.core.version import GIT_COMMIT_HASH
 from orchestrator.core.websocket import init_websocket_manager
@@ -133,6 +135,44 @@ class OrchestratorCore(FastAPI):
             startup_functions.append(self.broadcast_thread.start)
             shutdown_functions.append(self.broadcast_thread.stop)
 
+        init_database(base_settings)
+
+        mcp_app = None
+        if llm_settings.MCP_ENABLED:
+            try:
+                from orchestrator.mcp import create_mcp_app
+
+                mcp_app = create_mcp_app(auth_manager=self.auth_manager)
+            except ImportError as e:
+                logger.error(
+                    "Unable to create MCP server. Please install MCP dependencies: `pip install orchestrator-core[mcp]`",
+                    error=str(e),
+                )
+                raise
+
+        # Build a lifespan context manager so that mounted sub-app lifespans
+        # (e.g. FastMCP's StreamableHTTPSessionManager) are properly initialised.
+        # Starlette only forwards lifespan to mounted sub-apps when the parent
+        # uses a lifespan context manager — on_startup/on_shutdown callbacks are
+        # NOT forwarded.
+        _mcp_app = mcp_app  # capture for closure
+
+        @asynccontextmanager
+        async def _lifespan(app: FastAPI):  # type: ignore[type-arg]
+            for fn in startup_functions:
+                result = fn()
+                if asyncio.iscoroutine(result):
+                    await result
+            if _mcp_app is not None:
+                async with _mcp_app.lifespan(_mcp_app):
+                    yield
+            else:
+                yield
+            for fn in reversed(shutdown_functions):
+                result = fn()
+                if asyncio.iscoroutine(result):
+                    await result
+
         super().__init__(
             title=title,
             description=description,
@@ -141,8 +181,7 @@ class OrchestratorCore(FastAPI):
             redoc_url=redoc_url,
             version=version,
             default_response_class=default_response_class,
-            on_startup=startup_functions,
-            on_shutdown=shutdown_functions,
+            lifespan=_lifespan,
             **kwargs,
         )
 
@@ -160,7 +199,9 @@ class OrchestratorCore(FastAPI):
                 stacklevel=2,
             )
 
-        init_database(base_settings)
+        if mcp_app is not None:
+            self.mount("/mcp", mcp_app)
+            logger.info("MCP server mounted at /mcp")
 
         self.add_middleware(ClearStructlogContextASGIMiddleware)
         self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET.get_secret_value())
@@ -186,6 +227,7 @@ class OrchestratorCore(FastAPI):
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
         def _index() -> str:
             return "Orchestrator Core"
+
 
     def add_sentry(
         self,

@@ -84,6 +84,7 @@ from decimal import Decimal
 from typing import Any, Union
 from uuid import UUID
 
+import numpy as np
 import orjson as json
 import rapidjson as rjson
 import structlog
@@ -119,8 +120,12 @@ def json_dumps(obj: PY_JSON_TYPES, indent: bool = False, sort_keys: bool = False
         raise e
 
 
-def to_serializable(o: Any) -> Any:
+def to_serializable(o: Any) -> Any:  # noqa: C901
     """Convert an object into an object that the JSON encode can serialize.
+
+    Handles the standard orchestrator types (UUID, datetime, dataclasses,
+    pydantic models, sets, IP addresses) as well as NumPy scalar and array
+    types (numpy is an optional dependency).
 
     Args:
         o: Object to convert.
@@ -151,6 +156,14 @@ def to_serializable(o: Any) -> Any:
         return o.model_dump()
     if isinstance(o, set):
         return list(o)
+    if isinstance(o, np.integer):
+        return int(o)
+    if isinstance(o, np.floating):
+        return float(o)
+    if isinstance(o, np.bool_):
+        return bool(o)
+    if isinstance(o, np.ndarray):
+        return o.tolist()
     raise TypeError(f"Could not serialize object of type {o.__class__.__name__} to JSON")
 
 

@@ -12,11 +12,13 @@
 # limitations under the License.
 
 import ipaddress
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID
 
+import numpy as np
 import pytest
 import pytz
 from pydantic import BaseModel
@@ -117,3 +119,50 @@ def test_orchestrator_base_serializer_recursive():
         "nested_bar": {"baz": datetime(2024, 11, 1, 1, 1).timestamp()},
         "bing": 1,
     }
+
+
+@pytest.mark.parametrize("value,expected", [
+    (np.int64(42), 42),
+    (np.int32(7), 7),
+])
+def test_numpy_integer_to_int(value, expected):
+    result = to_serializable(value)
+    assert result == expected
+    assert type(result) is int
+
+
+@pytest.mark.parametrize("value,expected", [
+    (np.float64(3.14), 3.14),
+    (np.float32(2.5), pytest.approx(2.5, rel=1e-5)),
+])
+def test_numpy_floating_to_float(value, expected):
+    result = to_serializable(value)
+    assert result == expected
+    assert type(result) is float
+
+
+@pytest.mark.parametrize("value,expected", [
+    (np.bool_(True), True),
+    (np.bool_(False), False),
+])
+def test_numpy_bool_to_bool(value, expected):
+    result = to_serializable(value)
+    assert result == expected
+    assert type(result) is bool
+
+
+def test_numpy_ndarray_to_list():
+    arr = np.array([1, 2, 3])
+    result = to_serializable(arr)
+    assert result == [1, 2, 3]
+    assert type(result) is list
+
+
+def test_numpy_round_trip_json_dumps():
+    data = {"count": np.int64(42), "values": np.array([1.0, 2.0])}
+    json_str = json_dumps(data)
+    parsed = json.loads(json_str)
+    assert parsed["count"] == 42
+    assert type(parsed["count"]) is int
+    assert parsed["values"] == [1.0, 2.0]
+    assert type(parsed["values"]) is list

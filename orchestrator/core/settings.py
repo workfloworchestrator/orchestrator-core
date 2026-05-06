@@ -1,4 +1,4 @@
-# Copyright 2019-2026 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -127,6 +127,8 @@ app_settings = AppSettings()
 
 
 class LLMSettings(BaseSettings):
+    MCP_ENABLED: bool = False
+
     # Embedding settings
     EMBEDDING_DIMENSION: EMBEDDING_DIMENSION_FIELD = 1536
     EMBEDDING_MODEL: str = Field(
