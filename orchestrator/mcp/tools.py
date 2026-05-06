@@ -30,7 +30,6 @@ Tool groups
 - **Product Queries** — ``list_products``
 """
 
-import json
 from typing import Any
 from uuid import UUID
 
@@ -43,8 +42,8 @@ from orchestrator.core.db import ProcessTable, ProductTable, SubscriptionTable, 
 from orchestrator.core.forms import generate_form
 from orchestrator.mcp.server import mcp
 from orchestrator.core.services.processes import (
-    _get_process,
     abort_process,
+    get_process,
     load_process,
     resume_process,
     start_process,
@@ -83,7 +82,7 @@ def _error_response(error_type: str, message: str, details: Any = None) -> str:
     response: dict[str, Any] = {"error": error_type, "message": message}
     if details is not None:
         response["details"] = details
-    return json.dumps(response)
+    return json_dumps(response)
 
 
 # ── Workflow Discovery Tools ─────────────────────────────────────
@@ -239,6 +238,7 @@ def get_subscription_available_workflows(subscription_id: str) -> str:
 def create_workflow(
     workflow_key: str,
     form_inputs: list[dict[str, Any]],
+    # TODO: Read authenticated user from MCP context when FastMCP exposes request context
     user: str = "mcp",
 ) -> str:
     """Start a new workflow process.
@@ -270,7 +270,7 @@ def create_workflow(
                 user_inputs=form_inputs,
                 user=user,
             )
-            return json.dumps({"process_id": str(process_id), "status": "started"})
+            return json_dumps({"process_id": str(process_id), "status": "started"})
     except FormValidationError as e:
         logger.error("create_workflow validation failed", workflow_key=workflow_key, error=str(e))
         return _error_response(
@@ -288,6 +288,7 @@ def create_workflow(
 def resume_workflow_process(
     process_id: str,
     form_inputs: list[dict[str, Any]] | None = None,
+    # TODO: Read authenticated user from MCP context when FastMCP exposes request context
     user: str = "mcp",
 ) -> str:
     """Resume a suspended or failed workflow process.
@@ -308,13 +309,13 @@ def resume_workflow_process(
     """
     try:
         with db.database_scope():
-            process = _get_process(UUID(process_id))
+            process = get_process(UUID(process_id))
             resume_process(
                 process,
                 user_inputs=form_inputs,
                 user=user,
             )
-            return json.dumps({"process_id": process_id, "status": "resumed"})
+            return json_dumps({"process_id": process_id, "status": "resumed"})
     except Exception as e:
         logger.error("resume_workflow_process failed", process_id=process_id, error=str(e))
         if hasattr(e, "detail"):
@@ -325,6 +326,7 @@ def resume_workflow_process(
 @mcp.tool(annotations=_WRITE)
 def abort_workflow_process(
     process_id: str,
+    # TODO: Read authenticated user from MCP context when FastMCP exposes request context
     user: str = "mcp",
 ) -> str:
     """Abort a running or suspended workflow process.
@@ -341,9 +343,9 @@ def abort_workflow_process(
     """
     try:
         with db.database_scope():
-            process = _get_process(UUID(process_id))
+            process = get_process(UUID(process_id))
             abort_process(process, user)
-            return json.dumps({"process_id": process_id, "status": "aborted"})
+            return json_dumps({"process_id": process_id, "status": "aborted"})
     except Exception as e:
         logger.error("abort_workflow_process failed", process_id=process_id, error=str(e))
         return _error_response("abort_error", str(e))
@@ -369,7 +371,7 @@ def get_process_status(process_id: str) -> str:
     """
     try:
         with db.database_scope():
-            process = _get_process(UUID(process_id))
+            process = get_process(UUID(process_id))
             pstat = load_process(process)
             enriched = enrich_process(process, pstat)
 
@@ -456,7 +458,7 @@ def list_recent_processes(
                 }
                 for p in processes
             ]
-            return json.dumps(result)
+            return json_dumps(result)
     except Exception as e:
         logger.error("list_recent_processes failed", error=str(e))
         return _error_response("list_processes_error", str(e))
@@ -558,7 +560,7 @@ def search_subscriptions(
                 }
                 for s in subscriptions
             ]
-            return json.dumps(result)
+            return json_dumps(result)
     except Exception as e:
         logger.error("search_subscriptions failed", error=str(e))
         return _error_response("search_error", str(e))
