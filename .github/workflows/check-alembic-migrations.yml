@@ -20,7 +20,7 @@ jobs:
         uses: astral-sh/setup-uv@v8.1.0
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.11.8"
+          version: "0.11.10"
 
       - name: Ensure there is 1 migration head
         run: |
