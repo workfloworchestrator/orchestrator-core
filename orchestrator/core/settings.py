@@ -127,9 +127,7 @@ app_settings = AppSettings()
 
 
 class LLMSettings(BaseSettings):
-    # Feature flags for LLM functionality
-    SEARCH_ENABLED: bool = False  # Enable search/indexing with embeddings
-    MCP_ENABLED: bool = False  # Enable MCP server for AI tool integration
+    MCP_ENABLED: bool = False
 
     # Embedding settings
     EMBEDDING_DIMENSION: EMBEDDING_DIMENSION_FIELD = 1536
