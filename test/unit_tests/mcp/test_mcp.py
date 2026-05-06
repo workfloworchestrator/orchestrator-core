@@ -11,15 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the MCP server integration.
-
-Covers:
-- tools/list returns the 9 expected tool names we registered
-- tools/call list_workflows returns a valid JSON-RPC result (mocked service)
-- tools/call list_products returns a valid JSON-RPC result (mocked service)
-- OrchestratorCore mounts the MCP app at /mcp/ when MCP_ENABLED=True
-- OrchestratorCore does NOT mount /mcp/ when MCP_ENABLED=False
-"""
+"""Tests for the MCP server integration."""
 
 import json
 from contextlib import contextmanager
@@ -54,7 +46,7 @@ def orchestrator_client_with_mcp(database, db_uri):
     """
     from oauth2_lib.settings import oauth2lib_settings
 
-    from orchestrator import OrchestratorCore
+    from orchestrator.core.app import OrchestratorCore
     from orchestrator.core.settings import app_settings
 
     with (
@@ -132,7 +124,7 @@ def _mock_db_scope():
 
 
 def test_mcp_tools_list(mcp_test_client):
-    """tools/list should include exactly the 9 orchestrator tool names we registered."""
+    """tools/list should include exactly the 11 orchestrator tool names we registered."""
     headers = _mcp_session_headers(mcp_test_client)
 
     payload = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
@@ -148,6 +140,8 @@ def test_mcp_tools_list(mcp_test_client):
         "list_workflows",
         "get_workflow_form",
         "create_workflow",
+        "resume_workflow_process",
+        "abort_workflow_process",
         "get_process_status",
         "list_recent_processes",
         "get_subscription_available_workflows",
@@ -157,6 +151,7 @@ def test_mcp_tools_list(mcp_test_client):
     ]
     for tool in expected_tools:
         assert tool in tool_names, f"Expected tool '{tool}' not found in {tool_names}"
+    assert len(tool_names) == 11, f"Expected exactly 11 tools, got {len(tool_names)}: {tool_names}"
 
 
 def test_mcp_tools_call_list_workflows(mcp_test_client):
