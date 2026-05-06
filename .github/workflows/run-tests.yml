@@ -7,7 +7,7 @@ name: Tests
 #      narrow service-matrix to keep PR feedback fast.
 #   3) ``celery-integration-tests`` runs the Celery suite (reusable workflow).
 #   4) ``llm-search-integration-tests`` runs the LLM/embedding suite (reusable
-#      workflow). Skipped on forks because it needs the LLM secrets.
+#      workflow). Tests use mocked embeddings, so it runs on fork PRs too.
 #
 # Each integration job ``needs: unit-tests`` so unit tests run exactly once
 # per PR and integration jobs only execute when units are green.
@@ -115,8 +115,5 @@ jobs:
   llm-search-integration-tests:
     name: LLM/embedding search integration tests
     needs: unit-tests
-    # Skip on forks: the LLM workflow needs CODECOV_TOKEN and is also typically
-    # gated by upstream LLM credentials managed in the source repo.
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}
     uses: ./.github/workflows/run-llm-integration-tests.yml
     secrets: inherit
