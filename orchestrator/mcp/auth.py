@@ -20,6 +20,7 @@ to access request.app.auth_manager (which doesn't work in sub-apps).
 """
 
 from http import HTTPStatus
+from typing import Any
 
 import structlog
 from starlette.requests import Request
@@ -38,7 +39,7 @@ class MCPAuthMiddleware:
     ``HttpBearerExtractor`` that protects the REST API, then validates them through the
     same ``auth_manager.authentication.authenticate`` and ``auth_manager.authorization.authorize``
     call chain used by the ``authenticate`` and ``authorize`` FastAPI dependencies in
-    ``orchestrator/security.py``.
+    ``orchestrator/core/security.py``.
 
     The auth_manager is injected via the constructor (closure pattern) rather than accessed
     via request.app, since mounted sub-apps don't share the parent's app instance.
@@ -51,12 +52,13 @@ class MCPAuthMiddleware:
         auth_manager: The AuthManager instance from the parent OrchestratorCore.
     """
 
-    def __init__(self, app: ASGIApp, auth_manager) -> None:
+    def __init__(self, app: ASGIApp, auth_manager: Any) -> None:
         self.app = app
         self.auth_manager = auth_manager
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] not in ("http", "websocket"):
+        # Only authenticate HTTP requests; lifespan and other ASGI scope types pass through
+        if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
@@ -95,6 +97,7 @@ class MCPAuthMiddleware:
         # authorized=None means auth is disabled (OAUTH2_ACTIVE=False); treat as permitted.
         # authorized=False means the policy explicitly denied the request.
         if authorized is False:
+            # OIDCUserModel guarantees .user_name attribute
             logger.debug("MCP request denied by authorization policy", user=user.user_name if user else "unknown")
             response = JSONResponse(
                 status_code=HTTPStatus.FORBIDDEN,
@@ -107,6 +110,7 @@ class MCPAuthMiddleware:
         if "state" not in scope:
             scope["state"] = {}
         scope["state"]["mcp_user"] = user
+        # OIDCUserModel guarantees .user_name attribute
         scope["state"]["mcp_user_name"] = user.user_name if user else "unknown"
 
         await self.app(scope, receive, send)
