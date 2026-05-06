@@ -40,6 +40,7 @@ from sqlalchemy.orm import joinedload
 
 from orchestrator.core.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db
 from orchestrator.core.forms import generate_form
+from orchestrator.mcp.auth import mcp_user_var
 from orchestrator.mcp.server import mcp
 from orchestrator.core.services.processes import (
     abort_process,
@@ -238,8 +239,6 @@ def get_subscription_available_workflows(subscription_id: str) -> str:
 def create_workflow(
     workflow_key: str,
     form_inputs: list[dict[str, Any]],
-    # TODO: Read authenticated user from MCP context when FastMCP exposes request context
-    user: str = "mcp",
 ) -> str:
     """Start a new workflow process.
 
@@ -251,7 +250,6 @@ def create_workflow(
         form_inputs: List of form page dicts. For single-page forms, pass a
             list with one dict. For multi-page forms, include all pages in order.
             Use get_workflow_form() to discover required fields for each page.
-        user: Username to attribute the workflow execution to. Defaults to "mcp".
 
     Returns:
         JSON with process_id on success, or error details on failure.
@@ -265,6 +263,8 @@ def create_workflow(
     """
     try:
         with db.database_scope():
+            user = mcp_user_var.get()
+            logger.info("create_workflow called", workflow_key=workflow_key, user=user)
             process_id = start_process(
                 workflow_key,
                 user_inputs=form_inputs,
@@ -288,8 +288,6 @@ def create_workflow(
 def resume_workflow_process(
     process_id: str,
     form_inputs: list[dict[str, Any]] | None = None,
-    # TODO: Read authenticated user from MCP context when FastMCP exposes request context
-    user: str = "mcp",
 ) -> str:
     """Resume a suspended or failed workflow process.
 
@@ -302,13 +300,14 @@ def resume_workflow_process(
         form_inputs: Form input data for the current suspended step.
             Use get_process_status() to see what fields are needed.
             Pass [{}] to retry a failed process without new input.
-        user: Username to attribute the action to. Defaults to "mcp".
 
     Returns:
         JSON with process_id and status on success, or error details on failure.
     """
     try:
         with db.database_scope():
+            user = mcp_user_var.get()
+            logger.info("resume_workflow_process called", process_id=process_id, user=user)
             process = _get_process(UUID(process_id))
             resume_process(
                 process,
@@ -326,8 +325,6 @@ def resume_workflow_process(
 @mcp.tool(annotations=_WRITE)
 def abort_workflow_process(
     process_id: str,
-    # TODO: Read authenticated user from MCP context when FastMCP exposes request context
-    user: str = "mcp",
 ) -> str:
     """Abort a running or suspended workflow process.
 
@@ -336,13 +333,14 @@ def abort_workflow_process(
 
     Args:
         process_id: UUID of the process to abort.
-        user: Username to attribute the action to. Defaults to "mcp".
 
     Returns:
         JSON with process_id and status on success, or error details on failure.
     """
     try:
         with db.database_scope():
+            user = mcp_user_var.get()
+            logger.info("abort_workflow_process called", process_id=process_id, user=user)
             process = _get_process(UUID(process_id))
             abort_process(process, user)
             return json_dumps({"process_id": process_id, "status": "aborted"})

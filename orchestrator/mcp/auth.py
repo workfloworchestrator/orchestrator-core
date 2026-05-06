@@ -19,6 +19,7 @@ by closure from the parent OrchestratorCore app, avoiding the need
 to access request.app.auth_manager (which doesn't work in sub-apps).
 """
 
+import contextvars
 from http import HTTPStatus
 from typing import Any
 
@@ -30,6 +31,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from orchestrator.core.security import http_bearer_extractor
 
 logger = structlog.get_logger(__name__)
+
+mcp_user_var: contextvars.ContextVar[str] = contextvars.ContextVar("mcp_user", default="mcp")
 
 
 class MCPAuthMiddleware:
@@ -112,5 +115,6 @@ class MCPAuthMiddleware:
         scope["state"]["mcp_user"] = user
         # OIDCUserModel guarantees .user_name attribute
         scope["state"]["mcp_user_name"] = user.user_name if user else "unknown"
+        mcp_user_var.set(user.user_name if user else "mcp")
 
         await self.app(scope, receive, send)
