@@ -70,7 +70,21 @@ fits your workflow.
 The Postgres URI in all the examples below assumes you started Postgres with
 the conventional `nwa` / `nwa` credentials. Adjust if yours differ.
 
-**Option A — Bring your own services (env vars, passwordless Redis):**
+**Option A — Let testcontainers start ephemeral services (easiest):**
+
+If `DATABASE_URI` and `CACHE_URI` are *both unset*, the test runner starts a
+disposable Postgres and Redis container for the test session via
+[testcontainers](https://testcontainers-python.readthedocs.io/) and removes
+them on exit. Requires Docker to be running.
+
+```shell
+unset DATABASE_URI CACHE_URI
+uv run pytest test/integration_tests \
+  --ignore=test/integration_tests/test_with_pytest_celery.py \
+  --ignore=test/integration_tests/search/llm
+```
+
+**Option B — Bring your own services (env vars, passwordless Redis):**
 
 ```shell
 export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
@@ -83,26 +97,12 @@ uv run pytest test/integration_tests \
 This matches CI. It is also what `example-orchestrator` and other downstream
 consumers rely on, so the env-var contract is supported.
 
-**Option B — Use the bundled docker-compose stack (Redis password `nwa`):**
+**Option C — Use the bundled docker-compose stack (Redis password `nwa`):**
 
 ```shell
 docker compose -f docker/pytest-support/docker-compose.yaml up -d
 export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
 export CACHE_URI=redis://:nwa@localhost:6379/0   # note the ':nwa@' password
-uv run pytest test/integration_tests \
-  --ignore=test/integration_tests/test_with_pytest_celery.py \
-  --ignore=test/integration_tests/search/llm
-```
-
-**Option C — Let testcontainers start ephemeral services:**
-
-If `DATABASE_URI` and `CACHE_URI` are *both unset*, the test runner starts a
-disposable Postgres and Redis container for the test session via
-[testcontainers](https://testcontainers-python.readthedocs.io/) and removes
-them on exit. Requires Docker to be running.
-
-```shell
-unset DATABASE_URI CACHE_URI
 uv run pytest test/integration_tests \
   --ignore=test/integration_tests/test_with_pytest_celery.py \
   --ignore=test/integration_tests/search/llm
