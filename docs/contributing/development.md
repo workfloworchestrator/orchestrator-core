@@ -32,17 +32,13 @@ The test suite is split across four pytest invocations. See the
 | Layer | Command | Needs Postgres / Redis? |
 |-------|---------|-------------------------|
 | Unit tests + doctests | `uv run pytest` | No |
-| Standard integration tests | `uv run pytest test/integration_tests --ignore=test/integration_tests/test_with_pytest_celery.py --ignore=test/integration_tests/search/llm` | Yes (Postgres + Redis) |
-| Celery integration tests | `uv run pytest test/integration_tests/test_with_pytest_celery.py` | Yes (Postgres + Redis) |
-| LLM/embedding search tests | `uv run pytest test/integration_tests/search/llm` | Yes (Postgres + Redis + LLM keys) |
+| Integration tests | `uv run pytest test/integration_tests` | Yes (Postgres + Redis) |
+| Celery acceptance tests | `uv run pytest test/acceptance_tests/celery` | Yes (Postgres + Redis) |
+| LLM/embedding acceptance tests | `uv run pytest test/acceptance_tests/search/llm` | Yes (Postgres + Redis + LLM keys) |
 
 The Celery and LLM suites run as their own GitHub Actions workflows
-(`run-pytest-celery.yml`, `run-llm-integration-tests.yml`). The "standard"
+(`run-pytest-celery.yml`, `run-llm-integration-tests.yml`). The integration
 command above is what `run-tests.yml` runs.
-
-`uv run pytest test/integration_tests` (no `--ignore` flags) runs the union of
-all three integration suites; only use it if you specifically want to exercise
-everything in one go and have all prerequisites in place.
 
 ### Run unit tests (no services required)
 
@@ -79,9 +75,7 @@ them on exit. Requires Docker to be running.
 
 ```shell
 unset DATABASE_URI CACHE_URI
-uv run pytest test/integration_tests \
-  --ignore=test/integration_tests/test_with_pytest_celery.py \
-  --ignore=test/integration_tests/search/llm
+uv run pytest test/integration_tests
 ```
 
 **Option B — Bring your own services (env vars, passwordless Redis):**
@@ -89,9 +83,7 @@ uv run pytest test/integration_tests \
 ```shell
 export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
 export CACHE_URI=redis://localhost:6379/0
-uv run pytest test/integration_tests \
-  --ignore=test/integration_tests/test_with_pytest_celery.py \
-  --ignore=test/integration_tests/search/llm
+uv run pytest test/integration_tests
 ```
 
 This matches CI. It is also what `example-orchestrator` and other downstream
@@ -103,15 +95,13 @@ consumers rely on, so the env-var contract is supported.
 docker compose -f docker/pytest-support/docker-compose.yaml up -d
 export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
 export CACHE_URI=redis://:nwa@localhost:6379/0   # note the ':nwa@' password
-uv run pytest test/integration_tests \
-  --ignore=test/integration_tests/test_with_pytest_celery.py \
-  --ignore=test/integration_tests/search/llm
+uv run pytest test/integration_tests
 ```
 
 If Docker is unreachable and no env vars are set, the runner aborts with a
 clear message pointing at the three options above.
 
-### Run the Celery integration tests
+### Run the Celery acceptance tests
 
 The Celery suite uses the same `CACHE_URI` rules — the snippet below assumes
 passwordless Redis. For the docker-compose stack use
@@ -120,18 +110,18 @@ passwordless Redis. For the docker-compose stack use
 ```shell
 export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
 export CACHE_URI=redis://localhost:6379/0
-uv run pytest test/integration_tests/test_with_pytest_celery.py
+uv run pytest test/acceptance_tests/celery
 ```
 
-### Run the LLM/embedding search tests
+### Run the LLM/embedding acceptance tests
 
 Same `CACHE_URI` rules as above. The snippet assumes passwordless Redis.
 
 ```shell
 export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
 export CACHE_URI=redis://localhost:6379/0
-# plus the LLM credentials documented in test/integration_tests/search/llm/README.md
-uv run pytest test/integration_tests/search/llm
+# plus the LLM credentials documented in test/acceptance_tests/search/llm/README.md
+uv run pytest test/acceptance_tests/search/llm
 ```
 
 If you do not encounter any failures, you should be able to develop features

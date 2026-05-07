@@ -36,9 +36,9 @@ flowchart TD
     B -- Yes --> D{Runs a full workflow?}
     D -- Yes --> E[test/integration_tests/workflows/<br>+ @pytest.mark.workflow]
     D -- No --> F{Celery broker?}
-    F -- Yes --> G[test/integration_tests/test_with_pytest_celery.py]
+    F -- Yes --> G[test/acceptance_tests/celery]
     F -- No --> H{LLM / embedding search?}
-    H -- Yes --> I[test/integration_tests/search/llm/]
+    H -- Yes --> I[test/acceptance_tests/search/llm/]
     H -- No --> J[test/integration_tests/&lt;area&gt;/]
 ```
 
@@ -48,16 +48,14 @@ flowchart TD
 # Unit tests + doctests (no services)
 uv run pytest
 
-# All integration tests except Celery and LLM (use dedicated commands for those)
-uv run pytest test/integration_tests \
-    --ignore=test/integration_tests/test_with_pytest_celery.py \
-    --ignore=test/integration_tests/search/llm
+# Integration tests
+uv run pytest test/integration_tests
 
-# Celery integration tests
-uv run pytest test/integration_tests/test_with_pytest_celery.py
+# Celery acceptance tests
+uv run pytest test/acceptance_tests/celery
 
-# LLM / embedding-based search tests
-uv run pytest test/integration_tests/search/llm
+# LLM / embedding-based search acceptance tests
+uv run pytest test/acceptance_tests/search/llm
 ```
 
 ### Provisioning Postgres + Redis
