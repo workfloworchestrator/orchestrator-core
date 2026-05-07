@@ -255,6 +255,7 @@ norecursedirs = [
     "docs",
     "test/unit_tests/cli/data/generate",
 ]
+pythonpath = ["."]
 testpaths = ["test/unit_tests", "orchestrator/core"]
 asyncio_mode = "auto"
 consider_namespace_packages = true
