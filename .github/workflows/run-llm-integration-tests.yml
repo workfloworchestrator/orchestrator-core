@@ -67,7 +67,8 @@ jobs:
           PYTHONPATH: .
           REDIS_HOST: redis
         run: |
-          uv run pytest test/integration_tests/search/llm -v -rs -n auto
+          uv run pytest test/integration_tests/search/llm -v -rs -n auto \
+            --cov-branch --cov=orchestrator --cov-report=xml
 
       - name: Install codecov dependencies
         run: apt-get update && apt-get install -y git curl gpg
@@ -78,3 +79,4 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
           files: ./coverage.xml
+          flags: llm
