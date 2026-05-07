@@ -88,7 +88,8 @@ jobs:
           uv run pytest test/integration_tests \
             --ignore=test/integration_tests/test_with_pytest_celery.py \
             --ignore=test/integration_tests/search/llm \
-            --cov-branch --cov=orchestrator --cov-report=xml
+            --cov-branch --cov=orchestrator --cov-report=xml \
+            -n auto
         env:
           DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
           CACHE_URI: redis://redis

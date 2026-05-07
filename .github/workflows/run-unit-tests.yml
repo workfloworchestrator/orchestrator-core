@@ -53,7 +53,8 @@ jobs:
           uv run pytest test/unit_tests orchestrator/core \
             --cov-branch --cov=orchestrator --cov-report=xml \
             --ignore=orchestrator/core/devtools \
-            --ignore=examples --ignore=docs
+            --ignore=examples --ignore=docs \
+            -n auto
         env:
           ENVIRONMENT: TESTING
 

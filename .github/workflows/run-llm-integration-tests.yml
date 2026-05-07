@@ -67,7 +67,7 @@ jobs:
           PYTHONPATH: .
           REDIS_HOST: redis
         run: |
-          uv run pytest test/integration_tests/search/llm -v -rs
+          uv run pytest test/integration_tests/search/llm -v -rs -n auto
 
       - name: Install codecov dependencies
         run: apt-get update && apt-get install -y git curl gpg
