@@ -67,7 +67,7 @@ jobs:
           PYTHONPATH: .
           REDIS_HOST: redis
         run: |
-          uv run pytest test/integration_tests/search/llm -v -rs -n auto \
+          uv run pytest test/acceptance_tests/search/llm -v -rs -n auto \
             --cov-branch --cov=orchestrator --cov-report=xml
 
       - name: Install codecov dependencies

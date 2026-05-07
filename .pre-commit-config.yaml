@@ -1,6 +1,6 @@
 default_language_version:
   python: python3
-exclude: ^test/unit_tests/cli/data/generate/.*\.py|orchestrator/core/vendor.*
+exclude: ^test/acceptance_tests/cli/data/generate/.*\.py|orchestrator/core/vendor.*
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
@@ -55,7 +55,7 @@ repos:
       - id: copyright-required
         name: copyright headers are present
         files: (.*\.py$)
-        exclude: (^test/unit_tests/cli/data/generate/.*\.py$|^vulture_whitelist\.py$)
+        exclude: (^test/acceptance_tests/cli/data/generate/.*\.py$|^vulture_whitelist\.py$)
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0

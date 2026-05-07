@@ -79,15 +79,11 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Run integration tests (DB + Redis + FastAPI app + workflows)
-        # Excludes:
-        #   - Celery tests: covered by run-pytest-celery.yml
-        #   - LLM/embedding search tests: covered by run-llm-integration-tests.yml
-        # The DB-backed (non-LLM) search tests under test/integration_tests/search/
-        # ARE included here.
+        # Celery and LLM/embedding tests live under test/acceptance_tests/ and
+        # have their own workflows (run-pytest-celery.yml,
+        # run-llm-integration-tests.yml).
         run: |
           uv run pytest test/integration_tests \
-            --ignore=test/integration_tests/test_with_pytest_celery.py \
-            --ignore=test/integration_tests/search/llm \
             --cov-branch --cov=orchestrator --cov-report=xml \
             -n auto
         env:

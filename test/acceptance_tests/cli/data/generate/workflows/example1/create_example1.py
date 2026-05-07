@@ -1,0 +1,122 @@
+# Copyright 2024-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from typing import Annotated
+
+import structlog
+from products.product_blocks.example1 import AnnotatedInt, ExampleStrEnum1
+from products.product_types.example1 import Example1Inactive, Example1Provisioning
+from pydantic import AfterValidator, ConfigDict
+from workflows.example1.shared.forms import (
+    annotated_int_must_be_unique_validator,
+    must_be_unused_to_change_mode_validator,
+)
+from workflows.shared import create_summary_form
+
+from orchestrator.core.domain import SubscriptionModel
+from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import CustomerId, Divider, Label
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.steps import store_process_subscription
+from orchestrator.core.workflows.utils import create_workflow
+from pydantic_forms.types import FormGenerator, State, UUIDstr
+
+
+def subscription_description(subscription: SubscriptionModel) -> str:
+    """Generate subscription description.
+
+    The suggested pattern is to implement a subscription service that generates a subscription specific
+    description, in case that is not present the description will just be set to the product name.
+    """
+    return f"{subscription.product.name} subscription"
+
+
+logger = structlog.get_logger(__name__)
+
+validated_example_str_enum_1 = Annotated[ExampleStrEnum1, AfterValidator(must_be_unused_to_change_mode_validator)]
+validated_annotated_int = Annotated[AnnotatedInt, AfterValidator(annotated_int_must_be_unique_validator)]
+
+
+def initial_input_form_generator(product_name: str) -> FormGenerator:
+    # TODO add additional fields to form if needed
+
+    class CreateExample1Form(FormPage):
+        model_config = ConfigDict(title=product_name)
+
+        customer_id: CustomerId
+
+        example1_settings: Label
+        divider_1: Divider
+
+        example_str_enum_1: validated_example_str_enum_1
+        unmodifiable_str: str
+        modifiable_boolean: bool
+        annotated_int: validated_annotated_int | None = None
+        always_optional_str: str | None = None
+
+    user_input = yield CreateExample1Form
+    user_input_dict = user_input.dict()
+
+    summary_fields = [
+        "example_str_enum_1",
+        "unmodifiable_str",
+        "modifiable_boolean",
+        "annotated_int",
+        "always_optional_str",
+    ]
+    yield from create_summary_form(user_input_dict, product_name, summary_fields)
+
+    return user_input_dict
+
+
+@step("Construct Subscription model")
+def construct_example1_model(
+    product: UUIDstr,
+    customer_id: UUIDstr,
+    example_str_enum_1: ExampleStrEnum1,
+    unmodifiable_str: str,
+    modifiable_boolean: bool,
+    annotated_int: AnnotatedInt | None,
+    always_optional_str: str | None,
+) -> State:
+    example1 = Example1Inactive.from_product_id(
+        product_id=product,
+        customer_id=customer_id,
+        status=SubscriptionLifecycle.INITIAL,
+    )
+    example1.example1.example_str_enum_1 = example_str_enum_1
+    example1.example1.unmodifiable_str = unmodifiable_str
+    example1.example1.modifiable_boolean = modifiable_boolean
+    example1.example1.annotated_int = annotated_int
+    example1.example1.always_optional_str = always_optional_str
+
+    example1 = Example1Provisioning.from_other_lifecycle(example1, SubscriptionLifecycle.PROVISIONING)
+    example1.description = subscription_description(example1)
+
+    return {
+        "subscription": example1,
+        "subscription_id": example1.subscription_id,  # necessary to be able to use older generic step functions
+        "subscription_description": example1.description,
+    }
+
+
+additional_steps = begin
+
+
+@create_workflow(initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
+def create_example1() -> StepList:
+    return (
+        begin >> construct_example1_model >> store_process_subscription()
+        # TODO add provision step(s)
+    )
