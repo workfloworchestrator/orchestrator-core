@@ -24,8 +24,14 @@ pytest_plugins = ["test.integration_tests._fixtures"]
 # Re-export non-fixture symbols (constants, classes, plain helpers) that
 # individual test files import by name. Fixtures and hooks are NOT
 # re-exported — they reach tests through the plugin loaded above.
-from test.integration_tests._fixtures import (  # noqa: E402, F401
+from test.integration_tests._fixtures import (  # noqa: E402
     CUSTOMER_ID,
     TestOrchestratorCelery,
     do_refresh_subscriptions_search_view,
 )
+
+__all__ = [
+    "CUSTOMER_ID",
+    "TestOrchestratorCelery",
+    "do_refresh_subscriptions_search_view",
+]

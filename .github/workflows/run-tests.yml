@@ -5,12 +5,14 @@ name: Tests
 #      the full Python matrix (no services). Required gate.
 #   2) ``standard-integration-tests`` runs after the unit gate on a deliberately
 #      narrow service-matrix to keep PR feedback fast.
-#   3) ``celery-integration-tests`` runs the Celery suite (reusable workflow).
-#   4) ``llm-search-integration-tests`` runs the LLM/embedding suite (reusable
+#   3) ``acceptance-tests`` runs the CLI code-generation and product-setup
+#      acceptance suites (reusable workflow).
+#   4) ``celery-integration-tests`` runs the Celery suite (reusable workflow).
+#   5) ``llm-search-integration-tests`` runs the LLM/embedding suite (reusable
 #      workflow). Tests use mocked embeddings, so it runs on fork PRs too.
 #
-# Each integration job ``needs: unit-tests`` so unit tests run exactly once
-# per PR and integration jobs only execute when units are green.
+# Each downstream job ``needs: unit-tests`` so unit tests run exactly once
+# per PR and downstream jobs only execute when units are green.
 
 on:
   push:
@@ -102,6 +104,12 @@ jobs:
           fail_ci_if_error: false
           files: ./coverage.xml
           flags: integration
+
+  acceptance-tests:
+    name: Acceptance tests
+    needs: unit-tests
+    uses: ./.github/workflows/run-acceptance-tests.yml
+    secrets: inherit
 
   celery-integration-tests:
     name: Celery integration tests
