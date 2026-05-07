@@ -61,6 +61,7 @@ from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 from starlette.testclient import TestClient
+from urllib3_mock import Responses
 
 from orchestrator.core import OrchestratorCore
 from orchestrator.core.config.assignee import Assignee
@@ -356,6 +357,16 @@ def load_scheduled_tasks(database):
 
 
 @pytest.fixture(autouse=True)
+def responses(request):
+    if request.node.get_closest_marker("noresponses"):
+        yield None
+        return
+    responses_mock = Responses("requests.packages.urllib3")
+    with responses_mock:
+        yield responses_mock
+
+
+@pytest.fixture(autouse=True)
 def db_session(database):
     """Ensure tests are run in a transaction with automatic rollback.
 
@@ -391,6 +402,10 @@ def db_session(database):
 @contextmanager
 def make_orchestrator_app():
     from oauth2_lib.settings import oauth2lib_settings
+    from orchestrator.core.forms.scheduler_form import configure_schedule_form
+    from pydantic_forms.core.shared import register_form
+
+    register_form("configure_schedule", configure_schedule_form)
 
     with (
         patch.multiple(
@@ -1220,7 +1235,7 @@ def celery_timeout():
     return 10
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def setup_test_celery(celery_session_app, monkeypatch):
     """Setup and teardown for Celery tests."""
     # Reset Celery app
