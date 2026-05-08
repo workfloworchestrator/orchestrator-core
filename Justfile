@@ -19,19 +19,19 @@ default:
 sync:
     uv sync --all-groups --all-extras
 
-# Run unit tests with pytest. Support service in docker/pytest/docker-compose.yaml will be started
-[env("CACHE_URI", "redis://:nwa@localhost"), env("DATABASE_URI", "postgresql://nwa:nwa@localhost/nwa")]
+# Run pytest. Unit tests need no services; integration tests start Postgres
+# and Redis via testcontainers when DATABASE_URI and CACHE_URI are unset
+# (Docker required). See docs/contributing/development.md for other options.
 pytest *pytest_args:
     @just sync
-    @just pytest-support-start
     uv run pytest {{pytest_args}}
 
-
-# Start pytest support services from docker/pytest/docker-compose.yaml
+# Start the bundled Postgres + Redis docker-compose stack (alternative to
+# testcontainers; export DATABASE_URI / CACHE_URI before `just pytest`).
 pytest-support-start:
     (cd docker/pytest-support; docker compose up --wait)
 
-# Cleanup pytest support services from docker/pytest/docker-compose.yaml
+# Tear down the bundled docker-compose stack.
 pytest-support-clean:
     (cd docker/pytest-support; docker compose down --volumes)
 

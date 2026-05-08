@@ -1,0 +1,126 @@
+name: Tests
+
+# Single PR/push entry point for the entire test suite:
+#   1) ``unit-tests`` runs the reusable ``run-unit-tests.yml`` workflow across
+#      the full Python matrix (no services). Required gate.
+#   2) ``integration-tests`` runs after the unit gate on a deliberately
+#      narrow service-matrix to keep PR feedback fast.
+#   3) ``cli-acceptance-tests`` runs the CLI code-generation acceptance suite
+#      (reusable ``run-cli-acceptance-tests.yml``).
+#   4) ``celery-acceptance-tests`` runs the Celery acceptance suite
+#      (reusable ``run-celery-acceptance-tests.yml``).
+#   5) ``llm-acceptance-tests`` runs the LLM/embedding acceptance suite
+#      (reusable ``run-llm-acceptance-tests.yml``). Tests use mocked
+#      embeddings, so it runs on fork PRs too.
+#
+# Each downstream job ``needs: unit-tests`` so unit tests run exactly once
+# per PR and downstream jobs only execute when units are green.
+
+on:
+  push:
+    branches: [main]
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+
+env:
+  UV_LOCKED: true
+
+jobs:
+  unit-tests:
+    name: Unit tests (gate)
+    uses: ./.github/workflows/run-unit-tests.yml
+    secrets: inherit
+
+  integration-tests:
+    name: Integration tests (Python ${{ matrix.python-version }} / Postgres ${{ matrix.postgres-version }} / Redis ${{ matrix.redis-version }})
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    strategy:
+      # Narrow matrix: oldest + newest supported Python × Postgres, with the
+      # Redis version pinned per row. Wider matrices are a follow-up
+      # (scheduled-build.yml currently runs only the unit workflow).
+      matrix:
+        include:
+          - python-version: "3.11"
+            postgres-version: "15"
+            redis-version: "7"
+          - python-version: "3.14"
+            postgres-version: "17"
+            redis-version: "8"
+      fail-fast: false
+    container: ubuntu:latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg${{ matrix.postgres-version }}
+        env:
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_USER: nwa
+          POSTGRES_DB: orchestrator-core-test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:${{ matrix.redis-version }}
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v6
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          version: "0.11.7"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the project
+        run: uv sync --all-extras --dev
+
+      - name: Run integration tests (DB + Redis + FastAPI app + workflows)
+        # Celery, LLM and CLI suites live under test/acceptance_tests/ and
+        # have their own workflows (run-celery-acceptance-tests.yml,
+        # run-llm-acceptance-tests.yml, run-cli-acceptance-tests.yml).
+        run: |
+          uv run pytest test/integration_tests \
+            --cov-branch --cov=orchestrator --cov-report=xml \
+            -n auto
+        env:
+          DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
+          CACHE_URI: redis://redis
+          POSTGRES_HOST: postgres
+          ENVIRONMENT: TESTING
+
+      - name: Install codecov dependencies
+        run: apt-get update && apt-get install -y git curl gpg
+
+      - name: "Upload coverage to Codecov"
+        uses: codecov/codecov-action@v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+          files: ./coverage.xml
+          flags: integration
+
+  cli-acceptance-tests:
+    name: CLI acceptance tests
+    needs: unit-tests
+    uses: ./.github/workflows/run-cli-acceptance-tests.yml
+    secrets: inherit
+
+  celery-acceptance-tests:
+    name: Celery acceptance tests
+    needs: unit-tests
+    uses: ./.github/workflows/run-celery-acceptance-tests.yml
+    secrets: inherit
+
+  llm-acceptance-tests:
+    name: LLM/embedding acceptance tests
+    needs: unit-tests
+    uses: ./.github/workflows/run-llm-acceptance-tests.yml
+    secrets: inherit

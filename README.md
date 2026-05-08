@@ -82,7 +82,10 @@ Visit the [ReDoc](http://127.0.0.1:8080/api/redoc) or [OpenAPI](http://127.0.0.1
 
 ## Contributing
 
-We use [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage dependencies and [docker compose](https://docs.docker.com/compose/) to provide services required for unit tests (redis, postgresql)
+We use [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage
+dependencies. Unit tests need no services; integration tests use
+[testcontainers](https://testcontainers-python.readthedocs.io/) to spin up
+Postgres + Redis on demand (Docker required).
 
 To get started, follow these steps:
 
@@ -90,10 +93,10 @@ To get started, follow these steps:
 # on your local machine
 git clone https://github.com/workfloworchestrator/orchestrator-core
 cd orchestrator-core
-just pytest  # Run unit tests
-just pytest -vx  # Stop at first failed test
-just pytest --last-failed  # re-run only failed tests
-just pytest --failed-first  # run tests starting with tests that failed
+just pytest                              # Run unit tests
+just pytest test/integration_tests       # Run integration tests (testcontainers)
+just pytest -vx                          # Stop at first failed test
+just pytest --last-failed                # re-run only failed tests
 ```
 
 For more details please read the [development docs](https://workfloworchestrator.org/orchestrator-core/contributing/development/).
