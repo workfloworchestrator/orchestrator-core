@@ -1,8 +1,8 @@
-# Celery integration tests. Reusable only — invoked from
-# ``run-tests.yml`` after the unit-test gate passes, so the unit
-# matrix runs at most once per PR.
+# CLI acceptance tests: full user-facing CLI code-generation flows.
+# Reusable only — invoked from ``run-tests.yml`` after the unit-test gate
+# passes. Celery and LLM acceptance suites have their own workflows.
 
-name: Pytest Celery Tests
+name: Pytest CLI Acceptance Tests
 
 on:
   workflow_call:
@@ -13,18 +13,17 @@ env:
 
 jobs:
   container_job:
-    name: Pytest Celery Tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
+    name: Pytest CLI Acceptance Tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.13", "3.14"]
+        python-version: ["3.14"]
         postgres-version: ["17"]
       fail-fast: false
     container: ubuntu:latest
     services:
       postgres:
         image: pgvector/pgvector:pg${{ matrix.postgres-version }}
-        # Provide the password for postgres
         env:
           POSTGRES_PASSWORD: nwa
           POSTGRES_USER: nwa
@@ -36,8 +35,6 @@ jobs:
           --health-retries 5
       redis:
         image: redis
-        ports:
-          - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -51,33 +48,22 @@ jobs:
       - name: Install uv and set the python version
         uses: astral-sh/setup-uv@v8.1.0
         with:
-          # It is considered best practice to pin to a specific uv version.
-          version: "0.11.10"
+          version: "0.11.8"
           python-version: ${{ matrix.python-version }}
 
       - name: Install project and dependencies
         run: |
           uv sync --all-extras --dev
 
-      - name: Run pytest-celery tests
+      - name: Run pytest acceptance tests
         env:
-          POSTGRES_DB: orchestrator-core-test
-          POSTGRES_USER: nwa
-          POSTGRES_PASSWORD: nwa
-          POSTGRES_HOST: postgres
+          CACHE_URI: redis://redis
+          DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
           ENVIRONMENT: TESTING
           PYTHONPATH: .
-          # Add Celery-specific environment variables
-          CELERY_BROKER_URL: redis://redis:6379/0
-          CELERY_RESULT_BACKEND: redis://redis:6379/1
           REDIS_HOST: redis
-          REDIS_PORT: 6379
         run: |
-          CACHE_URI=redis://redis:6379 \
-          DATABASE_URI=postgresql+psycopg://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB \
-          CELERY_BROKER_URL=$CELERY_BROKER_URL \
-          CELERY_RESULT_BACKEND=$CELERY_RESULT_BACKEND \
-          uv run pytest test/acceptance_tests/celery -v \
+          uv run pytest test/acceptance_tests/cli -v -n auto \
             --cov-branch --cov=orchestrator --cov-report=xml
 
       - name: Install codecov dependencies
@@ -89,4 +75,4 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
           files: ./coverage.xml
-          flags: celery
+          flags: acceptance

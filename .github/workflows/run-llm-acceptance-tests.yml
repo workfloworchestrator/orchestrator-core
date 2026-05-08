@@ -1,8 +1,8 @@
-# LLM/embedding-based search integration tests. Reusable only — invoked from
+# LLM/embedding-based search acceptance tests. Reusable only — invoked from
 # ``run-tests.yml`` after the unit-test gate passes, so the unit
 # matrix runs at most once per PR.
 
-name: Pytest LLM Tests
+name: Pytest LLM Acceptance Tests
 
 on:
   workflow_call:
@@ -13,7 +13,7 @@ env:
 
 jobs:
   container_job:
-    name: Pytest LLM Tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
+    name: Pytest LLM Acceptance Tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:

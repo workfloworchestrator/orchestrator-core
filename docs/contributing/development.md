@@ -37,7 +37,8 @@ The test suite is split across four pytest invocations. See the
 | LLM/embedding acceptance tests | `uv run pytest test/acceptance_tests/search/llm` | Yes (Postgres + Redis + LLM keys) |
 
 The Celery and LLM suites run as their own GitHub Actions workflows
-(`run-pytest-celery.yml`, `run-llm-integration-tests.yml`). The integration
+(`run-celery-acceptance-tests.yml`, `run-llm-acceptance-tests.yml`,
+`run-cli-acceptance-tests.yml`). The integration
 command above is what `run-tests.yml` runs.
 
 ### Run unit tests (no services required)

@@ -3,13 +3,15 @@ name: Tests
 # Single PR/push entry point for the entire test suite:
 #   1) ``unit-tests`` runs the reusable ``run-unit-tests.yml`` workflow across
 #      the full Python matrix (no services). Required gate.
-#   2) ``standard-integration-tests`` runs after the unit gate on a deliberately
+#   2) ``integration-tests`` runs after the unit gate on a deliberately
 #      narrow service-matrix to keep PR feedback fast.
-#   3) ``acceptance-tests`` runs the CLI code-generation and product-setup
-#      acceptance suites (reusable workflow).
-#   4) ``celery-integration-tests`` runs the Celery suite (reusable workflow).
-#   5) ``llm-search-integration-tests`` runs the LLM/embedding suite (reusable
-#      workflow). Tests use mocked embeddings, so it runs on fork PRs too.
+#   3) ``cli-acceptance-tests`` runs the CLI code-generation acceptance suite
+#      (reusable ``run-cli-acceptance-tests.yml``).
+#   4) ``celery-acceptance-tests`` runs the Celery acceptance suite
+#      (reusable ``run-celery-acceptance-tests.yml``).
+#   5) ``llm-acceptance-tests`` runs the LLM/embedding acceptance suite
+#      (reusable ``run-llm-acceptance-tests.yml``). Tests use mocked
+#      embeddings, so it runs on fork PRs too.
 #
 # Each downstream job ``needs: unit-tests`` so unit tests run exactly once
 # per PR and downstream jobs only execute when units are green.
@@ -30,8 +32,8 @@ jobs:
     uses: ./.github/workflows/run-unit-tests.yml
     secrets: inherit
 
-  standard-integration-tests:
-    name: Standard integration tests (Python ${{ matrix.python-version }} / Postgres ${{ matrix.postgres-version }} / Redis ${{ matrix.redis-version }})
+  integration-tests:
+    name: Integration tests (Python ${{ matrix.python-version }} / Postgres ${{ matrix.postgres-version }} / Redis ${{ matrix.redis-version }})
     needs: unit-tests
     runs-on: ubuntu-latest
     strategy:
@@ -81,9 +83,9 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Run integration tests (DB + Redis + FastAPI app + workflows)
-        # Celery and LLM/embedding tests live under test/acceptance_tests/ and
-        # have their own workflows (run-pytest-celery.yml,
-        # run-llm-integration-tests.yml).
+        # Celery, LLM and CLI suites live under test/acceptance_tests/ and
+        # have their own workflows (run-celery-acceptance-tests.yml,
+        # run-llm-acceptance-tests.yml, run-cli-acceptance-tests.yml).
         run: |
           uv run pytest test/integration_tests \
             --cov-branch --cov=orchestrator --cov-report=xml \
@@ -105,20 +107,20 @@ jobs:
           files: ./coverage.xml
           flags: integration
 
-  acceptance-tests:
-    name: Acceptance tests
+  cli-acceptance-tests:
+    name: CLI acceptance tests
     needs: unit-tests
-    uses: ./.github/workflows/run-acceptance-tests.yml
+    uses: ./.github/workflows/run-cli-acceptance-tests.yml
     secrets: inherit
 
-  celery-integration-tests:
-    name: Celery integration tests
+  celery-acceptance-tests:
+    name: Celery acceptance tests
     needs: unit-tests
-    uses: ./.github/workflows/run-pytest-celery.yml
+    uses: ./.github/workflows/run-celery-acceptance-tests.yml
     secrets: inherit
 
-  llm-search-integration-tests:
-    name: LLM/embedding search integration tests
+  llm-acceptance-tests:
+    name: LLM/embedding acceptance tests
     needs: unit-tests
-    uses: ./.github/workflows/run-llm-integration-tests.yml
+    uses: ./.github/workflows/run-llm-acceptance-tests.yml
     secrets: inherit
