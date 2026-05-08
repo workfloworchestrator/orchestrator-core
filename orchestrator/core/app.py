@@ -135,8 +135,6 @@ class OrchestratorCore(FastAPI):
             startup_functions.append(self.broadcast_thread.start)
             shutdown_functions.append(self.broadcast_thread.stop)
 
-        init_database(base_settings)
-
         mcp_app = None
         try:
             from orchestrator.mcp import create_mcp_app
@@ -194,6 +192,8 @@ class OrchestratorCore(FastAPI):
                 DeprecationWarning,
                 stacklevel=2,
             )
+
+        init_database(base_settings)
 
         if mcp_app is not None:
             self.mount("/mcp", mcp_app)
