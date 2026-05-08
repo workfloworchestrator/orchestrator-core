@@ -59,7 +59,7 @@ from orchestrator.core.log_config import LOGGER_OVERRIDES
 from orchestrator.core.metrics import ORCHESTRATOR_METRICS_REGISTRY, initialize_default_metrics
 from orchestrator.core.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.core.services.worker_status_monitor import get_worker_status_monitor
-from orchestrator.core.settings import AppSettings, ExecutorType, app_settings, get_authorizers, llm_settings
+from orchestrator.core.settings import AppSettings, ExecutorType, app_settings, get_authorizers
 from orchestrator.core.utils.auth import Authorizer
 from orchestrator.core.version import GIT_COMMIT_HASH
 from orchestrator.core.websocket import init_websocket_manager
@@ -138,17 +138,13 @@ class OrchestratorCore(FastAPI):
         init_database(base_settings)
 
         mcp_app = None
-        if llm_settings.MCP_ENABLED:
-            try:
-                from orchestrator.mcp import create_mcp_app
+        try:
+            from orchestrator.mcp import create_mcp_app
 
-                mcp_app = create_mcp_app(auth_manager=self.auth_manager)
-            except ImportError as e:
-                logger.error(
-                    "Unable to create MCP server. Please install MCP dependencies: `pip install orchestrator-core[mcp]`",
-                    error=str(e),
-                )
-                raise
+            mcp_app = create_mcp_app(auth_manager=self.auth_manager)
+            logger.info("MCP server enabled (fastmcp installed)")
+        except ImportError:
+            logger.debug("MCP server not enabled (install orchestrator-core[mcp] to enable)")
 
         # Build a lifespan context manager so that mounted sub-app lifespans
         # (e.g. FastMCP's StreamableHTTPSessionManager) are properly initialised.

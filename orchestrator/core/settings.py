@@ -127,8 +127,6 @@ app_settings = AppSettings()
 
 
 class LLMSettings(BaseSettings):
-    MCP_ENABLED: bool = False
-
     # Embedding settings
     EMBEDDING_DIMENSION: EMBEDDING_DIMENSION_FIELD = 1536
     EMBEDDING_MODEL: str = Field(

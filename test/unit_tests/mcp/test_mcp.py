@@ -39,6 +39,9 @@ def mcp_test_client():
 def orchestrator_client_with_mcp(database, db_uri):
     """TestClient for the full OrchestratorCore with MCP mounted.
 
+    MCP is auto-enabled when fastmcp is importable (orchestrator-core[mcp] installed),
+    so no explicit MCP_ENABLED flag is needed here.
+
     Uses TestClient as a context manager so it drives the lifespan (startup/
     shutdown callbacks), which starts and stops the broadcast thread and other
     services. We must NOT manually call broadcast_thread.start() here because
@@ -62,7 +65,6 @@ def orchestrator_client_with_mcp(database, db_uri):
             # second OrchestratorCore is created alongside the session-level one.
             ENABLE_PROMETHEUS_METRICS_ENDPOINT=False,
         ),
-        patch("orchestrator.core.settings.llm_settings.MCP_ENABLED", True),
     ):
         app = OrchestratorCore(base_settings=app_settings)
         # TestClient context manager drives on_startup / on_shutdown callbacks.
@@ -244,7 +246,7 @@ def test_mcp_tools_call_list_products(mcp_test_client):
 
 
 def test_mcp_mounted_at_slash_mcp(orchestrator_client_with_mcp):
-    """When MCP_ENABLED=True, /mcp/ should respond to MCP initialize."""
+    """When fastmcp is installed, /mcp/ should respond to MCP initialize."""
     response = orchestrator_client_with_mcp.post(
         "/mcp/",
         json=INITIALIZE_PAYLOAD,
@@ -258,8 +260,14 @@ def test_mcp_mounted_at_slash_mcp(orchestrator_client_with_mcp):
     assert "protocolVersion" in result
 
 
-def test_mcp_not_mounted_when_disabled(database, db_uri):
-    """When MCP_ENABLED=False (default), /mcp/ should return 404."""
+def test_mcp_not_mounted_when_fastmcp_not_installed(database, db_uri):
+    """When fastmcp is not importable (orchestrator-core[mcp] not installed), /mcp/ should return 404.
+
+    Setting sys.modules["orchestrator.mcp"] = None causes Python to raise ImportError
+    on any ``from orchestrator.mcp import ...`` statement, simulating the package being absent.
+    """
+    import sys
+
     from oauth2_lib.settings import oauth2lib_settings
 
     from orchestrator.core import OrchestratorCore
@@ -278,13 +286,14 @@ def test_mcp_not_mounted_when_disabled(database, db_uri):
             # second OrchestratorCore is created alongside the session-level one.
             ENABLE_PROMETHEUS_METRICS_ENDPOINT=False,
         ),
-        # MCP_ENABLED defaults to False — no patch needed, but be explicit
-        patch("orchestrator.core.settings.llm_settings.MCP_ENABLED", False),
+        # Setting a sys.modules entry to None causes ImportError on import,
+        # simulating fastmcp / orchestrator-core[mcp] not being installed.
+        patch.dict(sys.modules, {"orchestrator.mcp": None}),
     ):
         app = OrchestratorCore(base_settings=app_settings)
         # TestClient context manager drives on_startup / on_shutdown callbacks.
         with TestClient(app, raise_server_exceptions=False) as client:
             response = client.post("/mcp/", json=INITIALIZE_PAYLOAD, headers=MCP_HEADERS)
             assert response.status_code == HTTPStatus.NOT_FOUND, (
-                f"Expected 404 when MCP disabled, got {response.status_code}"
+                f"Expected 404 when fastmcp not installed, got {response.status_code}"
             )
