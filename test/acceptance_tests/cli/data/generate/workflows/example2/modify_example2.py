@@ -12,9 +12,6 @@
 # limitations under the License.
 
 import structlog
-from products.product_blocks.example2 import ExampleIntEnum2
-from products.product_types.example2 import Example2, Example2Provisioning
-
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import CustomerId, Divider
@@ -23,6 +20,9 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from pydantic_forms.types import FormGenerator, State, UUIDstr
+
+from products.product_blocks.example2 import ExampleIntEnum2
+from products.product_types.example2 import Example2, Example2Provisioning
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:

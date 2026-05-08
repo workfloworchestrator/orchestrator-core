@@ -11,10 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pydantic import computed_field
 
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
+from pydantic import computed_field
+
 from products.product_blocks.example4sub import Example4SubBlock, Example4SubBlockInactive, Example4SubBlockProvisioning
 
 

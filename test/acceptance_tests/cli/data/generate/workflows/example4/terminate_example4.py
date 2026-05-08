@@ -12,13 +12,13 @@
 # limitations under the License.
 
 import structlog
-from products.product_types.example4 import Example4
-
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
 from pydantic_forms.types import InputForm, State, UUIDstr
+
+from products.product_types.example4 import Example4
 
 logger = structlog.get_logger(__name__)
 

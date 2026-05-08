@@ -11,8 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
+
 from products.product_blocks.example4 import Example4Block, Example4BlockInactive, Example4BlockProvisioning
 
 

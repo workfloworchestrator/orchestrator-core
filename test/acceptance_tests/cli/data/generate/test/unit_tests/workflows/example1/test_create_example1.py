@@ -12,10 +12,10 @@
 # limitations under the License.
 
 import pytest
-from products.product_types.example1 import Example1
-
 from orchestrator.core.db import ProductTable
 from orchestrator.core.forms import FormValidationError
+
+from products.product_types.example1 import Example1
 from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
 

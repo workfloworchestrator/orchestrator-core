@@ -13,10 +13,10 @@
 
 from uuid import uuid4
 
-from products.product_types.example1 import Example1, Example1Inactive
-
 from orchestrator.core.db import ProductTable, db
 from orchestrator.core.types import SubscriptionLifecycle
+
+from products.product_types.example1 import Example1, Example1Inactive
 
 
 def test_example1_new():

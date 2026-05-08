@@ -12,8 +12,6 @@
 # limitations under the License.
 
 import structlog
-from products.product_types.example4 import Example4, Example4Provisioning
-
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import CustomerId, Divider
@@ -23,6 +21,8 @@ from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import read_only_field
+
+from products.product_types.example4 import Example4, Example4Provisioning
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:

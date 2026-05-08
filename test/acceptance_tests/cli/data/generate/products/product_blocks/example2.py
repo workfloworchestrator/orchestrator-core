@@ -13,10 +13,9 @@
 
 from enum import IntEnum
 
-from pydantic import computed_field
-
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
+from pydantic import computed_field
 
 
 class ExampleIntEnum2(IntEnum):

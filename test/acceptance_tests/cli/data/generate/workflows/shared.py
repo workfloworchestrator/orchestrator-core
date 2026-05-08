@@ -14,11 +14,10 @@
 from collections.abc import Generator
 from typing import TypeAlias, cast
 
-from pydantic import ConfigDict
-
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import MigrationSummary, migration_summary
+from pydantic import ConfigDict
 
 
 def summary_form(product_name: str, summary_data: dict) -> Generator:

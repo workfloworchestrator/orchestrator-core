@@ -10,19 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import Annotated
 
 import structlog
-from products.product_blocks.example1 import AnnotatedInt, ExampleStrEnum1
-from products.product_types.example1 import Example1Inactive, Example1Provisioning
-from pydantic import AfterValidator, ConfigDict
-from workflows.example1.shared.forms import (
-    annotated_int_must_be_unique_validator,
-    must_be_unused_to_change_mode_validator,
-)
-from workflows.shared import create_summary_form
-
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import CustomerId, Divider, Label
@@ -30,7 +20,16 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
+from pydantic import AfterValidator, ConfigDict
 from pydantic_forms.types import FormGenerator, State, UUIDstr
+
+from products.product_blocks.example1 import AnnotatedInt, ExampleStrEnum1
+from products.product_types.example1 import Example1Inactive, Example1Provisioning
+from workflows.example1.shared.forms import (
+    annotated_int_must_be_unique_validator,
+    must_be_unused_to_change_mode_validator,
+)
+from workflows.shared import create_summary_form
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:

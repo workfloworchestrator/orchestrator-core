@@ -12,11 +12,11 @@
 # limitations under the License.
 
 import structlog
-from products.product_types.example1 import Example1
-
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from pydantic_forms.types import State
+
+from products.product_types.example1 import Example1
 
 logger = structlog.get_logger(__name__)
 

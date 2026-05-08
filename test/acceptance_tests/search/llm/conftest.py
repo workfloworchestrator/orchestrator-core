@@ -22,8 +22,6 @@ from orchestrator.core.search.core.types import EntityType
 from test.acceptance_tests.search.llm.fixtures import TEST_PRODUCT, TEST_SUBSCRIPTIONS
 from test.acceptance_tests.search.llm.helpers import index_subscription, load_ground_truth
 
-pytest_plugins = ["test.integration_tests._fixtures"]
-
 # Mark all tests in this directory with the search marker
 pytestmark = pytest.mark.search
 

@@ -15,6 +15,7 @@ from enum import IntEnum
 
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
+
 from products.product_blocks.example1 import Example1Block, Example1BlockInactive, Example1BlockProvisioning
 
 
