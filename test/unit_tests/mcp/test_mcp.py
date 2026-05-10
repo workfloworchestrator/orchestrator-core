@@ -58,8 +58,9 @@ def _agent_tagged_routes(app: FastAPI) -> dict[str, str]:
         tags = getattr(route, "tags", None) or []
         if AgentTag.EXPOSED.value in tags or AgentTag.EXPOSED in tags:
             op_id = getattr(route, "operation_id", None)
-            assert op_id, f"agent-exposed route {route.path!r} is missing operation_id"
-            out[op_id] = route.path
+            path = getattr(route, "path", "")
+            assert op_id, f"agent-exposed route {path!r} is missing operation_id"
+            out[op_id] = path
     return out
 
 
