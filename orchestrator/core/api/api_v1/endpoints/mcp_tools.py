@@ -99,7 +99,7 @@ def list_workflows_endpoint(params: ListWorkflowsRequest) -> list[WorkflowSchema
         filters["target"] = params.target.upper()
     if params.is_task is not None:
         filters["is_task"] = params.is_task
-    return list(get_workflows(filters=filters or None, include_steps=True))
+    return list(get_workflows(filters=filters or None, include_steps=False))
 
 
 @router.post(
