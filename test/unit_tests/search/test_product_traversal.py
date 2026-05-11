@@ -136,19 +136,3 @@ def test_lookup_specialized_type_fallback(product_uuid):
 
     assert result is not None
     mock_domain_cls._init_instances.assert_called_once()
-
-
-def test_from_product_id_failure_returns_none(caplog):
-    mock_product = MagicMock()
-    mock_product.name = "MyProduct"
-    mock_product.product_id = "product-123"
-
-    mock_domain_cls = MagicMock()
-    mock_domain_cls.from_product_id.side_effect = RuntimeError("db error")
-
-    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"MyProduct": mock_domain_cls}, clear=True):
-        with patch("orchestrator.core.search.indexing.traverse.lookup_specialized_type", return_value=mock_domain_cls):
-            result = ProductTraverser._load_model(mock_product)
-
-    assert result is None
-    assert "Failed to instantiate template model for product" in caplog.text

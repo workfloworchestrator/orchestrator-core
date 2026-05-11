@@ -49,7 +49,7 @@ dependencies = [
     "more-itertools~=11.0.1",
     "nwa-stdlib~=1.11.0",
     "oauth2-lib>=2.6.1",
-    "orjson==3.11.8",
+    "orjson==3.11.9",
     "pgvector>=0.4.1",
     "prometheus-client==0.25.0",
     "psycopg[binary]>=3.3.3",
@@ -123,6 +123,7 @@ dev = [
     "requests-mock>=1.12.1",
     "ruff>=0.15.11",
     "sqlalchemy[mypy]>=2.0.41",
+    "testcontainers[postgres,redis]>=4.7.2",
     "toml>=0.10.2",
     "types-aiofiles>=24.1.0.20250606",
     "types-certifi>=2021.10.8.3",
@@ -160,7 +161,7 @@ exclude = [
     "venv",
     ".venv",
     "docs",
-    "test/unit_tests/cli/data/generate",
+    "test/acceptance_tests/cli/data/generate",
     "orchestrator/vendor",
 ]
 line-length = 120
@@ -240,8 +241,9 @@ norecursedirs = [
     ".*",
     "migrations",
     "docs",
-    "test/unit_tests/cli/data/generate",
+    "test/acceptance_tests/cli/data/generate",
 ]
+pythonpath = ["."]
 testpaths = ["test/unit_tests", "orchestrator/core"]
 asyncio_mode = "auto"
 consider_namespace_packages = true
@@ -268,17 +270,23 @@ filterwarnings = [
 	"ignore:.*executed.*deprecated.*:DeprecationWarning:orchestrator.core.graphql",
 ]
 markers = [
+    # Test category — directory layout is the primary separation; markers are
+    # secondary and only used for selective runs within a category.
+    "integration: Integration test (requires Postgres, Redis, FastAPI app or Celery)",
+    "postgres: Test requires a Postgres database",
+    "redis: Test requires a Redis cache",
+    # Per-feature markers
     "workflow: Test that runs a complete workflow (Slow)",
     "acceptance: Acceptance Tests. Needs special handling.",
-	"regression: Tests that cover bugs that are fixed to prevent them from regressing",
-	"celery: Tests that require celery functionality",
-	"search: Tests that require search/indexing functionality",
-	"agent: Tests that require agentic functionality and the agent extra dependencies",
-	"noresponses: Skip HTTP response mocking for this test (use with caution)",
+    "regression: Tests that cover bugs that are fixed to prevent them from regressing",
+    "celery: Tests that require celery functionality",
+    "search: Tests that require search/indexing functionality",
+    "agent: Tests that require agentic functionality and the agent extra dependencies",
+    "noresponses: Skip HTTP response mocking for this test (use with caution)",
 ]
 
 [tool.mypy]
-exclude = "(venv|test/unit_tests/cli/data/generate|orchestrator/core/vendor|vulture_whitelist.py)"
+exclude = "(venv|test/acceptance_tests/cli/data/generate|orchestrator/core/vendor|vulture_whitelist.py)"
 ignore_missing_imports = true
 disallow_untyped_calls = true
 disallow_untyped_defs = true

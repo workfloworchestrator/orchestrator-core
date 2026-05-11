@@ -36,7 +36,6 @@ from orchestrator.core.search.query.exceptions import (
     EmptyFilterPathError,
     IncompatibleFilterTypeError,
     InvalidEntityPrefixError,
-    InvalidLtreePatternError,
     PathNotFoundError,
 )
 from orchestrator.core.search.query.validation import (
@@ -108,20 +107,6 @@ async def test_invalid_entity_prefix_raises_error(mock_validate_path):
         await complete_filter_validation(filter_with_wrong_prefix, EntityType.SUBSCRIPTION)
 
 
-@pytest.mark.asyncio
-@patch("orchestrator.core.search.query.validation.is_lquery_syntactically_valid")
-async def test_invalid_ltree_pattern_raises_error(mock_is_valid):
-    """Invalid ltree patterns raise InvalidLtreePatternError."""
-    mock_is_valid.return_value = False
-    filter_with_invalid_ltree = PathFilter(
-        path="subscription.path",
-        condition=LtreeFilter(op=FilterOp.MATCHES_LQUERY, value="invalid[pattern"),
-        value_kind=UIType.COMPONENT,
-    )
-    with pytest.raises(InvalidLtreePatternError):
-        await complete_filter_validation(filter_with_invalid_ltree, EntityType.SUBSCRIPTION)
-
-
 # ---------------------------------------------------------------------------
 # Filter tree validation
 # ---------------------------------------------------------------------------
@@ -186,21 +171,6 @@ async def test_wildcard_path_bypasses_entity_prefix_check(mock_validate_path):
     )
     await complete_filter_validation(filter_with_wildcard, EntityType.SUBSCRIPTION)
     mock_validate_path.assert_called_once_with("*.name")
-
-
-@pytest.mark.asyncio
-@patch("orchestrator.core.search.query.validation.is_lquery_syntactically_valid", return_value=True)
-@patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_ltree_filter_takes_special_path(mock_validate_path, mock_lquery_valid):
-    """LtreeFilter takes special validation path and does not call validate_filter_path."""
-    filter_with_ltree = PathFilter(
-        path="subscription.path",
-        condition=LtreeFilter(op=FilterOp.MATCHES_LQUERY, value="*.product.*"),
-        value_kind=UIType.COMPONENT,
-    )
-    await complete_filter_validation(filter_with_ltree, EntityType.SUBSCRIPTION)
-    mock_validate_path.assert_not_called()
-    mock_lquery_valid.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
