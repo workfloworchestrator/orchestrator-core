@@ -104,6 +104,7 @@ This will be used to run the Orchestrator API.
     from orchestrator.core.settings import app_settings
 
     app = OrchestratorCore(base_settings=app_settings)
+    app.register_graphql()
     ```
 
 === "`orchestrator-core` < 5.0"
@@ -113,6 +114,7 @@ This will be used to run the Orchestrator API.
     from orchestrator.settings import app_settings
 
     app = OrchestratorCore(base_settings=app_settings)
+    app.register_graphql()
     ```
 
 

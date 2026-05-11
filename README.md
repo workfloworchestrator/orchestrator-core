@@ -60,6 +60,7 @@ from orchestrator.core import OrchestratorCore
 from orchestrator.core.settings import AppSettings
 
 app = OrchestratorCore(base_settings=AppSettings())
+app.register_graphql()
 ```
 
 ### Step 4 - Run the database migrations
