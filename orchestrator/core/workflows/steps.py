@@ -105,6 +105,7 @@ def unsync_unchecked(subscription_id: UUIDstr) -> State:
     """Use for validation workflows that need to run if the subscription is out of sync."""
     subscription = SubscriptionModel.from_subscription(subscription_id)
     subscription.insync = False
+    sync_invalidate_subscription_cache(subscription.subscription_id)
     return {"subscription": subscription}
 
 
