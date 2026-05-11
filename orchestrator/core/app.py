@@ -16,7 +16,9 @@ This module contains the main `OrchestratorCore` class for the `FastAPI` backend
 provides the ability to run the CLI.
 """
 
-from collections.abc import Callable
+import inspect
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from typing import Any, cast
 
 import sentry_sdk
@@ -32,6 +34,7 @@ from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from sentry_sdk.integrations.strawberry import StrawberryIntegration
 from sentry_sdk.integrations.threading import ThreadingIntegration
+from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
@@ -65,6 +68,42 @@ from pydantic_forms.exception_handlers.fastapi import form_error_handler
 from pydantic_forms.exceptions import FormException
 
 logger = structlog.get_logger(__name__)
+
+
+def _build_lifespan(
+    startup_functions: list[Callable],
+    shutdown_functions: list[Callable],
+    get_mcp_app: Callable[[], Starlette | None],
+) -> Callable[[FastAPI], Any]:
+    """Build an ASGI lifespan that runs the app's startup/shutdown callbacks.
+
+    ``get_mcp_app`` is called at startup time (not build time) so the MCP
+    sub-app mounted later in ``__init__``, is visible. When MCP is enabled
+    its sub-app's lifespan is composed in so the streamable HTTP session
+    manager starts and stops with the parent app.
+    """
+
+    async def _run_all(fns: list[Callable]) -> None:
+        for fn in fns:
+            result = fn()
+            if inspect.isawaitable(result):
+                await result
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        await _run_all(startup_functions)
+        try:
+            mcp_app = get_mcp_app()
+            if mcp_app is not None:
+                async with mcp_app.router.lifespan_context(app):
+                    yield
+            else:
+                yield
+        finally:
+            await _run_all(shutdown_functions)
+
+    return lifespan
+
 
 sentry_integrations: list[Integration] = [
     SqlalchemyIntegration(),
@@ -133,6 +172,8 @@ class OrchestratorCore(FastAPI):
             startup_functions.append(self.broadcast_thread.start)
             shutdown_functions.append(self.broadcast_thread.stop)
 
+        self._mcp_app: Starlette | None = None
+
         super().__init__(
             title=title,
             description=description,
@@ -141,8 +182,7 @@ class OrchestratorCore(FastAPI):
             redoc_url=redoc_url,
             version=version,
             default_response_class=default_response_class,
-            on_startup=startup_functions,
-            on_shutdown=shutdown_functions,
+            lifespan=_build_lifespan(startup_functions, shutdown_functions, lambda: self._mcp_app),
             **kwargs,
         )
 
@@ -182,6 +222,11 @@ class OrchestratorCore(FastAPI):
             initialize_default_metrics()
             metrics_app = make_asgi_app(registry=ORCHESTRATOR_METRICS_REGISTRY)
             self.mount("/api/metrics", metrics_app)
+
+        if base_settings.MCP_ENABLED:
+            from orchestrator.core.mcp.server import mount_mcp
+
+            self._mcp_app = mount_mcp(self)
 
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
         def _index() -> str:

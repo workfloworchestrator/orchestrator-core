@@ -23,10 +23,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import Query, Session, as_declarative, scoped_session, sessionmaker
 from sqlalchemy.sql.schema import MetaData
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import Response
-from starlette.types import ASGIApp
+from starlette.types import ASGIApp, Receive, Scope, Send
 from structlog.stdlib import BoundLogger
 
 from orchestrator.core.utils.json import json_dumps, json_loads
@@ -220,15 +217,26 @@ class Database:
             self.request_context.reset(token)
 
 
-class DBSessionMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: ASGIApp, database: Database, commit_on_exit: bool = False):
-        super().__init__(app)
+class DBSessionMiddleware:
+    """Pure ASGI middleware that opens a database scope per HTTP request.
+
+    Implemented as a pure ASGI middleware (not ``BaseHTTPMiddleware``)
+    because the latter buffers the response body, which breaks streaming
+    responses such as the SSE transport used by the MCP server. See
+    https://github.com/encode/starlette/discussions/1678.
+    """
+
+    def __init__(self, app: ASGIApp, database: Database, commit_on_exit: bool = False) -> None:
+        self.app = app
         self.commit_on_exit = commit_on_exit
         self.database = database
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
         with self.database.database_scope():
-            return await call_next(request)
+            await self.app(scope, receive, send)
 
 
 @contextmanager
