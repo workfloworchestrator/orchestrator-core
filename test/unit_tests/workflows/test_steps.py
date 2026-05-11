@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for workflow steps: unsync (fallback/backup/insync logic), store_process_subscription deprecation, and refresh_search_index error handling."""
+"""Tests for workflow steps: unsync/unsync_unchecked (fallback/backup/insync logic), store_process_subscription deprecation, and refresh_search_index error handling."""
 
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -20,11 +20,13 @@ import pytest
 from pydantic import ValidationError
 
 from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.utils.functional import orig
 from orchestrator.core.workflows.steps import (
     refresh_process_search_index,
     refresh_subscription_search_index,
     store_process_subscription,
     unsync,
+    unsync_unchecked,
 )
 
 
@@ -47,13 +49,6 @@ def validation_error():
     return ValidationError.from_exception_data(title="test", line_errors=[], input_type="python")
 
 
-def _make_state(subscription_id, old_subscriptions=None):
-    state = {"subscription_id": subscription_id}
-    if old_subscriptions is not None:
-        state["__old_subscriptions__"] = old_subscriptions
-    return state
-
-
 # --- unsync ---
 
 
@@ -70,13 +65,12 @@ def test_unsync_validation_error_fallback(
     fallback_sub.subscription_id = subscription_id
     mock_get_sub.return_value = fallback_sub
 
-    result = unsync(_make_state(subscription_id))
+    result = orig(unsync)(subscription_id)
 
-    assert result.issuccess()
-    state = result.unwrap()
     mock_get_sub.assert_called_once_with(subscription_id)
-    assert state["subscription"] == fallback_sub
+    assert result["subscription"] == fallback_sub
     assert fallback_sub.insync is False
+    mock_invalidate.assert_called_once_with(fallback_sub.subscription_id)
 
 
 @patch("orchestrator.core.workflows.steps.sync_invalidate_subscription_cache")
@@ -86,24 +80,24 @@ def test_unsync_existing_backup_skips(mock_from_sub, mock_invalidate, subscripti
     mock_from_sub.return_value = mock_subscription_model
     existing_backup = {subscription_id: {"old": "data"}}
 
-    result = unsync(_make_state(subscription_id, existing_backup))
+    result = orig(unsync)(subscription_id, existing_backup)
 
-    assert result.issuccess()
-    state = result.unwrap()
-    assert state["__old_subscriptions__"][subscription_id] == {"old": "data"}
+    assert result["__old_subscriptions__"][subscription_id] == {"old": "data"}
+    mock_invalidate.assert_called_once_with(mock_subscription_model.subscription_id)
 
 
 @patch("orchestrator.core.workflows.steps.sync_invalidate_subscription_cache")
 @patch("orchestrator.core.workflows.steps.SubscriptionModel.from_subscription")
 def test_unsync_already_out_of_sync_fails(mock_from_sub, mock_invalidate, subscription_id):
-    """Subscription with insync=False raises ValueError, wrapped as Failed by step decorator."""
+    """Subscription with insync=False raises ValueError."""
     sub = MagicMock()
     sub.insync = False
     mock_from_sub.return_value = sub
 
-    result = unsync(_make_state(subscription_id))
+    with pytest.raises(ValueError, match="already out of sync"):
+        orig(unsync)(subscription_id)
 
-    assert result.isfailed()
+    mock_invalidate.assert_not_called()
 
 
 @patch("orchestrator.core.workflows.steps.sync_invalidate_subscription_cache")
@@ -112,13 +106,46 @@ def test_unsync_creates_backup_for_model(mock_from_sub, mock_invalidate, subscri
     """Normal path: creates backup using model_dump for SubscriptionModel."""
     mock_from_sub.return_value = mock_subscription_model
 
-    result = unsync(_make_state(subscription_id))
+    result = orig(unsync)(subscription_id)
 
-    assert result.issuccess()
-    state = result.unwrap()
-    assert str(subscription_id) in state["__old_subscriptions__"]
-    assert state["__old_subscriptions__"][str(subscription_id)] == {"field": "value"}
+    assert str(subscription_id) in result["__old_subscriptions__"]
+    assert result["__old_subscriptions__"][str(subscription_id)] == {"field": "value"}
     assert mock_subscription_model.insync is False
+    mock_invalidate.assert_called_once_with(mock_subscription_model.subscription_id)
+
+
+# --- unsync_unchecked
+
+
+@patch("orchestrator.core.workflows.steps.sync_invalidate_subscription_cache")
+@patch("orchestrator.core.workflows.steps.SubscriptionModel.from_subscription")
+def test_unsync_unchecked_sets_insync_false_and_invalidates_cache(
+    mock_from_sub, mock_invalidate, subscription_id, mock_subscription_model
+):
+    """Normal path: sets insync to False, invalidates cache, and returns subscription."""
+    mock_from_sub.return_value = mock_subscription_model
+
+    result = orig(unsync_unchecked)(subscription_id)
+
+    assert result["subscription"] == mock_subscription_model
+    assert mock_subscription_model.insync is False
+    mock_invalidate.assert_called_once_with(mock_subscription_model.subscription_id)
+
+
+@patch("orchestrator.core.workflows.steps.sync_invalidate_subscription_cache")
+@patch("orchestrator.core.workflows.steps.SubscriptionModel.from_subscription")
+def test_unsync_unchecked_works_when_already_out_of_sync(mock_from_sub, mock_invalidate, subscription_id):
+    """unsync_unchecked succeeds even if the subscription is already out of sync (no insync guard)."""
+    sub = MagicMock(spec=SubscriptionModel)
+    sub.insync = False
+    sub.subscription_id = uuid4()
+    mock_from_sub.return_value = sub
+
+    result = orig(unsync_unchecked)(subscription_id)
+
+    assert result["subscription"] == sub
+    assert sub.insync is False
+    mock_invalidate.assert_called_once_with(sub.subscription_id)
 
 
 # --- store_process_subscription ---
@@ -137,14 +164,14 @@ def test_store_process_subscription_deprecation_warning():
 
 
 @pytest.mark.parametrize(
-    "step_fn,state_key,state_value",
+    "step_fn,arg_name,arg_value",
     [
         pytest.param(refresh_subscription_search_index, "subscription", MagicMock(), id="subscription"),
         pytest.param(refresh_process_search_index, "process_id", str(uuid4()), id="process"),
     ],
 )
 @patch("orchestrator.core.workflows.steps.reset_search_index")
-def test_refresh_search_index_exception_swallowed(mock_reset, step_fn, state_key, state_value):
+def test_refresh_search_index_exception_swallowed(mock_reset, step_fn, arg_name, arg_value):
     mock_reset.side_effect = RuntimeError("search error")
-    result = step_fn({state_key: state_value})
-    assert result.issuccess()
+    result = orig(step_fn)(**{arg_name: arg_value})
+    assert result == {}
