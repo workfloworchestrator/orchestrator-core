@@ -19,6 +19,7 @@ from fastapi.routing import APIRouter
 from orchestrator.core.api.api_v1.endpoints import (
     forms,
     health,
+    mcp_tools,
     processes,
     product_blocks,
     products,
@@ -96,3 +97,7 @@ api_router.include_router(
 api_router.include_router(forms.router, prefix="/forms", tags=["Core", "Forms"], dependencies=[Depends(authorize)])
 
 api_router.include_router(search.router, prefix="/search", tags=["Core", "Search"], dependencies=[Depends(authorize)])
+
+api_router.include_router(
+    mcp_tools.router, prefix="/agent", tags=["Core", "Agent Tools"], dependencies=[Depends(authorize)]
+)

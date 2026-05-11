@@ -121,6 +121,7 @@ class AppSettings(BaseSettings):
     EXPOSE_SETTINGS: bool = False
     EXPOSE_OAUTH_SETTINGS: bool = False
     LIFECYCLE_VALIDATION_MODE: LifecycleValidationMode = LifecycleValidationMode.LOOSE
+    MCP_ENABLED: bool = False
 
 
 app_settings = AppSettings()

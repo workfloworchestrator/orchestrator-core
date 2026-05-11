@@ -20,6 +20,7 @@ from fastapi.routing import APIRouter
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload, selectinload
 
+from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import ProductBlockTable, ProductTable, SubscriptionTable, db
 from orchestrator.core.domain.lifecycle import ProductLifecycle
@@ -35,6 +36,8 @@ router = APIRouter()
 @router.get(
     "/",
     response_model=list[ProductSchema],
+    tags=[AgentTag.EXPOSED, AgentTag.LARGE],
+    operation_id="list_products",
 )
 def fetch(tag: str | None = None, product_type: str | None = None) -> list[ProductSchema]:
     stmt = select(ProductTable).options(

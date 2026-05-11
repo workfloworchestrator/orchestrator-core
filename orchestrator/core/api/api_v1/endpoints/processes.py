@@ -35,6 +35,7 @@ from sqlalchemy.sql.functions import count
 from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.api.helpers import add_response_range
 from orchestrator.core.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
@@ -188,6 +189,8 @@ def delete(process_id: UUID) -> None:
     response_model=ProcessIdSchema,
     status_code=HTTPStatus.CREATED,
     dependencies=[Depends(check_global_lock, use_cache=False)],
+    tags=[AgentTag.EXPOSED],
+    operation_id="create_workflow",
 )
 async def new_process(
     workflow_key: str,
@@ -231,6 +234,8 @@ async def new_process(
     response_model=None,
     status_code=HTTPStatus.NO_CONTENT,
     dependencies=[Depends(check_global_lock, use_cache=False)],
+    tags=[AgentTag.EXPOSED],
+    operation_id="resume_workflow_process",
 )
 async def resume_process_endpoint(
     process_id: UUID,
@@ -358,7 +363,13 @@ async def resume_all_processes_endpoint(request: Request, user: str = Depends(us
     return {"count": len(processes_to_resume)}
 
 
-@router.put("/{process_id}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.put(
+    "/{process_id}/abort",
+    response_model=None,
+    status_code=HTTPStatus.NO_CONTENT,
+    tags=[AgentTag.EXPOSED],
+    operation_id="abort_workflow_process",
+)
 def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depends(user_name)) -> None:
     process = _get_process(process_id)
 
