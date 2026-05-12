@@ -34,7 +34,7 @@ class ApiException(Exception):  # noqa: N818
     status: HTTPStatus | None
     reason: str | None
     body: str | None
-    headers: dict[str, str]
+    headers: dict[str, str] | None
 
     def __init__(self, status: HTTPStatus | None = None, reason: str | None = None, http_resp: object | None = None):
         super().__init__(status, reason, http_resp)
@@ -93,20 +93,21 @@ class StartPredicateError(Exception):
 
 
 def is_api_exception(ex: Exception) -> bool:
-    """Test for swagger-codegen ApiException.
+    """Test for swagger-codegen / openapi-generator ApiException.
 
-    For each API, swagger-codegen generates a new ApiException class. These are not organized into
-    a hierarchy. Hence, testing whether one is dealing with one of the ApiException classes without knowing how
-    many there are and where they are located, needs some special logic.
+    Generated clients create a new ApiException class per API, and newer generators produce typed
+    subclasses (BadRequestException, NotFoundException, etc.) that all inherit from a class named
+    ApiException. Walking the MRO catches both the base class and all subclasses without requiring
+    a shared import.
 
     Args:
         ex: the Exception to be tested.
 
     Returns:
-        True if it is an ApiException, False otherwise.
+        True if any class in the exception's MRO is named ApiException.
 
     """
-    return ex.__class__.__name__ == "ApiException"
+    return any(c.__name__ == "ApiException" for c in type(ex).__mro__)
 
 
 @singledispatch
@@ -146,5 +147,4 @@ def _(err: Exception) -> ErrorDict:
             "headers": "\n".join(f"{k}: {v}" for k, v in headers.items()),
             "traceback": show_ex(err),
         }
-
     return {"class": type(err).__name__, "error": str(err), "traceback": show_ex(err)}
