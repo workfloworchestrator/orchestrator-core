@@ -71,19 +71,27 @@ db = cast(Database, wrapped_db)
 # The Global Database is set after calling this function
 def init_database(settings: AppSettings) -> Database:
     db_uri = str(settings.DATABASE_URI.get_secret_value())
+    warn_db_uri_scheme(db_uri)
+
+    wrapped_db.update(Database(db_uri))
+    return db
+
+
+def warn_db_uri_scheme(db_uri: str) -> None:
+    """Temporary helper function to assist users in moving to core 5.0.
+
+    TODO: remove in 5.1 or above
+    """
     if db_uri.startswith("postgresql://"):
         import warnings
 
         warnings.warn(
-            "DATABASE_URI uses 'postgresql://' dialect which defaults to psycopg2. "
+            "Database URI uses 'postgresql://' dialect which defaults to psycopg2. "
             "orchestrator-core has migrated to psycopg3. "
-            "Please update DATABASE_URI to use 'postgresql+psycopg://' instead.",
+            "Please update to use 'postgresql+psycopg://' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-
-    wrapped_db.update(Database(db_uri))
-    return db
 
 
 __all__ = [
@@ -111,6 +119,7 @@ __all__ = [
     "db",
     "init_database",
 ]
+
 
 ALL_DB_MODELS: list[type[DbBaseModel]] = [
     AgentRunTable,
