@@ -73,6 +73,12 @@ def thread_start_process(
     user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
+    """Trigger the current thread or threadpool to start the given process.
+
+    This wrapper ensures that:
+     - The process has status RUNNING in the database
+     - The current sqlalchemy SessionTransaction is committed (and thus closed)
+    """
     if pstat.workflow == removed_workflow:
         raise ValueError(START_WORKFLOW_REMOVED_ERROR_MSG)
 
@@ -100,10 +106,11 @@ def thread_resume_process(
     user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
-    """Resume the given process.
+    """Trigger the current thread or threadpool to resume the given process.
 
     This wrapper ensures that:
-     - The process has status
+     - The process has status RUNNING in the database
+     - The current sqlalchemy SessionTransaction is committed (and thus closed)
     """
     # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
     pstat = load_process(process)
@@ -135,6 +142,7 @@ def thread_resume_process(
 
 
 def thread_validate_workflow(validation_workflow: str, json: list[State] | None) -> UUID:
+    """Create a validation workflow process and start it via the threadpool executor."""
     pstat = create_process(validation_workflow, user_inputs=json)
     return THREADPOOL_EXECUTION_CONTEXT[ExecutorFunction.START](pstat)
 
