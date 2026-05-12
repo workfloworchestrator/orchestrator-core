@@ -148,10 +148,20 @@ class BaseModel(_Base):
 
 
 class WrappedSession(Session):
-    """This Session class allows us to disable commit during steps."""
+    """This Session class allows us to disable commit."""
+
+    def is_commit_disabled(self) -> bool:
+        # Verify whether commiting is disabled on the session.
+        return self.info.get("disabled") is True
+
+    def enable_commit(self) -> None:
+        self.info["disabled"] = False
+
+    def disable_commit(self) -> None:
+        self.info["disabled"] = True
 
     def commit(self) -> None:
-        if self.info.get("disabled", False):
+        if self.is_commit_disabled():
             self.info.get("logger", logger).warning(
                 "Step function tried to issue a commit. It should not! "
                 "Will execute commit on behalf of step function when it returns."
@@ -241,26 +251,25 @@ class DBSessionMiddleware:
 
 @contextmanager
 def disable_commit(db: Database, log: BoundLogger) -> Iterator:
-    restore = True
     # If `db.session` already has its `commit` method disabled we won't try disabling *and* restoring it again.
-    if db.session.info.get("disabled", False):
-        restore = False
-    else:
-        log.debug("Temporarily disabling commit.")
-        db.session.info["disabled"] = True
-        db.session.info["logger"] = log
+    if db.session.is_commit_disabled():
+        yield
+        return
+
+    log.debug("Temporarily disabling commit.")
+    db.session.disable_commit()
+    db.session.info["logger"] = log
     try:
         yield
     finally:
-        if restore:
-            log.debug("Reenabling commit.")
-            db.session.info["disabled"] = False
-            db.session.info["logger"] = None
+        log.debug("Reenabling commit.")
+        db.session.enable_commit()
+        db.session.info["logger"] = None
 
 
 @contextmanager
 def transactional(db: Database, log: BoundLogger) -> Iterator:
-    """Run a step function in an implicit transaction with automatic rollback or commit.
+    """Run the context in an implicit transaction with automatic rollback or commit.
 
     It will roll back in case of error, commit otherwise. It will also disable the `commit()` method
     on `BaseModel.session` for the time `transactional` is in effect.
@@ -269,10 +278,11 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
     owns the transaction. This prevents the inner safeguard rollback from discarding the
     outer transaction's work.
     """
-    if db.session.info.get("disabled", False):
+    if db.session.is_commit_disabled():
         # Nested call: outer transactional() owns commit/rollback. Inner is a no-op.
         yield
         return
+
     try:
         with disable_commit(db, log):
             yield
@@ -280,8 +290,5 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
         db.session.commit()
     except Exception:
         log.warning("Rolling back transaction.")
-        raise
-    finally:
-        # Extra safeguard rollback. If the commit failed there is still a failed transaction open.
-        # BTW: without a transaction in progress this method is a pass-through.
         db.session.rollback()
+        raise

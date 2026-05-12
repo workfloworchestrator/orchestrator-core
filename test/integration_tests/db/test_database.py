@@ -12,7 +12,6 @@
 # limitations under the License.
 
 """Tests for database session management: WrappedSession commit gating, disable_commit nesting, and transactional."""
-
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -24,33 +23,38 @@ from orchestrator.core.db.database import (
 )
 
 
-def _make_db(disabled: bool = False) -> MagicMock:
-    db = MagicMock()
-    db.session.info = {"disabled": disabled}
-    return db
-
-
-def _make_session(disabled: bool = False, custom_logger: MagicMock | None = None) -> MagicMock:
-    session = MagicMock(spec=WrappedSession)
-    session.info = {"disabled": disabled}
+def _make_session(commit_disabled: bool = False, custom_logger: MagicMock | None = None) -> WrappedSession:
+    info: dict = {"disabled": commit_disabled}
     if custom_logger is not None:
-        session.info["logger"] = custom_logger
-    session.commit = WrappedSession.commit.__get__(session, WrappedSession)
-    return session
+        info["logger"] = custom_logger
+    return WrappedSession(info=info)
+
+
+def _make_db(commit_disabled: bool = False) -> MagicMock:
+    session = _make_session(commit_disabled=commit_disabled)
+    # Spy on the SQLAlchemy mutation methods so tests can assert call counts,
+    # while keeping is_commit_disabled / enable_commit / disable_commit / info real.
+    session.commit = MagicMock()  # type: ignore[method-assign]
+    session.rollback = MagicMock()  # type: ignore[method-assign]
+    session.add = MagicMock()  # type: ignore[method-assign]
+
+    db = MagicMock()
+    db.session = session
+    return db
 
 
 # --- WrappedSession.commit ---
 
 
 @pytest.mark.parametrize(
-    "disabled,expect_super_called",
+    "commit_disabled,expect_super_called",
     [
         pytest.param(False, True, id="enabled-calls-super"),
         pytest.param(True, False, id="disabled-skips-super"),
     ],
 )
-def test_wrapped_session_commit_respects_disabled_flag(disabled: bool, expect_super_called: bool) -> None:
-    session = _make_session(disabled=disabled)
+def test_wrapped_session_commit_respects_disabled_flag(commit_disabled: bool, expect_super_called: bool) -> None:
+    session = _make_session(commit_disabled=commit_disabled)
     with patch("orchestrator.core.db.database.Session.commit") as mock_super:
         session.commit()
     assert mock_super.called == expect_super_called
@@ -58,7 +62,7 @@ def test_wrapped_session_commit_respects_disabled_flag(disabled: bool, expect_su
 
 def test_wrapped_session_commit_disabled_logs_warning() -> None:
     mock_log = MagicMock()
-    session = _make_session(disabled=True, custom_logger=mock_log)
+    session = _make_session(commit_disabled=True, custom_logger=mock_log)
     with patch("orchestrator.core.db.database.Session.commit"):
         session.commit()
     mock_log.warning.assert_called_once()
@@ -68,21 +72,21 @@ def test_wrapped_session_commit_disabled_logs_warning() -> None:
 
 
 def test_disable_commit_sets_and_restores_state() -> None:
-    db = _make_db(disabled=False)
+    db = _make_db(commit_disabled=False)
     log = MagicMock()
     with disable_commit(db, log):
         assert db.session.info["disabled"] is True
         assert db.session.info["logger"] is log
-    _assert_state(db, disabled=False, logger=None)
+    _assert_state(db, commit_disabled=False, logger=None)
 
 
-def _assert_state(db: MagicMock, *, disabled: bool, logger: object) -> None:
-    assert db.session.info["disabled"] is disabled
+def _assert_state(db: MagicMock, *, commit_disabled: bool, logger: object) -> None:
+    assert db.session.info["disabled"] is commit_disabled
     assert db.session.info["logger"] is logger
 
 
 def test_disable_commit_nested_does_not_reenable() -> None:
-    db = _make_db(disabled=True)
+    db = _make_db(commit_disabled=True)
     log = MagicMock()
     with disable_commit(db, log):
         assert db.session.info["disabled"] is True
@@ -95,7 +99,7 @@ def test_disable_commit_nested_does_not_reenable() -> None:
     [pytest.param(ValueError, id="value-error"), pytest.param(RuntimeError, id="runtime-error")],
 )
 def test_disable_commit_restores_on_exception(exc_type: type[Exception]) -> None:
-    db = _make_db(disabled=False)
+    db = _make_db(commit_disabled=False)
     log = MagicMock()
     with pytest.raises(exc_type):
         with disable_commit(db, log):
@@ -139,7 +143,7 @@ def test_transactional_disables_commit_inside_block() -> None:
 
 def test_transactional_nested_does_not_commit_or_rollback() -> None:
     """Nested transactional() must not commit or rollback even after a real session operation."""
-    db = _make_db(disabled=True)  # simulate already inside an outer transactional()
+    db = _make_db(commit_disabled=True)  # simulate already inside an outer transactional()
     log = MagicMock()
 
     with transactional(db, log):
@@ -151,7 +155,7 @@ def test_transactional_nested_does_not_commit_or_rollback() -> None:
 
 def test_transactional_nested_propagates_exception_without_rollback() -> None:
     """Nested transactional() must propagate exceptions without rollback after a real session operation."""
-    db = _make_db(disabled=True)
+    db = _make_db(commit_disabled=True)
     log = MagicMock()
 
     with pytest.raises(RuntimeError, match="inner failed"):
