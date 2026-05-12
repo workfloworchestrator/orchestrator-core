@@ -44,11 +44,13 @@ from pydantic_forms.types import State
 logger = structlog.get_logger(__name__)
 
 
+# TODO check usages -> ok
 def _set_process_status_running(process_id: UUID) -> None:
-    """Set the process status to RUNNING to prevent it from being picked up by mutliple workers.
+    """Set the process status to RUNNING to prevent it from being picked up by multiple workers.
 
-    uses with_for_update to lock the subscription in a transaction, preventing other changes.
-    rolls back transation and raises an exception when its already on status RUNNING to prevent worker from running an already running process
+    Uses with_for_update to lock the process row, preventing other changes.
+    Rolls back transation and raises an exception when it's already on status RUNNING to prevent worker from
+    running an already running process
 
     Args:
         process_id: Process ID to fetch process from DB
@@ -59,14 +61,14 @@ def _set_process_status_running(process_id: UUID) -> None:
     locked_process = result.scalar_one_or_none()
 
     if not locked_process:
-        db.session.rollback()
+        # db.session.rollback()
         raise ValueError(f"Process not found: {process_id}")
 
     if locked_process.last_status is not ProcessStatus.RUNNING:
         locked_process.last_status = ProcessStatus.RUNNING
-        db.session.commit()
+        # db.session.commit()
     else:
-        db.session.rollback()
+        # db.session.rollback()
         raise Exception("Process is already running")
 
 
@@ -82,12 +84,16 @@ def thread_start_process(
     # enforce an update to the process status to properly show the process
     _set_process_status_running(pstat.process_id)
 
-    # Celery workers use the empty-scope session (no database_scope); wrap in
-    # transactional() to prevent psycopg3 autobegin leaving the connection idle-in-transaction.
+    # Final select query on the process: ensure the SessionTransaction is committed.
+    # When using threadpool executor, this closes the SessionTransaction on the API, so that the threadpool worker can
+    # read the process.
+    # When using celery executor, this closes the SessionTransaction on the worker, so that the same worker can read
+    # the process. This is not needed, but also doesn't hurt.
     with transactional(db, logger):
         input_data = retrieve_input_state(pstat.process_id, "initial_state", False)
-    pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
 
+    # Trigger the task in the current thread or threadpool (depends on executor mode).
+    pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
 
@@ -99,25 +105,35 @@ def thread_resume_process(
     user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
-    # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
-    # Same idle-in-transaction concern as thread_start_process: wrap DB reads in transactional().
-    with transactional(db, logger):
-        pstat = load_process(process)
-        if pstat.workflow == removed_workflow:
-            raise ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG)
+    """Resume the given process.
 
-        # retrieve_input_str is for the edge case when workflow engine stops whilst there is an existing 'CREATED' process queue'ed.
-        # It will have become a `RUNNING` process that gets resumed and this should fetch initial_state instead of user_input.
-        retrieve_input_str: InputType = "user_input" if process.steps else "initial_state"
-        input_data = retrieve_input_state(process.process_id, retrieve_input_str, False)
+    This wrapper ensures that:
+     - The process has status
+    """
+    # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
+    pstat = load_process(process)
+    if pstat.workflow == removed_workflow:
+        raise ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG)
+
+    # retrieve_input_str is for the edge case when workflow engine stops whilst there is an existing 'CREATED' process queue'ed.
+    # It will have become a `RUNNING` process that gets resumed and this should fetch initial_state instead of user_input.
+    retrieve_input_str: InputType = "user_input" if process.steps else "initial_state"
+    input_data = retrieve_input_state(process.process_id, retrieve_input_str, False)
 
     if user:
         pstat.update(current_user=user)
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
 
-    # enforce an update to the process status to properly show the process
-    _set_process_status_running(process.process_id)
+    # Final write action to the process: ensure the SessionTransaction is committed.
+    # When using threadpool executor, this closes the SessionTransaction on the API, so that the threadpool worker can
+    # read the process.
+    # When using celery executor, this closes the SessionTransaction on the worker, so that the same worker can read
+    # the process. This is not needed, but also doesn't hurt.
+    with transactional(db, logger):
+        # enforce an update to the process status to properly show the process
+        _set_process_status_running(process.process_id)
 
+    # Trigger the task in the current thread or threadpool (depends on executor mode).
     _safe_logstep_prep = partial(safe_logstep, broadcast_func=broadcast_func)
     _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_prep))
     return pstat.process_id

@@ -23,6 +23,7 @@ from sqlalchemy import select
 from orchestrator.core import app_settings
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import ProcessTable, db
+from orchestrator.core.db.database import transactional
 from orchestrator.core.services.executors.types import ExecutorFunction
 from orchestrator.core.services.processes import (
     SYSTEM_USER,
@@ -47,7 +48,11 @@ def _block_when_testing(task_result: AsyncResult) -> None:
 
 
 def _celery_start_process(pstat: ProcessStat, user: str = SYSTEM_USER, **kwargs: Any) -> UUID:
-    """Client side call of Celery."""
+    """Trigger a celery worker to start the given process.
+
+    This wrapper ensures that:
+     - The current sqlalchemy SessionTransaction is closed
+    """
     from orchestrator.core.services.tasks import NEW_TASK, NEW_WORKFLOW, get_celery_task
 
     if not (wf_table := get_workflow_by_name(pstat.workflow.name)):
@@ -55,7 +60,12 @@ def _celery_start_process(pstat: ProcessStat, user: str = SYSTEM_USER, **kwargs:
 
     task_name = NEW_TASK if wf_table.is_task else NEW_WORKFLOW
     trigger_task = get_celery_task(task_name)
+
+    # Close the SessionTransaction on the API side.
+    db.session.close()
+
     try:
+        # Trigger the celery task. This will create a SessionTransaction on the worker to read the process.
         result = trigger_task.delay(pstat.process_id, user)
         _block_when_testing(result)
         return pstat.process_id
@@ -72,7 +82,13 @@ def _celery_resume_process(
     user: str | None = None,
     **kwargs: Any,
 ) -> bool:
-    """Client side call of Celery."""
+    """Trigger a celery worker to resume the given process.
+
+    This wrapper ensures that:
+     - The process has status RESUMED in the database
+     - The current sqlalchemy SessionTransaction is committed (and thus closed)
+     - The process status is reverted to the old status if triggering celery failed
+    """
     from orchestrator.core.services.tasks import RESUME_TASK, RESUME_WORKFLOW, get_celery_task
 
     last_process_status = process.last_status
@@ -80,9 +96,12 @@ def _celery_resume_process(
     task_name = RESUME_TASK if process.workflow.is_task else RESUME_WORKFLOW
     trigger_task = get_celery_task(task_name)
 
-    _celery_set_process_status_resumed(process.process_id)
+    # Final write action to the process: ensure the SessionTransaction is committed on the API side.
+    with transactional(db, logger):
+        _celery_set_process_status_resumed(process.process_id)
 
     try:
+        # Trigger the celery task. This will create a SessionTransaction on the worker to read the process.
         result = trigger_task.delay(process.process_id, user)
         _block_when_testing(result)
 
@@ -93,15 +112,17 @@ def _celery_resume_process(
             current_status=process.last_status,
             last_status=last_process_status,
         )
-        set_process_status(process.process_id, last_process_status)
+        with transactional(db, logger):
+            set_process_status(process.process_id, last_process_status)
         raise e
 
 
+# TODO check usages -> ok
 def _celery_set_process_status_resumed(process_id: UUID) -> None:
     """Set the process status to RESUMED to show its waiting to be picked up by a worker.
 
-    uses with_for_update to lock the subscription in a transaction, preventing other changes.
-    rolls back transation and raises an exception when it can't change to RESUMED to prevent it from being added to the queue.
+    Uses with_for_update to lock the process row, preventing other changes.
+    Raises an exception when it can't change to RESUMED to prevent it from being added to the queue.
 
     Args:
         process_id: Process ID to fetch process from DB
@@ -116,9 +137,9 @@ def _celery_set_process_status_resumed(process_id: UUID) -> None:
 
     if can_be_resumed(locked_process.last_status):
         locked_process.last_status = ProcessStatus.RESUMED
-        db.session.commit()
+        # db.session.commit()
     else:
-        db.session.rollback()
+        # db.session.rollback()
         raise ValueError(f"Process has incorrect status to resume: {locked_process.last_status}")
 
 

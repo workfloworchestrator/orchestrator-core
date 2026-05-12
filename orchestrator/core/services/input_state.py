@@ -51,9 +51,10 @@ def retrieve_input_state(process_id: UUID, input_type: InputType, raise_exceptio
         raise ValueError(f"No input state for pid: {process_id}")
     return InputStateTable(input_state={})
 
-
+# TODO check usages -> ok
 def store_input_state(
     process_id: UUID,
+    # input_state: dict[str, Any] | list[dict[str, Any]] | str,
     input_state: dict[str, Any] | list[dict[str, Any]],
     input_type: InputType,
 ) -> None:
@@ -68,12 +69,25 @@ def store_input_state(
         None
 
     """
+    # TODO remove if session.flush() works
+    # match input_state:
+    #     case str():
+    #         input_state_safe = json_loads(input_state)
+    #     case dict() | list():
+    #         input_state_safe = json_loads(json_dumps(input_state))
+    #     case _:
+    #         raise TypeError(f"Cannot store input state of type {type(input_state)}")
+
     logger.debug("Store input state", process_id=process_id, input_state=input_state, input_type=input_type)
     db.session.add(
         InputStateTable(
             process_id=process_id,
+            # input_state=input_state_safe,
             input_state=input_state,
             input_type=input_type,
         )
     )
-    db.session.commit()
+    # Flush to force serialization of the input_state JSONB contents
+    # TODO verify that this solves the issue of computed fields on SubscriptionModels being evaluated outside of the current DB transaction
+    db.session.flush()
+    # db.session.commit()

@@ -31,6 +31,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.core.db.database import transactional
 from orchestrator.core.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.core.distlock import distlock_manager
 from orchestrator.core.schemas.engine_settings import WorkerStatus
@@ -151,6 +152,7 @@ def shutdown_thread_pool() -> None:
         _workflow_executor = None
 
 
+# TODO check usages -> ok
 def _db_create_process(stat: ProcessStat) -> None:
     wf_table = get_workflow_by_name(stat.workflow.name)
     if not wf_table:
@@ -164,13 +166,14 @@ def _db_create_process(stat: ProcessStat) -> None:
         is_task=wf_table.is_task,
     )
     db.session.add(p)
-    db.session.commit()
+    # db.session.commit()
 
 
 def delete_process(process_id: UUID) -> None:
-    db.session.execute(delete(ProcessTable).where(ProcessTable.process_id == process_id))
+    with transactional(db, logger):
+        db.session.execute(delete(ProcessTable).where(ProcessTable.process_id == process_id))
     broadcast_invalidate_status_counts()
-    db.session.commit()
+    # db.session.commit()
 
 
 def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> ProcessTable:
@@ -508,8 +511,10 @@ def create_process(
         user_model=user_model,
     )
 
-    _db_create_process(pstat)
-    store_input_state(process_id, state | initial_state, "initial_state")
+    with transactional(db, logger):
+        _db_create_process(pstat)
+        store_input_state(process_id, state | initial_state, "initial_state")
+
     return pstat
 
 
@@ -607,6 +612,7 @@ def resume_process(
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
 
+    # Not committing the SessionTransaction here; triggering the execution takes care of this.
     store_input_state(pstat.process_id, user_input, "user_input")
 
     resume_func = get_execution_context()[ExecutorFunction.RESUME]
@@ -632,6 +638,7 @@ def ensure_correct_callback_token(pstat: ProcessStat, *, token: str) -> None:
         raise AssertionError("Invalid token")
 
 
+# TODO check usages -> ok
 def replace_current_step_state(process: ProcessTable, *, new_state: State) -> None:
     """Replace the state of the current step in a process.
 
@@ -643,7 +650,7 @@ def replace_current_step_state(process: ProcessTable, *, new_state: State) -> No
     current_step = process.steps[-1]
     current_step.state = new_state
     db.session.add(current_step)
-    db.session.commit()
+    # db.session.commit()
 
 
 def continue_awaiting_process(
@@ -677,6 +684,7 @@ def continue_awaiting_process(
     result_key = state.get("__callback_result_key", "callback_result")
     state = {**state, result_key: input_data}
 
+    # Not committing the SessionTransaction here; triggering the execution takes care of this.
     replace_current_step_state(process, new_state=state)
 
     # Trigger the "resume" function.
@@ -712,7 +720,11 @@ def update_awaiting_process_progress(
     progress_key = DEFAULT_CALLBACK_PROGRESS_KEY
     state = {**state, progress_key: data} | {"__remove_keys": [progress_key]}
 
-    replace_current_step_state(process, new_state=state)
+    # Commit the SessionTransaction before the "output" of this function: a websocket event
+    with transactional(db, logger):
+        replace_current_step_state(process, new_state=state)
+
+    # Emit the websocket event
     broadcast_process_update_to_websocket(process.process_id)
 
     return process.process_id
@@ -841,10 +853,11 @@ def _get_running_processes() -> list[ProcessTable]:
     return list(db.session.scalars(stmt))
 
 
+# TODO check usages -> ok
 def set_process_status(process: ProcessTable, status: ProcessStatus) -> None:
     process.last_status = status
     db.session.add(process)
-    db.session.commit()
+    # db.session.commit()
 
 
 def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bool) -> EngineSettingsTable | None:
