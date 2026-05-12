@@ -71,8 +71,6 @@ def test_set_process_status_running(mock_db):
     _set_process_status_running(uuid4())
 
     assert mock_process.last_status == ProcessStatus.RUNNING
-    mock_db.session.commit.assert_called_once()
-    mock_db.session.rollback.assert_not_called()
 
 
 @mock.patch("orchestrator.core.services.executors.threadpool.db")
@@ -87,8 +85,6 @@ def test_set_process_status_running_errors_if_already_running(mock_db):
     with pytest.raises(Exception, match="Process is already running"):
         _set_process_status_running(uuid4())
 
-    mock_db.session.rollback.assert_called_once()
-    mock_db.session.commit.assert_not_called()
 
 
 @mock.patch("orchestrator.core.services.executors.threadpool.db")
@@ -102,8 +98,6 @@ def test_set_process_status_running_errors_if_not_found(mock_db):
     with pytest.raises(Exception, match=f"Process not found: {process_id}"):
         _set_process_status_running(process_id)
 
-    mock_db.session.rollback.assert_called_once()
-    mock_db.session.commit.assert_not_called()
 
 
 @mock.patch("orchestrator.core.services.executors.threadpool._set_process_status_running")

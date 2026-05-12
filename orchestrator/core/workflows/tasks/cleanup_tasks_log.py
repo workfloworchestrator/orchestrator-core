@@ -65,7 +65,6 @@ def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
 
 
 @workflow(
-    "Clean up old tasks",
     target=Target.SYSTEM,
     authorize_callback=authorizers.authorize_callback,
     retry_auth_callback=authorizers.retry_auth_callback,

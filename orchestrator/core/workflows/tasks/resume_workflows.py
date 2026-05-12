@@ -67,16 +67,16 @@ def resume_found_workflows(
             if not process:
                 continue
 
-            # Workaround the commit disable function
-            db.session.info["disabled"] = False
+            # Enable commit to be able to start/resume the process as normal
+            db.session.enable_commit()
 
             processes.resume_process(process)
             resumed_process_ids.append(process_id)
         except Exception as exc:
             logger.warning("Could not resume process", process_id=process_id, error=str(exc))
         finally:
-            # Make sure to turn it on again
-            db.session.info["disabled"] = True
+            # Make sure to disable commit again
+            db.session.disable_commit()
 
     return {
         "number_of_resumed_process_ids": len(resumed_process_ids),
@@ -93,16 +93,16 @@ def restart_created_workflows(created_state_process_ids: list[UUIDstr]) -> State
             if not process:
                 continue
 
-            # Workaround the commit disable function
-            db.session.info["disabled"] = False
+            # Enable commit to be able to restart the process as normal
+            db.session.enable_commit()
 
             processes.restart_process(process)
             started_process_ids.append(process_id)
         except Exception as exc:
             logger.warning("Could not resume process", process_id=process_id, error=str(exc))
         finally:
-            # Make sure to turn it on again
-            db.session.info["disabled"] = True
+            # Make sure to disable commit again
+            db.session.disable_commit()
 
     return {
         "number_of_started_process_ids": len(started_process_ids),
@@ -111,7 +111,6 @@ def restart_created_workflows(created_state_process_ids: list[UUIDstr]) -> State
 
 
 @workflow(
-    "Resume all workflows that are stuck on tasks with the status 'waiting', 'created' or 'resumed'",
     target=Target.SYSTEM,
     authorize_callback=authorizers.authorize_callback,
     retry_auth_callback=authorizers.retry_auth_callback,

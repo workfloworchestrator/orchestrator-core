@@ -75,6 +75,7 @@ from orchestrator.core.db import (
     SubscriptionMetadataTable,
     WorkflowTable,
     db,
+    warn_db_uri_scheme,
 )
 from orchestrator.core.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.core.db.models import WorkflowApschedulerJob
@@ -265,6 +266,8 @@ def run_migrations(db_uri: str) -> None:
 
 
 def make_db_uri(worker_id, base_uri):
+    warn_db_uri_scheme(base_uri)
+
     if worker_id == "master":
         # pytest is being run without any workers
         print(f"No workers, final DATABASE_URI is {base_uri!r}")

@@ -21,6 +21,7 @@ from orchestrator.core.db import (
     db,
 )
 from orchestrator.core.schemas import StepSchema, WorkflowSchema
+from orchestrator.core.services.executors.types import ExecutorFunction
 from orchestrator.core.services.subscriptions import TARGET_DEFAULT_USABLE_MAP, WF_USABLE_MAP
 from orchestrator.core.targets import Target
 from orchestrator.core.workflows import get_workflow
@@ -97,7 +98,7 @@ def start_validation_workflow_for_workflows(
             # against circular import
             from orchestrator.core.services.processes import get_execution_context
 
-            validate_func = get_execution_context()["validate"]
+            validate_func = get_execution_context()[ExecutorFunction.VALIDATE]
             validate_func(workflow_name, json=json)
 
             result.append(

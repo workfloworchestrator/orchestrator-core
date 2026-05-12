@@ -29,6 +29,7 @@ from orchestrator.core.workflow import StepList, make_workflow, step
         ([{"a": 1}, {"b": 2}], [{"a": 1}, {"b": 2}]),
     ],
 )
+@mock.patch("orchestrator.core.services.processes.transactional")
 @mock.patch("orchestrator.core.services.processes.store_input_state")
 @mock.patch("orchestrator.core.services.processes._db_create_process")
 @mock.patch("orchestrator.core.services.processes.post_form")
@@ -38,6 +39,7 @@ def test_create_process_normalizes_user_inputs(
     mock_post_form,
     mock_db_create_process,
     mock_store_input_state,
+    mock_transactional,
     user_inputs,
     expected_post_form_inputs,
 ):

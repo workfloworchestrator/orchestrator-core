@@ -18,6 +18,7 @@ from sqlalchemy import select
 
 from orchestrator.core.db import db
 from orchestrator.core.db.models import InputStateTable
+from orchestrator.core.utils.json import json_dumps, json_loads
 
 logger = structlog.get_logger(__name__)
 
@@ -51,7 +52,6 @@ def retrieve_input_state(process_id: UUID, input_type: InputType, raise_exceptio
         raise ValueError(f"No input state for pid: {process_id}")
     return InputStateTable(input_state={})
 
-
 def store_input_state(
     process_id: UUID,
     input_state: dict[str, Any] | list[dict[str, Any]],
@@ -66,14 +66,18 @@ def store_input_state(
 
     Returns:
         None
-
     """
-    logger.debug("Store input state", process_id=process_id, input_state=input_state, input_type=input_type)
+    match input_state:
+        case dict() | list():
+            input_state_resolved = json_loads(json_dumps(input_state))
+        case _:
+            raise TypeError(f"Cannot store input state of type {type(input_state)}")
+
+    logger.debug("Store input state", process_id=process_id, input_state_resolved=input_state_resolved, input_type=input_type)
     db.session.add(
         InputStateTable(
             process_id=process_id,
-            input_state=input_state,
+            input_state=input_state_resolved,
             input_type=input_type,
         )
     )
-    db.session.commit()

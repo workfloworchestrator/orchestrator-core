@@ -986,12 +986,12 @@ class ProductBlockModel(DomainModel):
         self._db_model = value
 
     @property
-    def in_use_by(self) -> list[SubscriptionInstanceTable]:  # TODO check where used, might need eagerloading
+    def in_use_by(self) -> list[SubscriptionInstanceTable]:
         """This provides a list of product blocks that depend on this product block."""
         return self.db_model.in_use_by if self.db_model else []
 
     @property
-    def depends_on(self) -> list[SubscriptionInstanceTable]:  # TODO check where used, might need eagerloading
+    def depends_on(self) -> list[SubscriptionInstanceTable]:
         """This provides a list of product blocks that this product block depends on."""
         return self.db_model.depends_on if self.db_model else []
 
@@ -1322,7 +1322,7 @@ class SubscriptionModel(DomainModel):
     @classmethod
     def from_other_product(
         cls: type[S],
-        old_instantiation: S,
+        old_instantiation: "SubscriptionModel",
         new_product_id: UUID | str,
         new_root: tuple[str, ProductBlockModel] | None = None,
     ) -> S:
