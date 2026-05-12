@@ -14,6 +14,7 @@
 from unittest import mock
 
 import pytest
+from db.database import MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED
 from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 
@@ -91,7 +92,7 @@ def test_transactional_no_commit():
     logger.assert_has_calls(
         [
             mock.call.warning(
-                "Step function tried to issue a commit. It should not! Will execute commit on behalf of step function when it returns."
+                MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED
             ),
         ]
     )
@@ -135,8 +136,7 @@ def test_transactional_no_commit_second_thread():
     )
     logger.assert_has_calls(
         [
-            mock.call.warning(
-                "Step function tried to issue a commit. It should not! Will execute commit on behalf of step function when it returns."
+            mock.call.warning(MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED
             ),
         ]
     )

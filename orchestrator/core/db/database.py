@@ -28,6 +28,12 @@ from structlog.stdlib import BoundLogger
 
 from orchestrator.core.utils.json import json_dumps, json_loads
 
+MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED = (
+    "Code wrapped in transactional() tried to issue a `COMMIT`. "
+    "It should not! "
+    "Delaying the commit until the end of the wrapped context."
+)
+
 logger = structlog.get_logger(__name__)
 
 
@@ -163,8 +169,7 @@ class WrappedSession(Session):
     def commit(self) -> None:
         if self.is_commit_disabled():
             self.info.get("logger", logger).warning(
-                "Step function tried to issue a commit. It should not! "
-                "Will execute commit on behalf of step function when it returns."
+                MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED
             )
         else:
             super().commit()
