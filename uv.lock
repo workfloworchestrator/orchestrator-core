@@ -2651,7 +2651,7 @@ wheels = [
 
 [[package]]
 name = "orchestrator-core"
-version = "5.0.0rc3"
+version = "5.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
