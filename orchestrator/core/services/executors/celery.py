@@ -117,7 +117,6 @@ def _celery_resume_process(
         raise e
 
 
-# TODO check usages -> ok
 def _celery_set_process_status_resumed(process_id: UUID) -> None:
     """Set the process status to RESUMED to show its waiting to be picked up by a worker.
 
@@ -137,9 +136,7 @@ def _celery_set_process_status_resumed(process_id: UUID) -> None:
 
     if can_be_resumed(locked_process.last_status):
         locked_process.last_status = ProcessStatus.RESUMED
-        # db.session.commit()
     else:
-        # db.session.rollback()
         raise ValueError(f"Process has incorrect status to resume: {locked_process.last_status}")
 
 

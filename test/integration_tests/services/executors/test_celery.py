@@ -130,8 +130,6 @@ def test_celery_set_process_status_resumed_valid_statuses(mock_db, status):
     _celery_set_process_status_resumed(process)
 
     assert process.last_status == ProcessStatus.RESUMED
-    # mock_db.session.commit.assert_called_once()
-    # mock_db.session.rollback.assert_not_called()
 
 
 @mock.patch("orchestrator.core.services.executors.celery.db", return_value=MagicMock(session=MagicMock()))
@@ -148,5 +146,3 @@ def test_celery_set_process_status_resumed_invalid_statuses(mock_db, status):
         _celery_set_process_status_resumed(process)
 
     assert process.last_status == status
-    # mock_db.session.commit.assert_not_called()
-    # mock_db.session.rollback.assert_called_once()

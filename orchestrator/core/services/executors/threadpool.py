@@ -44,13 +44,11 @@ from pydantic_forms.types import State
 logger = structlog.get_logger(__name__)
 
 
-# TODO check usages -> ok
 def _set_process_status_running(process_id: UUID) -> None:
     """Set the process status to RUNNING to prevent it from being picked up by multiple workers.
 
     Uses with_for_update to lock the process row, preventing other changes.
-    Rolls back transation and raises an exception when it's already on status RUNNING to prevent worker from
-    running an already running process
+    Raises an exception when it's already on status RUNNING to prevent worker from running an already running process.
 
     Args:
         process_id: Process ID to fetch process from DB
@@ -61,14 +59,11 @@ def _set_process_status_running(process_id: UUID) -> None:
     locked_process = result.scalar_one_or_none()
 
     if not locked_process:
-        # db.session.rollback()
         raise ValueError(f"Process not found: {process_id}")
 
     if locked_process.last_status is not ProcessStatus.RUNNING:
         locked_process.last_status = ProcessStatus.RUNNING
-        # db.session.commit()
     else:
-        # db.session.rollback()
         raise Exception("Process is already running")
 
 

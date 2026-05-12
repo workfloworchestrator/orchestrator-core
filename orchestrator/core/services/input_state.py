@@ -52,7 +52,6 @@ def retrieve_input_state(process_id: UUID, input_type: InputType, raise_exceptio
         raise ValueError(f"No input state for pid: {process_id}")
     return InputStateTable(input_state={})
 
-# TODO check usages -> ok
 def store_input_state(
     process_id: UUID,
     input_state: dict[str, Any] | list[dict[str, Any]],
@@ -82,4 +81,3 @@ def store_input_state(
             input_type=input_type,
         )
     )
-    # db.session.commit()

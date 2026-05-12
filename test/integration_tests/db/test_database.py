@@ -117,7 +117,6 @@ def test_transactional_commits_on_success() -> None:
     with transactional(db, log):
         pass
     db.session.commit.assert_called_once()
-    # db.session.rollback.assert_called_once()
     db.session.rollback.assert_not_called()
 
 

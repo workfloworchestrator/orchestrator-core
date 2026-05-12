@@ -152,7 +152,6 @@ def shutdown_thread_pool() -> None:
         _workflow_executor = None
 
 
-# TODO check usages -> ok
 def _db_create_process(stat: ProcessStat) -> None:
     wf_table = get_workflow_by_name(stat.workflow.name)
     if not wf_table:
@@ -166,14 +165,12 @@ def _db_create_process(stat: ProcessStat) -> None:
         is_task=wf_table.is_task,
     )
     db.session.add(p)
-    # db.session.commit()
 
 
 def delete_process(process_id: UUID) -> None:
     with transactional(db, logger):
         db.session.execute(delete(ProcessTable).where(ProcessTable.process_id == process_id))
     broadcast_invalidate_status_counts()
-    # db.session.commit()
 
 
 def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> ProcessTable:
@@ -638,7 +635,6 @@ def ensure_correct_callback_token(pstat: ProcessStat, *, token: str) -> None:
         raise AssertionError("Invalid token")
 
 
-# TODO check usages -> ok
 def replace_current_step_state(process: ProcessTable, *, new_state: State) -> None:
     """Replace the state of the current step in a process.
 
@@ -650,7 +646,6 @@ def replace_current_step_state(process: ProcessTable, *, new_state: State) -> No
     current_step = process.steps[-1]
     current_step.state = new_state
     db.session.add(current_step)
-    # db.session.commit()
 
 
 def continue_awaiting_process(
@@ -853,11 +848,9 @@ def _get_running_processes() -> list[ProcessTable]:
     return list(db.session.scalars(stmt))
 
 
-# TODO check usages -> ok
 def set_process_status(process: ProcessTable, status: ProcessStatus) -> None:
     process.last_status = status
     db.session.add(process)
-    # db.session.commit()
 
 
 def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bool) -> EngineSettingsTable | None:
