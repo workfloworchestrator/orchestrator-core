@@ -469,7 +469,7 @@ def create_process(
 ) -> ProcessStat:
     # ATTENTION!! When modifying this function make sure you make similar changes to `run_workflow` in the test code
 
-    if user_inputs is None:
+    if not user_inputs:
         user_inputs = [{}]
 
     process_id = uuid4()
