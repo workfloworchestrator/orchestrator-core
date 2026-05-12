@@ -34,6 +34,7 @@ from orchestrator.core.db import EngineSettingsTable, ProcessStepTable, ProcessS
 from orchestrator.core.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.core.distlock import distlock_manager
 from orchestrator.core.schemas.engine_settings import WorkerStatus
+from orchestrator.core.services.executors.types import ExecutorFunction
 from orchestrator.core.services.input_state import store_input_state
 from orchestrator.core.services.workflows import get_workflow_by_name
 from orchestrator.core.settings import ExecutorType, app_settings
@@ -78,7 +79,7 @@ START_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be started because it h
 RESUME_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be resumed because it has been removed"
 
 
-def get_execution_context() -> dict[str, Callable]:
+def get_execution_context() -> dict[ExecutorFunction, Callable]:
     if app_settings.EXECUTOR == ExecutorType.WORKER:
         from orchestrator.core.services.executors.celery import CELERY_EXECUTION_CONTEXT
 
@@ -534,7 +535,7 @@ def start_process(
     """
     pstat = create_process(workflow_key, user_inputs=user_inputs, user=user, user_model=user_model)
 
-    start_func = get_execution_context()["start"]
+    start_func = get_execution_context()[ExecutorFunction.START]
     return start_func(pstat, user=user, user_model=user_model, broadcast_func=broadcast_func)
 
 
@@ -557,7 +558,7 @@ def restart_process(
     """
     pstat = load_process(process)
 
-    start_func = get_execution_context()["start"]
+    start_func = get_execution_context()[ExecutorFunction.START]
     return start_func(pstat, user=user, broadcast_func=broadcast_func)
 
 
@@ -608,7 +609,7 @@ def resume_process(
 
     store_input_state(pstat.process_id, user_input, "user_input")
 
-    resume_func = get_execution_context()["resume"]
+    resume_func = get_execution_context()[ExecutorFunction.RESUME]
     return resume_func(process, user=user, broadcast_func=broadcast_func)
 
 
@@ -678,8 +679,8 @@ def continue_awaiting_process(
 
     replace_current_step_state(process, new_state=state)
 
-    # Continue the workflow
-    resume_func = get_execution_context()["resume"]
+    # Trigger the "resume" function.
+    resume_func = get_execution_context()[ExecutorFunction.RESUME]
     return resume_func(process, broadcast_func=broadcast_func)
 
 

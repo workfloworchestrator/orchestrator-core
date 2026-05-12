@@ -20,6 +20,7 @@ from sqlalchemy import select
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.db.database import transactional
+from orchestrator.core.services.executors.types import ExecutorFunction
 from orchestrator.core.services.input_state import InputType, retrieve_input_state
 from orchestrator.core.services.processes import (
     RESUME_WORKFLOW_REMOVED_ERROR_MSG,
@@ -124,11 +125,11 @@ def thread_resume_process(
 
 def thread_validate_workflow(validation_workflow: str, json: list[State] | None) -> UUID:
     pstat = create_process(validation_workflow, user_inputs=json)
-    return thread_start_process(pstat)
+    return THREADPOOL_EXECUTION_CONTEXT[ExecutorFunction.START](pstat)
 
 
-THREADPOOL_EXECUTION_CONTEXT: dict[str, Callable] = {
-    "start": thread_start_process,
-    "resume": thread_resume_process,
-    "validate": thread_validate_workflow,
+THREADPOOL_EXECUTION_CONTEXT: dict[ExecutorFunction, Callable] = {
+    ExecutorFunction.START: thread_start_process,
+    ExecutorFunction.RESUME: thread_resume_process,
+    ExecutorFunction.VALIDATE: thread_validate_workflow,
 }

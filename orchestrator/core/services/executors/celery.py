@@ -23,6 +23,7 @@ from sqlalchemy import select
 from orchestrator.core import app_settings
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import ProcessTable, db
+from orchestrator.core.services.executors.types import ExecutorFunction
 from orchestrator.core.services.processes import (
     SYSTEM_USER,
     can_be_resumed,
@@ -123,11 +124,11 @@ def _celery_set_process_status_resumed(process_id: UUID) -> None:
 
 def _celery_validate(validation_workflow: str, json: list[State] | None) -> None:
     pstat = create_process(validation_workflow, user_inputs=json)
-    _celery_start_process(pstat)
+    CELERY_EXECUTION_CONTEXT[ExecutorFunction.START](pstat)
 
 
-CELERY_EXECUTION_CONTEXT: dict[str, Callable] = {
-    "start": _celery_start_process,
-    "resume": _celery_resume_process,
-    "validate": _celery_validate,
+CELERY_EXECUTION_CONTEXT: dict[ExecutorFunction, Callable] = {
+    ExecutorFunction.START: _celery_start_process,
+    ExecutorFunction.RESUME: _celery_resume_process,
+    ExecutorFunction.VALIDATE: _celery_validate,
 }
