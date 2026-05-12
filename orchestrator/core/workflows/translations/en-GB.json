@@ -12,7 +12,8 @@
             "schedule_type": "What type of schedule do you need?",
             "start_date": "Start date",
             "interval": "Choose the schedule interval",
-            "cron": "Cron",
+            "cron": "Cron expression",
+            "cron_info": "Enter a valid cron-expression using 5 fields: minute (0-59) hour (0-23) day (1-31) month (1-12) weekday (0-6). Example: 0 8 * * 1 (every Monday at 08:00)",
             "buttons": "buttons"
         }
     },
