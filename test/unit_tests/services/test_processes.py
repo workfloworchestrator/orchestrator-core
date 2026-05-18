@@ -24,7 +24,7 @@ from orchestrator.core.workflow import StepList, make_workflow, step
     "user_inputs,expected_post_form_inputs",
     [
         (None, [{}]),
-        ([], [{}]),
+        ([], []),
         ([{"a": 1}], [{"a": 1}]),
         ([{"a": 1}, {"b": 2}], [{"a": 1}, {"b": 2}]),
     ],

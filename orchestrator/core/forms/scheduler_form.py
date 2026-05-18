@@ -209,7 +209,7 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
         "workflow_name": task_name,
         "trigger": schedule_type_data["schedule_type"].name.lower(),
         "trigger_kwargs": trigger_kwargs,
-        "user_inputs": user_inputs,
+        "user_inputs": user_inputs if user_inputs else [{}],
         "scheduled_type": "create",
         "name": description,
     }
