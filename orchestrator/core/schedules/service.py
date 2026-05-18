@@ -154,6 +154,12 @@ def _delete_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
 def run_start_workflow_scheduler_task(workflow_name: str, user_inputs: list[State] | None = None) -> None:
     """Function to start a workflow from the scheduler.
 
+    Warning: Do not move or rename this function. Its fully qualified path is persisted in
+        pickled APScheduler job state (``apscheduler_jobs.job_state``). Changing the
+        path will invalidate all existing scheduled tasks. If a rename is unavoidable,
+        add a data migration to rewrite the stored ``func`` references — see
+        ``2026-05-18_cab8b6a0ac92_fix_scheduled_tasks_issue.py`` for an example.
+
     Args:
         workflow_name: str The name of the workflow to start.
         user_inputs: user inputs for the workflow to start.
