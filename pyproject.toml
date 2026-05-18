@@ -89,7 +89,7 @@ mcp = [
 # Local dependencies for development
 [dependency-groups]
 docs = [
-    "click<=8.3.3",
+    "click<=8.4.0",
     "mkdocs>=1.6.1",
     "mkdocs-embed-external-markdown>=3.0.2",
     "mkdocs-include-markdown-plugin>=7.1.6",
