@@ -12,7 +12,10 @@
 # limitations under the License.
 
 from collections.abc import Iterable
+from typing import Iterator, NamedTuple
+from uuid import UUID
 
+import structlog
 from sqlalchemy import Select, select
 
 from orchestrator.core.db import (
@@ -26,6 +29,7 @@ from orchestrator.core.services.subscriptions import TARGET_DEFAULT_USABLE_MAP, 
 from orchestrator.core.targets import Target
 from orchestrator.core.workflows import get_workflow
 
+logger = structlog.get_logger(__name__)
 
 def _get_steps(workflow: WorkflowTable) -> list[StepSchema]:
     if registered_workflow := get_workflow(workflow.name):
@@ -75,37 +79,75 @@ def get_validation_product_workflows_for_subscription(
     return [workflow.name for workflow in subscription.product.workflows if workflow.target == Target.VALIDATE]
 
 
-def start_validation_workflow_for_workflows(
-    subscription: SubscriptionTable,
-    workflows: list,
+
+class SubscriptionValidations(NamedTuple):
+    """Object containing a subscription's validation workflows and some metadata."""
+    subscription_id: UUID
+    subscription_status: str
+    product_type: str
+    workflows: list[str]
+
+def get_subscription_validations(subscriptions: list[SubscriptionTable]) -> list[SubscriptionValidations]:
+
+    def generate() -> Iterator[SubscriptionValidations]:
+        for subscription in subscriptions:
+            validation_product_workflows = get_validation_product_workflows_for_subscription(subscription)
+            if not validation_product_workflows:
+                logger.warning(
+                    "Subscription has no validation workflow",
+                    subscription=subscription,
+                    product=subscription.product.name,
+                )
+                continue
+            yield SubscriptionValidations(
+                subscription_id=subscription.subscription_id,
+                subscription_status=subscription.status,
+                product_type=subscription.product.product_type,
+                workflows=validation_product_workflows,
+            )
+    return list(generate())
+
+
+def start_subscription_validations(
+    info: SubscriptionValidations,
     product_type_filter: str | None = None,
 ) -> list:
-    """Start validation workflows for a subscription."""
+    """Start validation workflows for a subscription.
+
+    Note: this function is designed to be used from within a workflow step function.
+    """
     result = []
 
-    for workflow_name in workflows:
+    for workflow_name in info.workflows:
         target_system = TARGET_DEFAULT_USABLE_MAP[Target.SYSTEM]
         system_usable_when = WF_USABLE_MAP.get(workflow_name, target_system)
         target_validate = TARGET_DEFAULT_USABLE_MAP[Target.VALIDATE]
         validate_usable_when = WF_USABLE_MAP.get(workflow_name, target_validate)
 
         usable_when = system_usable_when + validate_usable_when
-        if subscription.status in usable_when and (
-            product_type_filter is None or subscription.product.product_type == product_type_filter
+        if info.subscription_status in usable_when and (
+                product_type_filter is None or info.product_type == product_type_filter
         ):
-            json = [{"subscription_id": str(subscription.subscription_id)}]
+            json = [{"subscription_id": str(info.subscription_id)}]
 
             # against circular import
             from orchestrator.core.services.processes import get_execution_context
 
             validate_func = get_execution_context()[ExecutorFunction.VALIDATE]
-            validate_func(workflow_name, json=json)
+
+            # Allow the executor function to create the process
+            db.session.enable_commit()
+            try:
+                validate_func(workflow_name, json=json)
+            finally:
+                # Disable committing again
+                db.session.disable_commit()
 
             result.append(
                 {
                     "workflow_name": workflow_name,
-                    "subscription_id": subscription.subscription_id,
-                    "product_type": subscription.product.product_type,
+                    "subscription_id": (info.subscription_id),
+                    "product_type": (info.product_type),
                 }
             )
 

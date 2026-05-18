@@ -21,8 +21,8 @@ from orchestrator.core.services.subscriptions import (
     get_subscriptions_on_product_table_in_sync,
 )
 from orchestrator.core.services.workflows import (
-    get_validation_product_workflows_for_subscription,
-    start_validation_workflow_for_workflows,
+    get_subscription_validations,
+    start_subscription_validations,
 )
 from orchestrator.core.settings import app_settings, get_authorizers
 from orchestrator.core.targets import Target
@@ -45,18 +45,13 @@ def validate_subscriptions() -> None:
     else:
         subscriptions = get_subscriptions_on_product_table_in_sync()
 
-    for subscription in subscriptions:
-        validation_product_workflows = get_validation_product_workflows_for_subscription(subscription)
+    # Map all SubscriptionTable objects to SubscriptionValidations tuples
+    validations = list(get_subscription_validations(subscriptions))
 
-        if not validation_product_workflows:
-            logger.warning(
-                "SubscriptionTable has no validation workflow",
-                subscription=subscription,
-                product=subscription.product.name,
-            )
-            break
-
-        start_validation_workflow_for_workflows(subscription=subscription, workflows=validation_product_workflows)
+    # Not possible to use SubscriptionTable objects past this point, as the original DB session will be closed
+    for info in validations:
+        logger.info("Starting subscription validation workflows", info=info)
+        start_subscription_validations(info=info)
 
 
 @workflow(
