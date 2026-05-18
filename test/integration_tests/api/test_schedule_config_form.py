@@ -39,7 +39,7 @@ def test_forms_endpoint_scheduler_config_without_initial_form_input(test_client)
             "workflow_name": "task_validate_subscriptions",
             "trigger": "date",
             "trigger_kwargs": {"run_date": response_data["trigger_kwargs"]["run_date"]},
-            "user_inputs": [],
+            "user_inputs": [{}],
         }
     )
     assert APSchedulerJobCreate(**response_data)
@@ -95,7 +95,7 @@ def test_forms_endpoint_scheduler_config_interval_type(test_client):
             "workflow_name": "task_validate_subscriptions",
             "trigger": "interval",
             "trigger_kwargs": {"start_date": response_data["trigger_kwargs"]["start_date"], "hours": 1},
-            "user_inputs": [],
+            "user_inputs": [{}],
         }
     )
     assert APSchedulerJobCreate(**response_data)
@@ -130,7 +130,7 @@ def test_forms_endpoint_scheduler_config_cron_type(test_client):
                 "month": None,
                 "day_of_week": None,
             },
-            "user_inputs": [],
+            "user_inputs": [{}],
         }
     )
     assert APSchedulerJobCreate(**response_data)
