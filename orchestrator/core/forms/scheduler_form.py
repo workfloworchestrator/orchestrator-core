@@ -26,7 +26,7 @@ from orchestrator.core.db import db
 from orchestrator.core.db.models import WorkflowTable
 from orchestrator.core.forms.validators import Choice
 from orchestrator.core.forms.validators.timestamp import to_timestamp_field
-from orchestrator.core.workflow import Workflow
+from orchestrator.core.workflow import Workflow, default_user_inputs
 from orchestrator.core.workflows import get_workflow
 from pydantic_forms.types import FormGenerator, FormGeneratorAsync, State
 from pydantic_forms.validators.components.read_only import read_only_field
@@ -209,7 +209,7 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
         "workflow_name": task_name,
         "trigger": schedule_type_data["schedule_type"].name.lower(),
         "trigger_kwargs": trigger_kwargs,
-        "user_inputs": user_inputs if user_inputs else [{}],
+        "user_inputs": user_inputs or default_user_inputs(),
         "scheduled_type": "create",
         "name": description,
     }

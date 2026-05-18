@@ -58,6 +58,7 @@ from orchestrator.core.workflow import (
     Success,
     Workflow,
     abort_wf,
+    default_user_inputs,
 )
 from orchestrator.core.workflow import Process as WFProcess
 from orchestrator.core.workflows import get_workflow
@@ -470,7 +471,7 @@ def create_process(
     # ATTENTION!! When modifying this function make sure you make similar changes to `run_workflow` in the test code
 
     if user_inputs is None:
-        user_inputs = [{}]
+        user_inputs = default_user_inputs()
 
     process_id = uuid4()
     workflow = get_workflow(workflow_key)
