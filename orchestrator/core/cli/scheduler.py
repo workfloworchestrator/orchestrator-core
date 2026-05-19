@@ -10,10 +10,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import time
+from collections.abc import Iterator
 from typing import cast
 
 import typer
+from apscheduler.job import Job
 from redis import Redis
 
 from orchestrator.core.db import db
@@ -69,8 +72,27 @@ def run() -> None:
                 workflow_scheduler_queue(item, scheduler_connection)
 
 
+def _to_schedule_row(task: Job, *, api_managed_ids: set[str], verbose: bool) -> list[str]:
+    source = "API" if task.id in api_managed_ids else "decorator"
+    run_time = str(task.next_run_time.replace(microsecond=0))
+
+    def values() -> Iterator[str]:
+        yield task.id # id
+        yield task.name # name
+        yield source # source
+        yield str(run_time) # next run time
+        yield str(task.trigger) # trigger
+        if verbose:
+            yield json.dumps(task.kwargs, indent=2) # kwargs
+
+    return list(values())
+
+
+
 @app.command()
-def show_schedule() -> None:
+def show_schedule(
+    verbose: bool = typer.Option(False, "-v", help="Show additional details, such as job kwargs"),
+) -> None:
     """The `show-schedule` command shows an overview of the scheduled jobs."""
     from rich.console import Console
     from rich.table import Table
@@ -79,21 +101,24 @@ def show_schedule() -> None:
 
     console = Console()
 
-    table = Table(title="Scheduled Tasks")
+    table = Table(title="Scheduled Tasks", show_lines=verbose)
     table.add_column("id", no_wrap=True)
     table.add_column("name")
     table.add_column("source")
     table.add_column("next run time")
     table.add_column("trigger")
+    if verbose:
+        table.add_column("kwargs")
 
     scheduled_tasks = get_all_scheduler_tasks()
     _schedule_ids = [task.id for task in scheduled_tasks]
     api_managed = {str(i.schedule_id) for i in get_linker_entries_by_schedule_ids(_schedule_ids)}
 
+    # Sort by next run time, then by name
+    scheduled_tasks.sort(key=lambda x: (x.next_run_time, x.name))
+
     for task in scheduled_tasks:
-        source = "API" if task.id in api_managed else "decorator"
-        run_time = str(task.next_run_time.replace(microsecond=0))
-        table.add_row(task.id, task.name, source, str(run_time), str(task.trigger))
+        table.add_row(*_to_schedule_row(task, api_managed_ids=api_managed, verbose=verbose))
 
     console.print(table)
 
