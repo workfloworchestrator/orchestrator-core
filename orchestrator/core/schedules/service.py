@@ -18,7 +18,7 @@ from apscheduler.schedulers.base import BaseScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from orchestrator.core import app_settings
 from orchestrator.core.db import db
@@ -79,10 +79,16 @@ def add_scheduled_task_to_queue(payload: APSchedulerJobs) -> None:
     """
     bytes_dump = serialize_payload(payload)
     redis_connection.lpush(SCHEDULER_QUEUE, bytes_dump)
-    logger.info("Added scheduled task to queue.")
+    logger.info("Added scheduled task to queue")
 
 
-def add_unique_scheduled_task_to_queue(payload: APSchedulerJobCreate) -> bool:
+def _delete_scheduled_tasks(schedules: list[WorkflowApschedulerJob]) -> None:
+    for ws in schedules:
+        delete_payload = APSchedulerJobDelete(workflow_id=ws.workflow_id, schedule_id=ws.schedule_id)
+        add_scheduled_task_to_queue(delete_payload)
+
+
+def add_unique_scheduled_task_to_queue(payload: APSchedulerJobCreate, *, recreate: bool=False) -> bool:
     """Create a unique scheduled task service function.
 
     Checks if the workflow is already scheduled before creating an apscheduler
@@ -97,14 +103,21 @@ def add_unique_scheduled_task_to_queue(payload: APSchedulerJobCreate) -> bool:
 
     Args:
         payload: APSchedulerJobCreate The scheduled task to create.
+        recreate: Whether to delete existing schedule(s) for the workflow
 
     Returns:
         True when the scheduled task was added to the queue
         False when the scheduled task was not added to the queue
     """
-    if db.session.query(WorkflowApschedulerJob).filter_by(workflow_id=payload.workflow_id).all():
-        logger.info(f"Not adding existing workflow {payload.workflow_name} as scheduled task.")
-        return False
+    schedules = db.session.scalars(select(WorkflowApschedulerJob).filter_by(workflow_id=payload.workflow_id)).all()
+    if schedules:
+        if not recreate:
+            logger.info("Not scheduling workflow as there are existing schedules, and recreate is not set", existing=schedules)
+            return False
+        logger.info("Deleting existing schedules for workflow", existing=schedules)
+        _delete_scheduled_tasks(
+            schedules,  # type: ignore[arg-type]
+        )
     add_scheduled_task_to_queue(payload)
     return True
 
@@ -185,7 +198,7 @@ def _add_scheduled_task(payload: APSchedulerJobCreate, scheduler_connection: Bas
         payload: APSchedulerJobCreate The scheduled task to create.
         scheduler_connection: BaseScheduler The scheduler connection.
     """
-    logger.info(f"Adding scheduled task: {payload}")
+    logger.info("Adding scheduled task", payload=payload)
 
     workflow_description = None
     # Check if a workflow exists - we cannot schedule a non-existing workflow
@@ -218,7 +231,7 @@ def _build_trigger_on_update(
     trigger_name: str | None, trigger_kwargs: dict
 ) -> IntervalTrigger | CronTrigger | DateTrigger | None:
     if not trigger_name or not trigger_kwargs:
-        logger.info("Skipping building trigger as no trigger information is provided.")
+        logger.info("Skipping building trigger as no trigger information is provided")
         return None
 
     match trigger_name:
@@ -243,7 +256,7 @@ def _update_scheduled_task(payload: APSchedulerJobUpdate, scheduler_connection: 
         payload: APSchedulerJobUpdate The scheduled task to update.
         scheduler_connection: BaseScheduler The scheduler connection.
     """
-    logger.info(f"Updating scheduled task: {payload}")
+    logger.info("Updating scheduled task", payload=payload)
 
     schedule_id = str(payload.schedule_id)
     job = scheduler_connection.get_job(job_id=schedule_id)
@@ -269,7 +282,7 @@ def _delete_scheduled_task(payload: APSchedulerJobDelete, scheduler_connection: 
         payload: APSchedulerJobDelete The scheduled task to delete.
         scheduler_connection: BaseScheduler The scheduler connection.
     """
-    logger.info(f"Deleting scheduled task: {payload}")
+    logger.info("Deleting scheduled task", payload=payload)
 
     schedule_id = str(payload.schedule_id)
     scheduler_connection.remove_job(job_id=schedule_id)
@@ -289,14 +302,9 @@ def workflow_scheduler_queue(queue_item: tuple[str, bytes], scheduler_connection
         match payload:
             case APSchedulerJobCreate():
                 _add_scheduled_task(payload, scheduler_connection)
-
             case APSchedulerJobUpdate():
                 _update_scheduled_task(payload, scheduler_connection)
-
             case APSchedulerJobDelete():
                 _delete_scheduled_task(payload, scheduler_connection)
-
-            case _:
-                logger.warning(f"Unexpected schedule type: {payload}")  # type: ignore
     except Exception:
         logger.exception("Error processing scheduler queue item")
