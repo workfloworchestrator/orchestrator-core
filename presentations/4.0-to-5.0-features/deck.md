@@ -45,11 +45,11 @@ optional add-on modules.
 
 # AI-powered search (4.5 → 5.0)
 
-- Started as an opt-in `[search]` extra in 4.5 with LLM-assisted retrieval
-- Structured search added in 4.8 with aggregations, sorting, totals
-- A dedicated `/api/search` endpoint replaces TSV-style `query=` parameters
+- 4.5: Started as an opt-in `[search]` extra with LLM-assisted retrieval
+- 4.8: Structured search added with aggregations, sorting, totals
+- 5.0: Dedicated `/api/search` endpoint; TSV `query=` parameter deprecated
+- 5.0: **Now mandatory** — `litellm` is a core dependency; vector + text always on
 - Indexes subscriptions, products, processes, **and** workflows
-- **Now mandatory in 5.0** — `litellm` is a core dependency; vector + text always on
 - Powered by pgvector + standard PostgreSQL extensions
 
 ::: notes
@@ -64,11 +64,11 @@ populate the index.
 
 # AI agent platform (4.8 → 5.0)
 
-- Foundations laid in 4.5 (schema retrieval, validation exceptions, auth-aware router)
-- 4.8 introduced a **finite-state-machine agent** with skills, planners, and tool artifacts
-- Transport adapters: **AG-UI** for streaming UIs, **A2A** with agent card at `/.well-known/agent-card.json`
-- **MCP server** in 5.0 mounted at `/mcp` (opt-in via `fastmcp` install)
-- All endpoints share the platform's auth via `AgentAuthMiddleware`
+- 4.5: Foundations laid — schema retrieval, validation exceptions, auth-aware router
+- 4.8: **Finite-state-machine agent** with skills, planners, and tool artifacts
+- 4.8: Transport adapters — **AG-UI** streaming and **A2A** with agent card at `/.well-known/agent-card.json`
+- 4.8: `AgentAuthMiddleware` shares the platform's OIDC auth across agent endpoints
+- 5.0: **MCP server** mounted at `/mcp` (opt-in via `fastmcp` install)
 
 ::: notes
 This is the platform's bet on AI-native operations. The agent runtime is a
@@ -102,11 +102,11 @@ workflow at which step, so you can write much smarter policies — e.g.
 # Scheduler rebuilt with APScheduler (4.4)
 
 - 4.4: Replaced the built-in scheduler with **APScheduler** and a persistent jobstore
-- Schedules survive restarts; jobs visible in `apscheduler_jobs`
+- 4.4: Schedules survive restarts; jobs visible in `apscheduler_jobs`
 - 4.7: Full **Scheduler CRUD API** — schedule via UI or HTTP, not just code
 - 4.7: Decorator-based scheduling deprecated; default schedules removed
+- 4.7: `python main.py scheduler load-initial-schedule` restores defaults
 - 4.8: `validate-products` migrated to API + **run predicates**
-- `python main.py scheduler load-initial-schedule` restores defaults
 
 ::: notes
 Before 4.4, scheduling was decorator-only — fine for fixed jobs, painful for
@@ -119,12 +119,12 @@ decorators, the upgrade guide walks you through migrating them.
 
 # Workflow features
 
-- **Reconcile workflow decorator** (4.4) — sync subscriptions with external systems
-- Reconcile target + lifecycle validation in workflow steps (4.5)
-- **Workflow run predicates** (4.8) — declarative conditions on whether a workflow may start
-- Validation report endpoint with `lastValidatedAt` on subscriptions (4.3)
-- Resume CREATED/RESUMED processes correctly (4.3)
-- Improved step timestamping (4.2) and structlog context per step (3.2)
+- 4.2: Improved step timestamping
+- 4.3: Validation report endpoint with `lastValidatedAt` on subscriptions
+- 4.3: Resume CREATED/RESUMED processes correctly
+- 4.4: **Reconcile workflow decorator** — sync subscriptions with external systems
+- 4.5: Reconcile target + lifecycle validation in workflow steps
+- 4.8: **Workflow run predicates** — declarative conditions on whether a workflow may start
 
 ::: notes
 Two big additions and a handful of refinements. Reconcile workflows formalize
@@ -137,12 +137,12 @@ operational logic declaratively rather than in step code.
 
 # Observability & operations
 
-- **Metrics endpoint** (4.0) with example **Grafana dashboard** (4.2) shipped in the repo
-- **Worker status monitor** (4.8) — live count of running processes, replaces brittle counter column
-- Validation report endpoint with `lastValidatedAt` per subscription (4.3)
+- 4.0: **Metrics endpoint** shipped in the repo
+- 4.2: Example **Grafana dashboard** shipped alongside
+- 4.3, 4.6: MkDocs CI made strict — docs build is part of the test suite
+- 4.8: **Worker status monitor** — live count of running processes, replaces a brittle counter column
+- 4.8: Migrations log truncated tracebacks instead of full dumps
 - Distributed lock manager added with test coverage
-- Migrations now logged with truncated tracebacks instead of full dumps (4.8)
-- MkDocs CI made strict — docs build is part of the test suite (4.3, 4.6)
 
 ::: notes
 Observability got steady, unflashy attention across 4.x. The Grafana
@@ -191,13 +191,13 @@ packages and compose with the core.
 
 # Developer experience
 
-- **Build tooling**: flit → **uv** in 4.2; `uv_build` for wheels in 5.0
-- **Linting**: scattered black usage fully replaced by **ruff**
-- **Python 3.14** support enabled in 4.6
-- **Renovate** replaced Dependabot (4.6) — better grouping, lower noise
-- **Mypy 1.9 → 1.19** in 5.0 — roughly 2× faster type checking
-- **Vulture** added for dead-code detection
-- Test coverage climbed dramatically — search 59→92%, websocket 67→99%, CLI 20→80%, API 42→76%
+- 4.2: Migrated build tooling from flit to **uv**
+- 4.6: **Python 3.14** support enabled
+- 4.6: **Renovate** replaced Dependabot — better grouping, lower noise
+- 5.0: Adopted `uv_build` for wheel builds; stray **black** usage replaced by **ruff**
+- 5.0: **Mypy 1.9 → 1.19** — roughly 2× faster type checking
+- 5.0: **Vulture** added for dead-code detection
+- 5.0: Test coverage jump — search 59→92%, websocket 67→99%, CLI 20→80%, API 42→76%
 
 ::: notes
 None of these are user-facing, but together they're why the project moves as
