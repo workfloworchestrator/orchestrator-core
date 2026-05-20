@@ -230,6 +230,14 @@ async def allow(_: OIDCUserModel | None) -> bool:
     return True
 
 
+def default_user_inputs() -> list[State]:
+    """Provide the default user inputs when executing a workflow when user inputs are not explicitly provided.
+
+    This mirrors the requirement from make_workflow() to always have at least 1 form.
+    """
+    return [{}]
+
+
 def make_workflow(
     f: Callable,
     description: str,

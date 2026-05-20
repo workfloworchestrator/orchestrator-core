@@ -14,6 +14,7 @@
 """Tests for CLI scheduler commands: run, force, show-schedule, and load-initial-schedule."""
 
 import re
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest import mock
 
@@ -23,8 +24,10 @@ from orchestrator.core.cli.scheduler import app
 
 runner = CliRunner()
 
+_BASE_RUN_TIME = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
-def _make_task(task_id: str = "task-1", name: str = "My Task", args=None, kwargs=None):
+
+def _make_task(task_id: str = "task-1", name: str = "My Task", args=None, kwargs=None, run_offset_seconds: int = 0):
     def _func(*a, **k):
         pass
 
@@ -34,7 +37,7 @@ def _make_task(task_id: str = "task-1", name: str = "My Task", args=None, kwargs
         func=_func,
         args=args,
         kwargs=kwargs,
-        next_run_time=SimpleNamespace(replace=lambda **_: "2026-01-01 00:00:00"),
+        next_run_time=_BASE_RUN_TIME + timedelta(seconds=run_offset_seconds),
         trigger="interval",
     )
 
