@@ -179,8 +179,6 @@ class FieldType(str, Enum):
     def _infer_from_str(cls, val: str) -> "FieldType":
         if is_uuid(val):
             return cls.UUID
-        if is_iso_date(val):
-            return cls.DATETIME
         if is_bool_string(val):
             return cls.BOOLEAN
         if val.isdigit():
@@ -189,7 +187,10 @@ class FieldType(str, Enum):
             float(val)
             return cls.FLOAT
         except ValueError:
-            return cls.STRING
+            pass
+        if is_iso_date(val):
+            return cls.DATETIME
+        return cls.STRING
 
     @classmethod
     def from_type_hint(cls, type_hint: object) -> "FieldType":

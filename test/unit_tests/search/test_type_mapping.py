@@ -95,3 +95,21 @@ def test_enum_types():
 
     assert FieldType.from_type_hint(TestStringEnum) == FieldType.STRING
     assert FieldType.from_type_hint(TestIntEnum) == FieldType.INTEGER
+
+
+@pytest.mark.parametrize(
+    ("value", "expected_field_type"),
+    [
+        pytest.param("1000", FieldType.INTEGER, id="number-not-date"),
+        pytest.param("42", FieldType.INTEGER, id="number-small"),
+        pytest.param("10102026", FieldType.INTEGER, id="number-like-date"),
+        pytest.param("3.14", FieldType.FLOAT, id="float-string"),
+        pytest.param("true", FieldType.BOOLEAN, id="bool-true"),
+        pytest.param("false", FieldType.BOOLEAN, id="bool-false"),
+        pytest.param("2024-01-15", FieldType.DATETIME, id="iso-date"),
+        pytest.param("2024-01-15T10:30:00", FieldType.DATETIME, id="iso-datetime"),
+        pytest.param("hello", FieldType.STRING, id="plain-string"),
+    ],
+)
+def test_infer_from_string_value(value, expected_field_type):
+    assert FieldType.infer(value) == expected_field_type
