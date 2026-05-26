@@ -68,7 +68,7 @@ dependencies = [
     "structlog>=25.4.0",
     "tabulate==0.10.0",
     "typer==0.25.1",
-    "uvicorn[standard]~=0.47.0",
+    "uvicorn[standard]~=0.48.0",
     "litellm>=1.80.0",
 ]
 
