@@ -232,6 +232,9 @@ nav:
           - Monitoring:
               - Error Tracking: reference-docs/monitoring/error-tracking.md
               - Metrics: reference-docs/monitoring/metrics.md
+          - Parallelization:
+              - reference-docs/parallelization/index.md
+              - GÉANT: reference-docs/parallelization/geant.md
 
     - Workshops:
           # - Beginner:
