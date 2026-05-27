@@ -85,4 +85,5 @@ dmypy.json
 # MacOS Stuff
 .DS_store
 
-docs/superpowers
+# Superpowers plans (local only)
+docs/superpowers/

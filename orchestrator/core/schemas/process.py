@@ -59,6 +59,9 @@ class ProcessStepSchema(OrchestratorBaseModel):
     importance: StepImportance = StepImportance.DEFAULT
     state: dict[str, Any] | None = None
     state_delta: dict[str, Any] | None = None
+    parallel_total_branches: int | None = None
+    parallel_completed_count: int | None = None
+    child_steps: list["ProcessStepSchema"] | None = None
 
 
 class ProcessSchema(ProcessBaseSchema):
