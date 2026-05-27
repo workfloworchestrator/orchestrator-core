@@ -239,11 +239,20 @@ def _get_current_step_to_update(
     - '__replace_last_state' - When the value for this key is truthy, the previous state in the db will be overridden
     - '__remove_keys' - Removes the keys in this given list from the state
     """
+    from orchestrator.core.db.models import ProcessStepRelationTable
+
     step_state: State = process_state.unwrap()
     current_step = None
+    # Exclude rows that are branch children of a parallel fork step. Otherwise the
+    # last-completed query picks the last-finishing branch and ``__replace_last_state``
+    # overwrites that branch's state with the parent workflow's state.
+    branch_child_ids = select(ProcessStepRelationTable.child_step_id)
     last_db_step = db.session.scalars(
         select(ProcessStepTable)
-        .where(ProcessStepTable.process_id == p.process_id)
+        .where(
+            ProcessStepTable.process_id == p.process_id,
+            ProcessStepTable.step_id.notin_(branch_child_ids),
+        )
         .order_by(ProcessStepTable.completed_at.desc())
         .limit(1)
     ).first()
@@ -301,13 +310,17 @@ def _get_current_step_to_update(
             state=step_state,
             created_by=stat.current_user,
         )
-    # Since the Start step does not have a __last_step_started_at in it's state, we effectively assume it is instantaneous.
-    now = nowtz()
-    current_step.started_at = datetime.fromtimestamp(step_start_time or now.timestamp(), tz=utc)
-
-    # Always explicitly set this instead of leaving it to the database to prevent failing tests
-    # Test will fail if multiple steps have the same timestamp
-    current_step.completed_at = now
+    # Preserve a fork step's original timestamps. Its started_at/completed_at were
+    # set by ``_create_fork_step`` before branches ran. Bumping them here would push
+    # the fork step after its child branch rows in the UI, which orders by completed_at.
+    is_fork_step = current_step.parallel_total_branches is not None
+    if not is_fork_step:
+        # Since the Start step does not have a __last_step_started_at in it's state, we effectively assume it is instantaneous.
+        now = nowtz()
+        current_step.started_at = datetime.fromtimestamp(step_start_time or now.timestamp(), tz=utc)
+        # Always explicitly set this instead of leaving it to the database to prevent failing tests
+        # Test will fail if multiple steps have the same timestamp
+        current_step.completed_at = now
     return current_step
 
 
