@@ -20,17 +20,19 @@ is persisted in the DB and accessible via ProcessStepRelationTable / child_steps
 
 import threading
 import time
+from functools import partial
 from typing import cast
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 
 from orchestrator.core.config.assignee import Assignee
-from orchestrator.core.db import ProcessTable, db
+from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
-from orchestrator.core.services.processes import SYSTEM_USER
+from orchestrator.core.services.processes import SYSTEM_USER, safe_logstep
 from orchestrator.core.workflow import (
     ParallelStepList,
     ProcessStat,
@@ -950,3 +952,73 @@ def test_foreach_appears_as_single_step_in_log():
     step_names = [entry[0] for entry in log]
     assert "Provision ports" in step_names
     assert "Done" in step_names
+
+
+# --- Test: __replace_last_state on the parallel step must not corrupt branch rows ---
+
+
+@pytest.mark.parametrize(
+    "branch_count",
+    [
+        pytest.param(2, id="two-branches"),
+        pytest.param(3, id="three-branches"),
+        pytest.param(5, id="five-branches"),
+    ],
+)
+def test_parallel_join_preserves_branch_row_state(branch_count):
+    """Branch step rows retain their full state after the parallel join.
+
+    Regression test. Before the fix, the parallel step returned ``__replace_last_state=True``
+    and ``_get_current_step_to_update`` picked the most-recently-completed step row by
+    ``completed_at DESC``. In a parallel context, that row is the last-finishing branch,
+    so the parent workflow's state would overwrite that branch's state in the DB.
+
+    Fix: ``_get_current_step_to_update`` excludes rows that are children of a fork step
+    (via ``process_step_relations``) from the ``last_db_step`` query, and preserves the
+    fork step's original timestamps when updating it.
+    """
+
+    @step("Capture item")
+    def capture_item(item, item_index):
+        return {f"branch_{item_index}_done": True, f"branch_{item_index}_label": item}
+
+    @step("Seed items")
+    def seed_items():
+        return {"items": [f"item-{i}" for i in range(branch_count)]}
+
+    wf = workflow()(
+        lambda: init >> seed_items >> foreach_parallel("Fan out", "items", begin >> capture_item) >> done
+    )
+
+    with register_test_workflow(wf) as wf_table:
+        pstat = create_new_process_stat(wf_table, {})
+        result = runwf(pstat, partial(safe_logstep))
+        assert_complete(result)
+
+        # Queries must happen before the context manager exits — it cascade-deletes
+        # the workflow row, taking the process and all its steps with it.
+        db.session.commit()
+        fan_out_rows = db.session.scalars(
+            select(ProcessStepTable).where(
+                ProcessStepTable.process_id == pstat.process_id,
+                ProcessStepTable.name == "Fan out",
+            )
+        ).all()
+        assert len(fan_out_rows) == 1, f"expected 1 'Fan out' row, got {len(fan_out_rows)}"
+        fork_step = fan_out_rows[0]
+        children = list(fork_step.child_steps)
+
+        assert len(children) == branch_count, f"expected {branch_count} branch rows, got {len(children)}"
+
+        def has_branch_marker(child):
+            return any(child.state.get(f"branch_{i}_done") is True for i in range(branch_count))
+
+        missing = [c for c in children if not has_branch_marker(c)]
+        assert not missing, f"branch rows missing step return state: {[(c.name, c.state) for c in missing]}"
+
+        # Fork step's completed_at must not have been bumped past the branches; it was set
+        # by _create_fork_step before branches ran and must stay there so the UI displays
+        # the fork step before its children.
+        assert all(fork_step.completed_at <= child.completed_at for child in children), (
+            "fork step completed_at was bumped after branches — ordering broken"
+        )

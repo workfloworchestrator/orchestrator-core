@@ -12,7 +12,7 @@
 # limitations under the License.
 """Add process_step_relations table and parallel columns on process_steps.
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 18a7c2676fd3
 Revises: cab8b6a0ac92
 Create Date: 2026-05-27 10:00:00.000000
 
@@ -24,7 +24,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy_utils import UUIDType
 
 # revision identifiers, used by Alembic.
-revision = "a1b2c3d4e5f6"
+revision = "18a7c2676fd3"
 down_revision = "cab8b6a0ac92"
 branch_labels = None
 depends_on = None
