@@ -229,6 +229,7 @@ nav:
                 # - Tasks:
           - Websockets: reference-docs/websockets.md
           - Search: reference-docs/search.md
+          - MCP Server: reference-docs/mcp.md
           - Monitoring:
               - Error Tracking: reference-docs/monitoring/error-tracking.md
               - Metrics: reference-docs/monitoring/metrics.md
