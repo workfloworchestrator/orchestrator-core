@@ -27,7 +27,6 @@ from orchestrator.core.services.parallel import (
     _atomic_increment_completed,
     _collect_branch_results,
     _resolve_branch_from_db,
-    _update_main_parallel_step,
 )
 from orchestrator.core.services.processes import create_process, load_process, safe_logstep
 from orchestrator.core.settings import ExecutorType, app_settings
@@ -576,9 +575,10 @@ def test_worker_resume_after_parallel_executes_remaining_steps(setup_test_celery
     2. _join_and_resume didn't update the main Waiting step to Success
 
     Note: In eager Celery mode, branches execute synchronously inside .delay(), so
-    _join_and_resume fires BEFORE safe_logstep writes the Waiting step. In production,
-    branches run asynchronously and _join_and_resume runs AFTER. We simulate the
-    production ordering by calling _update_main_parallel_step after the workflow returns.
+    _join_and_resume fires BEFORE safe_logstep writes the (now unified) fork+main row.
+    In production, branches run asynchronously and _join_and_resume runs AFTER. We
+    simulate the production ordering by overwriting the fork status to ``success``
+    after the workflow returns Waiting.
     """
 
     resume_final_called = False
@@ -645,11 +645,12 @@ def test_worker_resume_after_parallel_executes_remaining_steps(setup_test_celery
             assert len(resume_log) == 1, f"Expected exactly 1 resume call, got {len(resume_log)}"
 
             # Simulate production ordering: in production, _join_and_resume runs AFTER
-            # safe_logstep writes the Waiting step. In eager mode, it runs BEFORE.
-            # Call _update_main_parallel_step now that the Waiting step exists in DB.
+            # safe_logstep updates the fork to Waiting. Here in eager mode the order is
+            # reversed, so we manually re-resolve the fork to success after the workflow
+            # returns Waiting.
             db.session.expire_all()
             fork_step = _get_fork_step(pstat.process_id)
-            _update_main_parallel_step(pstat.process_id, fork_step.name, fork_step.step_id, "success", fork_step.state)
+            fork_step.status = "success"
             db.session.commit()
 
             # Phase 2: Simulate the Celery resume by loading process from DB and running remaining steps
@@ -692,12 +693,13 @@ def test_worker_resume_after_parallel_executes_remaining_steps(setup_test_celery
 
 
 @pytest.mark.celery
-def test_join_and_resume_updates_main_waiting_step(setup_test_celery) -> None:  # noqa: ARG001 — initialises Celery for WORKER-mode dispatch
-    """After all branches complete, _join_and_resume must update the main Waiting process step to Success.
+def test_join_and_resume_writes_no_duplicate_main_row(setup_test_celery) -> None:  # noqa: ARG001 — initialises Celery for WORKER-mode dispatch
+    """The fork row IS the main-log row for the parallel step (no separate Waiting row).
 
-    When running in WORKER mode, safe_logstep writes a Waiting process step for the parallel group.
-    After all branches finish, _join_and_resume updates the fork step but must ALSO update this main
-    Waiting step so _recoverwf correctly counts it as cleared on resume.
+    Previously safe_logstep wrote a Waiting row alongside the fork in WORKER mode, and
+    ``_update_main_parallel_step`` was responsible for syncing them. With the unified
+    design ``_dispatch_worker_branches`` sets ``__replace_last_state`` so safe_logstep
+    overwrites the fork in-place, and ``_join_and_resume`` resolves the same row.
     """
 
     @step("Join Branch A")
@@ -736,53 +738,21 @@ def test_join_and_resume_updates_main_waiting_step(setup_test_celery) -> None:  
 
             assert result.iswaiting(), f"Expected Waiting (WORKER mode), but was: {result}"
 
-            # In eager Celery mode, branches run synchronously inside .delay(), so
-            # _join_and_resume executes BEFORE safe_logstep writes the Waiting step.
-            # In production, branches run asynchronously and _join_and_resume runs AFTER
-            # the Waiting step is persisted.
-            #
-            # To test _update_main_parallel_step in isolation, we verify it can update
-            # the Waiting step that safe_logstep has now written (after the workflow returned).
             db.session.expire_all()
 
-            fork_step = _get_fork_step(pstat.process_id)
-            assert fork_step.status == "success", f"Fork step should be success, got {fork_step.status}"
-
-            # Confirm the main Waiting step exists (written by safe_logstep after Waiting return)
-            from sqlalchemy import and_
-
-            main_step = (
+            rows = (
                 db.session.query(ProcessStepTable)
                 .filter(
-                    and_(
-                        ProcessStepTable.process_id == pstat.process_id,
-                        ProcessStepTable.name == "join group",
-                        ProcessStepTable.status == "waiting",
-                        ProcessStepTable.step_id != fork_step.step_id,
-                    )
+                    ProcessStepTable.process_id == pstat.process_id,
+                    ProcessStepTable.name == "join group",
                 )
-                .first()
+                .all()
             )
-            assert main_step is not None, "Main Waiting step for 'join group' not found in DB"
-
-            # Now call _update_main_parallel_step directly — simulating what happens
-            # in production when _join_and_resume runs after the Waiting step exists
-            _update_main_parallel_step(
-                pstat.process_id,
-                "join group",
-                fork_step.step_id,
-                "success",
-                fork_step.state,
+            assert len(rows) == 1, (
+                f"expected exactly one row named 'join group' (the fork), got {len(rows)}: "
+                f"{[(r.status, r.parallel_total_branches) for r in rows]}"
             )
-            db.session.commit()
-
-            # Verify the main step was updated from waiting to success
-            db.session.expire_all()
-            main_step_after = db.session.get(ProcessStepTable, main_step.step_id)
-            assert main_step_after is not None
-            assert main_step_after.status == "success", (
-                f"Main Waiting step should have been updated to 'success', " f"but was '{main_step_after.status}'"
-            )
+            assert rows[0].parallel_total_branches == 2
 
 
 @pytest.mark.celery
