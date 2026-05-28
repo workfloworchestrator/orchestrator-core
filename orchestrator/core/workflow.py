@@ -530,12 +530,25 @@ def _make_branch_dblogstep(
     Each branch step is persisted individually and linked to the parent fork step
     via ProcessStepRelationTable. The seed_state is stored on the first relation
     so the join can strip seed keys from branch results.
+
+    Starts the per-branch ``order_id`` counter above any existing order_ids for this
+    (fork, branch_index) so retry attempts are sortable as "latest" by
+    ``_collect_branch_results`` (which picks the row with the highest order_id per
+    branch_index).
     """
     import itertools
 
+    from sqlalchemy import func, select
+
     from orchestrator.core.db.models import ProcessStepRelationTable
 
-    order_counter = itertools.count()
+    existing_max = db.session.scalars(
+        select(func.max(ProcessStepRelationTable.order_id)).where(
+            ProcessStepRelationTable.parent_step_id == parent_step_id,
+            ProcessStepRelationTable.branch_index == branch_index,
+        )
+    ).first()
+    order_counter = itertools.count(existing_max + 1 if existing_max is not None else 0)
 
     def branch_dblogstep(step_: Step, p: Process) -> Process:
         step_state = p.unwrap()
@@ -608,15 +621,61 @@ def _create_fork_step(
     total_branches: int,
     current_user: str,
 ) -> UUID:
-    """Create a fork step in the DB that tracks the parallel group.
+    """Create a new fork step for this (process, parallel group).
 
-    Uses a separate ``database_scope()`` session so the INSERT is committed
+    Always inserts a fresh fork row — mirrors orchestrator-core's existing retry
+    pattern where each new attempt of a step gets its own row, leaving prior
+    failed rows untouched as history. When a prior *failed* fork for the same
+    parallel group exists, its successful branch relations are inherited by the
+    new fork so ``fork.child_steps`` and the atomic join logic see the full set
+    of resolved branches; the failed/pending branches are re-dispatched.
+
+    Uses a separate ``database_scope()`` session so the change is committed
     independently of the caller's transaction. This ensures the fork step is
     visible to branch threads that run on their own connections from the pool.
 
     Returns the fork step_id (not the ORM object) to avoid stale-object issues.
     """
+    from more_itertools import unique_everseen
+    from sqlalchemy import select
+    from sqlalchemy.orm import joinedload
+
+    from orchestrator.core.db.models import ProcessStepRelationTable
+
     with db.database_scope():
+        prior_failed = db.session.scalars(
+            select(ProcessStepTable)
+            .where(
+                ProcessStepTable.process_id == process_id,
+                ProcessStepTable.name == name,
+                ProcessStepTable.parallel_total_branches.isnot(None),
+                ProcessStepTable.status == StepStatus.FAILED,
+            )
+            .order_by(ProcessStepTable.completed_at.desc())
+            .limit(1)
+        ).first()
+
+        inherited_relations: list[ProcessStepRelationTable] = []
+        succeeded_branches: set[int] = set()
+        if prior_failed is not None:
+            prior_relations = (
+                db.session.execute(
+                    select(ProcessStepRelationTable)
+                    .options(joinedload(ProcessStepRelationTable.child_step))
+                    .where(ProcessStepRelationTable.parent_step_id == prior_failed.step_id)
+                    .order_by(
+                        ProcessStepRelationTable.branch_index,
+                        ProcessStepRelationTable.order_id.desc(),
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            latest_per_branch = list(unique_everseen(prior_relations, key=lambda r: r.branch_index))
+            succeeded_branches = {r.branch_index for r in latest_per_branch if r.child_step.status == StepStatus.SUCCESS}
+            inherited_relations = [r for r in prior_relations if r.branch_index in succeeded_branches]
+
+        now = nowtz()
         fork_step = ProcessStepTable(
             process_id=process_id,
             name=name,
@@ -624,9 +683,23 @@ def _create_fork_step(
             state=initial_state,
             created_by=current_user,
             parallel_total_branches=total_branches,
-            parallel_completed_count=0,
+            parallel_completed_count=len(succeeded_branches),
+            started_at=now,
+            completed_at=now,
         )
         db.session.add(fork_step)
+        db.session.flush()
+
+        db.session.add_all(
+            ProcessStepRelationTable(
+                parent_step_id=fork_step.step_id,
+                child_step_id=rel.child_step_id,
+                order_id=rel.order_id,
+                branch_index=rel.branch_index,
+                seed_state=rel.seed_state,
+            )
+            for rel in inherited_relations
+        )
         db.session.commit()
         return fork_step.step_id
 
@@ -655,13 +728,26 @@ def _dispatch_worker_branches(
     task_name = EXECUTE_PARALLEL_BRANCH if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW
     trigger_task = get_celery_task(task_name)
 
+    from orchestrator.core.services.parallel import _succeeded_branch_indices
+
     n_branches = len(seeds) if seeds else len(branches)
-    for idx in range(n_branches):
+    already_succeeded = _succeeded_branch_indices(fork_step_id)
+    pending = [idx for idx in range(n_branches) if idx not in already_succeeded]
+    for idx in pending:
         branch_initial = (initial_state | seeds[idx]) if seeds else initial_state
         seed = seeds[idx] if seeds else None
         trigger_task.delay(process_id, idx, fork_step_id, branch_initial, current_user, seed)
 
-    return Waiting(initial_state | {"__parallel_waiting": True, "__fork_step_id": str(fork_step_id)})
+    # __replace_last_state tells safe_logstep to update the fork row in-place
+    # rather than write a separate Waiting main-log row alongside it.
+    return Waiting(
+        initial_state
+        | {
+            "__parallel_waiting": True,
+            "__fork_step_id": str(fork_step_id),
+            "__replace_last_state": True,
+        }
+    )
 
 
 def _update_fork_step(fork_step_id: UUID, status: str, state: State, n_branches: int) -> None:
@@ -696,49 +782,71 @@ def _run_threadpool_branches(
     max_workers: int | None = None,
     seeds: list[State] | None = None,
 ) -> Process:
-    """Execute branches in a thread pool and collect results synchronously."""
+    """Execute branches in a thread pool and collect results synchronously.
+
+    On retry, branches that already succeeded on a prior attempt (recorded under the
+    same fork via ``ProcessStepRelationTable``) are skipped. The aggregate result is
+    computed from each branch's *latest* attempt in the DB so successful prior
+    branches contribute alongside the freshly-executed pending ones.
+    """
+    from orchestrator.core.services.parallel import _STATUSES, _collect_branch_results, _succeeded_branch_indices
+
     n_branches = len(seeds) if seeds else len(branches)
-    workers = max_workers if max_workers is not None else n_branches
+
+    already_succeeded = _succeeded_branch_indices(fork_step_id) if fork_step_id is not None else set()
+    pending = [idx for idx in range(n_branches) if idx not in already_succeeded]
+
     branch_results: list[Process | None] = [None] * n_branches
 
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {
-            executor.submit(
-                copy_context().run,
-                _run_branch,
-                branches[idx] if len(branches) > 1 else branches[0],
-                initial_state,
-                process_id=process_id,
-                parent_step_id=fork_step_id,
-                branch_index=idx,
-                current_user=current_user,
-                state_seed=seeds[idx] if seeds else None,
-            ): idx
-            for idx in range(n_branches)
-        }
+    if pending:
+        workers = max_workers if max_workers is not None else len(pending)
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(
+                    copy_context().run,
+                    _run_branch,
+                    branches[idx] if len(branches) > 1 else branches[0],
+                    initial_state,
+                    process_id=process_id,
+                    parent_step_id=fork_step_id,
+                    branch_index=idx,
+                    current_user=current_user,
+                    state_seed=seeds[idx] if seeds else None,
+                ): idx
+                for idx in pending
+            }
 
-        def _collect_result(future: Future[Process]) -> None:
-            idx = futures[future]
-            try:
-                branch_results[idx] = future.result()
-            except Exception as e:
-                logger.error("Parallel branch exception", branch_idx=idx, parallel_group=name)
-                branch_results[idx] = Failed(error_state_to_dict(e))
+            def _collect_result(future: Future[Process]) -> None:
+                idx = futures[future]
+                try:
+                    branch_results[idx] = future.result()
+                except Exception as e:
+                    logger.error("Parallel branch exception", branch_idx=idx, parallel_group=name)
+                    branch_results[idx] = Failed(error_state_to_dict(e))
 
-        for future in as_completed(futures):
-            _collect_result(future)
-
-    results: list[Process] = [r for r in branch_results if r is not None]
-    worst = _worst_status(results)
+            for future in as_completed(futures):
+                _collect_result(future)
 
     parallel_start_time = nowtz().timestamp()
+
+    # Aggregate from the DB so previously-succeeded branches contribute to the worst-status
+    # calculation alongside the branches that just ran in this attempt.
+    if fork_step_id is not None:
+        branch_data = _collect_branch_results(fork_step_id)
+        results: list[Process] = [_STATUSES.get(StepStatus(s), Success)(state) for _idx, state, s in branch_data]
+    else:
+        results = [r for r in branch_results if r is not None]
+
+    worst = _worst_status(results)
 
     if fork_step_id is not None:
         fork_status = worst.status if worst is not None else StepStatus.SUCCESS
         _update_fork_step(fork_step_id, fork_status, initial_state, n_branches)
 
+    # Tell safe_logstep to update the fork row in-place rather than write a
+    # separate main-log row (which would collide with the fork by name).
     if worst is not None:
-        return worst
+        return worst.__class__(worst.unwrap() | {"__replace_last_state": True})
 
     return Success(initial_state | {"__replace_last_state": True, "__last_step_started_at": parallel_start_time})
 

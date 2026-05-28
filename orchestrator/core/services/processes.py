@@ -842,15 +842,12 @@ def _restore_log(steps: list[ProcessStepTable]) -> list[WFProcess]:
 def _is_main_log_step(step: ProcessStepTable) -> bool:
     """Return True if this step is part of the main workflow log.
 
-    Excludes fork steps (parallel tracking) and branch child steps
-    (linked via ProcessStepRelationTable). These are auxiliary rows
-    that must not inflate the step count in _recoverwf.
+    Excludes only branch child steps (rows linked to a fork via
+    ``ProcessStepRelationTable``). A fork row IS the main-log entry for its
+    parallel step: it carries the parallel group's resolved status and is what
+    ``_recoverwf`` reads to advance past a completed parallel block.
     """
-    if step.parallel_total_branches is not None:
-        return False
-    if step.parent_step_relations:
-        return False
-    return True
+    return not step.parent_step_relations
 
 
 def load_process(process: ProcessTable) -> ProcessStat:
