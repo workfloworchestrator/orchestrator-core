@@ -84,6 +84,15 @@ def _collect_branch_results(fork_step_id: UUID) -> list[tuple[int, dict, str]]:
     return [(rel.branch_index, rel.child_step.state, rel.child_step.status) for rel in first_per_branch]
 
 
+def _succeeded_branch_indices(fork_step_id: UUID) -> set[int]:
+    """Return the set of branch indices whose most recent attempt succeeded.
+
+    Used by retry logic to skip branches that already completed successfully
+    on a previous attempt of the same parallel group.
+    """
+    return {idx for idx, _state, status in _collect_branch_results(fork_step_id) if status == StepStatus.SUCCESS}
+
+
 def _child_step_lists(s: Step) -> Iterator[StepList]:
     """Yield the nested step lists (branches and templates) attached to a step."""
     yield from getattr(s, "_parallel_branches", [])
@@ -213,38 +222,6 @@ def run_worker_branch(
         )
 
 
-def _update_main_parallel_step(
-    process_id: UUID,
-    step_name: str,
-    fork_step_id: UUID,
-    status: str,
-    state: dict,
-) -> None:
-    """Update the main Waiting process step to reflect parallel branch completion.
-
-    When the parallel step dispatches branches in WORKER mode, safe_logstep writes a
-    Waiting process step. After all branches complete, this step must be updated to
-    the resolved status so _recoverwf correctly advances past it on resume.
-    """
-    from sqlalchemy import and_
-
-    main_step = (
-        db.session.query(ProcessStepTable)
-        .filter(
-            and_(
-                ProcessStepTable.process_id == process_id,
-                ProcessStepTable.name == step_name,
-                ProcessStepTable.status == StepStatus.WAITING,
-                ProcessStepTable.step_id != fork_step_id,
-            )
-        )
-        .first()
-    )
-    if main_step is not None:
-        main_step.status = status
-        main_step.state = state
-
-
 def _join_and_resume(
     *,
     process_id: UUID,
@@ -252,22 +229,25 @@ def _join_and_resume(
     initial_state: dict,
     user: str,
 ) -> None:
-    """Called by the last-finishing branch to determine status and resume the parent workflow."""
+    """Called by the last-finishing branch to determine status and resume the parent workflow.
+
+    The fork row IS the main-log entry for the parallel step (see ``_is_main_log_step``),
+    so resolving the parallel block means updating only that row. For failures, propagate
+    the worst branch's error state so it's visible on the main log; for successes, keep
+    the pre-parallel state.
+    """
     branch_data = _collect_branch_results(fork_step_id)
 
     results = [_STATUSES.get(StepStatus(status), Success)(state) for _branch_idx, state, status in branch_data]
     worst = _worst_status(results)
 
     resolved_status = worst.status if worst is not None else StepStatus.SUCCESS
+    resolved_state = worst.unwrap() if worst is not None else initial_state
 
     fork_step = db.session.get(ProcessStepTable, fork_step_id)
     if fork_step is not None:
         fork_step.status = resolved_status
-        fork_step.state = initial_state
-
-        # Update the main Waiting process step so _recoverwf advances past it on resume
-        _update_main_parallel_step(process_id, fork_step.name, fork_step_id, resolved_status, initial_state)
-
+        fork_step.state = resolved_state
         db.session.commit()
 
     from orchestrator.core.services.executors.types import ExecutorFunction
