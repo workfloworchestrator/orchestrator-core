@@ -110,3 +110,50 @@ async def test_fastmcp_introspects_all_expected_tools(app_with_agent_routes: Fas
     for tool in tools:
         assert isinstance(tool.parameters, dict), f"tool {tool.name} has non-dict parameters"
         assert "properties" in tool.parameters, f"tool {tool.name} parameters missing 'properties'"
+
+
+async def _tools_by_name(app: FastAPI) -> dict[str, object]:
+    from orchestrator.core.mcp.server import build_mcp
+
+    mcp = build_mcp(app)
+    return {tool.name: tool for tool in await mcp.list_tools()}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "tool_name, read_only, idempotent, destructive",
+    [
+        pytest.param("get_process_status", True, True, False, id="readonly-post"),
+        pytest.param("search_subscriptions", True, True, False, id="readonly-search-post"),
+        pytest.param("list_products", True, True, False, id="readonly-get"),
+        pytest.param("create_workflow", False, False, False, id="write-post"),
+        pytest.param("resume_workflow_process", False, True, False, id="idempotent-put"),
+        pytest.param("abort_workflow_process", False, True, True, id="destructive-put"),
+    ],
+)
+async def test_tool_annotations(
+    app_with_agent_routes: FastAPI,
+    tool_name: str,
+    read_only: bool,
+    idempotent: bool,
+    destructive: bool,
+) -> None:
+    """Each tool's ToolAnnotations reflect its method + AgentTag signals."""
+    pytest.importorskip("fastmcp")
+    tool = (await _tools_by_name(app_with_agent_routes))[tool_name]
+    ann = tool.annotations
+    assert ann is not None
+    assert ann.readOnlyHint is read_only
+    assert ann.idempotentHint is idempotent
+    assert ann.destructiveHint is destructive
+    assert ann.openWorldHint is False
+
+
+@pytest.mark.asyncio
+async def test_all_tools_have_title_and_closed_world(app_with_agent_routes: FastAPI) -> None:
+    """Every tool gets a non-empty humanized title and openWorldHint=False."""
+    pytest.importorskip("fastmcp")
+    for name, tool in (await _tools_by_name(app_with_agent_routes)).items():
+        assert tool.annotations is not None, name
+        assert tool.annotations.title, name
+        assert tool.annotations.openWorldHint is False, name

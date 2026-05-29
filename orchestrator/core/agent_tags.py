@@ -30,3 +30,9 @@ class AgentTag(str, Enum):
 
     LARGE = "agent-large"
     """Signal: may return many records; agent should narrow before calling."""
+
+    READONLY = "agent-readonly"
+    """Signal: a non-GET route that does NOT mutate state (read-only tool)."""
+
+    DESTRUCTIVE = "agent-destructive"
+    """Signal: an irreversible mutation (e.g. abort, delete)."""

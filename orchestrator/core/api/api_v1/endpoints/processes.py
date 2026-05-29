@@ -367,7 +367,7 @@ async def resume_all_processes_endpoint(request: Request, user: str = Depends(us
     "/{process_id}/abort",
     response_model=None,
     status_code=HTTPStatus.NO_CONTENT,
-    tags=[AgentTag.EXPOSED],
+    tags=[AgentTag.EXPOSED, AgentTag.DESTRUCTIVE],
     operation_id="abort_workflow_process",
 )
 def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depends(user_name)) -> None:

@@ -45,6 +45,7 @@ from orchestrator.core.agent_tags import AgentTag
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
+    from fastmcp.utilities.openapi import HTTPRoute
 
 MCP_MOUNT_PATH = "/mcp"
 
@@ -65,6 +66,42 @@ async def _forward_auth_header(request: httpx.Request) -> None:
             request.headers[key] = value
 
 
+def _humanize(name: str) -> str:
+    """Turn an ``operation_id`` into a human-readable tool title.
+
+    ``get_process_status`` -> ``Get Process Status``.
+    """
+    return name.replace("_", " ").title()
+
+
+def _annotate(route: "HTTPRoute", component: object) -> None:
+    """Stamp ``ToolAnnotations`` on each generated tool (``mcp_component_fn`` hook).
+
+    Read/idempotent/destructive hints are inferred from the HTTP method, with
+    ``AgentTag.READONLY`` / ``AgentTag.DESTRUCTIVE`` overriding for POST/PUT
+    routes that don't follow method semantics (e.g. the curated POST read
+    tools). ``openWorldHint`` is always ``False`` — the orchestrator operates
+    on its own database, not an open external world.
+    """
+    from fastmcp.server.providers.openapi import OpenAPITool
+    from mcp.types import ToolAnnotations
+
+    if not isinstance(component, OpenAPITool):
+        return
+
+    tags = set(route.tags)
+    method = route.method.upper()
+    read_only = method == "GET" or AgentTag.READONLY.value in tags
+    destructive = method == "DELETE" or AgentTag.DESTRUCTIVE.value in tags
+    component.annotations = ToolAnnotations(
+        title=_humanize(component.name),
+        readOnlyHint=read_only,
+        idempotentHint=read_only or method in {"PUT", "DELETE"},
+        destructiveHint=destructive,
+        openWorldHint=False,
+    )
+
+
 def build_mcp(app: FastAPI) -> "FastMCP":  # noqa: F821 (lazy import below)
     """Construct the configured ``FastMCP`` for ``app`` without mounting it.
 
@@ -81,6 +118,7 @@ def build_mcp(app: FastAPI) -> "FastMCP":  # noqa: F821 (lazy import below)
             RouteMap(tags={AgentTag.EXPOSED.value}, mcp_type=MCPType.TOOL),
             RouteMap(mcp_type=MCPType.EXCLUDE),
         ],
+        mcp_component_fn=_annotate,
         httpx_client_kwargs={"event_hooks": {"request": [_forward_auth_header]}},
     )
 
