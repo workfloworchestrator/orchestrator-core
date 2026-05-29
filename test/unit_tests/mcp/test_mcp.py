@@ -95,27 +95,11 @@ def test_all_expected_routes_carry_agent_tag(app_with_agent_routes: FastAPI) -> 
 
 @pytest.mark.asyncio
 async def test_fastmcp_introspects_all_expected_tools(app_with_agent_routes: FastAPI) -> None:
-    """``FastMCP.from_fastapi`` produces exactly the expected tools from the tagged routes.
-
-    Filtering uses ``RouteMap`` precedence: routes carrying ``AgentTag.EXPOSED``
-    map to ``MCPType.TOOL``, everything else falls through to ``EXCLUDE``.
-
-    Each tool's ``parameters`` is also asserted to contain a ``properties``
-    object, this verifies that fastmcp successfully derived a JSON schema
-    from each route's pydantic models and path/query parameters.
-    """
+    """``build_mcp`` produces exactly the expected tools from the tagged routes."""
     pytest.importorskip("fastmcp")
-    from fastmcp import FastMCP
-    from fastmcp.server.providers.openapi import MCPType, RouteMap
+    from orchestrator.core.mcp.server import build_mcp
 
-    mcp = FastMCP.from_fastapi(
-        app=app_with_agent_routes,
-        name="orchestrator-core-mcp-test",
-        route_maps=[
-            RouteMap(tags={AgentTag.EXPOSED.value}, mcp_type=MCPType.TOOL),
-            RouteMap(mcp_type=MCPType.EXCLUDE),
-        ],
-    )
+    mcp = build_mcp(app_with_agent_routes)
 
     tools = await mcp.list_tools()
     tool_names = {tool.name for tool in tools}

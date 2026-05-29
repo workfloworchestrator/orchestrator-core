@@ -35,11 +35,16 @@ re-injects it. See https://github.com/jlowin/fastmcp/issues/2817.
 Transport: streamable HTTP.
 """
 
+from typing import TYPE_CHECKING
+
 import httpx
 from fastapi import FastAPI
 from starlette.applications import Starlette
 
 from orchestrator.core.agent_tags import AgentTag
+
+if TYPE_CHECKING:
+    from fastmcp import FastMCP
 
 MCP_MOUNT_PATH = "/mcp"
 
@@ -60,6 +65,26 @@ async def _forward_auth_header(request: httpx.Request) -> None:
             request.headers[key] = value
 
 
+def build_mcp(app: FastAPI) -> "FastMCP":  # noqa: F821 (lazy import below)
+    """Construct the configured ``FastMCP`` for ``app`` without mounting it.
+
+    Extracted so tests can build the exact same server (route maps, component
+    customization, auth-forwarding hook) the application uses at runtime.
+    """
+    from fastmcp import FastMCP
+    from fastmcp.server.providers.openapi import MCPType, RouteMap
+
+    return FastMCP.from_fastapi(
+        app=app,
+        name="orchestrator-core-mcp",
+        route_maps=[
+            RouteMap(tags={AgentTag.EXPOSED.value}, mcp_type=MCPType.TOOL),
+            RouteMap(mcp_type=MCPType.EXCLUDE),
+        ],
+        httpx_client_kwargs={"event_hooks": {"request": [_forward_auth_header]}},
+    )
+
+
 def mount_mcp(app: FastAPI) -> Starlette:
     """Auto-generate MCP tools from ``app``'s routes, mount at ``/mcp``, return the sub-app.
 
@@ -72,19 +97,7 @@ def mount_mcp(app: FastAPI) -> Starlette:
     ``mcp_app.router.lifespan_context(parent)`` from inside the parent's
     own lifespan context manager.
     """
-    from fastmcp import FastMCP
-    from fastmcp.server.providers.openapi import MCPType, RouteMap
-
-    mcp = FastMCP.from_fastapi(
-        app=app,
-        name="orchestrator-core-mcp",
-        route_maps=[
-            RouteMap(tags={AgentTag.EXPOSED.value}, mcp_type=MCPType.TOOL),
-            RouteMap(mcp_type=MCPType.EXCLUDE),
-        ],
-        httpx_client_kwargs={"event_hooks": {"request": [_forward_auth_header]}},
-    )
-
+    mcp = build_mcp(app)
     mcp_app = mcp.http_app(path="/", transport="http")
     app.mount(MCP_MOUNT_PATH, mcp_app)
     return mcp_app
