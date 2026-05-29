@@ -23,6 +23,7 @@ from orchestrator.core.schedules.service import add_scheduled_task_to_queue, get
 from orchestrator.core.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
 from orchestrator.core.security import authenticate
 from orchestrator.core.services.workflows import get_workflow_by_workflow_id
+from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.workflow import Workflow
 from orchestrator.core.workflows import get_workflow
 
@@ -34,7 +35,8 @@ router: APIRouter = APIRouter()
 async def validate_schedule_authorization(task: Workflow | None, user_model: OIDCUserModel | None) -> None:
     if not task:
         raise_status(HTTPStatus.NOT_FOUND, "Task does not exist")
-    if not await task.authorize_callback(user_model):
+    context = AuthContext(user=user_model, workflow=task, action="start_workflow")
+    if not await task.authorize_callback(context):
         raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to manage schedule with '{task.name}' task")
 
 
