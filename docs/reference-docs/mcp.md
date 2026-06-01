@@ -37,7 +37,9 @@ The default toolset covers the typical agent flow:
 | `list_workflows`                          | Discover available workflows                         |
 | `get_workflow_form`                       | Fetch a workflow's input form (page by page)         |
 | `get_subscription_available_workflows`    | List workflows available on a subscription          |
-| `create_workflow` / `resume_process`      | Start or resume a process                            |
+| `create_workflow`                         | Start a new workflow process                         |
+| `resume_workflow_process`                 | Resume a suspended process with form input           |
+| `abort_workflow_process`                  | Abort a running process (irreversible)               |
 | `get_process_status`                      | Inspect a running/suspended process                  |
 | `list_recent_processes`                   | List recent processes (with typed filters)           |
 | `search_subscriptions`                    | Search subscriptions with typed filters              |

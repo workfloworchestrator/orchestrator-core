@@ -102,7 +102,7 @@ def _annotate(route: "HTTPRoute", component: object) -> None:
     )
 
 
-def build_mcp(app: FastAPI) -> "FastMCP":  # noqa: F821 (lazy import below)
+def build_mcp(app: FastAPI) -> "FastMCP":  # noqa: F821 (TYPE_CHECKING-only import; string annotation)
     """Construct the configured ``FastMCP`` for ``app`` without mounting it.
 
     Extracted so tests can build the exact same server (route maps, component
