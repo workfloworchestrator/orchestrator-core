@@ -25,11 +25,16 @@ These tests verify that:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from fastapi import FastAPI
 
 from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.api_v1.endpoints import mcp_tools, processes, products
+
+if TYPE_CHECKING:
+    from fastmcp.tools.tool import Tool
 
 # All tool names must match the ``operation_id`` on each tagged route.
 EXPECTED_TOOL_NAMES = {
@@ -112,7 +117,7 @@ async def test_fastmcp_introspects_all_expected_tools(app_with_agent_routes: Fas
         assert "properties" in tool.parameters, f"tool {tool.name} parameters missing 'properties'"
 
 
-async def _tools_by_name(app: FastAPI) -> dict[str, object]:
+async def _tools_by_name(app: FastAPI) -> dict[str, Tool]:
     from orchestrator.core.mcp.server import build_mcp
 
     mcp = build_mcp(app)
