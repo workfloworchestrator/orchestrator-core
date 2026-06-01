@@ -18,8 +18,10 @@ These tests verify that:
 1. The agent-tagged REST routes carry ``AgentTag.EXPOSED`` and have
    stable ``operation_id`` values that map 1:1 to the MCP tool names.
 2. ``FastMCP.from_fastapi`` introspects the FastAPI app's routes, derives
-   input schemas from their pydantic models, and produces exactly the 11
+   input schemas from their pydantic models, and produces exactly the 17
    tools we expect via ``RouteMap`` tag-based filtering.
+3. Each tool carries ``ToolAnnotations`` (read-only/idempotent/destructive
+   hints + a humanized title) derived from its HTTP method and ``AgentTag``s.
 
 """
 
@@ -153,6 +155,11 @@ async def _tools_by_name(app: FastAPI) -> dict[str, Tool]:
         pytest.param("resume_workflow_process", False, True, False, id="idempotent-put"),
         pytest.param("abort_workflow_process", False, True, True, id="destructive-put"),
         pytest.param("get_product", True, True, False, id="readonly-get-by-id"),
+        pytest.param("get_product_block", True, True, False, id="readonly-product-block"),
+        pytest.param("get_resource_type", True, True, False, id="readonly-resource-type"),
+        pytest.param("get_workflow_by_id", True, True, False, id="readonly-workflow"),
+        pytest.param("get_subscription_domain_model", True, True, False, id="readonly-domain-model"),
+        pytest.param("get_process_status_counts", True, True, False, id="readonly-status-counts"),
     ],
 )
 async def test_tool_annotations(
