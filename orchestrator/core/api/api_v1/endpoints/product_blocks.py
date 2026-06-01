@@ -17,6 +17,7 @@ from uuid import UUID
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
 
+from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import db
 from orchestrator.core.db.models import ProductBlockTable
@@ -25,8 +26,14 @@ from orchestrator.core.schemas.product_block import ProductBlockPatchSchema, Pro
 router = APIRouter()
 
 
-@router.get("/{product_block_id}", response_model=ProductBlockSchema)
+@router.get(
+    "/{product_block_id}",
+    response_model=ProductBlockSchema,
+    tags=[AgentTag.EXPOSED],
+    operation_id="get_product_block",
+)
 def get_product_block_description(product_block_id: UUID) -> str:
+    """Get a single product block definition by id, including its resource types."""
     product_block = db.session.get(ProductBlockTable, product_block_id)
     if product_block is None:
         raise_status(HTTPStatus.NOT_FOUND)

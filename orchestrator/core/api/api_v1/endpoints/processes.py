@@ -199,6 +199,11 @@ async def new_process(
     user: str = Depends(user_name),
     user_model: OIDCUserModel | None = Depends(authenticate),
 ) -> dict[str, UUID]:
+    """Start a new workflow process by its workflow key.
+
+    Provide the workflow's filled form pages as ``json_data`` (build them with
+    ``get_workflow_form``). Returns the id of the created process.
+    """
     broadcast_func = api_broadcast_process_data(request)
 
     workflow = get_workflow(workflow_key)
@@ -244,6 +249,11 @@ async def resume_process_endpoint(
     user: str = Depends(user_name),
     user_model: OIDCUserModel | None = Depends(authenticate),
 ) -> None:
+    """Resume a SUSPENDED workflow process with the next page of form input.
+
+    Provide the awaited input as ``json_data`` — fetch its schema from
+    ``get_process_status`` for the suspended process.
+    """
     process = await asyncio.to_thread(_get_process, process_id)
 
     pstat = load_process(process)
@@ -367,10 +377,11 @@ async def resume_all_processes_endpoint(request: Request, user: str = Depends(us
     "/{process_id}/abort",
     response_model=None,
     status_code=HTTPStatus.NO_CONTENT,
-    tags=[AgentTag.EXPOSED],
+    tags=[AgentTag.EXPOSED, AgentTag.DESTRUCTIVE],
     operation_id="abort_workflow_process",
 )
 def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depends(user_name)) -> None:
+    """Abort a running workflow process. This is irreversible."""
     process = _get_process(process_id)
 
     broadcast_func = api_broadcast_process_data(request)
@@ -414,9 +425,17 @@ async def _patch_process(data: ProcessPatchSchema, process: ProcessTable) -> Pro
     return process
 
 
-@router.get("/status-counts", response_model=ProcessStatusCounts)
+@router.get(
+    "/status-counts",
+    response_model=ProcessStatusCounts,
+    tags=[AgentTag.EXPOSED],
+    operation_id="get_process_status_counts",
+)
 def status_counts() -> ProcessStatusCounts:
-    """Retrieve status counts for processes and tasks."""
+    """Get aggregate counts of processes and tasks grouped by status.
+
+    Cheap dashboard-style summary; use before listing to gauge system state.
+    """
 
     stmt = (
         select(ProcessTable)

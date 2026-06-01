@@ -86,7 +86,7 @@ router = APIRouter()
 @router.post(
     "/list_workflows",
     response_model=list[WorkflowSchema],
-    tags=[AgentTag.EXPOSED, AgentTag.LARGE],
+    tags=[AgentTag.EXPOSED, AgentTag.LARGE, AgentTag.READONLY],
     operation_id="list_workflows",
 )
 def list_workflows_endpoint(params: ListWorkflowsRequest) -> list[WorkflowSchema]:
@@ -105,7 +105,7 @@ def list_workflows_endpoint(params: ListWorkflowsRequest) -> list[WorkflowSchema
 @router.post(
     "/get_workflow_form",
     response_model=WorkflowFormPage,
-    tags=[AgentTag.EXPOSED],
+    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
     operation_id="get_workflow_form",
 )
 def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> WorkflowFormPage:
@@ -138,7 +138,7 @@ def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> WorkflowFormPa
 @router.post(
     "/get_subscription_available_workflows",
     response_model=SubscriptionWorkflowListsSchema,
-    tags=[AgentTag.EXPOSED],
+    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
     operation_id="get_subscription_available_workflows",
 )
 def get_subscription_available_workflows_endpoint(params: SubscriptionIdRequest) -> SubscriptionWorkflowListsSchema:
@@ -159,7 +159,7 @@ def get_subscription_available_workflows_endpoint(params: SubscriptionIdRequest)
 @router.post(
     "/get_process_status",
     response_model=ProcessStatusResponse,
-    tags=[AgentTag.EXPOSED],
+    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
     operation_id="get_process_status",
 )
 def get_process_status_endpoint(params: ProcessIdRequest) -> ProcessStatusResponse:
@@ -190,7 +190,7 @@ def get_process_status_endpoint(params: ProcessIdRequest) -> ProcessStatusRespon
 @router.post(
     "/list_recent_processes",
     response_model=list[ProcessSummary],
-    tags=[AgentTag.EXPOSED, AgentTag.LARGE],
+    tags=[AgentTag.EXPOSED, AgentTag.LARGE, AgentTag.READONLY],
     operation_id="list_recent_processes",
 )
 def list_recent_processes_endpoint(params: ListRecentProcessesRequest) -> list[ProcessSummary]:
@@ -227,7 +227,7 @@ def list_recent_processes_endpoint(params: ListRecentProcessesRequest) -> list[P
 @router.post(
     "/get_subscription_details",
     response_model=SubscriptionDetailsResponse,
-    tags=[AgentTag.EXPOSED],
+    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
     operation_id="get_subscription_details",
 )
 def get_subscription_details_endpoint(params: SubscriptionIdRequest) -> SubscriptionDetailsResponse:
@@ -262,7 +262,7 @@ def get_subscription_details_endpoint(params: SubscriptionIdRequest) -> Subscrip
 @router.post(
     "/search_subscriptions",
     response_model=list[SubscriptionSearchResult],
-    tags=[AgentTag.EXPOSED, AgentTag.LARGE],
+    tags=[AgentTag.EXPOSED, AgentTag.LARGE, AgentTag.READONLY],
     operation_id="search_subscriptions",
 )
 def search_subscriptions_endpoint(params: SearchSubscriptionsRequest) -> list[SubscriptionSearchResult]:

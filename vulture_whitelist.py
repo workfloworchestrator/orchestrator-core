@@ -8,3 +8,6 @@ reflected  # noqa
 exc_type  # noqa
 exc_val  # noqa
 exc_tb  # noqa
+
+# TYPE_CHECKING import used only as a string annotation (mcp/server.py)
+HTTPRoute  # noqa

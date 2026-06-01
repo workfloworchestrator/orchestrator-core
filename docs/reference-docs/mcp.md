@@ -37,12 +37,20 @@ The default toolset covers the typical agent flow:
 | `list_workflows`                          | Discover available workflows                         |
 | `get_workflow_form`                       | Fetch a workflow's input form (page by page)         |
 | `get_subscription_available_workflows`    | List workflows available on a subscription          |
-| `create_workflow` / `resume_process`      | Start or resume a process                            |
+| `create_workflow`                         | Start a new workflow process                         |
+| `resume_workflow_process`                 | Resume a suspended process with form input           |
+| `abort_workflow_process`                  | Abort a running process (irreversible)               |
 | `get_process_status`                      | Inspect a running/suspended process                  |
 | `list_recent_processes`                   | List recent processes (with typed filters)           |
 | `search_subscriptions`                    | Search subscriptions with typed filters              |
 | `get_subscription_details`                | Get a flat header for a subscription                 |
 | `list_products`                           | List products                                        |
+| `get_product`                             | Get one product definition by id                     |
+| `get_product_block`                       | Get one product block definition by id               |
+| `get_resource_type`                       | Get one resource type definition by id               |
+| `get_workflow_by_id`                      | Get one workflow definition by id                    |
+| `get_subscription_domain_model`           | Get a subscription's full product-block tree (large) |
+| `get_process_status_counts`               | Aggregate process/task counts grouped by status      |
 
 Tool names map 1:1 to the route's `operation_id`; tool descriptions come from the route's docstring; parameter schemas come from the route's Pydantic request model.
 
@@ -77,9 +85,22 @@ Guidelines:
 * **Write a docstring** — this becomes the tool description the LLM sees. Be explicit about preconditions and side effects.
 * **Use typed Pydantic models** for inputs/outputs — the parameter schema is derived from them.
 * **Add `AgentTag.LARGE`** when the response may contain many records, so clients can warn the agent to narrow before calling.
+* **Tag read-only `POST`/`PUT` routes `AgentTag.READONLY`** and irreversible mutations `AgentTag.DESTRUCTIVE` — these drive the tool's annotations (see below).
 * Prefer placing LLM-specific routes in `orchestrator/core/api/api_v1/endpoints/mcp_tools.py`. Use this when the existing REST shape is not LLM-friendly (e.g. flat positional filters, deprecated routes, oversized payloads). See the module docstring for the rationale of each existing curated tool.
 
 Routes without `AgentTag.EXPOSED` are excluded from the MCP surface, regardless of whether they are public REST endpoints.
+
+## Tool annotations
+
+Every generated tool carries [MCP `ToolAnnotations`](https://modelcontextprotocol.io/) so clients can reason about safety (e.g. auto-approve reads). They are stamped by `orchestrator.core.mcp.server._annotate` (the fastmcp `mcp_component_fn` hook), derived from each route's HTTP method plus its `AgentTag`s:
+
+* `readOnlyHint` — `GET` routes, or any route tagged `AgentTag.READONLY`.
+* `idempotentHint` — read-only routes, or `PUT`/`DELETE`.
+* `destructiveHint` — `DELETE` routes, or any route tagged `AgentTag.DESTRUCTIVE`.
+* `openWorldHint` — always `False` (the orchestrator acts on its own database, not an open external world).
+* `title` — a humanized form of the `operation_id` (e.g. `get_process_status` → "Get Process Status").
+
+The curated read tools in `mcp_tools.py` are `POST` routes, so they must be tagged `AgentTag.READONLY` to be marked safe; an irreversible action such as `abort_workflow_process` is tagged `AgentTag.DESTRUCTIVE`.
 
 ## Implementation
 

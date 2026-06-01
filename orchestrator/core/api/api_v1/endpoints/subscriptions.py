@@ -13,6 +13,7 @@
 
 """Module that implements subscription related API endpoints."""
 
+import itertools
 from http import HTTPStatus
 from typing import Any
 from uuid import UUID
@@ -26,6 +27,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.api.helpers import add_response_range, add_subscription_search_query_filter
 from orchestrator.core.db import (
@@ -78,23 +80,30 @@ def _delete_process_subscriptions(process_subscriptions: list[ProcessSubscriptio
             _delete_subscription_tree(subscription)
 
 
+def _apply_auth_reason(workflow_dict: dict[str, Any], current_user: OIDCUserModel | None) -> None:
+    """Stamp ``workflow_dict`` with an insufficient-permissions reason when the user cannot run it."""
+    workflow = get_workflow(workflow_dict["name"])
+    if workflow is None:
+        return
+
+    context = AuthContext(user=current_user, workflow=workflow, action="start_workflow")
+    if (
+        not workflow.authorize_callback(context)  # The current user isn't allowed to run this workflow
+        and "reason" not in workflow_dict  # and there isn't already a reason why this workflow cannot run
+    ):
+        workflow_dict["reason"] = "subscription.insufficient_workflow_permissions"
+
+
 def _authorized_subscription_workflows(
     subscription: SubscriptionTable, current_user: OIDCUserModel | None
 ) -> dict[str, list[dict[str, list[Any] | str]]]:
     subscription_workflows_dict = subscription_workflows(subscription)
 
-    for workflow_target in Target.values():
-        for workflow_dict in subscription_workflows_dict[workflow_target.lower()]:
-            workflow = get_workflow(workflow_dict["name"])
-            if not workflow:
-                continue
-
-            context = AuthContext(user=current_user, workflow=workflow, action="start_workflow")
-            if (
-                not workflow.authorize_callback(context)  # The current user isn't allowed to run this workflow
-                and "reason" not in workflow_dict  # and there isn't already a reason why this workflow cannot run
-            ):
-                workflow_dict["reason"] = "subscription.insufficient_workflow_permissions"
+    all_workflow_dicts = itertools.chain.from_iterable(
+        subscription_workflows_dict[target.lower()] for target in Target.values()
+    )
+    for workflow_dict in all_workflow_dicts:
+        _apply_auth_reason(workflow_dict, current_user)
 
     return subscription_workflows_dict
 
@@ -102,10 +111,19 @@ def _authorized_subscription_workflows(
 @router.get(
     "/domain-model/{subscription_id}",
     response_model=SubscriptionDomainModelSchema | None,
+    tags=[AgentTag.EXPOSED, AgentTag.LARGE],
+    operation_id="get_subscription_domain_model",
 )
 async def subscription_details_by_id_with_domain_model(
     request: Request, subscription_id: UUID, response: Response, filter_owner_relations: bool = True
 ) -> dict[str, Any] | None:
+    """Get a subscription's full domain model: the nested product-block tree and relations.
+
+    LARGE: returns the entire instantiated product-block tree. Prefer
+    ``get_subscription_details`` for a flat header; use this only when the full
+    tree is required.
+    """
+
     def _build_response(model: dict, etag: str) -> dict[str, Any] | None:
         if etag == request.headers.get("If-None-Match"):
             response.status_code = HTTPStatus.NOT_MODIFIED

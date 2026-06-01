@@ -40,6 +40,7 @@ router = APIRouter()
     operation_id="list_products",
 )
 def fetch(tag: str | None = None, product_type: str | None = None) -> list[ProductSchema]:
+    """List products, optionally filtered by ``tag`` or ``product_type``."""
     stmt = select(ProductTable).options(
         selectinload(ProductTable.workflows),
         selectinload(ProductTable.fixed_inputs),
@@ -56,8 +57,14 @@ def fetch(tag: str | None = None, product_type: str | None = None) -> list[Produ
 @router.get(
     "/{product_id}",
     response_model=ProductSchema,
+    tags=[AgentTag.EXPOSED],
+    operation_id="get_product",
 )
 def product_by_id(product_id: UUID) -> ProductTable:
+    """Get a single product by id, including fixed inputs, product blocks and workflows.
+
+    Use after ``list_products`` to inspect one product's full definition.
+    """
     product = _product_by_id(product_id)
     if not product:
         raise_status(HTTPStatus.NOT_FOUND, f"Product id {product_id} not found")
