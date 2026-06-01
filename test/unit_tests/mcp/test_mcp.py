@@ -188,3 +188,14 @@ async def test_all_tools_have_title_and_closed_world(app_with_agent_routes: Fast
         assert tool.annotations is not None, name
         assert tool.annotations.title, name
         assert tool.annotations.openWorldHint is False, name
+
+
+def test_exposed_routes_have_docstrings(app_with_agent_routes: FastAPI) -> None:
+    """Every agent-exposed route has a non-empty docstring (its MCP tool description)."""
+    missing = [
+        getattr(route, "path", "")
+        for route in app_with_agent_routes.routes
+        if (AgentTag.EXPOSED.value in (getattr(route, "tags", None) or []))
+        and not ((getattr(getattr(route, "endpoint", None), "__doc__", "") or "").strip())
+    ]
+    assert not missing, f"agent-exposed routes missing a docstring: {missing}"

@@ -40,6 +40,7 @@ router = APIRouter()
     operation_id="list_products",
 )
 def fetch(tag: str | None = None, product_type: str | None = None) -> list[ProductSchema]:
+    """List products, optionally filtered by ``tag`` or ``product_type``."""
     stmt = select(ProductTable).options(
         selectinload(ProductTable.workflows),
         selectinload(ProductTable.fixed_inputs),
