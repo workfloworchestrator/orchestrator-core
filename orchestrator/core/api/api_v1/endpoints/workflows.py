@@ -17,6 +17,7 @@ from uuid import UUID
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
 
+from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import db
 from orchestrator.core.db.models import WorkflowTable
@@ -25,8 +26,14 @@ from orchestrator.core.schemas.workflow import WorkflowPatchSchema, WorkflowSche
 router = APIRouter()
 
 
-@router.get("/{workflow_id}", response_model=WorkflowSchema)
+@router.get(
+    "/{workflow_id}",
+    response_model=WorkflowSchema,
+    tags=[AgentTag.EXPOSED],
+    operation_id="get_workflow_by_id",
+)
 def get_workflow_description(workflow_id: UUID) -> str:
+    """Get a single workflow definition by id (name, target, description, steps)."""
     workflow = db.session.get(WorkflowTable, workflow_id)
     if workflow is None:
         raise_status(HTTPStatus.NOT_FOUND)

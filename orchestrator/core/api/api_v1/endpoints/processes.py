@@ -414,9 +414,17 @@ async def _patch_process(data: ProcessPatchSchema, process: ProcessTable) -> Pro
     return process
 
 
-@router.get("/status-counts", response_model=ProcessStatusCounts)
+@router.get(
+    "/status-counts",
+    response_model=ProcessStatusCounts,
+    tags=[AgentTag.EXPOSED],
+    operation_id="get_process_status_counts",
+)
 def status_counts() -> ProcessStatusCounts:
-    """Retrieve status counts for processes and tasks."""
+    """Get aggregate counts of processes and tasks grouped by status.
+
+    Cheap dashboard-style summary; use before listing to gauge system state.
+    """
 
     stmt = (
         select(ProcessTable)

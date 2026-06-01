@@ -31,7 +31,15 @@ import pytest
 from fastapi import FastAPI
 
 from orchestrator.core.agent_tags import AgentTag
-from orchestrator.core.api.api_v1.endpoints import mcp_tools, processes, products
+from orchestrator.core.api.api_v1.endpoints import (
+    mcp_tools,
+    processes,
+    product_blocks,
+    products,
+    resource_types,
+    subscriptions,
+    workflows,
+)
 
 if TYPE_CHECKING:
     from fastmcp.tools.tool import Tool
@@ -49,6 +57,12 @@ EXPECTED_TOOL_NAMES = {
     "list_recent_processes",
     "get_subscription_details",
     "search_subscriptions",
+    "get_product",  # GET /api/products/{product_id}
+    "get_product_block",  # GET /api/product_blocks/{product_block_id}
+    "get_resource_type",  # GET /api/resource_types/{resource_type_id}
+    "get_workflow_by_id",  # GET /api/workflows/{workflow_id}
+    "get_subscription_domain_model",  # GET /api/subscriptions/domain-model/{subscription_id}
+    "get_process_status_counts",  # GET /api/processes/status-counts
 }
 
 
@@ -85,6 +99,10 @@ def app_with_agent_routes() -> FastAPI:
     app.include_router(processes.router, prefix="/api/processes")
     app.include_router(products.router, prefix="/api/products")
     app.include_router(mcp_tools.router, prefix="/api/agent")
+    app.include_router(workflows.router, prefix="/api/workflows")
+    app.include_router(product_blocks.router, prefix="/api/product_blocks")
+    app.include_router(resource_types.router, prefix="/api/resource_types")
+    app.include_router(subscriptions.router, prefix="/api/subscriptions")
     app.dependency_overrides[authenticate] = lambda: None
     app.dependency_overrides[authorize] = lambda: None
     return app
@@ -93,9 +111,9 @@ def app_with_agent_routes() -> FastAPI:
 def test_all_expected_routes_carry_agent_tag(app_with_agent_routes: FastAPI) -> None:
     """Every expected MCP tool name has a route tagged ``AgentTag.EXPOSED``."""
     found = _agent_tagged_routes(app_with_agent_routes)
-    assert (
-        set(found) == EXPECTED_TOOL_NAMES
-    ), f"missing: {EXPECTED_TOOL_NAMES - set(found)}, extra: {set(found) - EXPECTED_TOOL_NAMES}"
+    assert set(found) == EXPECTED_TOOL_NAMES, (
+        f"missing: {EXPECTED_TOOL_NAMES - set(found)}, extra: {set(found) - EXPECTED_TOOL_NAMES}"
+    )
 
 
 @pytest.mark.asyncio
@@ -108,9 +126,9 @@ async def test_fastmcp_introspects_all_expected_tools(app_with_agent_routes: Fas
 
     tools = await mcp.list_tools()
     tool_names = {tool.name for tool in tools}
-    assert (
-        tool_names == EXPECTED_TOOL_NAMES
-    ), f"missing: {EXPECTED_TOOL_NAMES - tool_names}, extra: {tool_names - EXPECTED_TOOL_NAMES}"
+    assert tool_names == EXPECTED_TOOL_NAMES, (
+        f"missing: {EXPECTED_TOOL_NAMES - tool_names}, extra: {tool_names - EXPECTED_TOOL_NAMES}"
+    )
 
     for tool in tools:
         assert isinstance(tool.parameters, dict), f"tool {tool.name} has non-dict parameters"
@@ -134,6 +152,7 @@ async def _tools_by_name(app: FastAPI) -> dict[str, Tool]:
         pytest.param("create_workflow", False, False, False, id="write-post"),
         pytest.param("resume_workflow_process", False, True, False, id="idempotent-put"),
         pytest.param("abort_workflow_process", False, True, True, id="destructive-put"),
+        pytest.param("get_product", True, True, False, id="readonly-get-by-id"),
     ],
 )
 async def test_tool_annotations(
