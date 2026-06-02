@@ -18,6 +18,7 @@ from datetime import date, datetime
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import String, column
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.sql.elements import ColumnElement
 
 from orchestrator.core.search.core.types import FilterOp
@@ -27,6 +28,8 @@ from orchestrator.core.search.filters.date_filters import (
     DateValueFilter,
     _validate_date_string,
 )
+
+_psycopg_dialect = postgresql.psycopg.dialect()
 
 pytestmark = pytest.mark.search
 
@@ -243,3 +246,37 @@ def test_date_range_filter_between_sql_contains_start_and_end_values() -> None:
     sql = str(expr.compile(compile_kwargs={"literal_binds": True}))
     assert "2025-03-01" in sql
     assert "2025-09-30" in sql
+
+
+# ---------------------------------------------------------------------------
+# Regression: psycopg3 must not emit ::VARCHAR for date bind parameters
+#
+# psycopg3 is strict about operator type matching. When SQLAlchemy compiles a
+# comparison like `CAST(col AS TIMESTAMPTZ) > self.value` where self.value is
+# a plain Python string, the bind parameter gets typed as VARCHAR and psycopg3
+# raises: "operator does not exist: timestamp with time zone > character varying"
+#
+# The fix is to wrap values in bindparam(..., type_=TIMESTAMP(timezone=True))
+# so the parameter is cast to TIMESTAMPTZ, not VARCHAR.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("op, sql_op", _COMPARISON_OPS_AND_SQL)
+def test_date_value_filter_bind_param_is_not_varchar_on_psycopg_dialect(op: FilterOp, sql_op: str) -> None:
+    f = DateValueFilter(op=op, value="1970-01-01")  # type: ignore[arg-type]
+    expr = f.to_expression(_col, "path")
+    sql = str(expr.compile(dialect=_psycopg_dialect))
+    assert "VARCHAR" not in sql, (
+        f"Bind parameter was cast to VARCHAR for op={op!r}; psycopg3 will reject this. SQL: {sql}"
+    )
+    assert "TIMESTAMP" in sql.upper()
+
+
+def test_date_range_filter_bind_params_are_not_varchar_on_psycopg_dialect() -> None:
+    f = DateRangeFilter(op=FilterOp.BETWEEN, value=DateRange(start="2025-01-01", end="2025-12-31"))
+    expr = f.to_expression(_col, "path")
+    sql = str(expr.compile(dialect=_psycopg_dialect))
+    assert "VARCHAR" not in sql, (
+        f"Bind parameters were cast to VARCHAR; psycopg3 will reject this. SQL: {sql}"
+    )
+    assert sql.upper().count("TIMESTAMP") >= 2
