@@ -73,7 +73,15 @@ async def update_scheduled_task(
 
 
 @router.delete("/", status_code=HTTPStatus.OK)
-async def delete_scheduled_task(payload: APSchedulerJobDelete) -> dict[str, str]:
+async def delete_scheduled_task(
+    payload: APSchedulerJobDelete, user_model: OIDCUserModel | None = Depends(authenticate)
+) -> dict[str, str]:
     """Delete a scheduled task."""
+    if not (workflow_table := get_workflow_by_workflow_id(str(payload.workflow_id))):
+        raise_status(HTTPStatus.NOT_FOUND, "Task does not exist")
+
+    task = get_workflow(workflow_table.name)
+
+    await validate_schedule_authorization(task, user_model)
     add_scheduled_task_to_queue(payload)
     return {"message": "Added to Delete Queue", "status": "DELETED"}
