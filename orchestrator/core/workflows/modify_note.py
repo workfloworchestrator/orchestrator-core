@@ -22,7 +22,7 @@ from orchestrator.core.settings import get_authorizers
 from orchestrator.core.targets import Target
 from orchestrator.core.utils.json import to_serializable
 from orchestrator.core.workflow import StepList, done, init, step, workflow
-from orchestrator.core.workflows.steps import store_process_subscription
+from orchestrator.core.workflows.steps import refresh_subscription_search_index, store_process_subscription
 from orchestrator.core.workflows.utils import wrap_modify_initial_input_form
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import LongText
@@ -66,4 +66,4 @@ def store_subscription_note(subscription_id: UUIDstr, note: str) -> State:
     retry_auth_callback=authorizers.retry_auth_callback,
 )
 def modify_note() -> StepList:
-    return init >> store_process_subscription() >> store_subscription_note >> done
+    return init >> store_process_subscription() >> store_subscription_note >> refresh_subscription_search_index >> done
