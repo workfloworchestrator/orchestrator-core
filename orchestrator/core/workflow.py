@@ -1558,7 +1558,6 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         # Convert ErrorState to ErrorDict when Failed or Waiting before writing to the database
         # as bare exceptions are not JSON serializable
         result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
-        result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
         result_to_log.on_success(mutationlogger).on_failed(log_workflow_failure).on_waiting(log_workflow_failure)
 
         with transactional(db, logger):
