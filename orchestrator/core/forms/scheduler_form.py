@@ -26,6 +26,7 @@ from orchestrator.core.db import db
 from orchestrator.core.db.models import WorkflowTable
 from orchestrator.core.forms.validators import Choice
 from orchestrator.core.forms.validators.timestamp import to_timestamp_field
+from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.workflow import Workflow, default_user_inputs
 from orchestrator.core.workflows import get_workflow
 from pydantic_forms.types import FormGenerator, FormGeneratorAsync, State
@@ -98,20 +99,17 @@ def get_cron_kwargs(form_data: dict) -> dict:
     }
 
 
-def _check_authorize(workflow: Workflow, user_model: OIDCUserModel | None) -> bool:
-    result = workflow.authorize_callback(user_model)
-    if asyncio.iscoroutine(result):
-        result.close()
-        return True
-    return bool(result)
+async def _check_authorize(workflow: Workflow, user_model: OIDCUserModel | None) -> bool:
+    context = AuthContext(user=user_model, workflow=workflow, action="start_workflow")
+    return await workflow.authorize_callback(context)
 
 
-def get_tasks(user_model: OIDCUserModel | None) -> dict[str, tuple[Workflow, UUID, str]]:
+async def get_tasks(user_model: OIDCUserModel | None) -> dict[str, tuple[Workflow, UUID, str]]:
     tasks = db.session.scalars(select(WorkflowTable))
     return {
         task_row.name: (workflow, task_row.workflow_id, task_row.description)
         for task_row in tasks
-        if (workflow := get_workflow(task_row.name)) and _check_authorize(workflow, user_model)
+        if (workflow := get_workflow(task_row.name)) and await _check_authorize(workflow, user_model)
     }
 
 
@@ -141,7 +139,7 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
 
     _model_config = ConfigDict(title="Create new schedule")
     user_model = OIDCUserModel(**_user_model) if (_user_model := state.get("user_model")) else None
-    tasks = get_tasks(user_model)
+    tasks = await get_tasks(user_model)
     task_choices = {name: description for name, (_, _, description) in tasks.items()}
 
     class ScheduleTaskChoiceForm(FormPage):

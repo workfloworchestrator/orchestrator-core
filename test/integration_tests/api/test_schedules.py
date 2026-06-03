@@ -204,16 +204,21 @@ def test_update_scheduled_task_unauthorized(
 
 
 @patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
-def test_delete_scheduled_task(mock_add, test_client):
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.get_workflow_by_workflow_id")
+def test_delete_scheduled_task(mock_get_workflow_by_workflow_id, mock_add, test_client):
+    @workflow(target=Target.SYSTEM, authorize_callback=_allow)
+    def delete_task_wf():
+        return init >> done
+
     body = {
         "schedule_id": str(uuid4()),
         "workflow_id": str(uuid4()),
-        "name": None,
-        "trigger": None,
-        "trigger_kwargs": None,
     }
 
-    response = test_client.request("DELETE", "/api/schedules/", json=body)
+    mock_get_workflow_by_workflow_id.return_value = WorkflowTable(name="delete_task_wf")
+
+    with WorkflowInstanceForTests(delete_task_wf, "delete_task_wf"):
+        response = test_client.request("DELETE", "/api/schedules/", json=body)
 
     assert response.status_code == HTTPStatus.OK
     assert response.json() == snapshot(
@@ -223,3 +228,41 @@ def test_delete_scheduled_task(mock_add, test_client):
         }
     )
     mock_add.assert_called_once()
+
+
+def test_delete_scheduled_task_task_not_found(test_client):
+    body = {
+        "schedule_id": str(uuid4()),
+        "workflow_id": str(uuid4()),
+    }
+
+    response = test_client.request("DELETE", "/api/schedules/", json=body)
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.json() == snapshot({"detail": "Task does not exist", "status": 404, "title": "Not Found"})
+
+
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.get_workflow_by_workflow_id")
+def test_delete_scheduled_task_unauthorized(mock_get_workflow_by_workflow_id, test_client):
+    @workflow(target=Target.SYSTEM, authorize_callback=_disallow)
+    def unauthorized_delete_wf():
+        return init >> done
+
+    body = {
+        "schedule_id": str(uuid4()),
+        "workflow_id": str(uuid4()),
+    }
+
+    mock_get_workflow_by_workflow_id.return_value = WorkflowTable(name="unauthorized_delete_wf")
+
+    with WorkflowInstanceForTests(unauthorized_delete_wf, "unauthorized_delete_wf"):
+        response = test_client.request("DELETE", "/api/schedules/", json=body)
+
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    assert response.json() == snapshot(
+        {
+            "detail": "User is not authorized to manage schedule with 'unauthorized_delete_wf' task",
+            "status": 403,
+            "title": "Forbidden",
+        }
+    )
