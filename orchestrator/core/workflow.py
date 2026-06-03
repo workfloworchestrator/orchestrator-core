@@ -1551,7 +1551,7 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
             process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
             step_result_process = process.execute_step(step)
         except Exception as e:
-            consolelogger.error("An exception occurred while executing the workflow step.")
+            consolelogger.error("An exception occurred while executing the workflow step.", exc_info=e)
             step_result_process = Failed(e)
 
         # write the new process state after the step execution to the database
