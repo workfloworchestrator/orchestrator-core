@@ -122,7 +122,7 @@ def heads() -> None:
 
 @app.command(help="Merge database revisions.")
 def merge(
-    revisions: list[str] = typer.Argument(help="Add the revision you would like to merge to this command."),
+    revisions: list[str] = typer.Argument(help="Add the revisions you would like to merge to this command."),
     message: str | None = typer.Option(None, "--message", "-m", help="The revision message"),
 ) -> None:
     """Merge database revisions.
