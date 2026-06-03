@@ -122,8 +122,8 @@ def heads() -> None:
 
 @app.command(help="Merge database revisions.")
 def merge(
-    revisions: str = typer.Argument(default=None, help="Add the revision you would like to merge to this command."),
-    message: str = typer.Option(None, "--message", "-m", help="The revision message"),
+    revisions: list[str] = typer.Argument(help="Add the revisions you would like to merge to this command."),
+    message: str | None = typer.Option(None, "--message", "-m", help="The revision message"),
 ) -> None:
     """Merge database revisions.
 
@@ -198,8 +198,8 @@ def downgrade(revision: str = typer.Argument("-1", help="Rev id to downgrade to"
 
 @app.command()
 def revision(
-    message: str = typer.Option(None, "--message", "-m", help="The revision message"),
-    version_path: str = typer.Option(None, "--version-path", help="Specify specific path from config for version file"),
+    message: str | None = typer.Option(None, "--message", "-m", help="The revision message"),
+    version_path: str | None = typer.Option(None, "--version-path", help="Specify specific path from config for version file"),
     autogenerate: bool = typer.Option(False, help="Detect schema changes and add migrations"),
     head: str = typer.Option("data@head", help="Determine the head you need to add your migration to."),
 ) -> None:
