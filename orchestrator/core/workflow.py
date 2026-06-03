@@ -44,6 +44,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import db, transactional
 from orchestrator.core.services.settings import get_engine_settings_table
+from orchestrator.core.settings import app_settings
 from orchestrator.core.targets import Target
 from orchestrator.core.types import ErrorDict, StepFunc
 from orchestrator.core.utils.auth import Authorizer
@@ -1523,6 +1524,23 @@ def invalidate_status_counts() -> None:
     broadcast_invalidate_status_counts()
 
 
+def capture_workflow_failure(err: Any) -> None:
+    """Capture the exception from a failed workflow.
+
+    This may provide useful insights into application or infra errors.
+    However, this may also cause sentry issues for exceptions that are "business as usual".
+    In that case, you can pass a function `app.add_sentry(before_send=before_send)` in which you can evaluate
+    exceptions and prevent sending them to sentry.
+    https://docs.sentry.io/platforms/python/configuration/filtering/
+    """
+    match err:
+        case Exception() if app_settings.TRACING_ENABLED:
+            import sentry_sdk
+            sentry_sdk.capture_exception(err)
+        case _:
+            pass
+
+
 def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFuncInternal) -> Process:
     """Execute the workflow steps one by one until a Process state other than Success or Skipped is reached."""
     consolelogger = cond_bind(logger, starting_process.unwrap(), "reporter", "created_by")
@@ -1559,6 +1577,9 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         # as bare exceptions are not JSON serializable
         result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
         result_to_log.on_success(mutationlogger).on_failed(log_workflow_failure).on_waiting(log_workflow_failure)
+
+        # Capture the original exception that caused the workflow to fail
+        step_result_process.on_failed(capture_workflow_failure)
 
         with transactional(db, logger):
             process = dblogstep(step, result_to_log)
