@@ -65,6 +65,20 @@ def map_create_product_to_product_block_relations(model_diffs: dict[str, dict[st
     return generic_mapper("missing_product_blocks_in_db", model_diffs)
 
 
+def _block_type_matches(
+    block_type: type[ProductBlockModel] | tuple[type[ProductBlockModel], ...],
+    block_to_find_in_props: str,
+) -> bool:
+    """Check if a depends-on product block field matches the wanted block name.
+
+    ``_get_depends_on_product_block_types`` returns a single product block type for plain
+    fields, but a ``tuple`` of types when the field is a non-Optional ``Union`` (e.g.
+    ``port: CorePortBlock | CoreLAGPortBlock``). Both shapes must be matched on ``name``.
+    """
+    block_types = block_type if isinstance(block_type, tuple) else (block_type,)
+    return any(getattr(bt, "name", None) == block_to_find_in_props for bt in block_types)
+
+
 def format_block_relation_to_dict(
     model_name: str,
     block_to_find_in_props: str,
@@ -73,7 +87,7 @@ def format_block_relation_to_dict(
 ) -> BlockRelationDict:
     model = models[model_name]
     block_props = model._get_depends_on_product_block_types()
-    props = {k for k, v in block_props.items() if v.name == block_to_find_in_props}  # type: ignore
+    props = {k for k, v in block_props.items() if _block_type_matches(v, block_to_find_in_props)}
 
     if len(props) > 1 and not confirm_warnings:
         noqa_print("WARNING: Relating a Product Block multiple times is not supported by this migrator!")
