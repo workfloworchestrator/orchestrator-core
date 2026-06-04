@@ -65,23 +65,38 @@ def map_create_product_to_product_block_relations(model_diffs: dict[str, dict[st
     return generic_mapper("missing_product_blocks_in_db", model_diffs)
 
 
+def _block_type_matches(
+    block_type: type[ProductBlockModel] | tuple[type[ProductBlockModel], ...],
+    target_block_name: str,
+) -> bool:
+    """Return whether a depends-on field references the product block ``target_block_name``.
+
+    ``_get_depends_on_product_block_types`` returns one of two shapes: a single product
+    block type for a plain field, or a ``tuple`` of types for a non-Optional ``Union``
+    field (e.g. ``port: CorePortBlock | CoreLAGPortBlock``). This helper normalises both
+    to a tuple and returns ``True`` if any member's ``name`` equals ``target_block_name``.
+    """
+    block_types = block_type if isinstance(block_type, tuple) else (block_type,)
+    return any(getattr(bt, "name", None) == target_block_name for bt in block_types)
+
+
 def format_block_relation_to_dict(
     model_name: str,
-    block_to_find_in_props: str,
+    target_block_name: str,
     models: dict[str, type[SubscriptionModel]] | dict[str, type[ProductBlockModel]],
     confirm_warnings: bool,
 ) -> BlockRelationDict:
     model = models[model_name]
     block_props = model._get_depends_on_product_block_types()
-    props = {k for k, v in block_props.items() if v.name == block_to_find_in_props}  # type: ignore
+    props = {k for k, v in block_props.items() if _block_type_matches(v, target_block_name)}
 
     if len(props) > 1 and not confirm_warnings:
         noqa_print("WARNING: Relating a Product Block multiple times is not supported by this migrator!")
         noqa_print(
             "You will need to create your own migration to create a Product Block Instance for each attribute that is related"
         )
-        noqa_print(f"Product Block '{block_to_find_in_props}' has been related multiple times to '{model_name}'")
-        noqa_print(f"Attributes the block ('{block_to_find_in_props}') has been related with: {', '.join(props)}")
+        noqa_print(f"Product Block '{target_block_name}' has been related multiple times to '{model_name}'")
+        noqa_print(f"Attributes the block ('{target_block_name}') has been related with: {', '.join(props)}")
         noqa_print(f"The relation will only be added to the first attribute ('{first(props)}') want to continue?")
 
         if _prompt_user_menu([("yes", "yes"), ("no", "no")]) == "no":
