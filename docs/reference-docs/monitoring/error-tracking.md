@@ -71,6 +71,7 @@ Add the following code to the `main.py` file of the `orchestrator-core` applicat
             my_settings.TRACE_SAMPLE_RATE,
             app.base_settings.SERVICE_NAME,
             app.base_settings.ENVIRONMENT,
+            # before_send=before_send,  # Optional, see section `before_send`
         )
 
     if __name__ == "__main__":
@@ -98,6 +99,7 @@ Add the following code to the `main.py` file of the `orchestrator-core` applicat
             my_settings.TRACE_SAMPLE_RATE,
             app.base_settings.SERVICE_NAME,
             app.base_settings.ENVIRONMENT,
+            # before_send=before_send,  # Optional, see section `before_send`
         )
 
     if __name__ == "__main__":
@@ -128,6 +130,84 @@ def debug_sentry():
 
 !!! warning
     Make sure your environment variable ``ENVIRONMENT`` is **NOT** set to ``local`` when testing the Sentry integration.
+
+## `before_send`
+
+You can define a `before_send` function to perform client-side
+event [filtering](https://docs.sentry.io/platforms/python/configuration/filtering/)
+and [fingerprinting](https://docs.sentry.io/platforms/python/usage/sdk-fingerprinting/).
+
+Filtering can help to ensure you are only submitting errors for actionable application or infrastructure problems.
+
+Small incomplete example implementation of `before_send` for the API:
+
+```py
+from sentry_sdk.types import Event, Hint
+from nwastdlib.graphql.extensions.error_handler_extension import EXTENSION_ERROR_TYPE, ErrorType
+from graphql.error import GraphQLError
+
+CLIENT_GRAPHQL_ERROR_TYPES = frozenset(
+    {
+        ErrorType.NOT_AUTHENTICATED,
+        ErrorType.NOT_AUTHORIZED,
+        ErrorType.NOT_FOUND,
+        ErrorType.BAD_REQUEST,
+    }
+)
+
+def _is_client_graphql_error(exc: GraphQLError) -> bool:
+    """True when a GraphQLError was caused by the caller."""
+    extensions = exc.extensions or {}
+    if extensions.get(EXTENSION_ERROR_TYPE) in CLIENT_GRAPHQL_ERROR_TYPES:
+        return True
+    return False
+
+def before_send_api(event: Event, hint: Hint) -> Event | None:
+    """Sentry ``before_send`` hook to drop or fingerprint an API event."""
+    exc_info = hint.get("exc_info")
+    exception = exc_info[1] if exc_info else None
+
+    match exception:
+        case GraphQLError() if _is_client_graphql_error(exception):
+            return None
+
+    # After allowing an event, you can change it's fingerprint or any other aspect to enhance your issue tracking
+
+    return event
+
+# Usage:
+# `app.add_sentry(before_send=before_send_api)`
+```
+
+Small example for the Celery worker:
+
+```py
+import ims_client
+from orchestrator.core.utils.errors import InconsistentDataError
+from sentry_sdk.types import Event, Hint
+
+
+def before_send_worker(event: Event, hint: Hint) -> Event | None:
+    """Sentry ``before_send`` hook to drop or fingerprint a Worker event."""
+    exc_info = hint.get("exc_info")
+    exception = exc_info[1] if exc_info else None
+
+    match exception:
+        case ims_client.exceptions.NotFoundException():
+            return None
+        case InconsistentDataError():
+            return None
+
+    # After allowing an event, you can change it's fingerprint or any other aspect to enhance your issue tracking
+
+    return event
+
+# Usage:
+#   class OrchestratorWorker(Celery):
+#       def on_init(self) -> None:
+#           if surf_settings.TRACING_ENABLED:
+#               sentry_sdk.init(before_send=before_send_worker, ...)
+```
 
 **See also**
 
