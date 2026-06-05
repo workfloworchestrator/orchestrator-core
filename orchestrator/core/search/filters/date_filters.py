@@ -26,8 +26,7 @@ def _validate_date_string(v: Any) -> Any:
     if not isinstance(v, str):
         return v
     try:
-        datetime.fromisoformat(v)
-        return v
+        return datetime.fromisoformat(v)
     except Exception as exc:
         raise ValueError("is not a valid ISO-8601 date or datetime string") from exc
 

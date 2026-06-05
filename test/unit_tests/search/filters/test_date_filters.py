@@ -57,9 +57,9 @@ _COMPARISON_OPS_AND_SQL = [
         pytest.param("2025-01-01T00:00:00+00:00", id="datetime-tz"),
     ],
 )
-def test_validate_date_string_valid_iso_strings_pass_through(value: str) -> None:
+def test_validate_date_string_valid_iso_strings_coerced_to_datetime(value: str) -> None:
     result = _validate_date_string(value)
-    assert result == value
+    assert result == datetime.fromisoformat(value)
 
 
 @pytest.mark.parametrize(
@@ -108,8 +108,8 @@ def test_validate_date_string_non_string_passes_through_unchanged(value: object)
 )
 def test_date_range_valid_constructs(start: str, end: str) -> None:
     r = DateRange(start=start, end=end)
-    assert r.start == start
-    assert r.end == end
+    assert r.start == datetime.fromisoformat(start)
+    assert r.end == datetime.fromisoformat(end)
 
 
 @pytest.mark.parametrize(
@@ -156,7 +156,7 @@ def test_date_range_invalid_date_raises_validation_error(start: str, end: str) -
 def test_date_value_filter_valid_ops_construct(op: FilterOp) -> None:
     f = DateValueFilter(op=op, value="2025-06-15")  # type: ignore[arg-type]
     assert f.op == op
-    assert f.value == "2025-06-15"
+    assert f.value == datetime(2025, 6, 15)
 
 
 @pytest.mark.parametrize(
@@ -199,8 +199,8 @@ def test_date_value_filter_to_expression_uses_timestamp_cast(op: FilterOp, sql_o
 def test_date_range_filter_valid_range_constructs() -> None:
     f = DateRangeFilter(op=FilterOp.BETWEEN, value=DateRange(start="2025-01-01", end="2025-12-31"))
     assert f.op == FilterOp.BETWEEN
-    assert f.value.start == "2025-01-01"
-    assert f.value.end == "2025-12-31"
+    assert f.value.start == datetime(2025, 1, 1)
+    assert f.value.end == datetime(2025, 12, 31)
 
 
 def test_date_range_filter_invalid_op_raises() -> None:
