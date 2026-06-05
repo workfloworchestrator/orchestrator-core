@@ -51,12 +51,28 @@ from uuid import UUID
 
 import structlog
 from fastapi.routing import APIRouter
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db
+from orchestrator.core.db import ProcessTable, ProductTable, SearchQueryTable, SubscriptionTable, WorkflowTable, db
+from orchestrator.core.schemas.mcp_search import (
+    AggregateRow,
+    AggregateToolRequest,
+    AggregateToolResponse,
+    DiscoverFilterPathsRequest,
+    ExportQueryRequest,
+    ExportQueryResponse,
+    FieldPathDiscovery,
+    ResolvedCandidate,
+    ResolveEntityRequest,
+    ResolveEntityResponse,
+    SearchToolRequest,
+    SearchToolResponse,
+    SearchToolResultItem,
+)
 from orchestrator.core.schemas.mcp_tools import (
     GetWorkflowFormRequest,
     ListRecentProcessesRequest,
@@ -72,6 +88,22 @@ from orchestrator.core.schemas.mcp_tools import (
     WorkflowFormPage,
 )
 from orchestrator.core.schemas.workflow import SubscriptionWorkflowListsSchema, WorkflowSchema
+from orchestrator.core.search.aggregations import FieldAggregation
+from orchestrator.core.search.core.exceptions import QueryStateNotFoundError
+from orchestrator.core.search.core.types import FilterOp
+from orchestrator.core.search.entity_lookup import IdForm, _classify_id, resolve_entity_id_prefix
+from orchestrator.core.search.filters.definitions import generate_definitions
+from orchestrator.core.search.query import QueryState, engine
+from orchestrator.core.search.query.builder import build_paths_query, process_path_rows
+from orchestrator.core.search.query.exceptions import PathNotFoundError, QueryValidationError
+from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, SelectQuery
+from orchestrator.core.search.query.validation import (
+    validate_aggregation_field,
+    validate_filter_tree,
+    validate_grouping_fields,
+    validate_order_by_fields,
+    validate_temporal_grouping_field,
+)
 from orchestrator.core.services.processes import _get_process, load_process
 from orchestrator.core.services.subscriptions import get_subscription, subscription_workflows
 from orchestrator.core.services.workflows import get_workflows
@@ -79,6 +111,8 @@ from orchestrator.core.utils.enrich_process import enrich_process
 from orchestrator.core.workflows import get_workflow
 
 logger = structlog.get_logger(__name__)
+
+_PREFIX_MATCH_LIMIT = 10
 
 router = APIRouter()
 
@@ -294,3 +328,282 @@ def search_subscriptions_endpoint(params: SearchSubscriptionsRequest) -> list[Su
         )
         for s in subscriptions
     ]
+
+
+# ---------------------------------------------------------------------------
+# Search-engine tools
+#
+# These expose orchestrator-core's search/aggregation engine as self-contained
+# MCP tools. They were previously implemented inside orchestrator-agent, which
+# reached into the engine directly; moving them here lets any agent drive search
+# over MCP with no DB/engine coupling. Each search/aggregate call persists its
+# query (run_id=NULL) so the returned query_id can drive export_query.
+# ---------------------------------------------------------------------------
+
+
+def _persist_query(
+    query: SelectQuery | CountQuery | AggregateQuery,
+    query_embedding: list[float] | None = None,
+) -> UUID:
+    """Persist an executed query as a standalone row (run_id=NULL); return its query_id."""
+    state = QueryState(query=query, query_embedding=query_embedding)
+    row = SearchQueryTable.from_state(state=state, run_id=None, query_number=1)
+    db.session.add(row)
+    db.session.commit()
+    return row.query_id
+
+
+@router.post(
+    "/search",
+    response_model=SearchToolResponse,
+    tags=[AgentTag.EXPOSED, AgentTag.LARGE, AgentTag.READONLY],
+    operation_id="search",
+)
+async def search_endpoint(params: SearchToolRequest) -> SearchToolResponse:
+    """Find and rank entities (subscriptions, products, workflows, processes).
+
+    Build structured ``filters`` with discover_filter_paths/get_valid_operators,
+    and/or pass ``query_text`` for semantic/fuzzy ranking. Returns ranked rows plus
+    a ``query_id`` that export_query can turn into a CSV download. For counts or
+    statistics use ``aggregate`` instead.
+    """
+    if params.filters is not None:
+        try:
+            await validate_filter_tree(params.filters, params.entity_type)
+        except PathNotFoundError as exc:
+            raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, f"{exc} Use discover_filter_paths to find valid paths.")
+        except QueryValidationError as exc:
+            raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
+
+    try:
+        query = SelectQuery(
+            entity_type=params.entity_type,
+            query_text=params.query_text,
+            filters=params.filters,
+            limit=params.limit,
+            retriever=params.retriever,
+        )
+    except ValidationError as exc:
+        raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
+
+    try:
+        response = await engine.execute_search(query, db.session)
+    except ValueError as exc:
+        raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
+
+    query_id = _persist_query(query, response.query_embedding)
+    return SearchToolResponse(
+        query_id=query_id,
+        entity_type=params.entity_type,
+        returned=len(response.results),
+        has_more=response.has_more,
+        search_type=response.metadata.search_type,
+        results=[
+            SearchToolResultItem(
+                entity_id=r.entity_id,
+                entity_type=r.entity_type,
+                title=r.entity_title,
+                score=r.score,
+            )
+            for r in response.results
+        ],
+    )
+
+
+def _build_aggregate_query(params: AggregateToolRequest) -> CountQuery | AggregateQuery:
+    """Construct the CountQuery/AggregateQuery, surfacing model errors as 422s."""
+    if params.operation == "aggregate" and not params.aggregations:
+        raise_status(
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+            "operation='aggregate' requires at least one aggregation (SUM/AVG/MIN/MAX/COUNT). "
+            "Use operation='count' to only count rows.",
+        )
+    try:
+        if params.operation == "aggregate":
+            return AggregateQuery(
+                entity_type=params.entity_type,
+                filters=params.filters,
+                aggregations=params.aggregations or [],
+                group_by=params.group_by,
+                temporal_group_by=params.temporal_group_by,
+                cumulative=params.cumulative,
+                order_by=params.order_by,
+            )
+        return CountQuery(
+            entity_type=params.entity_type,
+            filters=params.filters,
+            group_by=params.group_by,
+            temporal_group_by=params.temporal_group_by,
+            cumulative=params.cumulative,
+            order_by=params.order_by,
+        )
+    except ValidationError as exc:
+        raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
+
+
+@router.post(
+    "/aggregate",
+    response_model=AggregateToolResponse,
+    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    operation_id="aggregate",
+)
+async def aggregate_endpoint(params: AggregateToolRequest) -> AggregateToolResponse:
+    """Count entities or compute statistics (SUM/AVG/MIN/MAX), optionally grouped.
+
+    operation='count' counts rows (optionally grouped by ``group_by`` / ``temporal_group_by``);
+    operation='aggregate' computes ``aggregations`` over the matching rows. Validate
+    field paths with discover_filter_paths first.
+    """
+    try:
+        validate_grouping_fields(params.group_by or [])
+        for agg in params.aggregations or []:
+            if isinstance(agg, FieldAggregation):
+                validate_aggregation_field(agg.type, agg.field)
+        for tg in params.temporal_group_by or []:
+            validate_temporal_grouping_field(tg.field)
+        validate_order_by_fields(params.order_by)
+    except PathNotFoundError as exc:
+        raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, f"{exc} Use discover_filter_paths to find valid paths.")
+    except QueryValidationError as exc:
+        raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
+
+    if params.filters is not None:
+        try:
+            await validate_filter_tree(params.filters, params.entity_type)
+        except (PathNotFoundError, QueryValidationError) as exc:
+            raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
+
+    query = _build_aggregate_query(params)
+    response = await engine.execute_aggregation(query, db.session)
+    query_id = _persist_query(query)
+    return AggregateToolResponse(
+        query_id=query_id,
+        total_results=response.total_results,
+        visualization=str(response.visualization_type.type),
+        results=[AggregateRow(group_values=r.group_values, aggregations=r.aggregations) for r in response.results],
+    )
+
+
+@router.post(
+    "/discover_filter_paths",
+    response_model=dict[str, FieldPathDiscovery],
+    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    operation_id="discover_filter_paths",
+)
+async def discover_filter_paths_endpoint(params: DiscoverFilterPathsRequest) -> dict[str, FieldPathDiscovery]:
+    """Discover filterable paths for field names, to build a filter tree for search/aggregate."""
+    results: dict[str, FieldPathDiscovery] = {}
+    for field_name in params.field_names:
+        stmt = build_paths_query(entity_type=params.entity_type, prefix="", q=field_name).limit(100)
+        rows = db.session.execute(stmt).all()
+        leaves, components = process_path_rows(rows)
+
+        matching_leaves = [
+            {"name": leaf.name, "value_kind": leaf.ui_types, "paths": leaf.paths}
+            for leaf in leaves
+            if field_name.lower() in leaf.name.lower()
+        ]
+        matching_components = [
+            {"name": comp.name, "value_kind": comp.ui_types}
+            for comp in components
+            if field_name.lower() in comp.name.lower()
+        ]
+        if not matching_leaves and not matching_components:
+            results[field_name] = FieldPathDiscovery(
+                status="NOT_FOUND",
+                guidance=f"No filterable paths found containing '{field_name}'. Do not create a filter for this.",
+            )
+        else:
+            results[field_name] = FieldPathDiscovery(
+                status="OK",
+                guidance=(
+                    f"Found {len(matching_leaves)} field(s) and "
+                    f"{len(matching_components)} component(s) for '{field_name}'."
+                ),
+                leaves=matching_leaves,
+                components=matching_components,
+            )
+    return results
+
+
+@router.post(
+    "/get_valid_operators",
+    response_model=dict[str, list[FilterOp]],
+    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    operation_id="get_valid_operators",
+)
+def get_valid_operators_endpoint() -> dict[str, list[FilterOp]]:
+    """Return the mapping of field types to their valid filter operators."""
+    definitions = generate_definitions()
+    return {
+        ui_type.value: type_def.operators for ui_type, type_def in definitions.items() if hasattr(type_def, "operators")
+    }
+
+
+@router.post(
+    "/resolve_entity",
+    response_model=ResolveEntityResponse,
+    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    operation_id="resolve_entity",
+)
+def resolve_entity_endpoint(params: ResolveEntityRequest) -> ResolveEntityResponse:
+    """Resolve a full UUID or partial id-prefix to one entity, or list candidates to disambiguate."""
+    form, normalized = _classify_id(params.id_or_prefix)
+    if form is IdForm.NON_HEX:
+        return ResolveEntityResponse(
+            status="not_found",
+            entity_type=params.entity_type,
+            message=f"'{params.id_or_prefix.strip()}' is not a UUID; search by name instead.",
+        )
+    if form is IdForm.TOO_SHORT:
+        return ResolveEntityResponse(
+            status="not_found",
+            entity_type=params.entity_type,
+            message="Need at least 4 characters of the id to look it up.",
+        )
+
+    matches = resolve_entity_id_prefix(db.session, params.entity_type, normalized, limit=_PREFIX_MATCH_LIMIT)
+    if not matches:
+        return ResolveEntityResponse(
+            status="not_found",
+            entity_type=params.entity_type,
+            message=f"No {params.entity_type.value} found with id starting with {normalized}.",
+        )
+    if len(matches) == 1:
+        return ResolveEntityResponse(
+            status="unique",
+            entity_type=params.entity_type,
+            entity_id=matches[0].entity_id,
+            title=matches[0].title,
+            message=f"Resolved to a single {params.entity_type.value}.",
+        )
+
+    capped = matches[:_PREFIX_MATCH_LIMIT]
+    message = f"Multiple {params.entity_type.value} ids start with {normalized}; ask the user to refine or pick one."
+    if len(matches) > _PREFIX_MATCH_LIMIT:
+        message += f" Showing the first {_PREFIX_MATCH_LIMIT}."
+    return ResolveEntityResponse(
+        status="candidates",
+        entity_type=params.entity_type,
+        candidates=[ResolvedCandidate(entity_id=m.entity_id, title=m.title) for m in capped],
+        message=message,
+    )
+
+
+@router.post(
+    "/export_query",
+    response_model=ExportQueryResponse,
+    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    operation_id="export_query",
+)
+def export_query_endpoint(params: ExportQueryRequest) -> ExportQueryResponse:
+    """Prepare a CSV export download for a previously executed search ``query_id``."""
+    try:
+        QueryState.load_from_id(str(params.query_id), SelectQuery)
+    except QueryStateNotFoundError:
+        raise_status(HTTPStatus.NOT_FOUND, f"Query {params.query_id} not found. Run a search first.")
+    return ExportQueryResponse(
+        query_id=params.query_id,
+        download_path=f"/api/search/queries/{params.query_id}/export",
+        message="Export ready. Provide this link to the user to download the results as CSV.",
+    )
