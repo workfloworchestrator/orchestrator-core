@@ -26,6 +26,7 @@ from pydantic import Field
 from orchestrator.core.schemas.base import OrchestratorBaseModel
 from orchestrator.core.search.aggregations import Aggregation, TemporalGrouping
 from orchestrator.core.search.core.types import EntityType, RetrieverType
+from orchestrator.core.search.fallback import SearchEffort
 from orchestrator.core.search.filters import FilterTree
 from orchestrator.core.search.query.mixins import OrderBy
 from orchestrator.core.search.query.queries import BaseQuery
@@ -52,6 +53,12 @@ class SearchToolRequest(OrchestratorBaseModel):
     retriever: RetrieverType | None = Field(
         default=None,
         description="Force a ranking strategy (FUZZY/SEMANTIC/HYBRID). Requires query_text. Omit to auto-route.",
+    )
+    effort: SearchEffort = Field(
+        default=SearchEffort.MEDIUM,
+        description="How hard to broaden when a filtered search returns nothing: 'high'=2 fallback passes, "
+        "'medium'=1, 'low'=0 (report no matches instead of broadening). Each pass drops the filters and "
+        "re-ranks by similarity to surface the closest matches.",
     )
 
 
@@ -106,6 +113,11 @@ class SearchToolResponse(OrchestratorBaseModel):
     returned: int = Field(description="Number of results returned in this response.")
     has_more: bool = Field(description="True if more matches exist beyond the returned limit.")
     search_type: str = Field(description="Which strategy produced these results (structured/semantic/fuzzy/hybrid).")
+    fallback_used: bool = Field(
+        default=False,
+        description="True when the exact filtered search was empty and these are the closest matches "
+        "(filters dropped, ranked by similarity) rather than exact matches — tell the user they are approximate.",
+    )
     results: list[SearchToolResultItem]
 
 

@@ -92,6 +92,7 @@ from orchestrator.core.search.aggregations import FieldAggregation
 from orchestrator.core.search.core.exceptions import QueryStateNotFoundError
 from orchestrator.core.search.core.types import FilterOp
 from orchestrator.core.search.entity_lookup import IdForm, _classify_id, resolve_entity_id_prefix
+from orchestrator.core.search.fallback import execute_search_with_fallback
 from orchestrator.core.search.filters.definitions import generate_definitions
 from orchestrator.core.search.query import QueryState, engine
 from orchestrator.core.search.query.builder import build_paths_query, process_path_rows
@@ -362,9 +363,11 @@ def _persist_query(
 async def search_endpoint(params: SearchToolRequest) -> SearchToolResponse:
     """Find and rank entities (subscriptions, products, workflows, processes).
 
-    Build structured ``filters`` with discover_filter_paths/get_valid_operators,
-    and/or pass ``query_text`` for semantic/fuzzy ranking. Returns ranked rows plus
-    a ``query_id`` that export_query can turn into a CSV download. For counts or
+    Build structured ``filters`` with discover_filter_paths/get_valid_operators, and/or
+    pass ``query_text`` for semantic/fuzzy ranking. If a filtered search returns nothing,
+    it automatically broadens (drops filters, re-ranks by similarity) up to ``effort``
+    passes and sets ``fallback_used=true`` — those are approximate, closest matches.
+    Returns a ``query_id`` that export_query can turn into a CSV download. For counts or
     statistics use ``aggregate`` instead.
     """
     if params.filters is not None:
@@ -376,19 +379,16 @@ async def search_endpoint(params: SearchToolRequest) -> SearchToolResponse:
             raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
 
     try:
-        query = SelectQuery(
+        response, query, fallback_used = await execute_search_with_fallback(
             entity_type=params.entity_type,
             query_text=params.query_text,
             filters=params.filters,
             limit=params.limit,
             retriever=params.retriever,
+            effort=params.effort,
+            db_session=db.session,
         )
-    except ValidationError as exc:
-        raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
-
-    try:
-        response = await engine.execute_search(query, db.session)
-    except ValueError as exc:
+    except (ValidationError, ValueError) as exc:
         raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
 
     query_id = _persist_query(query, response.query_embedding)
@@ -398,6 +398,7 @@ async def search_endpoint(params: SearchToolRequest) -> SearchToolResponse:
         returned=len(response.results),
         has_more=response.has_more,
         search_type=response.metadata.search_type,
+        fallback_used=fallback_used,
         results=[
             SearchToolResultItem(
                 entity_id=r.entity_id,
