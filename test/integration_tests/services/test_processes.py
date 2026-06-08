@@ -662,18 +662,22 @@ def process_with_subscription(simple_workflow, generic_subscription_1):
 @pytest.mark.parametrize(
     "state, expected_status",
     [
-        (Failed(Exception("boom")).on_failed(error_state_to_dict), ProcessStatus.FAILED),
-        (Abort({"foo": "bar"}), ProcessStatus.ABORTED),
+        pytest.param(Failed(Exception("boom")).on_failed(error_state_to_dict), ProcessStatus.FAILED, id="failed"),
+        pytest.param(Abort({"foo": "bar"}), ProcessStatus.ABORTED, id="aborted"),
+        pytest.param(Complete({"foo": "bar"}), ProcessStatus.COMPLETED, id="completed"),
     ],
 )
 @mock.patch("orchestrator.core.services.processes.sync_invalidate_subscription_cache_by_id")
-def test_db_log_step_invalidates_subscription_cache_on_failed_end_state(
+def test_db_log_step_invalidates_subscription_cache_on_terminal_end_state(
     mock_invalidate, process_with_subscription, state, expected_status
 ):
-    """Invalidate subscription caches when a process ends in a failed/aborted state.
+    """Invalidate subscription caches when a process reaches a terminal status.
 
-    Such processes skip the workflow's `resync` step, so `_db_log_step` must invalidate the
-    related subscription caches itself (otherwise the UI keeps the stale status).
+    Every in-step cache invalidation (`unsync`/`resync`) runs while the process is still
+    RUNNING, so the cache never reflects the terminal status — `done` (COMPLETED) sets it
+    without invalidating, and failed/aborted processes skip `resync` entirely. `_db_log_step`
+    must invalidate the related subscription caches itself, otherwise the UI keeps the stale
+    RUNNING status.
     """
     process_id, subscription_id = process_with_subscription
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
@@ -690,18 +694,18 @@ def test_db_log_step_invalidates_subscription_cache_on_failed_end_state(
 @pytest.mark.parametrize(
     "state",
     [
-        Success({"foo": "bar"}),
-        Complete({"foo": "bar"}),
-        Suspend({"foo": "bar"}),
+        pytest.param(Success({"foo": "bar"}), id="success-running"),
+        pytest.param(Suspend({"foo": "bar"}), id="suspended"),
     ],
 )
 @mock.patch("orchestrator.core.services.processes.sync_invalidate_subscription_cache_by_id")
-def test_db_log_step_does_not_invalidate_subscription_cache_on_non_failed_state(
+def test_db_log_step_does_not_invalidate_subscription_cache_on_non_terminal_state(
     mock_invalidate, process_with_subscription, state
 ):
-    """Do not invalidate subscription caches for running/completed/suspended states.
+    """Do not invalidate subscription caches for non-terminal states.
 
-    The happy path is already handled by the workflow's `resync` step.
+    A running (`Success`) or suspended process has not reached its final status yet, so there
+    is nothing terminal to reflect — invalidating here would only add cache churn mid-workflow.
     """
     process_id, _ = process_with_subscription
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
