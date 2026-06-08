@@ -94,6 +94,9 @@ class FilterOp(str, Enum):
     NOT_HAS_COMPONENT = "not_has_component"  # Path doesn't contain segment
     ENDS_WITH = "ends_with"
 
+    CONTAINS = "regexp"
+    NOT_CONTAINS = "not_regexp"
+
 
 class EntityType(str, Enum):
     SUBSCRIPTION = "SUBSCRIPTION"
