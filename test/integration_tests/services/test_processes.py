@@ -25,7 +25,7 @@ from sqlalchemy import select
 
 from orchestrator.core.api.error_handling import ProblemDetailException
 from orchestrator.core.config.assignee import Assignee
-from orchestrator.core.db import ProcessStepTable, ProcessTable, db
+from orchestrator.core.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.core.db.database import transactional
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.services.executors.threadpool import thread_start_process
@@ -641,6 +641,75 @@ def test_process_log_db_step_complete(simple_workflow):
     assert p.last_step == "step"
     assert p.failed_reason is None
     assert p.assignee == "assignee"
+
+
+@pytest.fixture
+def process_with_subscription(simple_workflow, generic_subscription_1):
+    """A CREATED process linked to a single existing subscription."""
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
+    )
+    db.session.add(p)
+    db.session.add(ProcessSubscriptionTable(process_id=process_id, subscription_id=generic_subscription_1))
+    db.session.commit()
+    return process_id, generic_subscription_1
+
+
+@pytest.mark.parametrize(
+    "state, expected_status",
+    [
+        (Failed(Exception("boom")).on_failed(error_state_to_dict), ProcessStatus.FAILED),
+        (Abort({"foo": "bar"}), ProcessStatus.ABORTED),
+    ],
+)
+@mock.patch("orchestrator.core.services.processes.sync_invalidate_subscription_cache_by_id")
+def test_db_log_step_invalidates_subscription_cache_on_failed_end_state(
+    mock_invalidate, process_with_subscription, state, expected_status
+):
+    """Invalidate subscription caches when a process ends in a failed/aborted state.
+
+    Such processes skip the workflow's `resync` step, so `_db_log_step` must invalidate the
+    related subscription caches itself (otherwise the UI keeps the stale status).
+    """
+    process_id, subscription_id = process_with_subscription
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
+    step = make_step_function(lambda: None, "step", None, Assignee.SYSTEM)
+
+    result = _db_log_step(pstat, step, state)
+
+    assert result.overall_status == expected_status
+    mock_invalidate.assert_called_once()
+    (called_subscription_id,) = mock_invalidate.call_args.args
+    assert str(called_subscription_id) == str(subscription_id)
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        Success({"foo": "bar"}),
+        Complete({"foo": "bar"}),
+        Suspend({"foo": "bar"}),
+    ],
+)
+@mock.patch("orchestrator.core.services.processes.sync_invalidate_subscription_cache_by_id")
+def test_db_log_step_does_not_invalidate_subscription_cache_on_non_failed_state(
+    mock_invalidate, process_with_subscription, state
+):
+    """Do not invalidate subscription caches for running/completed/suspended states.
+
+    The happy path is already handled by the workflow's `resync` step.
+    """
+    process_id, _ = process_with_subscription
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
+    step = make_step_function(lambda: None, "step", None, Assignee.SYSTEM)
+
+    _db_log_step(pstat, step, state)
+
+    mock_invalidate.assert_not_called()
 
 
 def test_process_log_db_step_no_process_id(simple_workflow):
