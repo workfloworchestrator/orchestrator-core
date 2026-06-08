@@ -81,6 +81,12 @@ class AggregateToolRequest(OrchestratorBaseModel):
     order_by: list[OrderBy] | None = Field(
         default=None, description="Order grouped results by a grouping field or aggregation alias."
     )
+    visualization_type: Literal["bar", "line", "pie"] | None = Field(
+        default=None,
+        description="Preferred chart type for rendering the grouped result to the user: 'bar' (count "
+        "per category), 'line' (a value over time), or 'pie' (share of a whole). Echoed back in the "
+        "response's 'visualization' field; when omitted, a heuristic based on the data shape is used.",
+    )
 
 
 class DiscoverFilterPathsRequest(OrchestratorBaseModel):

@@ -480,7 +480,7 @@ async def aggregate_endpoint(params: AggregateToolRequest) -> AggregateToolRespo
     return AggregateToolResponse(
         query_id=query_id,
         total_results=response.total_results,
-        visualization=str(response.visualization_type.type),
+        visualization=params.visualization_type or str(response.visualization_type.type),
         results=[AggregateRow(group_values=r.group_values, aggregations=r.aggregations) for r in response.results],
     )
 
