@@ -28,7 +28,7 @@ def _resp(n: int, search_type: str = "fuzzy") -> SearchResponse:
     return SearchResponse(results=results, metadata=SearchMetadata(search_type=search_type, description=""))
 
 
-_BASE = dict(entity_type=EntityType.PRODUCT, filters=None, limit=5, retriever=None, db_session=Mock())
+_BASE = {"entity_type": EntityType.PRODUCT, "filters": None, "limit": 5, "retriever": None, "db_session": Mock()}
 
 
 def _patch(*responses):
