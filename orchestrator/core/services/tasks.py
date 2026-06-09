@@ -24,6 +24,7 @@ from orchestrator.core.db import db
 from orchestrator.core.db.database import transactional
 from orchestrator.core.schemas.engine_settings import WorkerStatus
 from orchestrator.core.services.executors.threadpool import thread_resume_process, thread_start_process
+from orchestrator.core.services.process_broadcast_thread import process_broadcast_fn as default_process_broadcast_fn
 from orchestrator.core.services.processes import _get_process, ensure_correct_process_status, load_process
 from orchestrator.core.types import BroadcastFunc
 from orchestrator.core.utils.json import json_dumps, json_loads
@@ -68,7 +69,9 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     register_custom_serializer()
 
-    process_broadcast_fn: BroadcastFunc | None = getattr(celery, "process_broadcast_fn", None)
+    # Use the consumer-supplied callback if present, otherwise the correct core default so
+    # workers invalidate subscription caches on failed/aborted processes out of the box.
+    process_broadcast_fn: BroadcastFunc = getattr(celery, "process_broadcast_fn", None) or default_process_broadcast_fn
 
     def start_process(process_id: UUID, user: str) -> UUID | None:
         try:

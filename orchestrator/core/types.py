@@ -27,7 +27,6 @@ from typing import (
     get_args,
     get_origin,
 )
-from uuid import UUID
 
 import strawberry
 from annotated_types import Len, MaxLen, MinLen
@@ -55,6 +54,7 @@ __all__ = [
 ]
 
 if TYPE_CHECKING:
+    from orchestrator.core.db.models import ProcessTable
     from orchestrator.core.domain.base import ProductBlockModel
 
 
@@ -73,7 +73,7 @@ ErrorState = Union[str, Exception, tuple[str, Union[int, HTTPStatus]]]
 ErrorDict = dict[str, Union[str, int, list[dict[str, Any]], InputForm, None]]
 StateStepFunc = Callable[[State], State]
 StepFunc = Callable[..., Optional[State]]
-BroadcastFunc = Callable[[UUID], None]
+BroadcastFunc = Callable[["ProcessTable"], None]
 
 SI = TypeVar("SI")
 

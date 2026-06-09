@@ -27,8 +27,19 @@ from orchestrator.core.services.process_broadcast_thread import (
     _broadcast_ws_fn,
     _nop,
     api_broadcast_process_data,
+    process_broadcast_fn,
 )
 from orchestrator.core.websocket.websocket_manager import WebSocketManager
+from orchestrator.core.workflow import ProcessStatus
+
+
+def _make_process(last_status, subscription_ids):
+    process = MagicMock()
+    process.process_id = uuid4()
+    process.last_status = last_status
+    process.process_subscriptions = [MagicMock(subscription_id=sid) for sid in subscription_ids]
+    return process
+
 
 # ---------------------------------------------------------------------------
 # _nop
@@ -36,14 +47,14 @@ from orchestrator.core.websocket.websocket_manager import WebSocketManager
 
 
 def test_nop_returns_none():
-    process_id = uuid4()
-    result = _nop(process_id)
+    process = _make_process(ProcessStatus.RUNNING, [])
+    result = _nop(process)
     assert result is None
 
 
-def test_nop_accepts_any_uuid():
+def test_nop_accepts_any_process():
     for _ in range(5):
-        _nop(uuid4())  # must not raise
+        _nop(_make_process(ProcessStatus.RUNNING, []))  # must not raise
 
 
 # ---------------------------------------------------------------------------
@@ -52,20 +63,20 @@ def test_nop_accepts_any_uuid():
 
 
 def test_broadcast_ws_fn_calls_broadcast_process_update():
-    process_id = uuid4()
+    process = _make_process(ProcessStatus.RUNNING, [])
     with patch("orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket") as mock_fn:
-        _broadcast_ws_fn(process_id)
-    mock_fn.assert_called_once_with(process_id)
+        _broadcast_ws_fn(process)
+    mock_fn.assert_called_once_with(process.process_id)
 
 
 def test_broadcast_ws_fn_swallows_exceptions():
-    process_id = uuid4()
+    process = _make_process(ProcessStatus.RUNNING, [])
     with patch(
         "orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket",
         side_effect=RuntimeError("ws failure"),
     ):
         # Must not raise
-        _broadcast_ws_fn(process_id)
+        _broadcast_ws_fn(process)
 
 
 # ---------------------------------------------------------------------------
@@ -74,22 +85,62 @@ def test_broadcast_ws_fn_swallows_exceptions():
 
 
 def test_broadcast_queue_put_fn_puts_process_id_on_queue():
-    process_id = uuid4()
+    process = _make_process(ProcessStatus.RUNNING, [])
     broadcast_queue: queue.Queue = queue.Queue()
 
-    _broadcast_queue_put_fn(broadcast_queue, process_id)
+    _broadcast_queue_put_fn(broadcast_queue, process)
 
     assert not broadcast_queue.empty()
-    assert broadcast_queue.get_nowait() == process_id
+    assert broadcast_queue.get_nowait() == process.process_id
 
 
 def test_broadcast_queue_put_fn_swallows_exceptions():
-    process_id = uuid4()
+    process = _make_process(ProcessStatus.RUNNING, [])
     bad_queue = MagicMock()
     bad_queue.put.side_effect = RuntimeError("queue full")
 
     # Must not raise
-    _broadcast_queue_put_fn(bad_queue, process_id)
+    _broadcast_queue_put_fn(bad_queue, process)
+
+
+# ---------------------------------------------------------------------------
+# process_broadcast_fn (default Celery-worker broadcast callback)
+# ---------------------------------------------------------------------------
+
+
+@patch("orchestrator.core.services.process_broadcast_thread.sync_invalidate_subscription_cache")
+@patch("orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket")
+def test_process_broadcast_fn_invalidates_subscriptions_on_failed_status(mock_broadcast, mock_invalidate):
+    sub_ids = [uuid4(), uuid4()]
+    process = _make_process(ProcessStatus.FAILED, sub_ids)
+
+    process_broadcast_fn(process)
+
+    mock_broadcast.assert_called_once_with(process.process_id)
+    assert {call.args[0] for call in mock_invalidate.call_args_list} == set(sub_ids)
+
+
+@patch("orchestrator.core.services.process_broadcast_thread.sync_invalidate_subscription_cache")
+@patch("orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket")
+def test_process_broadcast_fn_skips_invalidation_on_running_status(mock_broadcast, mock_invalidate):
+    process = _make_process(ProcessStatus.RUNNING, [uuid4()])
+
+    process_broadcast_fn(process)
+
+    mock_broadcast.assert_called_once_with(process.process_id)
+    mock_invalidate.assert_not_called()
+
+
+@patch("orchestrator.core.services.process_broadcast_thread.sync_invalidate_subscription_cache")
+@patch(
+    "orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket",
+    side_effect=RuntimeError("ws failure"),
+)
+def test_process_broadcast_fn_swallows_exceptions(mock_broadcast, mock_invalidate):
+    process = _make_process(ProcessStatus.FAILED, [uuid4()])
+
+    # Must not raise even though broadcasting fails
+    process_broadcast_fn(process)
 
 
 # ---------------------------------------------------------------------------
@@ -108,9 +159,9 @@ def test_api_broadcast_process_data_returns_partial_when_broadcast_thread_presen
     assert isinstance(result, partial)
 
     # Verify it's bound to the right queue by calling it
-    process_id = uuid4()
-    result(process_id)
-    assert mock_queue.get_nowait() == process_id
+    process = _make_process(ProcessStatus.RUNNING, [])
+    result(process)
+    assert mock_queue.get_nowait() == process.process_id
 
 
 def test_api_broadcast_process_data_returns_ws_fn_when_no_thread_but_ws_enabled():

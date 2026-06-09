@@ -133,7 +133,131 @@ When using the Celery executor, you'll need to do this again for the worker inst
 
 Below is an example implementation of a Celery worker with Websocket support, which can be updated to your project's needs.
 
-=== "`orchestrator-core` ≥ 5.0"
+=== "`orchestrator-core` > 5.0"
+
+    !!! note "Default `process_broadcast_fn`"
+
+        In the first release after 5.0, `orchestrator-core` ships a default `process_broadcast_fn` that
+        the Celery worker uses automatically — you no longer need to define one. Besides broadcasting the
+        process update, the default invalidates the related subscription caches when a process ends in a
+        failed/aborted state (work the workflow's `resync` step skips on failure).
+
+        This is a breaking change: `BroadcastFunc` now receives the full `ProcessTable` instead of a
+        `process_id`. Only define your own `process_broadcast_fn` to customise behaviour (see below).
+
+    ```python
+    """This module contains functions and classes necessary for celery worker processes.
+
+    The application flow looks like this when EXECUTOR = "celery" (and websockets are enabled):
+
+    - FastAPI application validates form input, and places a task on celery queue (create new process).
+    - If websockets are enabled, a connection should exist already b/t the client and backend.
+    - FastAPI application begins watching Redis pubsub channel for process updates from celery.
+    - Celery worker picks up task from queue and begins executing.
+    - On each step completion, it publishes state information to Redis pubsub channel.
+    - FastAPI application grabs this information and publishes it to the client websocket connection.
+    """
+
+    from structlog import get_logger
+
+    from celery import Celery
+    from celery.signals import task_postrun, worker_shutting_down
+    from nwastdlib.debugging import start_debugger
+    from orchestrator.core.db import init_database
+    from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+    from orchestrator.core.websocket import init_websocket_manager
+    from orchestrator.core.websocket.websocket_manager import WebSocketManager
+    from orchestrator.core.workflows import ALL_WORKFLOWS
+
+    # Substitute your_orch with your org's Orchestrator instance.
+    # class AppSettings(OrchSettings):
+    #     ...
+    #
+    # app_settings = AppSettings()
+    from your_orch.settings import app_settings
+
+
+    logger = get_logger(__name__)
+
+    @task_postrun.connect
+    def cleanup_session_after_task(**kwargs: Any) -> None:
+        """Prevent idle-in-transaction connections after Celery task completion.
+
+        psycopg3 autobegin starts implicit transactions on any query. If code
+        executes queries outside a transactional() context (e.g., during model
+        serialization after a workflow step), those transactions are never
+        committed/rolled back. This handler ensures cleanup after every task.
+        """
+        db.session.rollback()
+        db.scoped_session.remove()
+
+
+    class OrchestratorWorker(Celery):
+        websocket_manager: WebSocketManager
+
+        def on_init(self) -> None:
+            # Depending on how you gate your debug settings, you can do something like this:
+            # if app_settings.DEBUG:
+            #     start_debugger()
+
+            init_database(app_settings)
+
+            # Prepare the wrapped_websocket_manager
+            # Note: cannot prepare the redis connections here as broadcasting is async
+            self.websocket_manager = init_websocket_manager(app_settings)
+            # No process_broadcast_fn needed: the core default is used automatically.
+
+            # Load the product and workflow modules to register them with the application
+            import your_orch.products
+            import your_orch.workflows
+
+            # If you have custom SQLAlchemy models, register them here
+            from orchestrator.core.app import OrchestratorCore
+            from orchestrator.core.db import SubscriptionTable
+            from your_orch.db.models import MySubscriptionTable
+
+            OrchestratorCore.register_table(SubscriptionTable, MySubscriptionTable)
+
+
+        def close(self) -> None:
+            super().close()
+
+
+    celery = OrchestratorWorker(
+        f"{app_settings.SERVICE_NAME}-worker", broker=str(app_settings.CACHE_URI.get_secret_value()), include=["orchestrator.core.services.tasks"]
+    )
+
+    if app_settings.TESTING:
+        celery.conf.update(backend=str(app_settings.CACHE_URI.get_secret_value()), task_ignore_result=False)
+    else:
+        celery.conf.update(task_ignore_result=True)
+
+    celery.conf.update(
+        result_expires=3600,
+        worker_prefetch_multiplier=1,
+        worker_send_task_event=True,
+        task_send_sent_event=True,
+    )
+    ```
+
+    To customise broadcasting, define `process_broadcast_fn` and delegate to the core default so you keep
+    the standard behaviour (including subscription-cache invalidation) without duplicating it:
+
+    ```python
+    from orchestrator.core.db.models import ProcessTable
+    from orchestrator.core.services.process_broadcast_thread import (
+        process_broadcast_fn as default_process_broadcast_fn,
+    )
+
+    def process_broadcast_fn(process: ProcessTable) -> None:
+        default_process_broadcast_fn(process)
+        # ... your additional broadcasting ...
+
+    # then assign it in OrchestratorWorker.on_init:
+    #     self.process_broadcast_fn = process_broadcast_fn
+    ```
+
+=== "`orchestrator-core` 5.0"
 
     ```python
     """This module contains functions and classes necessary for celery worker processes.

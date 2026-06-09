@@ -341,7 +341,7 @@ def _db_log_step(
     db.session.add(current_step)
 
     if broadcast_func:
-        broadcast_func(p.process_id)
+        broadcast_func(p)
 
     return process_state.__class__(current_step.state)
 

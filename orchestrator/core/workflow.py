@@ -668,6 +668,19 @@ class ProcessStatus(strEnum):
     RESUMED = "resumed"
 
 
+# Terminal statuses that skip the workflow's `resync` step, so its subscription-cache
+# invalidation never runs. The default `process_broadcast_fn` re-issues it for these to
+# avoid a stale UI after a failed/aborted process.
+UPDATE_SUB_STATUSES = frozenset(
+    {
+        ProcessStatus.FAILED,
+        ProcessStatus.INCONSISTENT_DATA,
+        ProcessStatus.API_UNAVAILABLE,
+        ProcessStatus.ABORTED,
+    }
+)
+
+
 class StepStatus(strEnum):
     SUCCESS = "success"
     SKIPPED = "skipped"

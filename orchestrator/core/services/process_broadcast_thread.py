@@ -25,11 +25,14 @@ from orchestrator.core.websocket import (
     WS_CHANNELS,
     broadcast_process_update_to_websocket,
     broadcast_process_update_to_websocket_async,
+    sync_invalidate_subscription_cache,
     websocket_manager,
 )
 from orchestrator.core.websocket.websocket_manager import WebSocketManager
+from orchestrator.core.workflow import UPDATE_SUB_STATUSES
 
 if TYPE_CHECKING:
+    from orchestrator.core.db.models import ProcessTable
     from orchestrator.core.graphql.types import OrchestratorInfo
 
 BroadcastQueue = queue.Queue[UUID]
@@ -74,24 +77,43 @@ class ProcessDataBroadcastThread(threading.Thread):
         self.is_alive()
 
 
-def _nop(_process_id: UUID) -> None:
+def _nop(_process: "ProcessTable") -> None:
     pass
 
 
-def _broadcast_ws_fn(process_id: UUID) -> None:
+def _broadcast_ws_fn(process: "ProcessTable") -> None:
     # Catch all exceptions as broadcasting failure is noncritical to workflow completion
     try:
-        broadcast_process_update_to_websocket(process_id)
+        broadcast_process_update_to_websocket(process.process_id)
     except Exception:
         logger.exception("Failed to send process data to websocket")
 
 
-def _broadcast_queue_put_fn(broadcast_queue: BroadcastQueue, process_id: UUID) -> None:
+def _broadcast_queue_put_fn(broadcast_queue: BroadcastQueue, process: "ProcessTable") -> None:
     # Catch all exceptions as broadcasting failure is noncritical to workflow completion
     try:
-        broadcast_queue.put(process_id)
+        broadcast_queue.put(process.process_id)
     except Exception:
         logger.exception("An error occurred when putting process_id on broadcast queue")
+
+
+def process_broadcast_fn(process: "ProcessTable") -> None:
+    """Default Celery-worker broadcast callback.
+
+    Broadcasts the process update to connected websocket clients and, for terminal
+    failure/abort states, invalidates the caches of the related subscriptions. On the happy
+    path the workflow's `resync` step already invalidates those caches; for the statuses in
+    `UPDATE_SUB_STATUSES` that step is skipped, so re-issue the invalidation here to avoid a
+    stale UI. Provided in core so consumers get correct behaviour without copy-pasting it.
+    """
+    # Catch all exceptions as broadcasting failure is noncritical to workflow completion
+    try:
+        broadcast_process_update_to_websocket(process.process_id)
+        if process.last_status in UPDATE_SUB_STATUSES:
+            for subscription in process.process_subscriptions:
+                sync_invalidate_subscription_cache(subscription.subscription_id)
+    except Exception as e:
+        logger.exception(e)
 
 
 def api_broadcast_process_data(request: Request) -> BroadcastFunc:
