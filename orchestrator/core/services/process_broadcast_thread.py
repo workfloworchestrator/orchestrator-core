@@ -100,11 +100,8 @@ def _broadcast_queue_put_fn(broadcast_queue: BroadcastQueue, process: "ProcessTa
 def process_broadcast_fn(process: "ProcessTable") -> None:
     """Default Celery-worker broadcast callback.
 
-    Broadcasts the process update to connected websocket clients and, for terminal
-    failure/abort states, invalidates the caches of the related subscriptions. On the happy
-    path the workflow's `resync` step already invalidates those caches; for the statuses in
-    `UPDATE_SUB_STATUSES` that step is skipped, so re-issue the invalidation here to avoid a
-    stale UI. Provided in core so consumers get correct behaviour without copy-pasting it.
+    Broadcasts the process update and, for `UPDATE_SUB_STATUSES`, invalidates the related
+    subscription caches so the UI reflects the final state.
     """
     # Catch all exceptions as broadcasting failure is noncritical to workflow completion
     try:

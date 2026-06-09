@@ -108,11 +108,15 @@ def test_broadcast_queue_put_fn_swallows_exceptions():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize(
+    "status",
+    [ProcessStatus.COMPLETED, ProcessStatus.FAILED, ProcessStatus.ABORTED],
+)
 @patch("orchestrator.core.services.process_broadcast_thread.sync_invalidate_subscription_cache")
 @patch("orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket")
-def test_process_broadcast_fn_invalidates_subscriptions_on_failed_status(mock_broadcast, mock_invalidate):
+def test_process_broadcast_fn_invalidates_subscriptions_on_update_sub_status(mock_broadcast, mock_invalidate, status):
     sub_ids = [uuid4(), uuid4()]
-    process = _make_process(ProcessStatus.FAILED, sub_ids)
+    process = _make_process(status, sub_ids)
 
     process_broadcast_fn(process)
 
