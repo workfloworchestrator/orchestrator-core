@@ -58,11 +58,21 @@ class StringFilter(BaseModel):
         return self
 
 
+class ContainsFilter(BaseModel):
+    op: Literal[FilterOp.CONTAINS, FilterOp.NOT_CONTAINS]
+    value: str
+
+    def to_expression(self, column: SQLAColumn, path: str) -> ColumnElement[bool]:
+        expr = column.op("~*")(self.value)
+        return expr if self.op == FilterOp.CONTAINS else ~expr
+
+
 # Order matters! Ambiguous ops (like 'eq') are resolved by first matching filter
 FilterCondition = (
     DateFilter  # DATETIME
     | NumericFilter  # INT/FLOAT
     | StringFilter  # STRING TODO: convert to hybrid search?
+    | ContainsFilter  # STRING
     | LtreeFilter  # Path
     | EqualityFilter  # BOOLEAN/UUID/BLOCK/RESOURCE_TYPE - most generic, try last
 )
