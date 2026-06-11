@@ -20,6 +20,7 @@ from uuid import uuid4
 import structlog
 from sqlalchemy import create_engine
 from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import Query, Session, as_declarative, scoped_session, sessionmaker
 from sqlalchemy.sql.schema import MetaData
@@ -168,9 +169,7 @@ class WrappedSession(Session):
 
     def commit(self) -> None:
         if self.is_commit_disabled():
-            self.info.get("logger", logger).warning(
-                MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED
-            )
+            self.info.get("logger", logger).warning(MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED)
         else:
             super().commit()
 
@@ -194,6 +193,10 @@ class Database:
     threading.local(). Contextvar does the right thing with respect to asyncio and behaves similar to threading.local().
     We only store a random string in the contextvar and let scoped session do the heavy lifting. This allows us to
     easily start a new session or get the existing one using the scoped_session mechanics.
+
+    Next to the synchronous engine there is an async engine on the same database URL (psycopg supports both modes
+    of operation). Async sessions are not scoped: callers own their lifecycle through ``async_session()``. They do
+    wrap a ``WrappedSession``, so the commit-disable safeguard is available in both modes.
     """
 
     def __init__(self, db_url: str) -> None:
@@ -201,6 +204,10 @@ class Database:
         self.engine = create_engine(db_url, **ENGINE_ARGUMENTS)
         self.session_factory = sessionmaker(
             bind=self.engine, class_=WrappedSession, autocommit=False, autoflush=True, query_cls=SearchQuery
+        )
+        self.async_engine = create_async_engine(db_url, **ENGINE_ARGUMENTS)
+        self.async_session_factory = async_sessionmaker(
+            bind=self.async_engine, sync_session_class=WrappedSession, expire_on_commit=False
         )
 
         self.scoped_session = scoped_session(self.session_factory, self._scopefunc)
@@ -212,6 +219,17 @@ class Database:
     @property
     def session(self) -> WrappedSession:
         return self.scoped_session()
+
+    def async_session(self) -> AsyncSession:
+        """Create a new ``AsyncSession``; the caller owns its lifecycle.
+
+        There is deliberately no async equivalent of the scoped ``session`` property: use it as a
+        context manager so the session is always closed and its connection returned to the pool::
+
+            async with db.async_session() as session:
+                result = await session.execute(stmt)
+        """
+        return self.async_session_factory()
 
     @contextmanager
     def database_scope(self, **kwargs: Any) -> Generator["Database", None, None]:
