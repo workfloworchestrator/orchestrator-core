@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from orchestrator.core.search.core.types import BooleanOperator, FieldType, FilterOp, UIType
 from orchestrator.core.search.filters.base import (
+    ContainsFilter,
     EqualityFilter,
     FilterTree,
     PathFilter,
@@ -46,6 +47,8 @@ _INVERT_OP: dict[FilterOp, FilterOp] = {
     FilterOp.GTE: FilterOp.LT,
     FilterOp.LT: FilterOp.GTE,
     FilterOp.LTE: FilterOp.GT,
+    FilterOp.CONTAINS: FilterOp.NOT_CONTAINS,
+    FilterOp.NOT_CONTAINS: FilterOp.CONTAINS,
 }
 
 
@@ -90,6 +93,12 @@ class WildcardQuery(BaseModel):
     wildcard: dict[str, dict[str, str]] = Field(min_length=1, max_length=1)
 
 
+class RegexpQuery(BaseModel):
+    """``{"regexp": {"field": "pattern"}}`` or ``{"regexp": {"field": {"value": "pattern"}}}``."""
+
+    regexp: dict[str, Any] = Field(min_length=1, max_length=1)
+
+
 class ExistsQuery(BaseModel):
     """``{"exists": {"field": "name"}}``."""
 
@@ -115,7 +124,7 @@ class BoolClause(BaseModel):
 
 
 ElasticQuery = Annotated[
-    TermQuery | RangeQuery | WildcardQuery | ExistsQuery | BoolQuery,
+    TermQuery | RangeQuery | WildcardQuery | RegexpQuery | ExistsQuery | BoolQuery,
     Field(discriminator=None),
 ]
 
@@ -187,6 +196,17 @@ def _translate_wildcard(query: WildcardQuery) -> PathFilter:
     )
 
 
+def _translate_regexp(query: RegexpQuery) -> PathFilter:
+    """Convert a regexp query to a PathFilter with ContainsFilter."""
+    field, spec = next(iter(query.regexp.items()))
+    pattern = spec.get("value", "") if isinstance(spec, dict) else str(spec)
+    return PathFilter(
+        path=field,
+        condition=ContainsFilter(op=FilterOp.CONTAINS, value=pattern),
+        value_kind=UIType.STRING,
+    )
+
+
 def _translate_exists(query: ExistsQuery) -> PathFilter:
     """Convert an exists query to a PathFilter with LtreeFilter(ENDS_WITH)."""
     field_name = query.exists["field"]
@@ -202,7 +222,7 @@ def _invert_path_filter(pf: PathFilter) -> PathFilter:
     match pf.condition:
         case EqualityFilter(op=op, value=value):
             return pf.model_copy(update={"condition": EqualityFilter(op=_INVERT_OP[op], value=value)})  # type: ignore[arg-type]
-        case DateValueFilter(op=op) | NumericValueFilter(op=op):
+        case DateValueFilter(op=op) | NumericValueFilter(op=op) | ContainsFilter(op=op):
             return pf.model_copy(update={"condition": pf.condition.model_copy(update={"op": _INVERT_OP[op]})})
         case _:
             # For range/string/ltree filters, we cannot simply invert.
@@ -230,7 +250,7 @@ def _invert_range_to_or(
 def _negate_node(node: FilterTree | PathFilter) -> FilterTree | PathFilter:
     """Negate a single translated node for must_not semantics."""
     match node:
-        case PathFilter(condition=EqualityFilter() | DateValueFilter() | NumericValueFilter()):
+        case PathFilter(condition=EqualityFilter() | DateValueFilter() | NumericValueFilter() | ContainsFilter()):
             return _invert_path_filter(node)
         case PathFilter(condition=DateRangeFilter(value=range_val)):
             return _invert_range_to_or(node, range_val, DateValueFilter)
@@ -254,6 +274,8 @@ def _translate_node(query: ElasticQuery) -> FilterTree | PathFilter:
             return _translate_range(query)
         case WildcardQuery():
             return _translate_wildcard(query)
+        case RegexpQuery():
+            return _translate_regexp(query)
         case ExistsQuery():
             return _translate_exists(query)
         case BoolQuery():

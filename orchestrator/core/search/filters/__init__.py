@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from .base import (
+    ContainsFilter,
     EqualityFilter,
     FilterCondition,
     FilterTree,
@@ -30,6 +31,7 @@ __all__ = [
     "FilterTree",
     "FilterCondition",
     "StringFilter",
+    "ContainsFilter",
     "EqualityFilter",
     # Filters for specific value types
     "NumericValueFilter",

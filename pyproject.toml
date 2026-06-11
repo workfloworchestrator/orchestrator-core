@@ -1,7 +1,7 @@
 [project]
 name = "orchestrator-core"
 description = "This is the orchestrator workflow engine."
-version = "5.0.3"
+version = "5.0.5"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -47,7 +47,7 @@ dependencies = [
     "itsdangerous>=2.2.0",
     "jinja2==3.1.6",
     "more-itertools~=11.1.0",
-    "nwa-stdlib~=1.11.0",
+    "nwa-stdlib~=1.12.1",
     "oauth2-lib>=2.6.1",
     "orjson==3.11.9",
     "pgvector>=0.4.1",
@@ -68,7 +68,7 @@ dependencies = [
     "structlog>=25.4.0",
     "tabulate==0.10.0",
     "typer==0.25.1",
-    "uvicorn[standard]~=0.48.0",
+    "uvicorn[standard]~=0.49.0",
     "litellm>=1.80.0",
 ]
 

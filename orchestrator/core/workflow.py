@@ -44,6 +44,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import db, transactional
 from orchestrator.core.services.settings import get_engine_settings_table
+from orchestrator.core.settings import app_settings
 from orchestrator.core.targets import Target
 from orchestrator.core.types import ErrorDict, StepFunc
 from orchestrator.core.utils.auth import Authorizer
@@ -1512,15 +1513,32 @@ def log_mutations(old_process_state: State) -> Callable[[State], None]:
     return _log_mutations
 
 
-def errorlogger(error: ErrorDict) -> None:
-    logger.error("Workflow returned an error.", **error)
-
+def log_workflow_failure(error: ErrorDict) -> None:
+    """Log the error state from a failed workflow."""
+    logger.info("Workflow returned an error.", **error)
 
 def invalidate_status_counts() -> None:
     """Broadcast invalidate status counts to the websocket."""
     from orchestrator.core.websocket import broadcast_invalidate_status_counts
 
     broadcast_invalidate_status_counts()
+
+
+def capture_workflow_failure(err: Any) -> None:
+    """Capture the exception from a failed workflow.
+
+    This may provide useful insights into application or infra errors.
+    However, this may also cause sentry issues for exceptions that are "business as usual".
+    In that case, you can pass a function `app.add_sentry(before_send=before_send)` in which you can evaluate
+    exceptions and prevent sending them to sentry.
+    https://docs.sentry.io/platforms/python/configuration/filtering/
+    """
+    match err:
+        case Exception() if app_settings.TRACING_ENABLED:
+            import sentry_sdk
+            sentry_sdk.capture_exception(err)
+        case _:
+            pass
 
 
 def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFuncInternal) -> Process:
@@ -1551,14 +1569,17 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
             process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
             step_result_process = process.execute_step(step)
         except Exception as e:
-            consolelogger.error("An exception occurred while executing the workflow step.")
+            consolelogger.error("An exception occurred while executing the workflow step.", exc_info=e)
             step_result_process = Failed(e)
 
         # write the new process state after the step execution to the database
         # Convert ErrorState to ErrorDict when Failed or Waiting before writing to the database
         # as bare exceptions are not JSON serializable
         result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
-        result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
+        result_to_log.on_success(mutationlogger).on_failed(log_workflow_failure).on_waiting(log_workflow_failure)
+
+        # Capture the original exception that caused the workflow to fail
+        step_result_process.on_failed(capture_workflow_failure)
 
         with transactional(db, logger):
             process = dblogstep(step, result_to_log)
