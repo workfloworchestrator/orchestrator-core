@@ -22,7 +22,6 @@ from fastapi.routing import APIRoute
 # `db.async_session()`. See https://github.com/workfloworchestrator/orchestrator-core/issues/1251
 KNOWN_SYNC_ENDPOINTS: frozenset[str] = frozenset(
     {
-        "orchestrator.core.api.api_v1.endpoints.health.get_health",
         "orchestrator.core.api.api_v1.endpoints.mcp_tools.get_process_status_endpoint",
         "orchestrator.core.api.api_v1.endpoints.mcp_tools.get_subscription_available_workflows_endpoint",
         "orchestrator.core.api.api_v1.endpoints.mcp_tools.get_subscription_details_endpoint",
