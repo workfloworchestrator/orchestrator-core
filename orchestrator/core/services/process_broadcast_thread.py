@@ -97,20 +97,35 @@ def _broadcast_queue_put_fn(broadcast_queue: BroadcastQueue, process: "ProcessTa
         logger.exception("An error occurred when putting process_id on broadcast queue")
 
 
+def _invalidate_subscription_caches_fn(process: "ProcessTable") -> None:
+    """For `UPDATE_SUB_STATUSES`, invalidate the related subscription caches so the UI reflects the final state."""
+    # Catch all exceptions as cache invalidation failure is noncritical to workflow completion
+    try:
+        if process.last_status in UPDATE_SUB_STATUSES:
+            for subscription in process.process_subscriptions:
+                sync_invalidate_subscription_cache(subscription.subscription_id)
+    except Exception:
+        logger.exception("Failed to invalidate subscription caches")
+
+
+def _with_invalidate_subscription_caches(broadcast_fn: BroadcastFunc) -> BroadcastFunc:
+    """Compose a broadcast callable with subscription cache invalidation."""
+
+    def _broadcast_and_invalidate(process: "ProcessTable") -> None:
+        broadcast_fn(process)
+        _invalidate_subscription_caches_fn(process)
+
+    return _broadcast_and_invalidate
+
+
 def process_broadcast_fn(process: "ProcessTable") -> None:
     """Default Celery-worker broadcast callback.
 
     Broadcasts the process update and, for `UPDATE_SUB_STATUSES`, invalidates the related
     subscription caches so the UI reflects the final state.
     """
-    # Catch all exceptions as broadcasting failure is noncritical to workflow completion
-    try:
-        broadcast_process_update_to_websocket(process.process_id)
-        if process.last_status in UPDATE_SUB_STATUSES:
-            for subscription in process.process_subscriptions:
-                sync_invalidate_subscription_cache(subscription.subscription_id)
-    except Exception as e:
-        logger.exception(e)
+    _broadcast_ws_fn(process)
+    _invalidate_subscription_caches_fn(process)
 
 
 def api_broadcast_process_data(request: Request) -> BroadcastFunc:
@@ -120,10 +135,12 @@ def api_broadcast_process_data(request: Request) -> BroadcastFunc:
     resume_process, etc. through the `broadcast_func` param.
     """
     if request.app.broadcast_thread:
-        return partial(_broadcast_queue_put_fn, request.app.broadcast_thread.queue)
+        return _with_invalidate_subscription_caches(
+            partial(_broadcast_queue_put_fn, request.app.broadcast_thread.queue)
+        )
 
     if websocket_manager.enabled:
-        return _broadcast_ws_fn
+        return _with_invalidate_subscription_caches(_broadcast_ws_fn)
 
     logger.debug("WebSocketManager is not enabled. Using no-op broadcasting fn")
     return _nop
@@ -137,10 +154,10 @@ def graphql_broadcast_process_data(info: "OrchestratorInfo") -> BroadcastFunc:
     """
     if info.context.broadcast_thread:
         broadcast_queue: BroadcastQueue = info.context.broadcast_thread.queue
-        return partial(_broadcast_queue_put_fn, broadcast_queue)
+        return _with_invalidate_subscription_caches(partial(_broadcast_queue_put_fn, broadcast_queue))
 
     if websocket_manager.enabled:
-        return _broadcast_ws_fn
+        return _with_invalidate_subscription_caches(_broadcast_ws_fn)
 
     logger.debug("WebSocketManager is not enabled. Using no-op broadcasting fn")
     return _nop

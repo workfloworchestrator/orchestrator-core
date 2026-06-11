@@ -15,7 +15,6 @@
 
 import queue
 import time
-from functools import partial
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -152,15 +151,13 @@ def test_process_broadcast_fn_swallows_exceptions(mock_broadcast, mock_invalidat
 # ---------------------------------------------------------------------------
 
 
-def test_api_broadcast_process_data_returns_partial_when_broadcast_thread_present():
+def test_api_broadcast_process_data_returns_queue_fn_when_broadcast_thread_present():
     mock_request = MagicMock()
     mock_queue: queue.Queue = queue.Queue()
     mock_request.app.broadcast_thread = MagicMock()
     mock_request.app.broadcast_thread.queue = mock_queue
 
     result = api_broadcast_process_data(mock_request)
-
-    assert isinstance(result, partial)
 
     # Verify it's bound to the right queue by calling it
     process = _make_process(ProcessStatus.RUNNING, [])
@@ -176,7 +173,54 @@ def test_api_broadcast_process_data_returns_ws_fn_when_no_thread_but_ws_enabled(
         mock_ws_manager.enabled = True
         result = api_broadcast_process_data(mock_request)
 
-    assert result is _broadcast_ws_fn
+    process = _make_process(ProcessStatus.RUNNING, [])
+    with patch("orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket") as mock_fn:
+        result(process)
+    mock_fn.assert_called_once_with(process.process_id)
+
+
+@pytest.mark.parametrize(
+    "status",
+    [ProcessStatus.COMPLETED, ProcessStatus.FAILED, ProcessStatus.ABORTED],
+)
+@patch("orchestrator.core.services.process_broadcast_thread.sync_invalidate_subscription_cache")
+def test_api_broadcast_process_data_invalidates_subscriptions_on_update_sub_status(mock_invalidate, status):
+    mock_request = MagicMock()
+    mock_queue: queue.Queue = queue.Queue()
+    mock_request.app.broadcast_thread = MagicMock()
+    mock_request.app.broadcast_thread.queue = mock_queue
+
+    sub_ids = [uuid4(), uuid4()]
+    process = _make_process(status, sub_ids)
+
+    api_broadcast_process_data(mock_request)(process)
+
+    assert mock_queue.get_nowait() == process.process_id
+    assert {call.args[0] for call in mock_invalidate.call_args_list} == set(sub_ids)
+
+
+@patch("orchestrator.core.services.process_broadcast_thread.sync_invalidate_subscription_cache")
+def test_api_broadcast_process_data_skips_invalidation_on_running_status(mock_invalidate):
+    mock_request = MagicMock()
+    mock_request.app.broadcast_thread = MagicMock()
+    mock_request.app.broadcast_thread.queue = queue.Queue()
+
+    api_broadcast_process_data(mock_request)(_make_process(ProcessStatus.RUNNING, [uuid4()]))
+
+    mock_invalidate.assert_not_called()
+
+
+@patch(
+    "orchestrator.core.services.process_broadcast_thread.sync_invalidate_subscription_cache",
+    side_effect=RuntimeError("cache failure"),
+)
+def test_api_broadcast_process_data_swallows_invalidation_exceptions(mock_invalidate):
+    mock_request = MagicMock()
+    mock_request.app.broadcast_thread = MagicMock()
+    mock_request.app.broadcast_thread.queue = queue.Queue()
+
+    # Must not raise even though cache invalidation fails
+    api_broadcast_process_data(mock_request)(_make_process(ProcessStatus.FAILED, [uuid4()]))
 
 
 def test_api_broadcast_process_data_returns_nop_when_no_thread_and_ws_disabled():
