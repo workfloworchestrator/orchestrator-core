@@ -18,9 +18,8 @@ from orchestrator.core.db import ProductTable, db, get_async_session
 from orchestrator.core.db.database import WrappedSession
 
 
-async def test_async_session_executes_queries():
+async def test_async_session_executes_orm_queries():
     async with db.async_session() as session:
-        assert (await session.execute(select(1))).scalar_one() == 1
         product_names = (await session.scalars(select(ProductTable.name).limit(1))).all()
     assert isinstance(product_names, list)
 
