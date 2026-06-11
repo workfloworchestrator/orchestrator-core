@@ -15,6 +15,7 @@ from http import HTTPStatus
 from unittest import mock
 
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def test_get_health(test_client):
@@ -23,8 +24,7 @@ def test_get_health(test_client):
     assert response.json() == "OK"
 
 
-@mock.patch("orchestrator.core.db.db.session")
-def test_get_health_no_connection(mock_session, test_client):
-    mock_session.execute.side_effect = OperationalError("THIS", "IS", "KABOOM")
-    response = test_client.get("/api/health/")
+def test_get_health_no_connection(test_client):
+    with mock.patch.object(AsyncSession, "execute", side_effect=OperationalError("THIS", "IS", "KABOOM")):
+        response = test_client.get("/api/health/")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
