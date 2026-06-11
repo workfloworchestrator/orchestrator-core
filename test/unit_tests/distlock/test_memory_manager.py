@@ -15,7 +15,7 @@
 
 import asyncio
 from threading import Lock
-from time import sleep, time
+from time import time
 
 import pytest
 
@@ -72,13 +72,13 @@ def test_release_sync(manager: MemoryDistLockManager) -> None:
 
 async def test_expired_lock_removed_by_background_thread(manager: MemoryDistLockManager) -> None:
     await manager.get_lock("short-lived", 0)
-    sleep(0.2)
+    await asyncio.sleep(0.2)
     assert "short-lived" not in MemoryDistLockManager.locks
 
 
 async def test_non_expired_lock_survives(manager: MemoryDistLockManager) -> None:
     await manager.get_lock("long-lived", 60)
-    sleep(0.2)
+    await asyncio.sleep(0.2)
     assert "long-lived" in MemoryDistLockManager.locks
 
 
