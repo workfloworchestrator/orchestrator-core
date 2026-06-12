@@ -15,9 +15,9 @@
 
 from unittest.mock import AsyncMock, Mock, patch
 
-from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.core.types import EntityType, SearchMetadata
 from orchestrator.core.search.fallback import SearchEffort, execute_search_with_fallback
-from orchestrator.core.search.query.results import SearchMetadata, SearchResponse, SearchResult
+from orchestrator.core.search.query.results import SearchResponse, SearchResult
 
 
 def _resp(n: int, search_type: str = "fuzzy") -> SearchResponse:

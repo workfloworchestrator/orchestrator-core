@@ -18,7 +18,7 @@ These tests verify that:
 1. The agent-tagged REST routes carry ``AgentTag.EXPOSED`` and have
    stable ``operation_id`` values that map 1:1 to the MCP tool names.
 2. ``FastMCP.from_fastapi`` introspects the FastAPI app's routes, derives
-   input schemas from their pydantic models, and produces exactly the 17
+   input schemas from their pydantic models, and produces exactly the 23
    tools we expect via ``RouteMap`` tag-based filtering.
 3. Each tool carries ``ToolAnnotations`` (read-only/idempotent/destructive
    hints + a humanized title) derived from its HTTP method and ``AgentTag``s.
@@ -65,6 +65,12 @@ EXPECTED_TOOL_NAMES = {
     "get_workflow_by_id",  # GET /api/workflows/{workflow_id}
     "get_subscription_domain_model",  # GET /api/subscriptions/domain-model/{subscription_id}
     "get_process_status_counts",  # GET /api/processes/status-counts
+    "search",  # POST /api/agent/search
+    "aggregate",  # POST /api/agent/aggregate
+    "discover_filter_paths",  # POST /api/agent/discover_filter_paths
+    "get_valid_operators",  # POST /api/agent/get_valid_operators
+    "resolve_entity",  # POST /api/agent/resolve_entity
+    "export_query",  # POST /api/agent/export_query
 }
 
 
@@ -160,6 +166,12 @@ async def _tools_by_name(app: FastAPI) -> dict[str, Tool]:
         pytest.param("get_workflow_by_id", True, True, False, id="readonly-workflow"),
         pytest.param("get_subscription_domain_model", True, True, False, id="readonly-domain-model"),
         pytest.param("get_process_status_counts", True, True, False, id="readonly-status-counts"),
+        pytest.param("search", True, True, False, id="readonly-search"),
+        pytest.param("aggregate", True, True, False, id="readonly-aggregate"),
+        pytest.param("discover_filter_paths", True, True, False, id="readonly-discover-filter-paths"),
+        pytest.param("get_valid_operators", True, True, False, id="readonly-get-valid-operators"),
+        pytest.param("resolve_entity", True, True, False, id="readonly-resolve-entity"),
+        pytest.param("export_query", True, True, False, id="readonly-export-query"),
     ],
 )
 async def test_tool_annotations(
