@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from orchestrator.core.search.core.types import BooleanOperator, FieldType, FilterOp, UIType
 from orchestrator.core.search.filters.base import (
@@ -115,6 +115,12 @@ class BoolClause(BaseModel):
     must: list[ElasticQuery] = Field(default_factory=list)
     should: list[ElasticQuery] = Field(default_factory=list)
     must_not: list[ElasticQuery] = Field(default_factory=list)
+
+    @field_validator("must", "should", "must_not", mode="before")
+    @classmethod
+    def _coerce_single_to_list(cls, v: Any) -> Any:
+        """Accept a single query object where ES also allows a list."""
+        return [v] if isinstance(v, dict) else v
 
     @model_validator(mode="after")
     def _validate_not_empty(self) -> BoolClause:
