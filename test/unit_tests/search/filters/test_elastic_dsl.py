@@ -22,10 +22,11 @@ from pydantic import TypeAdapter, ValidationError
 from orchestrator.core.schemas.search_requests import SearchRequest
 from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
 from orchestrator.core.search.filters import FilterTree, PathFilter
-from orchestrator.core.search.filters.base import EqualityFilter, StringFilter
+from orchestrator.core.search.filters.base import ContainsFilter, EqualityFilter, StringFilter
 from orchestrator.core.search.filters.date_filters import DateRangeFilter, DateValueFilter
 from orchestrator.core.search.filters.elastic_dsl import (
     ElasticQuery,
+    _invert_path_filter,
     elastic_to_filter_tree,
 )
 from orchestrator.core.search.filters.ltree_filters import LtreeFilter
@@ -365,6 +366,19 @@ def test_must_not_wildcard_passes_through() -> None:
     assert leaf.condition.op == FilterOp.LIKE
 
 
+def test_invert_path_filter_non_invertible_passes_through() -> None:
+    """_invert_path_filter returns the PathFilter unchanged for non-invertible conditions."""
+    from orchestrator.core.search.core.types import UIType
+
+    pf = PathFilter(
+        path="description",
+        condition=StringFilter(op=FilterOp.LIKE, value="%fiber%"),
+        value_kind=UIType.STRING,
+    )
+    result = _invert_path_filter(pf)
+    assert result == pf
+
+
 def test_must_not_nested_bool_passes_through() -> None:
     """Complex sub-trees in must_not are passed through as-is."""
     es = ElasticQueryAdapter.validate_python(
@@ -546,3 +560,77 @@ def test_search_request_accepts_filter_tree() -> None:
 def test_search_request_accepts_none_filters() -> None:
     request = SearchRequest()
     assert request.filters is None
+
+
+# ---------------------------------------------------------------------------
+# contains queries (ES DSL: regexp)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "es_dsl, expected_pattern",
+    [
+        pytest.param(
+            {"regexp": {"description": ".*LIR.*"}},
+            ".*LIR.*",
+            id="string-value",
+        ),
+        pytest.param(
+            {"regexp": {"description": {"value": ".*LIR.*"}}},
+            ".*LIR.*",
+            id="dict-value",
+        ),
+        pytest.param(
+            {"regexp": {"subscription.description": {"value": "^surf.*"}}},
+            "^surf.*",
+            id="dotted-path-dict-value",
+        ),
+    ],
+)
+def test_contains_translation(es_dsl: dict[str, Any], expected_pattern: str) -> None:
+    leaf = _parse_and_get_leaf(es_dsl)
+    assert isinstance(leaf.condition, ContainsFilter)
+    assert leaf.condition.op == FilterOp.CONTAINS
+    assert leaf.condition.value == expected_pattern
+    assert leaf.value_kind == UIType.STRING
+
+
+def test_contains_multi_field_raises() -> None:
+    with pytest.raises(ValidationError, match="too_long"):
+        ElasticQueryAdapter.validate_python({"regexp": {"a": "x", "b": "y"}})
+
+
+def test_must_not_contains_inverts_to_not_contains() -> None:
+    leaf = _parse_and_get_leaf({"bool": {"must_not": [{"regexp": {"description": ".*LIR.*"}}]}})
+    assert isinstance(leaf.condition, ContainsFilter)
+    assert leaf.condition.op == FilterOp.NOT_CONTAINS
+    assert leaf.condition.value == ".*LIR.*"
+
+
+def test_must_not_not_contains_inverts_to_contains() -> None:
+    es = ElasticQueryAdapter.validate_python(
+        {
+            "bool": {
+                "must_not": [
+                    {
+                        "regexp": {"description": ".*LIR.*"},
+                    }
+                ]
+            }
+        }
+    )
+    tree = elastic_to_filter_tree(es)
+    leaf = tree.children[0]
+    assert isinstance(leaf, PathFilter)
+    assert isinstance(leaf.condition, ContainsFilter)
+    assert leaf.condition.op == FilterOp.NOT_CONTAINS
+
+
+def test_search_request_accepts_contains_filter() -> None:
+    request = SearchRequest(filters={"regexp": {"subscription.description": {"value": ".*fiber.*"}}})  # type: ignore[arg-type]
+    assert isinstance(request.filters, FilterTree)
+    assert len(request.filters.children) == 1
+    leaf = request.filters.children[0]
+    assert isinstance(leaf, PathFilter)
+    assert isinstance(leaf.condition, ContainsFilter)
+    assert leaf.condition.op == FilterOp.CONTAINS
