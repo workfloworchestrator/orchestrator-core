@@ -15,9 +15,10 @@
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import String, column
 
 from orchestrator.core.search.core.types import BooleanOperator, FilterOp
-from orchestrator.core.search.filters import FilterTree, PathFilter, StringFilter
+from orchestrator.core.search.filters import ContainsFilter, FilterTree, PathFilter, StringFilter
 
 pytestmark = pytest.mark.search
 
@@ -128,3 +129,37 @@ def test_get_all_paths_from_nested_tree(nested_filter_tree: FilterTree) -> None:
 def test_get_all_leaves_from_nested_tree(nested_filter_tree: FilterTree) -> None:
     leaves = nested_filter_tree.get_all_leaves()
     assert len(leaves) == 3
+
+
+# ---------------------------------------------------------------------------
+# ContainsFilter
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "op",
+    [
+        pytest.param(FilterOp.CONTAINS, id="contains"),
+        pytest.param(FilterOp.NOT_CONTAINS, id="not-contains"),
+    ],
+)
+def test_contains_filter_valid(op) -> None:
+    f = ContainsFilter(op=op, value=".*LIR.*")
+    assert f.op == op
+    assert f.value == ".*LIR.*"
+
+
+@pytest.mark.parametrize(
+    "op, expect_not",
+    [
+        pytest.param(FilterOp.CONTAINS, False, id="contains"),
+        pytest.param(FilterOp.NOT_CONTAINS, True, id="not-contains"),
+    ],
+)
+def test_contains_filter_to_expression_sql(op, expect_not) -> None:
+    f = ContainsFilter(op=op, value=".*LIR.*")
+    expr = f.to_expression(column("value", String), "path")
+    sql = str(expr.compile(compile_kwargs={"literal_binds": True}))
+    assert "~*" in sql
+    assert "LIR" in sql
+    assert ("NOT" in sql.upper()) == expect_not

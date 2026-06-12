@@ -22,7 +22,7 @@ from orchestrator.core.search.query.mixins import StructuredOrderBy
 from orchestrator.core.search.query.queries import SelectQuery
 
 # Keys that identify an ES DSL query at the top level
-_ES_DSL_KEYS = frozenset({"term", "range", "wildcard", "exists", "bool"})
+_ES_DSL_KEYS = frozenset({"term", "range", "wildcard", "regexp", "exists", "bool"})
 _ES_QUERY_ADAPTER: TypeAdapter[ElasticQuery] = TypeAdapter(ElasticQuery)
 
 
