@@ -330,6 +330,23 @@ def test_range_no_recognised_bounds_raises() -> None:
         elastic_to_filter_tree(es)
 
 
+@pytest.mark.parametrize(
+    "clause_key",
+    [
+        pytest.param("must", id="must"),
+        pytest.param("should", id="should"),
+        pytest.param("must_not", id="must_not"),
+    ],
+)
+def test_bool_clause_accepts_single_query_object(clause_key: str) -> None:
+    """A bare query dict (not wrapped in a list) is accepted, matching ES behaviour."""
+    es = ElasticQueryAdapter.validate_python(
+        {"bool": {clause_key: {"term": {"subscription.status": "active"}}}}
+    )
+    tree = elastic_to_filter_tree(es)
+    assert len(tree.children) == 1
+
+
 # ---------------------------------------------------------------------------
 # must_not edge cases
 # ---------------------------------------------------------------------------
