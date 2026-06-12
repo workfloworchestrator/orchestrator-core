@@ -46,7 +46,6 @@ from orchestrator.core.utils.json import json_dumps, json_loads
 from orchestrator.core.websocket import (
     broadcast_invalidate_status_counts,
     broadcast_process_update_to_websocket,
-    sync_invalidate_subscription_cache_by_id,
 )
 from orchestrator.core.workflow import (
     CALLBACK_TOKEN_KEY,
@@ -77,26 +76,22 @@ StateMerger = Merger([(dict, ["merge"])], ["override"], ["override"])
 
 SYSTEM_USER = "SYSTEM"
 
-# Terminal process statuses. Every in-step cache invalidation (`unsync`/`resync`) runs while the
-# process is still RUNNING, so the cache never reflects the terminal status: `done` sets COMPLETED
-# without invalidating, and failed/aborted processes skip `resync` entirely. `_db_log_step` re-issues
-# the invalidation when a process reaches one of these to avoid a stale UI.
-TERMINAL_SUB_STATUSES = frozenset(
-    {
-        ProcessStatus.COMPLETED,
-        ProcessStatus.FAILED,
-        ProcessStatus.INCONSISTENT_DATA,
-        ProcessStatus.API_UNAVAILABLE,
-        ProcessStatus.ABORTED,
-    }
-)
-
 _workflow_executor = None
 _active_threadpool_jobs = 0
 _active_jobs_lock = threading.Lock()
 
 START_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be started because it has been removed"
 RESUME_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be resumed because it has been removed"
+
+
+def _safe_broadcast_process_update(process_id: UUID, broadcast_func: BroadcastFunc | None) -> None:
+    if not broadcast_func:
+        return
+
+    try:
+        broadcast_func(process_id)
+    except Exception:
+        logger.exception("Failed to broadcast process update", process_id=process_id)
 
 
 def get_execution_context() -> dict[ExecutorFunction, Callable]:
@@ -361,10 +356,6 @@ def _db_log_step(
     if broadcast_func:
         broadcast_func(p.process_id)
 
-    if p.last_status in TERMINAL_SUB_STATUSES:
-        for subscription_id in {ps.subscription_id for ps in p.process_subscriptions}:
-            sync_invalidate_subscription_cache_by_id(subscription_id)
-
     return process_state.__class__(current_step.state)
 
 
@@ -447,7 +438,7 @@ def _get_process(process_id: UUID) -> ProcessTable:
     return process
 
 
-def _run_process_async(process_id: UUID, f: Callable) -> UUID:
+def _run_process_async(process_id: UUID, f: Callable, broadcast_func: BroadcastFunc | None = None) -> UUID:
 
     def run() -> WFProcess:
         with _ActiveJobTracker():
@@ -462,6 +453,7 @@ def _run_process_async(process_id: UUID, f: Callable) -> UUID:
                         raise
                     finally:
                         db.session.commit()
+                    _safe_broadcast_process_update(process_id, broadcast_func)
             except Exception as ex:
                 # We lost access to database here, so we can only log
                 logger.exception("Unknown workflow failure", process_id=process_id)
