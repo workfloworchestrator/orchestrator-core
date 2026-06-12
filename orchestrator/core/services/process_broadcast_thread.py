@@ -25,6 +25,7 @@ from orchestrator.core.websocket import (
     WS_CHANNELS,
     broadcast_process_update_to_websocket,
     broadcast_process_update_to_websocket_async,
+    invalidate_subscription_cache,
     sync_invalidate_subscription_cache,
     websocket_manager,
 )
@@ -35,7 +36,9 @@ if TYPE_CHECKING:
     from orchestrator.core.db.models import ProcessTable
     from orchestrator.core.graphql.types import OrchestratorInfo
 
-BroadcastQueue = queue.Queue[UUID]
+# (process_id, subscription ids whose caches must be invalidated)
+BroadcastQueueItem = tuple[UUID, list[UUID]]
+BroadcastQueue = queue.Queue[BroadcastQueueItem]
 
 logger = structlog.get_logger(__name__)
 
@@ -54,16 +57,23 @@ class ProcessDataBroadcastThread(threading.Thread):
 
             while not self.shutdown:
                 try:
-                    process_id = self.queue.get(block=True, timeout=1)
+                    item = self.queue.get(block=True, timeout=1)
                 except queue.Empty:
                     continue
                 logger.debug(
                     "Threadsafe broadcast process update through websocket manager",
-                    process_id=process_id,
+                    item=item,
                     where="ProcessDataBroadcastThread",
                     channels=WS_CHANNELS.EVENTS,
                 )
-                loop.run_until_complete(broadcast_process_update_to_websocket_async(process_id))
+                # Guard per-item so a single malformed item or failed broadcast doesn't kill the thread
+                try:
+                    process_id, subscription_ids = item
+                    loop.run_until_complete(broadcast_process_update_to_websocket_async(process_id))
+                    for subscription_id in subscription_ids:
+                        loop.run_until_complete(invalidate_subscription_cache(subscription_id))
+                except Exception:
+                    logger.exception("Failed to broadcast process update", item=item)
 
             loop.close()
             logger.info("Shutdown ProcessDataBroadcastThread")
@@ -89,10 +99,17 @@ def _broadcast_ws_fn(process: "ProcessTable") -> None:
         logger.exception("Failed to send process data to websocket")
 
 
+def _subscription_ids_to_invalidate(process: "ProcessTable") -> list[UUID]:
+    """For `UPDATE_SUB_STATUSES`, the related subscription caches must be invalidated so the UI reflects the final state."""
+    if process.last_status in UPDATE_SUB_STATUSES:
+        return [ps.subscription_id for ps in process.process_subscriptions]
+    return []
+
+
 def _broadcast_queue_put_fn(broadcast_queue: BroadcastQueue, process: "ProcessTable") -> None:
     # Catch all exceptions as broadcasting failure is noncritical to workflow completion
     try:
-        broadcast_queue.put(process.process_id)
+        broadcast_queue.put((process.process_id, _subscription_ids_to_invalidate(process)))
     except Exception:
         logger.exception("An error occurred when putting process_id on broadcast queue")
 
@@ -101,9 +118,8 @@ def _invalidate_subscription_caches_fn(process: "ProcessTable") -> None:
     """For `UPDATE_SUB_STATUSES`, invalidate the related subscription caches so the UI reflects the final state."""
     # Catch all exceptions as cache invalidation failure is noncritical to workflow completion
     try:
-        if process.last_status in UPDATE_SUB_STATUSES:
-            for subscription in process.process_subscriptions:
-                sync_invalidate_subscription_cache(subscription.subscription_id)
+        for subscription_id in _subscription_ids_to_invalidate(process):
+            sync_invalidate_subscription_cache(subscription_id)
     except Exception:
         logger.exception("Failed to invalidate subscription caches")
 
@@ -135,9 +151,8 @@ def api_broadcast_process_data(request: Request) -> BroadcastFunc:
     resume_process, etc. through the `broadcast_func` param.
     """
     if request.app.broadcast_thread:
-        return _with_invalidate_subscription_caches(
-            partial(_broadcast_queue_put_fn, request.app.broadcast_thread.queue)
-        )
+        # Subscription cache invalidation travels with the queue item and is broadcast by the thread
+        return partial(_broadcast_queue_put_fn, request.app.broadcast_thread.queue)
 
     if websocket_manager.enabled:
         return _with_invalidate_subscription_caches(_broadcast_ws_fn)
@@ -153,8 +168,9 @@ def graphql_broadcast_process_data(info: "OrchestratorInfo") -> BroadcastFunc:
     resume_process, etc. through the `broadcast_func` param.
     """
     if info.context.broadcast_thread:
+        # Subscription cache invalidation travels with the queue item and is broadcast by the thread
         broadcast_queue: BroadcastQueue = info.context.broadcast_thread.queue
-        return _with_invalidate_subscription_caches(partial(_broadcast_queue_put_fn, broadcast_queue))
+        return partial(_broadcast_queue_put_fn, broadcast_queue)
 
     if websocket_manager.enabled:
         return _with_invalidate_subscription_caches(_broadcast_ws_fn)

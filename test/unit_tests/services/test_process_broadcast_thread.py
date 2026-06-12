@@ -83,14 +83,34 @@ def test_broadcast_ws_fn_swallows_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_broadcast_queue_put_fn_puts_process_id_on_queue():
-    process = _make_process(ProcessStatus.RUNNING, [])
+def test_broadcast_queue_put_fn_puts_item_without_subscription_ids_for_running_status():
+    process = _make_process(ProcessStatus.RUNNING, [uuid4()])
     broadcast_queue: queue.Queue = queue.Queue()
 
     _broadcast_queue_put_fn(broadcast_queue, process)
 
     assert not broadcast_queue.empty()
-    assert broadcast_queue.get_nowait() == process.process_id
+    assert broadcast_queue.get_nowait() == (process.process_id, [])
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        ProcessStatus.COMPLETED,
+        ProcessStatus.FAILED,
+        ProcessStatus.INCONSISTENT_DATA,
+        ProcessStatus.API_UNAVAILABLE,
+        ProcessStatus.ABORTED,
+    ],
+)
+def test_broadcast_queue_put_fn_puts_subscription_ids_for_update_sub_status(status):
+    sub_ids = [uuid4(), uuid4()]
+    process = _make_process(status, sub_ids)
+    broadcast_queue: queue.Queue = queue.Queue()
+
+    _broadcast_queue_put_fn(broadcast_queue, process)
+
+    assert broadcast_queue.get_nowait() == (process.process_id, sub_ids)
 
 
 def test_broadcast_queue_put_fn_swallows_exceptions():
@@ -100,6 +120,19 @@ def test_broadcast_queue_put_fn_swallows_exceptions():
 
     # Must not raise
     _broadcast_queue_put_fn(bad_queue, process)
+
+
+def test_broadcast_queue_put_fn_swallows_subscription_lookup_exceptions():
+    class _RaisingProcess:
+        process_id = uuid4()
+        last_status = ProcessStatus.FAILED
+
+        @property
+        def process_subscriptions(self):
+            raise RuntimeError("session detached")
+
+    # Must not raise
+    _broadcast_queue_put_fn(queue.Queue(), _RaisingProcess())
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +195,7 @@ def test_api_broadcast_process_data_returns_queue_fn_when_broadcast_thread_prese
     # Verify it's bound to the right queue by calling it
     process = _make_process(ProcessStatus.RUNNING, [])
     result(process)
-    assert mock_queue.get_nowait() == process.process_id
+    assert mock_queue.get_nowait() == (process.process_id, [])
 
 
 def test_api_broadcast_process_data_returns_ws_fn_when_no_thread_but_ws_enabled():
@@ -184,7 +217,8 @@ def test_api_broadcast_process_data_returns_ws_fn_when_no_thread_but_ws_enabled(
     [ProcessStatus.COMPLETED, ProcessStatus.FAILED, ProcessStatus.ABORTED],
 )
 @patch("orchestrator.core.services.process_broadcast_thread.sync_invalidate_subscription_cache")
-def test_api_broadcast_process_data_invalidates_subscriptions_on_update_sub_status(mock_invalidate, status):
+def test_api_broadcast_process_data_defers_invalidation_to_broadcast_thread(mock_invalidate, status):
+    """With a broadcast thread, invalidation must travel through the queue, not run in the calling thread."""
     mock_request = MagicMock()
     mock_queue: queue.Queue = queue.Queue()
     mock_request.app.broadcast_thread = MagicMock()
@@ -195,32 +229,22 @@ def test_api_broadcast_process_data_invalidates_subscriptions_on_update_sub_stat
 
     api_broadcast_process_data(mock_request)(process)
 
-    assert mock_queue.get_nowait() == process.process_id
-    assert {call.args[0] for call in mock_invalidate.call_args_list} == set(sub_ids)
+    assert mock_queue.get_nowait() == (process.process_id, sub_ids)
+    mock_invalidate.assert_not_called()
 
 
 @patch("orchestrator.core.services.process_broadcast_thread.sync_invalidate_subscription_cache")
 def test_api_broadcast_process_data_skips_invalidation_on_running_status(mock_invalidate):
     mock_request = MagicMock()
+    mock_queue: queue.Queue = queue.Queue()
     mock_request.app.broadcast_thread = MagicMock()
-    mock_request.app.broadcast_thread.queue = queue.Queue()
+    mock_request.app.broadcast_thread.queue = mock_queue
 
-    api_broadcast_process_data(mock_request)(_make_process(ProcessStatus.RUNNING, [uuid4()]))
+    process = _make_process(ProcessStatus.RUNNING, [uuid4()])
+    api_broadcast_process_data(mock_request)(process)
 
+    assert mock_queue.get_nowait() == (process.process_id, [])
     mock_invalidate.assert_not_called()
-
-
-@patch(
-    "orchestrator.core.services.process_broadcast_thread.sync_invalidate_subscription_cache",
-    side_effect=RuntimeError("cache failure"),
-)
-def test_api_broadcast_process_data_swallows_invalidation_exceptions(mock_invalidate):
-    mock_request = MagicMock()
-    mock_request.app.broadcast_thread = MagicMock()
-    mock_request.app.broadcast_thread.queue = queue.Queue()
-
-    # Must not raise even though cache invalidation fails
-    api_broadcast_process_data(mock_request)(_make_process(ProcessStatus.FAILED, [uuid4()]))
 
 
 def test_api_broadcast_process_data_returns_nop_when_no_thread_and_ws_disabled():
@@ -290,13 +314,94 @@ def test_process_data_broadcast_thread_processes_queue_item(mock_ws_manager):
         thread = ProcessDataBroadcastThread(mock_ws_manager, daemon=True)
         thread.start()
 
-        thread.queue.put(process_id)
+        thread.queue.put((process_id, []))
         # Give the thread time to process the item
         time.sleep(0.2)
 
         thread.stop()
 
     mock_async_broadcast.assert_called_with(process_id)
+
+
+def test_process_data_broadcast_thread_invalidates_subscription_caches(mock_ws_manager):
+    process_id = uuid4()
+    sub_ids = [uuid4(), uuid4()]
+
+    async def _noop_coroutine():
+        return None
+
+    with (
+        patch(
+            "orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket_async",
+            side_effect=lambda _pid: _noop_coroutine(),
+        ),
+        patch(
+            "orchestrator.core.services.process_broadcast_thread.invalidate_subscription_cache",
+            side_effect=lambda _sid: _noop_coroutine(),
+        ) as mock_invalidate,
+    ):
+        thread = ProcessDataBroadcastThread(mock_ws_manager, daemon=True)
+        thread.start()
+
+        thread.queue.put((process_id, sub_ids))
+        # Give the thread time to process the item
+        time.sleep(0.2)
+
+        thread.stop()
+
+    assert [call.args[0] for call in mock_invalidate.call_args_list] == sub_ids
+
+
+def test_process_data_broadcast_thread_survives_malformed_item(mock_ws_manager):
+    """Regression: a malformed queue item killed the thread, stopping all real-time process updates."""
+    process_id = uuid4()
+
+    async def _noop_coroutine():
+        return None
+
+    with patch(
+        "orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket_async",
+        side_effect=lambda _pid: _noop_coroutine(),
+    ) as mock_async_broadcast:
+        thread = ProcessDataBroadcastThread(mock_ws_manager, daemon=True)
+        thread.start()
+
+        thread.queue.put(uuid4())  # malformed: bare UUID instead of (process_id, subscription_ids)
+        thread.queue.put((process_id, []))
+        # Give the thread time to process both items
+        time.sleep(0.2)
+
+        assert thread.is_alive()
+        thread.stop()
+
+    mock_async_broadcast.assert_called_with(process_id)
+
+
+def test_process_data_broadcast_thread_survives_broadcast_exception(mock_ws_manager):
+    first_process_id, second_process_id = uuid4(), uuid4()
+
+    async def _failing_coroutine():
+        raise RuntimeError("broadcaster down")
+
+    async def _noop_coroutine():
+        return None
+
+    with patch(
+        "orchestrator.core.services.process_broadcast_thread.broadcast_process_update_to_websocket_async",
+        side_effect=[_failing_coroutine(), _noop_coroutine()],
+    ) as mock_async_broadcast:
+        thread = ProcessDataBroadcastThread(mock_ws_manager, daemon=True)
+        thread.start()
+
+        thread.queue.put((first_process_id, []))
+        thread.queue.put((second_process_id, []))
+        # Give the thread time to process both items
+        time.sleep(0.2)
+
+        assert thread.is_alive()
+        thread.stop()
+
+    mock_async_broadcast.assert_called_with(second_process_id)
 
 
 def test_process_data_broadcast_thread_queue_is_isolated_between_instances(mock_ws_manager):
