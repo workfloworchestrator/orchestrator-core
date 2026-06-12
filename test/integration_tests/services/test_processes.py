@@ -662,7 +662,7 @@ def process_with_subscription(simple_workflow, generic_subscription_1):
 @pytest.mark.parametrize(
     "state, expected_status",
     [
-        pytest.param(Failed(Exception("boom")).on_failed(error_state_to_dict), ProcessStatus.FAILED, id="failed"),
+        pytest.param(Failed(error_state_to_dict(Exception("boom"))), ProcessStatus.FAILED, id="failed"),
         pytest.param(Abort({"foo": "bar"}), ProcessStatus.ABORTED, id="aborted"),
         pytest.param(Complete({"foo": "bar"}), ProcessStatus.COMPLETED, id="completed"),
     ],
