@@ -40,9 +40,6 @@ Why these are curated rather than auto-generated from the existing REST API:
   named kwargs.
 * ``get_subscription_details`` —> REST ``GET /subscriptions/domain-model/{id}``
   returns the full product-block tree; this returns a flat header.
-* ``search_subscriptions`` —> REST ``GET /subscriptions/search?query=`` only
-  supports free-text; this adds typed ``status`` and ``product_type``
-  filters.
 """
 
 from http import HTTPStatus
@@ -57,7 +54,7 @@ from sqlalchemy.orm import joinedload
 
 from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import ProcessTable, ProductTable, SearchQueryTable, SubscriptionTable, WorkflowTable, db
+from orchestrator.core.db import ProcessTable, WorkflowTable, db
 from orchestrator.core.schemas.mcp_search import (
     AggregateToolRequest,
     AggregateToolResponse,
@@ -79,10 +76,8 @@ from orchestrator.core.schemas.mcp_tools import (
     ProcessStatusResponse,
     ProcessSummary,
     ProductSummary,
-    SearchSubscriptionsRequest,
     SubscriptionDetailsResponse,
     SubscriptionIdRequest,
-    SubscriptionSearchResult,
     WorkflowFormPage,
 )
 from orchestrator.core.schemas.workflow import SubscriptionWorkflowListsSchema, WorkflowSchema
@@ -291,43 +286,6 @@ def get_subscription_details_endpoint(params: SubscriptionIdRequest) -> Subscrip
     )
 
 
-@router.post(
-    "/search_subscriptions",
-    response_model=list[SubscriptionSearchResult],
-    tags=[AgentTag.EXPOSED, AgentTag.LARGE, AgentTag.READONLY],
-    operation_id="search_subscriptions",
-)
-def search_subscriptions_endpoint(params: SearchSubscriptionsRequest) -> list[SubscriptionSearchResult]:
-    """Search subscriptions with typed filters."""
-    stmt = (
-        select(SubscriptionTable)
-        .options(joinedload(SubscriptionTable.product))
-        .order_by(SubscriptionTable.start_date.desc())
-        .limit(params.limit)
-    )
-    if params.status is not None:
-        stmt = stmt.where(SubscriptionTable.status == params.status)
-    if params.product_type is not None:
-        stmt = stmt.join(ProductTable).where(ProductTable.product_type == params.product_type)
-    if params.query is not None:
-        stmt = stmt.where(SubscriptionTable.description.ilike(f"%{params.query}%"))
-
-    subscriptions = db.session.scalars(stmt).unique().all()
-    return [
-        SubscriptionSearchResult(
-            subscription_id=s.subscription_id,
-            description=s.description,
-            status=s.status,
-            insync=s.insync,
-            product_name=s.product.name if s.product else None,
-            product_type=s.product.product_type if s.product else None,
-            customer_id=s.customer_id,
-            start_date=s.start_date,
-        )
-        for s in subscriptions
-    ]
-
-
 # ---------------------------------------------------------------------------
 # Search-engine tools
 #
@@ -337,18 +295,6 @@ def search_subscriptions_endpoint(params: SearchSubscriptionsRequest) -> list[Su
 # over MCP with no DB/engine coupling. Each search/aggregate call persists its
 # query (run_id=NULL) so the returned query_id can drive export_query.
 # ---------------------------------------------------------------------------
-
-
-def _persist_query(
-    query: SelectQuery | CountQuery | AggregateQuery,
-    query_embedding: list[float] | None = None,
-) -> UUID:
-    """Persist an executed query as a standalone row (run_id=NULL); return its query_id."""
-    state = QueryState(query=query, query_embedding=query_embedding)
-    row = SearchQueryTable.from_state(state=state, run_id=None, query_number=1)
-    db.session.add(row)
-    db.session.commit()
-    return row.query_id
 
 
 @router.post(
@@ -383,7 +329,7 @@ async def search_endpoint(params: SearchToolRequest) -> SearchToolResponse:
     except (ValidationError, ValueError) as exc:
         raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
 
-    query_id = _persist_query(query, response.query_embedding)
+    query_id = QueryState(query=query, query_embedding=response.query_embedding).save()
     return SearchToolResponse(
         query_id=query_id,
         entity_type=params.entity_type,
@@ -460,7 +406,7 @@ async def aggregate_endpoint(params: AggregateToolRequest) -> AggregateToolRespo
 
     query = _build_aggregate_query(params)
     response = await engine.execute_aggregation(query, db.session)
-    query_id = _persist_query(query)
+    query_id = QueryState(query=query).save()
     return AggregateToolResponse(
         query_id=query_id,
         total_results=response.total_results,

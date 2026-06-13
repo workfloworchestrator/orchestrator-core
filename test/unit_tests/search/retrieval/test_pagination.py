@@ -181,20 +181,12 @@ def test_first_page_saves_query_and_returns_cursor():
     query_mock = MagicMock()
     saved_query_id = uuid4()
 
-    mock_search_query = MagicMock()
-    mock_search_query.query_id = saved_query_id
-
-    with (
-        patch("orchestrator.core.search.retrieval.pagination.SearchQueryTable") as mock_table,
-        patch("orchestrator.core.search.retrieval.pagination.db") as mock_db,
-        patch("orchestrator.core.search.query.state.QueryState"),
-    ):
-        mock_table.from_state.return_value = mock_search_query
+    with patch("orchestrator.core.search.query.state.QueryState") as mock_qs:
+        mock_qs.return_value.save.return_value = saved_query_id
         encoded = encode_next_page_cursor(response, cursor=None, query=query_mock)
 
     assert encoded is not None
-    mock_db.session.add.assert_called_once_with(mock_search_query)
-    mock_db.session.commit.assert_called_once()
+    mock_qs.return_value.save.assert_called_once()
 
     decoded = PageCursor.decode(encoded)
     assert decoded.query_id == saved_query_id
@@ -212,15 +204,8 @@ def test_first_page_uses_last_result_for_cursor():
     query_mock = MagicMock()
     saved_query_id = uuid4()
 
-    mock_search_query = MagicMock()
-    mock_search_query.query_id = saved_query_id
-
-    with (
-        patch("orchestrator.core.search.retrieval.pagination.SearchQueryTable") as mock_table,
-        patch("orchestrator.core.search.retrieval.pagination.db"),
-        patch("orchestrator.core.search.query.state.QueryState"),
-    ):
-        mock_table.from_state.return_value = mock_search_query
+    with patch("orchestrator.core.search.query.state.QueryState") as mock_qs:
+        mock_qs.return_value.save.return_value = saved_query_id
         encoded = encode_next_page_cursor(response, cursor=None, query=query_mock)
 
     decoded = PageCursor.decode(encoded)
@@ -241,15 +226,10 @@ def test_subsequent_page_reuses_cursor_query_id():
     response = _make_search_response([result_item], has_more=True)
     query_mock = MagicMock()
 
-    with (
-        patch("orchestrator.core.search.retrieval.pagination.SearchQueryTable") as mock_table,
-        patch("orchestrator.core.search.retrieval.pagination.db") as mock_db,
-    ):
+    with patch("orchestrator.core.search.query.state.QueryState") as mock_qs:
         encoded = encode_next_page_cursor(response, cursor=existing_cursor, query=query_mock)
 
-    mock_db.session.add.assert_not_called()
-    mock_db.session.commit.assert_not_called()
-    mock_table.from_state.assert_not_called()
+    mock_qs.assert_not_called()
 
     decoded = PageCursor.decode(encoded)
     assert decoded.query_id == existing_query_id
@@ -265,10 +245,7 @@ def test_subsequent_page_ignores_query_argument():
     response = _make_search_response([result_item], has_more=True)
     different_query_mock = MagicMock()
 
-    with (
-        patch("orchestrator.core.search.retrieval.pagination.SearchQueryTable"),
-        patch("orchestrator.core.search.retrieval.pagination.db"),
-    ):
+    with patch("orchestrator.core.search.query.state.QueryState"):
         encoded = encode_next_page_cursor(response, cursor=existing_cursor, query=different_query_mock)
 
     decoded = PageCursor.decode(encoded)
