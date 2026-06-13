@@ -64,19 +64,6 @@ class ListRecentProcessesRequest(OrchestratorBaseModel):
     limit: int = Field(default=20, ge=1, le=100, description="Maximum number of processes to return.")
 
 
-class SearchSubscriptionsRequest(OrchestratorBaseModel):
-    query: str | None = Field(
-        default=None,
-        description="Free-text search matching subscription description. Leave empty to list all.",
-    )
-    status: str | None = Field(
-        default=None,
-        description='Filter by status (e.g. "active", "terminated", "provisioning").',
-    )
-    product_type: str | None = Field(default=None, description="Filter by product type name.")
-    limit: int = Field(default=20, ge=1, le=100, description="Maximum number of results.")
-
-
 # Response models
 
 
@@ -126,14 +113,3 @@ class SubscriptionDetailsResponse(OrchestratorBaseModel):
     start_date: datetime | None = None
     end_date: datetime | None = None
     note: str | None = None
-
-
-class SubscriptionSearchResult(OrchestratorBaseModel):
-    subscription_id: UUID
-    description: str | None = None
-    status: SubscriptionLifecycle
-    insync: bool
-    product_name: str | None = None
-    product_type: str | None = None
-    customer_id: str | None = None
-    start_date: datetime | None = None

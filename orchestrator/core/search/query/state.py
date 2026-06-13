@@ -79,3 +79,9 @@ class QueryState(BaseModel, Generic[T]):
         query = cast(T, expected_type.from_dict(search_query.parameters))
 
         return cls(query=query, query_embedding=search_query.query_embedding)
+
+    def save(self, run_id: UUID | None = None, query_number: int = 1) -> UUID:
+        row = SearchQueryTable.from_state(state=self, run_id=run_id, query_number=query_number)
+        db.session.add(row)
+        db.session.commit()
+        return row.query_id

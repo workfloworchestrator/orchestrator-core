@@ -16,7 +16,6 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from orchestrator.core.db import SearchQueryTable, db
 from orchestrator.core.search.core.exceptions import InvalidCursorError
 from orchestrator.core.search.query.queries import SelectQuery
 from orchestrator.core.search.query.results import SearchResponse
@@ -67,12 +66,7 @@ def encode_next_page_cursor(
 
     # If this is the first page, save query state to database
     if cursor is None:
-        query_state = QueryState(query=query, query_embedding=search_response.query_embedding)
-        search_query = SearchQueryTable.from_state(state=query_state)
-
-        db.session.add(search_query)
-        db.session.commit()
-        query_id = search_query.query_id
+        query_id = QueryState(query=query, query_embedding=search_response.query_embedding).save()
     else:
         query_id = cursor.query_id
 
