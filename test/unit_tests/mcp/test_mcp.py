@@ -116,7 +116,7 @@ def app_with_agent_routes() -> FastAPI:
     app.dependency_overrides[authenticate] = lambda: None
     app.dependency_overrides[authorize] = lambda: None
     # Mirror OrchestratorCore.__init__: search-layer validation errors -> 422.
-    app.add_exception_handler(QueryValidationError, query_validation_handler)
+    app.add_exception_handler(QueryValidationError, query_validation_handler)  # type: ignore[arg-type]
     return app
 
 
