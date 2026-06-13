@@ -26,10 +26,12 @@ from pydantic import Field
 from orchestrator.core.schemas.base import OrchestratorBaseModel
 from orchestrator.core.search.aggregations import Aggregation, TemporalGrouping
 from orchestrator.core.search.core.types import EntityType, RetrieverType
+from orchestrator.core.search.entity_lookup import ResolvedEntity
 from orchestrator.core.search.fallback import SearchEffort
 from orchestrator.core.search.filters import FilterTree
 from orchestrator.core.search.query.mixins import OrderBy
 from orchestrator.core.search.query.queries import BaseQuery
+from orchestrator.core.search.query.results import ResultRow
 
 # --- Requests -------------------------------------------------------------
 
@@ -90,7 +92,9 @@ class AggregateToolRequest(OrchestratorBaseModel):
 
 
 class DiscoverFilterPathsRequest(OrchestratorBaseModel):
-    field_names: list[str] = Field(description="Field names to look up filterable paths for (e.g. ['status', 'customer']).")
+    field_names: list[str] = Field(
+        description="Field names to look up filterable paths for (e.g. ['status', 'customer'])."
+    )
     entity_type: EntityType = Field(description="Entity type whose schema to search.")
 
 
@@ -127,16 +131,11 @@ class SearchToolResponse(OrchestratorBaseModel):
     results: list[SearchToolResultItem]
 
 
-class AggregateRow(OrchestratorBaseModel):
-    group_values: dict[str, str] = {}
-    aggregations: dict[str, float | int] = {}
-
-
 class AggregateToolResponse(OrchestratorBaseModel):
     query_id: UUID
     total_results: int
     visualization: str = Field(description="Suggested visualization type (table, line, bar, ...).")
-    results: list[AggregateRow]
+    results: list[ResultRow]
 
 
 class FieldPathDiscovery(OrchestratorBaseModel):
@@ -146,17 +145,12 @@ class FieldPathDiscovery(OrchestratorBaseModel):
     components: list[dict[str, Any]] = []
 
 
-class ResolvedCandidate(OrchestratorBaseModel):
-    entity_id: str
-    title: str
-
-
 class ResolveEntityResponse(OrchestratorBaseModel):
     status: Literal["unique", "candidates", "not_found"]
     entity_type: EntityType
     entity_id: str | None = None
     title: str | None = None
-    candidates: list[ResolvedCandidate] = []
+    candidates: list[ResolvedEntity] = []
     message: str
 
 

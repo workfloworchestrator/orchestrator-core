@@ -51,13 +51,14 @@ from orchestrator.core.db.listeners import monitor_sqlalchemy_queries
 from orchestrator.core.db.loaders import init_model_loaders
 from orchestrator.core.distlock import init_distlock_manager
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
-from orchestrator.core.exception_handlers import problem_detail_handler
+from orchestrator.core.exception_handlers import problem_detail_handler, query_validation_handler
 from orchestrator.core.graphql import Mutation, Query, create_graphql_router
 from orchestrator.core.graphql.schema import ContextGetterFactory
 from orchestrator.core.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.core.graphql.types import ScalarOverrideType, StrawberryModelType
 from orchestrator.core.log_config import LOGGER_OVERRIDES
 from orchestrator.core.metrics import ORCHESTRATOR_METRICS_REGISTRY, initialize_default_metrics
+from orchestrator.core.search.query.exceptions import QueryValidationError
 from orchestrator.core.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.core.services.worker_status_monitor import get_worker_status_monitor
 from orchestrator.core.settings import AppSettings, ExecutorType, app_settings, get_authorizers
@@ -207,6 +208,7 @@ class OrchestratorCore(FastAPI):
 
         self.add_exception_handler(FormException, form_error_handler)  # type: ignore[arg-type]
         self.add_exception_handler(ProblemDetailException, problem_detail_handler)  # type: ignore[arg-type]
+        self.add_exception_handler(QueryValidationError, query_validation_handler)  # type: ignore[arg-type]
         add_exception_handler(self)
 
         if base_settings.ENABLE_PROMETHEUS_METRICS_ENDPOINT:

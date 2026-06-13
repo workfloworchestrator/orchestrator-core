@@ -28,6 +28,7 @@ These tests verify that:
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -42,6 +43,8 @@ from orchestrator.core.api.api_v1.endpoints import (
     subscriptions,
     workflows,
 )
+from orchestrator.core.exception_handlers import query_validation_handler
+from orchestrator.core.search.query.exceptions import InvalidLtreePatternError, PathNotFoundError, QueryValidationError
 
 if TYPE_CHECKING:
     from fastmcp.tools.tool import Tool
@@ -113,6 +116,8 @@ def app_with_agent_routes() -> FastAPI:
     app.include_router(subscriptions.router, prefix="/api/subscriptions")
     app.dependency_overrides[authenticate] = lambda: None
     app.dependency_overrides[authorize] = lambda: None
+    # Mirror OrchestratorCore.__init__: search-layer validation errors -> 422.
+    app.add_exception_handler(QueryValidationError, query_validation_handler)
     return app
 
 
@@ -211,3 +216,50 @@ def test_exposed_routes_have_docstrings(app_with_agent_routes: FastAPI) -> None:
         and not ((getattr(getattr(route, "endpoint", None), "__doc__", "") or "").strip())
     ]
     assert not missing, f"agent-exposed routes missing a docstring: {missing}"
+
+
+_BOGUS_FILTER = {
+    "op": "AND",
+    "children": [{"path": "subscription.bogus", "condition": {"op": "eq", "value": "x"}, "value_kind": "string"}],
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "exc, expected_detail",
+    [
+        pytest.param(
+            PathNotFoundError("subscription.bogus"),
+            "Path 'subscription.bogus' does not exist in the database. Use discover_filter_paths to find valid paths.",
+            id="path-not-found-appends-hint",
+        ),
+        pytest.param(
+            InvalidLtreePatternError("sub.*.["),
+            "Ltree pattern 'sub.*.[' has invalid syntax. Use valid PostgreSQL ltree lquery syntax.",
+            id="other-validation-error-plain-message",
+        ),
+    ],
+)
+async def test_query_validation_error_surfaces_as_422_through_mcp(
+    app_with_agent_routes: FastAPI, exc: QueryValidationError, expected_detail: str
+) -> None:
+    """A QueryValidationError raised in an endpoint reaches the MCP caller as a 422 with its message.
+
+    fastmcp invokes routes via in-process httpx over ASGITransport, so the app's exception handler
+    fires and the LLM gets the helpful detail instead of an opaque 500. Guards that wiring.
+    """
+    pytest.importorskip("fastmcp")
+    from fastmcp import Client
+    from fastmcp.exceptions import ToolError
+
+    from orchestrator.core.mcp.server import build_mcp
+
+    with patch.object(mcp_tools, "validate_filter_tree", AsyncMock(side_effect=exc)):
+        mcp = build_mcp(app_with_agent_routes)
+        async with Client(mcp) as client:
+            with pytest.raises(ToolError) as excinfo:
+                await client.call_tool("search", {"entity_type": "SUBSCRIPTION", "filters": _BOGUS_FILTER})
+
+    message = str(excinfo.value)
+    assert "422" in message
+    assert expected_detail in message

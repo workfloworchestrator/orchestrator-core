@@ -59,14 +59,12 @@ from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import ProcessTable, ProductTable, SearchQueryTable, SubscriptionTable, WorkflowTable, db
 from orchestrator.core.schemas.mcp_search import (
-    AggregateRow,
     AggregateToolRequest,
     AggregateToolResponse,
     DiscoverFilterPathsRequest,
     ExportQueryRequest,
     ExportQueryResponse,
     FieldPathDiscovery,
-    ResolvedCandidate,
     ResolveEntityRequest,
     ResolveEntityResponse,
     SearchToolRequest,
@@ -96,7 +94,6 @@ from orchestrator.core.search.fallback import execute_search_with_fallback
 from orchestrator.core.search.filters.definitions import generate_definitions
 from orchestrator.core.search.query import QueryState, engine
 from orchestrator.core.search.query.builder import build_paths_query, process_path_rows
-from orchestrator.core.search.query.exceptions import PathNotFoundError, QueryValidationError
 from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, SelectQuery
 from orchestrator.core.search.query.validation import (
     validate_aggregation_field,
@@ -371,12 +368,7 @@ async def search_endpoint(params: SearchToolRequest) -> SearchToolResponse:
     statistics use ``aggregate`` instead.
     """
     if params.filters is not None:
-        try:
-            await validate_filter_tree(params.filters, params.entity_type)
-        except PathNotFoundError as exc:
-            raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, f"{exc} Use discover_filter_paths to find valid paths.")
-        except QueryValidationError as exc:
-            raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
+        await validate_filter_tree(params.filters, params.entity_type)
 
     try:
         response, query, fallback_used = await execute_search_with_fallback(
@@ -455,24 +447,16 @@ async def aggregate_endpoint(params: AggregateToolRequest) -> AggregateToolRespo
     operation='aggregate' computes ``aggregations`` over the matching rows. Validate
     field paths with discover_filter_paths first.
     """
-    try:
-        validate_grouping_fields(params.group_by or [])
-        for agg in params.aggregations or []:
-            if isinstance(agg, FieldAggregation):
-                validate_aggregation_field(agg.type, agg.field)
-        for tg in params.temporal_group_by or []:
-            validate_temporal_grouping_field(tg.field)
-        validate_order_by_fields(params.order_by)
-    except PathNotFoundError as exc:
-        raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, f"{exc} Use discover_filter_paths to find valid paths.")
-    except QueryValidationError as exc:
-        raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
+    validate_grouping_fields(params.group_by or [])
+    for agg in params.aggregations or []:
+        if isinstance(agg, FieldAggregation):
+            validate_aggregation_field(agg.type, agg.field)
+    for tg in params.temporal_group_by or []:
+        validate_temporal_grouping_field(tg.field)
+    validate_order_by_fields(params.order_by)
 
     if params.filters is not None:
-        try:
-            await validate_filter_tree(params.filters, params.entity_type)
-        except (PathNotFoundError, QueryValidationError) as exc:
-            raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
+        await validate_filter_tree(params.filters, params.entity_type)
 
     query = _build_aggregate_query(params)
     response = await engine.execute_aggregation(query, db.session)
@@ -481,7 +465,7 @@ async def aggregate_endpoint(params: AggregateToolRequest) -> AggregateToolRespo
         query_id=query_id,
         total_results=response.total_results,
         visualization=params.visualization_type or str(response.visualization_type.type),
-        results=[AggregateRow(group_values=r.group_values, aggregations=r.aggregations) for r in response.results],
+        results=response.results,
     )
 
 
@@ -586,7 +570,7 @@ def resolve_entity_endpoint(params: ResolveEntityRequest) -> ResolveEntityRespon
     return ResolveEntityResponse(
         status="candidates",
         entity_type=params.entity_type,
-        candidates=[ResolvedCandidate(entity_id=m.entity_id, title=m.title) for m in capped],
+        candidates=capped,
         message=message,
     )
 
