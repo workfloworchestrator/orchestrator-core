@@ -29,6 +29,7 @@ from orchestrator.core.websocket import (
     empty_fn,
     init_websocket_manager,
     invalidate_subscription_cache,
+    invalidate_subscription_cache_by_id,
     is_process_active,
     sync_broadcast_invalidate_cache,
     sync_invalidate_subscription_cache,
@@ -169,6 +170,21 @@ async def test_invalidate_subscription_cache(invalidate_all: bool, expected_call
         mock_wsm.broadcast_data = AsyncMock()
         await invalidate_subscription_cache(uuid4(), invalidate_all=invalidate_all)
         assert mock_wsm.broadcast_data.await_count == expected_call_count
+
+
+@pytest.mark.asyncio
+async def test_invalidate_subscription_cache_by_id():
+    """It must invalidate only the one subscription, not the LIST or the whole `subscriptions` type."""
+    subscription_id = uuid4()
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
+        mock_wsm.broadcast_data = AsyncMock()
+
+        await invalidate_subscription_cache_by_id(subscription_id)
+
+        mock_wsm.broadcast_data.assert_awaited_once_with(
+            [WS_CHANNELS.EVENTS],
+            {"name": "invalidateCache", "value": {"type": "subscriptions", "id": str(subscription_id)}},
+        )
 
 
 @pytest.mark.parametrize(
