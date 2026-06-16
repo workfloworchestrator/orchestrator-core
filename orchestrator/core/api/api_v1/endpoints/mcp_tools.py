@@ -318,12 +318,25 @@ def get_subscription_details_endpoint(params: SubscriptionIdRequest) -> Subscrip
 async def search_endpoint(params: SearchToolRequest) -> SearchToolResponse:
     """Find and rank entities (subscriptions, products, workflows, processes).
 
-    Build structured ``filters`` with discover_filter_paths/get_valid_operators, and/or
-    pass ``query_text`` for semantic/fuzzy ranking. If a filtered search returns nothing,
-    it automatically broadens (drops filters, re-ranks by similarity) up to ``effort``
-    passes and sets ``fallback_used=true`` — those are approximate, closest matches.
-    Returns a ``query_id`` that export_query can turn into a CSV download. For counts or
-    statistics use ``aggregate`` instead.
+    Pass ``query_text`` for semantic/fuzzy ranking and/or structured ``filters``. To filter: first call
+    discover_filter_paths for the fields you need, check operators with get_valid_operators, then build
+    the filter_tree from ONLY those exact paths. If a filtered search returns nothing, it automatically
+    broadens (drops filters, re-ranks by similarity) up to ``effort`` passes and sets
+    ``fallback_used=true`` — those are approximate, closest matches.
+
+    Building good filters:
+    - KEEP STRUCTURED FILTERS: when the request names a concrete dimension (status, product), always
+      include it as a filter even if you also pass ``query_text`` — filters narrow the candidate set
+      *before* ranking, so they make results more relevant, not fewer. Use `eq` when the exact value is
+      known (e.g. status `active`), `like` when unsure of the stored value (e.g. a product name).
+    - EXTRACT IDENTIFIERS: pull the high-signal identifiers from the request — entity/subscription ids,
+      customer names, reference codes (e.g. `IS4443`), or numbers (e.g. `4433`, `id 1234`) — find the
+      field that holds them via discover_filter_paths and filter with `like`. Never silently ignore an
+      identifier the user gave; but if no discovered field clearly matches an opaque identifier, do NOT
+      invent a filter — ``query_text`` already ranks on the full request.
+
+    Returns a ``query_id`` that export_query can turn into a CSV download. For counts or statistics use
+    ``aggregate`` instead.
     """
     if params.filters is not None:
         await validate_filter_tree(params.filters, params.entity_type)
@@ -403,8 +416,13 @@ async def aggregate_endpoint(params: AggregateToolRequest) -> AggregateToolRespo
     """Count entities or compute statistics (SUM/AVG/MIN/MAX), optionally grouped.
 
     operation='count' counts rows (optionally grouped by ``group_by`` / ``temporal_group_by``);
-    operation='aggregate' computes ``aggregations`` over the matching rows. Validate
-    field paths with discover_filter_paths first.
+    operation='aggregate' computes ``aggregations`` over the matching rows. To filter, first discover
+    field paths with discover_filter_paths and check operators with get_valid_operators (same filter
+    guidance as search).
+
+    A comparison or breakdown ("X vs Y", "per status", "by product", "across regions") is a SINGLE
+    ``group_by`` on that field — one call that returns one bucket per value. Do NOT issue separate
+    per-value counts; that loses the distribution.
     """
     validate_grouping_fields(params.group_by or [])
     for agg in params.aggregations or []:
@@ -436,7 +454,14 @@ async def aggregate_endpoint(params: AggregateToolRequest) -> AggregateToolRespo
     openapi_extra=READONLY_TOOL,
 )
 async def discover_filter_paths_endpoint(params: DiscoverFilterPathsRequest) -> dict[str, FieldPathDiscovery]:
-    """Discover filterable paths for field names, to build a filter tree for search/aggregate."""
+    """Discover the valid, database-specific filter paths for field names — the MANDATORY first step before filtering.
+
+    Filter and group-by paths cannot be guessed: ALWAYS call this before building a filter_tree for
+    search or aggregate, and use ONLY the exact paths it returns (do not modify or invent them). Pass
+    simple field names (e.g. "status", "id", "start_date") — not dotted paths like "subscription.status".
+    If a returned path does not match the intended field, try alternative field names in another call.
+    A field reported NOT_FOUND has no filterable path — do not create a filter for it.
+    """
     results: dict[str, FieldPathDiscovery] = {}
     for field_name in params.field_names:
         stmt = build_paths_query(entity_type=params.entity_type, prefix="", q=field_name).limit(100)
@@ -479,7 +504,16 @@ async def discover_filter_paths_endpoint(params: DiscoverFilterPathsRequest) -> 
     openapi_extra=READONLY_TOOL,
 )
 def get_valid_operators_endpoint() -> dict[str, list[FilterOp]]:
-    """Return the mapping of field types to their valid filter operators."""
+    """Return the mapping of field types to their valid filter operators — check before choosing an operator.
+
+    Use only an operator compatible with the field's type, and prefer the BROADEST operator that still
+    captures the intent:
+    - Text, names, titles, descriptions, or partial values -> `like` (substring match, e.g. `%acme%`), NOT `eq`.
+    - Dates and numbers ("in 2025", "after X", "between X and Y", "more than 100") -> range operators
+      `between`/`gt`/`gte`/`lt`/`lte`, NOT `eq`.
+    - Reserve `eq` for exact identifiers (UUIDs), enum/status values, and booleans.
+    An over-strict filter that matches nothing is worse than a broad one.
+    """
     definitions = generate_definitions()
     return {
         ui_type.value: type_def.operators for ui_type, type_def in definitions.items() if hasattr(type_def, "operators")
