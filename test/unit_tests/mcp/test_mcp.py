@@ -15,13 +15,14 @@
 
 These tests verify that:
 
-1. The agent-tagged REST routes carry ``AgentTag.EXPOSED`` and have
+1. The agent-tagged REST routes carry the ``AGENT_EXPOSED_TAG`` and have
    stable ``operation_id`` values that map 1:1 to the MCP tool names.
 2. ``FastMCP.from_fastapi`` introspects the FastAPI app's routes, derives
    input schemas from their pydantic models, and produces exactly the 22
    tools we expect via ``RouteMap`` tag-based filtering.
 3. Each tool carries ``ToolAnnotations`` (read-only/idempotent/destructive
-   hints + a humanized title) derived from its HTTP method and ``AgentTag``s.
+   hints + a humanized title) declared per route via ``openapi_extra``
+   (``x-mcp-annotations``).
 
 """
 
@@ -33,7 +34,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import FastAPI
 
-from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.api_v1.endpoints import (
     mcp_tools,
     processes,
@@ -44,6 +44,7 @@ from orchestrator.core.api.api_v1.endpoints import (
     workflows,
 )
 from orchestrator.core.exception_handlers import query_validation_handler
+from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG
 from orchestrator.core.search.query.exceptions import InvalidLtreePatternError, PathNotFoundError, QueryValidationError
 
 if TYPE_CHECKING:
@@ -77,7 +78,7 @@ EXPECTED_TOOL_NAMES = {
 
 
 def _agent_tagged_routes(app: FastAPI) -> dict[str, str]:
-    """Return ``{operation_id: path}`` for every route tagged ``AgentTag.EXPOSED``.
+    """Return ``{operation_id: path}`` for every route tagged ``AGENT_EXPOSED_TAG``.
 
     Iterates the merged FastAPI route table (covers both APIRouter-included
     routes and routes added via ``@app.router.get`` etc.).
@@ -85,7 +86,7 @@ def _agent_tagged_routes(app: FastAPI) -> dict[str, str]:
     out: dict[str, str] = {}
     for route in app.routes:
         tags = getattr(route, "tags", None) or []
-        if AgentTag.EXPOSED.value in tags or AgentTag.EXPOSED in tags:
+        if AGENT_EXPOSED_TAG in tags:
             op_id = getattr(route, "operation_id", None)
             path = getattr(route, "path", "")
             assert op_id, f"agent-exposed route {path!r} is missing operation_id"
@@ -121,7 +122,7 @@ def app_with_agent_routes() -> FastAPI:
 
 
 def test_all_expected_routes_carry_agent_tag(app_with_agent_routes: FastAPI) -> None:
-    """Every expected MCP tool name has a route tagged ``AgentTag.EXPOSED``."""
+    """Every expected MCP tool name has a route tagged ``AGENT_EXPOSED_TAG``."""
     found = _agent_tagged_routes(app_with_agent_routes)
     assert set(found) == EXPECTED_TOOL_NAMES, (
         f"missing: {EXPECTED_TOOL_NAMES - set(found)}, extra: {set(found) - EXPECTED_TOOL_NAMES}"
@@ -184,7 +185,7 @@ async def test_tool_annotations(
     idempotent: bool,
     destructive: bool,
 ) -> None:
-    """Each tool's ToolAnnotations reflect its method + AgentTag signals."""
+    """Each tool's ToolAnnotations reflect the hints declared on its route."""
     pytest.importorskip("fastmcp")
     tool = (await _tools_by_name(app_with_agent_routes))[tool_name]
     ann = tool.annotations
@@ -210,7 +211,7 @@ def test_exposed_routes_have_docstrings(app_with_agent_routes: FastAPI) -> None:
     missing = [
         getattr(route, "path", "")
         for route in app_with_agent_routes.routes
-        if (AgentTag.EXPOSED.value in (getattr(route, "tags", None) or []))
+        if (AGENT_EXPOSED_TAG in (getattr(route, "tags", None) or []))
         and not ((getattr(getattr(route, "endpoint", None), "__doc__", "") or "").strip())
     ]
     assert not missing, f"agent-exposed routes missing a docstring: {missing}"

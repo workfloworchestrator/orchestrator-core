@@ -17,10 +17,11 @@ These routes exist alongside the standard REST API (`/api/processes`,
 `/api/subscriptions`, etc.) but are created specifically for LLM agent
 consumption.
 
-Every route is tagged ``AgentTag.EXPOSED`` so ``orchestrator.core.mcp.server``
+Every route is tagged ``AGENT_EXPOSED_TAG`` so ``orchestrator.core.mcp.server``
 auto-generates them as MCP tools alongside the action endpoints in
 ``processes.py`` and ``products.py``. The route ``operation_id`` becomes the
-MCP tool name.
+MCP tool name. Each route also declares its ``ToolAnnotations`` via
+``openapi_extra`` (the ``READONLY_TOOL`` constant — all these are read-only).
 
 Why these are curated rather than auto-generated from the existing REST API:
 
@@ -52,9 +53,9 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import ProcessTable, WorkflowTable, db
+from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas.mcp_search import (
     AggregateToolRequest,
     AggregateToolResponse,
@@ -113,13 +114,15 @@ router = APIRouter()
 @router.post(
     "/list_workflows",
     response_model=list[WorkflowSchema],
-    tags=[AgentTag.EXPOSED, AgentTag.LARGE, AgentTag.READONLY],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="list_workflows",
+    openapi_extra=READONLY_TOOL,
 )
 def list_workflows_endpoint(params: ListWorkflowsRequest) -> list[WorkflowSchema]:
     """List all registered workflows in the orchestrator.
 
     Use this to discover what workflows are available before starting one.
+    May return many rows; pass ``target``/``is_task`` to narrow.
     """
     filters: dict[str, Any] = {}
     if params.target is not None:
@@ -132,8 +135,9 @@ def list_workflows_endpoint(params: ListWorkflowsRequest) -> list[WorkflowSchema
 @router.post(
     "/get_workflow_form",
     response_model=WorkflowFormPage,
-    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="get_workflow_form",
+    openapi_extra=READONLY_TOOL,
 )
 def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> WorkflowFormPage:
     """Get the JSON Schema of a workflow's form page by page.
@@ -165,8 +169,9 @@ def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> WorkflowFormPa
 @router.post(
     "/get_subscription_available_workflows",
     response_model=SubscriptionWorkflowListsSchema,
-    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="get_subscription_available_workflows",
+    openapi_extra=READONLY_TOOL,
 )
 def get_subscription_available_workflows_endpoint(params: SubscriptionIdRequest) -> SubscriptionWorkflowListsSchema:
     """Get workflows available for a specific subscription.
@@ -186,8 +191,9 @@ def get_subscription_available_workflows_endpoint(params: SubscriptionIdRequest)
 @router.post(
     "/get_process_status",
     response_model=ProcessStatusResponse,
-    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="get_process_status",
+    openapi_extra=READONLY_TOOL,
 )
 def get_process_status_endpoint(params: ProcessIdRequest) -> ProcessStatusResponse:
     """Get the current status and details of a workflow process.
@@ -217,11 +223,15 @@ def get_process_status_endpoint(params: ProcessIdRequest) -> ProcessStatusRespon
 @router.post(
     "/list_recent_processes",
     response_model=list[ProcessSummary],
-    tags=[AgentTag.EXPOSED, AgentTag.LARGE, AgentTag.READONLY],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="list_recent_processes",
+    openapi_extra=READONLY_TOOL,
 )
 def list_recent_processes_endpoint(params: ListRecentProcessesRequest) -> list[ProcessSummary]:
-    """List recent workflow processes, optionally filtered by status or workflow."""
+    """List recent workflow processes, optionally filtered by status or workflow.
+
+    May return many rows; pass ``status``/``workflow_name`` or a smaller ``limit`` to narrow.
+    """
     stmt = (
         select(ProcessTable)
         .options(joinedload(ProcessTable.workflow))
@@ -254,8 +264,9 @@ def list_recent_processes_endpoint(params: ListRecentProcessesRequest) -> list[P
 @router.post(
     "/get_subscription_details",
     response_model=SubscriptionDetailsResponse,
-    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="get_subscription_details",
+    openapi_extra=READONLY_TOOL,
 )
 def get_subscription_details_endpoint(params: SubscriptionIdRequest) -> SubscriptionDetailsResponse:
     """Get summary information about a subscription.
@@ -300,8 +311,9 @@ def get_subscription_details_endpoint(params: SubscriptionIdRequest) -> Subscrip
 @router.post(
     "/search",
     response_model=SearchToolResponse,
-    tags=[AgentTag.EXPOSED, AgentTag.LARGE, AgentTag.READONLY],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="search",
+    openapi_extra=READONLY_TOOL,
 )
 async def search_endpoint(params: SearchToolRequest) -> SearchToolResponse:
     """Find and rank entities (subscriptions, products, workflows, processes).
@@ -383,8 +395,9 @@ def _build_aggregate_query(params: AggregateToolRequest) -> CountQuery | Aggrega
 @router.post(
     "/aggregate",
     response_model=AggregateToolResponse,
-    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="aggregate",
+    openapi_extra=READONLY_TOOL,
 )
 async def aggregate_endpoint(params: AggregateToolRequest) -> AggregateToolResponse:
     """Count entities or compute statistics (SUM/AVG/MIN/MAX), optionally grouped.
@@ -418,8 +431,9 @@ async def aggregate_endpoint(params: AggregateToolRequest) -> AggregateToolRespo
 @router.post(
     "/discover_filter_paths",
     response_model=dict[str, FieldPathDiscovery],
-    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="discover_filter_paths",
+    openapi_extra=READONLY_TOOL,
 )
 async def discover_filter_paths_endpoint(params: DiscoverFilterPathsRequest) -> dict[str, FieldPathDiscovery]:
     """Discover filterable paths for field names, to build a filter tree for search/aggregate."""
@@ -460,8 +474,9 @@ async def discover_filter_paths_endpoint(params: DiscoverFilterPathsRequest) -> 
 @router.post(
     "/get_valid_operators",
     response_model=dict[str, list[FilterOp]],
-    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="get_valid_operators",
+    openapi_extra=READONLY_TOOL,
 )
 def get_valid_operators_endpoint() -> dict[str, list[FilterOp]]:
     """Return the mapping of field types to their valid filter operators."""
@@ -474,8 +489,9 @@ def get_valid_operators_endpoint() -> dict[str, list[FilterOp]]:
 @router.post(
     "/resolve_entity",
     response_model=ResolveEntityResponse,
-    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="resolve_entity",
+    openapi_extra=READONLY_TOOL,
 )
 def resolve_entity_endpoint(params: ResolveEntityRequest) -> ResolveEntityResponse:
     """Resolve a full UUID or partial id-prefix to one entity, or list candidates to disambiguate."""
@@ -524,8 +540,9 @@ def resolve_entity_endpoint(params: ResolveEntityRequest) -> ResolveEntityRespon
 @router.post(
     "/export_query",
     response_model=ExportQueryResponse,
-    tags=[AgentTag.EXPOSED, AgentTag.READONLY],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="export_query",
+    openapi_extra=READONLY_TOOL,
 )
 def export_query_endpoint(params: ExportQueryRequest) -> ExportQueryResponse:
     """Prepare a CSV export download for a previously executed search ``query_id``."""

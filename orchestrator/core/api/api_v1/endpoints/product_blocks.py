@@ -17,10 +17,10 @@ from uuid import UUID
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
 
-from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import db
 from orchestrator.core.db.models import ProductBlockTable
+from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas.product_block import ProductBlockPatchSchema, ProductBlockSchema
 
 router = APIRouter()
@@ -29,8 +29,9 @@ router = APIRouter()
 @router.get(
     "/{product_block_id}",
     response_model=ProductBlockSchema,
-    tags=[AgentTag.EXPOSED],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="get_product_block",
+    openapi_extra=READONLY_TOOL,
 )
 def get_product_block_description(product_block_id: UUID) -> str:
     """Get a single product block definition by id, including its resource types."""

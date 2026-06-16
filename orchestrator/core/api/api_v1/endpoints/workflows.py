@@ -17,10 +17,10 @@ from uuid import UUID
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
 
-from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import db
 from orchestrator.core.db.models import WorkflowTable
+from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas.workflow import WorkflowPatchSchema, WorkflowSchema
 
 router = APIRouter()
@@ -29,8 +29,9 @@ router = APIRouter()
 @router.get(
     "/{workflow_id}",
     response_model=WorkflowSchema,
-    tags=[AgentTag.EXPOSED],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="get_workflow_by_id",
+    openapi_extra=READONLY_TOOL,
 )
 def get_workflow_description(workflow_id: UUID) -> str:
     """Get a single workflow definition by id (name, target, description, steps)."""
