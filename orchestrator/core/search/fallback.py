@@ -13,10 +13,12 @@
 
 """Empty-result broadening waterfall for the agent-facing ``search`` tool.
 
-Behaviour-preserving port of the orchestrator-agent ``run_search`` fallback: when a
-structured search returns nothing, progressively drop the filters and re-rank by
-similarity so the user still gets the closest matches instead of an empty result.
-The number of broadening passes is governed by ``effort`` (HIGH=2, MEDIUM=1, LOW=0).
+When a structured search returns nothing, broaden progressively so the user still gets
+the closest matches instead of an empty result, without discarding the high-signal part
+of the query: first relax only the loose text filters while keeping the exact id/status/
+customer filters, then drop all filters and rank by HYBRID (keyword-matches identifiers)
+before SEMANTIC. Fallback passes degrade to FUZZY when embeddings are unavailable. The
+number of broadening passes is governed by ``effort`` (HIGH=3, MEDIUM=1, LOW=0).
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ import structlog
 
 from orchestrator.core.db.database import WrappedSession
 from orchestrator.core.search.core.types import EntityType, RetrieverType
-from orchestrator.core.search.filters import FilterTree
+from orchestrator.core.search.filters import FilterTree, PathFilter, StringFilter
 from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.queries import SelectQuery
 from orchestrator.core.search.query.results import SearchResponse
@@ -44,16 +46,12 @@ class SearchEffort(str, Enum):
     HIGH = "high"
 
 
-# Ordered broadening passes tried (in order) when a filtered search returns nothing.
-# SEMANTIC first because it applies no similarity threshold and is effectively guaranteed
-# non-empty; None (auto-routing) is the wider net that degrades to fuzzy in the engine.
-_FALLBACK_RETRIEVER_ORDER: tuple[RetrieverType | None, ...] = (RetrieverType.SEMANTIC, None)
-
-# How many of the above passes each effort level is allowed to run.
+# How many broadening rungs each effort level may try when a filtered search is empty.
+# HIGH=3 so it can exhaust the full ladder (relaxed filters, then HYBRID, then SEMANTIC).
 _EFFORT_FALLBACK_PASSES: dict[SearchEffort, int] = {
     SearchEffort.LOW: 0,
     SearchEffort.MEDIUM: 1,
-    SearchEffort.HIGH: 2,
+    SearchEffort.HIGH: 3,
 }
 
 
@@ -69,7 +67,54 @@ def _effective_retriever(requested: RetrieverType | None) -> RetrieverType | Non
     return requested
 
 
-async def _attempt_semantic_query(
+def _is_relaxable(leaf: PathFilter) -> bool:
+    """A loose text leaf (``like``/substring) — the first thing to drop when a filtered search is empty.
+
+    Exact (``eq``/``neq``), range, and component filters carry high signal (ids, status,
+    customer, dates) and are kept; only string filters are relaxed.
+    """
+    return isinstance(leaf.condition, StringFilter)
+
+
+def _high_signal_filters(filters: FilterTree | None) -> FilterTree | None:
+    """Drop loose text leaves, keeping the high-signal exact/range leaves as a flat AND.
+
+    Returns None when relaxing is not a useful step: no filters, nothing relaxable (the
+    reduced tree would equal the original), or nothing high-signal to keep (the reduced tree
+    would be filterless, i.e. the next rung). Any nested OR structure is intentionally
+    flattened to an AND of the kept leaves, which only ever broadens the candidate set.
+    """
+    if filters is None:
+        return None
+    leaves = filters.get_all_leaves()
+    relaxable = [leaf for leaf in leaves if _is_relaxable(leaf)]
+    high_signal = [leaf for leaf in leaves if not _is_relaxable(leaf)]
+    if not relaxable or not high_signal:
+        return None
+    return FilterTree.from_flat_and(high_signal)
+
+
+# An ordered broadening rung: the filters and retriever to try for one pass.
+_BroadeningStep = tuple[FilterTree | None, RetrieverType | None]
+
+
+def _broadening_ladder(filters: FilterTree | None) -> list[_BroadeningStep]:
+    """Build the ordered broadening rungs for an empty filtered search.
+
+    1. RELAXED — keep the high-signal exact filters, drop loose text filters (only if useful).
+    2. drop all filters, HYBRID — keyword-match identifiers before pure semantics.
+    3. drop all filters, SEMANTIC — pure semantic ranking as the last resort.
+    """
+    reduced = _high_signal_filters(filters)
+    relaxed_rung: list[_BroadeningStep] = [(reduced, None)] if reduced is not None else []
+    return relaxed_rung + [
+        (None, RetrieverType.HYBRID),
+        (None, RetrieverType.SEMANTIC),
+    ]
+
+
+async def _attempt_query(
+    filters: FilterTree | None,
     retriever: RetrieverType | None,
     *,
     entity_type: EntityType,
@@ -77,44 +122,47 @@ async def _attempt_semantic_query(
     limit: int,
     db_session: WrappedSession,
 ) -> tuple[SearchResponse, SelectQuery] | None:
-    """Run one filterless ranking pass; return it (with its query) only if it produced rows.
+    """Run one broadening pass with the given filters/retriever; return it (with its query) only if it produced rows.
 
-    A ValueError means the embedding was unavailable for an explicit retriever override —
-    treat it as "no help" so the caller can try the next strategy.
+    ``retriever`` is resolved through ``_effective_retriever`` so embedding-based strategies
+    degrade to fuzzy when embeddings are unavailable. A ValueError means the embedding could
+    not be generated for an explicit override — treat it as "no help" so the caller advances
+    to the next rung.
     """
     query = SelectQuery(
         entity_type=entity_type,
         query_text=query_text,
-        filters=None,
-        retriever=retriever,
+        filters=filters,
+        retriever=_effective_retriever(retriever),
         limit=limit,
     )
     try:
         response = await engine.execute_search(query, db_session)
     except ValueError as exc:
-        logger.debug("Semantic fallback attempt unavailable", retriever=retriever, error=str(exc))
+        logger.debug("Broadening attempt unavailable", retriever=retriever, error=str(exc))
         return None
     return (response, query) if response.results else None
 
 
-async def _run_semantic_fallback(
+async def _run_broadening_fallback(
     *,
+    filters: FilterTree | None,
     entity_type: EntityType,
     query_text: str,
     limit: int,
     db_session: WrappedSession,
     passes: int,
 ) -> tuple[SearchResponse, SelectQuery] | None:
-    """Run up to ``passes`` filterless broadening searches, returning the first with rows.
+    """Try up to ``passes`` broadening rungs, returning the first that produced rows.
 
-    Tries the retrievers in ``_FALLBACK_RETRIEVER_ORDER`` (SEMANTIC, then auto-routed) up to
-    ``passes`` times. SemanticRetriever applies no similarity threshold, so with filters
-    dropped it returns the closest N embedded entities and is effectively guaranteed
-    non-empty. ``passes == 0`` disables broadening entirely.
+    Broadens progressively: first relax the loose text filters while keeping the high-signal
+    exact filters, then drop all filters and rank by HYBRID, then SEMANTIC. ``passes == 0``
+    disables broadening entirely.
     """
-    for retriever in _FALLBACK_RETRIEVER_ORDER[:passes]:
-        result = await _attempt_semantic_query(
-            retriever,
+    for step_filters, step_retriever in _broadening_ladder(filters)[:passes]:
+        result = await _attempt_query(
+            step_filters,
+            step_retriever,
             entity_type=entity_type,
             query_text=query_text,
             limit=limit,
@@ -135,12 +183,14 @@ async def execute_search_with_fallback(
     effort: SearchEffort,
     db_session: WrappedSession,
 ) -> tuple[SearchResponse, SelectQuery, bool]:
-    """Run the structured pass, then a semantic fallback when it returns zero rows.
+    """Run the structured pass, then broaden progressively when it returns zero rows.
 
-    The number of broadening fallback passes is governed by ``effort``: HIGH=2, MEDIUM=1,
-    LOW=0. Returns ``(response, executed_query, fallback_used)`` where ``executed_query`` is
-    the query that produced the returned rows (the broadened one when ``fallback_used``) so
-    the caller can persist it for export/pagination.
+    The number of broadening passes is governed by ``effort``: HIGH=3, MEDIUM=1, LOW=0.
+    Broadening first relaxes the loose text filters while keeping the high-signal exact
+    filters, then drops all filters and ranks by HYBRID, then SEMANTIC. Returns
+    ``(response, executed_query, fallback_used)`` where ``executed_query`` is the query that
+    produced the returned rows (the broadened one when ``fallback_used``) so the caller can
+    persist it for export/pagination.
     """
     effective = _effective_retriever(retriever) if query_text else None
     query = SelectQuery(
@@ -156,7 +206,8 @@ async def execute_search_with_fallback(
     if response.results or not query_text:
         return response, query, False
 
-    fallback = await _run_semantic_fallback(
+    fallback = await _run_broadening_fallback(
+        filters=query.filters,
         entity_type=entity_type,
         query_text=query_text,
         limit=limit,
