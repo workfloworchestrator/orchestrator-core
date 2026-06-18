@@ -463,7 +463,7 @@ def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[S
 
     """
     if not subscription:
-        return {"locked_relations": [], "unterminated_parents": [], "unterminated_in_use_by_subscriptions": []}
+        return {"locked_relations": [], "unterminated_in_use_by_subscriptions": []}
     in_use_by_query = query_in_use_by_subscriptions(subscription.subscription_id)
 
     unterminated_in_use_by_subscriptions = _terminated_filter(in_use_by_query)
@@ -475,7 +475,6 @@ def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[S
 
     result = {
         "locked_relations": locked_in_use_by_block_relations + locked_depends_on_block_relations,
-        "unterminated_parents": unterminated_in_use_by_subscriptions,
         "unterminated_in_use_by_subscriptions": unterminated_in_use_by_subscriptions,
     }
 
@@ -585,8 +584,6 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
                 )
             if blocked_by_depends_on_subscriptions and data["unterminated_in_use_by_subscriptions"]:
                 workflow_json["reason"] = "subscription.no_modify_subscription_in_use_by_others"
-                workflow_json["unterminated_parents"] = [r.subscription_id for r in data["unterminated_parents"]]
-                workflow_json["unterminated_parents_detail"] = data["unterminated_parents"]
                 workflow_json["unterminated_in_use_by_subscriptions"] = [
                     r.subscription_id for r in data["unterminated_in_use_by_subscriptions"]
                 ]

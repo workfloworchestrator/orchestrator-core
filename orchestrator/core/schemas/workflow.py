@@ -56,9 +56,10 @@ class WorkflowListItemSchema(OrchestratorBaseModel):
     action: str | None = None
     locked_relations: list[UUID] | None = None
     locked_relations_detail: list[SubscriptionRelationSchema] | None = None
-    unterminated_parents: list[UUID] | None = None
-    unterminated_parents_detail: list[SubscriptionRelationSchema] | None = None
-    unterminated_in_use_by_subscriptions: list[UUID] | None = None
+    unterminated_in_use_by_subscriptions: list[UUID] | None = Field(
+        default=None,
+        description="Previously also returned as unterminated_parents (now removed). Use this field instead.",
+    )
     unterminated_in_use_by_subscriptions_detail: list[SubscriptionRelationSchema] | None = None
 
 
