@@ -41,6 +41,7 @@ from orchestrator.core.schemas.subscription_descriptions import (
 )
 from orchestrator.core.schemas.workflow import (
     StepSchema,
+    SubscriptionRelationSchema,
     SubscriptionWorkflowListsSchema,
     WorkflowSchema,
 )
@@ -62,6 +63,7 @@ __all__ = (
     "SubscriptionDomainModelSchema",
     "SubscriptionDescriptionBaseSchema",
     "SubscriptionDescriptionSchema",
+    "SubscriptionRelationSchema",
     "SubscriptionSchema",
     "SubscriptionWorkflowListsSchema",
     "SubscriptionIdSchema",
