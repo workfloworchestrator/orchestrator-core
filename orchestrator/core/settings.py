@@ -99,7 +99,6 @@ class AppSettings(BaseSettings):
     TRACING_ENABLED: bool = False
     TRACE_HOST: str = "http://localhost:4317"
     TRANSLATIONS_DIR: Path | None = None
-    WORKFLOW_GUIDE_DIR: Path | None = None
     WEBSOCKET_BROADCASTER_URL: SecretStr = "memory://"  # type: ignore
     ENABLE_WEBSOCKETS: bool = True
     DISABLE_INSYNC_CHECK: bool = False
