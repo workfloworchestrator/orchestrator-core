@@ -54,14 +54,18 @@ class WorkflowListItemSchema(OrchestratorBaseModel):
     usable_when: list[Any] | None = None
     status: str | None = None
     action: str | None = None
-    locked_relations: list[SubscriptionRelationSchema] | None = None
-    unterminated_parents: list[SubscriptionRelationSchema] | None = None
-    unterminated_in_use_by_subscriptions: list[SubscriptionRelationSchema] | None = None
+    locked_relations: list[UUID] | None = None
+    locked_relations_detail: list[SubscriptionRelationSchema] | None = None
+    unterminated_parents: list[UUID] | None = None
+    unterminated_parents_detail: list[SubscriptionRelationSchema] | None = None
+    unterminated_in_use_by_subscriptions: list[UUID] | None = None
+    unterminated_in_use_by_subscriptions_detail: list[SubscriptionRelationSchema] | None = None
 
 
 class SubscriptionWorkflowListsSchema(OrchestratorBaseModel):
     reason: str | None = None
-    locked_relations: list[SubscriptionRelationSchema] | None = None
+    locked_relations: list[UUID] | None = None
+    locked_relations_detail: list[SubscriptionRelationSchema] | None = None
     create: list[WorkflowListItemSchema]
     modify: list[WorkflowListItemSchema]
     terminate: list[WorkflowListItemSchema]

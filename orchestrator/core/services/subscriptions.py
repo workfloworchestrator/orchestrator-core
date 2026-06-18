@@ -545,7 +545,8 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
 
         if data["locked_relations"]:
             default_json["reason"] = "subscription.relations_not_in_sync"
-            default_json["locked_relations"] = data["locked_relations"]
+            default_json["locked_relations"] = [r.subscription_id for r in data["locked_relations"]]
+            default_json["locked_relations_detail"] = data["locked_relations"]
 
     workflows: dict[str, Any] = {
         "create": [],
@@ -584,8 +585,14 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
                 )
             if blocked_by_depends_on_subscriptions and data["unterminated_in_use_by_subscriptions"]:
                 workflow_json["reason"] = "subscription.no_modify_subscription_in_use_by_others"
-                workflow_json["unterminated_parents"] = data["unterminated_parents"]
-                workflow_json["unterminated_in_use_by_subscriptions"] = data["unterminated_in_use_by_subscriptions"]
+                workflow_json["unterminated_parents"] = [r.subscription_id for r in data["unterminated_parents"]]
+                workflow_json["unterminated_parents_detail"] = data["unterminated_parents"]
+                workflow_json["unterminated_in_use_by_subscriptions"] = [
+                    r.subscription_id for r in data["unterminated_in_use_by_subscriptions"]
+                ]
+                workflow_json["unterminated_in_use_by_subscriptions_detail"] = data[
+                    "unterminated_in_use_by_subscriptions"
+                ]
                 workflow_json["action"] = "terminated" if workflow.target == Target.TERMINATE else "modified"
 
         workflows[workflow.target.lower()].append(workflow_json)
