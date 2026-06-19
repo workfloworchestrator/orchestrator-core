@@ -149,14 +149,31 @@ def broadcast_invalidate_status_counts() -> None:
 def broadcast_process_update_to_websocket(
     process_id: UUID,
 ) -> None:
-    """Broadcast data of the current process to connected websocket clients."""
+    """Broadcast data of the current process to connected websocket clients.
+
+    This sync implementation mirrors broadcast_process_update_to_websocket_async but uses
+    sync_broadcast_invalidate_cache instead of anyio.run(async_fn) so it is safe to call
+    from ThreadPool workflow threads and Celery workers without nesting event loops or
+    database scopes.
+    """
     if not websocket_manager.enabled:
         logger.debug(
             "WebSocketManager is not enabled. Skip broadcasting through websocket.", process_id=str(process_id)
         )
         return
 
-    anyio.run(broadcast_process_update_to_websocket_async, process_id)
+    sync_broadcast_invalidate_cache({"type": "processes", "id": "LIST"})
+    sync_broadcast_invalidate_cache({"type": "processes", "id": str(process_id)})
+
+    with db.database_scope():
+        process = db.session.get(ProcessTable, process_id, options=[selectinload(ProcessTable.process_subscriptions)])
+        if process is not None and process.last_status in _TERMINAL_PROCESS_STATUSES:
+            subscription_ids = {ps.subscription_id for ps in process.process_subscriptions}
+        else:
+            subscription_ids = set()
+
+    for subscription_id in subscription_ids:
+        sync_broadcast_invalidate_cache({"type": "subscriptions", "id": str(subscription_id)})
 
 
 async def broadcast_process_update_to_websocket_async(

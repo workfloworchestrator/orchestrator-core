@@ -229,16 +229,60 @@ def test_broadcast_invalidate_status_counts_sync(mock_sync, enabled: bool, sync_
         pytest.param(False, id="disabled"),
     ],
 )
-@patch("orchestrator.core.websocket.anyio")
-def test_broadcast_process_update_sync(mock_anyio, enabled: bool):
+@patch("orchestrator.core.websocket.sync_broadcast_invalidate_cache")
+def test_broadcast_process_update_sync_disabled(mock_sync, enabled: bool):
     process_id = uuid4()
-    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm, patch(
+        "orchestrator.core.websocket.db"
+    ) as mock_db:
         mock_wsm.enabled = enabled
+        mock_db.database_scope.return_value.__enter__ = MagicMock(return_value=None)
+        mock_db.database_scope.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db.session.get.return_value = None
         broadcast_process_update_to_websocket(process_id)
         if enabled:
-            mock_anyio.run.assert_called_once_with(broadcast_process_update_to_websocket_async, process_id)
+            assert mock_sync.call_count == 2
+            mock_sync.assert_any_call({"type": "processes", "id": "LIST"})
+            mock_sync.assert_any_call({"type": "processes", "id": str(process_id)})
         else:
-            mock_anyio.run.assert_not_called()
+            mock_sync.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "last_status,expected_subscription_calls",
+    [
+        pytest.param(ProcessStatus.COMPLETED, 1, id="completed-invalidates-subscriptions"),
+        pytest.param(ProcessStatus.FAILED, 1, id="failed-invalidates-subscriptions"),
+        pytest.param(ProcessStatus.ABORTED, 1, id="aborted-invalidates-subscriptions"),
+        pytest.param(ProcessStatus.RUNNING, 0, id="running-no-subscription-invalidation"),
+        pytest.param(ProcessStatus.SUSPENDED, 0, id="suspended-no-subscription-invalidation"),
+    ],
+)
+@patch("orchestrator.core.websocket.sync_broadcast_invalidate_cache")
+def test_broadcast_process_update_sync_subscription_invalidation(
+    mock_sync, last_status: ProcessStatus, expected_subscription_calls: int
+):
+    process_id = uuid4()
+    subscription_id = uuid4()
+    mock_process = MagicMock()
+    mock_process.last_status = last_status
+    mock_subscription = MagicMock()
+    mock_subscription.subscription_id = subscription_id
+    mock_process.process_subscriptions = [mock_subscription]
+
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm, patch(
+        "orchestrator.core.websocket.db"
+    ) as mock_db:
+        mock_wsm.enabled = True
+        mock_db.database_scope.return_value.__enter__ = MagicMock(return_value=None)
+        mock_db.database_scope.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db.session.get.return_value = mock_process
+        broadcast_process_update_to_websocket(process_id)
+
+    # 2 process cache calls + subscription calls
+    assert mock_sync.call_count == 2 + expected_subscription_calls
+    if expected_subscription_calls:
+        mock_sync.assert_any_call({"type": "subscriptions", "id": str(subscription_id)})
 
 
 @pytest.mark.parametrize(
