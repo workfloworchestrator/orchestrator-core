@@ -46,7 +46,6 @@ from orchestrator.core.utils.json import json_dumps, json_loads
 from orchestrator.core.websocket import (
     broadcast_invalidate_status_counts,
     broadcast_process_update_to_websocket,
-    sync_invalidate_subscription_cache_by_id,
 )
 from orchestrator.core.workflow import (
     CALLBACK_TOKEN_KEY,
@@ -360,10 +359,6 @@ def _db_log_step(
 
     if broadcast_func:
         broadcast_func(p.process_id)
-
-    if p.last_status in TERMINAL_SUB_STATUSES:
-        for subscription_id in {ps.subscription_id for ps in p.process_subscriptions}:
-            sync_invalidate_subscription_cache_by_id(subscription_id)
 
     return process_state.__class__(current_step.state)
 
