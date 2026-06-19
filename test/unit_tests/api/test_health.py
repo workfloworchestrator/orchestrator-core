@@ -12,19 +12,18 @@
 # limitations under the License.
 
 from http import HTTPStatus
-from unittest import mock
+from unittest.mock import AsyncMock
 
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def test_get_health(test_client):
     response = test_client.get("/api/health/")
-    assert HTTPStatus.OK == response.status_code
+    assert response.status_code == HTTPStatus.OK
     assert response.json() == "OK"
 
 
-def test_get_health_no_connection(test_client):
-    with mock.patch.object(AsyncSession, "execute", side_effect=OperationalError("THIS", "IS", "KABOOM")):
-        response = test_client.get("/api/health/")
+def test_get_health_no_connection(test_client, mock_async_session: AsyncMock):
+    mock_async_session.execute.side_effect = OperationalError("THIS", "IS", "KABOOM")
+    response = test_client.get("/api/health/")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
