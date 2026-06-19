@@ -181,7 +181,9 @@ served.
 ##### Generating translations with the CLI
 
 When you scaffold a new product with `python main.py generate`, the generator
-automatically writes four workflow keys to `translations/en-GB.json`:
+automatically writes four workflow keys to `translations/en-GB.json`.  The
+target file can be changed by setting the `TRANSLATION_PATH` environment
+variable (default: `translations/en-GB.json`):
 
 | Key | Default value |
 |---|---|
