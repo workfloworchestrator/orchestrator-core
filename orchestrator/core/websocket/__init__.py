@@ -15,8 +15,10 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 import anyio
+from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
+from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.settings import AppSettings, app_settings
 from orchestrator.core.websocket.websocket_manager import WebSocketManager
 from orchestrator.core.workflow import ProcessStatus
@@ -32,6 +34,17 @@ class WS_CHANNELS:
     ALL_PROCESSES = "processes"
     ENGINE_SETTINGS = "engine-settings"
     EVENTS = "events"
+
+
+_TERMINAL_PROCESS_STATUSES = frozenset(
+    {
+        ProcessStatus.COMPLETED,
+        ProcessStatus.FAILED,
+        ProcessStatus.INCONSISTENT_DATA,
+        ProcessStatus.API_UNAVAILABLE,
+        ProcessStatus.ABORTED,
+    }
+)
 
 
 async def empty_fn(*args: tuple, **kwargs: dict[str, Any]) -> None:
@@ -107,10 +120,6 @@ async def invalidate_subscription_cache(subscription_id: UUID | UUIDstr, invalid
     await broadcast_invalidate_cache({"type": "subscriptions", "id": str(subscription_id)})
 
 
-def sync_invalidate_subscription_cache_by_id(subscription_id: UUID | UUIDstr) -> None:
-    anyio.run(invalidate_subscription_cache_by_id, subscription_id)
-
-
 async def invalidate_subscription_cache_by_id(subscription_id: UUID | UUIDstr) -> None:
     await broadcast_invalidate_cache({"type": "subscriptions", "id": str(subscription_id)})
 
@@ -147,8 +156,7 @@ def broadcast_process_update_to_websocket(
         )
         return
 
-    sync_broadcast_invalidate_cache({"type": "processes", "id": "LIST"})
-    sync_broadcast_invalidate_cache({"type": "processes", "id": str(process_id)})
+    anyio.run(broadcast_process_update_to_websocket_async, process_id)
 
 
 async def broadcast_process_update_to_websocket_async(
@@ -162,6 +170,16 @@ async def broadcast_process_update_to_websocket_async(
 
     await broadcast_invalidate_cache({"type": "processes", "id": "LIST"})
     await broadcast_invalidate_cache({"type": "processes", "id": str(process_id)})
+
+    with db.database_scope():
+        process = db.session.get(ProcessTable, process_id, options=[selectinload(ProcessTable.process_subscriptions)])
+        if process is not None and process.last_status in _TERMINAL_PROCESS_STATUSES:
+            subscription_ids = {ps.subscription_id for ps in process.process_subscriptions}
+        else:
+            subscription_ids = set()
+
+    for subscription_id in subscription_ids:
+        await invalidate_subscription_cache_by_id(subscription_id)
 
 
 __all__ = [

@@ -223,18 +223,22 @@ def test_broadcast_invalidate_status_counts_sync(mock_sync, enabled: bool, sync_
 
 
 @pytest.mark.parametrize(
-    "enabled,expected_call_count",
+    "enabled",
     [
-        pytest.param(True, 2, id="enabled"),
-        pytest.param(False, 0, id="disabled"),
+        pytest.param(True, id="enabled"),
+        pytest.param(False, id="disabled"),
     ],
 )
-@patch("orchestrator.core.websocket.sync_broadcast_invalidate_cache")
-def test_broadcast_process_update_sync(mock_sync, enabled: bool, expected_call_count: int):
+@patch("orchestrator.core.websocket.anyio")
+def test_broadcast_process_update_sync(mock_anyio, enabled: bool):
+    process_id = uuid4()
     with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
         mock_wsm.enabled = enabled
-        broadcast_process_update_to_websocket(uuid4())
-        assert mock_sync.call_count == expected_call_count
+        broadcast_process_update_to_websocket(process_id)
+        if enabled:
+            mock_anyio.run.assert_called_once_with(broadcast_process_update_to_websocket_async, process_id)
+        else:
+            mock_anyio.run.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -246,9 +250,14 @@ def test_broadcast_process_update_sync(mock_sync, enabled: bool, expected_call_c
 )
 @pytest.mark.asyncio
 async def test_broadcast_process_update_async(enabled: bool, expected_call_count: int):
-    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm, patch(
+        "orchestrator.core.websocket.db"
+    ) as mock_db:
         mock_wsm.enabled = enabled
         mock_wsm.broadcast_data = AsyncMock()
+        mock_db.database_scope.return_value.__enter__ = MagicMock(return_value=None)
+        mock_db.database_scope.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db.session.get.return_value = None
         await broadcast_process_update_to_websocket_async(uuid4())
         assert mock_wsm.broadcast_data.await_count == expected_call_count
 
