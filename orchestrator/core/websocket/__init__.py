@@ -124,6 +124,10 @@ async def invalidate_subscription_cache_by_id(subscription_id: UUID | UUIDstr) -
     await broadcast_invalidate_cache({"type": "subscriptions", "id": str(subscription_id)})
 
 
+def sync_invalidate_subscription_cache_by_id(subscription_id: UUID | UUIDstr) -> None:
+    anyio.run(invalidate_subscription_cache_by_id, subscription_id)
+
+
 async def broadcast_invalidate_status_counts_async() -> None:
     """Broadcast message to invalidate the status counts of the connected websocket clients.
 
