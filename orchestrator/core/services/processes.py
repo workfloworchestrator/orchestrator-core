@@ -84,6 +84,16 @@ START_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be started because it h
 RESUME_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be resumed because it has been removed"
 
 
+def _safe_broadcast_process_update(process_id: UUID, broadcast_func: BroadcastFunc | None) -> None:
+    if not broadcast_func:
+        return
+
+    try:
+        broadcast_func(process_id)
+    except Exception:
+        logger.exception("Failed to broadcast process update", process_id=process_id)
+
+
 def get_execution_context() -> dict[ExecutorFunction, Callable]:
     if app_settings.EXECUTOR == ExecutorType.WORKER:
         from orchestrator.core.services.executors.celery import CELERY_EXECUTION_CONTEXT
@@ -428,7 +438,7 @@ def _get_process(process_id: UUID) -> ProcessTable:
     return process
 
 
-def _run_process_async(process_id: UUID, f: Callable) -> UUID:
+def _run_process_async(process_id: UUID, f: Callable, broadcast_func: BroadcastFunc | None = None) -> UUID:
 
     def run() -> WFProcess:
         with _ActiveJobTracker():
@@ -443,6 +453,7 @@ def _run_process_async(process_id: UUID, f: Callable) -> UUID:
                         raise
                     finally:
                         db.session.commit()
+                    _safe_broadcast_process_update(process_id, broadcast_func)
             except Exception as ex:
                 # We lost access to database here, so we can only log
                 logger.exception("Unknown workflow failure", process_id=process_id)

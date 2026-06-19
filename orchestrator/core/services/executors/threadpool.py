@@ -96,7 +96,7 @@ def thread_start_process(
     # Trigger the task in the current thread or threadpool (depends on executor mode).
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
+    return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func), broadcast_func)
 
 
 def thread_resume_process(
@@ -137,7 +137,7 @@ def thread_resume_process(
 
     # Trigger the task in the current thread or threadpool (depends on executor mode).
     _safe_logstep_prep = partial(safe_logstep, broadcast_func=broadcast_func)
-    _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_prep))
+    _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_prep), broadcast_func)
     return pstat.process_id
 
 

@@ -659,6 +659,59 @@ def process_with_subscription(simple_workflow, generic_subscription_1):
     return process_id, generic_subscription_1
 
 
+def test_run_process_async_broadcasts_after_status_commit(simple_workflow):
+    """The final workflow broadcast must see the committed terminal process status.
+
+    The websocket broadcast path opens a fresh DB scope to decide whether subscription caches
+    should be invalidated. If the callback runs before commit, that scope still sees RUNNING and
+    skips the terminal invalidation, leaving the UI with a stale running status.
+    """
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.RUNNING,
+        created_by=SYSTEM_USER,
+    )
+    db.session.add(p)
+    db.session.commit()
+
+    observed_statuses = []
+
+    def broadcast_func(broadcast_process_id):
+        with db.database_scope():
+            process = db.session.get(ProcessTable, broadcast_process_id)
+            observed_statuses.append(process.last_status)
+
+    def run_func():
+        process = db.session.get(ProcessTable, process_id)
+        process.last_status = ProcessStatus.COMPLETED
+        return Complete({"foo": "bar"})
+
+    _run_process_async(process_id, run_func, broadcast_func=broadcast_func)
+
+    assert observed_statuses == [ProcessStatus.COMPLETED]
+
+
+def test_run_process_async_swallows_final_broadcast_exception(simple_workflow):
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.RUNNING,
+        created_by=SYSTEM_USER,
+    )
+    db.session.add(p)
+    db.session.commit()
+
+    def run_func():
+        process = db.session.get(ProcessTable, process_id)
+        process.last_status = ProcessStatus.COMPLETED
+        return Complete({"foo": "bar"})
+
+    _run_process_async(process_id, run_func, broadcast_func=MagicMock(side_effect=RuntimeError("websocket failed")))
+
+
 @pytest.mark.parametrize(
     "terminal_status",
     [
@@ -695,7 +748,9 @@ async def test_broadcast_process_update_async_invalidates_subscription_cache_on_
 
         await broadcast_process_update_to_websocket_async(process_id)
 
-    mock_invalidate.assert_called_once_with(subscription_id)
+    mock_invalidate.assert_called_once()
+    (called_subscription_id,) = mock_invalidate.call_args.args
+    assert str(called_subscription_id) == str(subscription_id)
 
 
 @pytest.mark.parametrize(
