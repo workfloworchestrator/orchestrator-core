@@ -43,11 +43,11 @@ re-injects it. See https://github.com/jlowin/fastmcp/issues/2817.
 Transport: streamable HTTP.
 """
 
+from itertools import chain
 from typing import TYPE_CHECKING, Any
 
 import httpx
 from fastapi import FastAPI
-from fastapi.routing import APIRoute
 from starlette.applications import Starlette
 
 if TYPE_CHECKING:
@@ -130,20 +130,28 @@ def _humanize(name: str) -> str:
 def _build_component_fn(app: FastAPI) -> Any:
     """Return a fastmcp ``mcp_component_fn`` that applies per-route ``ToolAnnotations``.
 
-    Builds an ``operation_id -> x-mcp-annotations`` lookup from the app's routes
-    (the hints each route declared via ``openapi_extra``), then returns a callback
-    fastmcp invokes per generated tool. Each tool's ``annotations`` are built from
-    its route's hints, defaulting ``title`` to a humanized operation_id.
+    Builds an ``operation_id -> x-mcp-annotations`` lookup from the app's OpenAPI
+    spec (where each route's ``openapi_extra`` hints land verbatim), then returns a
+    callback fastmcp invokes per generated tool. Each tool's ``annotations`` are
+    built from its route's hints, defaulting ``title`` to a humanized operation_id.
+
+    The lookup is sourced from ``app.openapi()`` rather than by walking
+    ``app.routes``: as of FastAPI 0.138 ``include_router`` mounts routes lazily
+    behind an internal ``_IncludedRouter`` wrapper, so ``app.routes`` no longer
+    yields the included ``APIRoute`` objects. The OpenAPI spec is the stable,
+    public surface that carries both the ``operationId`` and the ``x-mcp-annotations``
+    extension.
     """
     from mcp.types import ToolAnnotations
 
-    hints_by_op_id: dict[str, dict[str, Any]] = {}
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
-            continue
-        hints = (route.openapi_extra or {}).get(MCP_ANNOTATIONS_EXTENSION)
-        if hints:
-            hints_by_op_id[route.operation_id or route.name] = hints
+    # Flatten ``paths -> {method: operation}`` into operation dicts; skip path-level
+    # entries like ``parameters`` (a list) that aren't operations.
+    operations = chain.from_iterable(methods.values() for methods in app.openapi()["paths"].values())
+    hints_by_op_id: dict[str, dict[str, Any]] = {
+        operation["operationId"]: operation[MCP_ANNOTATIONS_EXTENSION]
+        for operation in operations
+        if isinstance(operation, dict) and operation.get(MCP_ANNOTATIONS_EXTENSION) and operation.get("operationId")
+    }
 
     def apply(route: Any, component: Any) -> None:
         name = getattr(component, "name", None)
