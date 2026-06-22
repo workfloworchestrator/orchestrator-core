@@ -77,20 +77,35 @@ EXPECTED_TOOL_NAMES = {
 }
 
 
-def _agent_tagged_routes(app: FastAPI) -> dict[str, str]:
-    """Return ``{operation_id: path}`` for every route tagged ``AGENT_EXPOSED_TAG``.
+# OpenAPI path-item keys that describe an actual operation (vs. ``parameters`` etc.).
+_HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 
-    Iterates the merged FastAPI route table (covers both APIRouter-included
-    routes and routes added via ``@app.router.get`` etc.).
+
+def _exposed_operations(app: FastAPI) -> list[tuple[str, str, dict]]:
+    """Yield ``(path, method, operation)`` for every operation tagged ``AGENT_EXPOSED_TAG``.
+
+    Reads the generated OpenAPI spec rather than walking ``app.routes`` directly.
+    As of FastAPI 0.138 ``include_router`` mounts routes lazily behind an internal
+    ``_IncludedRouter`` wrapper, so ``app.routes`` no longer yields the flattened
+    ``APIRoute`` objects. The agent tag lands unchanged in the OpenAPI spec, which
+    is the stable, public contract that downstream consumers — including
+    ``FastMCP.from_fastapi`` — actually read.
     """
+    return [
+        (path, method, operation)
+        for path, methods in app.openapi()["paths"].items()
+        for method, operation in methods.items()
+        if method in _HTTP_METHODS and AGENT_EXPOSED_TAG in (operation.get("tags") or [])
+    ]
+
+
+def _agent_tagged_routes(app: FastAPI) -> dict[str, str]:
+    """Return ``{operation_id: path}`` for every operation tagged ``AGENT_EXPOSED_TAG``."""
     out: dict[str, str] = {}
-    for route in app.routes:
-        tags = getattr(route, "tags", None) or []
-        if AGENT_EXPOSED_TAG in tags:
-            op_id = getattr(route, "operation_id", None)
-            path = getattr(route, "path", "")
-            assert op_id, f"agent-exposed route {path!r} is missing operation_id"
-            out[op_id] = path
+    for path, _method, operation in _exposed_operations(app):
+        op_id = operation.get("operationId")
+        assert op_id, f"agent-exposed route {path!r} is missing operationId"
+        out[op_id] = path
     return out
 
 
@@ -207,14 +222,18 @@ async def test_all_tools_have_title_and_closed_world(app_with_agent_routes: Fast
 
 
 def test_exposed_routes_have_docstrings(app_with_agent_routes: FastAPI) -> None:
-    """Every agent-exposed route has a non-empty docstring (its MCP tool description)."""
+    """Every agent-exposed route has a non-empty docstring (its MCP tool description).
+
+    FastAPI surfaces the endpoint docstring as the OpenAPI operation
+    ``description``, which is what ``FastMCP.from_fastapi`` turns into the tool
+    description.
+    """
     missing = [
-        getattr(route, "path", "")
-        for route in app_with_agent_routes.routes
-        if (AGENT_EXPOSED_TAG in (getattr(route, "tags", None) or []))
-        and not ((getattr(getattr(route, "endpoint", None), "__doc__", "") or "").strip())
+        path
+        for path, _method, operation in _exposed_operations(app_with_agent_routes)
+        if not (operation.get("description") or "").strip()
     ]
-    assert not missing, f"agent-exposed routes missing a docstring: {missing}"
+    assert missing == [], f"agent-exposed routes missing a docstring: {missing}"
 
 
 _BOGUS_FILTER = {
