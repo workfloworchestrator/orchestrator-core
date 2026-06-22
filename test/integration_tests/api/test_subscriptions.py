@@ -532,6 +532,10 @@ def test_in_use_by_subscriptions_not_insync(seed, test_client):
     assert "reason" in insync_info
     assert len(insync_info["locked_relations"]) == 1
     assert insync_info["locked_relations"][0] == SERVICE_SUBSCRIPTION_ID
+    assert insync_info["locked_relations_detail"][0] == {
+        "subscription_id": SERVICE_SUBSCRIPTION_ID,
+        "subscription_description": "desc",
+    }
 
 
 def test_in_use_by_subscriptions_insync(seed, test_client):
@@ -556,6 +560,10 @@ def test_depends_on_subscriptions_not_insync(seed, test_client):
     assert "reason" in insync_info
     assert len(insync_info["locked_relations"]) == 1
     assert insync_info["locked_relations"][0] == PORT_A_SUBSCRIPTION_ID
+    assert insync_info["locked_relations_detail"][0] == {
+        "subscription_id": PORT_A_SUBSCRIPTION_ID,
+        "subscription_description": "desc",
+    }
 
 
 def test_depends_on_subscriptions_insync(seed, test_client):
@@ -580,6 +588,10 @@ def test_in_use_by_subscriptions_not_insync_direct_relations(seed_with_direct_re
     assert "reason" in insync_info
     assert len(insync_info["locked_relations"]) == 1
     assert insync_info["locked_relations"][0] == SERVICE_SUBSCRIPTION_ID
+    assert insync_info["locked_relations_detail"][0] == {
+        "subscription_id": SERVICE_SUBSCRIPTION_ID,
+        "subscription_description": "desc",
+    }
 
 
 def test_depends_on_subscriptions_not_insync_direct_relations(seed_with_direct_relations, test_client):
@@ -595,6 +607,10 @@ def test_depends_on_subscriptions_not_insync_direct_relations(seed_with_direct_r
     assert "reason" in insync_info
     assert len(insync_info["locked_relations"]) == 1
     assert insync_info["locked_relations"][0] == PORT_A_SUBSCRIPTION_ID
+    assert insync_info["locked_relations_detail"][0] == {
+        "subscription_id": PORT_A_SUBSCRIPTION_ID,
+        "subscription_description": "desc",
+    }
 
 
 def test_depends_on_subscriptions_insync_direct_relations(seed_with_direct_relations, test_client):

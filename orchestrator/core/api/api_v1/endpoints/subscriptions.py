@@ -51,7 +51,6 @@ from orchestrator.core.services.subscriptions import (
 from orchestrator.core.settings import app_settings
 from orchestrator.core.targets import Target
 from orchestrator.core.utils.auth import AuthContext
-from orchestrator.core.utils.deprecation_logger import deprecated_endpoint
 from orchestrator.core.utils.get_subscription_dict import get_subscription_dict
 from orchestrator.core.websocket import sync_invalidate_subscription_cache
 from orchestrator.core.workflows import get_workflow
@@ -182,9 +181,6 @@ def subscriptions_search(
     response_model=SubscriptionWorkflowListsSchema,
     response_model_by_alias=True,
     response_model_exclude_none=True,
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
 )
 def subscription_workflows_by_id(
     subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate)

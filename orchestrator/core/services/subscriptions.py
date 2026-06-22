@@ -21,7 +21,6 @@ from hashlib import md5
 from typing import Any, TypeVar, overload
 from uuid import UUID
 
-import more_itertools
 import structlog
 from more_itertools import first
 from sqlalchemy import Text, cast, not_, select
@@ -48,6 +47,7 @@ from orchestrator.core.db.queries.subscription import (
 )
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.domain.context_cache import cache_subscription_models
+from orchestrator.core.schemas.workflow import SubscriptionRelationSchema
 from orchestrator.core.targets import Target
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.utils.datetime import nowtz
@@ -431,26 +431,24 @@ def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[
     )
 
 
-def _terminated_filter(query: Query) -> list[UUID]:
-    return list(
-        more_itertools.flatten(
-            query.filter(SubscriptionTable.status != "terminated").with_entities(SubscriptionTable.subscription_id)
-        )
+def _terminated_filter(query: Query) -> list[SubscriptionRelationSchema]:
+    rows = query.filter(SubscriptionTable.status != "terminated").with_entities(
+        SubscriptionTable.subscription_id, SubscriptionTable.description
     )
+    return [SubscriptionRelationSchema(subscription_id=row[0], subscription_description=row[1]) for row in rows]
 
 
-def _in_sync_filter(query: Query) -> list[UUID]:
-    return list(
-        more_itertools.flatten(
-            query.filter(not_(SubscriptionTable.insync)).with_entities(SubscriptionTable.subscription_id)
-        )
+def _in_sync_filter(query: Query) -> list[SubscriptionRelationSchema]:
+    rows = query.filter(not_(SubscriptionTable.insync)).with_entities(
+        SubscriptionTable.subscription_id, SubscriptionTable.description
     )
+    return [SubscriptionRelationSchema(subscription_id=row[0], subscription_description=row[1]) for row in rows]
 
 
 RELATION_RESOURCE_TYPES: list[str] = []
 
 
-def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[UUID]]:
+def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[SubscriptionRelationSchema]]:
     """Return info about locked subscription dependencies.
 
     This call will be used by the client to determine if it's safe to
@@ -465,7 +463,7 @@ def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[U
 
     """
     if not subscription:
-        return {"locked_relations": [], "unterminated_parents": [], "unterminated_in_use_by_subscriptions": []}
+        return {"locked_relations": [], "unterminated_in_use_by_subscriptions": []}
     in_use_by_query = query_in_use_by_subscriptions(subscription.subscription_id)
 
     unterminated_in_use_by_subscriptions = _terminated_filter(in_use_by_query)
@@ -477,7 +475,6 @@ def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[U
 
     result = {
         "locked_relations": locked_in_use_by_block_relations + locked_depends_on_block_relations,
-        "unterminated_parents": unterminated_in_use_by_subscriptions,
         "unterminated_in_use_by_subscriptions": unterminated_in_use_by_subscriptions,
     }
 
@@ -489,7 +486,7 @@ def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[U
     return result
 
 
-def get_relations(subscription_id: UUIDstr) -> dict[str, list[UUID]]:
+def get_relations(subscription_id: UUIDstr) -> dict[str, list[SubscriptionRelationSchema]]:
     subscription_table = db.session.get(
         SubscriptionTable,
         subscription_id,
@@ -547,7 +544,8 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
 
         if data["locked_relations"]:
             default_json["reason"] = "subscription.relations_not_in_sync"
-            default_json["locked_relations"] = data["locked_relations"]
+            default_json["locked_relations"] = [r.subscription_id for r in data["locked_relations"]]
+            default_json["locked_relations_detail"] = data["locked_relations"]
 
     workflows: dict[str, Any] = {
         "create": [],
@@ -586,8 +584,12 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
                 )
             if blocked_by_depends_on_subscriptions and data["unterminated_in_use_by_subscriptions"]:
                 workflow_json["reason"] = "subscription.no_modify_subscription_in_use_by_others"
-                workflow_json["unterminated_parents"] = data["unterminated_parents"]
-                workflow_json["unterminated_in_use_by_subscriptions"] = data["unterminated_in_use_by_subscriptions"]
+                workflow_json["unterminated_in_use_by_subscriptions"] = [
+                    r.subscription_id for r in data["unterminated_in_use_by_subscriptions"]
+                ]
+                workflow_json["unterminated_in_use_by_subscriptions_detail"] = data[
+                    "unterminated_in_use_by_subscriptions"
+                ]
                 workflow_json["action"] = "terminated" if workflow.target == Target.TERMINATE else "modified"
 
         workflows[workflow.target.lower()].append(workflow_json)
