@@ -43,7 +43,11 @@ from orchestrator.core.types import BroadcastFunc
 from orchestrator.core.utils.datetime import nowtz
 from orchestrator.core.utils.errors import StartPredicateError, error_state_to_dict
 from orchestrator.core.utils.json import json_dumps, json_loads
-from orchestrator.core.websocket import broadcast_invalidate_status_counts, broadcast_process_update_to_websocket
+from orchestrator.core.websocket import (
+    broadcast_invalidate_status_counts,
+    broadcast_process_update_to_websocket,
+    sync_invalidate_subscription_cache_by_id,
+)
 from orchestrator.core.workflow import (
     CALLBACK_TOKEN_KEY,
     DEFAULT_CALLBACK_PROGRESS_KEY,
@@ -72,6 +76,20 @@ logger = structlog.get_logger(__name__)
 StateMerger = Merger([(dict, ["merge"])], ["override"], ["override"])
 
 SYSTEM_USER = "SYSTEM"
+
+# Terminal process statuses. Every in-step cache invalidation (`unsync`/`resync`) runs while the
+# process is still RUNNING, so the cache never reflects the terminal status: `done` sets COMPLETED
+# without invalidating, and failed/aborted processes skip `resync` entirely. `_db_log_step` re-issues
+# the invalidation when a process reaches one of these to avoid a stale UI.
+TERMINAL_SUB_STATUSES = frozenset(
+    {
+        ProcessStatus.COMPLETED,
+        ProcessStatus.FAILED,
+        ProcessStatus.INCONSISTENT_DATA,
+        ProcessStatus.API_UNAVAILABLE,
+        ProcessStatus.ABORTED,
+    }
+)
 
 _workflow_executor = None
 _active_threadpool_jobs = 0
@@ -342,6 +360,10 @@ def _db_log_step(
 
     if broadcast_func:
         broadcast_func(p.process_id)
+
+    if p.last_status in TERMINAL_SUB_STATUSES:
+        for subscription_id in {ps.subscription_id for ps in p.process_subscriptions}:
+            sync_invalidate_subscription_cache_by_id(subscription_id)
 
     return process_state.__class__(current_step.state)
 

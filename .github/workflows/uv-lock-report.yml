@@ -13,10 +13,10 @@ jobs:
   report:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: mw-root/uv-lock-report@v0.13.1
+      - uses: mw-root/uv-lock-report@v0.14.0
         with:
           output-format: "table"
           github-token: ${{ secrets.GITHUB_TOKEN }}

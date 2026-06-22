@@ -460,7 +460,7 @@ def fastapi_app_graphql(fastapi_app):
 
 
 class JsonTestClient(TestClient):
-    def request(  # type: ignore
+    def request(
         self,
         method: str,
         url: str,
@@ -475,7 +475,7 @@ class JsonTestClient(TestClient):
             data = json_dumps(json).encode()
             headers["Content-Type"] = "application/json"
 
-        return super().request(method, url, data=data, headers=headers, **kwargs)  # type: ignore
+        return super().request(method, url, data=data, headers=headers, **kwargs)
 
 
 @pytest.fixture(scope="session")

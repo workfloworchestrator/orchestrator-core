@@ -46,13 +46,13 @@ jobs:
 
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install uv and set the python version
         uses: astral-sh/setup-uv@v8.2.0
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.11.19"
+          version: "0.11.23"
           python-version: ${{ matrix.python-version }}
 
       - name: Install project and dependencies
@@ -84,7 +84,7 @@ jobs:
         run: apt-get update && apt-get install -y git curl gpg
 
       - name: "Upload coverage to Codecov"
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
