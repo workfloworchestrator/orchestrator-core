@@ -51,12 +51,13 @@ def _maybe_progress(show_progress: bool, total_count: int | None, label: str) ->
     if show_progress:
         import typer
 
-        with typer.progressbar(
+        bar: Any = typer.progressbar(
             length=total_count,
             label=label,
             show_eta=True,
             show_percent=bool(total_count),
-        ) as progress:
+        )
+        with bar as progress:
             yield progress
     else:
         yield None
