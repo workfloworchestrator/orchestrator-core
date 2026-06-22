@@ -85,6 +85,16 @@ def test_structured_retriever_with_order_by(candidate_query, query_id, request):
     assert_sql_matches_snapshot("StructuredRetriever.test_basic_query_structure_with_order_by", sql, request)
 
 
+def test_structured_retriever_pagination_with_order_by(candidate_query, query_id, request):
+    """Test pagination with order_by uses composite keyset condition instead of entity_id-only."""
+    order_by = StructuredOrderBy(element="subscription.description", direction=OrderDirection.ASC)
+    cursor = PageCursor(score=1.0, id="test-id-123", query_id=query_id, order_value="some-value")
+    retriever = StructuredRetriever(cursor=cursor, order_by=order_by)
+    query = retriever.apply(candidate_query)
+    sql = compile_query_to_sql(query)
+    assert_sql_matches_snapshot("StructuredRetriever.test_pagination_with_order_by", sql, request)
+
+
 @pytest.mark.parametrize(
     "retriever_factory,expected_search_type",
     [

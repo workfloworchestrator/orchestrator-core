@@ -43,16 +43,20 @@ def _make_page_cursor(
     score: float = _SAMPLE_SCORE,
     entity_id: str = _SAMPLE_ENTITY_ID,
     query_id: UUID = _SAMPLE_UUID,
+    order_value: str | None = None,
 ) -> PageCursor:
-    return PageCursor(score=score, id=entity_id, query_id=query_id)
+    return PageCursor(score=score, id=entity_id, query_id=query_id, order_value=order_value)
 
 
-def _make_search_result(entity_id: str = _SAMPLE_ENTITY_ID, score: float = 0.8) -> SearchResult:
+def _make_search_result(
+    entity_id: str = _SAMPLE_ENTITY_ID, score: float = 0.8, order_value: str | None = None
+) -> SearchResult:
     return SearchResult(
         entity_id=entity_id,
         entity_type=EntityType.SUBSCRIPTION,
         entity_title="Test Entity",
         score=score,
+        order_value=order_value,
     )
 
 
@@ -250,3 +254,60 @@ def test_subsequent_page_ignores_query_argument():
 
     decoded = PageCursor.decode(encoded)
     assert decoded.query_id == existing_query_id
+
+
+# ---------------------------------------------------------------------------
+# PageCursor.order_value roundtrip
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "order_value",
+    [
+        pytest.param("2024-01-15", id="date_string"),
+        pytest.param("some-uuid-value", id="uuid_string"),
+        pytest.param(None, id="no_order_value"),
+    ],
+)
+def test_encode_decode_roundtrip_with_order_value(order_value):
+    """order_value survives encode/decode roundtrip."""
+    cursor = _make_page_cursor(order_value=order_value)
+    decoded = PageCursor.decode(cursor.encode())
+    assert decoded.order_value == order_value
+
+
+# ---------------------------------------------------------------------------
+# encode_next_page_cursor — order_by integration
+# ---------------------------------------------------------------------------
+
+
+def test_cursor_includes_order_value_when_query_has_order_by():
+    """When query has order_by, cursor captures the last item's order_value."""
+    result_item = _make_search_result(entity_id="entity-001", order_value="2024-03-01")
+    response = _make_search_response([result_item], has_more=True)
+
+    query_mock = MagicMock()
+    query_mock.order_by = MagicMock()  # truthy — order_by is set
+
+    with patch("orchestrator.core.search.query.state.QueryState") as mock_qs:
+        mock_qs.return_value.save.return_value = uuid4()
+        encoded = encode_next_page_cursor(response, cursor=None, query=query_mock)
+
+    decoded = PageCursor.decode(encoded)
+    assert decoded.order_value == "2024-03-01"
+
+
+def test_cursor_order_value_is_none_when_query_has_no_order_by():
+    """When query has no order_by, cursor.order_value is None."""
+    result_item = _make_search_result(entity_id="entity-002")
+    response = _make_search_response([result_item], has_more=True)
+
+    query_mock = MagicMock()
+    query_mock.order_by = None
+
+    with patch("orchestrator.core.search.query.state.QueryState") as mock_qs:
+        mock_qs.return_value.save.return_value = uuid4()
+        encoded = encode_next_page_cursor(response, cursor=None, query=query_mock)
+
+    decoded = PageCursor.decode(encoded)
+    assert decoded.order_value is None
