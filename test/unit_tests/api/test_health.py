@@ -24,6 +24,6 @@ def test_get_health(test_client):
 
 
 def test_get_health_no_connection(test_client, mock_async_session: AsyncMock):
-    mock_async_session.execute.side_effect = OperationalError("THIS", "IS", "KABOOM")
+    mock_async_session.execute.side_effect = OperationalError("THIS", "IS", Exception("KABOOM"))
     response = test_client.get("/api/health/")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR

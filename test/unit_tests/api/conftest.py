@@ -37,7 +37,7 @@ from orchestrator.core.db import get_async_session
 
 
 @contextmanager
-def _noop_database_scope(**kwargs):  # type: ignore[misc]
+def _noop_database_scope(**kwargs):
     yield
 
 
