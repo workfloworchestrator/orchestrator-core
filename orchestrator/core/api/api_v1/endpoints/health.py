@@ -14,12 +14,14 @@
 from http import HTTPStatus
 
 import structlog
+from fastapi import Depends
 from fastapi.routing import APIRouter
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import ProductTable, db
+from orchestrator.core.db import ProductTable, get_async_session
 
 logger = structlog.get_logger(__name__)
 
@@ -27,10 +29,10 @@ router = APIRouter()
 
 
 @router.get("/", response_model=str)
-def get_health() -> str:
+async def get_health(session: AsyncSession = Depends(get_async_session)) -> str:
     try:
         stmt = select(ProductTable.name).limit(1)
-        db.session.execute(stmt)
+        await session.execute(stmt)
     except OperationalError as e:
         logger.warning("Health endpoint returned: notok!")
         logger.debug("Health endpoint error details", error=str(e))

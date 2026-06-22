@@ -62,7 +62,7 @@ dependencies = [
     "redis==8.0.0",
     "semver==3.0.4",
     "sentry-sdk[fastapi]>=2.29.1",
-    "sqlalchemy==2.0.51",
+    "sqlalchemy[asyncio]==2.0.51",
     "sqlalchemy-utils==0.42.1",
     "strawberry-graphql>=0.311.3",
     "structlog>=25.4.0",
@@ -109,7 +109,7 @@ dev = [
     "dirty-equals>=0.9.0",
     "inline-snapshot>=0.32.4",
     "jsonref>=1.1.0",
-    "mypy>=1.19",
+    "mypy>=1.19,<2.0",
     "mypy-extensions>=1.1.0",
     "pre-commit>=4.2.0",
     "pydocstyle>=6.3.0",
@@ -190,7 +190,7 @@ ignore = [
     "N815",
     "N802",
 ]
-select = ["B", "C", "D", "E", "F", "I", "N", "RET", "S", "T", "W"]
+select = ["ASYNC", "B", "C", "D", "E", "F", "I", "N", "RET", "S", "T", "W"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -200,6 +200,7 @@ ban-relative-imports = "all"
 "orchestrator/core/api/*" = ["B008"]
 "orchestrator/core/cli/*" = ["B008"]
 "orchestrator/core/devtools/scripts/*" = ["S101", "T201"]
+"test/acceptance_tests/search/llm/scripts/*" = ["ASYNC"]
 "orchestrator/core/search/llm_migration.py" = ["S608"]
 "test/*" = ["S101", "B033", "N816", "N802", "T201"]
 
