@@ -110,3 +110,93 @@ c112305b07d3 -> a76b9185b334 (schema), Add generic workflows to core.
 The `products`, `workflows` and `translations` folders are either created by
 hand, or when the `python main.py generate --help` commands are used in
 combination with product templates, will be created automatically.
+
+#### Translations folder
+
+The `translations` folder holds locale files consumed by the orchestrator UI.
+Each file is named after a language tag in the form `language-REGION.json`, e.g. `en-GB.json`.
+
+```text
+translations/
+└── en-GB.json
+```
+
+The file contains two top-level sections:
+
+- **`forms.fields`** — human-readable labels and helper text for form fields
+  displayed in the UI.
+- **`workflow`** — display names for every workflow registered in the
+  orchestrator.  The key is the workflow's internal name (the value passed to
+  `@workflow`) and the value is the label shown in the UI.
+
+A minimal example:
+
+```json
+{
+    "forms": {
+        "fields": {
+            "subscription_id": "Subscription",
+            "subscription_id_info": "The subscription for this action"
+        }
+    },
+    "workflow": {
+        "create_node": "Create Node",
+        "modify_node": "Modify Node",
+        "terminate_node": "Terminate Node",
+        "validate_node": "Validate Node"
+    }
+}
+```
+
+##### Merging with core translations
+
+orchestrator-core ships its own locale files for built-in workflows and form
+fields (e.g. `task_clean_up_tasks`, `note`).  At runtime, `generate_translations`
+deep-merges the core file with the application's file: keys present in the
+application file override core keys, and any additional keys are added on top.
+This means you only need to define translations for your own products and
+workflows; core translations are inherited automatically.
+
+The merged translations are served by the REST API at:
+
+```
+GET /api/v1/translations/{language}
+```
+
+where `{language}` is a `language-REGION` tag (e.g. `en-GB`).
+
+##### Pointing the orchestrator at your translations folder
+
+Set `TRANSLATIONS_DIR` in your application settings to the directory that
+contains your locale files:
+
+```python
+# main.py / settings
+app_settings.TRANSLATIONS_DIR = Path("translations")
+```
+
+If `TRANSLATIONS_DIR` is `None` (the default) only the core translations are
+served.
+
+##### Generating translations with the CLI
+
+When you scaffold a new product with `python main.py generate`, the generator
+automatically writes four workflow keys to `translations/en-GB.json`.  The
+target file can be changed by setting the `TRANSLATION_PATH` environment
+variable (default: `translations/en-GB.json`):
+
+| Key | Default value |
+|---|---|
+| `create_{variable}` | `Create {Name}` |
+| `modify_{variable}` | `Modify {Name}` |
+| `validate_{variable}` | `Validate {Name}` |
+| `terminate_{variable}` | `Terminate {Name}` |
+
+If the file does not exist yet, the generator creates it.
+
+##### Translation validation
+
+The built-in `task_validate_products` task checks that every workflow
+registered in the orchestrator has a corresponding key in the `workflow`
+section of the `en-GB` translations.  Running this task after adding a new
+workflow will surface any missing keys before they cause silent UI gaps.
