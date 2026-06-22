@@ -20,10 +20,10 @@ from fastapi.routing import APIRouter
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload, selectinload
 
-from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import ProductBlockTable, ProductTable, SubscriptionTable, db
 from orchestrator.core.domain.lifecycle import ProductLifecycle
+from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas import ProductSchema
 from orchestrator.core.schemas.product import ProductPatchSchema
 from orchestrator.core.search.core.types import EntityType
@@ -36,11 +36,15 @@ router = APIRouter()
 @router.get(
     "/",
     response_model=list[ProductSchema],
-    tags=[AgentTag.EXPOSED, AgentTag.LARGE],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="list_products",
+    openapi_extra=READONLY_TOOL,
 )
 def fetch(tag: str | None = None, product_type: str | None = None) -> list[ProductSchema]:
-    """List products, optionally filtered by ``tag`` or ``product_type``."""
+    """List products, optionally filtered by ``tag`` or ``product_type``.
+
+    May return many rows; pass ``tag`` or ``product_type`` to narrow the result.
+    """
     stmt = select(ProductTable).options(
         selectinload(ProductTable.workflows),
         selectinload(ProductTable.fixed_inputs),
@@ -57,8 +61,9 @@ def fetch(tag: str | None = None, product_type: str | None = None) -> list[Produ
 @router.get(
     "/{product_id}",
     response_model=ProductSchema,
-    tags=[AgentTag.EXPOSED],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="get_product",
+    openapi_extra=READONLY_TOOL,
 )
 def product_by_id(product_id: UUID) -> ProductTable:
     """Get a single product by id, including fixed inputs, product blocks and workflows.

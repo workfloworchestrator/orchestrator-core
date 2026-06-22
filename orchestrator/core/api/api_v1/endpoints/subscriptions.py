@@ -27,7 +27,6 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
-from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.api.helpers import add_response_range, add_subscription_search_query_filter
 from orchestrator.core.db import (
@@ -39,6 +38,7 @@ from orchestrator.core.db import (
     SubscriptionTable,
     db,
 )
+from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas import SubscriptionWorkflowListsSchema
 from orchestrator.core.schemas.subscription import SubscriptionDomainModelSchema, SubscriptionWithMetadata
 from orchestrator.core.security import authenticate
@@ -110,15 +110,16 @@ def _authorized_subscription_workflows(
 @router.get(
     "/domain-model/{subscription_id}",
     response_model=SubscriptionDomainModelSchema | None,
-    tags=[AgentTag.EXPOSED, AgentTag.LARGE],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="get_subscription_domain_model",
+    openapi_extra=READONLY_TOOL,
 )
 async def subscription_details_by_id_with_domain_model(
     request: Request, subscription_id: UUID, response: Response, filter_owner_relations: bool = True
 ) -> dict[str, Any] | None:
     """Get a subscription's full domain model: the nested product-block tree and relations.
 
-    LARGE: returns the entire instantiated product-block tree. Prefer
+    May be large: returns the entire instantiated product-block tree. Prefer
     ``get_subscription_details`` for a flat header; use this only when the full
     tree is required.
     """

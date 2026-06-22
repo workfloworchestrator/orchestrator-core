@@ -18,9 +18,17 @@ Mounted into ``OrchestratorCore`` at ``/mcp`` when ``MCP_ENABLED=True`` (see
 
 Tools are **auto-generated from the FastAPI app's routes** via ``fastmcp``'s
 ``FastMCP.from_fastapi(app=...)``. Every REST operation tagged
-``AgentTag.EXPOSED`` becomes an MCP tool with a typed parameter schema
+``AGENT_EXPOSED_TAG`` becomes an MCP tool with a typed parameter schema
 derived from the route's pydantic models, plus the route's docstring as the
 tool description.
+
+Behavioral metadata (``readOnlyHint``, ``destructiveHint``, ``idempotentHint``,
+``openWorldHint``) is declared per route via ``openapi_extra`` under the
+``x-mcp-annotations`` key. Routes pick one of the prebuilt ``*_TOOL`` openapi-extra
+constants below; ``_build_component_fn`` reads them and stamps each generated tool's
+``mcp.types.ToolAnnotations`` (defaulting ``title`` to a humanized operation_id).
+The hints are plain dicts (not ``ToolAnnotations`` objects) so route modules never
+import ``mcp``/``fastmcp`` — those stay an optional extra, imported lazily here.
 
 Auth: ``from_fastapi`` invokes routes via in-process ``httpx`` over
 ``ASGITransport``, which goes through the FastAPI middleware + dependency
@@ -35,19 +43,64 @@ re-injects it. See https://github.com/jlowin/fastmcp/issues/2817.
 Transport: streamable HTTP.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from starlette.applications import Starlette
-
-from orchestrator.core.agent_tags import AgentTag
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
-    from fastmcp.utilities.openapi import HTTPRoute
 
 MCP_MOUNT_PATH = "/mcp"
+
+# FastAPI tag that gates MCP exposure: tag a route with this to surface it as an
+# MCP tool. Routes without it are excluded. Routes import this from here.
+AGENT_EXPOSED_TAG = "agent-exposed"
+
+# openapi_extra key carrying a route's MCP ToolAnnotations hints.
+MCP_ANNOTATIONS_EXTENSION = "x-mcp-annotations"
+
+# Prebuilt ``openapi_extra`` values a route can pass verbatim (kept as plain dicts so
+# route modules don't import the optional ``mcp`` package). One per behavioral shape:
+#   READONLY_TOOL         GET getters + curated POST read-tools (no state change)
+#   WRITE_TOOL            non-idempotent mutation (e.g. create_workflow)
+#   IDEMPOTENT_WRITE_TOOL idempotent mutation (e.g. resume_workflow_process — a PUT)
+#   DESTRUCTIVE_TOOL      irreversible mutation (e.g. abort_workflow_process)
+# ``openWorldHint`` is always False — the orchestrator acts on its own database.
+READONLY_TOOL = {
+    MCP_ANNOTATIONS_EXTENSION: {
+        "readOnlyHint": True,
+        "idempotentHint": True,
+        "destructiveHint": False,
+        "openWorldHint": False,
+    }
+}
+WRITE_TOOL = {
+    MCP_ANNOTATIONS_EXTENSION: {
+        "readOnlyHint": False,
+        "idempotentHint": False,
+        "destructiveHint": False,
+        "openWorldHint": False,
+    }
+}
+IDEMPOTENT_WRITE_TOOL = {
+    MCP_ANNOTATIONS_EXTENSION: {
+        "readOnlyHint": False,
+        "idempotentHint": True,
+        "destructiveHint": False,
+        "openWorldHint": False,
+    }
+}
+DESTRUCTIVE_TOOL = {
+    MCP_ANNOTATIONS_EXTENSION: {
+        "readOnlyHint": False,
+        "idempotentHint": True,
+        "destructiveHint": True,
+        "openWorldHint": False,
+    }
+}
 
 
 async def _forward_auth_header(request: httpx.Request) -> None:
@@ -74,32 +127,35 @@ def _humanize(name: str) -> str:
     return name.replace("_", " ").title()
 
 
-def _annotate(route: "HTTPRoute", component: object) -> None:
-    """Stamp ``ToolAnnotations`` on each generated tool (``mcp_component_fn`` hook).
+def _build_component_fn(app: FastAPI) -> Any:
+    """Return a fastmcp ``mcp_component_fn`` that applies per-route ``ToolAnnotations``.
 
-    Read/idempotent/destructive hints are inferred from the HTTP method, with
-    ``AgentTag.READONLY`` / ``AgentTag.DESTRUCTIVE`` overriding for POST/PUT
-    routes that don't follow method semantics (e.g. the curated POST read
-    tools). ``openWorldHint`` is always ``False`` — the orchestrator operates
-    on its own database, not an open external world.
+    Builds an ``operation_id -> x-mcp-annotations`` lookup from the app's routes
+    (the hints each route declared via ``openapi_extra``), then returns a callback
+    fastmcp invokes per generated tool. Each tool's ``annotations`` are built from
+    its route's hints, defaulting ``title`` to a humanized operation_id.
     """
-    from fastmcp.server.providers.openapi import OpenAPITool
     from mcp.types import ToolAnnotations
 
-    if not isinstance(component, OpenAPITool):
-        return
+    hints_by_op_id: dict[str, dict[str, Any]] = {}
+    for route in app.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        hints = (route.openapi_extra or {}).get(MCP_ANNOTATIONS_EXTENSION)
+        if hints:
+            hints_by_op_id[route.operation_id or route.name] = hints
 
-    tags = set(route.tags)
-    method = route.method.upper()
-    read_only = method == "GET" or AgentTag.READONLY.value in tags
-    destructive = method == "DELETE" or AgentTag.DESTRUCTIVE.value in tags
-    component.annotations = ToolAnnotations(
-        title=_humanize(component.name),
-        readOnlyHint=read_only,
-        idempotentHint=read_only or method in {"PUT", "DELETE"},
-        destructiveHint=destructive,
-        openWorldHint=False,
-    )
+    def apply(route: Any, component: Any) -> None:
+        name = getattr(component, "name", None)
+        if not isinstance(name, str):
+            return
+        hints = hints_by_op_id.get(name)
+        if hints is None:
+            return
+        data = {"title": _humanize(name), **hints}
+        component.annotations = ToolAnnotations(**data)
+
+    return apply
 
 
 def build_mcp(app: FastAPI) -> "FastMCP":  # noqa: F821 (TYPE_CHECKING-only import; string annotation)
@@ -115,10 +171,10 @@ def build_mcp(app: FastAPI) -> "FastMCP":  # noqa: F821 (TYPE_CHECKING-only impo
         app=app,
         name="orchestrator-core-mcp",
         route_maps=[
-            RouteMap(tags={AgentTag.EXPOSED.value}, mcp_type=MCPType.TOOL),
+            RouteMap(tags={AGENT_EXPOSED_TAG}, mcp_type=MCPType.TOOL),
             RouteMap(mcp_type=MCPType.EXCLUDE),
         ],
-        mcp_component_fn=_annotate,
+        mcp_component_fn=_build_component_fn(app),
         httpx_client_kwargs={"event_hooks": {"request": [_forward_auth_header]}},
     )
 
@@ -126,7 +182,7 @@ def build_mcp(app: FastAPI) -> "FastMCP":  # noqa: F821 (TYPE_CHECKING-only impo
 def mount_mcp(app: FastAPI) -> Starlette:
     """Auto-generate MCP tools from ``app``'s routes, mount at ``/mcp``, return the sub-app.
 
-    Only routes tagged with ``AgentTag.EXPOSED`` are surfaced; all other
+    Only routes tagged with ``AGENT_EXPOSED_TAG`` are surfaced; all other
     routes are excluded (otherwise fastmcp's default would expose every
     route in the app as a tool).
 

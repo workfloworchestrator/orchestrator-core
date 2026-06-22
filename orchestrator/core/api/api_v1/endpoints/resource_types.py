@@ -17,10 +17,10 @@ from uuid import UUID
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
 
-from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import db
 from orchestrator.core.db.models import ResourceTypeTable
+from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas.resource_type import ResourceTypePatchSchema, ResourceTypeSchema
 
 router = APIRouter()
@@ -29,8 +29,9 @@ router = APIRouter()
 @router.get(
     "/{resource_type_id}",
     response_model=ResourceTypeSchema,
-    tags=[AgentTag.EXPOSED],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="get_resource_type",
+    openapi_extra=READONLY_TOOL,
 )
 def get_resource_type_description(resource_type_id: UUID) -> str:
     """Get a single resource type definition by id."""

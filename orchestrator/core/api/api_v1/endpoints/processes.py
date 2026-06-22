@@ -35,7 +35,6 @@ from sqlalchemy.sql.functions import count
 from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
-from orchestrator.core.agent_tags import AgentTag
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.api.helpers import add_response_range
 from orchestrator.core.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
@@ -43,6 +42,13 @@ from orchestrator.core.db.filters import Filter
 from orchestrator.core.db.filters.process import filter_processes
 from orchestrator.core.db.sorting import Sort, SortOrder
 from orchestrator.core.db.sorting.process import sort_processes
+from orchestrator.core.mcp.server import (
+    AGENT_EXPOSED_TAG,
+    DESTRUCTIVE_TOOL,
+    IDEMPOTENT_WRITE_TOOL,
+    READONLY_TOOL,
+    WRITE_TOOL,
+)
 from orchestrator.core.schemas import (
     ProcessIdSchema,
     ProcessResumeAllSchema,
@@ -189,8 +195,9 @@ def delete(process_id: UUID) -> None:
     response_model=ProcessIdSchema,
     status_code=HTTPStatus.CREATED,
     dependencies=[Depends(check_global_lock, use_cache=False)],
-    tags=[AgentTag.EXPOSED],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="create_workflow",
+    openapi_extra=WRITE_TOOL,
 )
 async def new_process(
     workflow_key: str,
@@ -239,8 +246,9 @@ async def new_process(
     response_model=None,
     status_code=HTTPStatus.NO_CONTENT,
     dependencies=[Depends(check_global_lock, use_cache=False)],
-    tags=[AgentTag.EXPOSED],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="resume_workflow_process",
+    openapi_extra=IDEMPOTENT_WRITE_TOOL,
 )
 async def resume_process_endpoint(
     process_id: UUID,
@@ -377,8 +385,9 @@ async def resume_all_processes_endpoint(request: Request, user: str = Depends(us
     "/{process_id}/abort",
     response_model=None,
     status_code=HTTPStatus.NO_CONTENT,
-    tags=[AgentTag.EXPOSED, AgentTag.DESTRUCTIVE],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="abort_workflow_process",
+    openapi_extra=DESTRUCTIVE_TOOL,
 )
 def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depends(user_name)) -> None:
     """Abort a running workflow process. This is irreversible."""
@@ -428,8 +437,9 @@ async def _patch_process(data: ProcessPatchSchema, process: ProcessTable) -> Pro
 @router.get(
     "/status-counts",
     response_model=ProcessStatusCounts,
-    tags=[AgentTag.EXPOSED],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="get_process_status_counts",
+    openapi_extra=READONLY_TOOL,
 )
 def status_counts() -> ProcessStatusCounts:
     """Get aggregate counts of processes and tasks grouped by status.
