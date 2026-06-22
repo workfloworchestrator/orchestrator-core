@@ -58,6 +58,7 @@ class SearchResult(BaseModel):
     perfect_match: int = 0
     matching_field: MatchingField | None = None
     response_columns: dict[str, str | None] | None = None
+    order_value: str | None = None
 
 
 class SearchResponse(BaseModel):
@@ -286,6 +287,8 @@ def format_search_response(
 
         entity_id_str = str(row.entity_id)
         columns = column_data.get(entity_id_str) if column_data else None
+        # Keep the selected order value available for the next-page cursor.
+        raw_order_value = row.get("order_value")
 
         results.append(
             SearchResult(
@@ -296,6 +299,7 @@ def format_search_response(
                 perfect_match=row.get("perfect_match", 0),
                 matching_field=matching_field,
                 response_columns=columns,
+                order_value=str(raw_order_value) if raw_order_value is not None else None,
             )
         )
     return SearchResponse(
