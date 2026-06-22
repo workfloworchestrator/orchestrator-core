@@ -143,17 +143,6 @@ def update_in(dct: dict | list, path: str, value: Any, sep: str = ".") -> None:
     prev[x] = value  # type: ignore
 
 
-def get_in(dct: dict | list, path: str, sep: str = ".") -> Any:
-    """Get a value in a dict or list using the path and get the resulting key's value."""
-    prev: dict | list
-    for x in path.split(sep):
-        if x.isdigit() and isinstance(dct, list):
-            prev, dct = dct, dct[int(x)]
-        else:
-            prev, dct = dct, dict(dct).get(x)  # type: ignore
-    return prev[x]  # type: ignore
-
-
 def getattr_in(obj: Any, attr: str) -> Any:
     """Get an instance attribute value by path."""
 

@@ -90,7 +90,6 @@ class AppSettings(BaseSettings):
     )  # More info: https://redis-py.readthedocs.io/en/stable/retry.html
     ENABLE_DISTLOCK_MANAGER: bool = True
     DISTLOCK_BACKEND: str = "memory"
-    CC_NOC: int = 0
     SERVICE_NAME: str = "orchestrator-core"
     LOGGING_HOST: str = "localhost"
     LOG_LEVEL: str = "DEBUG"
