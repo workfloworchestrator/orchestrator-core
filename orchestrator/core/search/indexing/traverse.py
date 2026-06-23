@@ -43,8 +43,6 @@ DatabaseEntity = SubscriptionTable | ProductTable | ProcessTable | WorkflowTable
 class BaseTraverser(ABC):
     """Base class for traversing database models and extracting searchable fields."""
 
-    _MAX_DEPTH = 40
-
     @classmethod
     def get_fields(cls, entity: DatabaseEntity, pk_name: str, root_name: str) -> list[ExtractedField]:
         """Main entry point for extracting fields from an entity. Default implementation delegates to _load_model."""
