@@ -306,8 +306,10 @@ def test_websocket_process_list_multiple_workflows(test_client, test_workflow, t
 
             num_wf1_steps = 4  # 4 steps, then suspend
             num_wf2_steps = 5
+            num_wf1_broadcasts = num_wf1_steps + 1  # Final post-commit broadcast after suspend
+            num_wf2_broadcasts = num_wf2_steps + 1  # Final post-commit broadcast after complete
 
-            num_ws_messages = (num_wf1_steps + num_wf2_steps) * 2  # 2 messages per completed step
+            num_ws_messages = (num_wf1_broadcasts + num_wf2_broadcasts) * 2  # process + list per broadcast
 
             # Checks if the correct messages are send, without order for which workflow.
             while True:
@@ -334,14 +336,14 @@ def test_websocket_process_list_multiple_workflows(test_client, test_workflow, t
     for message in process_1_cache_invalidation_messages:
         assert message == {"name": "invalidateCache", "value": {"type": "processes", "id": test_workflow_1_pid}}
 
-    assert len(process_1_cache_invalidation_messages) == num_wf1_steps
+    assert len(process_1_cache_invalidation_messages) == num_wf1_broadcasts
 
     for message in process_2_cache_invalidation_messages:
         assert message == {"name": "invalidateCache", "value": {"type": "processes", "id": test_workflow_2_pid}}
 
-    assert len(process_2_cache_invalidation_messages) == num_wf2_steps
+    assert len(process_2_cache_invalidation_messages) == num_wf2_broadcasts
 
     for message in list_invalidation_messages:
         assert message == {"name": "invalidateCache", "value": {"type": "processes", "id": "LIST"}}
 
-    assert len(list_invalidation_messages) == num_wf1_steps + num_wf2_steps
+    assert len(list_invalidation_messages) == num_wf1_broadcasts + num_wf2_broadcasts
