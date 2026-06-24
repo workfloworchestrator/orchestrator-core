@@ -11,7 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sqlalchemy import Select, and_, literal, or_, select
+from sqlalchemy import Select, Subquery, and_, literal, or_, select
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db.models import AiSearchIndex
@@ -22,6 +23,52 @@ from ..pagination import PageCursor
 from .base import Retriever
 
 ORDER_VALUE_LABEL = "order_value"
+
+
+def _apply_id_pagination(stmt: Select, cand: Subquery, cursor: PageCursor | None) -> Select:
+    """Apply keyset pagination and stable ordering on entity_id alone (no order_by)."""
+    if cursor is not None:
+        stmt = stmt.where(cand.c.entity_id > cursor.id)
+    return stmt.order_by(cand.c.entity_id.asc())
+
+
+def _build_order_value_subquery(cand: Subquery, order_by: StructuredOrderBy) -> Subquery:
+    """Materialise the EAV sort-field value as order_value so filtering and ordering share the same column.
+
+    Uses a correlated subquery per row; acceptable for EAV — upgrade to lateral join if throughput requires it.
+    """
+    # Look up the requested indexed path value for each candidate entity.
+    path_subquery = (
+        select(AiSearchIndex.value)
+        .where(
+            AiSearchIndex.entity_id == cand.c.entity_id,
+            AiSearchIndex.path == Ltree(order_by.element),
+        )
+        .correlate(cand)
+    ).scalar_subquery()
+
+    # Expose the computed sort value as order_value so pagination can filter on the same column.
+    return select(
+        cand.c.entity_id,
+        cand.c.entity_title,
+        literal(1.0).label("score"),
+        path_subquery.label(ORDER_VALUE_LABEL),
+    ).select_from(cand).subquery("ordered_cand")
+
+
+def _apply_order_value_pagination(stmt: Select, inner: Subquery, cursor: PageCursor | None, order_by: StructuredOrderBy) -> Select:
+    """Apply keyset pagination and ordering on order_value, using entity_id as a deterministic tiebreaker."""
+    if cursor is not None and cursor.order_value is not None:
+        # Resume after the last sorted value; entity_id breaks ties for rows with the same order_value.
+        tiebreak = and_(inner.c.order_value == cursor.order_value, inner.c.entity_id > cursor.id)
+        if order_by.direction == OrderDirection.ASC:
+            stmt = stmt.where(or_(inner.c.order_value > cursor.order_value, tiebreak))
+        else:
+            stmt = stmt.where(or_(inner.c.order_value < cursor.order_value, tiebreak))
+
+    # entity_id as secondary sort keeps pages stable when multiple rows share the same order_value.
+    order_col: ColumnElement = inner.c.order_value.asc() if order_by.direction == OrderDirection.ASC else inner.c.order_value.desc()
+    return stmt.order_by(order_col, inner.c.entity_id.asc())
 
 
 class StructuredRetriever(Retriever):
@@ -35,43 +82,12 @@ class StructuredRetriever(Retriever):
         cand = candidate_query.subquery()
 
         if not self.order_by:
-            # Default structured pagination is stable on entity_id only.
             stmt = select(cand.c.entity_id, cand.c.entity_title, literal(1.0).label("score")).select_from(cand)
-            if self.cursor is not None:
-                stmt = stmt.where(cand.c.entity_id > self.cursor.id)
-            return stmt.order_by(cand.c.entity_id.asc())
+            return _apply_id_pagination(stmt, cand, self.cursor)
 
-        # Look up the requested indexed path value for each candidate entity.
-        path_subquery = (
-            select(AiSearchIndex.value)
-            .where(
-                AiSearchIndex.entity_id == cand.c.entity_id,
-                AiSearchIndex.path == Ltree(self.order_by.element),
-            )
-            .correlate(cand)
-        ).scalar_subquery()
-
-        # Expose the computed sort value as order_value for filtering and ordering
-        inner = select(
-            cand.c.entity_id,
-            cand.c.entity_title,
-            literal(1.0).label("score"),
-            path_subquery.label(ORDER_VALUE_LABEL),
-        ).select_from(cand).subquery("ordered_cand")
-
+        inner = _build_order_value_subquery(cand, self.order_by)
         stmt = select(inner.c.entity_id, inner.c.entity_title, inner.c.score, inner.c.order_value).select_from(inner)
-
-        if self.cursor is not None and self.cursor.order_value is not None:
-            # Resume after the last sorted value, using entity_id (as deterministic tiebreaker) for rows with the same value
-            tiebreak = and_(inner.c.order_value == self.cursor.order_value, inner.c.entity_id > self.cursor.id)
-            if self.order_by.direction == OrderDirection.ASC:
-                stmt = stmt.where(or_(inner.c.order_value > self.cursor.order_value, tiebreak))
-            else:
-                stmt = stmt.where(or_(inner.c.order_value < self.cursor.order_value, tiebreak))
-
-        # Sort by entity_id too so rows with the same order_value stay in a stable / deterministic order.
-        order_col = inner.c.order_value.asc() if self.order_by.direction == OrderDirection.ASC else inner.c.order_value.desc()
-        return stmt.order_by(order_col, inner.c.entity_id.asc())
+        return _apply_order_value_pagination(stmt, inner, self.cursor, self.order_by)
 
     @property
     def metadata(self) -> SearchMetadata:
