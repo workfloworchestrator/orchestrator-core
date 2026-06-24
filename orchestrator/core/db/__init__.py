@@ -10,8 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import AsyncIterator
 from typing import Any, cast
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
 
 from orchestrator.core.db.database import BaseModel as DbBaseModel
@@ -68,6 +70,19 @@ wrapped_db = WrappedDatabase()
 db = cast(Database, wrapped_db)
 
 
+async def get_async_session() -> AsyncIterator[AsyncSession]:
+    """FastAPI dependency that yields an ``AsyncSession`` and guarantees it is closed after the request.
+
+    Usage::
+
+        @router.get("/")
+        async def endpoint(session: AsyncSession = Depends(get_async_session)) -> ...:
+            await session.execute(stmt)
+    """
+    async with db.async_session() as session:
+        yield session
+
+
 # The Global Database is set after calling this function
 def init_database(settings: AppSettings) -> Database:
     db_uri = str(settings.DATABASE_URI.get_secret_value())
@@ -117,6 +132,7 @@ __all__ = [
     "UtcTimestamp",
     "UtcTimestampError",
     "db",
+    "get_async_session",
     "init_database",
 ]
 

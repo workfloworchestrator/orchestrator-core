@@ -659,59 +659,131 @@ def process_with_subscription(simple_workflow, generic_subscription_1):
     return process_id, generic_subscription_1
 
 
+def test_run_process_async_broadcasts_after_status_commit(simple_workflow):
+    """The final workflow broadcast must see the committed terminal process status.
+
+    The websocket broadcast path opens a fresh DB scope to decide whether subscription caches
+    should be invalidated. If the callback runs before commit, that scope still sees RUNNING and
+    skips the terminal invalidation, leaving the UI with a stale running status.
+    """
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.RUNNING,
+        created_by=SYSTEM_USER,
+    )
+    db.session.add(p)
+    db.session.commit()
+
+    observed_statuses = []
+
+    def broadcast_func(broadcast_process_id):
+        with db.database_scope():
+            process = db.session.get(ProcessTable, broadcast_process_id)
+            observed_statuses.append(process.last_status)
+
+    def run_func():
+        process = db.session.get(ProcessTable, process_id)
+        process.last_status = ProcessStatus.COMPLETED
+        return Complete({"foo": "bar"})
+
+    _run_process_async(process_id, run_func, broadcast_func=broadcast_func)
+
+    assert observed_statuses == [ProcessStatus.COMPLETED]
+
+
+def test_run_process_async_swallows_final_broadcast_exception(simple_workflow):
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.RUNNING,
+        created_by=SYSTEM_USER,
+    )
+    db.session.add(p)
+    db.session.commit()
+
+    def run_func():
+        process = db.session.get(ProcessTable, process_id)
+        process.last_status = ProcessStatus.COMPLETED
+        return Complete({"foo": "bar"})
+
+    _run_process_async(process_id, run_func, broadcast_func=MagicMock(side_effect=RuntimeError("websocket failed")))
+
+
 @pytest.mark.parametrize(
-    "state, expected_status",
+    "terminal_status",
     [
-        pytest.param(Failed(error_state_to_dict(Exception("boom"))), ProcessStatus.FAILED, id="failed"),
-        pytest.param(Abort({"foo": "bar"}), ProcessStatus.ABORTED, id="aborted"),
-        pytest.param(Complete({"foo": "bar"}), ProcessStatus.COMPLETED, id="completed"),
+        pytest.param(ProcessStatus.FAILED, id="failed"),
+        pytest.param(ProcessStatus.ABORTED, id="aborted"),
+        pytest.param(ProcessStatus.COMPLETED, id="completed"),
+        pytest.param(ProcessStatus.INCONSISTENT_DATA, id="inconsistent-data"),
+        pytest.param(ProcessStatus.API_UNAVAILABLE, id="api-unavailable"),
     ],
 )
-@mock.patch("orchestrator.core.services.processes.sync_invalidate_subscription_cache_by_id")
-def test_db_log_step_invalidates_subscription_cache_on_terminal_end_state(
-    mock_invalidate, process_with_subscription, state, expected_status
+@pytest.mark.asyncio
+async def test_broadcast_process_update_async_invalidates_subscription_cache_on_terminal_status(
+    terminal_status, process_with_subscription
 ):
-    """Invalidate subscription caches when a process reaches a terminal status.
+    """broadcast_process_update_to_websocket_async invalidates subscription caches for terminal statuses.
 
     Every in-step cache invalidation (`unsync`/`resync`) runs while the process is still
-    RUNNING, so the cache never reflects the terminal status — `done` (COMPLETED) sets it
-    without invalidating, and failed/aborted processes skip `resync` entirely. `_db_log_step`
-    must invalidate the related subscription caches itself, otherwise the UI keeps the stale
-    RUNNING status.
+    RUNNING, so the cache never reflects the terminal status. The broadcast function re-issues
+    the invalidation when a process reaches a terminal status to avoid a stale UI.
     """
+    from orchestrator.core.websocket import broadcast_process_update_to_websocket_async
+
     process_id, subscription_id = process_with_subscription
-    pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, Assignee.SYSTEM)
+    process = db.session.get(ProcessTable, process_id)
+    process.last_status = terminal_status
+    db.session.commit()
 
-    result = _db_log_step(pstat, step, state)
+    with mock.patch("orchestrator.core.websocket.websocket_manager") as mock_wsm, mock.patch(
+        "orchestrator.core.websocket.invalidate_subscription_cache_by_id"
+    ) as mock_invalidate:
+        mock_wsm.enabled = True
+        mock_wsm.broadcast_data = mock.AsyncMock()
+        mock_invalidate.return_value = None
 
-    assert result.overall_status == expected_status
+        await broadcast_process_update_to_websocket_async(process_id)
+
     mock_invalidate.assert_called_once()
     (called_subscription_id,) = mock_invalidate.call_args.args
     assert str(called_subscription_id) == str(subscription_id)
 
 
 @pytest.mark.parametrize(
-    "state",
+    "non_terminal_status",
     [
-        pytest.param(Success({"foo": "bar"}), id="success-running"),
-        pytest.param(Suspend({"foo": "bar"}), id="suspended"),
+        pytest.param(ProcessStatus.RUNNING, id="running"),
+        pytest.param(ProcessStatus.SUSPENDED, id="suspended"),
+        pytest.param(ProcessStatus.WAITING, id="waiting"),
     ],
 )
-@mock.patch("orchestrator.core.services.processes.sync_invalidate_subscription_cache_by_id")
-def test_db_log_step_does_not_invalidate_subscription_cache_on_non_terminal_state(
-    mock_invalidate, process_with_subscription, state
+@pytest.mark.asyncio
+async def test_broadcast_process_update_async_does_not_invalidate_subscription_cache_on_non_terminal_status(
+    non_terminal_status, process_with_subscription
 ):
-    """Do not invalidate subscription caches for non-terminal states.
+    """Do not invalidate subscription caches for non-terminal statuses.
 
-    A running (`Success`) or suspended process has not reached its final status yet, so there
+    A running, suspended, or waiting process has not reached its final status yet, so there
     is nothing terminal to reflect — invalidating here would only add cache churn mid-workflow.
     """
-    process_id, _ = process_with_subscription
-    pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, Assignee.SYSTEM)
+    from orchestrator.core.websocket import broadcast_process_update_to_websocket_async
 
-    _db_log_step(pstat, step, state)
+    process_id, _ = process_with_subscription
+    process = db.session.get(ProcessTable, process_id)
+    process.last_status = non_terminal_status
+    db.session.commit()
+
+    with mock.patch("orchestrator.core.websocket.websocket_manager") as mock_wsm, mock.patch(
+        "orchestrator.core.websocket.invalidate_subscription_cache_by_id"
+    ) as mock_invalidate:
+        mock_wsm.enabled = True
+        mock_wsm.broadcast_data = mock.AsyncMock()
+
+        await broadcast_process_update_to_websocket_async(process_id)
 
     mock_invalidate.assert_not_called()
 

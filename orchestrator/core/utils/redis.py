@@ -12,8 +12,6 @@
 # limitations under the License.
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
-from uuid import UUID
 
 from anyio import CancelScope, get_cancelled_exc_class
 from redis.asyncio import Redis as AIORedis
@@ -31,14 +29,6 @@ logger = get_logger(__name__)
 cache = create_redis_client(app_settings.CACHE_URI.get_secret_value())
 
 ONE_WEEK = 3600 * 24 * 7
-
-
-def default_get_subscription_id(data: Any) -> UUID:
-    if hasattr(data, "subscription_id"):
-        return data.subscription_id
-    if isinstance(data, dict):
-        return data["subscription_id"]
-    return data
 
 
 async def delete_keys_matching_pattern(_cache: AIORedis, pattern: str, chunksize: int = 5000) -> int:

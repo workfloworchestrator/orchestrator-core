@@ -10,13 +10,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 from typing import Any, cast
 from urllib.parse import urlparse
 from uuid import UUID
 
 import anyio
+from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
+from nwastdlib.asyncio import gather_nice
+from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.settings import AppSettings, app_settings
 from orchestrator.core.websocket.websocket_manager import WebSocketManager
 from orchestrator.core.workflow import ProcessStatus
@@ -32,6 +36,17 @@ class WS_CHANNELS:
     ALL_PROCESSES = "processes"
     ENGINE_SETTINGS = "engine-settings"
     EVENTS = "events"
+
+
+_TERMINAL_PROCESS_STATUSES = frozenset(
+    {
+        ProcessStatus.COMPLETED,
+        ProcessStatus.FAILED,
+        ProcessStatus.INCONSISTENT_DATA,
+        ProcessStatus.API_UNAVAILABLE,
+        ProcessStatus.ABORTED,
+    }
+)
 
 
 async def empty_fn(*args: tuple, **kwargs: dict[str, Any]) -> None:
@@ -107,10 +122,6 @@ async def invalidate_subscription_cache(subscription_id: UUID | UUIDstr, invalid
     await broadcast_invalidate_cache({"type": "subscriptions", "id": str(subscription_id)})
 
 
-def sync_invalidate_subscription_cache_by_id(subscription_id: UUID | UUIDstr) -> None:
-    anyio.run(invalidate_subscription_cache_by_id, subscription_id)
-
-
 async def invalidate_subscription_cache_by_id(subscription_id: UUID | UUIDstr) -> None:
     await broadcast_invalidate_cache({"type": "subscriptions", "id": str(subscription_id)})
 
@@ -147,8 +158,7 @@ def broadcast_process_update_to_websocket(
         )
         return
 
-    sync_broadcast_invalidate_cache({"type": "processes", "id": "LIST"})
-    sync_broadcast_invalidate_cache({"type": "processes", "id": str(process_id)})
+    anyio.run(broadcast_process_update_to_websocket_async, process_id)
 
 
 async def broadcast_process_update_to_websocket_async(
@@ -162,6 +172,16 @@ async def broadcast_process_update_to_websocket_async(
 
     await broadcast_invalidate_cache({"type": "processes", "id": "LIST"})
     await broadcast_invalidate_cache({"type": "processes", "id": str(process_id)})
+
+    process = await asyncio.to_thread(db.session.get, ProcessTable, process_id, options=[selectinload(ProcessTable.process_subscriptions)])
+
+    subscription_ids = set()
+
+    if process is not None and process.last_status in _TERMINAL_PROCESS_STATUSES:
+        subscription_ids = {ps.subscription_id for ps in process.process_subscriptions}
+
+    tasks = [invalidate_subscription_cache_by_id(subscription_id) for subscription_id in subscription_ids]
+    await gather_nice(tasks, limit=10)
 
 
 __all__ = [
