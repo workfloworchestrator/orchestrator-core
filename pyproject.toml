@@ -40,7 +40,7 @@ dependencies = [
     "anyio>=3.7.0",
     "apscheduler>=3.11.0",
     "click==8.*",
-    "deepmerge==2.0",
+    "deepmerge==2.1.0",
     "deprecated>=1.2.18",
     "fastapi~=0.138.0",
     "fastapi-etag==0.4.0",
