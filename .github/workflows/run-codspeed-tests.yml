@@ -46,7 +46,7 @@ jobs:
         uses: astral-sh/setup-uv@v8.2.0
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.11.23"
+          version: "0.11.25"
 
       - name: Install the project
         # --all-extras: [project.optional-dependencies]
@@ -54,7 +54,7 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Cache APT packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: /var/cache/apt/archives/
           key: ${{ runner.os }}-apt-pkgs-${{ hashFiles('**/apt-packages-run-codspeed-tests.txt') }}

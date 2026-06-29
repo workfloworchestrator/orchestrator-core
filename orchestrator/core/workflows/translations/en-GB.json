@@ -8,6 +8,7 @@
             "subscription_id_info": "The subscription for this action",
             "vlan_info": "The vlan id for this service port",
             "product_type": "Product Type",
+            "product_summary": "Verify the changes in the table below",
             "task": "Select the task you want to schedule",
             "schedule_type": "What type of schedule do you need?",
             "start_date": "Start date",
