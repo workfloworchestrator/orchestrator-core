@@ -2,8 +2,8 @@
 
 `conditional` lets you skip individual workflow steps at runtime based on the
 current workflow state. Unlike [run predicates](run-predicates.md), which prevent a
-workflow from *starting*, `conditional` controls whether individual steps execute
-*during* an already-running workflow.
+workflow from _starting_, `conditional` controls whether individual steps execute
+_during_ an already-running workflow.
 
 When a step is skipped:
 
@@ -74,14 +74,14 @@ under a single condition:
     from orchestrator.core.workflow import StepList, begin, conditional
 
 
-    skip_config = conditional(lambda state: state.get("skip_config") is True)
+    if_config_enabled = conditional(lambda state: state.get("config_enabled") is True)
 
 
     @terminate_workflow("Terminate Product", initial_input_form=initial_input_form_generator)
     def terminate_product() -> StepList:
         return (
             begin
-            >> skip_config(
+            >> if_config_enabled(
                 begin
                 >> ansible_dryrun
                 >> ansible_live
@@ -96,14 +96,14 @@ under a single condition:
     from orchestrator.workflow import StepList, begin, conditional
 
 
-    skip_config = conditional(lambda state: state.get("skip_config") is True)
+    if_config_enabled = conditional(lambda state: state.get("config_enabled") is True)
 
 
     @terminate_workflow("Terminate Product", initial_input_form=initial_input_form_generator)
     def terminate_product() -> StepList:
         return (
             begin
-            >> skip_config(
+            >> if_config_enabled(
                 begin
                 >> ansible_dryrun
                 >> ansible_live
