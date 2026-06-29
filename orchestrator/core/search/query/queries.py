@@ -34,7 +34,7 @@ class BaseQuery(BaseModel):
 
     MIN_LIMIT: ClassVar[int] = 1
     DEFAULT_LIMIT: ClassVar[int] = 10
-    MAX_LIMIT: ClassVar[int] = 30
+    MAX_LIMIT: ClassVar[int] = 100
     DEFAULT_EXPORT_LIMIT: ClassVar[int] = 1000
     MAX_EXPORT_LIMIT: ClassVar[int] = 10000
 
