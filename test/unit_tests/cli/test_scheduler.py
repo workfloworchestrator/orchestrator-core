@@ -117,6 +117,7 @@ def test_load_initial_schedule_all_workflows_found():
         "task_clean_up_tasks",
         "task_validate_subscriptions",
         "task_validate_products",
+        "task_validate_awaiting_callbacks",
     ]
     workflow_map = {name: _make_workflow(name) for name in wf_names}
     with (
@@ -125,7 +126,7 @@ def test_load_initial_schedule_all_workflows_found():
     ):
         result = runner.invoke(app, ["load-initial-schedule"])
     assert result.exit_code == 0
-    assert mock_add.call_count == 4
+    assert mock_add.call_count == 5
     assert "Skipping" not in result.output
 
 
@@ -154,7 +155,7 @@ def test_load_initial_schedule_all_missing():
         result = runner.invoke(app, ["load-initial-schedule"])
     assert result.exit_code == 0
     assert mock_add.call_count == 0
-    assert result.output.count("Skipping") == 4
+    assert result.output.count("Skipping") == 5
 
 
 # --- show_schedule ---

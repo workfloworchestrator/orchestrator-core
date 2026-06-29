@@ -75,6 +75,7 @@ step_log_fn_var: contextvars.ContextVar[StepLogFuncInternal] = contextvars.Conte
 DEFAULT_CALLBACK_ROUTE_KEY = "callback_route"
 CALLBACK_TOKEN_KEY = "__callback_token"  # noqa: S105
 DEFAULT_CALLBACK_PROGRESS_KEY = "callback_progress"  # noqa: S105
+CALLBACK_TIMEOUT_KEY = "__callback_timeout"  # seconds; stored in the await step state when a timeout is set
 
 
 @runtime_checkable
@@ -463,11 +464,14 @@ def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
     return stepfunc
 
 
-def _awaitstep(name: str, result_key: str | None = None) -> Step:
+def _awaitstep(name: str, result_key: str | None = None, timeout: int | None = None) -> Step:
+    extra_state = {
+        **({"__callback_result_key": result_key} if result_key else {}),
+        **({CALLBACK_TIMEOUT_KEY: timeout} if timeout is not None else {}),
+    }
+
     def await_(state: State) -> Process:
-        if result_key:
-            state = {**state, "__callback_result_key": result_key}
-        return AwaitingCallback(state)
+        return AwaitingCallback({**state, **extra_state})
 
     return make_step_function(await_, name)
 
@@ -478,6 +482,7 @@ def callback_step(
     validate_step: Step,
     result_key: str | None = None,
     callback_route_key: str = DEFAULT_CALLBACK_ROUTE_KEY,
+    timeout: int | None = None,
 ) -> Step:
     """Creates an asynchronous callback step.
 
@@ -489,9 +494,14 @@ def callback_step(
 
     The data returned in the callback will be merged in the state. An optional result_key parameter can be supplied
     to specify under which key the data will be merged.
+
+    By default the process waits indefinitely for the callback. When ``timeout`` (in seconds) is supplied, a process
+    still in AWAITING_CALLBACK after that many seconds (measured from when the await started) is transitioned to FAILED
+    by the ``task_validate_awaiting_callbacks`` scheduled task, so it can be retried or aborted through the normal
+    flows. The timeout is a minimum: enforcement resolution equals that task's run interval (30 seconds by default).
     """
     create_endpoint_step = step(f"{name} - Create endpoint")(_create_endpoint_step(key=callback_route_key))
-    await_step = _awaitstep(f"{name} - Await callback", result_key=result_key)
+    await_step = _awaitstep(f"{name} - Await callback", result_key=result_key, timeout=timeout)
     cleanup_step = step(f"{name} - Cleanup callback step")(lambda: {"__remove_keys": [CALLBACK_TOKEN_KEY]})
     return step_group(
         name=name, steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step >> cleanup_step
@@ -1632,6 +1642,23 @@ def abort_wf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
         with transactional(db, logger):
             return logstep(pstat, abort_func, state)
     return pstat.state
+
+
+def fail_awaiting_wf(pstat: ProcessStat, logstep: StepLogFunc, reason: str = "Callback timed out") -> Process:
+    """Fail a workflow that is stuck awaiting a callback.
+
+    Overwrites the existing AWAITING_CALLBACK step in place (via ``__replace_last_state``) and turns it into FAILED, so
+    the process can be retried or aborted through the normal flows. The ``isawaitingcallback`` guard makes this a no-op
+    when the callback has arrived in the meantime, which also protects against the callback-arrives-during-sweep race.
+    """
+    if not pstat.state.isawaitingcallback():
+        return pstat.state
+
+    fail_func = make_step_function(Failed, reason)
+    state = Failed({**pstat.state.unwrap(), "error": reason, "__replace_last_state": True})
+
+    with transactional(db, logger):
+        return logstep(pstat, fail_func, state)
 
 
 @_purestep("Start")

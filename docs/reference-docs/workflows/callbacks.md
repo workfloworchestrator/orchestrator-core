@@ -303,3 +303,58 @@ For long-running jobs, such as executing Terraform or Ansible playbooks, the Orc
 Progress updates should be delivered to `{callback_route}/progress`, where `"/progress"` is a fixed endpoint appended to the callback URL.
 
 The remote service should send a JSON or plain string payload with each progress callback, this replaces the previous progress update and refreshes the UI. Once the final callback is triggered and the job completes, progress updates are removed, leaving only the callback result. Therefore, all troubleshooting or diagnostic information must be included in the final callback payload, as progress updates are not retained for debugging.
+
+## Timeouts
+
+By default a callback step waits **indefinitely** for the remote service to call back. If that
+service never responds (for example after a network failure), the process stays in
+`AWAITING_CALLBACK` forever and the only recovery is manual database intervention.
+
+To guard against this, pass an optional `timeout` (in **seconds**) to `callback_step`:
+
+```python
+from orchestrator.core.workflow import callback_step
+
+
+callback_step(
+    name="Call ext system",
+    action_step=call_ansible_playbook,
+    validate_step=_evaluate_callback_results,
+    timeout=300,  # fail if no callback arrives within 5 minutes
+)
+```
+
+`timeout=None` (the default) keeps the original behaviour of waiting forever, so existing
+callbacks are unaffected.
+
+### What happens when the timeout is exceeded
+
+When the deadline passes, the process is moved to `FAILED` with `failed_reason = "Callback timed
+out"`. This unblocks the standard recovery actions, so you no longer have to edit the database:
+
+- **Retry** re-runs the *entire callback step group*: it executes the action step again (re-issuing
+  the external request and generating a fresh callback URL) and waits anew. Design the action step
+  so it is safe to repeat (idempotent, or otherwise tolerant of being run more than once).
+- **Abort** marks the process `ABORTED` and stops it. Note that abort does **not** run the
+  workflow's remaining steps (the callback cleanup step is skipped) and does **not** itself change
+  the subscription's lifecycle state — any follow-up on the subscription is left to the operator or
+  a separate workflow.
+
+The deadline is measured from the moment the await started. Progress updates sent to
+`{callback_route}/progress` do **not** extend it.
+
+### Enforcement resolution
+
+Timeouts are enforced by the `task_validate_awaiting_callbacks` scheduled task, which runs every
+**30 seconds** by default. As a result `timeout` is a *minimum*: a process is failed on the first
+sweep at or after its deadline (so up to ~30 seconds late), and a `timeout` smaller than the sweep
+interval is effectively rounded up to the next sweep. Do not rely on sub-30-second precision.
+
+The task is registered like the other core tasks and is loaded with:
+
+```bash
+orchestrator-core scheduler load-initial-schedule
+```
+
+The interval is tunable through the scheduler API. The sweep does not start a run (and therefore
+creates no process record) when no process is awaiting a callback.

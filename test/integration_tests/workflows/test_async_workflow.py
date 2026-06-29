@@ -11,11 +11,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import timedelta
+
+from orchestrator.core.db import ProcessTable, db
+from orchestrator.core.services import processes
 from orchestrator.core.targets import Target
+from orchestrator.core.utils.datetime import nowtz
 from orchestrator.core.workflow import (
+    CALLBACK_TIMEOUT_KEY,
     DEFAULT_CALLBACK_PROGRESS_KEY,
     DEFAULT_CALLBACK_ROUTE_KEY,
     AwaitingCallback,
+    ProcessStatus,
     begin,
     callback_step,
     done,
@@ -31,6 +38,14 @@ from test.integration_tests.workflows import (
     assert_state,
     run_workflow,
 )
+
+
+def _backdate_await_step(process_id: str, seconds: int) -> None:
+    """Move the awaiting step's started_at into the past so its timeout is considered elapsed."""
+    process = db.session.get(ProcessTable, process_id)
+    process.steps[-1].started_at = nowtz() - timedelta(seconds=seconds)
+    db.session.add(process.steps[-1])
+    db.session.commit()
 
 
 @step("Step 1")
@@ -342,3 +357,106 @@ def test_wf_callback_progress_with_multiple_callback_steps(test_client):
         state = response_data["current_state"]
         assert state["ext_data"] == "56789"
         assert DEFAULT_CALLBACK_PROGRESS_KEY not in state
+
+
+def _start_timeout_wf(test_client, timeout):
+    call_ext = callback_step(name="Call ext", action_step=action, validate_step=step1, timeout=timeout)
+
+    @workflow(target=Target.CREATE)
+    def timeout_wf():
+        return begin >> step1 >> call_ext >> done
+
+    instance = WorkflowInstanceForTests(timeout_wf, "timeout_wf")
+    instance.__enter__()
+    response = test_client.post("/api/processes/timeout_wf", json=[{}])
+    assert response.status_code == 201
+    process_id = response.json()["id"]
+    assert test_client.get(f"api/processes/{process_id}").json()["last_status"] == "awaiting_callback"
+    return instance, process_id
+
+
+def test_callback_step_timeout_stored_in_state(test_client):
+    instance, process_id = _start_timeout_wf(test_client, timeout=300)
+    try:
+        process = db.session.get(ProcessTable, process_id)
+        assert process.steps[-1].state[CALLBACK_TIMEOUT_KEY] == 300
+    finally:
+        instance.__exit__(None, None, None)
+
+
+def test_callback_step_without_timeout_has_no_timeout_key(test_client):
+    instance, process_id = _start_timeout_wf(test_client, timeout=None)
+    try:
+        process = db.session.get(ProcessTable, process_id)
+        assert CALLBACK_TIMEOUT_KEY not in process.steps[-1].state
+    finally:
+        instance.__exit__(None, None, None)
+
+
+def test_timed_out_callback_fails_in_place_and_can_be_retried(test_client):
+    instance, process_id = _start_timeout_wf(test_client, timeout=300)
+    try:
+        steps_before = len(db.session.get(ProcessTable, process_id).steps)
+        _backdate_await_step(process_id, seconds=600)
+
+        processes.fail_awaiting_process(db.session.get(ProcessTable, process_id))
+
+        process = db.session.get(ProcessTable, process_id)
+        assert process.last_status == ProcessStatus.FAILED
+        assert process.failed_reason == "Callback timed out"
+        # In-place: the awaiting row turned FAILED, no orphan extra row was appended.
+        assert len(process.steps) == steps_before
+        assert process.steps[-1].name == "Call ext"
+
+        # Retry re-runs the callback group (re-issues the action) and waits again.
+        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{}])
+        assert response.status_code == 204
+        assert test_client.get(f"api/processes/{process_id}").json()["last_status"] == "awaiting_callback"
+    finally:
+        instance.__exit__(None, None, None)
+
+
+def test_timed_out_callback_can_be_aborted(test_client):
+    instance, process_id = _start_timeout_wf(test_client, timeout=300)
+    try:
+        _backdate_await_step(process_id, seconds=600)
+        processes.fail_awaiting_process(db.session.get(ProcessTable, process_id))
+
+        response = test_client.put(f"/api/processes/{process_id}/abort")
+        assert response.status_code == 204
+        assert test_client.get(f"api/processes/{process_id}").json()["last_status"] == "aborted"
+    finally:
+        instance.__exit__(None, None, None)
+
+
+def test_sweep_selection_respects_the_deadline(test_client):
+    # The sweep only fails processes _is_timed_out selects; a process still within its window is not picked.
+    from orchestrator.core.workflows.tasks.validate_awaiting_callbacks import _is_timed_out
+
+    instance, process_id = _start_timeout_wf(test_client, timeout=300)
+    try:
+        _backdate_await_step(process_id, seconds=60)  # within the 300s window
+        assert _is_timed_out(db.session.get(ProcessTable, process_id), nowtz()) is False
+
+        _backdate_await_step(process_id, seconds=600)  # past the 300s window
+        assert _is_timed_out(db.session.get(ProcessTable, process_id), nowtz()) is True
+    finally:
+        instance.__exit__(None, None, None)
+
+
+def test_fail_awaiting_process_is_noop_when_not_awaiting(test_client):
+    # Concurrency guard: if the callback already arrived (process no longer awaiting), failing is a no-op.
+    @workflow(target=Target.CREATE)
+    def plain_wf():
+        return begin >> step1 >> done
+
+    with WorkflowInstanceForTests(plain_wf, "plain_wf"):
+        response = test_client.post("/api/processes/plain_wf", json=[{}])
+        process_id = response.json()["id"]
+        process = db.session.get(ProcessTable, process_id)
+        assert process.last_status == ProcessStatus.COMPLETED
+
+        result = processes.fail_awaiting_process(process)
+
+        assert result.iscomplete()
+        assert db.session.get(ProcessTable, process_id).last_status == ProcessStatus.COMPLETED
