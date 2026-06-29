@@ -132,7 +132,6 @@ dev = [
     "types-deprecated>=1.2.15.20250304",
     "types-itsdangerous>=1.1.6",
     "types-jinja2>=2.11.9",
-    "types-orjson>=3.6.2",
     "types-python-dateutil>=2.9.0.20250516",
     "types-pytz>=2025.2.0.20250516",
     "types-pyyaml>=6.0.12.20250516",
