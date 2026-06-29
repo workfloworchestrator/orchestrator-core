@@ -12,12 +12,13 @@
 # limitations under the License.
 
 import time
+from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy import Connection, event
 from sqlalchemy.engine import Engine
 
-_listener_registry = []
+_listener_registry: list[tuple[Any, str, Callable[..., None]]] = []
 
 
 def monitor_sqlalchemy_queries() -> None:

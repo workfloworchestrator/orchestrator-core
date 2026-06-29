@@ -50,25 +50,10 @@ RetrieverTypeEnum = strawberry.enum(RetrieverType, name="RetrieverType")
 UITypeEnum = strawberry.enum(UIType, name="UIType")
 OrderDirectionEnum = strawberry.enum(OrderDirection, name="OrderDirection")
 
-# Ltree-specific ops for dispatch
-_LTREE_OPS = frozenset(
-    {
-        FilterOp.MATCHES_LQUERY,
-        FilterOp.IS_ANCESTOR,
-        FilterOp.IS_DESCENDANT,
-        FilterOp.PATH_MATCH,
-        FilterOp.HAS_COMPONENT,
-        FilterOp.NOT_HAS_COMPONENT,
-        FilterOp.ENDS_WITH,
-    }
-)
-
-_COMPARISON_OPS = frozenset({FilterOp.LT, FilterOp.LTE, FilterOp.GT, FilterOp.GTE})
-
 
 @strawberry.input(description="Flattened filter condition. Provide fields relevant to the chosen op.")
 class FilterConditionInput:
-    op: FilterOpEnum  # type: ignore[valid-type]
+    op: FilterOp  # strawberry registers FilterOp as the "FilterOp" GraphQL enum; same object as FilterOpEnum
     value: str | None = None
     range_start: str | None = None
     range_end: str | None = None
@@ -86,7 +71,16 @@ class FilterConditionInput:
     ):
         """Dispatch to the correct Pydantic filter model based on op and value_kind."""
         match (self.op, value_kind):
-            case (op, _) if op in _LTREE_OPS:
+            case (
+                FilterOp.MATCHES_LQUERY
+                | FilterOp.IS_ANCESTOR
+                | FilterOp.IS_DESCENDANT
+                | FilterOp.PATH_MATCH
+                | FilterOp.HAS_COMPONENT
+                | FilterOp.NOT_HAS_COMPONENT
+                | FilterOp.ENDS_WITH as op,
+                _,
+            ):
                 return LtreeFilter(op=op, value=self.value or "")
             case (FilterOp.LIKE, _):
                 return StringFilter(op=FilterOp.LIKE, value=self.value or "")
@@ -100,14 +94,16 @@ class FilterConditionInput:
                     op=FilterOp.BETWEEN,
                     value=NumericRange(start=float(self.range_start or 0), end=float(self.range_end or 0)),
                 )
-            case (op, UIType.DATETIME) if op in _COMPARISON_OPS:
+            case (FilterOp.LT | FilterOp.LTE | FilterOp.GT | FilterOp.GTE as op, UIType.DATETIME):
                 return DateValueFilter(op=op, value=self.value or "")
-            case (op, UIType.NUMBER) if op in _COMPARISON_OPS:
+            case (FilterOp.LT | FilterOp.LTE | FilterOp.GT | FilterOp.GTE as op, UIType.NUMBER):
                 return NumericValueFilter(op=op, value=float(self.value or 0))
-            case (op, _) if op in _COMPARISON_OPS:
+            case (FilterOp.LT | FilterOp.LTE | FilterOp.GT | FilterOp.GTE as op, _):
                 raise ValueError(f"Operator {op!r} is not valid for value_kind={value_kind!r}")
+            case (FilterOp.EQ | FilterOp.NEQ as op, _):
+                return EqualityFilter(op=op, value=self.value)
             case _:
-                return EqualityFilter(op=self.op, value=self.value)
+                raise ValueError(f"Operator {self.op!r} is not supported by this filter input")
 
 
 @strawberry.input(description="A filter on a specific field path.")
