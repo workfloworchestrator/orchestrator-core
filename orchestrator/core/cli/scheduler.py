@@ -77,16 +77,15 @@ def _to_schedule_row(task: Job, *, api_managed_ids: set[str], verbose: bool) -> 
     run_time = str(task.next_run_time.replace(microsecond=0))
 
     def values() -> Iterator[str]:
-        yield task.id # id
-        yield task.name # name
-        yield source # source
-        yield str(run_time) # next run time
-        yield str(task.trigger) # trigger
+        yield task.id  # id
+        yield task.name  # name
+        yield source  # source
+        yield str(run_time)  # next run time
+        yield str(task.trigger)  # trigger
         if verbose:
-            yield json.dumps(task.kwargs, indent=2) # kwargs
+            yield json.dumps(task.kwargs, indent=2)  # kwargs
 
     return list(values())
-
 
 
 @app.command()

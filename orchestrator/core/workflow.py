@@ -1527,6 +1527,7 @@ def log_workflow_failure(error: ErrorDict) -> None:
     """Log the error state from a failed workflow."""
     logger.info("Workflow returned an error.", **error)
 
+
 def invalidate_status_counts() -> None:
     """Broadcast invalidate status counts to the websocket."""
     from orchestrator.core.websocket import broadcast_invalidate_status_counts
@@ -1546,6 +1547,7 @@ def capture_workflow_failure(err: Any) -> None:
     match err:
         case Exception() if app_settings.TRACING_ENABLED:
             import sentry_sdk
+
             sentry_sdk.capture_exception(err)
         case _:
             pass

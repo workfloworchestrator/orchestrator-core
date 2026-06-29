@@ -43,8 +43,10 @@ from test.integration_tests.workflows import (
 def _backdate_await_step(process_id: str, seconds: int) -> None:
     """Move the awaiting step's started_at into the past so its timeout is considered elapsed."""
     process = db.session.get(ProcessTable, process_id)
-    process.steps[-1].started_at = nowtz() - timedelta(seconds=seconds)
-    db.session.add(process.steps[-1])
+    assert process is not None
+    await_step = process.steps[-1]
+    await_step.started_at = nowtz() - timedelta(seconds=seconds)
+    db.session.add(await_step)
     db.session.commit()
 
 
