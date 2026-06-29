@@ -32,11 +32,13 @@ RUN useradd -m orchestrator
 WORKDIR /home/orchestrator
 
 COPY --from=build /app/dist/*.whl /tmp/
+# Optional extras to install alongside the wheel, e.g. "[mcp]", "[celery]" or "[mcp,celery]".
+ARG EXTRAS=""
 # Pre-create the project venv and install orchestrator-core into it.
 # When the example-orchestrator entrypoint runs `uv sync` from this WORKDIR it will find the
 # existing .venv and only add additional dependencies on top.
 RUN uv venv .venv \
-    && uv pip install --python .venv/bin/python /tmp/*.whl --no-cache \
+    && uv pip install --python .venv/bin/python "$(ls /tmp/*.whl)${EXTRAS}" --no-cache \
     && chown -R orchestrator:orchestrator .venv
 
 USER orchestrator
