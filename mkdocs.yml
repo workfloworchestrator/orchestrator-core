@@ -236,6 +236,7 @@ nav:
           - Parallelization:
               - reference-docs/parallelization/index.md
               - GÉANT: reference-docs/parallelization/geant.md
+              - SURF: reference-docs/parallelization/surf.md
     - Contributing:
           - Development setup: contributing/development.md
           - Guidelines: contributing/guidelines.md
