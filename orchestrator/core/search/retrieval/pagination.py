@@ -25,6 +25,7 @@ class PageCursor(BaseModel):
     score: float
     id: str
     query_id: UUID
+    order_value: str | None = None
 
     def encode(self) -> str:
         """Encode the cursor data into a URL-safe Base64 string."""
@@ -71,9 +72,11 @@ def encode_next_page_cursor(
         query_id = cursor.query_id
 
     last_item = search_response.results[-1]
+    # Preserve the ordered field value so keyset pagination can resume correctly.
     cursor_data = PageCursor(
         score=float(last_item.score),
         id=last_item.entity_id,
         query_id=query_id,
+        order_value=last_item.order_value,
     )
     return cursor_data.encode()
