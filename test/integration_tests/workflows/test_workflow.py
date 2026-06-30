@@ -456,11 +456,11 @@ def test_conditional_group_predicate_true_for_all_steps():
         return {"enable": True}
 
     @step("Step A")
-    def step_a(counter: int = 0):
+    def step_a(counter=0):
         return {"counter": counter + 1}
 
     @step("Step B")
-    def step_b(counter: int = 0):
+    def step_b(counter=0):
         return {"counter": counter + 1}
 
     if_flag = conditional(lambda s: s.get("enable", False))
@@ -483,7 +483,7 @@ def test_conditional_group_predicate_reevaluated_between_steps():
     """
 
     @step("Step A")
-    def step_a(counter: int = 0):
+    def step_a(counter=0):
         return {"counter": counter + 1}
 
     @step("Disable flag")
@@ -491,7 +491,7 @@ def test_conditional_group_predicate_reevaluated_between_steps():
         return {"enable": False}
 
     @step("Step B")
-    def step_b(counter: int = 0):
+    def step_b(counter):
         return {"counter": counter + 1}
 
     # predicate starts True (flag absent defaults to True), disable_flag sets it False
