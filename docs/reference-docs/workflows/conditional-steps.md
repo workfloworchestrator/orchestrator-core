@@ -31,17 +31,34 @@ the predicate result, later steps in the same group may behave differently.
 
     ```python
     from orchestrator.core.workflow import StepList, begin, conditional
+    from pydantic_forms.types import FormGenerator, UUIDstr
 
 
-    if_has_nodes = conditional(lambda state: len(state["nodes_to_deploy"]) > 0)
+    def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
+        class ModifyDnsForm(FormPage):
+            description: str
+            ttl: int = 3600
+            new_cname: str | None = None  # leave empty to keep current CNAME
+
+        user_input = yield ModifyDnsForm
+        return user_input.model_dump()
+
+    # ... step definitions ...
+
+    if_cname_changed = conditional(lambda state: state.get("new_cname") is not None)
 
 
-    @modify_workflow("Add Nodes", initial_input_form=initial_input_form_generator)
-    def add_nodes() -> StepList:
+    @modify_workflow(
+        "Modify DNS Record",
+        initial_input_form=initial_input_form_generator,
+    )
+    def modify_dns_record() -> StepList:
         return (
             begin
-            >> if_has_nodes(deploy_nodes)
-            >> finalize
+            >> update_subscription
+            >> if_cname_changed(notify_customer)
+            >> update_dns_in_ipam
+            >> set_status_provisioning
         )
     ```
 
@@ -49,24 +66,43 @@ the predicate result, later steps in the same group may behave differently.
 
     ```python
     from orchestrator.workflow import StepList, begin, conditional
+    from pydantic_forms.types import FormGenerator, UUIDstr
 
 
-    if_has_nodes = conditional(lambda state: len(state["nodes_to_deploy"]) > 0)
+    def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
+        class ModifyDnsForm(FormPage):
+            description: str
+            ttl: int = 3600
+            new_cname: str | None = None  # leave empty to keep current CNAME
+
+        user_input = yield ModifyDnsForm
+        return user_input.model_dump()
+
+    # ... step definitions ...
+
+    if_cname_changed = conditional(lambda state: state.get("new_cname") is not None)
 
 
-    @modify_workflow("Add Nodes", initial_input_form=initial_input_form_generator)
-    def add_nodes() -> StepList:
+    @modify_workflow(
+        "Modify DNS Record",
+        initial_input_form=initial_input_form_generator,
+    )
+    def modify_dns_record() -> StepList:
         return (
             begin
-            >> if_has_nodes(deploy_nodes)
-            >> finalize
+            >> update_subscription
+            >> if_cname_changed(notify_customer)
+            >> update_dns_in_ipam
+            >> set_status_provisioning
         )
     ```
 
 ### Wrapping multiple steps
 
-Pass a `StepList` (built with `begin >> ...`) to skip an entire group of steps
-under a single condition:
+Pass a `StepList` (built with `begin >> ...`) to guard multiple steps with the
+same predicate. The predicate is re-evaluated for **each** step individually,
+so if a step **within** the `StepList` modifies the state, later steps in the
+group may be skipped or executed differently:
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -129,7 +165,7 @@ fetched at runtime:
         return {"is_deployed": check_if_deployed(subscription)}
 
 
-    _if_deployed = conditional(lambda state: state["is_deployed"])
+    if_deployed = conditional(lambda state: state["is_deployed"])
 
 
     @modify_workflow("Modify Product", initial_input_form=initial_input_form_generator)
@@ -138,7 +174,7 @@ fetched at runtime:
             begin
             >> check_deployment_status
             >> assemble_payload
-            >> _if_deployed(remove_legacy_config)
+            >> if_deployed(remove_legacy_config)
             >> deploy_changes
         )
     ```
@@ -154,7 +190,7 @@ fetched at runtime:
         return {"is_deployed": check_if_deployed(subscription)}
 
 
-    _if_deployed = conditional(lambda state: state["is_deployed"])
+    if_deployed = conditional(lambda state: state["is_deployed"])
 
 
     @modify_workflow("Modify Product", initial_input_form=initial_input_form_generator)
@@ -163,54 +199,116 @@ fetched at runtime:
             begin
             >> check_deployment_status
             >> assemble_payload
-            >> _if_deployed(remove_legacy_config)
+            >> if_deployed(remove_legacy_config)
             >> deploy_changes
         )
     ```
 
-### Reusable conditional sub-pipelines
+### Reusing a conditional across workflows
 
-A `conditional` wrapper and a partial `StepList` can be composed into a reusable
-variable and shared across workflows:
+`conditional` can be used as a decorator on a named predicate function. The
+resulting wrapper can then be imported and applied to guard different steps in
+different workflow modules, keeping predicate logic in one place and avoiding
+duplicated lambda expressions:
 
 === "`orchestrator-core` ≥ 5.0"
 
     ```python
-    from orchestrator.core.workflow import StepList, begin, conditional
+    # conditions.py — shared conditional predicates
+    from orchestrator.core.workflow import State, conditional
 
 
-    _if_deployed = conditional(lambda state: state["is_deployed"])
+    @conditional
+    def if_core_node(state: State) -> bool:
+        """Guard steps that only apply to core (non-edge) node types."""
+        return state["subscription"]["node"]["node_type"] == "core"
+    ```
 
-    generate_and_store_dry_run: StepList = (
-        begin
-        >> check_deployment_status
-        >> assemble_payload
-        >> _if_deployed(remove_legacy_config)
-        >> run_dry_run
-        >> store_dry_run_results
-    )
+    ```python
+    # workflows/redeploy_baseconfig.py
+    from orchestrator.core.workflow import StepList, begin
+
+    from products.node.conditions import if_core_node
+
+
+    @modify_workflow("Redeploy Baseconfig", initial_input_form=input_form_generator)
+    def redeploy_baseconfig() -> StepList:
+        return (
+            begin
+            >> generate_config
+            >> deploy_config
+            >> if_core_node(deploy_boilerplate)
+            >> update_descriptions
+        )
+    ```
+
+    ```python
+    # workflows/modify_node.py
+    from orchestrator.core.workflow import StepList, begin
+
+    from products.node.conditions import if_core_node
+
+
+    @modify_workflow("Modify Node", initial_input_form=input_form_generator)
+    def modify_node() -> StepList:
+        return (
+            begin
+            >> validate_node
+            >> if_core_node(sync_upstream_peers)
+            >> apply_changes
+        )
     ```
 
 === "`orchestrator-core` < 5.0"
 
     ```python
-    from orchestrator.workflow import StepList, begin, conditional
+    # conditions.py — shared conditional predicates
+    from orchestrator.workflow import State, conditional
 
 
-    _if_deployed = conditional(lambda state: state["is_deployed"])
+    @conditional
+    def if_core_node(state: State) -> bool:
+        """Guard steps that only apply to core (non-edge) node types."""
+        return state["subscription"]["node"]["node_type"] == "core"
+    ```
 
-    generate_and_store_dry_run: StepList = (
-        begin
-        >> check_deployment_status
-        >> assemble_payload
-        >> _if_deployed(remove_legacy_config)
-        >> run_dry_run
-        >> store_dry_run_results
-    )
+    ```python
+    # workflows/redeploy_baseconfig.py
+    from orchestrator.workflow import StepList, begin
+
+    from products.node.conditions import if_core_node
+
+
+    @modify_workflow("Redeploy Baseconfig", initial_input_form=input_form_generator)
+    def redeploy_baseconfig() -> StepList:
+        return (
+            begin
+            >> generate_config
+            >> deploy_config
+            >> if_core_node(deploy_boilerplate)
+            >> update_descriptions
+        )
+    ```
+
+    ```python
+    # workflows/modify_node.py
+    from orchestrator.workflow import StepList, begin
+
+    from products.node.conditions import if_core_node
+
+
+    @modify_workflow("Modify Node", initial_input_form=input_form_generator)
+    def modify_node() -> StepList:
+        return (
+            begin
+            >> validate_node
+            >> if_core_node(sync_upstream_peers)
+            >> apply_changes
+        )
     ```
 
 ## API Reference
 
 ::: orchestrator.core.workflow.conditional
-    options:
-        heading_level: 3
+options:
+heading_level: 3
