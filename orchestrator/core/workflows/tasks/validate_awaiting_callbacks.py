@@ -15,6 +15,7 @@ from uuid import UUID
 
 import structlog
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.services import processes
@@ -66,7 +67,9 @@ def _fail_if_still_awaiting(process_id: UUIDstr) -> UUIDstr | None:
 def find_timed_out_callbacks(process_id: UUID) -> State:
     now = nowtz()
     awaiting_processes = db.session.scalars(
-        select(ProcessTable).filter(
+        select(ProcessTable)
+        .options(selectinload(ProcessTable.steps))
+        .filter(
             ProcessTable.last_status == ProcessStatus.AWAITING_CALLBACK,
             ProcessTable.process_id != process_id,
         )

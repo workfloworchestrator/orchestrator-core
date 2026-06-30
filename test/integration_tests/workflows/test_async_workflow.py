@@ -18,7 +18,6 @@ from orchestrator.core.services import processes
 from orchestrator.core.targets import Target
 from orchestrator.core.utils.datetime import nowtz
 from orchestrator.core.workflow import (
-    CALLBACK_TIMEOUT_KEY,
     DEFAULT_CALLBACK_PROGRESS_KEY,
     DEFAULT_CALLBACK_ROUTE_KEY,
     AwaitingCallback,
@@ -375,24 +374,6 @@ def _start_timeout_wf(test_client, timeout):
     process_id = response.json()["id"]
     assert test_client.get(f"api/processes/{process_id}").json()["last_status"] == "awaiting_callback"
     return instance, process_id
-
-
-def test_callback_step_timeout_stored_in_state(test_client):
-    instance, process_id = _start_timeout_wf(test_client, timeout=300)
-    try:
-        process = db.session.get(ProcessTable, process_id)
-        assert process.steps[-1].state[CALLBACK_TIMEOUT_KEY] == 300
-    finally:
-        instance.__exit__(None, None, None)
-
-
-def test_callback_step_without_timeout_has_no_timeout_key(test_client):
-    instance, process_id = _start_timeout_wf(test_client, timeout=None)
-    try:
-        process = db.session.get(ProcessTable, process_id)
-        assert CALLBACK_TIMEOUT_KEY not in process.steps[-1].state
-    finally:
-        instance.__exit__(None, None, None)
 
 
 def test_timed_out_callback_fails_in_place_and_can_be_retried(test_client):

@@ -19,10 +19,10 @@ Create Date: 2026-06-29 09:00:00.000000
 
 """
 
-from uuid import uuid4
-
 import sqlalchemy as sa
 from alembic import op
+
+from orchestrator.core.migrations.helpers import create_task
 
 # revision identifiers, used by Alembic.
 revision = "f4a7c9e21b08"
@@ -31,26 +31,17 @@ branch_labels = None
 depends_on = None
 
 
-workflow = {
+task = {
     "name": "task_validate_awaiting_callbacks",
-    "target": "SYSTEM",
     "description": "Fail callback steps that exceeded their timeout",
-    "workflow_id": uuid4(),
 }
 
 
 def upgrade() -> None:
     conn = op.get_bind()
-    # Named columns (not positional) so is_task is set explicitly; this is a task, not a process.
-    conn.execute(
-        sa.text(
-            "INSERT INTO workflows (workflow_id, name, target, description, is_task, created_at) "
-            "VALUES (:workflow_id, :name, :target, :description, true, now()) ON CONFLICT DO NOTHING"
-        ),
-        workflow,
-    )
+    create_task(conn, task)
 
 
 def downgrade() -> None:
     conn = op.get_bind()
-    conn.execute(sa.text("DELETE FROM workflows WHERE name = :name"), {"name": workflow["name"]})
+    conn.execute(sa.text("DELETE FROM workflows WHERE name = :name"), {"name": task["name"]})

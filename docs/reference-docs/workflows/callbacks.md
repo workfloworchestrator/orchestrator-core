@@ -345,16 +345,8 @@ The deadline is measured from the moment the await started. Progress updates sen
 
 ### Enforcement resolution
 
-Timeouts are enforced by the `task_validate_awaiting_callbacks` scheduled task, which runs every
-**30 seconds** by default. As a result `timeout` is a *minimum*: a process is failed on the first
-sweep at or after its deadline (so up to ~30 seconds late), and a `timeout` smaller than the sweep
-interval is effectively rounded up to the next sweep. Do not rely on sub-30-second precision.
-
-The task is registered like the other core tasks and is loaded with:
-
-```bash
-orchestrator-core scheduler load-initial-schedule
-```
-
-The interval is tunable through the scheduler API. The sweep does not start a run (and therefore
-creates no process record) when no process is awaiting a callback.
+Timeouts are enforced by the `task_validate_awaiting_callbacks` scheduled task, which sweeps every
+**30 seconds** by default. So `timeout` is a *minimum*: a process is failed on the first sweep at or
+after its deadline (up to ~30 seconds late) — don't rely on sub-30-second precision. Load the task
+with `orchestrator-core scheduler load-initial-schedule`; the interval can be changed to any value
+via the scheduler API (`PUT /api/schedules/`, which reschedules the job in place).

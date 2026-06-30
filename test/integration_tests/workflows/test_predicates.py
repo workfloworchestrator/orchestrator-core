@@ -13,7 +13,7 @@
 
 """Tests for no_uncompleted_instance predicate: pass on zero count, fail with message on nonzero."""
 
-from unittest.mock import MagicMock
+from typing import cast
 from uuid import uuid4
 
 import pytest
@@ -26,8 +26,14 @@ from orchestrator.core.workflow import (
     RunPredicateFail,
     RunPredicatePass,
     StepStatus,
+    Workflow,
 )
 from orchestrator.core.workflows.predicates import awaiting_callbacks_exist, no_uncompleted_instance
+
+
+def _context(workflow_key: str) -> PredicateContext:
+    # The predicates only read workflow_key; workflow is irrelevant here.
+    return PredicateContext(workflow=cast(Workflow, None), workflow_key=workflow_key)
 
 
 @pytest.fixture
@@ -53,8 +59,7 @@ def test_no_uncompleted_by_process_last_status(test_process, test_workflow, proc
     db.session.add(test_process)
     db.session.commit()
 
-    context = MagicMock(spec=PredicateContext)
-    context.workflow_key = test_workflow.name
+    context = _context(test_workflow.name)
 
     result = no_uncompleted_instance(context)
 
@@ -82,8 +87,7 @@ def test_awaiting_callbacks_exist_pass(test_workflow, generic_subscription_1) ->
     _awaiting_process(test_workflow, with_timeout=True)
 
     # workflow_key with no uncompleted instances of itself, so only the awaiting-existence check matters
-    context = MagicMock(spec=PredicateContext)
-    context.workflow_key = "task_validate_awaiting_callbacks"
+    context = _context("task_validate_awaiting_callbacks")
 
     assert isinstance(awaiting_callbacks_exist(context), RunPredicatePass)
 
@@ -99,8 +103,7 @@ def test_awaiting_callbacks_exist_fail(test_workflow, generic_subscription_1, cr
     if create_awaiting_without_timeout:
         _awaiting_process(test_workflow, with_timeout=False)
 
-    context = MagicMock(spec=PredicateContext)
-    context.workflow_key = "task_validate_awaiting_callbacks"
+    context = _context("task_validate_awaiting_callbacks")
 
     result = awaiting_callbacks_exist(context)
 
@@ -113,8 +116,7 @@ def test_awaiting_callbacks_exist_short_circuits_on_uncompleted_instance(test_pr
     # even though there is an awaiting-callback process with a timeout to check.
     _awaiting_process(test_workflow, with_timeout=True)
 
-    context = MagicMock(spec=PredicateContext)
-    context.workflow_key = test_workflow.name
+    context = _context(test_workflow.name)
 
     result = awaiting_callbacks_exist(context)
 
