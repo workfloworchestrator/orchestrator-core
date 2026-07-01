@@ -508,7 +508,17 @@ def _purestep(name: str) -> Callable[[StepToProcessFunc], StepList]:
 
 
 def conditional(p: Callable[[State], bool]) -> Callable[..., StepList]:
-    """Use a predicate to control whether a step is run."""
+    """Use a predicate to conditionally skip workflow steps at runtime.
+
+    When the predicate `p` returns `True` for the current workflow state,
+    the wrapped step(s) execute normally. When it returns `False`, each
+    wrapped step returns `Skipped` — the step is recorded but does not
+    modify the state or halt the workflow.
+
+    Can wrap a single step or multiple steps (via a `StepList`). When
+    wrapping multiple steps the predicate is evaluated independently for
+    each step.
+    """
 
     def _conditional(steps_or_func: StepList | Step) -> StepList:
         if isinstance(steps_or_func, Step):
@@ -1517,6 +1527,7 @@ def log_workflow_failure(error: ErrorDict) -> None:
     """Log the error state from a failed workflow."""
     logger.info("Workflow returned an error.", **error)
 
+
 def invalidate_status_counts() -> None:
     """Broadcast invalidate status counts to the websocket."""
     from orchestrator.core.websocket import broadcast_invalidate_status_counts
@@ -1536,6 +1547,7 @@ def capture_workflow_failure(err: Any) -> None:
     match err:
         case Exception() if app_settings.TRACING_ENABLED:
             import sentry_sdk
+
             sentry_sdk.capture_exception(err)
         case _:
             pass

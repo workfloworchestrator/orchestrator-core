@@ -115,7 +115,7 @@ The orchestrator supports several kinds of steps to cover different use cases:
   Pauses the workflow to request and receive user input during execution.
 
 - **`conditional`** [functional docs for conditional]
-  Conditionally executes the step based on environment variables or process state.
+  Conditionally executes the step based on workflow state.
   If the condition evaluates to false, the step is skipped entirely.
 
 - **`callback_step`** [functional docs for callback_step]
@@ -243,7 +243,7 @@ Now this particular modify workflow can be run on subscriptions that are not in 
 [functional docs for step]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.step
 [functional docs for retrystep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.retrystep
 [functional docs for inputstep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.inputstep
-[functional docs for conditional]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.conditional
+[functional docs for conditional]: ../../reference-docs/workflows/conditional-steps.md
 [functional docs for callback_step]: ../../reference-docs/workflows/callbacks.md
 [Reusable step functions and singledispatch usage]: ../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps
 [registering-workflows]: ../../getting-started/workflows.md#register-workflows

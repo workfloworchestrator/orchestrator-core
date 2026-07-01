@@ -223,6 +223,7 @@ nav:
           - Workflows:
                 - Workflows: reference-docs/workflows/workflows.md
                 - Workflow Steps: reference-docs/workflows/workflow-steps.md
+                - Conditional Steps: reference-docs/workflows/conditional-steps.md
                 - Callback step: reference-docs/workflows/callbacks.md
                 - Run Predicates: reference-docs/workflows/run-predicates.md
                 # Recommend a non-guide doc answering "What are tasks?"
