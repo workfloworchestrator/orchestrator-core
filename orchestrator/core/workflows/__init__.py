@@ -114,6 +114,7 @@ LazyWorkflowInstance(".modify_note", "modify_note")
 # Tasks
 LazyWorkflowInstance(".tasks.cleanup_tasks_log", "task_clean_up_tasks")
 LazyWorkflowInstance(".tasks.resume_workflows", "task_resume_workflows")
+LazyWorkflowInstance(".tasks.validate_awaiting_callbacks", "task_validate_awaiting_callbacks")
 LazyWorkflowInstance(".tasks.validate_products", "task_validate_products")
 LazyWorkflowInstance(".tasks.validate_product_type", "task_validate_product_type")
 LazyWorkflowInstance(".tasks.validate_subscriptions", "task_validate_subscriptions")

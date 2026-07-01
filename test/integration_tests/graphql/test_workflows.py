@@ -108,7 +108,7 @@ def test_workflows_query(test_client_graphql):
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 1,
-        "totalItems": 6,
+        "totalItems": 7,
     }
 
 
@@ -127,14 +127,15 @@ def test_workflows_has_previous_page(test_client_graphql):
         "hasNextPage": False,
         "hasPreviousPage": True,
         "startCursor": 1,
-        "endCursor": 5,
-        "totalItems": 6,
+        "endCursor": 6,
+        "totalItems": 7,
     }
 
-    assert len(workflows) == 5
+    assert len(workflows) == 6
     assert [workflow["name"] for workflow in workflows] == [
         "task_clean_up_tasks",
         "task_resume_workflows",
+        "task_validate_awaiting_callbacks",
         "task_validate_product_type",
         "task_validate_products",
         "task_validate_subscriptions",
@@ -163,15 +164,16 @@ def test_workflows_filter_by_name(test_client_graphql, query_args):
 
     assert "errors" not in result
     assert pageinfo == {
-        "endCursor": 4,
+        "endCursor": 5,
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "totalItems": 5,
+        "totalItems": 6,
     }
     expected_workflows = [
         "task_clean_up_tasks",
         "task_resume_workflows",
+        "task_validate_awaiting_callbacks",
         "task_validate_product_type",
         "task_validate_products",
         "task_validate_subscriptions",
@@ -247,13 +249,14 @@ def test_workflows_sort_by_resource_type_desc(test_client_graphql):
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "endCursor": 5,
-        "totalItems": 6,
+        "endCursor": 6,
+        "totalItems": 7,
     }
     expected_workflows = [
         "task_validate_subscriptions",
         "task_validate_products",
         "task_validate_product_type",
+        "task_validate_awaiting_callbacks",
         "task_resume_workflows",
         "task_clean_up_tasks",
         "modify_note",

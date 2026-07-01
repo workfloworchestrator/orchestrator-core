@@ -77,16 +77,15 @@ def _to_schedule_row(task: Job, *, api_managed_ids: set[str], verbose: bool) -> 
     run_time = str(task.next_run_time.replace(microsecond=0))
 
     def values() -> Iterator[str]:
-        yield task.id # id
-        yield task.name # name
-        yield source # source
-        yield str(run_time) # next run time
-        yield str(task.trigger) # trigger
+        yield task.id  # id
+        yield task.name  # name
+        yield source  # source
+        yield str(run_time)  # next run time
+        yield str(task.trigger)  # trigger
         if verbose:
-            yield json.dumps(task.kwargs, indent=2) # kwargs
+            yield json.dumps(task.kwargs, indent=2)  # kwargs
 
     return list(values())
-
 
 
 @app.command()
@@ -160,6 +159,8 @@ def load_initial_schedule(
       - Task Resume Workflows
       - Task Clean Up Tasks
       - Task Validate Subscriptions
+      - Task Validate Products
+      - Task Validate Awaiting Callbacks
 
     By default, this command is idempotent since v4.7.1 when the scheduler is running.
     The schedules are only created when they do not already exist in the database.
@@ -193,6 +194,13 @@ def load_initial_schedule(
             "workflow_id": "",
             "trigger": "cron",
             "trigger_kwargs": {"hour": 2, "minute": 30},
+        },
+        {
+            "name": "Task Validate Awaiting Callbacks",
+            "workflow_name": "task_validate_awaiting_callbacks",
+            "workflow_id": "",
+            "trigger": "interval",
+            "trigger_kwargs": {"seconds": 30},
         },
     ]
 
