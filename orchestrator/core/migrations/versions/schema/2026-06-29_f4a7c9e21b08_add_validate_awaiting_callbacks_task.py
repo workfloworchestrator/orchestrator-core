@@ -44,4 +44,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     conn = op.get_bind()
-    conn.execute(sa.text("DELETE FROM workflows WHERE name = :name"), {"name": task["name"]})
+    delete_task(conn, task["name"])
