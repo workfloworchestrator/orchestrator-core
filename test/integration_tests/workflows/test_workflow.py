@@ -443,6 +443,72 @@ def test_conditionally_skip_a_step():
     assert len([x for x in log if x[1].isskipped()]) == 15, "15 steps should be skipped"
 
 
+def test_conditional_group_predicate_true_for_all_steps():
+    """Predicate is evaluated per step at execution time.
+
+    A step outside the group that mutates state before the group runs
+    means both steps inside the group see the updated state when their
+    individual predicates are evaluated.
+    """
+
+    @step("Enable flag")
+    def enable_flag():
+        return {"enable": True}
+
+    @step("Step A")
+    def step_a(counter=0):
+        return {"counter": counter + 1}
+
+    @step("Step B")
+    def step_b(counter=0):
+        return {"counter": counter + 1}
+
+    if_flag = conditional(lambda s: s.get("enable", False))
+
+    wf = workflow()(lambda: init >> enable_flag >> if_flag(begin >> step_a >> step_b) >> done)
+
+    log = []
+    pstat = create_new_process_stat(wf, {})
+    result = runwf(pstat, store(log))
+    assert_complete(result)
+    assert_state(result, {"enable": True, "counter": 2})
+    assert len([x for x in log if x[1].isskipped()]) == 0, "no steps should be skipped"
+
+
+def test_conditional_group_predicate_reevaluated_between_steps():
+    """Predicate is evaluated independently for each step in the group.
+
+    A step *inside* the group that mutates state can change the predicate
+    result for subsequent steps in the same group.
+    """
+
+    @step("Step A")
+    def step_a(counter=0):
+        return {"counter": counter + 1}
+
+    @step("Disable flag")
+    def disable_flag():
+        return {"enable": False}
+
+    @step("Step B")
+    def step_b(counter):
+        return {"counter": counter + 1}
+
+    # predicate starts True (flag absent defaults to True), disable_flag sets it False
+    if_flag = conditional(lambda s: s.get("enable", True))
+
+    wf = workflow()(lambda: init >> if_flag(begin >> step_a >> disable_flag >> step_b) >> done)
+
+    log = []
+    pstat = create_new_process_stat(wf, {})
+    result = runwf(pstat, store(log))
+    assert_complete(result)
+    # step_a ran (counter=1), disable_flag ran (enable=False), step_b was skipped
+    # counter remains 1, not 2, because step_b never executed
+    assert_state(result, {"enable": False, "counter": 1})
+    assert len([x for x in log if x[1].isskipped()]) == 1, "only step_b should be skipped"
+
+
 def store(log) -> StepLogFunc:
     def _store(_: ProcessStat, step_: Step, process: Process):
         state = process.unwrap()
