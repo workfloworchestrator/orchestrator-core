@@ -19,10 +19,9 @@ Create Date: 2026-06-29 09:00:00.000000
 
 """
 
-import sqlalchemy as sa
 from alembic import op
 
-from orchestrator.core.migrations.helpers import create_task
+from orchestrator.core.migrations.helpers import create_task, delete_workflow
 
 # revision identifiers, used by Alembic.
 revision = "f4a7c9e21b08"
@@ -44,4 +43,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     conn = op.get_bind()
-    delete_task(conn, task["name"])
+    delete_workflow(conn, task["name"])
