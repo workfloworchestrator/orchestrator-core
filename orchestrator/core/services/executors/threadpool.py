@@ -133,7 +133,9 @@ def thread_resume_process(
     input_data = retrieve_input_state(process.process_id, retrieve_input_str, False)
 
     if user:
-        pstat.update(current_user=user)
+        # restore the `current_user` prop to provide an answer to the question:
+        # "who retried this workflow step?"
+        pstat.current_user = user
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
 
     # Final write action to the process: ensure the SessionTransaction is committed.
