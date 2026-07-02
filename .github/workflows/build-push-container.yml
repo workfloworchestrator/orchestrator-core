@@ -19,6 +19,17 @@ jobs:
       contents: read
       packages: write
 
+    strategy:
+      fail-fast: false
+      matrix:
+        # The base image plus one image per optional-extras combination.
+        # `suffix` is appended to every tag (e.g. 5.1.0-mcp, latest-celery).
+        variant:
+          - { name: base, extras: "", suffix: "" }
+          - { name: mcp, extras: "[mcp]", suffix: "-mcp" }
+          - { name: celery, extras: "[celery]", suffix: "-celery" }
+          - { name: mcp-celery, extras: "[mcp,celery]", suffix: "-mcp-celery" }
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -44,6 +55,7 @@ jobs:
           # 'edge'   -> last release or pre-release
           flavor: |
             latest=false
+            suffix=${{ matrix.variant.suffix }}
           tags: |
             type=schedule,pattern=nightly,priority=1000
             type=ref,event=branch,priority=600
@@ -52,21 +64,25 @@ jobs:
             type=raw,value=latest,enable=${{ github.event.release.prerelease == false }},priority=410
             type=raw,value=edge,enable=true,priority=400
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (${{ matrix.variant.name }})
         if: github.event_name == 'release'
         uses: docker/build-push-action@v7
         with:
           context: .
+          build-args: |
+            EXTRAS=${{ matrix.variant.extras }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Test building the Docker image
+      - name: Test building the Docker image (${{ matrix.variant.name }})
         if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v7
         with:
           context: .
+          build-args: |
+            EXTRAS=${{ matrix.variant.extras }}
           platforms: linux/amd64,linux/arm64
           push: false
           tags: ${{ steps.meta.outputs.tags }}
