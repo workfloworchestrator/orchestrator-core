@@ -72,31 +72,26 @@ INTERVAL_MAPPING = {
     Intervals.ONE_MONTH: {"weeks": 4},
 }
 
-cron_regex = r"^(?:(\*|([0-5]?\d))(?:/(\d+))?\s+){4}(?:(\*|([0-5]?\d))(?:/(\d+))?\s+)?(?:([0-9,/*\-?LW#]+)(?:\s+([0-9,/*\-?LW#]+))?(?:\s+([0-9,/*\-?LW#]+))?)$"
+# 5 fields (minute hour day month day_of_week) or 6 with a leading second; each field allows the
+# cron characters (digits, *, /, -, ,, and names). CronTrigger validates the field values.
+cron_regex = r"^([\w*,\-/]+)(\s+[\w*,\-/]+){4,5}$"
 
 
 def get_interval_kwargs(form_data: dict) -> dict:
     return {"start_date": form_data["start_date"]} | INTERVAL_MAPPING[form_data["interval"]]
 
 
-def parse_cron_field(value: str) -> int | None:
-    try:
-        return int(value)
-    except ValueError:
-        return None
-
-
 def get_cron_kwargs(form_data: dict) -> dict:
-    minute, hour, day, month, day_of_week = form_data["cron"].split(" ")
+    # Pass the raw field strings to CronTrigger, which accepts *, */n, ranges and lists. A 5-field
+    # expression is minute..day_of_week; a 6-field one adds a leading second.
+    names = ["minute", "hour", "day", "month", "day_of_week"]
+    fields = form_data["cron"].split()
+    if len(fields) == 6:
+        names = ["second", *names]
+    elif len(fields) != 5:
+        raise ValueError("A cron schedule needs 5 fields (minute hour day month day_of_week) or 6 with a leading second")
 
-    return {
-        "start_date": form_data["start_date"],
-        "minute": parse_cron_field(minute),
-        "hour": parse_cron_field(hour),
-        "day": parse_cron_field(day),
-        "month": parse_cron_field(month),
-        "day_of_week": parse_cron_field(day_of_week),
-    }
+    return {"start_date": form_data["start_date"]} | dict(zip(names, fields, strict=True))
 
 
 async def _check_authorize(workflow: Workflow, user_model: OIDCUserModel | None) -> bool:

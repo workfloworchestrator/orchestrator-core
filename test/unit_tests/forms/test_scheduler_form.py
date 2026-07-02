@@ -13,7 +13,7 @@
 
 import pytest
 
-from orchestrator.core.forms.scheduler_form import _check_authorize
+from orchestrator.core.forms.scheduler_form import _check_authorize, get_cron_kwargs
 from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.workflow import begin, done, step, workflow
 
@@ -85,3 +85,46 @@ async def test_check_authorize_passes_auth_context(username_workflow):
     assert await _check_authorize(username_workflow, FakeUser("admin")) is True
     assert await _check_authorize(username_workflow, FakeUser("nobody")) is False
     assert await _check_authorize(username_workflow, None) is False
+
+
+START_DATE = object()  # get_cron_kwargs passes start_date through unchanged
+
+
+@pytest.mark.parametrize(
+    ("cron", "expected"),
+    [
+        pytest.param(
+            "* * * * *",
+            {"minute": "*", "hour": "*", "day": "*", "month": "*", "day_of_week": "*"},
+            id="5-field-wildcards",
+        ),
+        pytest.param(
+            "0-59 * * * *",
+            {"minute": "0-59", "hour": "*", "day": "*", "month": "*", "day_of_week": "*"},
+            id="range",
+        ),
+        pytest.param(
+            "1,15,30 * * * *",
+            {"minute": "1,15,30", "hour": "*", "day": "*", "month": "*", "day_of_week": "*"},
+            id="list",
+        ),
+        pytest.param(
+            "0 8 * * 1",
+            {"minute": "0", "hour": "8", "day": "*", "month": "*", "day_of_week": "1"},
+            id="specific",
+        ),
+        pytest.param(
+            "*/15 * * * * *",
+            {"second": "*/15", "minute": "*", "hour": "*", "day": "*", "month": "*", "day_of_week": "*"},
+            id="6-field-seconds",
+        ),
+    ],
+)
+def test_get_cron_kwargs(cron, expected):
+    assert get_cron_kwargs({"cron": cron, "start_date": START_DATE}) == {"start_date": START_DATE, **expected}
+
+
+@pytest.mark.parametrize("cron", ["* * * *", "* * * * * * *"], ids=["4-fields", "7-fields"])
+def test_get_cron_kwargs_rejects_wrong_field_count(cron):
+    with pytest.raises(ValueError):
+        get_cron_kwargs({"cron": cron, "start_date": START_DATE})
