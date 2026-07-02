@@ -164,7 +164,7 @@ def test_thread_resume_process_resumed(
     pstat.user = expected_user
     mock_set_process_status_running.assert_called_once()
     mock_retrieve_input_state.assert_called_once_with(pstat.process_id, "user_input", False)
-    assert pstat.update.call_args_list == [call(current_user="other user"), call(state={"state": "test"})]
+    assert pstat.update.call_args_list == [call(state={"state": "test"})]
     mock_run_process_async.assert_called_once()
     assert result == process_id
 
