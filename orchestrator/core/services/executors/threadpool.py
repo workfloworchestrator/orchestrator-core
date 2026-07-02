@@ -18,6 +18,7 @@ import structlog
 from sqlalchemy import select
 
 from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator.core import app_settings
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.db.database import transactional
 from orchestrator.core.services.executors.types import ExecutorFunction
@@ -32,6 +33,7 @@ from orchestrator.core.services.processes import (
     load_process,
     safe_logstep,
 )
+from orchestrator.core.settings import ExecutorType
 from orchestrator.core.types import BroadcastFunc
 from orchestrator.core.workflow import (
     ProcessStat,
@@ -95,6 +97,14 @@ def thread_start_process(
 
     # Trigger the task in the current thread or threadpool (depends on executor mode).
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
+
+    # When using celery, the current_user prop is set to SYSTEM, because there is no actual user involved.
+    # The `user` property is supplied via the task and is the name of the user that triggered this task.
+    # When using the WORKER type, override `current_user` with this value so we have it available in the
+    # `created_by` property of a step.
+    if app_settings.EXECUTOR == ExecutorType.WORKER and user != SYSTEM_USER:
+        pstat.current_user = user
+
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func), broadcast_func=broadcast_func)
 
