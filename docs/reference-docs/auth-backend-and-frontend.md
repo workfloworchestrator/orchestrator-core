@@ -1,10 +1,16 @@
 # Authentication and authorization
 
-The `Orchestrator-Core` application incorporates a robust security framework, utilizing OpenID Connect (OIDC) for authentication and Open Policy Agent (OPA) for authorization. This flexible system ensures secure access, allowing you to tailor the authorization components to best fit your application's specific requirements.
+The `Orchestrator-Core` application incorporates a robust security framework, utilizing OpenID Connect (OIDC) for
+authentication and Open Policy Agent (OPA) for authorization. This flexible system ensures secure access, allowing you
+to tailor the authorization components to best fit your application's specific requirements.
 
-WFO can be run with or without authentication. With authentication turned on authorization logic can be provided that uses - for example - user privileges to allow further access to resources. Authentication is configured using ENV variables. The frontend and backend have their own set of ENV variables and logic to be implemented to run auth(n/z).
+WFO can be run with or without authentication. With authentication turned on authorization logic can be provided that
+uses - for example - user privileges to allow further access to resources. Authentication is configured using ENV
+variables. The frontend and backend have their own set of ENV variables and logic to be implemented to run auth(n/z).
 
-Note: With authentication enabled on the backend the frontend has to have authentication enabled as well. When the frontend has authentication enabled it is possible to run a backend without authentication. Please note the limitations of frontend authentication and authorization mentioned in a note under frontend authentication.
+Note: With authentication enabled on the backend the frontend has to have authentication enabled as well. When the
+frontend has authentication enabled it is possible to run a backend without authentication. Please note the limitations
+of frontend authentication and authorization mentioned in a note under frontend authentication.
 
 ## Definitions
 
@@ -27,87 +33,114 @@ Without authentication WFO allows all users access to all resources.
 
 WFO provides authentication based on an OIDC provider. The OIDC provider is presumed to be configured and to provide
 
--   An authentication endpoint
--   A tenant
--   A client id
--   A client secret
+- An authentication endpoint
+- A tenant
+- A client id
+- A client secret
 
 #### Frontend
 
-The WFO frontend uses [NextAuth][3] to handle authentication. Authentication configuration can be found in [page/api/auth/[...nextauth].ts][4]
+The WFO frontend uses [NextAuth][3] to handle authentication. Authentication configuration can be found in
+[page/api/auth/\[...nextauth\].ts][4]
 
 **ENV variables**
 These variables need to be set for authentication to work on the frontend.
 
+```tsx
+// Auth variables
+OAUTH2_ACTIVE = true;
+// The OIDC client id as configured in the OIDC provider
+OAUTH2_CLIENT_ID = "orchestrator-client";
+// The OIDC client secret id as configured in the OIDC provider
+OAUTH2_CLIENT_SECRET = [SECRET];
+
+// String identifying the OIDC provider
+NEXTAUTH_PROVIDER_ID = "keycloak";
+// The name of the OIDC provider. Keycloak uses this name to display in the login screen
+NEXTAUTH_PROVIDER_NAME = "Keycloak";
+// Optional override of the scopes that are asked permission for from the OIDC provider
+NEXTAUTH_AUTHORIZATION_SCOPE_OVERRIDE = "openid profile";
+
+// Required by the Nextauth middleware
+// The path to the [...nextauth].js file
+NEXTAUTH_URL = [DOMAIN] / api / auth;
+// Used by NextAuth to encrypt the JWT token
+NEXTAUTH_SECRET = [SECRET];
 ```
-# Auth variables
-OAUTH2_ACTIVE=true
-OAUTH2_CLIENT_ID="orchestrator-client" // The oidc client id as configured in the OIDC provider
-OAUTH2_CLIENT_SECRET=[SECRET] // The oidc client secret id as configured in the OIDC provider
 
-NEXTAUTH_PROVIDER_ID="keycloak" // String identifying the OIDC provider
-NEXTAUTH_PROVIDER_NAME="Keycloak" // The name of the OIDC provider. Keycloak uses this name to display in the login screen
-NEXTAUTH_AUTHORIZATION_SCOPE_OVERRIDE="openid profile" // Optional override of the scopes that are asked permission for from the OIDC provider
+With authentication turned on and these variables provided the frontend application will redirect unauthorized users to
+the login screen provided by the OIDC provider to request their credentials and return them to the page they tried to
+visit.
 
-# Required by the Nextauth middleware
-NEXTAUTH_URL=[DOMAIN]/api/auth // The path to the [...nextauth].js file
-NEXTAUTH_SECRET=[SECRET] // Used by NextAuth to encrypt the JWT token
-```
-
-With authentication turned on and these variables provided the frontend application will redirect unauthorized users to the login screen provided by the OIDC provider to request their credentials and return them to the page they tried to visit.
-
-Note: It's possible to add additional oidc providers including some that are provided by the NextAuth library like Google, Apple and others. See [NextAuthProviders][5] for more information.
+Note: It's possible to add additional oidc providers including some that are provided by the NextAuth library like
+Google, Apple and others. See [NextAuthProviders][5] for more information.
 
 ##### Authorization
 
-Authorization on the frontend can be used to determine if a page, action or navigation item is shown to a user. For this it uses an `isAllowedHandler` function can be passed into the WfoAuth component that wraps the page in `_app.tsx`
+Authorization on the frontend can be used to determine if a page, action or navigation item is shown to a user. For
+this it uses an `isAllowedHandler` function can be passed into the `WfoAuth` component that wraps the page in `_app.tsx`
 
-```_app.tsx
-
-...
-    <WfoAuth isAllowedHandler={..custom function..}>
-    ...
-    </WfoAuth>
-...
+```tsx
+<WfoAuth isAllowedHandler={custom_handler_function}>...</WfoAuth>
 ```
 
-The signature of the function should be `(routerPath: string, resource?: string) => boolean;`. The function is called on with the `routerpath` value and
-the `resource`. This is the list of events the function is called on is:
+The signature of the function should be `(routerPath: string, resource?: string) => boolean;`. The function is called
+on with the `routerpath` value and the `resource`. This is the list of events the function is called on is:
 
-```
+```tsx
 export enum PolicyResource {
-    NAVIGATION_METADATA = '/orchestrator/metadata/', // called when determining if the metadata menuitem should be shown
-    NAVIGATION_SETTINGS = '/orchestrator/settings/', // called when determining if the settings menuitem should be shown
-    NAVIGATION_SUBSCRIPTIONS = '/orchestrator/subscriptions/', // called when determining if the subscriptions should be shown
-    NAVIGATION_TASKS = '/orchestrator/tasks/', // called when determining if the tasks menuitem should be shown
-    NAVIGATION_WORKFLOWS = '/orchestrator/processes/', // called when determining if the processes menuitem should be shown
-    PROCESS_ABORT = '/orchestrator/processes/abort/', // called when determining if the button to trigger a process abort should be shown
-    PROCESS_DELETE = '/orchestrator/processes/delete/', // called when determining if the button to trigger a process delete button should be shown
-    PROCESS_DETAILS = '/orchestrator/processes/details/', // called when determining if the process detail page should be displayed
-    PROCESS_RELATED_SUBSCRIPTIONS = '/orchestrator/subscriptions/view/from-process', // called when determining if the related subscriptions for a subscription should be shown
-    PROCESS_RETRY = '/orchestrator/processes/retry/', // called when determining if the button to trigger a process retry should be shown
-    PROCESS_USER_INPUT = '/orchestrator/processes/user-input/', // called when determining if th
-    SUBSCRIPTION_CREATE = '/orchestrator/processes/create/process/menu', // called when determining if create if actions that trigger a create workflow should be displayed
-    SUBSCRIPTION_MODIFY = '/orchestrator/subscriptions/modify/', // called when determining if create if actions that trigger a modify workflow should be displayed
-    SUBSCRIPTION_TERMINATE = '/orchestrator/subscriptions/terminate/', // called when determining if create if actions that trigger a terminate workflow should be displayed
-    SUBSCRIPTION_VALIDATE = '/orchestrator/subscriptions/validate/', // called when determining if create if actions that trigger a validate task should be displayed
-    TASKS_CREATE = '/orchestrator/processes/create/task', // called when determining if create if actions that trigger a task should be displayed
-    TASKS_RETRY_ALL = '/orchestrator/processes/all-tasks/retry', // called when determining if create if actions that trigger retry all tasks task should be displayed
-    SETTINGS_FLUSH_CACHE = '/orchestrator/settings/flush-cache', // called when determining if a button to flush cache should be displayed
-    SET_IN_SYNC = '/orchestrator/subscriptions/set-in-sync', // called when determining if a button to set a subscription in sync should be displayed
+    // called when determining if the metadata menuitem should be shown
+    NAVIGATION_METADATA = '/orchestrator/metadata/'
+    // called when determining if the settings menuitem should be shown
+    NAVIGATION_SETTINGS = '/orchestrator/settings/'
+    // called when determining if the subscriptions should be shown
+    NAVIGATION_SUBSCRIPTIONS = '/orchestrator/subscriptions/'
+    // called when determining if the tasks menuitem should be shown
+    NAVIGATION_TASKS = '/orchestrator/tasks/'
+    // called when determining if the processes menuitem should be shown
+    NAVIGATION_WORKFLOWS = '/orchestrator/processes/'
+    // called when determining if the button to trigger a process abort should be shown
+    PROCESS_ABORT = '/orchestrator/processes/abort/'
+    // called when determining if the button to trigger a process delete button should be shown
+    PROCESS_DELETE = '/orchestrator/processes/delete/'
+    // called when determining if the process detail page should be displayed
+    PROCESS_DETAILS = '/orchestrator/processes/details/'
+    // called when determining if the related subscriptions for a subscription should be shown
+    PROCESS_RELATED_SUBSCRIPTIONS = '/orchestrator/subscriptions/view/from-process'
+    // called when determining if the button to trigger a process retry should be shown
+    PROCESS_RETRY = '/orchestrator/processes/retry/'
+    // called when determining if the user input of a process should be shown
+    PROCESS_USER_INPUT = '/orchestrator/processes/user-input/'
+    // called when determining if create if actions that trigger a create workflow should be displayed
+    SUBSCRIPTION_CREATE = '/orchestrator/processes/create/process/menu'
+    // called when determining if create if actions that trigger a modify workflow should be displayed
+    SUBSCRIPTION_MODIFY = '/orchestrator/subscriptions/modify/'
+    // called when determining if create if actions that trigger a terminate workflow should be displayed
+    SUBSCRIPTION_TERMINATE = '/orchestrator/subscriptions/terminate/'
+    // called when determining if create if actions that trigger a validate task should be displayed
+    SUBSCRIPTION_VALIDATE = '/orchestrator/subscriptions/validate/'
+    // called when determining if create if actions that trigger a task should be displayed
+    TASKS_CREATE = '/orchestrator/processes/create/task'
+    // called when determining if create if actions that trigger retry all tasks task should be displayed
+    TASKS_RETRY_ALL = '/orchestrator/processes/all-tasks/retry'
+    // called when determining if a button to flush cache should be displayed
+    SETTINGS_FLUSH_CACHE = '/orchestrator/settings/flush-cache'
+    // called when determining if a button to set a subscription in sync should be displayed
+    SET_IN_SYNC = '/orchestrator/subscriptions/set-in-sync'
 }
 ```
 
-Note: Components that are hidden for unauthorized users are still part of the frontend application, authorization just makes sure
-unauthorized users are not presented with actions they are not allowed to take. The calls these actions
-make can still be made through curl calls for example. Additional authorization needs to be implemented on these calls on the backend.
+Note: Components that are hidden for unauthorized users are still part of the frontend application, authorization just
+makes sure unauthorized users are not presented with actions they are not allowed to take. The calls these actions
+make can still be made through curl calls for example. Additional authorization needs to be implemented on these calls
+on the backend.
 
 ### Backend
 
 **ENV variables**
 These variables need to be set for authentication to work on the backend
 
-```
+```python
 ...
 # OIDC settings
 OAUTH2_ACTIVE: bool = True
@@ -118,60 +151,69 @@ OAUTH2_TOKEN_URL: str = ""
 OIDC_BASE_URL: str = ""
 OIDC_CONF_URL: str = ""
 
-# OPtional OPA settings
+# optional OPA settings
 OPA_URL: str = ""
 ```
 
-With the variables provided, requests to endpoints will return 403 error codes for users that are not logged in and 401 error codes for users that are not authorized to do a call.
+With the variables provided, requests to endpoints will return 403 error codes for users that are not logged in and 401
+error codes for users that are not authorized to do a call.
 
 #### Customization
 
 `AuthManager` serves as the central unit for managing both `authentication` and `authorization` mechanisms.
-While it defaults to using `OIDCAuth` for authentication, `OPAAuthorization` for http authorization and `GraphQLOPAAuthorization` for graphql authorization , it supports customization.
+While it defaults to using `OIDCAuth` for authentication, `OPAAuthorization` for http authorization and
+`GraphQLOPAAuthorization` for graphql authorization , it supports customization.
 
-When initiating the `OrchestratorCore` class, it's [`auth_manager`][6] property is set to `AuthManager`. AuthManager is provided by [oauth2_lib][7].
+When initiating the `OrchestratorCore` class, it's [`auth_manager`][6] property is set to `AuthManager`. AuthManager is
+provided by [oauth2_lib][7].
 
-`AuthManager` provides 3 methods that are called for authentication and authorization: `authentication`, `authorization`, and `graphql_authorization`.
+`AuthManager` provides 3 methods that are called for authentication and authorization: `authentication`,
+`authorization`, and `graphql_authorization`.
 
-`authentication`: The default method provided by Oaut2Lib implements returning the OIDC user from the OIDC introspection endpoint.
+`authentication`: The default method provided by Oauth2Lib implements returning the OIDC user from the OIDC
+introspection endpoint.
 
-Note:
-The default authentication method allows for the passing in of **is_bypassable_request** method that receives the Request object
-and returns a boolean. When this method returns true the request is always allowed regardless of other authorization decisions.
+!!! Note:
+    The default authentication method allows for the passing in of **is_bypassable_request** method that receives the
+    Request object and returns a boolean. When this method returns true the request is always allowed regardless of
+    other authorization decisions.
 
-`authorization`: A method that applies authorization decisions to HTTP requests, **the decision is either true (Allowed), false (Forbidden), or None (authorization bypassed for local dev).** Gets this payload to based decisions on. The default method provided by Oauth2Lib uses OPA and sends the payload to the opa_url specified in OPA_URL setting to get a decision.
+`authorization`: A method that applies authorization decisions to HTTP requests, **the decision is either `true`
+(Allowed), `false` (Forbidden), or `None` (authorization bypassed for local dev).** Gets this payload to based
+decisions on. The default method provided by Oauth2Lib uses OPA and sends the payload to the `opa_url` specified in
+`OPA_URL` setting to get a decision.
 
+```python
+"input": {
+    **(self.opa_kwargs or {}),
+    **(user_info or {}),
+    "resource": request.url.path,
+    "method": request_method,
+    "arguments": {"path": request.path_params, "query": {**request.query_params}, "json": json},
+}
 ```
-            "input": {
-                **(self.opa_kwargs or {}),
-                **(user_info or {}),
-                "resource": request.url.path,
-                "method": request_method,
-                "arguments": {"path": request.path_params, "query": {**request.query_params}, "json": json},
-            }
-```
 
-`graphql_authorization`: A method that applies authorization decisions to graphql requests. Specializes OPA authorization for GraphQL operations.
-GraphQl results always return a 200 response when authenticated but can return 403 results for partial results as may occur in federated scenarios.
+`graphql_authorization`: A method that applies authorization decisions to graphql requests. Specializes OPA
+authorization for GraphQL operations. GraphQl results always return a 200 response when authenticated but can return
+403 results for partial results as may occur in federated scenarios.
 
-WFO will return a generic 403 for both `authorization` and `graphql_authorization`. If desired, users can also
-raise their own `HTTPException` with a custom `detail=` parameter to return additional context.
+WFO will return a generic 403 for both `authorization` and `graphql_authorization`. If desired, users can also raise
+their own `HTTPException` with a custom `detail=` parameter to return additional context.
 
 ### Customizing
 
-When initializing the app we have the option to register custom authentication and authorization methods and override the default auth(n|z) logic.
+When initializing the app we have the option to register custom authentication and authorization methods and override
+the default auth(n|z) logic.
 
-```
-...
-    app.register_authentication(...)
-    app.register_authorization(...)
-    app.register_graphql_authorization(...)
-...
+```python
+app.register_authentication(...)
+app.register_authorization(...)
+app.register_graphql_authorization(...)
 ```
 
-**app.register_authentication** takes an subclass of abstract class
+`app.register_authentication` takes a subclass of an abstract class.
 
-```
+```python
 from abc import ABC, abstractmethod
 
 class Authentication(ABC):
@@ -188,9 +230,9 @@ class Authentication(ABC):
 
 Authorization decisions can be made based on request properties and the token provided
 
-**app.register_authorization** takes an subclass of abstract class
+`app.register_authorization` takes a subclass of an abstract class.
 
-```
+```python
 from abc import ABC, abstractmethod
 
 class Authorization(ABC):
@@ -209,7 +251,7 @@ Authorization decisions can be made based on request properties and user attribu
 
 **app.register_graphql_authorization** takes a subclass of abstract class
 
-```
+```python
 class GraphqlAuthorization(ABC):
     """Defines the graphql authorization logic interface.
 
@@ -224,7 +266,8 @@ class GraphqlAuthorization(ABC):
 
 Graphql Authorization decisions can be made based on request properties and user attributes.
 
-[Additional methods](#authorization-for-internal-workflows) exist for defining role-based access control for internal workflows.
+[Additional methods](#authorization-for-internal-workflows) exist for defining role-based access control for internal
+workflows.
 
 ### Example
 
@@ -328,7 +371,8 @@ Below is an example illustrating how to override the default configurations:
     Role-based access control for workflows is currently in beta.
     Initial support has been added to the backend, but the feature is not fully communicated through the UI yet.
 
-Certain `orchestrator-core` decorators accept authorization callbacks of type `type Authorizer = Callable[[AuthContext], Awaitable[bool]]`, which return True when the input user is authorized, otherwise False.
+Certain `orchestrator-core` decorators accept authorization callbacks of type `type Authorizer = Callable[[AuthContext
+], Awaitable[bool]]`, which return True when the input user is authorized, otherwise False.
 In other words, authorization callbacks are async, take an `AuthContext` as an argument, and return a bool.
 
 See `orchestrator.core.utils.auth.AuthContext` as a reference for what data is available to your callback function.
@@ -349,12 +393,13 @@ If `retry_auth_callback` is omitted, then `authorize_callback` is used to author
 
 Examples:
 
-* `authorize_callback=None, retry_auth_callback=None`: any user may run the workflow.
-* `authorize_callback=A, retry_auth_callback=B`: users authorized by A may start the workflow. Users authorized by B may retry on failure.
-    * Example: starting the workflow is a decision that must be made by a product owner. Retrying can be made by an on-call member of the operations team.
-* `authorize_callback=None, retry_auth_callback=B`: any user can start the workflow, but only users authorized by B may retry on failure.
+- `authorize_callback=None, retry_auth_callback=None`: any user may run the workflow.
+- `authorize_callback=A, retry_auth_callback=B`: users authorized by A may start the workflow. Users authorized by B may retry on failure.
+  - Example: starting the workflow is a decision that must be made by a product owner. Retrying can be made by an on-call member of the operations team.
+- `authorize_callback=None, retry_auth_callback=B`: any user can start the workflow, but only users authorized by B may retry on failure.
 
 ### `@inputstep`
+
 The `@inputstep` decorator accepts the optional parameters `resume_auth_callback: Authorizer` and `retry_auth_callback: Authorizer`.
 
 `resume_auth_callback` will be used to determine the authorization of a user to resume the workflow when suspended at this inputstep.
@@ -366,15 +411,16 @@ If `resume_auth_callback` is also omitted, then the workflow’s `retry_auth_cal
 
 In summary:
 
-* A workflow establishes `authorize_callback` for starting, resuming, or retrying.
-* The workflow can also establish `retry_auth_callback`, which will override `authorize_callback` for retries.
-    * An inputstep can override the existing `authorize_callback` with `resume_auth_callback` and the existing `retry_auth_callback` with its own `retry_auth_callback`.
-* Subsequent inputsteps can do the same, but any None will not overwrite a previous not-None.
+- A workflow establishes `authorize_callback` for starting, resuming, or retrying.
+- The workflow can also establish `retry_auth_callback`, which will override `authorize_callback` for retries.
+  - An inputstep can override the existing `authorize_callback` with `resume_auth_callback` and the existing `retry_auth_callback` with its own `retry_auth_callback`.
+- Subsequent input steps can do the same, but any None will not overwrite a previous not-None.
 
 ### Policy resolutions
+
 Below is an exhaustive table of how policies (implemented as callbacks `A`, `B`, `C`, and `D`)
 are prioritized in different workflow and inputstep configurations.
-For brevity, the `_callback` parameter suffix has been ommitted.
+For brevity, the `_callback` parameter suffix has been omitted.
 
 <table>
   <thead>
@@ -434,7 +480,7 @@ For brevity, the `_callback` parameter suffix has been ommitted.
         <td>B</td>
         <td>Anyone</td>
         <td>B</td>
-        <td>original retry_auth is maintained if nothing supercedes it. Weird choice, but this provides a "we specifically want to limit retries" route.</td>
+        <td>original retry_auth is maintained if nothing supersedes it. Weird choice, but this provides a "we specifically want to limit retries" route.</td>
       </tr>
       <tr>
         <td>A</td>
@@ -583,6 +629,7 @@ For brevity, the `_callback` parameter suffix has been ommitted.
 </table>
 
 ### Authorization for internal workflows
+
 Users of Workflow Orchestrator can't directly access the `@workflow` decorators of tasks and workflows defined within `orchestrator-core`.
 However, authorization callbacks can still be passed via the `OrchestratorCore` class when initializing your WFO application.
 
@@ -615,6 +662,7 @@ If these callbacks are not registered, these workflows can be started and retrie
 For more on application startup, see the [Settings Overview page][settings-overview].
 
 ### Examples
+
 Assume we have the following function that can be used to create callbacks:
 
 === "`orchestrator-core` ≥ 5.0"
@@ -656,8 +704,11 @@ Assume we have the following function that can be used to create callbacks:
 We can now construct a variety of authorization policies.
 
 #### Rubber Stamp Model
-!!!example
-    Suppose we have a workflow W that needs to pause on inputstep `approval` for approval from finance. Ops (and only ops) should be able to start the workflow and retry any failed steps. Finance (and only finance) should be able to resume at the input step.
+
+!!! example
+    Suppose we have a workflow W that needs to pause on inputstep `approval` for approval from finance. Ops (and only
+    ops) should be able to start the workflow and retry any failed steps. Finance (and only finance) should be able to
+    resume at the input step.
 
     ```python
     @workflow("An expensive workflow", authorize_callback=allow_roles("ops"))
@@ -669,10 +720,11 @@ We can now construct a variety of authorization policies.
         ...
     ```
 
-
 #### Hand-off Model
-!!!example
-    Suppose we have two teams, Dev and Platform, and a long workflow W that should be handed off to Platform at step `approval`.
+
+!!! example
+    Suppose we have two teams, Dev and Platform, and a long workflow W that should be handed off to Platform at step
+    `approval`.
 
     Dev can start the workflow and retry steps prior to S. Once step S is reached, Platform (and only Platform) can resume the workflow and retry later failed steps.
 
@@ -688,8 +740,10 @@ We can now construct a variety of authorization policies.
     Notice that default behaviors let us ignore `retry_auth_callback` arguments in both decorators.
 
 #### Restricted Retries Model
-!!!example
-    Suppose we have a workflow that anyone can run, but with steps that should only be retried by users with certain backend access.
+
+!!! example
+    Suppose we have a workflow that anyone can run, but with steps that should only be retried by users with certain
+    backend access.
 
     ```python
     @workflow("A workflow for any user", retry_auth_callback=allow_roles("admin"))
@@ -700,7 +754,6 @@ We can now construct a variety of authorization policies.
     Note that we could specify `authorize_callback=allow_roles("user")` if helpful, or we can omit `authorize_callback` to fail over to any logged in user.
 
 [settings-overview]: app/settings-overview.md
-
 [1]: https://github.com/workfloworchestrator/example-orchestrator-ui
 [2]: https://github.com/workfloworchestrator/example-orchestrator
 [3]: https://next-auth.js.org/

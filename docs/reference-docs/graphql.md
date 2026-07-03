@@ -14,11 +14,12 @@ app.register_graphql()
 ## How we use Strawberry for GraphQL
 
 ### What is Strawberry?
+
 [Strawberry](https://strawberry.rocks/) is a Python library for building GraphQL APIs using a
 code-first approach. It allows you to define your GraphQL schema using Python classes and type
 annotations.
 
-Here is a simple example of how Strawberry create's a schema:
+Here is a simple example of how Strawberry creates a schema:
 
 ```python
 import typing
@@ -48,21 +49,21 @@ also specifies exactly which queries and mutations are available for clients to 
 Strawberry GraphQL is used to define and expose a GraphQL API for orchestrating products,
 subscriptions, and related entities. Here’s a brief overview of how GraphQL is used:
 
-* **Schema Definition:** GraphQL types, interfaces, and inputs are defined using Strawberry
-decorators (e.g., `@strawberry.field`, `@strawberry.type`, `@strawberry.interface`,
-`@strawberry.input`). These are mapped to Pydantic models and SQLAlchemy tables for type safety and
-data validation.
+- **Schema Definition:** GraphQL types, interfaces, and inputs are defined using Strawberry
+  decorators (e.g., `@strawberry.field`, `@strawberry.type`, `@strawberry.interface`,
+  `@strawberry.input`). These are mapped to Pydantic models and SQLAlchemy tables for type safety and
+  data validation.
 
-* **Resolvers:** Resolver functions (e.g., `resolve_subscriptions`, `resolve_products`) are
-implemented to fetch and return data from the database, often using SQLAlchemy queries. These
-resolvers are attached to fields in the schema.
+- **Resolvers:** Resolver functions (e.g., `resolve_subscriptions`, `resolve_products`) are
+  implemented to fetch and return data from the database, often using SQLAlchemy queries. These
+  resolvers are attached to fields in the schema.
 
-* **Pagination, Filtering, Sorting**: The API supports pagination, filtering, and sorting for list
-queries, using custom types like `GraphqlFilter`, `GraphqlSort`, and a `Connection` type for
-paginated results.
+- **Pagination, Filtering, Sorting**: The API supports pagination, filtering, and sorting for list
+  queries, using custom types like `GraphqlFilter`, `GraphqlSort`, and a `Connection` type for
+  paginated results.
 
-* **Federation:** Some types use Strawberry’s federation features
-(e.g., `@strawberry.federation.interface`) to support a federated GraphQL architecture.
+- **Federation:** Some types use Strawberry’s federation features
+  (e.g., `@strawberry.federation.interface`) to support a federated GraphQL architecture.
 
 !!! info "Federation"
     Federation allows you to combine multiple, distributed GraphQL services into one unified API. This is extremely
@@ -76,12 +77,12 @@ Since strawberry-graphql `0.285.0` federation is turned on by default
 - Set `FEDERATION_VERSION` in your `.env` file with the correct version you need for your federation
   - orchestrator-core default is `2.9` to keep compatibility with `example-orchestrator`.
 - See the [`example-orchestrator` documentation][example-orchestrator] for a detailed example of
-setting up federation with the orchestrator-core and other backend services.
+  setting up federation with the orchestrator-core and other backend services.
 
 ## Extending the Query and Mutation
 
-You are not able to remove resolvers from a Query, so we split the Query into 2 and merged them back for a default Query.
-Our usecase for this is that we use an external GraphQL source as our customers root.
+You are not able to remove resolvers from a Query, so we split the Query into 2 and merged them back for a default
+Query. Our use-case for this is that we use an external GraphQL source as our customers root.
 
 - `OrchestratorQuery` all resolvers except for customers.
 - `CustomerQuery` only has `customers` resolver.
@@ -162,11 +163,16 @@ You can do the same to extend Mutation.
 
 ## Adding federated types to the GraphQL
 
-For an introduction to federation using Strawberry, see the [Strawberry federation docs](https://strawberry.rocks/docs/federation/introduction).
+For an introduction to federation using Strawberry, see the
+[Strawberry federation docs](https://strawberry.rocks/docs/federation/introduction).
 
-Within a federation, it is possible to add orchestrator data to GraphQL types from other sources by extending the `DEFAULT_GRAPHL_MODELS` dictionary with your own federated classes and adding them as parameter to `app.register_graphql(graphql_models={})`.
+Within a federation, it is possible to add orchestrator data to GraphQL types from other sources by extending the
+`DEFAULT_GRAPHQL_MODELS` dictionary with your own federated classes and adding them as parameter to
+`app.register_graphql(graphql_models={})`.
 
-Here is an example for when instead of overriding the customers resolver, you instead use a different GraphQL source (know that not storing any customer data in the orchestator will make filtering and sorting unavailable and very tricky to implement):
+Here is an example for when instead of overriding the customers resolver, you instead use a different GraphQL source
+(know that not storing any customer data in the Orchestrator will make filtering and sorting unavailable and very
+tricky to implement):
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -252,14 +258,16 @@ Here is an example for when instead of overriding the customers resolver, you in
     app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
     ```
 
-Types that are added in this way but aren't used in a resolver, will be viewable outside of a federation inside the types in the GraphQL UI interface.
+Types that are added in this way but aren't used in a resolver, will be viewable outside of a federation inside the
+types in the GraphQL UI interface.
 
-Adding product or product block Strawberry types to the `graphql_models` will skip their generation inside `register_domain_models`. More info [here](#domain-models-auto-registration-for-graphql)
+Adding product or product block Strawberry types to the `graphql_models` will skip their generation inside
+`register_domain_models`. More info [here](#domain-models-auto-registration-for-graphql)
 
 ## Add JSON schema for metadata
 
-The metadata in a subscription is completely unrestricted and can have anything.
-This functionality is to make metadata descriptive in a `__schema__` for the frontend to be able to render the metadata and know what to do with typing.
+The metadata in a subscription is completely unrestricted and can have anything. This functionality is to make metadata
+descriptive in a `__schema__` for the frontend to be able to render the metadata and know what to do with typing.
 
 example how to update the `__schema__`:
 
@@ -278,7 +286,7 @@ example how to update the `__schema__`:
 
     This will result in json schema:
 
-    ```Json
+    ```json
     {
         "title": "Metadata",
         "type": "object",
@@ -312,7 +320,7 @@ example how to update the `__schema__`:
 
     This will result in json schema:
 
-    ```Json
+    ```json
     {
         "title": "Metadata",
         "type": "object",
@@ -333,15 +341,18 @@ example how to update the `__schema__`:
 
 ## Domain Models Auto Registration for GraphQL
 
-When using the `app.register_graphql()` function, all products in the `SUBSCRIPTION_MODEL_REGISTRY` will be automatically converted into GraphQL types.
-You are able to turn this off with `app.register_graphql(register_models=False)`, but then you can only query fields from the default `SubscriptionModel`.
-The registration process iterates through the list, starting from the deepest product block and working its way back up to the product level.
+When using the `app.register_graphql()` function, all products in the `SUBSCRIPTION_MODEL_REGISTRY` will be
+automatically converted into GraphQL types. You are able to turn this off with `app.register_graphql
+(register_models=False)`, but then you can only query fields from the default `SubscriptionModel`. The registration
+process iterates through the list, starting from the deepest product block and working its way back up to the product
+level.
 
-However, there is a potential issue when dealing with a `ProductBlock` that references itself, as it could lead to an error expecting the `ProductBlock` type to exist.
+However, there is a potential issue when dealing with a `ProductBlock` that references itself, as it could lead to an
+error expecting the `ProductBlock` type to exist.
 
 Here is an example of the expected error with a self referenced `ProductBlock`:
 
-```
+```python
 strawberry.experimental.pydantic.exceptions.UnregisteredTypeException: Cannot find a Strawberry Type for <class 'products.product_blocks.product_block_file.ProductBlock'> did you forget to register it?
 ```
 
@@ -405,12 +416,15 @@ Here's an example of how to do it:
     app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
     ```
 
-By following this example, you can effectively create the necessary GraphQL type for `ProductBlock` and ensure proper registration with `app.register_graphql()`. This will help you avoid any `Cannot find a Strawberry Type` scenarios and enable smooth integration of domain models with GraphQL.
+By following this example, you can effectively create the necessary GraphQL type for `ProductBlock` and ensure proper
+registration with `app.register_graphql()`. This will help you avoid any `Cannot find a Strawberry Type` scenarios and
+enable smooth integration of domain models with GraphQL.
 
 ### Scalars for Auto Registration
 
-When working with special types such as `VlanRanges` or `IPv4Interface` in the core module, scalar types are essential for the auto registration process.
-Scalar types enable smooth integration of these special types into the GraphQL schema, They need to be initialized and can be added with a dict to `app.register_graphql(scalar_overrides={})`.
+When working with special types such as `VlanRanges` or `IPv4Interface` in the core module, scalar types are essential
+for the auto registration process. Scalar types enable smooth integration of these special types into the GraphQL
+schema, They need to be initialized and can be added with a dict to `app.register_graphql(scalar_overrides={})`.
 
 Here's an example of how to add a new scalar:
 
@@ -461,17 +475,19 @@ Here's an example of how to add a new scalar:
 You can find more examples of scalar usage in the `orchestrator/graphql/types.py` file.
 For additional information on Scalars, please refer to the Strawberry documentation on Scalars: https://strawberry.rocks/docs/types/scalars.
 
-By using scalar types for auto registration, you can seamlessly incorporate special types into your GraphQL schema, making it easier to work with complex data in the Orchestrator application.
-
+By using scalar types for auto registration, you can seamlessly incorporate special types into your GraphQL schema,
+making it easier to work with complex data in the Orchestrator application.
 
 ### Federating with Autogenerated Types
 
 To enable federation, set the `FEDERATION_ENABLED` environment variable to `True`.
 
 !!! info
-    The dockerized [example-orchestrator](../getting-started/docker.md) contains a working Federation setup that demonstrates how the below works in practice.
+    The Dockerized [example-orchestrator](../getting-started/docker.md) contains a working Federation setup that
+    demonstrates how the below works in practice.
 
-Federation allows you to federate with subscriptions using the `subscriptionId` and with product blocks inside the subscription by utilizing any property that includes `_id` in its name.
+Federation allows you to federate with subscriptions using the `subscriptionId` and with product blocks inside the
+subscription by utilizing any property that includes `_id` in its name.
 
 Below is an example of a GraphQL app that extends the `SubscriptionInterface`:
 
@@ -518,7 +534,7 @@ app = Starlette(debug=True, routes=[Route("/", GraphQL(schema, graphiql=True))])
 
 To run this example, execute the following command:
 
-```bash
+```shell
 uvicorn app:app --port 4001 --host 0.0.0.0 --reload
 ```
 
@@ -539,14 +555,14 @@ subgraphs:
 
 When both GraphQL endpoints are available, you can compose the supergraph schema using the following command:
 
-```bash
+```shell
 rover supergraph compose --config ./supergraph.yaml > supergraph-schema.graphql
 ```
 
 The command will return errors if incorrect keys or other issues are present.
 Then, you can run the federation with the following command:
 
-```bash
+```shell
 ./router --supergraph supergraph-schema.graphql
 ```
 
@@ -554,9 +570,9 @@ Now you can query the endpoint to obtain `newValue` from all subscriptions using
 
 ```json
 {
-    "rationName":  "ExampleQuery",
-    "query": "query ExampleQuery {\n  subscriptions {\n    page {\n      newValue\n    }\n  }\n}\n",
-    "variables": {}
+  "rationName": "ExampleQuery",
+  "query": "query ExampleQuery {\n  subscriptions {\n    page {\n      newValue\n    }\n  }\n}\n",
+  "variables": {}
 }
 ```
 
@@ -607,8 +623,8 @@ By following these examples, you can effectively federate autogenerated types (`
 
 ### Usage of USE_PYDANTIC_ALIAS_MODEL_MAPPING
 
-`USE_PYDANTIC_ALIAS_MODEL_MAPPING` is a mapping to prevent pydantic field alias from being used as field names when creating Strawberry types in the domain model autoregistration.
-Our use case for this is that functions decorated with pydantics `@computed_field` and `@property` in domain models are not converted to Strawberry fields inside the Strawberry types.
+`USE_PYDANTIC_ALIAS_MODEL_MAPPING` is a mapping to prevent pydantic field alias from being used as field names when creating Strawberry types in the domain model auto-registration.
+Our use case for this is that functions decorated with pydantic's `@computed_field` and `@property` in domain models are not converted to Strawberry fields inside the Strawberry types.
 To add the function properties, we use a aliased pydantic field:
 
 ```python
@@ -657,6 +673,7 @@ which would now give us a Strawberry field `aliasedPropertyExample`.
 To name it `propertyExample` you can't override the function property name and have two choices:
 
 1. CamelCase the aliased property:
+
    ```python
    class ExampleProductInactive(SubscriptionModel, is_base=True):
        # this aliased property is used to add `property_example` as Strawberry field.
@@ -664,6 +681,7 @@ To name it `propertyExample` you can't override the function property name and h
    ```
 
 2. Rename the property function and name the aliased field correctly, when accessing outside of the GraphQLfield, you do need to use `computed_property_example` instead of `property_example`:
+
    ```python
    class ExampleProductInactive(SubscriptionModel, is_base=True):
        # this aliased property is used to add `property_example` as Strawberry field.
@@ -908,7 +926,7 @@ Here's a generic override for the `CustomerType` that introduces a new `subscrip
 
 #### CustomerType Resolver Override
 
-In this example code, we introduce a resolver override for the `CustomerType`. The scenario involves a supplementary `CustomerTable` in the database, encompassing the default values of `CustomerType`—namely, `customer_id`, `fullname`, and `shortcode`.
+In this example code, we introduce a resolver override for the `CustomerType`. The scenario involves a supplementary `CustomerTable` in the database, encompassing the default values of `CustomerType`; `customer_id`, `fullname`, and `shortcode`.
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -1126,11 +1144,11 @@ custom_subscription_interface = override_class(SubscriptionInterface, [customer_
 ```
 
 ### Behavior of filterBy
+
 By default, string matching is configured for exact matches, i.e a search for `10` will return ONLY `10`
 and won't include `10G` or `100G`.
 Searching can also be configured for partial matching as well, where a search for `10` would include `10G` and `100G`.
 
 This can be controlled by setting the variable `FILTER_BY_MODE` can be set to a value of `exact` or `partial` as needed.
-
 
 [example-orchestrator]: https://github.com/workfloworchestrator/example-orchestrator/blob/master/README.md#federation

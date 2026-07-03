@@ -88,12 +88,13 @@ description: "Network node"
 ```
 
 Every product type is described using the following fields:
+
 - `name`: the name of type product type, used in descriptions, as variable name, and to generate
-          filenames
+  filenames
 - `type`: used to indicate the type of the product in Python code, types in
-          Python usually starts with an uppercase character
+  Python usually starts with an uppercase character
 - `tag`: used to register the product tag in the database, can for example be used to filter
-         products, will typically be all uppercase
+  products, will typically be all uppercase
 - `description`: descriptive text for the product type
 
 ## `fixed_inputs` section
@@ -152,34 +153,34 @@ to the product definition above. The `fields` describe the product block resourc
 ## Product block fields
 
 ```yaml
-  - name: port_mode
-    description: 'port mode'
-    required: provisioning
-    modifiable:
-    type: enum
-    enum_type: str
-    values:
-      - "untagged"
-      - "tagged"
-      - "link_member"
-    default: "tagged"
-    validations:
-      - id: must_be_unused_to_change_mode
-        description: "Mode can only be changed when there are no services attached to it"
+- name: port_mode
+  description: "port mode"
+  required: provisioning
+  modifiable:
+  type: enum
+  enum_type: str
+  values:
+    - "untagged"
+    - "tagged"
+    - "link_member"
+  default: "tagged"
+  validations:
+    - id: must_be_unused_to_change_mode
+      description: "Mode can only be changed when there are no services attached to it"
 ```
 
 Resource types are described by the following:
 
 - `name`: name of the resource type, usually in snake case
-- `decription`: resource type description
-- `required`: if the resource type is required starting from lifecycle state `inital`, `provisioning`
-              or `active`, when omitted the resource type will always be optional
-- `modifiable`: indicate if the resource type can be altered by a modify workflow, when omitted
-                no code will be generated to modify the resource type, currently only supported for simple types
-- `default`: specify the default for this resource type, this is mandatory when `required` is set to
-             `intitial`, will be `None` if not specified
-- `validations`: specify the validation `id` and `description`, generates a skeleton
-                 validation function used in a new annotated type
+- `description`: resource type description
+- `required`: if the resource type is required starting from lifecycle state `initial`, `provisioning` or `active`,
+  when omitted the resource type will always be optional
+- `modifiable`: indicate if the resource type can be altered by a modify workflow, when omitted no code will be
+  generated to modify the resource type, currently only supported for simple types
+- `default`: specify the default for this resource type, this is mandatory when `required` is set to `initial`, will be
+  `None` if not specified
+- `validations`: specify the validation `id` and `description`, generates a skeleton validation function used in a new
+  annotated type
 - `type`: see explanation below
 
 ## Resource type types
@@ -212,24 +213,24 @@ The following types are supported when specifying resource types:
   ```
 - validation code for constrained a `int` is generated when `min_value` and `max_value` are specified
   ```yaml
-    - name: ims_id
-      type: int
-      min_value: 1
-      max_value: 32_767
+  - name: ims_id
+    type: int
+    min_value: 1
+    max_value: 32_767
   ```
 
 ## Workflows
 
 ```yaml
-  - name: create
-    validations:
-      - id: endpoints_cannot_be_on_same_node
-        description: "Service endpoints must land on different nodes"
-  - name: validate
-    enabled: false
-    validations:
-      - id: validate_ims_administration
-        description: "Validate that the node is correctly administered in IMS"
+- name: create
+  validations:
+    - id: endpoints_cannot_be_on_same_node
+      description: "Service endpoints must land on different nodes"
+- name: validate
+  enabled: false
+  validations:
+    - id: validate_ims_administration
+      description: "Validate that the node is correctly administered in IMS"
 ```
 
 The following optional workflow configuration is supported:

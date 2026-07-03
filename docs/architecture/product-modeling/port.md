@@ -40,7 +40,7 @@ classDiagram
 * **speed**: the speed of the physical interface on the node in Mbit/s
 * **ims_id**: ID of the node in the inventory management system
 * **nrm_id**: ID of the node in the network resource manager
-* **mode**: the port is either untagged, tagged or a link member in an aggregate
+* **mode**: the port is either un-tagged, tagged or a link member in an aggregate
 * **auto_negotiation**: enable Ethernet auto negotiation
 * **lldp**: enable the link layer discovery protocol
 * **node**: link to the Node product block the port is residing on

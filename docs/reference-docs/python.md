@@ -8,7 +8,7 @@ One of the build artifacts of the orchestrator is a Docker image that can be use
 based off the [official Python 3.13 image](https://hub.docker.com/_/python).
 
 You can run this image as follows:
-```bash
+```shell
 docker run -it docker pull ghcr.io/workfloworchestrator/orchestrator-core:latest
 ```
 
@@ -25,7 +25,7 @@ We aim to add support for the latest Python 3 release within months of it becomi
 
 Our policy is to support the same version of Python 3 available in [Debian-stable](https://packages.debian.org/stable/python3) and [Debian-oldstable](https://packages.debian.org/oldstable/python3).
 
-When there is a new Debian-stable release, we will update the oldest Python version supported by orchestator-core to match it.
+When there is a new Debian-stable release, we will update the oldest Python version supported by orchestrator-core to match it.
 
 ## Example
 
