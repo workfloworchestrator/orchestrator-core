@@ -75,7 +75,7 @@ The only real data gathered with this form are `customer_id`, which is read-only
 
 Of note: `min_items` and `max_items` do not refer to the number of elements in the list. This UI construct allows for an arbitrary number of choices to be made. There are `+` and `-` options exposed in the UI allowing for multiple choices selected by the user. So `min 1 / max 1` tells the UI to display one pull down list of choices one of which must be selected, and additional choices can not be added.
 
-If one defined something like `min 1 / max 3` it would display one pulldown box by default and expose a `+` element in the UI. The user could click on it to arbitrarily add a second or a third pulldown list. `min 0` would not display any list by default but the user could use `+` to add some, etc.
+If one defined something like `min 1 / max 3` it would display one pull-down box by default and expose a `+` element in the UI. The user could click on it to arbitrarily add a second or a third pull-down list. `min 0` would not display any list by default but the user could use `+` to add some, etc.
 
 Since multiple choices are allowed, the results are returned as a list even if there is only a single choice element:
 
@@ -143,7 +143,7 @@ class CreateLightPathForm(FormPage):
 
 #### Multi-step Form Input
 
-To do a multistep form in your workflow, you simply yield multiple times and then combine the results at the end:
+To do a multi-step form in your workflow, you simply yield multiple times and then combine the results at the end:
 
 ```python
 def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGenerator:
@@ -170,7 +170,7 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
     return {**user_input.dict(), **user_input_node.dict()}
 ```
 
-For multistep forms especially, it can be useful to use the `orchestrator.core.forms.SubmitFormPage` class, which is just a subclass of `orchestrator.core.forms.FormPage` that has some metadata informing the frontend that this form is the last page in the flow so it can style the submit button differently. This is entirely optional.
+For multi-step forms especially, it can be useful to use the `orchestrator.core.forms.SubmitFormPage` class, which is just a subclass of `orchestrator.core.forms.FormPage` that has some metadata informing the frontend that this form is the last page in the flow so it can style the submit button differently. This is entirely optional.
 
 ### Custom Form Fields
 
@@ -193,7 +193,7 @@ as an example I will create a custom field with name field and group select fiel
 
 Create a pydantic type/class.
 
-``` python
+```python
 from uuid import UUID
 
 
@@ -212,7 +212,7 @@ class ChooseUser(str):
 
 And add it to a form:
 
-``` python
+```python
 def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGenerator:
     class ChoseUserForm(FormPage):
         class Config:
@@ -283,7 +283,7 @@ export function autoFieldFunction(props: GuaranteedProps<unknown> & Record<strin
 
 example custom field to select a user by group.
 
-``` js
+```js
 import { EuiFlexItem, EuiFormRow, EuiText } from "@elastic/eui";
 import { FieldProps } from "lib/uniforms-surfnet/src/types";
 import React, { useCallback, useContext, useEffect, useState } from "react";

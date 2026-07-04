@@ -75,9 +75,9 @@ We can distinguish these steps/components:
 
 The diagram below visualizes the flow and dependencies between components in the Database, API and Frontend.
 
-![Diagram search](search_overview.png)
+![Diagram search](search-overview.png)
 
-<!-- search_overview.png can be opened and modified in draw.io -->
+<!-- search-overview.png can be opened and modified in draw.io -->
 
 ### Postgres Text Search
 
@@ -93,18 +93,18 @@ Each document is turned into a _tsvector_ with Postgres function `to_tsvector()`
 * Convert tokens into _lexemes_: a lexeme is a normalized token, i.e. this folds upper-case to lower-case. This step can also normalize based on language, but we disable that by using the `'simple'` dictionary (shown in diagram above)
 * Create vector optimized for search: store array of _lexemes_ along with positional information
 
-The array of _lexemes_ makes up the tsvector document that we store in `subsriptions_search`, and which we can query through the Postgres function `to_tsquery()`.
+The array of _lexemes_ makes up the tsvector document that we store in `subscriptions_search`, and which we can query through the Postgres function `to_tsquery()`.
 
 We'll demonstrate how this works through a few examples. You can follow along in any  postgres shell (v14 or above). If you have Docker installed, run these commands in separate shells.
 
-```sh
+```shell
 docker run --rm -e POSTGRES_HOST_AUTH_METHOD=trust --name pg17 pgvector/pgvector:pg17
 docker exec -i -t pg17 su - postgres -c psql
 ```
 
 Translating the input text `'color:Light_Blue count:4'` to a tsvector:
 
-```
+```text
 postgres=# select to_tsvector('simple', 'color:Light_Blue count:4');
                  to_tsvector
 ----------------------------------------------
@@ -116,7 +116,7 @@ The result `'4':5 'blue':3 'color':1 'count':4 'light':2` is an array of lexemes
 
 With Postgres function `to_tsdebug()` one can investigate how the input was parsed.
 
-```
+```text
 postgres=# select * from ts_debug('simple', 'color:Light_Blue count:4');
    alias   |   description    | token | dictionaries | dictionary | lexemes
 -----------+------------------+-------+--------------+------------+---------
@@ -137,7 +137,7 @@ Note: when we would write "Light-Blue" with a dash instead of underscore, Postgr
 
 To run queries against TS Vectors we have to prepare a TS Query with Postgres function `to_tsquery()`. We also pass the `'simple'` dictionary here to prevent language-specific normalization.
 
-```
+```text
 postgres=# select to_tsquery('simple', 'Light_Blue');
      to_tsquery
 --------------------
@@ -148,7 +148,7 @@ The resulting TS query means as much as: `the vector must contain 'light' follow
 
 We can execute this TS query against the TS vector:
 
-```
+```text
 postgres=# select to_tsvector('simple', 'color:Light_Blue count:4') @@ to_tsquery('simple', 'Light_Blue');
  ?column?
 ----------
@@ -160,7 +160,7 @@ Returns `t` for `true`.
 
 As a final example we can also add an `OR` condition:
 
-```
+```text
 postgres=# select to_tsvector('simple', 'color:Light_Blue count:4') @@ to_tsquery('simple', 'color <-> Green | count <-> 4');
  ?column?
 ----------
@@ -208,7 +208,7 @@ where pg_trigger.tgname in
 
 When all triggers are disabled the output looks like:
 
-```
+```text
             tgname            | tgenabled
 ------------------------------+-----------
  fi_refresh_search            | D
@@ -219,7 +219,7 @@ When all triggers are disabled the output looks like:
 ```
 
 And when all triggers are enabled the output looks like this:
-```
+```text
             tgname            | tgenabled
 ------------------------------+-----------
  fi_refresh_search            | O

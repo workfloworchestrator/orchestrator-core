@@ -1,13 +1,11 @@
 # L2 Point-to-Point
 
-The Layer 2 point-to-point service is modelled using two product blocks. The
-l2_point_to_point product block holds the pointers to IMS and the NRM, the speed
-of the circuit, and whether the speed policer is enabled or not, as well as
-pointers to the two service attach points. The latter are modelled with the
-L2_service_attach_point product block and keep track of the port associated with
-that endpoint and, in the case where 802.1Q has to be enabled, the VLAN range
-used. The service can either be deployed protected or unprotected in the service
-provider network. This is administered with the fixed input protection_type.
+The Layer 2 point-to-point service is modeled using two product blocks. The `l2_point_to_point` product block holds the
+pointers to IMS and the NRM, the speed of the circuit, and whether the speed policer is enabled or not, as well as
+pointers to the two service attach points. The latter are modeled with the `L2_service_attach_point` product block and
+keep track of the port associated with that endpoint and, in the case where 802.1Q has to be enabled, the VLAN range
+used. The service can either be deployed protected or unprotected in the service provider network. This is administered
+with the fixed input protection_type.
 
 ```mermaid
 classDiagram

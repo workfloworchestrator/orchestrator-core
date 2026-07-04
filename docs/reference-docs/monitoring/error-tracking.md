@@ -141,7 +141,7 @@ Filtering can help to ensure you are only submitting errors for actionable appli
 
 Small incomplete example implementation of `before_send` for the API:
 
-```py
+```python
 from sentry_sdk.types import Event, Hint
 from nwastdlib.graphql.extensions.error_handler_extension import EXTENSION_ERROR_TYPE, ErrorType
 from graphql.error import GraphQLError
@@ -181,7 +181,7 @@ def before_send_api(event: Event, hint: Hint) -> Event | None:
 
 Small example for the Celery worker:
 
-```py
+```python
 import ims_client
 from orchestrator.core.utils.errors import InconsistentDataError
 from sentry_sdk.types import Event, Hint

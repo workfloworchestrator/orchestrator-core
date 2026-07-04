@@ -129,7 +129,7 @@ def force(task_id: str) -> None:
     Use the `show-schedule` command to determine the ID of the schedule to execute.
 
     CLI Arguments:
-        ```sh
+        ```shell
         Arguments:
             SCHEDULE_ID  ID of the schedule to execute
         ```

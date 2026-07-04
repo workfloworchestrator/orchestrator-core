@@ -1,6 +1,6 @@
 # Node
 
-The administration handoff in IMS will be different for every organisation. For
+The administration handoff in IMS will be different for every organization. For
 this example, it is assumed that all administration that comes with the physical
 installation and first-time configuration of the network node in IMS is done
 manually by a NOC engineer. This makes the node product rather simple. The only

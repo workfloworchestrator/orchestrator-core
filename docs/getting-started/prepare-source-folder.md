@@ -5,7 +5,7 @@
 The suggested folder layout of your own orchestrator implementation is as
 follows:
 
-```text
+```shell
 .
 ├── migrations
 │   └── versions
@@ -39,7 +39,7 @@ for more information on these commands.
 Or a handcrafted local migration can be added to the
 `migrations/versions/schema` folder using the following as template:
 
-```text
+```
 """Create data head.
 
 Revision ID: 9cbc348cc1dc
@@ -67,7 +67,7 @@ def downgrade() -> None:
 
 The `depends_on` version ID should point to the current `schema` head.
 
-To check the correct configuration of the local Alembic head, run the follwoing
+To check the correct configuration of the local Alembic head, run the following
 command:
 
 ```shell
@@ -76,7 +76,7 @@ python main.py db heads
 
 The output should be similar to this (except for the version ID's):
 
-```text
+```
 27571992ebfb (data) (head)
 da5c9f4cce1c (schema) (effective head)
 ```
@@ -89,7 +89,7 @@ python main.py db history
 
 That will display something like this:
 
-```text
+```
 <base> (da5c9f4cce1c) -> 9cbc348cc1dc (data), Create data head.
 165303a20fb1 -> da5c9f4cce1c (schema) (effective head), Add subscription metadata to fulltext search index.
 a09ac125ea73 -> 165303a20fb1 (schema), customer_id to VARCHAR.
@@ -116,7 +116,7 @@ combination with product templates, will be created automatically.
 The `translations` folder holds locale files consumed by the orchestrator UI.
 Each file is named after a language tag in the form `language-REGION.json`, e.g. `en-GB.json`.
 
-```text
+```shell
 translations/
 └── en-GB.json
 ```

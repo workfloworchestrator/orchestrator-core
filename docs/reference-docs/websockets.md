@@ -28,7 +28,7 @@ There are 2 WSM implementations: a `MemoryWebsocketManager` for development/test
 [1] When using `EXECUTOR="threadpool"` this function is not called directly, refer to the **ProcessDataBroadcastThread** section
 
 Roughly speaking a message travels through these components:
-```
+```text
 Process
   -> BroadcastWebsocketManager.broadcast_data()
   -> Redis channel
@@ -41,24 +41,28 @@ Process
 
 **Note**: this section is only relevant when the orchestrator is configured with `EXECUTOR="threadpool"`.
 
-Backend processes are executed in a threadpool and therefore access the same WSM instance. This caused asyncio RuntimeErrors as the async Redis Pub/Sub implementation is not thread-safe.
+Backend processes are executed in a threadpool and therefore access the same WSM instance. This caused asyncio
+RuntimeErrors as the async Redis Pub/Sub implementation is not thread-safe.
 
-To solve this there is a dedicated `ProcessDataBroadcastThread` (attached to and managed by the `OrchestratorCore` app) to perform the actual `broadcast_data()` call.
+To solve this there is a dedicated `ProcessDataBroadcastThread` (attached to and managed by the `OrchestratorCore` app)
+to perform the actual `broadcast_data()` call.
 
-The API endpoints which start/resume/abort a process, call `api_broadcast_process_data(request)` to acquire a function that can be used to submit process updates into a `threading.Queue` on which `ProcessDataBroadcastThread` listens.
+The API endpoints which start/resume/abort a process, call `api_broadcast_process_data(request)` to acquire a function
+that can be used to submit process updates into a `threading.Queue` on which `ProcessDataBroadcastThread` listens.
 
 ## Channel overview
 
-As mentioned in Implementation, messages are organized into channels that clients can listen to.
-Each channel has its own usecase and specific message format.
+As mentioned in Implementation, messages are organized into channels that clients can listen to. Each channel has its
+own use case and specific message format.
 
 ### Events
 
-The `events` channel is designed for the [Orchestrator UI v2](https://github.com/workfloworchestrator/example-orchestrator-ui).
-Events are notifications to the UI/user that something happened in the backend API or workers.
-They only include the bare minimum of information and can be sent at a high volume.
+The `events` channel is designed for the
+[Orchestrator UI v2](https://github.com/workfloworchestrator/example-orchestrator-ui). Events are notifications to the
+UI/user that something happened in the backend API or workers. They only include the bare minimum of information and
+can be sent at a high volume.
 
-The API endpoint for this channel is `/api/ws/events` .
+The API endpoint for this channel is `/api/ws/events`.
 
 Messages in this channel are of the format:
 ```json

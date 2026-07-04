@@ -4,7 +4,7 @@ This page documents CLI commands available in orchestrator-core.
 
 The syntax of a CLI command is:
 
-```
+```shell
 python main.py <command> <sub_command>
 ```
 
@@ -15,7 +15,7 @@ Where:
 
 Some examples:
 
-```
+```shell
 python main.py db migrate_tasks
 
 python main.py generate workflows
@@ -421,22 +421,22 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
 #### Running the command
 
 - only with a message
-    ``` bash
+    ```shell
     python main.py db migrate-domain-models "message"
     ```
 
 - Running it as test
-    ``` bash
+    ```shell
     python main.py db migrate-domain-models "message" --test
     ```
 
 - Running the command with inputs prefilled
-    ``` bash
+    ```shell
     python main.py db migrate-domain-models "message" --inputs "{ "" }"
     ```
 
 The command will first go through all products and map the differences with the database. debug log example:
-```bash
+```shell
 2022-10-27 11:45:10 [debug] ProductTable blocks diff [orchestrator.core.domain.base] fixed_inputs_in_db=set() fixed_inputs_model=set() missing_fixed_inputs_in_db=set() missing_fixed_inputs_in_model=set() missing_product_blocks_in_db=set() missing_product_blocks_in_model=set() product_block_db=User group product_blocks_in_db={'UserGroupBlock'} product_blocks_in_model={'UserGroupBlock'}
 ```
 
@@ -452,31 +452,31 @@ You will be prompted with inputs when updates are found.
     > <u>**Update fixed inputs**</u><br>
     Do you wish to rename fixed input <span style="color:magenta">affiliation</span> to <span style="color:magenta">affiliationing</span> for product **User internal**? [y/N]:
 
-- update of resource type per block (renaming `age` to `user_age` in User Block and not chosing to rename resource type). The input will loop until skipped or when there are no options anymore:
+- update of resource type per block (renaming `age` to `user_age` in User Block and not choosing to rename resource type). The input will loop until skipped or when there are no options anymore:
     - first you get to choose which old resource type to update, skip will create/delete all resource types.
         > <u>**Update block resource types**</u><br>
-        ```bash
+        ```shell
         Which resource type would you want to update in UserBlock Block?
         1) age
         q) skip
         ?
         ```
     - then you get to choose which new resource type to update with, skip will give you the first question again.
-        ```bash
+        ```shell
         Which resource type should update age?
         1) user_age
         q) skip
         ?
         ```
     - with 1 and 1, the log level difference would look like:
-        ```bash
+        ```shell
         2023-02-08 14:11:25 [info] update_block_resource_types [orchestrator.core.cli.migrate_domain_models] update_block_resource_types={'UserBlock': {'age': 'user_age'}}
         ```
 
 
 It will log the differences on info level:
 
-``` bash
+```shell
 2022-10-27 11:45:10 [info] create_products                   [orchestrator.core.cli.migrate_domain_models] create_products={'User group': <class 'products.product_types.user_group.UserGroup'>, 'User internal': <class 'products.product_types.user.User'>, 'User external': <class 'products.product_types.user.User'>}
 2022-10-27 11:45:10 [info] delete_products                   [orchestrator.core.cli.migrate_domain_models] delete_products=set()
 2022-10-27 11:45:10 [info] create_product_fixed_inputs       [orchestrator.core.cli.migrate_domain_models] create_product_fixed_inputs={'affiliation': {'User external', 'User internal'}}
@@ -600,14 +600,15 @@ python main.py generate migration
 ```
 
 The generate command should be called from the top level folder of your orchestrator
-implementation, this is the folder that contains the `products` sub folder, amongst others, except when
+implementation, this is the folder that contains the `products` sub folder, among others, except when
 the `--prefix` is used to point to that folder. In case there are product blocks defined that use other
 generated product blocks, the order in which `generate product-blocks` is run is important,
 the code for the blocks used in other blocks should be generated first.
 
 ### config file
 
-See the [Generate Config File guide](../guides/generate-config-file.md) for full documentation on the YAML product configuration format used by the `generate` commands.
+See the [Generate Config File guide](../guides/generate-config-file.md) for full documentation on the YAML product
+configuration format used by the `generate` commands.
 
 ### migration
 
