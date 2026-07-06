@@ -10,10 +10,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal, Self, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, TypeAdapter
+from apscheduler.triggers.base import BaseTrigger
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.interval import IntervalTrigger
+from pydantic import BaseModel, Field, TypeAdapter, model_validator
 
 from orchestrator.core.workflow import default_user_inputs
 from pydantic_forms.types import State
@@ -21,6 +25,32 @@ from pydantic_forms.types import State
 SCHEDULER_Q_CREATE = "create"
 SCHEDULER_Q_UPDATE = "update"
 SCHEDULER_Q_DELETE = "delete"
+
+TRIGGER_TYPES: dict[str, type[BaseTrigger]] = {
+    "interval": IntervalTrigger,
+    "cron": CronTrigger,
+    "date": DateTrigger,
+}
+
+
+def build_trigger(trigger: str, trigger_kwargs: dict[str, Any]) -> BaseTrigger:
+    """Construct the APScheduler trigger for ``trigger``, raising ValueError/TypeError on bad kwargs."""
+    if (trigger_cls := TRIGGER_TYPES.get(trigger)) is None:
+        raise ValueError(f"Invalid trigger type: {trigger}")
+    return trigger_cls(**trigger_kwargs)
+
+
+def _validate_trigger_kwargs(trigger: str | None, trigger_kwargs: dict[str, Any] | None) -> None:
+    """Fail schema validation if trigger_kwargs don't build a valid trigger.
+
+    Returning a 422 at the API boundary beats silently dropping the job later in the scheduler queue.
+    """
+    if trigger is None:
+        return
+    try:
+        build_trigger(trigger, trigger_kwargs or {})
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"Invalid trigger_kwargs for {trigger!r} trigger: {exc}") from exc
 
 
 class APSchedulerJob(BaseModel):
@@ -42,6 +72,11 @@ class APSchedulerJobCreate(APSchedulerJob):
 
     scheduled_type: Literal["create"] = Field("create", frozen=True)
 
+    @model_validator(mode="after")
+    def _check_trigger_kwargs(self) -> Self:
+        _validate_trigger_kwargs(self.trigger, self.trigger_kwargs)
+        return self
+
 
 class APSchedulerJobUpdate(APSchedulerJob):
     name: str | None = Field(None, description="Human readable name e.g. 'My Process'")
@@ -55,6 +90,11 @@ class APSchedulerJobUpdate(APSchedulerJob):
     )
 
     scheduled_type: Literal["update"] = Field("update", frozen=True)
+
+    @model_validator(mode="after")
+    def _check_trigger_kwargs(self) -> Self:
+        _validate_trigger_kwargs(self.trigger, self.trigger_kwargs)
+        return self
 
 
 class APSchedulerJobDelete(APSchedulerJob):

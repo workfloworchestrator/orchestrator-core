@@ -13,7 +13,7 @@
 
 import pytest
 
-from orchestrator.core.forms.scheduler_form import _check_authorize, get_cron_kwargs
+from orchestrator.core.forms.scheduler_form import _check_authorize, get_cron_kwargs, validate_cron
 from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.workflow import begin, done, step, workflow
 
@@ -128,3 +128,59 @@ def test_get_cron_kwargs(cron, expected):
 def test_get_cron_kwargs_rejects_wrong_field_count(cron):
     with pytest.raises(ValueError):
         get_cron_kwargs({"cron": cron, "start_date": START_DATE})
+
+
+@pytest.mark.parametrize(
+    "cron",
+    ["* * * * *", "0-59 * * * *", "1,15,30 * * * *", "0 9-17 * * 1-5", "*/15 * * * * *"],
+    ids=["wildcards", "range", "list", "workhours", "6-field-seconds"],
+)
+def test_validate_cron_accepts_valid(cron):
+    assert validate_cron(cron) == cron
+
+
+@pytest.mark.parametrize(
+    "cron",
+    [
+        "60 * * * * *",
+        "60 * * * *",
+        "* 24 * * *",
+        "* * 0 * *",
+        "* * 32 * *",
+        "* * * 0 *",
+        "* * * 13 *",
+        "* * * * 8",
+        "* * * *",
+        "* * * * * * *",
+    ],
+    ids=[
+        "second-oob",
+        "minute-oob",
+        "hour-oob",
+        "day-zero",
+        "day-oob",
+        "month-zero",
+        "month-oob",
+        "day_of_week-oob",
+        "4-fields",
+        "7-fields",
+    ],
+)
+def test_validate_cron_rejects_invalid(cron):
+    with pytest.raises(ValueError):
+        validate_cron(cron)
+
+
+@pytest.mark.parametrize(
+    "cron,expected_fields",
+    [
+        pytest.param("61 61 * * * *", ["second '61'", "minute '61'"], id="two-bad-6-field"),
+        pytest.param("50-52 59 24 * * *", ["hour '24'"], id="hour-only-6-field"),
+        pytest.param("61 24 * * *", ["minute '61'", "hour '24'"], id="two-bad-5-field"),
+    ],
+)
+def test_validate_cron_error_names_all_bad_fields(cron, expected_fields):
+    with pytest.raises(ValueError) as exc_info:
+        validate_cron(cron)
+    message = str(exc_info.value)
+    assert all(field in message for field in expected_fields)
