@@ -149,6 +149,6 @@ Visit the [ReDoc](http://127.0.0.1:8080/api/redoc) or [OpenAPI](http://127.0.0.1
 
 ### Next:
 
-- [Create a product.](../../workshops/example-orchestrator/domain-models.md)
+- [Create a product.](../../../workshops/example-orchestrator/domain-models/)
 - [Create a workflow for a product.](./workflows.md)
 - [Generate products and workflows](../reference-docs/cli.md#generate)

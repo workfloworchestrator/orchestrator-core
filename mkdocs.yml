@@ -52,25 +52,25 @@ plugins:
   - privacy
   - social
   - mkdocstrings:
-    default_handler: python
-    enable_inventory: true
-    handlers:
-      python:
-        options:
-          show_source: true
-          show_root_heading: true
-          show_root_toc_entry: true
-          show_symbol_type_heading: true
-          show_symbol_type_toc: true
-          docstring_style: null
-          docstring_section_style: list
-          annotations_path: full
-          separate_signature: true
-          line_length: 80
-          show_signature_annotations: true
-          unwrap_annotated: true
-          docstring_options:
-            trim_doctest_flags: true
+      default_handler: python
+      enable_inventory: true
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            docstring_style: null
+            docstring_section_style: list
+            annotations_path: full
+            separate_signature: true
+            line_length: 80
+            show_signature_annotations: true
+            unwrap_annotated: true
+            docstring_options:
+              trim_doctest_flags: true
   - redirects:
       redirect_maps:
         "architecture/product_modelling/imports.md": "guides/product-modeling/imports.md"
