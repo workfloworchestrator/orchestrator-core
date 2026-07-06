@@ -79,7 +79,7 @@ CREATE_BASE = {"scheduled_type": "create", "workflow_name": "wf", "workflow_id":
     ],
 )
 def test_create_accepts_valid_trigger_kwargs(trigger: str, trigger_kwargs: dict) -> None:
-    job = APSchedulerJobCreate(**CREATE_BASE, trigger=trigger, trigger_kwargs=trigger_kwargs)
+    job = APSchedulerJobCreate.model_validate({**CREATE_BASE, "trigger": trigger, "trigger_kwargs": trigger_kwargs})
     assert job.trigger_kwargs == trigger_kwargs
 
 
@@ -93,17 +93,24 @@ def test_create_accepts_valid_trigger_kwargs(trigger: str, trigger_kwargs: dict)
 )
 def test_create_rejects_invalid_trigger_kwargs(trigger: str, trigger_kwargs: dict) -> None:
     with pytest.raises(ValidationError):
-        APSchedulerJobCreate(**CREATE_BASE, trigger=trigger, trigger_kwargs=trigger_kwargs)
+        APSchedulerJobCreate.model_validate({**CREATE_BASE, "trigger": trigger, "trigger_kwargs": trigger_kwargs})
 
 
 def test_update_rejects_invalid_trigger_kwargs() -> None:
     with pytest.raises(ValidationError):
-        APSchedulerJobUpdate(
-            scheduled_type="update", schedule_id=str(SCHEDULE_ID), trigger="cron", trigger_kwargs={"minute": "61"}
+        APSchedulerJobUpdate.model_validate(
+            {
+                "scheduled_type": "update",
+                "schedule_id": str(SCHEDULE_ID),
+                "trigger": "cron",
+                "trigger_kwargs": {"minute": "61"},
+            }
         )
 
 
 def test_update_without_trigger_skips_validation() -> None:
     # trigger/trigger_kwargs are optional on update; nothing to validate when trigger is absent
-    job = APSchedulerJobUpdate(scheduled_type="update", schedule_id=str(SCHEDULE_ID), name="renamed")
+    job = APSchedulerJobUpdate.model_validate(
+        {"scheduled_type": "update", "schedule_id": str(SCHEDULE_ID), "name": "renamed"}
+    )
     assert job.trigger is None
