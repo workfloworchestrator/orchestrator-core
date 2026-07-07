@@ -22,12 +22,16 @@ classDiagram
             +speed_policer: boolean
             +saps: list[SAPBlock]
         }
+    }
+
+    namespace SAP Product Block {
         class SAPBlock {
             +vlan_range: vlan_range_type
             +port: PortBlock
         }
     }
-    namespace PortProduct {
+
+    namespace Port Product {
         class PortBlock {
             +ims_id: ims_id
             +nrm_id: nrm_id
@@ -38,7 +42,8 @@ classDiagram
         }
     }
 
-    L2Point2PointBlock "1" --> "2" SAPBlock
+    L2p2p "1" --> "1" L2p2pVirtualCircuitBlock
+    L2p2pVirtualCircuitBlock "1" --> "2" SAPBlock
     SAPBlock "n" --> "1" PortBlock
 ```
 
@@ -57,6 +62,6 @@ class `L2p2pVirtualCircuitBlock` defines the root product block:
 * **vlan_range**: range of Layer 2 labels to be used on this endpoint of the service
 * **port**: link to the Port product block this service endpoint connects to
 
-class `SAPBlock` links to the l2 service attach point product block, as already defined for the L2vpn product.
+class `SAPBlock` links to the l2 service attach point product block, as already defined as part of the L2vpn product.
 
-class `PortBlock` links to the product product block, as already defined for the Port product.
+class `PortBlock` links to the port product block, as already defined as root block of the Port product.
