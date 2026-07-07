@@ -20,7 +20,7 @@ from uuid import UUID
 
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.domain.lifecycle import validate_subscription_model_product_type
-from orchestrator.core.types import StepFunc, is_list_type, is_optional_type
+from orchestrator.core.types import StepFunc, is_list_type, is_optional_type, is_union_type
 from orchestrator.core.utils.functional import logger
 from pydantic_forms.types import (
     FormGenerator,
@@ -141,6 +141,18 @@ def _is_subscription_model_type(annotation: Any) -> bool:
         return False
 
 
+def _is_union_subscription_model_type(annotation: Any) -> bool:
+    """Check if annotation is a union of two or more SubscriptionModel subclasses (e.g. Node | NodeProvisioning).
+
+    Optional type (`T | None`) is excluded; that is handled by is_optional_type.
+    """
+    if not is_union_type(annotation):
+        return False
+    args = get_args(annotation)
+    non_none_args = [arg for arg in args if arg is not type(None)]
+    return len(non_none_args) >= 2 and all(_is_subscription_model_type(arg) for arg in non_none_args)
+
+
 def _convert_to_uuid(v: Any) -> UUID:
     """Convert value to UUID instance if it is not already one."""
     return v if isinstance(v, UUID) else UUID(v)
@@ -255,6 +267,26 @@ def _handle_optional_subscription_model_param(
     return None
 
 
+def _handle_union_subscription_model_param(param_name: str, state: State) -> SubscriptionModel:
+    """Load a SubscriptionModel from database for a union type annotation (Node | NodeProvisioning).
+
+    Uses SubscriptionModel.from_subscription to load the type based on the
+    subscription's lifecycle, so the correct subclass is returned regardless of which
+    type of the union the subscription currently is.
+
+    Args:
+        param_name: Parameter name
+        state: Workflow state
+
+    Returns:
+        Loaded and validated SubscriptionModel instance
+
+    Raises:
+        KeyError: If subscription_id not found in state
+    """
+    return _handle_subscription_model_param(param_name, SubscriptionModel, state)
+
+
 def _handle_value_param(param: inspect.Parameter, state: State, func: StepFunc | InputStepFunc) -> Any:
     """Handle non-SubscriptionModel parameter: retrieve from state and apply UUID conversion.
 
@@ -307,7 +339,7 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:
     Domain models are retrieved from the DB (after `subscription_id` lookup in the state). Everything else is
     retrieved from the state.
 
-    For domain models only ``Optional`` and ``List`` are supported as container types. Union, Dict and others are not supported
+    For domain models ``Optional``, ``List``, and ``Union`` (of SubscriptionModel subclasses) are supported as container types.
 
     Args:
         func: step function to inspect for requested arguments
@@ -339,13 +371,15 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:
             arguments.append(state)
             continue
 
-        # Handle SubscriptionModel parameters (plain, list, optional)
+        # Handle SubscriptionModel parameters (plain, list, optional, union)
         if _is_subscription_model_type(param.annotation):
             arguments.append(_handle_subscription_model_param(name, param.annotation, state))
         elif is_list_type(param.annotation, SubscriptionModel):
             arguments.append(_handle_subscription_model_list_param(param, state))
         elif is_optional_type(param.annotation, SubscriptionModel):
             arguments.append(_handle_optional_subscription_model_param(name, param.annotation, state))
+        elif _is_union_subscription_model_type(param.annotation):
+            arguments.append(_handle_union_subscription_model_param(name, state))
         else:
             # Handle all other parameters (UUID conversion, defaults, required)
             arguments.append(_handle_value_param(param, state, func))

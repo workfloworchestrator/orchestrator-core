@@ -21,7 +21,13 @@ import pytest
 from nwastdlib import const
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.utils.state import _build_arguments, extract, form_inject_args, inject_args
+from orchestrator.core.utils.state import (
+    _build_arguments,
+    _is_union_subscription_model_type,
+    extract,
+    form_inject_args,
+    inject_args,
+)
 from pydantic_forms.core import FormPage, post_form
 from pydantic_forms.types import State
 
@@ -850,3 +856,57 @@ def test_inject_args_list_invalid_items_raises_value_error(generic_product_1, ge
     error_msg = str(exc_info.value)
     assert "Could not extract valid subscription_id from all items in list parameter 'generic_sub'" in error_msg
     assert "Invalid items:" in error_msg
+
+
+def test_is_union_subscription_model_type(generic_product_type_1) -> None:
+    """Test that _is_union_subscription_model_type correctly identifies union SubscriptionModel annotations."""
+    GenericProductOneInactive, GenericProduct = generic_product_type_1
+
+    assert _is_union_subscription_model_type(GenericProductOneInactive | GenericProduct) is True
+    assert _is_union_subscription_model_type(GenericProduct) is False
+    assert _is_union_subscription_model_type(GenericProduct | None) is False  # Optional — not a union of models
+    assert _is_union_subscription_model_type(int | str) is False
+    assert _is_union_subscription_model_type(int) is False
+
+
+def test_inject_args_union_subscription_model(generic_product_1, generic_product_type_1) -> None:
+    """Test that a union of SubscriptionModel types is loaded via SubscriptionModel.from_subscription."""
+    GenericProductOneInactive, GenericProduct = generic_product_type_1
+    product_id = generic_product_1.product_id
+    state = {"product": product_id, "customer_id": str(uuid4())}
+    generic_sub = GenericProductOneInactive.from_product_id(
+        product_id=state["product"], customer_id=state["customer_id"], status=SubscriptionLifecycle.INITIAL
+    )
+    generic_sub.pb_1.rt_1 = "test"
+    generic_sub.pb_2.rt_2 = 42
+    generic_sub.pb_2.rt_3 = "test2"
+
+    generic_sub = SubscriptionModel.from_other_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
+    generic_sub.save()
+
+    @inject_args
+    def step_union(generic_sub: GenericProductOneInactive | GenericProduct) -> State:
+        assert generic_sub.subscription_id
+        assert generic_sub.pb_1.rt_1 == "test"
+        return {"generic_sub": generic_sub}
+
+    state["generic_sub"] = generic_sub.subscription_id
+
+    state_amended = step_union(state)
+    assert "generic_sub" in state_amended
+    assert isinstance(state_amended["generic_sub"], GenericProduct)
+    assert state_amended["generic_sub"].pb_1.rt_1 == "test"
+
+
+def test_inject_args_union_subscription_model_missing_key(generic_product_type_1) -> None:
+    """Test that a missing subscription_id for a union SubscriptionModel raises KeyError."""
+    GenericProductOneInactive, GenericProduct = generic_product_type_1
+
+    @inject_args
+    def step_union(generic_sub: GenericProductOneInactive | GenericProduct) -> State:
+        return {"generic_sub": generic_sub}
+
+    with pytest.raises(KeyError) as exc_info:
+        step_union({})
+
+    assert "Could not find key 'generic_sub' in state." in str(exc_info.value)
