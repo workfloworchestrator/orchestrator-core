@@ -38,7 +38,8 @@ classDiagram
         }
     }
 
-    L2Point2PointBlock "1" --> "2" SAPBlock
+    L2p2p "1" --> "1" L2p2pVirtualCircuitBlock
+    L2p2pVirtualCircuitBlock "1" --> "2" SAPBlock
     SAPBlock "n" --> "1" PortBlock
 ```
 
