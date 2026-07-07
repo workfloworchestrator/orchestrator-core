@@ -16,9 +16,9 @@ classDiagram
             inherits from L2VPNVirtualCircuit
             +bum_filter: boolean
             +vlan_retagging: boolean
-            +sap: list[L2ServicAttachmentPointBlock]
+            +saps: list[SAPBlock]
         }
-        class L2ServiceAttachmentPointBlock {
+        class SAPBlock {
             +vlan_range: vlan_range_type
             +port: PortBlock
         }
@@ -30,11 +30,11 @@ classDiagram
         }
     }
 
-    L2VPNVirtualCircuitBlock "1" --> "2..n" L2ServiceAttachmentPointBlock
-    L2ServiceAttachmentPointBlock "1" --> "n" PortBlock
+    L2VPNVirtualCircuitBlock "1" --> "2..n" SAPBlock
+    SAPBlock "1" --> "n" PortBlock
 
 ```
 
 * **bum_filter**: enable broadcast, unknown unicast, and multicast (BUM) traffic filter
 * **vlan_retagging**: allow VLAN re-tagging on endpoints
-* **sap**: a constrained list of at least one Layer2 service attach point
+* **saps**: a constrained list of at least one Layer2 service attach point
