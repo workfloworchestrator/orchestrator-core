@@ -348,5 +348,6 @@ The deadline is measured from the moment the await started. Progress updates sen
 Timeouts are enforced by the `task_validate_awaiting_callbacks` scheduled task, which sweeps every
 **30 seconds** by default. So `timeout` is a *minimum*: a process is failed on the first sweep at or
 after its deadline (up to ~30 seconds late) — don't rely on sub-30-second precision. Load the task
-with `orchestrator-core scheduler load-initial-schedule`; the interval can be changed to any value
-via the scheduler API (`PUT /api/schedules/`, which reschedules the job in place).
+with `orchestrator-core scheduler load-initial-schedule`; to change the interval, delete the schedule
+and recreate it as a cron schedule at the desired frequency (a 6-field cron can specify seconds, e.g.
+`*/15 * * * * *`).
