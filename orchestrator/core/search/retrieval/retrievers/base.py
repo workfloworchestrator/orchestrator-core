@@ -163,7 +163,7 @@ class Retriever(ABC):
         fuzzy_text = query.query_text if override is not None else query.fuzzy_term
 
         if retriever_cls is StructuredRetriever:
-            return StructuredRetriever(cursor, query.order_by)
+            return StructuredRetriever(cursor, query.order_by, query.filters)
         if retriever_cls is FuzzyRetriever and fuzzy_text is not None:
             return FuzzyRetriever(fuzzy_text, cursor)
         if retriever_cls is SemanticRetriever and query_embedding is not None:

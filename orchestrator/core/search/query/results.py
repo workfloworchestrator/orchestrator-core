@@ -279,7 +279,12 @@ def format_search_response(
 
         elif not user_query and query.filters and metadata.search_type == "structured":
             # Structured search (filter-only)
-            matching_field = _extract_matching_field_from_filters(query.filters)
+            row_text = row.get(Retriever.HIGHLIGHT_TEXT_LABEL)
+            row_path = row.get(Retriever.HIGHLIGHT_PATH_LABEL)
+            if row_text is not None and row_path is not None:
+                matching_field = _matching_field_from_structured_row(str(row_text), str(row_path), query.filters)
+            else:
+                matching_field = _extract_matching_field_from_filters(query.filters)
 
         entity_title = row.get("entity_title", "")
         if not isinstance(entity_title, str):
@@ -310,6 +315,20 @@ def format_search_response(
         end_cursor=end_cursor,
         query_embedding=query_embedding,
     )
+
+
+def _matching_field_from_structured_row(text: str, path: str, filters: "FilterTree") -> MatchingField:
+    """Build the matching field from the index row resolved for a structured search.
+
+    The row carries the entity's actual matched value and full stored path (e.g.
+    'subscription.status' when filtering on the global field 'status'). The filter's
+    value is highlighted within the text where it occurs; otherwise the whole value
+    is highlighted (e.g. path-only filters match on the path, not the value).
+    """
+    leaves = filters.get_all_leaves()
+    term = str(getattr(leaves[0].condition, "value", "") or "") if len(leaves) == 1 else ""
+    highlight_indices = generate_highlight_indices(text, term) if term else []
+    return MatchingField(text=text, path=path, highlight_indices=highlight_indices or [(0, len(text))])
 
 
 def _extract_matching_field_from_filters(filters: "FilterTree") -> MatchingField | None:

@@ -17,15 +17,16 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, UIType
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, SearchMetadata, UIType
 from orchestrator.core.search.filters import EqualityFilter, FilterTree, LtreeFilter, PathFilter
-from orchestrator.core.search.query.queries import CountQuery
+from orchestrator.core.search.query.queries import CountQuery, SelectQuery
 from orchestrator.core.search.query.results import (
     MatchingField,
     QueryResultsResponse,
     ResultRow,
     _extract_matching_field_from_filters,
     format_aggregation_response,
+    format_search_response,
     truncate_text_with_highlights,
 )
 
@@ -361,3 +362,88 @@ def test_extract_equality_filter_value_becomes_text(value, expected_text: str):
     assert isinstance(result, MatchingField)
     assert result.text == expected_text
     assert result.highlight_indices == [(0, len(expected_text))]
+
+
+# =============================================================================
+# format_search_response — structured search matching_field
+# =============================================================================
+
+
+class _StubRow:
+    """Minimal RowMapping stand-in supporting attribute access and .get()."""
+
+    def __init__(self, data: dict):
+        self._data = data
+
+    def __getattr__(self, name):
+        try:
+            return self._data[name]
+        except KeyError as e:
+            raise AttributeError(name) from e
+
+    def get(self, key, default=None):
+        return self._data.get(key, default)
+
+
+def _structured_query(filters: FilterTree) -> SelectQuery:
+    return SelectQuery(entity_type=EntityType.SUBSCRIPTION, filters=filters)
+
+
+def _structured_row(**extra) -> _StubRow:
+    return _StubRow({"entity_id": "e-1", "entity_title": "sub", "score": 1.0, **extra})
+
+
+def test_format_structured_response_uses_highlight_columns_for_full_path():
+    """Structured rows carrying highlight columns report the resolved full path and stored value."""
+    tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"), path="status")
+    row = _structured_row(highlight_text="active", highlight_path="subscription.status")
+
+    response = format_search_response(
+        [row], _structured_query(tree), SearchMetadata.structured(), None, None, None, None
+    )
+
+    matching_field = response.results[0].matching_field
+    assert matching_field is not None
+    assert matching_field.path == "subscription.status"
+    assert matching_field.text == "active"
+    assert matching_field.highlight_indices == [(0, len("active"))]
+
+
+def test_format_structured_response_highlights_full_text_when_value_not_in_text():
+    """When the filter term does not occur in the stored value, the whole value is highlighted."""
+    tree = FilterTree(
+        op=BooleanOperator.AND,
+        children=[
+            PathFilter(
+                path="*",
+                condition=LtreeFilter(op=FilterOp.ENDS_WITH, value="status"),
+                value_kind=UIType.COMPONENT,
+            )
+        ],
+    )
+    row = _structured_row(highlight_text="active", highlight_path="subscription.status")
+
+    response = format_search_response(
+        [row], _structured_query(tree), SearchMetadata.structured(), None, None, None, None
+    )
+
+    matching_field = response.results[0].matching_field
+    assert matching_field is not None
+    assert matching_field.path == "subscription.status"
+    assert matching_field.text == "active"
+    assert matching_field.highlight_indices == [(0, len("active"))]
+
+
+def test_format_structured_response_without_highlight_columns_falls_back_to_filter():
+    """Structured rows without highlight columns fall back to the filter-derived matching field."""
+    tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"), path="subscription.status")
+    row = _structured_row()
+
+    response = format_search_response(
+        [row], _structured_query(tree), SearchMetadata.structured(), None, None, None, None
+    )
+
+    matching_field = response.results[0].matching_field
+    assert matching_field is not None
+    assert matching_field.path == "subscription.status"
+    assert matching_field.text == "active"

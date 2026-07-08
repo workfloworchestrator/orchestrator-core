@@ -12,17 +12,52 @@
 # limitations under the License.
 
 from sqlalchemy import Select, Subquery, and_, literal, or_, select
-from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql.elements import ColumnElement, Label
 from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.search.core.types import SearchMetadata
+from orchestrator.core.search.core.types import FilterOp, SearchMetadata
+from orchestrator.core.search.filters import FilterTree, LtreeFilter, PathFilter
 from orchestrator.core.search.query.mixins import OrderDirection, StructuredOrderBy
 
 from ..pagination import PageCursor
 from .base import Retriever
 
 ORDER_VALUE_LABEL = "order_value"
+
+
+def _highlight_leaf(filters: FilterTree | None) -> PathFilter | None:
+    """Return the single filter leaf to resolve highlight columns for, if unambiguous.
+
+    Absence filters (`not_has_component`) match entities without a corresponding
+    index row, so there is nothing to highlight.
+    """
+    if filters is None:
+        return None
+
+    leaves = filters.get_all_leaves()
+    if len(leaves) != 1:
+        return None
+
+    leaf = leaves[0]
+    if isinstance(leaf.condition, LtreeFilter) and leaf.condition.op == FilterOp.NOT_HAS_COMPONENT:
+        return None
+    return leaf
+
+
+def _matched_row_column(cand: Subquery, leaf: PathFilter, column_name: str, label: str) -> Label:
+    """Correlated subquery selecting one column of the entity's first index row matched by the filter."""
+    alias = aliased(AiSearchIndex)
+    return (
+        select(getattr(alias, column_name))
+        .where(alias.entity_id == cand.c.entity_id, leaf.matched_row_predicate(alias))
+        .order_by(alias.path.asc())
+        .limit(1)
+        .correlate(cand)
+        .scalar_subquery()
+        .label(label)
+    )
 
 
 def _apply_id_pagination(stmt: Select, cand: Subquery, cursor: PageCursor | None) -> Select:
@@ -48,15 +83,21 @@ def _build_order_value_subquery(cand: Subquery, order_by: StructuredOrderBy) -> 
     ).scalar_subquery()
 
     # Expose the computed sort value as order_value so pagination can filter on the same column.
-    return select(
-        cand.c.entity_id,
-        cand.c.entity_title,
-        literal(1.0).label("score"),
-        path_subquery.label(ORDER_VALUE_LABEL),
-    ).select_from(cand).subquery("ordered_cand")
+    return (
+        select(
+            cand.c.entity_id,
+            cand.c.entity_title,
+            literal(1.0).label("score"),
+            path_subquery.label(ORDER_VALUE_LABEL),
+        )
+        .select_from(cand)
+        .subquery("ordered_cand")
+    )
 
 
-def _apply_order_value_pagination(stmt: Select, inner: Subquery, cursor: PageCursor | None, order_by: StructuredOrderBy) -> Select:
+def _apply_order_value_pagination(
+    stmt: Select, inner: Subquery, cursor: PageCursor | None, order_by: StructuredOrderBy
+) -> Select:
     """Apply keyset pagination and ordering on order_value, using entity_id as a deterministic tiebreaker."""
     if cursor is not None and cursor.order_value is not None:
         # Resume after the last sorted value; entity_id breaks ties for rows with the same order_value.
@@ -67,26 +108,48 @@ def _apply_order_value_pagination(stmt: Select, inner: Subquery, cursor: PageCur
             stmt = stmt.where(or_(inner.c.order_value < cursor.order_value, tiebreak))
 
     # entity_id as secondary sort keeps pages stable when multiple rows share the same order_value.
-    order_col: ColumnElement = inner.c.order_value.asc() if order_by.direction == OrderDirection.ASC else inner.c.order_value.desc()
+    order_col: ColumnElement = (
+        inner.c.order_value.asc() if order_by.direction == OrderDirection.ASC else inner.c.order_value.desc()
+    )
     return stmt.order_by(order_col, inner.c.entity_id.asc())
 
 
 class StructuredRetriever(Retriever):
     """Applies a dummy score for purely structured searches with no text query."""
 
-    def __init__(self, cursor: PageCursor | None, order_by: StructuredOrderBy | None = None) -> None:
+    def __init__(
+        self,
+        cursor: PageCursor | None,
+        order_by: StructuredOrderBy | None = None,
+        filters: FilterTree | None = None,
+    ) -> None:
         self.cursor = cursor
         self.order_by = order_by
+        self.filters = filters
+
+    def _highlight_columns(self, cand: Subquery) -> list[Label]:
+        """Resolve the matched index row's value and full path so results can report where they matched."""
+        leaf = _highlight_leaf(self.filters)
+        if leaf is None:
+            return []
+        return [
+            _matched_row_column(cand, leaf, "value", self.HIGHLIGHT_TEXT_LABEL),
+            _matched_row_column(cand, leaf, "path", self.HIGHLIGHT_PATH_LABEL),
+        ]
 
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()
 
         if not self.order_by:
-            stmt = select(cand.c.entity_id, cand.c.entity_title, literal(1.0).label("score")).select_from(cand)
+            stmt = select(
+                cand.c.entity_id, cand.c.entity_title, literal(1.0).label("score"), *self._highlight_columns(cand)
+            ).select_from(cand)
             return _apply_id_pagination(stmt, cand, self.cursor)
 
         inner = _build_order_value_subquery(cand, self.order_by)
-        stmt = select(inner.c.entity_id, inner.c.entity_title, inner.c.score, inner.c.order_value).select_from(inner)
+        stmt = select(
+            inner.c.entity_id, inner.c.entity_title, inner.c.score, inner.c.order_value, *self._highlight_columns(inner)
+        ).select_from(inner)
         return _apply_order_value_pagination(stmt, inner, self.cursor, self.order_by)
 
     @property
