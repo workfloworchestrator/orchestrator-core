@@ -95,6 +95,13 @@ def thread_start_process(
 
     # Trigger the task in the current thread or threadpool (depends on executor mode).
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
+
+    # When using celery, the current_user prop is set to SYSTEM, because there is no actual user involved.
+    # The `user` property is supplied via the task and is the name of the user that triggered this task.
+    # When using the WORKER type, override `current_user` with this value so we have it available in the
+    # `created_by` property of a step.
+    pstat.current_user = user
+
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func), broadcast_func=broadcast_func)
 
@@ -102,7 +109,7 @@ def thread_start_process(
 def thread_resume_process(
     process: ProcessTable,
     *,
-    user: str | None = None,
+    user: str = SYSTEM_USER,
     user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
@@ -123,7 +130,9 @@ def thread_resume_process(
     input_data = retrieve_input_state(process.process_id, retrieve_input_str, False)
 
     if user:
-        pstat.update(current_user=user)
+        # restore the `current_user` prop to provide an answer to the question:
+        # "who retried this workflow step?"
+        pstat.current_user = user
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
 
     # Final write action to the process: ensure the SessionTransaction is committed.

@@ -290,6 +290,7 @@ def _get_current_step_to_update(
             last_db_step is not None
             and last_db_step.status == process_state.status
             and last_db_step.name == step.name
+            and last_db_step.created_by == stat.current_user
             and last_db_step.state.get("error") == step_state.get("error")
             and last_db_step.state.get("details") == step_state.get("details")
         ):

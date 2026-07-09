@@ -23,7 +23,11 @@ from orchestrator.core.services.executors.threadpool import (
     thread_resume_process,
     thread_start_process,
 )
-from orchestrator.core.services.processes import RESUME_WORKFLOW_REMOVED_ERROR_MSG, START_WORKFLOW_REMOVED_ERROR_MSG
+from orchestrator.core.services.processes import (
+    RESUME_WORKFLOW_REMOVED_ERROR_MSG,
+    START_WORKFLOW_REMOVED_ERROR_MSG,
+    SYSTEM_USER,
+)
 from orchestrator.core.targets import Target
 from orchestrator.core.workflow import (
     ProcessStat,
@@ -109,6 +113,36 @@ def test_thread_start_process(
     mock_set_process_status_running,
 ):
     process_id = uuid4()
+    username = "some user"
+
+    pstat = MagicMock()
+    pstat.process_id = process_id
+    pstat.state.map.return_value = {"state": "test"}
+
+    mock_input_data = MagicMock()
+    mock_input_data.input_state = {"key": "val"}
+    mock_retrieve_input_state.return_value = mock_input_data
+    mock_run_process_async.return_value = process_id
+
+    result = thread_start_process(pstat, username)
+
+    mock_set_process_status_running.assert_called_once_with(process_id)
+    mock_retrieve_input_state.assert_called_once_with(process_id, "initial_state", False)
+    assert pstat.update.call_args_list == [call(state={"state": "test"})]
+    mock_run_process_async.assert_called_once()
+    assert result == process_id
+    assert pstat.current_user == username
+
+
+@mock.patch("orchestrator.core.services.executors.threadpool._set_process_status_running")
+@mock.patch("orchestrator.core.services.executors.threadpool.retrieve_input_state")
+@mock.patch("orchestrator.core.services.executors.threadpool._run_process_async")
+def test_thread_start_process_without_user(
+    mock_run_process_async,
+    mock_retrieve_input_state,
+    mock_set_process_status_running,
+):
+    process_id = uuid4()
 
     pstat = MagicMock()
     pstat.process_id = process_id
@@ -126,6 +160,8 @@ def test_thread_start_process(
     assert pstat.update.call_args_list == [call(state={"state": "test"})]
     mock_run_process_async.assert_called_once()
     assert result == process_id
+    # No user supplied, so it should default to "SYSTEM"
+    assert pstat.current_user == SYSTEM_USER
 
 
 def test_thread_start_process_errors_with_removed_workflow():
@@ -159,14 +195,47 @@ def test_thread_resume_process_resumed(
 
     expected_user = "other user"
 
-    result = thread_resume_process(process, user="other user")
+    result = thread_resume_process(process, user=expected_user)
 
-    pstat.user = expected_user
     mock_set_process_status_running.assert_called_once()
     mock_retrieve_input_state.assert_called_once_with(pstat.process_id, "user_input", False)
-    assert pstat.update.call_args_list == [call(current_user="other user"), call(state={"state": "test"})]
+    assert pstat.update.call_args_list == [call(state={"state": "test"})]
     mock_run_process_async.assert_called_once()
     assert result == process_id
+    assert pstat.current_user == expected_user
+
+
+@mock.patch("orchestrator.core.services.executors.threadpool._set_process_status_running")
+@mock.patch("orchestrator.core.services.executors.threadpool.retrieve_input_state")
+@mock.patch("orchestrator.core.services.executors.threadpool._run_process_async")
+@mock.patch("orchestrator.core.services.executors.threadpool.load_process")
+def test_thread_resume_process_resumed_without_user(
+    mock_load_process,
+    mock_run_process_async,
+    mock_retrieve_input_state,
+    mock_set_process_status_running,
+):
+    process_id = uuid4()
+    process = MagicMock()
+    process.process_id = process_id
+    process.last_status = ProcessStatus.SUSPENDED
+
+    pstat = MagicMock()
+    pstat.process_id = process_id
+    pstat.state.map.return_value = {"state": "test"}
+
+    mock_load_process.return_value = pstat
+
+    result = thread_resume_process(process)
+
+    mock_set_process_status_running.assert_called_once()
+    mock_retrieve_input_state.assert_called_once_with(pstat.process_id, "user_input", False)
+    assert pstat.update.call_args_list == [call(state={"state": "test"})]
+    mock_run_process_async.assert_called_once()
+    assert result == process_id
+    # Resumed without supplied username.
+    # Should default to "SYSTEM"
+    assert pstat.current_user == SYSTEM_USER
 
 
 @mock.patch("orchestrator.core.services.executors.threadpool._set_process_status_running")
