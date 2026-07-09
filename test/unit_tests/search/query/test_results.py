@@ -24,7 +24,7 @@ from orchestrator.core.search.query.results import (
     MatchingField,
     QueryResultsResponse,
     ResultRow,
-    _extract_matching_field_from_filters,
+    _extract_matching_fields_from_filters,
     format_aggregation_response,
     format_search_response,
     truncate_text_with_highlights,
@@ -255,30 +255,30 @@ def test_format_aggregation_result_row_type():
 
 
 # =============================================================================
-# _extract_matching_field_from_filters
+# _extract_matching_fields_from_filters
 # =============================================================================
 
 
 def test_extract_single_equality_filter_returns_matching_field():
-    """Single leaf with EqualityFilter returns a MatchingField with the filter value."""
+    """Single leaf with EqualityFilter returns a list with one MatchingField."""
     tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"))
-    result = _extract_matching_field_from_filters(tree)
-    assert isinstance(result, MatchingField)
-    assert result.text == "active"
-    assert result.path == "subscription.status"
-    assert result.highlight_indices == [(0, len("active"))]
+    result = _extract_matching_fields_from_filters(tree)
+    assert len(result) == 1
+    assert result[0].text == "active"
+    assert result[0].path == "subscription.status"
+    assert result[0].highlight_indices == [(0, len("active"))]
 
 
 def test_extract_equality_filter_none_value_returns_empty_text():
     """EqualityFilter with None value produces empty text."""
     tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value=None))
-    result = _extract_matching_field_from_filters(tree)
-    assert isinstance(result, MatchingField)
-    assert result.text == ""
+    result = _extract_matching_fields_from_filters(tree)
+    assert len(result) == 1
+    assert result[0].text == ""
 
 
 def test_extract_ltree_has_component_returns_matching_field():
-    """LtreeFilter with HAS_COMPONENT returns a MatchingField with the component as text."""
+    """LtreeFilter with HAS_COMPONENT returns a list with one MatchingField."""
     tree = FilterTree(
         op=BooleanOperator.AND,
         children=[
@@ -289,13 +289,13 @@ def test_extract_ltree_has_component_returns_matching_field():
             )
         ],
     )
-    result = _extract_matching_field_from_filters(tree)
-    assert isinstance(result, MatchingField)
-    assert result.text == "node"
+    result = _extract_matching_fields_from_filters(tree)
+    assert len(result) == 1
+    assert result[0].text == "node"
 
 
-def test_extract_ltree_not_has_component_returns_none():
-    """LtreeFilter with NOT_HAS_COMPONENT returns None (absence cannot be highlighted)."""
+def test_extract_ltree_not_has_component_returns_empty():
+    """LtreeFilter with NOT_HAS_COMPONENT returns empty list (absence cannot be highlighted)."""
     tree = FilterTree(
         op=BooleanOperator.AND,
         children=[
@@ -306,12 +306,12 @@ def test_extract_ltree_not_has_component_returns_none():
             )
         ],
     )
-    result = _extract_matching_field_from_filters(tree)
-    assert result is None
+    result = _extract_matching_fields_from_filters(tree)
+    assert result == []
 
 
-def test_extract_multiple_leaves_returns_none():
-    """Multiple leaves in the filter tree returns None."""
+def test_extract_multiple_leaves_returns_all_positive():
+    """Multiple positive leaves return a MatchingField for each."""
     tree = FilterTree(
         op=BooleanOperator.AND,
         children=[
@@ -327,12 +327,38 @@ def test_extract_multiple_leaves_returns_none():
             ),
         ],
     )
-    result = _extract_matching_field_from_filters(tree)
-    assert result is None
+    result = _extract_matching_fields_from_filters(tree)
+    assert len(result) == 2
+    assert result[0].path == "subscription.status"
+    assert result[0].text == "active"
+    assert result[1].path == "subscription.name"
+    assert result[1].text == "test"
+
+
+def test_extract_negated_leaf_is_skipped():
+    """NEQ leaf is skipped; only positive leaves are returned."""
+    tree = FilterTree(
+        op=BooleanOperator.AND,
+        children=[
+            PathFilter(
+                path="subscription.status",
+                condition=EqualityFilter(op=FilterOp.EQ, value="active"),
+                value_kind=UIType.STRING,
+            ),
+            PathFilter(
+                path="subscription.name",
+                condition=EqualityFilter(op=FilterOp.NEQ, value="skip"),
+                value_kind=UIType.STRING,
+            ),
+        ],
+    )
+    result = _extract_matching_fields_from_filters(tree)
+    assert len(result) == 1
+    assert result[0].path == "subscription.status"
 
 
 def test_extract_ltree_matches_lquery_returns_matching_field():
-    """LtreeFilter with MATCHES_LQUERY (not NOT_HAS_COMPONENT) returns MatchingField."""
+    """LtreeFilter with MATCHES_LQUERY (not NOT_HAS_COMPONENT) returns one MatchingField."""
     tree = FilterTree(
         op=BooleanOperator.AND,
         children=[
@@ -343,8 +369,9 @@ def test_extract_ltree_matches_lquery_returns_matching_field():
             )
         ],
     )
-    result = _extract_matching_field_from_filters(tree)
-    assert isinstance(result, MatchingField)
+    result = _extract_matching_fields_from_filters(tree)
+    assert len(result) == 1
+    assert isinstance(result[0], MatchingField)
 
 
 @pytest.mark.parametrize(
@@ -358,10 +385,11 @@ def test_extract_ltree_matches_lquery_returns_matching_field():
 )
 def test_extract_equality_filter_value_becomes_text(value, expected_text: str):
     tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value=value))
-    result = _extract_matching_field_from_filters(tree)
-    assert isinstance(result, MatchingField)
-    assert result.text == expected_text
-    assert result.highlight_indices == [(0, len(expected_text))]
+    result = _extract_matching_fields_from_filters(tree)
+    assert len(result) == 1
+    assert isinstance(result[0], MatchingField)
+    assert result[0].text == expected_text
+    assert result[0].highlight_indices == [(0, len(expected_text))]
 
 
 # =============================================================================
@@ -402,11 +430,11 @@ def test_format_structured_response_uses_highlight_columns_for_full_path():
         [row], _structured_query(tree), SearchMetadata.structured(), None, None, None, None
     )
 
-    matching_field = response.results[0].matching_field
-    assert matching_field is not None
-    assert matching_field.path == "subscription.status"
-    assert matching_field.text == "active"
-    assert matching_field.highlight_indices == [(0, len("active"))]
+    fields = response.results[0].matching_fields
+    assert len(fields) == 1
+    assert fields[0].path == "subscription.status"
+    assert fields[0].text == "active"
+    assert fields[0].highlight_indices == [(0, len("active"))]
 
 
 def test_format_structured_response_highlights_full_text_when_value_not_in_text():
@@ -427,15 +455,15 @@ def test_format_structured_response_highlights_full_text_when_value_not_in_text(
         [row], _structured_query(tree), SearchMetadata.structured(), None, None, None, None
     )
 
-    matching_field = response.results[0].matching_field
-    assert matching_field is not None
-    assert matching_field.path == "subscription.status"
-    assert matching_field.text == "active"
-    assert matching_field.highlight_indices == [(0, len("active"))]
+    fields = response.results[0].matching_fields
+    assert len(fields) == 1
+    assert fields[0].path == "subscription.status"
+    assert fields[0].text == "active"
+    assert fields[0].highlight_indices == [(0, len("active"))]
 
 
 def test_format_structured_response_without_highlight_columns_falls_back_to_filter():
-    """Structured rows without highlight columns fall back to the filter-derived matching field."""
+    """Structured rows without highlight columns fall back to the filter-derived matching fields."""
     tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"), path="subscription.status")
     row = _structured_row()
 
@@ -443,7 +471,7 @@ def test_format_structured_response_without_highlight_columns_falls_back_to_filt
         [row], _structured_query(tree), SearchMetadata.structured(), None, None, None, None
     )
 
-    matching_field = response.results[0].matching_field
-    assert matching_field is not None
-    assert matching_field.path == "subscription.status"
-    assert matching_field.text == "active"
+    fields = response.results[0].matching_fields
+    assert len(fields) == 1
+    assert fields[0].path == "subscription.status"
+    assert fields[0].text == "active"

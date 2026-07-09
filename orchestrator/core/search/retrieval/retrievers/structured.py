@@ -11,7 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sqlalchemy import Select, Subquery, and_, literal, or_, select
+from itertools import chain as iterchain
+
+from sqlalchemy import Select, Subquery, and_, func, literal, or_, select
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement, Label
 from sqlalchemy_utils import Ltree
@@ -27,23 +29,19 @@ from .base import Retriever
 ORDER_VALUE_LABEL = "order_value"
 
 
-def _highlight_leaf(filters: FilterTree | None) -> PathFilter | None:
-    """Return the single filter leaf to resolve highlight columns for, if unambiguous.
+def _positive_leaves(filters: FilterTree | None) -> list[PathFilter]:
+    """Return all filter leaves that have a matchable index row.
 
     Absence filters (`not_has_component`) match entities without a corresponding
-    index row, so there is nothing to highlight.
+    index row, so there is nothing to highlight for them.
     """
     if filters is None:
-        return None
-
-    leaves = filters.get_all_leaves()
-    if len(leaves) != 1:
-        return None
-
-    leaf = leaves[0]
-    if isinstance(leaf.condition, LtreeFilter) and leaf.condition.op == FilterOp.NOT_HAS_COMPONENT:
-        return None
-    return leaf
+        return []
+    return [
+        leaf
+        for leaf in filters.get_all_leaves()
+        if not (isinstance(leaf.condition, LtreeFilter) and leaf.condition.op == FilterOp.NOT_HAS_COMPONENT)
+    ]
 
 
 def _matched_row_column(cand: Subquery, leaf: PathFilter, column_name: str, label: str) -> Label:
@@ -52,7 +50,7 @@ def _matched_row_column(cand: Subquery, leaf: PathFilter, column_name: str, labe
     return (
         select(getattr(alias, column_name))
         .where(alias.entity_id == cand.c.entity_id, leaf.matched_row_predicate(alias))
-        .order_by(alias.path.asc())
+        .order_by(func.nlevel(alias.path).asc(), alias.path.asc())
         .limit(1)
         .correlate(cand)
         .scalar_subquery()
@@ -128,14 +126,17 @@ class StructuredRetriever(Retriever):
         self.filters = filters
 
     def _highlight_columns(self, cand: Subquery) -> list[Label]:
-        """Resolve the matched index row's value and full path so results can report where they matched."""
-        leaf = _highlight_leaf(self.filters)
-        if leaf is None:
-            return []
-        return [
-            _matched_row_column(cand, leaf, "value", self.HIGHLIGHT_TEXT_LABEL),
-            _matched_row_column(cand, leaf, "path", self.HIGHLIGHT_PATH_LABEL),
-        ]
+        """Resolve matched index rows' values and full paths — one indexed pair per positive filter leaf."""
+        leaves = _positive_leaves(self.filters)
+        return list(
+            iterchain.from_iterable(
+                [
+                    _matched_row_column(cand, leaf, "value", f"{self.HIGHLIGHT_TEXT_LABEL}_{i}"),
+                    _matched_row_column(cand, leaf, "path", f"{self.HIGHLIGHT_PATH_LABEL}_{i}"),
+                ]
+                for i, leaf in enumerate(leaves)
+            )
+        )
 
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()

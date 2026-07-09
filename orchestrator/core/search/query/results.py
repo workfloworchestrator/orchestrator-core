@@ -56,7 +56,7 @@ class SearchResult(BaseModel):
     entity_title: str
     score: float
     perfect_match: int = 0
-    matching_field: MatchingField | None = None
+    matching_fields: list[MatchingField] = Field(default_factory=list)
     response_columns: dict[str, str | None] | None = None
     order_value: str | None = None
 
@@ -117,18 +117,13 @@ def format_aggregation_response(
     Returns:
         QueryResultsResponse with formatted results and metadata
     """
-    results = []
-    for row in result_rows:
-        group_values = {}
-        aggregations = {}
+    def _to_result_row(row: RowMapping) -> ResultRow:
+        return ResultRow(
+            group_values={k: str(v) if v is not None else "" for k, v in row.items() if k in group_column_names},
+            aggregations={k: v if v is not None else 0 for k, v in row.items() if k not in group_column_names},
+        )
 
-        for key, value in row.items():
-            if key in group_column_names:
-                group_values[key] = str(value) if value is not None else ""
-            else:
-                aggregations[key] = value if value is not None else 0
-
-        results.append(ResultRow(group_values=group_values, aggregations=aggregations))
+    results = [_to_result_row(row) for row in result_rows]
 
     metadata = SearchMetadata(
         search_type="aggregation",
@@ -261,7 +256,7 @@ def format_search_response(
 
     results = []
     for row in db_rows:
-        matching_field = None
+        matching_fields: list[MatchingField] = []
 
         if (
             user_query
@@ -275,16 +270,10 @@ def format_search_response(
 
             highlight_indices = generate_highlight_indices(text, user_query)
             truncated_text, adjusted_indices = truncate_text_with_highlights(text, highlight_indices)
-            matching_field = MatchingField(text=truncated_text, path=path, highlight_indices=adjusted_indices)
+            matching_fields = [MatchingField(text=truncated_text, path=path, highlight_indices=adjusted_indices)]
 
         elif not user_query and query.filters and metadata.search_type == "structured":
-            # Structured search (filter-only)
-            row_text = row.get(Retriever.HIGHLIGHT_TEXT_LABEL)
-            row_path = row.get(Retriever.HIGHLIGHT_PATH_LABEL)
-            if row_text is not None and row_path is not None:
-                matching_field = _matching_field_from_structured_row(str(row_text), str(row_path), query.filters)
-            else:
-                matching_field = _extract_matching_field_from_filters(query.filters)
+            matching_fields = _resolve_structured_matching_fields(row, query.filters)
 
         entity_title = row.get("entity_title", "")
         if not isinstance(entity_title, str):
@@ -302,7 +291,7 @@ def format_search_response(
                 entity_title=entity_title,
                 score=row.score,
                 perfect_match=row.get("perfect_match", 0),
-                matching_field=matching_field,
+                matching_fields=matching_fields,
                 response_columns=columns,
                 order_value=str(raw_order_value) if raw_order_value is not None else None,
             )
@@ -317,42 +306,33 @@ def format_search_response(
     )
 
 
-def _matching_field_from_structured_row(text: str, path: str, filters: "FilterTree") -> MatchingField:
-    """Build the matching field from the index row resolved for a structured search.
+def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree") -> list[MatchingField]:
+    """Resolve matching fields for structured search from per-leaf indexed DB columns.
 
-    The row carries the entity's actual matched value and full stored path (e.g.
-    'subscription.status' when filtering on the global field 'status'). The filter's
-    value is highlighted within the text where it occurs; otherwise the whole value
-    is highlighted (e.g. path-only filters match on the path, not the value).
+    The retriever emits one (highlight_text_i, highlight_path_i) column pair per positive
+    filter leaf, carrying the actual stored value and full path for the matched index row.
+    Falls back to echoing filter conditions when no indexed columns are present.
     """
-    leaves = filters.get_all_leaves()
-    term = str(getattr(leaves[0].condition, "value", "") or "") if len(leaves) == 1 else ""
-    highlight_indices = generate_highlight_indices(text, term) if term else []
-    return MatchingField(text=text, path=path, highlight_indices=highlight_indices or [(0, len(text))])
-
-
-def _extract_matching_field_from_filters(filters: "FilterTree") -> MatchingField | None:
-    """Extract the first path filter to use as matching field for structured searches."""
     from orchestrator.core.search.filters import LtreeFilter
+    from orchestrator.core.search.retrieval.retrievers import Retriever
 
-    leaves = filters.get_all_leaves()
-    if len(leaves) != 1:
-        return None
+    positive_leaves = [
+        leaf
+        for leaf in filters.get_all_leaves()
+        if not (isinstance(leaf.condition, LtreeFilter) and leaf.condition.op == FilterOp.NOT_HAS_COMPONENT)
+    ]
 
-    pf = leaves[0]
-
-    if isinstance(pf.condition, LtreeFilter):
-        op = pf.condition.op
-        # Prefer the original component/pattern (validator may set path="*" and move the value)
-        display = str(getattr(pf.condition, "value", "") or pf.path)
-
-        # There can be no match for abscence.
-        if op == FilterOp.NOT_HAS_COMPONENT:
+    def _field_for_leaf(i: int, leaf: "PathFilter") -> MatchingField | None:
+        row_text = row.get(f"{Retriever.HIGHLIGHT_TEXT_LABEL}_{i}")
+        row_path = row.get(f"{Retriever.HIGHLIGHT_PATH_LABEL}_{i}")
+        if row_text is None or row_path is None:
             return None
+        text, path = str(row_text), str(row_path)
+        term = str(getattr(leaf.condition, "value", "") or "")
+        indices = generate_highlight_indices(text, term) if term else []
+        return MatchingField(text=text, path=path, highlight_indices=indices or [(0, len(text))])
 
-        return MatchingField(text=display, path=display, highlight_indices=[(0, len(display))])
+    return [f for i, leaf in enumerate(positive_leaves) if (f := _field_for_leaf(i, leaf)) is not None]
 
-    # Everything thats not Ltree
-    val = getattr(pf.condition, "value", "")
-    text = "" if val is None else str(val)
-    return MatchingField(text=text, path=pf.path, highlight_indices=[(0, len(text))])
+
+

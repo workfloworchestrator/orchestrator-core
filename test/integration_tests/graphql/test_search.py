@@ -256,7 +256,7 @@ def test_search_result_type() -> None:
         entity_title="Fiber Subscription",
         score=0.95,
         perfect_match=1,
-        matching_field=MatchingFieldType(text="fiber", path="product.name"),
+        matching_fields=[MatchingFieldType(text="fiber", path="product.name")],
         response_columns=strawberry.scalars.JSON({"status": "active"}),
     )
     assert result.entity_id == "abc-123"
@@ -264,8 +264,8 @@ def test_search_result_type() -> None:
     assert result.entity_title == "Fiber Subscription"
     assert result.score == 0.95
     assert result.perfect_match == 1
-    assert result.matching_field is not None
-    assert result.matching_field.text == "fiber"
+    assert len(result.matching_fields) == 1
+    assert result.matching_fields[0].text == "fiber"
     assert result.response_columns == strawberry.scalars.JSON({"status": "active"})
 
 
@@ -277,7 +277,7 @@ def test_search_result_type_defaults() -> None:
         score=0.5,
     )
     assert result.perfect_match == 0
-    assert result.matching_field is None
+    assert result.matching_fields == []
     assert result.response_columns is None
 
 

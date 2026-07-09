@@ -68,10 +68,11 @@ def display_results(
         entity_id = result.entity_id
         score = result.score
 
-        # If we have a matching field from fuzzy search, display only that
-        if result.matching_field:
+        # If we have matching fields from fuzzy/structured search, display only those
+        if result.matching_fields:
             logger.info(f"Entity ID: {entity_id}")
-            logger.info(f"Matched field ({result.matching_field.path}): {result.matching_field.text}")
+            for mf in result.matching_fields:
+                logger.info(f"Matched field ({mf.path}): {mf.text}")
             logger.info(f"{score_label}: {score:.4f}\n" + "-" * 20)
             continue
 
