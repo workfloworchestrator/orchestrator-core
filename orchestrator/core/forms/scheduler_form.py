@@ -17,7 +17,8 @@ from typing import Annotated
 from uuid import UUID
 
 import structlog
-from pydantic import ConfigDict, StringConstraints
+from apscheduler.triggers.cron import CronTrigger
+from pydantic import AfterValidator, ConfigDict
 from sqlalchemy import select
 from typing_extensions import TypedDict
 
@@ -72,31 +73,52 @@ INTERVAL_MAPPING = {
     Intervals.ONE_MONTH: {"weeks": 4},
 }
 
-cron_regex = r"^(?:(\*|([0-5]?\d))(?:/(\d+))?\s+){4}(?:(\*|([0-5]?\d))(?:/(\d+))?\s+)?(?:([0-9,/*\-?LW#]+)(?:\s+([0-9,/*\-?LW#]+))?(?:\s+([0-9,/*\-?LW#]+))?)$"
-
 
 def get_interval_kwargs(form_data: dict) -> dict:
     return {"start_date": form_data["start_date"]} | INTERVAL_MAPPING[form_data["interval"]]
 
 
-def parse_cron_field(value: str) -> int | None:
+def _cron_fields(cron: str) -> dict[str, str]:
+    """Map cron field strings to their CronTrigger keyword names.
+
+    A 5-field expression is minute..day_of_week; a 6-field one adds a leading second.
+    """
+    fields = cron.split()
+    match len(fields):
+        case 5:
+            names = ["minute", "hour", "day", "month", "day_of_week"]
+        case 6:
+            names = ["second", "minute", "hour", "day", "month", "day_of_week"]
+        case _:
+            raise ValueError(
+                "A cron schedule needs 5 fields (minute hour day month day_of_week) or 6 with a leading second"
+            )
+    return dict(zip(names, fields, strict=True))
+
+
+def _cron_field_error(name: str, value: str) -> str | None:
+    """Return a field-scoped error message if ``value`` is invalid for cron field ``name``, else None."""
     try:
-        return int(value)
-    except ValueError:
+        CronTrigger(**{name: value})
         return None
+    except ValueError as exc:
+        return f"{name} {value!r}: {exc}"
+
+
+def validate_cron(cron: str) -> str:
+    """Reject invalid cron expressions at form time.
+
+    Each field is validated on its own (minute 0-59, hour 0-23, day 1-31, month 1-12, day_of_week
+    0-7; a leading second 0-59 with 6 fields) so the error names the offending field(s) and reports
+    all of them at once, instead of failing silently later in the scheduler queue.
+    """
+    if errors := [msg for name, value in _cron_fields(cron).items() if (msg := _cron_field_error(name, value))]:
+        raise ValueError("; ".join(errors))
+    return cron
 
 
 def get_cron_kwargs(form_data: dict) -> dict:
-    minute, hour, day, month, day_of_week = form_data["cron"].split(" ")
-
-    return {
-        "start_date": form_data["start_date"],
-        "minute": parse_cron_field(minute),
-        "hour": parse_cron_field(hour),
-        "day": parse_cron_field(day),
-        "month": parse_cron_field(month),
-        "day_of_week": parse_cron_field(day_of_week),
-    }
+    return {"start_date": form_data["start_date"]} | _cron_fields(form_data["cron"])
 
 
 async def _check_authorize(workflow: Workflow, user_model: OIDCUserModel | None) -> bool:
@@ -184,7 +206,7 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
         if schedule_type_form.schedule_type == ScheduleTypeEnum.INTERVAL:
             interval: Intervals
         if schedule_type_form.schedule_type == ScheduleTypeEnum.CRON:
-            cron: Annotated[str, StringConstraints(pattern=cron_regex)]
+            cron: Annotated[str, AfterValidator(validate_cron)]
 
         buttons: Buttons = {"previous": {}, "next": {"text": "Create Schedule"}}
 

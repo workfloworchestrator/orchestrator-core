@@ -10,7 +10,7 @@ The Orchestrator UI is based on the [NextJS framework][2] which in turn is based
 
 Before running an installation of the Workflow Orchestrator UI make sure to have these installed
 
-```
+```text
 - NodeJS, version > 21
 - npm
 - A git client
@@ -20,7 +20,7 @@ Before running an installation of the Workflow Orchestrator UI make sure to have
 
 Clone the example UI repository:
 
-```
+```shell
 mkdir orchestrator-ui
 cd orchestrator-ui
 git clone https://github.com/workfloworchestrator/example-orchestrator-ui .
@@ -28,20 +28,20 @@ git clone https://github.com/workfloworchestrator/example-orchestrator-ui .
 
 Install the npm packages:
 
-```
+```shell
 npm i
 ```
 
 Set the correct env variables.
 To run the UI against the dockerized example orchestrator setup, it's recommended to use the `orchestrator-ui.env` env-file.
 
-```
+```shell
 wget -O .env https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator/refs/heads/master/docker/orchestrator-ui/orchestrator-ui.env
 ```
 
 Run the application:
 
-```
+```shell
 npm run dev
 ```
 
@@ -53,7 +53,7 @@ The Orchestrator UI now runs on http://localhost:3000
 [2]: https://nextjs.org
 [3]: https://react.dev
 [4]: https://www.npmjs.com/package/@orchestrator-ui/orchestrator-ui-components
-[5]: https://workfloworchestrator.org/orchestrator-core/architecture/application/workflow
+[5]: /architecture/application/workflow.md
 [6]: https://nextjs.org/docs/pages
 [7]: https://nextjs.org/docs/app/building-your-application/routing
 [8]: https://github.com/workfloworchestrator/orchestrator-ui-library

@@ -15,13 +15,15 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 
-from orchestrator.core.db import ProcessTable, db
+from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.workflow import (
+    CALLBACK_TIMEOUT_KEY,
     PredicateContext,
     ProcessStatus,
     RunPredicateFail,
     RunPredicatePass,
     RunPredicateResult,
+    StepStatus,
 )
 
 
@@ -46,3 +48,37 @@ def no_uncompleted_instance(context: PredicateContext) -> RunPredicateResult:
     if uncompleted_count == 0:
         return RunPredicatePass()
     return RunPredicateFail(f"Workflow '{workflow_name}' already has {uncompleted_count} uncompleted instance(s)")
+
+
+def awaiting_callbacks_exist(context: PredicateContext) -> RunPredicateResult:
+    """Predicate that only runs the workflow when a process is awaiting a callback that has a timeout set.
+
+    Composes with :func:`no_uncompleted_instance` so the timeout sweep neither overlaps a previous run nor starts a run
+    (and thus creates a process row) when there is nothing to check. The timeout lives in the awaiting step's JSONB
+    state, so we join to the awaiting step and require the ``__callback_timeout`` key; callbacks without a timeout (the
+    default) never need the sweep. Joining on ``last_status`` excludes the lingering awaiting-callback step rows of
+    aborted/failed processes.
+
+    Args:
+        context: PredicateContext containing the workflow information.
+
+    Returns:
+        RunPredicatePass when work exists and no instance is running, RunPredicateFail otherwise.
+    """
+    match no_uncompleted_instance(context):
+        case RunPredicateFail() as fail:
+            return fail
+        case _:
+            awaiting_count = db.session.scalar(
+                select(func.count())
+                .select_from(ProcessTable)
+                .join(ProcessStepTable, ProcessStepTable.process_id == ProcessTable.process_id)
+                .filter(
+                    ProcessTable.last_status == ProcessStatus.AWAITING_CALLBACK,
+                    ProcessStepTable.status == StepStatus.AWAITING_CALLBACK,
+                    ProcessStepTable.state.has_key(CALLBACK_TIMEOUT_KEY),
+                )
+            )
+            if awaiting_count:
+                return RunPredicatePass()
+            return RunPredicateFail("No processes are awaiting a callback with a timeout")

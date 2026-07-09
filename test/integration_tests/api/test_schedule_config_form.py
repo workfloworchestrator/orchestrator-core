@@ -124,11 +124,11 @@ def test_forms_endpoint_scheduler_config_cron_type(test_client):
             "trigger": "cron",
             "trigger_kwargs": {
                 "start_date": response_data["trigger_kwargs"]["start_date"],
-                "minute": 0,
-                "hour": 9,
-                "day": None,
-                "month": None,
-                "day_of_week": None,
+                "minute": "0",
+                "hour": "9",
+                "day": "*",
+                "month": "*",
+                "day_of_week": "1-5",
             },
             "user_inputs": [{}],
         }

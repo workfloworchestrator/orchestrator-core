@@ -52,7 +52,7 @@ The decorated function must return a chain of steps using the `>>` operator to d
 
 In this example:
 
-- The workflow is named **"create_product_subscription"** (derived from the function name).
+- The workflow is named `create_product_subscription` (derived from the function name).
 - The input form is defined by `initial_input_form_generator`.
 - The workflow description is managed in the database via the UI or API endpoint.
 - The workflow engine will execute the steps inside `create_workflow` before returned steps,
@@ -118,7 +118,7 @@ To make workflows available in the orchestrator, they must be registered in two 
 
 1. In code — by defining them as workflow functions and registering them via `LazyWorkflowInstance`.
 2. In the database — by mapping them to the corresponding `product_type` using a migration.
-    - workflows don't need to necessarily be added to a product_type, doing this will only make them available as tasks not meant to be ran by a subscription.
+    - workflows don't need to necessarily be added to a `product_type`, doing this will only make them available as tasks not meant to be ran by a subscription.
 
 We’ll start with the code registration, followed by options for generating the database migration.
 
@@ -150,7 +150,6 @@ To ensure the workflows are discovered at runtime:
 - Add `import workflows` to `main.py` so they are registered during app startup.
 
 !!! example
-
     For inspiration look at an example implementation of the [lazy workflow instances]
 
 ### Step 2: Register workflows in the database

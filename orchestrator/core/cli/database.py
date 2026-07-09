@@ -142,7 +142,7 @@ def merge(
         None
 
     CLI Options:
-        ```sh
+        ```shell
         Arguments:
             [REVISIONS]  Add the revision you would like to merge to this command.
 
@@ -164,7 +164,7 @@ def upgrade(revision: str = typer.Argument(help="Rev id to upgrade to")) -> None
         None
 
     CLI Options:
-        ```sh
+        ```shell
         Arguments:
             [REVISION]  Rev id to upgrade to
 
@@ -187,7 +187,7 @@ def downgrade(revision: str = typer.Argument("-1", help="Rev id to downgrade to"
         None
 
     CLI Options:
-        ```sh
+        ```shell
         Arguments:
             [REVISION]  Rev id to upgrade to  [default: -1]
         ```
@@ -215,7 +215,7 @@ def revision(
         None
 
     CLI Options:
-        ```sh
+        ```shell
         Options:
             -m, --message TEXT              The revision message
             --version-path TEXT             Specify specific path from config for version file
@@ -243,7 +243,7 @@ def history(
         None
 
     CLI Options:
-        ```sh
+        ```shell
         Options:
             -v, --verbose  Verbose output
             -c, --current  Indicate current revision
@@ -350,7 +350,7 @@ def migrate_workflows(
             - list of downgrade SQL statements in string format.
 
     CLI Arguments:
-        ```sh
+        ```shell
         Arguments:
             MESSAGE  Migration name  [required]
 
@@ -431,7 +431,7 @@ def migrate_tasks(
             - list of downgrade SQL statements in string format.
 
     CLI Arguments:
-        ```sh
+        ```shell
         Arguments:
             MESSAGE  Migration name  [required]
 

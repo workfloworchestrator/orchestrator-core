@@ -23,7 +23,7 @@ You can send a `PUT` request to the `/api/settings/status` endpoint with the `gl
 workflows from starting.
 
 Via CLI:
-```bash
+```shell
 curl -X PUT http://localhost:8080/api/settings/status \
   -H "Content-Type: application/json" \
   -d '{"global_lock": true}'
@@ -48,7 +48,7 @@ You can send a `PUT` request to the `/api/settings/status` endpoint with the `gl
  set to `false` to resume the Orchestrator. This will allow new workflows to start and existing
  workflows to continue execution.
 
-```bash
+```shell
 curl -X PUT http://localhost:8080/api/settings/status \
   -H "Content-Type: application/json" \
   -d '{"global_lock": false}'

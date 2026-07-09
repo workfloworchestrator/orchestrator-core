@@ -2,17 +2,15 @@
 
 By following these steps you can start a bare orchestrator application that can be used to run workflows. This
 app runs as a standalone API with workflows loaded that can be run in the background. Similar to a Framework like FastAPI,
-Flask and Django, you install the core library, initialise it with configuration and run. The orchestrator-core contains:
+Flask and Django, you install the core library, initialize it with configuration and run. The orchestrator-core contains:
 
-* API
-* Workflow engine
-* Database
-
+- API
+- Workflow engine
+- Database
 
 !!! note
     The Orchestrator-core is designed to be installed and extended just like a FastAPI or Flask application. For more
     information about how this works read the [Reference documentation](../reference-docs/app/app.md).
-
 
 ### Step 1 - Install the package:
 
@@ -117,7 +115,6 @@ This will be used to run the Orchestrator API.
     app.register_graphql()
     ```
 
-
 ### Step 4 - Run the database migrations:
 
 Initialize the migration environment and database tables.
@@ -150,9 +147,8 @@ uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
 
 Visit the [ReDoc](http://127.0.0.1:8080/api/redoc) or [OpenAPI](http://127.0.0.1:8080/api/docs) to view and interact with the API.
 
-
 ### Next:
 
-- [Create a product.](https://workfloworchestrator.org/workshops/example-orchestrator/domain-models)
+- [Create a product.](../../../workshops/example-orchestrator/domain-models/)
 - [Create a workflow for a product.](./workflows.md)
 - [Generate products and workflows](../reference-docs/cli.md#generate)

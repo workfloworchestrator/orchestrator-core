@@ -62,6 +62,7 @@ from orchestrator.core.workflow import (
     Workflow,
     abort_wf,
     default_user_inputs,
+    fail_awaiting_wf,
 )
 from orchestrator.core.workflow import Process as WFProcess
 from orchestrator.core.workflows import get_workflow
@@ -794,6 +795,12 @@ def abort_process(process: ProcessTable, user: str, broadcast_func: Callable | N
 
     pstat.update(current_user=user)
     return abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+
+
+def fail_awaiting_process(process: ProcessTable, broadcast_func: Callable | None = None) -> WFProcess:
+    """Fail a process that has been stuck awaiting a callback past its timeout."""
+    pstat = load_process(process)
+    return fail_awaiting_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
 
 
 def _recoverwf(wf: Workflow, log: list[WFProcess]) -> tuple[WFProcess, StepList]:

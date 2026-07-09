@@ -22,7 +22,7 @@ The error is then handled by each caller:
 
 ## PredicateContext
 
-Every predicate receives a `PredicateContext` as its first argument. This is a frozen dataclass with:
+Every predicate receives a `PredicateContext` as its first argument. This is a frozen data class with:
 
 | Field | Type | Description |
 |-------|------|-------------|

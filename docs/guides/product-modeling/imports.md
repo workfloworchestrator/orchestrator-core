@@ -124,7 +124,7 @@ service database. Now, the import has been completed, and the imported variety o
 
 In short, the procedure is visualized in the following flowchart.
 
-``` mermaid
+```mermaid
 graph LR
   A[CSV file with existing nodes] -->|create_imported_node| B[ImportedNode];
   B -->|import_node| C[Node];

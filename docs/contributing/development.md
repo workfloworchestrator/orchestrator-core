@@ -12,7 +12,7 @@ Follow the [installing uv](https://docs.astral.sh/uv/getting-started/installatio
 
 ### Step 2 - install project and dependencies
 
-```
+```shell
 uv sync --all-groups --all-extras
 ```
 
@@ -105,7 +105,7 @@ clear message pointing at the three options above.
 ### Run the Celery acceptance tests
 
 The Celery suite uses the same `CACHE_URI` rules — the snippet below assumes
-passwordless Redis. For the docker-compose stack use
+password-less Redis. For the docker-compose stack use
 `CACHE_URI=redis://:nwa@localhost:6379/0` instead.
 
 ```shell
@@ -116,7 +116,7 @@ uv run pytest test/acceptance_tests/celery
 
 ### Run the LLM/embedding acceptance tests
 
-Same `CACHE_URI` rules as above. The snippet assumes passwordless Redis.
+Same `CACHE_URI` rules as above. The snippet assumes password-less Redis.
 
 ```shell
 export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
@@ -134,7 +134,7 @@ in the orchestrator-core.
 Documentation for the Orchestrator is written by using [Mkdocs](https://www.mkdocs.org/).
 To contribute to them follow the instructions above to `step 2`, you can then develop them locally by running:
 
-```bash
+```shell
 uv run mkdocs serve
 ```
 
@@ -193,7 +193,7 @@ Instead of manually editing `pyproject.toml` you can use `uv add`.
 
 For example, let's say we want to become an enterprise application :-)
 
-```
+```shell
 uv add django  # adds "django>=5.2.3" to pyproject.toml
 ```
 
@@ -202,7 +202,7 @@ Apart from updating `pyproject.toml` uv also installs the dependency (and subdep
 It is a uv default to specify the lower limit.
 You can also let uv set an upper limit or set it explicitly:
 
-```
+```shell
 uv add django --bounds minor   # "django>=5.2.3,<5.3.0"
 uv add django --bounds major   # "django>=5.2.3,<6.0.0"
 uv add 'django>=5.2.3,<6.0.0'  # "django>=5.2.3,<6.0.0"
@@ -210,7 +210,7 @@ uv add 'django>=5.2.3,<6.0.0'  # "django>=5.2.3,<6.0.0"
 
 To remove the dependency you can run:
 
-```
+```shell
 uv remove django
 ```
 
@@ -229,7 +229,7 @@ The `uv sync` syncs your environment (`.venv`) based on the options you give it 
 
 A few examples of different options:
 
-```
+```shell
 # base dependencies
 uv sync --no-dev
 
@@ -249,7 +249,7 @@ uv removes anything not specified in the command or `pyproject.toml` to ensure a
 
 To upgrade all dependencies in the lockfile to the latest version (taking version constraints from `pyproject.toml` into account), run the sync command with `--upgrade`:
 
-```
+```shell
 uv sync --all-groups --all-extras --upgrade
 ```
 
@@ -277,7 +277,7 @@ WFO uses [SQLAlchemy](https://www.sqlalchemy.org/) for its ORM and DB connection
 
 To get information about which DB queries it is performing, adjust it's loglevel through this environment variable:
 
-```bash
+```shell
 LOG_LEVEL_SQLALCHEMY_ENGINE=INFO
 ```
 
@@ -289,7 +289,7 @@ Set it to `DEBUG` for even more information.
 
 To get basic statistics per executed GraphQL Query, set the following environment variable:
 
-```bash
+```shell
 ENABLE_GRAPHQL_STATS_EXTENSION=true
 ```
 
@@ -317,7 +317,7 @@ The following should be noted:
 
 It is possible to profile GraphQL queries by enabling the [PyInstrument](https://github.com/joerick/pyinstrument) extension:
 
-```bash
+```shell
 ENABLE_GRAPHQL_PROFILING_EXTENSION=true
 ```
 

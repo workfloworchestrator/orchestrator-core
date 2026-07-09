@@ -64,7 +64,7 @@ def update_external_system(subscription: SubscriptionModel):
 While this approach works, the switch logic (via `match` or `if isinstance()`) can become unwieldy as more product types are introduced.
 This is where `@singledispatch` can help.
 
-### Using `@singledispatch` for Cleaner Reusability
+### Using `@singledispatch` for Cleaner Re-usability
 
 In the example above, each product requires slightly different logic for building the payload.
 Rather than branching on type manually, you can delegate this responsibility to Python's `@singledispatch`.

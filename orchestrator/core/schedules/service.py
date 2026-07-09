@@ -15,9 +15,7 @@ from uuid import UUID, uuid4
 
 import structlog
 from apscheduler.schedulers.base import BaseScheduler
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.date import DateTrigger
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.base import BaseTrigger
 from sqlalchemy import delete, select
 
 from orchestrator.core import app_settings
@@ -29,6 +27,7 @@ from orchestrator.core.schemas.schedules import (
     APSchedulerJobs,
     APSchedulerJobUpdate,
     APSJobAdapter,
+    build_trigger,
 )
 from orchestrator.core.services.processes import start_process
 from orchestrator.core.services.workflows import get_workflow_by_workflow_id
@@ -88,7 +87,7 @@ def _delete_scheduled_tasks(schedules: list[WorkflowApschedulerJob]) -> None:
         add_scheduled_task_to_queue(delete_payload)
 
 
-def add_unique_scheduled_task_to_queue(payload: APSchedulerJobCreate, *, recreate: bool=False) -> bool:
+def add_unique_scheduled_task_to_queue(payload: APSchedulerJobCreate, *, recreate: bool = False) -> bool:
     """Create a unique scheduled task service function.
 
     Checks if the workflow is already scheduled before creating an apscheduler
@@ -112,7 +111,9 @@ def add_unique_scheduled_task_to_queue(payload: APSchedulerJobCreate, *, recreat
     schedules = db.session.scalars(select(WorkflowApschedulerJob).filter_by(workflow_id=payload.workflow_id)).all()
     if schedules:
         if not recreate:
-            logger.info("Not scheduling workflow as there are existing schedules, and recreate is not set", existing=schedules)
+            logger.info(
+                "Not scheduling workflow as there are existing schedules, and recreate is not set", existing=schedules
+            )
             return False
         logger.info("Deleting existing schedules for workflow", existing=schedules)
         _delete_scheduled_tasks(
@@ -227,22 +228,12 @@ def _add_scheduled_task(payload: APSchedulerJobCreate, scheduler_connection: Bas
     _add_linker_entry(workflow_id=payload.workflow_id, schedule_id=schedule_id)
 
 
-def _build_trigger_on_update(
-    trigger_name: str | None, trigger_kwargs: dict
-) -> IntervalTrigger | CronTrigger | DateTrigger | None:
+def _build_trigger_on_update(trigger_name: str | None, trigger_kwargs: dict) -> BaseTrigger | None:
     if not trigger_name or not trigger_kwargs:
         logger.info("Skipping building trigger as no trigger information is provided")
         return None
 
-    match trigger_name:
-        case "interval":
-            return IntervalTrigger(**trigger_kwargs)
-        case "cron":
-            return CronTrigger(**trigger_kwargs)
-        case "date":
-            return DateTrigger(**trigger_kwargs)
-        case _:
-            raise ValueError(f"Invalid trigger type: {trigger_name}")
+    return build_trigger(trigger_name, trigger_kwargs)
 
 
 def _update_scheduled_task(payload: APSchedulerJobUpdate, scheduler_connection: BaseScheduler) -> None:

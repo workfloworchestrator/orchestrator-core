@@ -10,17 +10,17 @@ The MCP sub-app is opt-in:
 
 1. Install the optional dependency:
 
-    ```bash
+    ```shell
     pip install "orchestrator-core[mcp]"
     ```
 
 2. Set the environment variable:
 
-    ```bash
+    ```shell
     MCP_ENABLED=True
     ```
 
-When enabled, `OrchestratorCore.__init__` mounts the sub-app at `/mcp` and composes its ASGI lifespan into the parent app's lifespan so the streamable HTTP session manager starts and stops with the orchestrator.
+When enabled, `OrchestratorCore.__init__` mounts the sub-app at `/mcp` and composes its ASGI lifespan into the parent app's lifespan so the stream-able HTTP session manager starts and stops with the orchestrator.
 
 Transport: **streamable HTTP** (`/mcp/`). Configure your MCP client (e.g. Claude Desktop, an agent framework) to talk to that URL.
 
@@ -106,7 +106,7 @@ The curated read tools in `mcp_tools.py` are `POST` routes, so they must be tagg
 
 The mount logic lives in `orchestrator/core/mcp/server.py`:
 
-```
+```text
 OrchestratorCore (FastAPI)
   └── /mcp  (Starlette sub-app, fastmcp streamable HTTP)
         └── FastMCP.from_fastapi(app, route_maps=[EXPOSED → TOOL, * → EXCLUDE])

@@ -198,13 +198,15 @@ There are multiple triggers that can be used ([trigger docs]):
 - [CronTrigger]: use when you want to run the task periodically at certain time(s) of day.
 - [DateTrigger]: use when you want to run the task just once at a certain point of time.
 - [CalendarIntervalTrigger]: use when you want to run the task on calendar-based intervals, at a specific time of day.
-- [AndTrigger]: use when you want to combine multiple triggers so the task only runs when **all** of them would fire at the same time.
+- [AndTrigger]: use when you want to combine multiple triggers so the task only runs when **all** of them would fire at
+  the same time.
 - [OrTrigger]: use when you want to combine multiple triggers so the task runs when **any one** of them would fire.
 
 For detailed configuration options, see the [APScheduler scheduling docs].
 
-The scheduler automatically loads any schedules that are imported before the scheduler starts.
-To keep things organized and consistent (similar to how workflows are handled), it’s recommended to place your schedules in a `/schedules/__init__.py`.
+The scheduler automatically loads any schedules that are imported before the scheduler starts. To keep things organized
+and consistent (similar to how workflows are handled), it’s recommended to place your schedules in a
+`/schedules/__init__.py`.
 
 > `ALL_SCHEDULERS` (Backwards Compatibility)
 > In previous versions, schedules needed to be explicitly listed in an ALL_SCHEDULERS variable.
@@ -215,7 +217,7 @@ To keep things organized and consistent (similar to how workflows are handled), 
 
 !!! Info
     In [v4.4.0] we switched from [schedule] package to [apscheduler] to allow schedules to be stored in the DB and retrieve schedule tasks from the API.
-    The apscheduler library has its own decorator to schedule tasks: `@scheduler.scheduled_job()` (from `orchestrator.schedules.scheduler`).
+    The `apscheduler` library has its own decorator to schedule tasks: `@scheduler.scheduled_job()` (from `orchestrator.schedules.scheduler`).
     We therefore deprecated the old `@schedule` decorator (from `orchestrator.schedules.scheduling`) and made it forwards compatible.
 
     In [v4.7.0] we deprecated `@scheduler.scheduled_job()` provided by [apscheduler] in favor of a more dynamic API based system described below.
@@ -340,10 +342,9 @@ ENTRYPOINT ["python", "main.py"]
 CMD ["scheduler", "run"]
 ```
 
-For the second option: suppose you start your app with a script, `bin/server`, that handles your migrations, kicks off uvicorn, etc.
-You can then replace your backend's Docker entrypoint with a script like this, `bin/wrapper`:
+For the second option: suppose you start your app with a script, `bin/server`, that handles your migrations, kicks off `uvicorn`, etc. You can then replace your backend Docker entrypoint with a script like this, `bin/wrapper`:
 
-```sh
+```shell
 #!/bin/sh
 # bin/wrapper
 

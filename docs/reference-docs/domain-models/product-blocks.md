@@ -5,13 +5,13 @@
 !!! warning inline end
     You should only have one root Product Block on your domain model!
 
-A Product Block is a reusable collection of product attributes that lives under a Product Type (which we covered in the [Product Types section of these docs](./product_types.md)). A Product Block allows you to define the bulk of the attributes that you want to assign to your Product definition. At it's most basic, you will have a root product block that is stored on your Product Type, as shown in the [Product Types documentation](product_types.md). Building off of that example, let's examine a basic product block by examining the `NodeBlock` product block from the [example workflow orchestrator](https://github.com/workfloworchestrator/example-orchestrator):
+A Product Block is a reusable collection of product attributes that lives under a Product Type (which we covered in the [Product Types section of these docs](./product-types.md)). A Product Block allows you to define the bulk of the attributes that you want to assign to your Product definition. At it's most basic, you will have a root product block that is stored on your Product Type, as shown in the [Product Types documentation](product-types.md). Building off of that example, let's examine a basic product block by examining the `NodeBlock` product block from the [example workflow orchestrator](https://github.com/workfloworchestrator/example-orchestrator):
 
 ```python
 {% include 'https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator/master/products/product_blocks/node.py' %}
 ```
 
-Breaking this product block down a bit more, we see 3 classes, `NodeBlockInactive`, `NodeBlockProvisioning`, and finally `NodeBlock`. These three classes are built off of each-other, with the lowest level class (`NodeBlockInactive`) based off of the `ProductBlockModel` base class. These classes have a number of attributes, referred to as "Resource Types", which you can [read more about here](./model_attributes.md#resource-types). Looking at this `ProductBlockModel` base class tells us a lot about how to use it in our workflows:
+Breaking this product block down a bit more, we see 3 classes, `NodeBlockInactive`, `NodeBlockProvisioning`, and finally `NodeBlock`. These three classes are built off of each-other, with the lowest level class (`NodeBlockInactive`) based off of the `ProductBlockModel` base class. These classes have a number of attributes, referred to as "Resource Types", which you can [read more about here](./model-attributes.md#resource-types). Looking at this `ProductBlockModel` base class tells us a lot about how to use it in our workflows:
 
 ::: orchestrator.core.domain.base.ProductBlockModel
     options:
@@ -26,7 +26,7 @@ When building a more complicated product, you will likely want to start nesting 
     {% include 'https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator/master/products/product_blocks/core_port.py' %}
     ```
 
-Note in this example how the attribute `node` is type-hinted with `NodeBlockInactive`. This tells the WFO to bring in the entire tree of product blocks that are referenced, in this case, `NodeBlockInactive` when you load the `CorePortBlockInactive` into your workflow step. To read more on this concept, read through the [Product Modelling page](../../architecture/product_modelling/product_block_graph.md) in the architecture section of the docs.
+Note in this example how the attribute `node` is type-hinted with `NodeBlockInactive`. This tells the WFO to bring in the entire tree of product blocks that are referenced, in this case, `NodeBlockInactive` when you load the `CorePortBlockInactive` into your workflow step. To read more on this concept, read through the [Product Modelling page](../../architecture/product-modeling/product-block-graph.md) in the architecture section of the docs.
 
 ## Creating Database Migrations
 

@@ -51,7 +51,7 @@ workflows that are all started in parallel, which would crash a single-threaded 
 The application flow looks like this when `EXECUTOR = "celery"` and websockets are enabled:
 
 - FastAPI application validates form input and places a task on Celery queue (`tasks.new_workflow`)
-    - If websockets are enabled, a connection should exist already between the client and backend.
+  - If websockets are enabled, a connection should exist already between the client and backend.
 - FastAPI application begins watching Redis pubsub channel for process updates from Celery.
 - Celery worker picks up task from queue and begins executing.
 - On each step completion, it publishes state information to the Redis pubsub channel.
@@ -63,14 +63,14 @@ By default, [Redis](https://redis.io/) is used for the Celery broker and backend
 
 A Celery worker must start by calling your worker module instead of `main.py`, like so:
 
-```sh
+```shell
 celery -A your_orch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks,new_workflows,resume_workflows
 ```
 
-* `-A` points to this module where the worker class is defined
-* `-E` sends task-related events (capturable and monitorable)
-* `-l` is the short flag for `--loglevel`
-* `-Q` specifies the queues which the worker should watch for new tasks
+- `-A` points to this module where the worker class is defined
+- `-E` sends task-related events (capturable and monitorable)
+- `-l` is the short flag for `--loglevel`
+- `-Q` specifies the queues which the worker should watch for new tasks
 
 ### Queues
 
@@ -93,13 +93,13 @@ At the moment, 4 Celery tasks are defined as constants in `services/tasks.py`:
 To handle the Tasks and Workflows queues independently, use the `-Q` option described above.
 That is, kick off one worker with
 
-```sh
+```shell
 celery -A your_orch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks
 ```
 
 and the other with
 
-```sh
+```shell
 celery -A your_orch.celery_worker worker -E -l INFO -Q new_workflows,resume_workflows
 ```
 
@@ -347,7 +347,7 @@ Next, update your `main.py` and `wsgi.py` to include the following imports:
     from my_orchestrator.celery_client import celery
     ```
 
-And finally, ensure both files include `initialise_celery(celery)` in the initialization of the CLI or API app.
+And finally, ensure both files include `initialize_celery(celery)` in the initialization of the CLI or API app.
 
 #### Redis
 
@@ -362,18 +362,17 @@ For example:
 
 Start the orchestrator API with Celery as the executor:
 
-```bash
+```shell
 EXECUTOR="celery" uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
 ```
 
 Start a single worker that listens both on the `tasks` and `workflows` queue (indicated by the `-Q` flag):
 
-```bash
+```shell
 celery -A surf.tasks  worker --loglevel=info -Q new_tasks,resume_tasks,new_workflows,resume_workflows
 ```
 
 Notice that `-A surf.tasks` indicates the module that contains your `celery.Celery` instance.
-
 
 ### Celery workflow/task flow
 
@@ -384,7 +383,6 @@ All step statuses are shown in UPPERCASE for clarity.
 ![Celery Workflow/Task flow](celery-flow.drawio.png)
 
 [registering-workflows]: ../getting-started/workflows.md#register-workflows
-
 [use-a-scheduler]: tasks.md#the-scheduler
 [celery-intro]: https://docs.celeryq.dev/en/stable/getting-started/introduction.html
 [celery-backends-and-brokers]: https://docs.celeryq.dev/en/stable/getting-started/backends-and-brokers/index.html

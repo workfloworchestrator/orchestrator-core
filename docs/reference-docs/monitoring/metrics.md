@@ -8,7 +8,7 @@ By default, ``orchestrator-core`` exports metrics for: subscriptions, processes,
 enabled by enabling the corresponding app setting ``ENABLE_PROMETHEUS_METRICS_ENDPOINT``. An API response on
 ``/api/metrics`` with the default metrics enabled looks as follows:
 
-```
+```shell
 # HELP wfo_subscriptions_count Number of subscriptions per product, lifecycle state, customer, and in sync state.
 # TYPE wfo_subscriptions_count gauge
 wfo_subscriptions_count{customer_id="00000000-0000-0000-0000-000000000000",insync="True",lifecycle_state="active",product_name="Router"} 53.0
@@ -39,9 +39,9 @@ An example Grafana dashboard that uses these metrics is given in the code reposi
 
 ## Adding custom metrics
 
-It's possible to add more metric collectors to your orchestrator, if there are organisation-specific metrics you want
+It's possible to add more metric collectors to your orchestrator, if there are organization-specific metrics you want
 to keep track of. This is done by implementing extra metrics from the ``prometheus_client`` library, documentation on
 how to achieve this is available [here](https://prometheus.github.io/client_python/).
 
-When your new collector is implemented, register it in the orchestrator metrics registry when initialising your
+When your new collector is implemented, register it in the orchestrator metrics registry when initializing your
 orchestrator with ``ORCHESTRATOR_METRICS_REGISTRY.register(MyNewCollector())``.

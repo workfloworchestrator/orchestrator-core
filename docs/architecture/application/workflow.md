@@ -20,7 +20,7 @@ However, it is always up to the developer to implement the best practices as wel
 - **`insync` Subscription Requirement**: By default, workflows can only run on subscriptions that are marked as `insync`, unless explicitly configured otherwise.
   This prevents multiple workflows from manipulating the same subscription concurrently.
   One of the first actions a workflow should perform is to mark the subscription as `out of sync` to avoid conflicts.
-- **Step Retry Behavior**: Failed steps can be retried indefinitely. Each retry starts from the state of the **last successfully completed** step.
+- **Step Retry Behaviour**: Failed steps can be retried indefinitely. Each retry starts from the state of the **last successfully completed** step.
 
 
 ### Coding gotchas
@@ -69,17 +69,17 @@ Workflows are categorized based on the operations they perform on a subscription
     - External references should only be retained if they also hold historical records.
     - Only one terminate workflow should exist per product.
 - Validate ([validate_workflow])
-    - Verifies that external systems are consistent with the orchestrator's subscription state.
+    - Verifies that external systems are consistent with the Orchestrator's subscription state.
     - Only one validate workflow should exist per product.
 - Reconcile ([reconcile_workflow])
-    - Ensures that the orchestrator's subscription state is in sync with external systems.
+    - Ensures that the Orchestrator's subscription state is in sync with external systems.
     - Only one reconcile workflow should exist per product.
 
 
 
 ### Default Workflows
 
-Registering a _Default Workflow_ attaches a given workflow to all Products.
+Registering a default workflow attaches a given workflow to all Products.
 To ensure this, modify the `DEFAULT_PRODUCT_WORKFLOWS` environment variable and add the workflow the database with a migration.
 
 By default, `DEFAULT_PRODUCT_WORKFLOWS` is set to `['modify_note']`.
@@ -115,26 +115,26 @@ The orchestrator supports several kinds of steps to cover different use cases:
   Pauses the workflow to request and receive user input during execution.
 
 - **`conditional`** [functional docs for conditional]
-  Conditionally executes the step based on environment variables or process state.
+  Conditionally executes the step based on workflow state.
   If the condition evaluates to false, the step is skipped entirely.
 
 - **`callback_step`** [functional docs for callback_step]
   Pauses workflow execution while waiting for a external event to complete.
 
-For a practical example of how to define reusable workflow steps—and how to leverage singledispatch for type-specific logic—see:
-👉 [Reusable step functions and singledispatch usage]
+For a practical example of how to define reusable workflow steps—and how to leverage single dispatch for type-specific logic—see:
+👉 [Reusable step functions and single dispatch usage]
 
 
 ### Execution parameters
 
-You can fine-tune workflow execution behavior using a set of configuration parameters.
+You can fine-tune workflow execution behaviour using a set of configuration parameters.
 The recommended location to define or override these is in `workflows/__init__.py`.
 Below are examples of key configuration options:
 
 1. `WF_USABLE_MAP`: Define usable subscription lifecycles for workflows.
 
 By default, the associated workflow can only be run on a subscription with a lifecycle state set to `ACTIVE`.
-This behavior can be changed in the `WF_USABLE_MAP` data structure:
+This behaviour can be changed in the `WF_USABLE_MAP` data structure:
 
 > note: Terminate workflows are by default, allowed to run on subscriptions in any lifecycle state unless explicitly restricted in this map.
 
@@ -168,10 +168,10 @@ This behavior can be changed in the `WF_USABLE_MAP` data structure:
 
 Now validate and provision can be run on subscriptions in either `ACTIVE` or `PROVISIONING` states and modify can *only* be run on subscriptions in the `PROVISIONING` state.
 
-2. `WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS`: Block modify workflows on subscriptions with unterminated `in_use_by` subscriptions
+2. `WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS`: Block modify workflows on subscriptions with non-terminated `in_use_by` subscriptions
 
-By default, only terminate workflows are prohibited from running on subscriptions with unterminated `in_use_by` subscriptions.
-This behavior can be changed in the `WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS` data structure:
+By default, only terminate workflows are prohibited from running on subscriptions with non-terminated `in_use_by` subscriptions.
+This behaviour can be changed in the `WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS` data structure:
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -197,12 +197,12 @@ This behavior can be changed in the `WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS` data
     )
     ```
 
-With this configuration, both terminate and modify will not run on subscriptions with unterminated `in_use_by` subscriptions.
+With this configuration, both terminate and modify will not run on subscriptions with non-terminated `in_use_by` subscriptions.
 
 3. `WF_USABLE_WHILE_OUT_OF_SYNC`: Allow specific workflows on out of sync subscriptions
 
 By default, only system workflows (tasks) are allowed to run on subscriptions that are not in sync.
-This behavior can be changed with the `WF_USABLE_WHILE_OUT_OF_SYNC` data structure:
+This behaviour can be changed with the `WF_USABLE_WHILE_OUT_OF_SYNC` data structure:
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -232,7 +232,7 @@ Now this particular modify workflow can be run on subscriptions that are not in 
 
 !!! danger
     It is potentially dangerous to run workflows on subscriptions that are not in sync. Only use this for small and
-    specific usecases, such as editing a description that is only used within orchestrator.
+    specific use cases, such as editing a description that is only used within orchestrator.
 
 [registering workflows]: ../../getting-started/workflows.md#register-workflows
 [create_workflow]: ../../reference-docs/workflows/workflows.md#orchestrator.core.workflows.utils.create_workflow
@@ -243,8 +243,8 @@ Now this particular modify workflow can be run on subscriptions that are not in 
 [functional docs for step]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.step
 [functional docs for retrystep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.retrystep
 [functional docs for inputstep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.inputstep
-[functional docs for conditional]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.conditional
+[functional docs for conditional]: ../../reference-docs/workflows/conditional-steps.md
 [functional docs for callback_step]: ../../reference-docs/workflows/callbacks.md
-[Reusable step functions and singledispatch usage]: ../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps
+[Reusable step functions and single dispatch usage]: ../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps
 [registering-workflows]: ../../getting-started/workflows.md#register-workflows
 [tasks-and-scheduling]: ../../guides/tasks.md
