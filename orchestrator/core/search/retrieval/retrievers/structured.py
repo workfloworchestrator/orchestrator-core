@@ -11,9 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from itertools import chain as iterchain
-
-from sqlalchemy import Select, Subquery, and_, func, literal, or_, select
+from sqlalchemy import Select, String, Subquery, and_, cast, func, literal, or_, select
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement, Label
 from sqlalchemy_utils import Ltree
@@ -44,18 +42,20 @@ def _positive_leaves(filters: FilterTree | None) -> list[PathFilter]:
     ]
 
 
-def _matched_row_column(cand: Subquery, leaf: PathFilter, column_name: str, label: str) -> Label:
-    """Correlated subquery selecting one column of the entity's first index row matched by the filter."""
-    alias = aliased(AiSearchIndex)
-    return (
-        select(getattr(alias, column_name))
-        .where(alias.entity_id == cand.c.entity_id, leaf.matched_row_predicate(alias))
-        .order_by(func.nlevel(alias.path).asc(), alias.path.asc())
-        .limit(1)
-        .correlate(cand)
-        .scalar_subquery()
-        .label(label)
-    )
+def _highlight_matches_column(cand: Subquery, leaves: list[PathFilter]) -> Label:
+    """Single JSON array column built from correlated scalar subqueries, one per positive filter leaf."""
+    json_objects = []
+    for i, leaf in enumerate(leaves):
+        alias = aliased(AiSearchIndex)
+        json_objects.append(
+            select(func.json_build_object("value", alias.value, "path", cast(alias.path, String), "idx", literal(i)))
+            .where(alias.entity_id == cand.c.entity_id, leaf.matched_row_predicate(alias))
+            .order_by(func.nlevel(alias.path).asc(), alias.path.asc())
+            .limit(1)
+            .correlate(cand)
+            .scalar_subquery()
+        )
+    return func.json_build_array(*json_objects).label(Retriever.HIGHLIGHT_MATCHES_LABEL)
 
 
 def _apply_id_pagination(stmt: Select, cand: Subquery, cursor: PageCursor | None) -> Select:
@@ -126,17 +126,11 @@ class StructuredRetriever(Retriever):
         self.filters = filters
 
     def _highlight_columns(self, cand: Subquery) -> list[Label]:
-        """Resolve matched index rows' values and full paths — one indexed pair per positive filter leaf."""
+        """Single JSON column aggregating per-leaf matched index rows."""
         leaves = _positive_leaves(self.filters)
-        return list(
-            iterchain.from_iterable(
-                [
-                    _matched_row_column(cand, leaf, "value", f"{self.HIGHLIGHT_TEXT_LABEL}_{i}"),
-                    _matched_row_column(cand, leaf, "path", f"{self.HIGHLIGHT_PATH_LABEL}_{i}"),
-                ]
-                for i, leaf in enumerate(leaves)
-            )
-        )
+        if not leaves:
+            return []
+        return [_highlight_matches_column(cand, leaves)]
 
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()

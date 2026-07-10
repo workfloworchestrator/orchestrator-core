@@ -32,6 +32,7 @@ class Retriever(ABC):
     SCORE_NUMERIC_TYPE = Numeric(38, 12)
     HIGHLIGHT_TEXT_LABEL = "highlight_text"
     HIGHLIGHT_PATH_LABEL = "highlight_path"
+    HIGHLIGHT_MATCHES_LABEL = "highlight_matches"
     SCORE_LABEL = "score"
     SEARCHABLE_FIELD_TYPES = [
         FieldType.STRING.value,

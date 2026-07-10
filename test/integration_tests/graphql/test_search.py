@@ -448,7 +448,7 @@ query SearchQuery($entityType: EntityType!, $input: SearchInput!) {
             entityTitle
             score
             perfectMatch
-            matchingField {
+            matchingFields {
                 text
                 path
                 highlightIndices

@@ -117,6 +117,7 @@ def format_aggregation_response(
     Returns:
         QueryResultsResponse with formatted results and metadata
     """
+
     def _to_result_row(row: RowMapping) -> ResultRow:
         return ResultRow(
             group_values={k: str(v) if v is not None else "" for k, v in row.items() if k in group_column_names},
@@ -307,14 +308,19 @@ def format_search_response(
 
 
 def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree") -> list[MatchingField]:
-    """Resolve matching fields for structured search from per-leaf indexed DB columns.
+    """Resolve matching fields from the retriever's aggregated JSON highlight column.
 
-    The retriever emits one (highlight_text_i, highlight_path_i) column pair per positive
-    filter leaf, carrying the actual stored value and full path for the matched index row.
-    Falls back to echoing filter conditions when no indexed columns are present.
+    The retriever emits a single ``highlight_matches`` JSON column containing one
+    ``{"value", "path", "idx"}`` object per positive filter leaf that matched an index row.
+    The ``idx`` ties each entry back to its leaf so the correct filter term is used for
+    highlight generation.
     """
     from orchestrator.core.search.filters import LtreeFilter
     from orchestrator.core.search.retrieval.retrievers import Retriever
+
+    matches = row.get(Retriever.HIGHLIGHT_MATCHES_LABEL)
+    if not matches:
+        return []
 
     positive_leaves = [
         leaf
@@ -322,17 +328,11 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
         if not (isinstance(leaf.condition, LtreeFilter) and leaf.condition.op == FilterOp.NOT_HAS_COMPONENT)
     ]
 
-    def _field_for_leaf(i: int, leaf: "PathFilter") -> MatchingField | None:
-        row_text = row.get(f"{Retriever.HIGHLIGHT_TEXT_LABEL}_{i}")
-        row_path = row.get(f"{Retriever.HIGHLIGHT_PATH_LABEL}_{i}")
-        if row_text is None or row_path is None:
-            return None
-        text, path = str(row_text), str(row_path)
-        term = str(getattr(leaf.condition, "value", "") or "")
+    results: list[MatchingField] = []
+    for m in filter(None, matches):
+        text, path = str(m["value"]), str(m["path"])
+        leaf = positive_leaves[m["idx"]] if m["idx"] < len(positive_leaves) else None
+        term = str(getattr(leaf.condition, "value", "") or "") if leaf else ""
         indices = generate_highlight_indices(text, term) if term else []
-        return MatchingField(text=text, path=path, highlight_indices=indices or [(0, len(text))])
-
-    return [f for i, leaf in enumerate(positive_leaves) if (f := _field_for_leaf(i, leaf)) is not None]
-
-
-
+        results.append(MatchingField(text=text, path=path, highlight_indices=indices or [(0, len(text))]))
+    return results
