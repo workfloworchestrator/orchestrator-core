@@ -328,9 +328,10 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
         if not (isinstance(leaf.condition, LtreeFilter) and leaf.condition.op == FilterOp.NOT_HAS_COMPONENT)
     ]
 
+    unique_matches = {(str(m["value"]), str(m["path"])): m for m in filter(None, matches)}
+
     results: list[MatchingField] = []
-    for m in filter(None, matches):
-        text, path = str(m["value"]), str(m["path"])
+    for (text, path), m in unique_matches.items():
         leaf = positive_leaves[m["idx"]] if m["idx"] < len(positive_leaves) else None
         term = str(getattr(leaf.condition, "value", "") or "") if leaf else ""
         indices = generate_highlight_indices(text, term) if term else []
