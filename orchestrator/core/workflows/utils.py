@@ -516,7 +516,7 @@ def reconcile_workflow(
         steplist = (
             init
             >> store_process_subscription()
-            >> unsync
+            >> unsync_unchecked
             >> f()
             >> (additional_steps or StepList())
             >> resync
