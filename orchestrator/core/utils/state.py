@@ -267,24 +267,43 @@ def _handle_optional_subscription_model_param(
     return None
 
 
-def _handle_union_subscription_model_param(param_name: str, state: State) -> SubscriptionModel:
+def _handle_union_subscription_model_param(param_name: str, annotation: Any, state: State) -> SubscriptionModel:
     """Load a SubscriptionModel from database for a union type annotation (Node | NodeProvisioning).
 
     Uses SubscriptionModel.from_subscription to load the type based on the
-    subscription's lifecycle, so the correct subclass is returned regardless of which
-    type of the union the subscription currently is.
+    subscription's lifecycle, which then gets verified against the types declared in the union annotation.
 
     Args:
         param_name: Parameter name
+        annotation: The union type annotation (e.g. ProductActive | ProductProvisioning)
         state: Workflow state
 
     Returns:
         Loaded and validated SubscriptionModel instance
 
     Raises:
+        TypeError: If the union's types are not all lifecycle variants of the same base SubscriptionModel
         KeyError: If subscription_id not found in state
+        ValueError: If the loaded model's type does not match any type in the union
     """
-    return _handle_subscription_model_param(param_name, SubscriptionModel, state)
+    allowed_types = tuple(arg for arg in get_args(annotation) if arg is not type(None))
+    allowed_type_names = [t.__name__ for t in allowed_types]
+    base_types = {arg.__base_type__ for arg in allowed_types}
+    if len(base_types) != 1:
+        base_type_names = [t.__name__ for t in base_types]
+        raise TypeError(
+            f"Union type for parameter '{param_name}' must consist of lifecycle variants of the same "
+            f"SubscriptionModel base type, got {allowed_type_names} with base types {base_type_names}"
+        )
+
+    sub_mod = _handle_subscription_model_param(param_name, SubscriptionModel, state)
+    if not isinstance(sub_mod, allowed_types):
+        type_name = type(sub_mod).__name__
+        raise ValueError(
+            f"Loaded subscription model of type {type_name} for parameter '{param_name}' "
+            f"does not match any of the expected types {allowed_type_names}"
+        )
+    return sub_mod
 
 
 def _handle_value_param(param: inspect.Parameter, state: State, func: StepFunc | InputStepFunc) -> Any:
@@ -379,7 +398,7 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:
         elif is_optional_type(param.annotation, SubscriptionModel):
             arguments.append(_handle_optional_subscription_model_param(name, param.annotation, state))
         elif _is_union_subscription_model_type(param.annotation):
-            arguments.append(_handle_union_subscription_model_param(name, state))
+            arguments.append(_handle_union_subscription_model_param(name, param.annotation, state))
         else:
             # Handle all other parameters (UUID conversion, defaults, required)
             arguments.append(_handle_value_param(param, state, func))

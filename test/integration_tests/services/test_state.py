@@ -910,3 +910,43 @@ def test_inject_args_union_subscription_model_missing_key(generic_product_type_1
         step_union({})
 
     assert "Could not find key 'generic_sub' in state." in str(exc_info.value)
+
+
+def test_inject_args_union_subscription_model_type_mismatch(
+    generic_subscription_2, generic_product_type_1, generic_product_type_2
+) -> None:
+    """Test that a loaded subscription model not matching any type in the union annotation raises ValueError."""
+    GenericProductOneInactive, GenericProductOne = generic_product_type_1
+
+    @inject_args
+    def step_union(generic_sub: GenericProductOneInactive | GenericProductOne) -> State:
+        return {"generic_sub": generic_sub}
+
+    state = {"generic_sub": generic_subscription_2}
+
+    with pytest.raises(ValueError) as exc_info:
+        step_union(state)
+
+    error_msg = str(exc_info.value)
+    assert "does not match any of the expected types" in error_msg
+    assert "GenericProductTwo" in error_msg
+
+
+def test_inject_args_union_subscription_model_base_type_mismatch(
+    generic_product_type_1, generic_product_type_2
+) -> None:
+    """Test that a union of unrelated SubscriptionModel base types raises TypeError."""
+    GenericProductOneInactive, _ = generic_product_type_1
+    GenericProductTwoInactive, _ = generic_product_type_2
+
+    @inject_args
+    def step_union(generic_sub: GenericProductOneInactive | GenericProductTwoInactive) -> State:
+        return {"generic_sub": generic_sub}
+
+    with pytest.raises(TypeError) as exc_info:
+        step_union({"generic_sub": str(uuid4())})
+
+    error_msg = str(exc_info.value)
+    assert "must consist of lifecycle variants of the same SubscriptionModel base type" in error_msg
+    assert "GenericProductOneInactive" in error_msg
+    assert "GenericProductTwoInactive" in error_msg
