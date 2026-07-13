@@ -260,8 +260,12 @@ def test_format_aggregation_result_row_type():
 
 
 def _row_with_highlights(pairs: list[tuple[str, str]]) -> MagicMock:
-    """Build a mock row carrying the aggregated highlight_matches JSON column."""
-    matches = [{"value": text, "path": path, "idx": i} for i, (text, path) in enumerate(pairs)]
+    """Build a mock row carrying the aggregated highlight_matches JSON column.
+
+    Each pair is a single match for its leaf (one inner array per leaf).
+    For multi-match-per-leaf scenarios, build the nested structure directly.
+    """
+    matches = [[{"value": text, "path": path, "idx": i}] for i, (text, path) in enumerate(pairs)]
     data: dict[str, list] = {"highlight_matches": matches} if matches else {}
     mock = MagicMock()
     mock.get = data.get
@@ -441,7 +445,7 @@ def _structured_row(**extra) -> _StubRow:
 def test_format_structured_response_uses_highlight_columns_for_full_path():
     """Structured rows carrying highlight columns report the resolved full path and stored value."""
     tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"), path="status")
-    row = _structured_row(highlight_matches=[{"value": "active", "path": "subscription.status", "idx": 0}])
+    row = _structured_row(highlight_matches=[[{"value": "active", "path": "subscription.status", "idx": 0}]])
 
     response = format_search_response(
         [row], _structured_query(tree), SearchMetadata.structured(), None, None, None, None
@@ -466,7 +470,7 @@ def test_format_structured_response_highlights_full_text_when_value_not_in_text(
             )
         ],
     )
-    row = _structured_row(highlight_matches=[{"value": "active", "path": "subscription.status", "idx": 0}])
+    row = _structured_row(highlight_matches=[[{"value": "active", "path": "subscription.status", "idx": 0}]])
 
     response = format_search_response(
         [row], _structured_query(tree), SearchMetadata.structured(), None, None, None, None
@@ -489,3 +493,27 @@ def test_format_structured_response_without_highlight_columns_returns_empty():
     )
 
     assert response.results[0].matching_fields == []
+
+
+def test_resolve_multiple_matches_per_leaf():
+    """A global filter matching multiple index rows returns all of them.
+
+    E.g. ``status = 'active'`` (no dot, matches any path ending in 'status') hitting
+    both ``product.status`` and ``product_block.test.status`` on the same entity.
+    """
+    tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"), path="status")
+    matches = [
+        [
+            {"value": "active", "path": "product.status", "idx": 0},
+            {"value": "active", "path": "product_block.test.status", "idx": 0},
+        ]
+    ]
+    mock = MagicMock()
+    mock.get = {"highlight_matches": matches}.get
+    result = _resolve_structured_matching_fields(mock, tree)
+
+    assert len(result) == 2
+    paths = {r.path for r in result}
+    assert paths == {"product.status", "product_block.test.status"}
+    assert all(r.text == "active" for r in result)
+    assert all(r.highlight_indices == [(0, len("active"))] for r in result)

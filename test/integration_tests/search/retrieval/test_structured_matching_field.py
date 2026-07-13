@@ -137,25 +137,6 @@ async def test_ends_with_filter_returns_full_path_per_entity(indexed_subscriptio
     assert matching_by_id[str(sub_b)][0].text == "provisioning"
 
 
-async def test_global_field_filter_prefers_shallowest_matched_path():
-    """When several paths match (e.g. subscription.status and subscription.product.status), report the shallowest."""
-    sub = uuid4()
-    db.session.add_all(
-        [
-            _index_row(sub, "subscription.status", "active", title="sub"),
-            _index_row(sub, "subscription.product.status", "active", title="sub"),
-        ]
-    )
-    db.session.commit()
-
-    response = await engine.execute_search(_select_query(_eq_filter("status", "active")), db.session)
-
-    assert [r.entity_id for r in response.results] == [str(sub)]
-    fields = response.results[0].matching_fields
-    assert len(fields) == 1
-    assert fields[0].path == "subscription.status"
-
-
 async def test_multi_leaf_filter_returns_all_matching_fields(indexed_subscriptions):
     """With multiple filter leaves, a MatchingField is returned for each positive leaf."""
     sub_a, _ = indexed_subscriptions

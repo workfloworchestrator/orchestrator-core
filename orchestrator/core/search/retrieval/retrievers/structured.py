@@ -43,19 +43,27 @@ def _positive_leaves(filters: FilterTree | None) -> list[PathFilter]:
 
 
 def _highlight_matches_column(cand: Subquery, leaves: list[PathFilter]) -> Label:
-    """Single JSON array column built from correlated scalar subqueries, one per positive filter leaf."""
-    json_objects = []
+    """Single JSON array column — one json_agg subquery per positive filter leaf.
+
+    Each element in the outer array is itself a JSON array of all index rows that
+    matched the leaf, so a global filter (e.g. ``status = 'active'``) returns every
+    matching path (``product.status``, ``product_block.test.status``, …) rather than
+    just the shallowest one.
+    """
+    json_arrays = []
     for i, leaf in enumerate(leaves):
         alias = aliased(AiSearchIndex)
-        json_objects.append(
-            select(func.json_build_object("value", alias.value, "path", cast(alias.path, String), "idx", literal(i)))
+        json_arrays.append(
+            select(
+                func.json_agg(
+                    func.json_build_object("value", alias.value, "path", cast(alias.path, String), "idx", literal(i))
+                )
+            )
             .where(alias.entity_id == cand.c.entity_id, leaf.matched_row_predicate(alias))
-            .order_by(func.nlevel(alias.path).asc(), alias.path.asc())
-            .limit(1)
             .correlate(cand)
             .scalar_subquery()
         )
-    return func.json_build_array(*json_objects).label(Retriever.HIGHLIGHT_MATCHES_LABEL)
+    return func.json_build_array(*json_arrays).label(Retriever.HIGHLIGHT_MATCHES_LABEL)
 
 
 def _apply_id_pagination(stmt: Select, cand: Subquery, cursor: PageCursor | None) -> Select:

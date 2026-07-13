@@ -310,16 +310,16 @@ def format_search_response(
 def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree") -> list[MatchingField]:
     """Resolve matching fields from the retriever's aggregated JSON highlight column.
 
-    The retriever emits a single ``highlight_matches`` JSON column containing one
-    ``{"value", "path", "idx"}`` object per positive filter leaf that matched an index row.
-    The ``idx`` ties each entry back to its leaf so the correct filter term is used for
-    highlight generation.
+    The retriever emits a ``highlight_matches`` JSON column shaped as an array of arrays:
+    one inner array per positive filter leaf, each containing all index rows that matched
+    that leaf (``{"value", "path", "idx"}``). Flattening gives every (value, path) pair
+    that satisfied any filter, deduplicated across leaves.
     """
     from orchestrator.core.search.filters import LtreeFilter
     from orchestrator.core.search.retrieval.retrievers import Retriever
 
-    matches = row.get(Retriever.HIGHLIGHT_MATCHES_LABEL)
-    if not matches:
+    leaf_arrays = row.get(Retriever.HIGHLIGHT_MATCHES_LABEL)
+    if not leaf_arrays:
         return []
 
     positive_leaves = [
@@ -328,7 +328,8 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
         if not (isinstance(leaf.condition, LtreeFilter) and leaf.condition.op == FilterOp.NOT_HAS_COMPONENT)
     ]
 
-    unique_matches = {(str(m["value"]), str(m["path"])): m for m in filter(None, matches)}
+    flat_matches = [m for inner in leaf_arrays if inner for m in inner]
+    unique_matches = {(str(m["value"]), str(m["path"])): m for m in flat_matches}
 
     results: list[MatchingField] = []
     for (text, path), m in unique_matches.items():
