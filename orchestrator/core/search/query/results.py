@@ -318,7 +318,7 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
     from orchestrator.core.search.filters import LtreeFilter
     from orchestrator.core.search.retrieval.retrievers import Retriever
 
-    leaf_arrays = row.get(Retriever.HIGHLIGHT_MATCHES_LABEL)
+    leaf_arrays: list[list[dict]] | None = row.get(Retriever.HIGHLIGHT_MATCHES_LABEL)
     if not leaf_arrays:
         return []
 
@@ -331,10 +331,10 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
     flat_matches = [m for inner in leaf_arrays if inner for m in inner]
     unique_matches = {(str(m["value"]), str(m["path"])): m for m in flat_matches}
 
-    results: list[MatchingField] = []
-    for (text, path), m in unique_matches.items():
+    def build_matching_field(text: str, path: str, m: dict) -> MatchingField:
         leaf = positive_leaves[m["idx"]] if m["idx"] < len(positive_leaves) else None
         term = str(getattr(leaf.condition, "value", "") or "") if leaf else ""
         indices = generate_highlight_indices(text, term) if term else []
-        results.append(MatchingField(text=text, path=path, highlight_indices=indices or [(0, len(text))]))
-    return results
+        return MatchingField(text=text, path=path, highlight_indices=indices or [(0, len(text))])
+
+    return [build_matching_field(text, path, m) for (text, path), m in unique_matches.items()]
