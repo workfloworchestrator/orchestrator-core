@@ -18,7 +18,14 @@ from unittest.mock import MagicMock
 import pytest
 
 from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, SearchMetadata, UIType
-from orchestrator.core.search.filters import ContainsFilter, EqualityFilter, FilterTree, LtreeFilter, PathFilter
+from orchestrator.core.search.filters import (
+    ContainsFilter,
+    EqualityFilter,
+    FilterTree,
+    LtreeFilter,
+    PathFilter,
+    StringFilter,
+)
 from orchestrator.core.search.query.queries import CountQuery, SelectQuery
 from orchestrator.core.search.query.results import (
     MatchingField,
@@ -351,6 +358,41 @@ def test_resolve_multiple_leaves():
     assert result[0].text == "active"
     assert result[1].path == "subscription.name"
     assert result[1].text == "test"
+
+
+def _or_filter_tree() -> FilterTree:
+    return FilterTree(
+        op=BooleanOperator.OR,
+        children=[
+            PathFilter(path="subscription.status", condition=EqualityFilter(op=FilterOp.EQ, value="active"), value_kind=UIType.STRING),
+            PathFilter(path="subscription.product.name", condition=StringFilter(op=FilterOp.LIKE, value="%fiber%"), value_kind=UIType.STRING),
+        ],
+    )
+
+
+def test_resolve_or_filter_only_matching_branch_returned():
+    """When only one OR branch matches, only that branch produces a matching field (null from the other is skipped)."""
+    matches = [[{"value": "active", "path": "subscription.status", "idx": 0}], None]
+    mock = MagicMock()
+    mock.get = {"highlight_matches": matches}.get
+    result = _resolve_structured_matching_fields(mock, _or_filter_tree())
+    assert len(result) == 1
+    assert result[0].path == "subscription.status"
+    assert result[0].text == "active"
+
+
+def test_resolve_or_filter_both_branches_returned():
+    """When both OR branches match, both produce a matching field."""
+    matches = [
+        [{"value": "active", "path": "subscription.status", "idx": 0}],
+        [{"value": "fiber 10G", "path": "subscription.product.name", "idx": 1}],
+    ]
+    mock = MagicMock()
+    mock.get = {"highlight_matches": matches}.get
+    result = _resolve_structured_matching_fields(mock, _or_filter_tree())
+    assert len(result) == 2
+    paths = {r.path for r in result}
+    assert paths == {"subscription.status", "subscription.product.name"}
 
 
 def test_resolve_not_has_component_excluded_from_indexing():
