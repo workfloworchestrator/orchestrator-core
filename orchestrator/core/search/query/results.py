@@ -315,7 +315,7 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
     that leaf (``{"value", "path", "idx"}``). Flattening gives every (value, path) pair
     that satisfied any filter, deduplicated across leaves.
     """
-    from orchestrator.core.search.filters import LtreeFilter
+    from orchestrator.core.search.filters import ContainsFilter, EqualityFilter, LtreeFilter
     from orchestrator.core.search.retrieval.retrievers import Retriever
 
     leaf_arrays: list[list[dict]] | None = row.get(Retriever.HIGHLIGHT_MATCHES_LABEL)
@@ -333,6 +333,12 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
 
     def build_matching_field(text: str, path: str, m: dict) -> MatchingField:
         leaf = positive_leaves[m["idx"]] if m["idx"] < len(positive_leaves) else None
+        is_negation = leaf is not None and (
+            (isinstance(leaf.condition, EqualityFilter) and leaf.condition.op == FilterOp.NEQ)
+            or (isinstance(leaf.condition, ContainsFilter) and leaf.condition.op == FilterOp.NOT_CONTAINS)
+        )
+        if is_negation:
+            return MatchingField(text=text, path=path, highlight_indices=None)
         term = str(getattr(leaf.condition, "value", "") or "") if leaf else ""
         indices = generate_highlight_indices(text, term) if term else []
         return MatchingField(text=text, path=path, highlight_indices=indices or [(0, len(text))])

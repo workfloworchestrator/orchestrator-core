@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, SearchMetadata, UIType
-from orchestrator.core.search.filters import EqualityFilter, FilterTree, LtreeFilter, PathFilter
+from orchestrator.core.search.filters import ContainsFilter, EqualityFilter, FilterTree, LtreeFilter, PathFilter
 from orchestrator.core.search.query.queries import CountQuery, SelectQuery
 from orchestrator.core.search.query.results import (
     MatchingField,
@@ -411,6 +411,27 @@ def test_resolve_equality_filter_value_highlighted(value, expected_text: str):
     assert isinstance(result[0], MatchingField)
     assert result[0].text == expected_text
     assert result[0].highlight_indices == [(0, len(expected_text))]
+
+
+def test_resolve_neq_filter_returns_null_highlight_indices():
+    """NEQ filter returns the stored value as context but highlight_indices=None (no term to highlight)."""
+    tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.NEQ, value="terminated"))
+    row = _row_with_highlights([("active", "subscription.status")])
+    result = _resolve_structured_matching_fields(row, tree)
+    assert len(result) == 1
+    assert result[0].text == "active"
+    assert result[0].path == "subscription.status"
+    assert result[0].highlight_indices is None
+
+
+def test_resolve_not_contains_filter_returns_null_highlight_indices():
+    """NOT_CONTAINS filter returns the stored value as context but highlight_indices=None."""
+    tree = _single_leaf_filter_tree(ContainsFilter(op=FilterOp.NOT_CONTAINS, value="fiber"))
+    row = _row_with_highlights([("Corelink 10G", "subscription.description")])
+    result = _resolve_structured_matching_fields(row, tree)
+    assert len(result) == 1
+    assert result[0].text == "Corelink 10G"
+    assert result[0].highlight_indices is None
 
 
 # =============================================================================
