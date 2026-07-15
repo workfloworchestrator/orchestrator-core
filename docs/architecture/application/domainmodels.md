@@ -239,10 +239,6 @@ ownership. It basically will treat it as a read-only property.
 There may also be a case where a user would like to define two different types to a `ProductBlockModel` property.
 This can be achieved by using the `Union` type decorator.
 
-!!! danger
-    When using this method be sure as to declare the **Most** specific type first. This is how Pydantic attempts to cast
-    types to the property. For more background as to why, [read here](https://pydantic-docs.helpmanual.io/usage/types/#unions)
-
 ```python hl_lines="4"
 class ServicePort(ServicePortProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     domain: Domain
