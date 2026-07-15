@@ -477,7 +477,7 @@ def test_upsert_non_embeddable_field_accumulated_directly(indexer: Indexer) -> N
 
     with (
         patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
-        patch("orchestrator.core.search.indexing.indexer.get_max_tokens", return_value=100),
+        patch("litellm.utils.get_max_tokens", return_value=100),
     ):
         mock_llm.EMBEDDING_SAFE_MARGIN_PERCENT = 0.1
         mock_llm.EMBEDDING_MAX_BATCH_SIZE = None
@@ -494,8 +494,8 @@ def test_upsert_embeddable_field_with_embedding(indexer: Indexer) -> None:
 
     with (
         patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
-        patch("orchestrator.core.search.indexing.indexer.get_max_tokens", return_value=100),
-        patch("orchestrator.core.search.indexing.indexer.encode", return_value=[1, 2, 3]),
+        patch("litellm.utils.get_max_tokens", return_value=100),
+        patch("litellm.utils.encode", return_value=[1, 2, 3]),
         patch(
             "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
             return_value=[[0.1, 0.2]],
@@ -524,8 +524,8 @@ def test_upsert_token_budget_exceeded_flushes_before_adding(indexer: Indexer) ->
 
     with (
         patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
-        patch("orchestrator.core.search.indexing.indexer.get_max_tokens", return_value=100),
-        patch("orchestrator.core.search.indexing.indexer.encode", side_effect=mock_encode),
+        patch("litellm.utils.get_max_tokens", return_value=100),
+        patch("litellm.utils.encode", side_effect=mock_encode),
         patch(
             "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
             side_effect=[[[0.1]], [[0.2]]],
@@ -544,8 +544,8 @@ def test_upsert_max_batch_size_triggers_flush(indexer: Indexer) -> None:
 
     with (
         patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
-        patch("orchestrator.core.search.indexing.indexer.get_max_tokens", return_value=10000),
-        patch("orchestrator.core.search.indexing.indexer.encode", return_value=[1]),  # 1 token each
+        patch("litellm.utils.get_max_tokens", return_value=10000),
+        patch("litellm.utils.encode", return_value=[1]),  # 1 token each
         patch(
             "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
             side_effect=[[[0.1], [0.2]], [[0.3]]],
@@ -564,8 +564,8 @@ def test_upsert_field_exceeds_max_context_is_skipped(indexer: Indexer) -> None:
 
     with (
         patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
-        patch("orchestrator.core.search.indexing.indexer.get_max_tokens", return_value=100),
-        patch("orchestrator.core.search.indexing.indexer.encode", return_value=[1] * 200),  # > max_ctx=100
+        patch("litellm.utils.get_max_tokens", return_value=100),
+        patch("litellm.utils.encode", return_value=[1] * 200),  # > max_ctx=100
     ):
         mock_llm.EMBEDDING_SAFE_MARGIN_PERCENT = 0.0
         mock_llm.EMBEDDING_MAX_BATCH_SIZE = None
@@ -580,8 +580,8 @@ def test_upsert_tokenization_failure_skips_field(indexer: Indexer) -> None:
 
     with (
         patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
-        patch("orchestrator.core.search.indexing.indexer.get_max_tokens", return_value=100),
-        patch("orchestrator.core.search.indexing.indexer.encode", side_effect=Exception("tokenizer broken")),
+        patch("litellm.utils.get_max_tokens", return_value=100),
+        patch("litellm.utils.encode", side_effect=Exception("tokenizer broken")),
     ):
         mock_llm.EMBEDDING_SAFE_MARGIN_PERCENT = 0.0
         mock_llm.EMBEDDING_MAX_BATCH_SIZE = None
@@ -599,8 +599,8 @@ _MIXED_FIELDS = [
 def test_upsert_mixed_embeddable_and_non_embeddable(indexer: Indexer) -> None:
     with (
         patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
-        patch("orchestrator.core.search.indexing.indexer.get_max_tokens", return_value=100),
-        patch("orchestrator.core.search.indexing.indexer.encode", return_value=[1, 2]),
+        patch("litellm.utils.get_max_tokens", return_value=100),
+        patch("litellm.utils.encode", return_value=[1, 2]),
         patch(
             "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
             return_value=[[0.5]],
@@ -721,7 +721,7 @@ def test_flush_buffer_dry_run_embeddings_are_empty(mock_config: MagicMock) -> No
 
 
 def test_get_max_tokens_returns_int_from_litellm(indexer: Indexer) -> None:
-    with patch("orchestrator.core.search.indexing.indexer.get_max_tokens", return_value=8191):
+    with patch("litellm.utils.get_max_tokens", return_value=8191):
         assert indexer._get_max_tokens() == 8191
 
 
@@ -738,7 +738,7 @@ def test_get_max_tokens_litellm_invalid_falls_back(
 ) -> None:
     kwargs = {"side_effect": get_max_tokens_se} if get_max_tokens_se else {"return_value": get_max_tokens_rv}
     with (
-        patch("orchestrator.core.search.indexing.indexer.get_max_tokens", **kwargs),
+        patch("litellm.utils.get_max_tokens", **kwargs),
         patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
     ):
         mock_llm.EMBEDDING_FALLBACK_MAX_TOKENS = fallback
@@ -750,7 +750,7 @@ def test_get_max_tokens_litellm_invalid_falls_back(
 
 def test_get_max_tokens_fallback_not_set_raises(indexer: Indexer) -> None:
     with (
-        patch("orchestrator.core.search.indexing.indexer.get_max_tokens", side_effect=Exception("unknown")),
+        patch("litellm.utils.get_max_tokens", side_effect=Exception("unknown")),
         patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
     ):
         mock_llm.EMBEDDING_FALLBACK_MAX_TOKENS = None
