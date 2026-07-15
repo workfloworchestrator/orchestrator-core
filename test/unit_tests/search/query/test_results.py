@@ -364,8 +364,16 @@ def _or_filter_tree() -> FilterTree:
     return FilterTree(
         op=BooleanOperator.OR,
         children=[
-            PathFilter(path="subscription.status", condition=EqualityFilter(op=FilterOp.EQ, value="active"), value_kind=UIType.STRING),
-            PathFilter(path="subscription.product.name", condition=StringFilter(op=FilterOp.LIKE, value="%fiber%"), value_kind=UIType.STRING),
+            PathFilter(
+                path="subscription.status",
+                condition=EqualityFilter(op=FilterOp.EQ, value="active"),
+                value_kind=UIType.STRING,
+            ),
+            PathFilter(
+                path="subscription.product.name",
+                condition=StringFilter(op=FilterOp.LIKE, value="%fiber%"),
+                value_kind=UIType.STRING,
+            ),
         ],
     )
 
@@ -453,6 +461,34 @@ def test_resolve_equality_filter_value_highlighted(value, expected_text: str):
     assert isinstance(result[0], MatchingField)
     assert result[0].text == expected_text
     assert result[0].highlight_indices == [(0, len(expected_text))]
+
+
+@pytest.mark.parametrize(
+    "pattern, text, expected_indices",
+    [
+        pytest.param("%aren%", "SingAren SURF", [(4, 8)], id="wrapped-wildcards"),
+        pytest.param("aren%", "SingAren SURF", [(4, 8)], id="trailing-wildcard"),
+        pytest.param("%aren%surf%", "SingAren SURF", [(4, 8), (9, 13)], id="multiple-wildcards"),
+        pytest.param("nsi_dev%", "prefix nsi.dev suffix", [(7, 10), (11, 14)], id="underscore-wildcard-splits-words"),
+    ],
+)
+def test_resolve_like_filter_strips_wildcards_before_highlighting(pattern, text, expected_indices):
+    """LIKE wildcards are stripped so the remaining words highlight at their real positions."""
+    tree = _single_leaf_filter_tree(StringFilter(op=FilterOp.LIKE, value=pattern), path="subscription.description")
+    row = _row_with_highlights([(text, "subscription.description")])
+    result = _resolve_structured_matching_fields(row, tree)
+    assert len(result) == 1
+    assert result[0].text == text
+    assert result[0].highlight_indices == expected_indices
+
+
+def test_resolve_like_filter_term_not_in_text_falls_back_to_full_text():
+    """When the LIKE words do not occur in the stored value, the whole value is highlighted."""
+    tree = _single_leaf_filter_tree(StringFilter(op=FilterOp.LIKE, value="%fiber%"), path="subscription.description")
+    row = _row_with_highlights([("Corelink 10G", "subscription.description")])
+    result = _resolve_structured_matching_fields(row, tree)
+    assert len(result) == 1
+    assert result[0].highlight_indices == [(0, len("Corelink 10G"))]
 
 
 def test_resolve_neq_filter_returns_null_highlight_indices():
