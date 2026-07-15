@@ -58,6 +58,7 @@ from orchestrator.core.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.core.graphql.types import ScalarOverrideType, StrawberryModelType
 from orchestrator.core.log_config import LOGGER_OVERRIDES
 from orchestrator.core.metrics import ORCHESTRATOR_METRICS_REGISTRY, initialize_default_metrics
+from orchestrator.core.search.core.embedding import prewarm_embedding_dependencies
 from orchestrator.core.search.query.exceptions import QueryValidationError
 from orchestrator.core.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.core.services.worker_status_monitor import get_worker_status_monitor
@@ -220,6 +221,10 @@ class OrchestratorCore(FastAPI):
             from orchestrator.core.mcp.server import mount_mcp
 
             self._mcp_app = mount_mcp(self)
+
+        # Pre-warm the lazily imported litellm so the first embedding call at runtime
+        # does not pay the import cost (no-op unless EMBEDDING_API_ENABLED is set).
+        prewarm_embedding_dependencies()
 
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
         def _index() -> str:

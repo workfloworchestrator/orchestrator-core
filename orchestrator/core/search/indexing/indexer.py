@@ -18,7 +18,6 @@ from functools import lru_cache
 from typing import Any
 
 import structlog
-from litellm.utils import encode, get_max_tokens
 from sqlalchemy import delete, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.dialects.postgresql.dml import Insert
@@ -261,6 +260,9 @@ class Indexer:
         self, fields_to_upsert: Iterable[tuple[str, ExtractedField]]
     ) -> Generator[list[IndexableRecord], None, None]:
         """Streams through fields, buffers them by token count, and yields batches."""
+        # Imported lazily because importing litellm is expensive (multiple seconds).
+        from litellm.utils import encode
+
         embeddable_buffer: list[tuple[str, ExtractedField]] = []
         non_embeddable_records: list[IndexableRecord] = []
         current_tokens = 0
@@ -325,6 +327,9 @@ class Indexer:
 
     def _get_max_tokens(self) -> int:
         """Gets max tokens, using a fallback from settings if necessary."""
+        # Imported lazily because importing litellm is expensive (multiple seconds).
+        from litellm.utils import get_max_tokens
+
         try:
             max_ctx = get_max_tokens(self.embedding_model)
             if isinstance(max_ctx, int):

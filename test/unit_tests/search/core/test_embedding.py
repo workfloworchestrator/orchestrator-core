@@ -17,13 +17,14 @@ Covers batch embedding, dry-run mode, truncation, sorting, error handling,
 and async query embedding.
 """
 
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import litellm.exceptions as llm_exc
 import pytest
 
-from orchestrator.core.search.core.embedding import EmbeddingIndexer, QueryEmbedder
+from orchestrator.core.search.core.embedding import EmbeddingIndexer, QueryEmbedder, prewarm_embedding_dependencies
 
 pytestmark = pytest.mark.search
 
@@ -96,7 +97,7 @@ def test_embedding_indexer_successful_batch_returns_truncated():
     resp_mock = _make_embedding_response(raw_embeddings)
 
     with (
-        patch("orchestrator.core.search.core.embedding.llm_embedding", return_value=resp_mock),
+        patch("litellm.embedding", return_value=resp_mock),
         patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock),
     ):
         result = EmbeddingIndexer.get_embeddings_from_api_batch(["hello", "world"], dry_run=False)
@@ -126,7 +127,7 @@ def test_embedding_indexer_sorts_by_index(resp_data, expected):
     resp.data = resp_data
 
     with (
-        patch("orchestrator.core.search.core.embedding.llm_embedding", return_value=resp),
+        patch("litellm.embedding", return_value=resp),
         patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock),
     ):
         result = EmbeddingIndexer.get_embeddings_from_api_batch(["first", "second"], dry_run=False)
@@ -139,7 +140,7 @@ def test_embedding_indexer_inputs_are_lowercased():
     resp_mock = _make_embedding_response([[0.1, 0.2, 0.3]])
 
     with (
-        patch("orchestrator.core.search.core.embedding.llm_embedding", return_value=resp_mock) as mock_embed,
+        patch("litellm.embedding", return_value=resp_mock) as mock_embed,
         patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock),
     ):
         EmbeddingIndexer.get_embeddings_from_api_batch(["HELLO"], dry_run=False)
@@ -179,7 +180,7 @@ def test_embedding_indexer_known_api_errors_return_empty(exception):
     texts = ["hello", "world"]
 
     with (
-        patch("orchestrator.core.search.core.embedding.llm_embedding", side_effect=exception),
+        patch("litellm.embedding", side_effect=exception),
         patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock),
     ):
         result = EmbeddingIndexer.get_embeddings_from_api_batch(texts, dry_run=False)
@@ -192,7 +193,7 @@ def test_embedding_indexer_unexpected_error_returns_empty():
     texts = ["a", "b", "c"]
 
     with (
-        patch("orchestrator.core.search.core.embedding.llm_embedding", side_effect=RuntimeError("boom")),
+        patch("litellm.embedding", side_effect=RuntimeError("boom")),
         patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock),
     ):
         result = EmbeddingIndexer.get_embeddings_from_api_batch(texts, dry_run=False)
@@ -231,7 +232,7 @@ async def test_query_embedder_returns_truncated_embedding():
     resp_mock.data = [{"embedding": raw_embedding}]
 
     with (
-        patch("orchestrator.core.search.core.embedding.llm_aembedding", new=AsyncMock(return_value=resp_mock)),
+        patch("litellm.aembedding", new=AsyncMock(return_value=resp_mock)),
         patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock),
     ):
         result = await QueryEmbedder.generate_for_text_async("hello world")
@@ -247,7 +248,7 @@ async def test_query_embedder_input_is_lowercased():
     mock_aembed = AsyncMock(return_value=resp_mock)
 
     with (
-        patch("orchestrator.core.search.core.embedding.llm_aembedding", new=mock_aembed),
+        patch("litellm.aembedding", new=mock_aembed),
         patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock),
     ):
         await QueryEmbedder.generate_for_text_async("UPPERCASE TEXT")
@@ -266,11 +267,37 @@ async def test_query_embedder_exception_returns_none():
     settings_mock = _make_settings_mock()
 
     with (
-        patch(
-            "orchestrator.core.search.core.embedding.llm_aembedding", new=AsyncMock(side_effect=RuntimeError("fail"))
-        ),
+        patch("litellm.aembedding", new=AsyncMock(side_effect=RuntimeError("fail"))),
         patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock),
     ):
         result = await QueryEmbedder.generate_for_text_async("some text")
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# prewarm_embedding_dependencies
+# ---------------------------------------------------------------------------
+
+
+def test_prewarm_does_not_import_litellm_when_disabled():
+    settings_mock = _make_settings_mock()
+    settings_mock.EMBEDDING_API_ENABLED = False
+
+    with (
+        patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock),
+        patch.dict(sys.modules),
+    ):
+        sys.modules.pop("litellm", None)
+        prewarm_embedding_dependencies()
+        assert "litellm" not in sys.modules
+
+
+def test_prewarm_imports_litellm_when_enabled():
+    settings_mock = _make_settings_mock()
+    settings_mock.EMBEDDING_API_ENABLED = True
+
+    with patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock):
+        prewarm_embedding_dependencies()
+
+    assert "litellm" in sys.modules

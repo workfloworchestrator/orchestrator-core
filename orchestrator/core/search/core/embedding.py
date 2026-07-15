@@ -13,13 +13,26 @@
 from typing import Any
 
 import structlog
-from litellm import aembedding as llm_aembedding
-from litellm import embedding as llm_embedding
-from litellm import exceptions as llm_exc
 
 from orchestrator.core.settings import llm_settings
 
+# Note: litellm is imported lazily inside the methods below because importing it is
+# expensive (multiple seconds) and it is only needed when embeddings are generated.
+
 logger = structlog.get_logger(__name__)
+
+
+def prewarm_embedding_dependencies() -> None:
+    """Eagerly import litellm if the embedding API is enabled.
+
+    litellm is imported lazily in this package to keep process startup fast when
+    embeddings are unused. Applications that do use embeddings can call this at
+    startup so the first embedding call does not pay the (multi-second) import cost.
+    """
+    if not llm_settings.EMBEDDING_API_ENABLED:
+        return
+
+    import litellm  # noqa: F401
 
 
 class EmbeddingIndexer:
@@ -38,6 +51,9 @@ class EmbeddingIndexer:
         if not llm_settings.EMBEDDING_API_ENABLED:
             logger.info("Embedding API not enabled, not generating embeddings")
             return EmbeddingIndexer._empty_embeddings(texts)
+
+        from litellm import embedding as llm_embedding
+        from litellm import exceptions as llm_exc
 
         try:
             resp = llm_embedding(
@@ -82,6 +98,8 @@ class QueryEmbedder:
         if not llm_settings.EMBEDDING_API_ENABLED:
             logger.debug("Embedding API not enabled, search functionality restricted to fuzzy/structured search")
             return None
+
+        from litellm import aembedding as llm_aembedding
 
         try:
             resp = await llm_aembedding(
