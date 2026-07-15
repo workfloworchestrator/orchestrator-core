@@ -22,6 +22,19 @@ from orchestrator.core.settings import llm_settings
 logger = structlog.get_logger(__name__)
 
 
+def prewarm_embedding_dependencies() -> None:
+    """Eagerly import litellm if the embedding API is enabled.
+
+    litellm is imported lazily in this package to keep process startup fast when
+    embeddings are unused. Applications that do use embeddings can call this at
+    startup so the first embedding call does not pay the (multi-second) import cost.
+    """
+    if not llm_settings.EMBEDDING_API_ENABLED:
+        return
+
+    import litellm  # noqa: F401
+
+
 class EmbeddingIndexer:
     @classmethod
     def _empty_embeddings(cls, texts: list[str]) -> list[list[Any]]:

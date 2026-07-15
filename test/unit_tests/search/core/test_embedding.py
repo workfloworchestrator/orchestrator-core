@@ -17,13 +17,14 @@ Covers batch embedding, dry-run mode, truncation, sorting, error handling,
 and async query embedding.
 """
 
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import litellm.exceptions as llm_exc
 import pytest
 
-from orchestrator.core.search.core.embedding import EmbeddingIndexer, QueryEmbedder
+from orchestrator.core.search.core.embedding import EmbeddingIndexer, QueryEmbedder, prewarm_embedding_dependencies
 
 pytestmark = pytest.mark.search
 
@@ -266,11 +267,37 @@ async def test_query_embedder_exception_returns_none():
     settings_mock = _make_settings_mock()
 
     with (
-        patch(
-            "litellm.aembedding", new=AsyncMock(side_effect=RuntimeError("fail"))
-        ),
+        patch("litellm.aembedding", new=AsyncMock(side_effect=RuntimeError("fail"))),
         patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock),
     ):
         result = await QueryEmbedder.generate_for_text_async("some text")
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# prewarm_embedding_dependencies
+# ---------------------------------------------------------------------------
+
+
+def test_prewarm_does_not_import_litellm_when_disabled():
+    settings_mock = _make_settings_mock()
+    settings_mock.EMBEDDING_API_ENABLED = False
+
+    with (
+        patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock),
+        patch.dict(sys.modules),
+    ):
+        sys.modules.pop("litellm", None)
+        prewarm_embedding_dependencies()
+        assert "litellm" not in sys.modules
+
+
+def test_prewarm_imports_litellm_when_enabled():
+    settings_mock = _make_settings_mock()
+    settings_mock.EMBEDDING_API_ENABLED = True
+
+    with patch("orchestrator.core.search.core.embedding.llm_settings", settings_mock):
+        prewarm_embedding_dependencies()
+
+    assert "litellm" in sys.modules
