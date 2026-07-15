@@ -173,7 +173,7 @@ def mock_embeddings(embedding_fixtures: dict[str, list[float]]):
 
         return mock_response
 
-    with patch("orchestrator.core.search.core.embedding.llm_aembedding", side_effect=mock_embedding_async):
+    with patch("litellm.aembedding", side_effect=mock_embedding_async):
         yield
 
 
