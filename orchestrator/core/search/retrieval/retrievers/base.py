@@ -32,6 +32,7 @@ class Retriever(ABC):
     SCORE_NUMERIC_TYPE = Numeric(38, 12)
     HIGHLIGHT_TEXT_LABEL = "highlight_text"
     HIGHLIGHT_PATH_LABEL = "highlight_path"
+    HIGHLIGHT_MATCHES_LABEL = "highlight_matches"
     SCORE_LABEL = "score"
     SEARCHABLE_FIELD_TYPES = [
         FieldType.STRING.value,
@@ -163,7 +164,7 @@ class Retriever(ABC):
         fuzzy_text = query.query_text if override is not None else query.fuzzy_term
 
         if retriever_cls is StructuredRetriever:
-            return StructuredRetriever(cursor, query.order_by)
+            return StructuredRetriever(cursor, query.order_by, query.filters)
         if retriever_cls is FuzzyRetriever and fuzzy_text is not None:
             return FuzzyRetriever(fuzzy_text, cursor)
         if retriever_cls is SemanticRetriever and query_embedding is not None:

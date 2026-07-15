@@ -159,6 +159,31 @@ class PathFilter(BaseModel):
 
         return and_(type_guard, self.condition.to_expression(value_column, self.path))
 
+    def matched_row_predicate(self, alias: Any) -> ColumnElement[bool]:
+        """Row-level predicate selecting the AiSearchIndex rows this filter matches.
+
+        Ltree conditions match on the path alone (always in positive form; entity-level
+        negation for `not_has_component` is applied by the caller). Value conditions
+        combine a path predicate with the value predicate: a dotless "global" path
+        (e.g. 'status') matches any stored path ending in that component, while a full
+        path must match exactly.
+
+        Args:
+            alias: An aliased AiSearchIndex to build the predicate against.
+
+        Returns:
+            ColumnElement[bool]: A SQLAlchemy boolean expression over the alias's rows.
+        """
+        if isinstance(self.condition, LtreeFilter):
+            return self.condition.to_expression(alias.path, self.path)
+
+        if "." not in self.path:
+            path_pred = LtreeFilter(op=FilterOp.ENDS_WITH, value=self.path).to_expression(alias.path, "")
+        else:
+            path_pred = alias.path == Ltree(self.path)
+
+        return and_(path_pred, self.to_expression(alias.value, alias.value_type))
+
 
 class FilterTree(BaseModel):
     op: BooleanOperator = Field(
@@ -249,8 +274,7 @@ class FilterTree(BaseModel):
     def _handle_ltree_filter(pf: PathFilter, alias: Any, correlates: list[ColumnElement[bool]]) -> ColumnElement[bool]:
         """Handle path-only filters (has_component, not_has_component, ends_with)."""
         # row-level predicate is always positive
-        positive = pf.condition.to_expression(alias.path, pf.path)
-        subq = select(1).select_from(alias).where(and_(*correlates, positive))
+        subq = select(1).select_from(alias).where(and_(*correlates, pf.matched_row_predicate(alias)))
         if pf.condition.op == FilterOp.NOT_HAS_COMPONENT:
             return ~exists(subq)  # NOT at the entity level
         return exists(subq)
@@ -258,13 +282,7 @@ class FilterTree(BaseModel):
     @staticmethod
     def _handle_value_filter(pf: PathFilter, alias: Any, correlates: list[ColumnElement[bool]]) -> ColumnElement[bool]:
         """Handle value-based filters (equality, comparison, etc)."""
-        if "." not in pf.path:
-            path_pred = LtreeFilter(op=FilterOp.ENDS_WITH, value=pf.path).to_expression(alias.path, "")
-        else:
-            path_pred = alias.path == Ltree(pf.path)
-
-        value_pred = pf.to_expression(alias.value, alias.value_type)
-        subq = select(1).select_from(alias).where(and_(*correlates, path_pred, value_pred))
+        subq = select(1).select_from(alias).where(and_(*correlates, pf.matched_row_predicate(alias)))
         return exists(subq)
 
     def to_expression(

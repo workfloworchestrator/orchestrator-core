@@ -34,7 +34,7 @@ class SearchResultType:
     entity_title: str
     score: float
     perfect_match: int = 0
-    matching_field: MatchingFieldType | None = None
+    matching_fields: list[MatchingFieldType] = strawberry.field(default_factory=list)
     response_columns: strawberry.scalars.JSON | None = None
 
 
