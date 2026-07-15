@@ -172,6 +172,10 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
 
 For multi-step forms especially, it can be useful to use the `orchestrator.core.forms.SubmitFormPage` class, which is just a subclass of `orchestrator.core.forms.FormPage` that has some metadata informing the frontend that this form is the last page in the flow so it can style the submit button differently. This is entirely optional.
 
+A common last step before submitting is a read-only recap of the values just entered (and, for
+modify workflows, what they looked like before). See [Summary Forms](workflows/summary-form.md)
+for `orchestrator.core.workflows.summary_form`, a toolkit for building this recap page.
+
 ### Custom Form Fields
 
 !!! info
