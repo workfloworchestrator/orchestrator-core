@@ -86,7 +86,7 @@ def _result_to_gql(result: SearchResult) -> SearchResultType:
         entity_title=result.entity_title,
         score=result.score,
         perfect_match=result.perfect_match,
-        matching_field=_matching_field_to_gql(result.matching_field) if result.matching_field else None,
+        matching_fields=[_matching_field_to_gql(mf) for mf in result.matching_fields],
         response_columns=cast(strawberry.scalars.JSON, result.response_columns) if result.response_columns else None,
     )
 
