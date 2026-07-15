@@ -14,7 +14,7 @@
 from typing import Any
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Query
 
 from orchestrator.core.db import db
@@ -88,3 +88,21 @@ def run_indexing_for_entity(
 
     with cache_subscription_models():
         indexer.run(entities)
+
+
+def rebuild_search_paths() -> None:
+    """Recompute the ai_search_paths distinct-paths table from ai_search_index.
+
+    Truncates the derived table and repopulates it with exact reference counts in a
+    single pass. Serves as the migration backfill logic and as a drift-recovery
+    command if a refcount is ever corrupted (e.g. by manual DB surgery).
+    """
+    db.session.execute(text("TRUNCATE TABLE ai_search_paths"))
+    db.session.execute(
+        text(
+            "INSERT INTO ai_search_paths (entity_type, path, value_type, refcount) "
+            "SELECT entity_type, path, value_type, count(*) "
+            "FROM ai_search_index GROUP BY entity_type, path, value_type"
+        )
+    )
+    db.session.commit()

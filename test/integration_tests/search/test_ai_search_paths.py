@@ -21,6 +21,7 @@ from sqlalchemy_utils.types.ltree import Ltree
 from orchestrator.core.db import db
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import FieldType
+from orchestrator.core.search.indexing import rebuild_search_paths
 
 
 def _add_index_row(
@@ -109,3 +110,51 @@ def test_distinct_tuples_tracked_separately():
     _add_index_row("subscription.node.name", entity_type="PRODUCT")
     assert _refcount("subscription.node.name", FieldType.STRING, "SUBSCRIPTION") == 1
     assert _refcount("subscription.node.name", FieldType.STRING, "PRODUCT") == 1
+
+
+def _all_paths_rows() -> set[tuple]:
+    """Return the full ai_search_paths contents as a comparable set."""
+    rows = db.session.execute(
+        text("SELECT entity_type, path::text, value_type::text, refcount FROM ai_search_paths")
+    ).fetchall()
+    return {tuple(r) for r in rows}
+
+
+def _expected_paths_rows() -> set[tuple]:
+    """Recompute the expected distinct-paths contents directly from ai_search_index."""
+    rows = db.session.execute(
+        text(
+            "SELECT entity_type, path::text, value_type::text, count(*) "
+            "FROM ai_search_index GROUP BY entity_type, path, value_type"
+        )
+    ).fetchall()
+    return {tuple(r) for r in rows}
+
+
+def test_rebuild_reconstructs_exact_table_after_drift():
+    _add_index_row("subscription.node.name")
+    _add_index_row("subscription.node.name")
+    _add_index_row("subscription.node.speed", value_type=FieldType.INTEGER)
+
+    # Corrupt the derived table: wrong refcount, a spurious row, and a missing row.
+    db.session.execute(text("UPDATE ai_search_paths SET refcount = 99 WHERE path::text = 'subscription.node.name'"))
+    db.session.execute(
+        text(
+            "INSERT INTO ai_search_paths (entity_type, path, value_type, refcount) "
+            "VALUES ('SUBSCRIPTION', 'bogus.path'::ltree, CAST('string' AS field_type), 5)"
+        )
+    )
+    db.session.execute(text("DELETE FROM ai_search_paths WHERE path::text = 'subscription.node.speed'"))
+    db.session.flush()
+
+    rebuild_search_paths()
+
+    assert _all_paths_rows() == _expected_paths_rows()
+
+
+def test_rebuild_on_empty_index_yields_empty_table():
+    _add_index_row("subscription.node.name")
+    db.session.query(AiSearchIndex).delete(synchronize_session=False)
+    db.session.flush()
+    rebuild_search_paths()
+    assert _all_paths_rows() == set()

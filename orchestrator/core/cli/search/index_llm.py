@@ -14,7 +14,7 @@
 import typer
 
 from orchestrator.core.search.core.types import EntityType
-from orchestrator.core.search.indexing import run_indexing_for_entity
+from orchestrator.core.search.indexing import rebuild_search_paths, run_indexing_for_entity
 
 app = typer.Typer(
     name="index",
@@ -88,6 +88,12 @@ def workflows_command(
         force_index=force_index,
         show_progress=show_progress,
     )
+
+
+@app.command("rebuild-paths")
+def rebuild_paths_command() -> None:
+    """Recompute the ai_search_paths distinct-paths table from ai_search_index."""
+    rebuild_search_paths()
 
 
 if __name__ == "__main__":
