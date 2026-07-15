@@ -24,7 +24,7 @@
 
 ## File map
 
-- **Create** `orchestrator/core/migrations/versions/schema/2026-07-15_1a2b3c4d5e6f_add_ai_search_paths_table.py` — table + trigger function + trigger + backfill (Task 1).
+- **Create** `orchestrator/core/migrations/versions/schema/2026-07-15_ca79fd834ba0_add_ai_search_paths_table.py` — table + trigger function + trigger + backfill (Task 1).
 - **Modify** `orchestrator/core/search/indexing/tasks.py` — add `rebuild_search_paths()` (Task 2).
 - **Modify** `orchestrator/core/search/indexing/__init__.py` — export `rebuild_search_paths` (Task 2).
 - **Modify** `orchestrator/core/cli/search/index_llm.py` — add `rebuild-paths` command (Task 2).
@@ -60,7 +60,7 @@ Expected: exactly one head, `f4a7c9e21b08`. If it differs (main advanced), use t
 ### Task 1: Migration — `ai_search_paths` table, refcount trigger, and backfill
 
 **Files:**
-- Create: `orchestrator/core/migrations/versions/schema/2026-07-15_1a2b3c4d5e6f_add_ai_search_paths_table.py`
+- Create: `orchestrator/core/migrations/versions/schema/2026-07-15_ca79fd834ba0_add_ai_search_paths_table.py`
 - Test: `test/integration_tests/search/test_ai_search_paths.py`
 
 **Interfaces:**
@@ -193,7 +193,7 @@ Expected: FAIL — every test errors with `psycopg.errors.UndefinedTable: relati
 
 - [ ] **Step 3: Write the migration.**
 
-Create `orchestrator/core/migrations/versions/schema/2026-07-15_1a2b3c4d5e6f_add_ai_search_paths_table.py`:
+Create `orchestrator/core/migrations/versions/schema/2026-07-15_ca79fd834ba0_add_ai_search_paths_table.py`:
 
 ```python
 # Copyright 2019-2026 SURF, GÉANT.
@@ -214,7 +214,7 @@ Create `orchestrator/core/migrations/versions/schema/2026-07-15_1a2b3c4d5e6f_add
 Speeds up GET /api/search/paths (issue #1788) by reading a schema-sized derived
 table instead of GROUP BY-ing the whole ai_search_index EAV table.
 
-Revision ID: 1a2b3c4d5e6f
+Revision ID: ca79fd834ba0
 Revises: f4a7c9e21b08
 Create Date: 2026-07-15 00:00:00.000000
 
@@ -224,7 +224,7 @@ from alembic import op
 from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
-revision = "1a2b3c4d5e6f"
+revision = "ca79fd834ba0"
 down_revision = "f4a7c9e21b08"
 branch_labels = None
 depends_on = None
@@ -322,7 +322,7 @@ Expected: PASS — all 7 tests green (the session-scoped `database` fixture re-r
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add orchestrator/core/migrations/versions/schema/2026-07-15_1a2b3c4d5e6f_add_ai_search_paths_table.py \
+git add orchestrator/core/migrations/versions/schema/2026-07-15_ca79fd834ba0_add_ai_search_paths_table.py \
         test/integration_tests/search/test_ai_search_paths.py
 git commit -m "Add ai_search_paths table + refcount trigger for fast /api/search/paths (#1788)"
 ```
