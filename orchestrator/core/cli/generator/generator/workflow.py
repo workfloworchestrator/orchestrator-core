@@ -95,7 +95,7 @@ def generate_workflows(context: ProdGenContext) -> None:
     config = add_optional_nso_config(config)
     config = add_optional_ims_config(config)
 
-    generate_shared_workflow_files(environment, config, writer)
+    generate_shared_forms_file(environment, config, writer)
     generate_create_workflow(environment, config, writer)
     generate_modify_workflow(environment, config, writer)
     generate_validate_workflow(environment, config, writer)
@@ -168,14 +168,9 @@ def render_template(environment: Environment, config: dict, template: str, workf
     )
 
 
-def generate_shared_workflow_files(environment: Environment, config: dict, writer: Callable) -> None:
+def generate_shared_forms_file(environment: Environment, config: dict, writer: Callable) -> None:
     content = render_template(environment, config, "shared_forms.j2")
     path = shared_product_workflow_folder(config) / Path("forms.py")
-    writer(path, content)
-
-    template = environment.get_template("shared_workflows.j2")
-    content = template.render()
-    path = get_workflows_folder() / Path("shared.py")
     writer(path, content)
 
 
