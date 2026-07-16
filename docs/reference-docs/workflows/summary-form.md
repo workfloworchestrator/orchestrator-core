@@ -1,6 +1,6 @@
 # Summary Forms
 
-Before a create or modify workflow submits its input, it is common to show the operator a
+Before a create or modify workflow submits its input, it is common to show the user a
 read-only recap of everything that is about to change: the values just entered, and — for modify
 workflows — what they looked like before. `orchestrator.core.forms.summary_form` provides a
 small toolkit for building this recap page (a "summary form") without having to hand-write a
