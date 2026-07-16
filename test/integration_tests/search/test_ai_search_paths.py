@@ -193,3 +193,25 @@ def test_build_paths_query_prefix_filter(prefix, expected_leaves):
     stmt = build_paths_query(EntityType.SUBSCRIPTION, prefix=prefix)
     leaves, _ = process_path_rows(db.session.execute(stmt).all())
     assert {leaf.name for leaf in leaves} == expected_leaves
+
+
+def test_build_paths_query_orders_by_similarity_to_q():
+    _add_index_row("subscription.node.description")
+    _add_index_row("subscription.node.name")
+
+    stmt = build_paths_query(EntityType.SUBSCRIPTION, q="name")
+    rows = db.session.execute(stmt).all()
+    paths = [str(row[0]) for row in rows]
+
+    assert paths.index("subscription.node.name") < paths.index("subscription.node.description")
+
+
+def test_build_paths_query_does_not_apply_a_limit_itself():
+    _add_index_row("subscription.node.name")
+    _add_index_row("subscription.node.speed", value_type=FieldType.INTEGER)
+    _add_index_row("subscription.node.enabled", value_type=FieldType.BOOLEAN)
+
+    stmt = build_paths_query(EntityType.SUBSCRIPTION).limit(2)
+    rows = db.session.execute(stmt).all()
+
+    assert len(rows) == 2

@@ -31,6 +31,11 @@ down_revision = "f4a7c9e21b08"
 branch_labels = None
 depends_on = None
 
+# Caveat: PostgreSQL row-level triggers do NOT fire on TRUNCATE, so a `TRUNCATE ai_search_index`
+# would leave ai_search_paths stale (this trigger only reacts to INSERT/UPDATE/DELETE rows).
+# No production code truncates ai_search_index (it uses row-level DELETE), so this is a documented
+# caveat, not a covered code path. Recovery: run the `index rebuild-paths` CLI command
+# (orchestrator.core.search.indexing.rebuild_search_paths()) to resynchronize the table.
 TRIGGER_FUNCTION = """
 CREATE OR REPLACE FUNCTION ai_search_paths_maintain() RETURNS trigger AS $$
 BEGIN
@@ -96,6 +101,9 @@ def upgrade() -> None:
     )
 
     # 3. Backfill from existing rows (idempotent). Writes ai_search_paths only, so the trigger is not involved.
+    #    Caveat: the GROUP BY count(*) snapshot assumes no concurrent ai_search_index writes during the
+    #    migration (standard deploys quiesce writers). If writers ran concurrently, counts may be off;
+    #    run `index rebuild-paths` afterward to get exact refcounts.
     conn.execute(
         text(
             """
