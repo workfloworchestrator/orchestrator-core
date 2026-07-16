@@ -863,6 +863,19 @@ class AiSearchIndex(BaseModel):
     __table_args__ = (PrimaryKeyConstraint("entity_id", "path", name="pk_ai_search_index"),)
 
 
+class AiSearchPaths(BaseModel):
+    __tablename__ = "ai_search_paths"
+
+    entity_type = mapped_column(TEXT, nullable=False)
+    path = mapped_column(LtreeType, nullable=False)
+    value_type = mapped_column(
+        Enum(FieldType, name="field_type", values_callable=lambda obj: [e.value for e in obj]), nullable=False
+    )
+    refcount = mapped_column(Integer, nullable=False)
+
+    __table_args__ = (PrimaryKeyConstraint("entity_type", "path", "value_type", name="pk_ai_search_paths"),)
+
+
 class APSchedulerJobStoreModel(BaseModel):
     __tablename__ = "apscheduler_jobs"
 

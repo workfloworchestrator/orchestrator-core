@@ -11,6 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .tasks import run_indexing_for_entity
+from orchestrator.core.search.indexing.tasks import rebuild_search_paths, run_indexing_for_entity
 
-__all__ = ["run_indexing_for_entity"]
+__all__ = ["rebuild_search_paths", "run_indexing_for_entity"]
