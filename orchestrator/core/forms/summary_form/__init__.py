@@ -11,10 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from orchestrator.core.forms.summary_form.migration_summary_custom import (
-    MigrationSummary,
-    migration_summary_custom,
-)
 from orchestrator.core.forms.summary_form.summary_form import (
     DEFAULT_FORMATTERS,
     TABLE_NUMBER_FIELD,
@@ -43,7 +39,6 @@ __all__ = [
     "FormFieldGenerator",
     "Formatter",
     "FormPageGenerator",
-    "MigrationSummary",
     "RowGenerator",
     "SummaryOptions",
     "TableData",
@@ -55,7 +50,6 @@ __all__ = [
     "get_field_translation",
     "get_summary_translation",
     "make_table_data",
-    "migration_summary_custom",
     "select_list_summary",
     "subscription_summary_fields",
     "TABLE_NUMBER_FIELD",
