@@ -15,13 +15,15 @@
 
 from uuid import UUID, uuid4
 
+import pytest
 from sqlalchemy import text
 from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.core.db import db
 from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.search.core.types import FieldType
+from orchestrator.core.search.core.types import EntityType, FieldType
 from orchestrator.core.search.indexing import rebuild_search_paths
+from orchestrator.core.search.query.builder import build_paths_query, process_path_rows
 
 
 def _add_index_row(
@@ -158,3 +160,36 @@ def test_rebuild_on_empty_index_yields_empty_table():
     db.session.flush()
     rebuild_search_paths()
     assert _all_paths_rows() == set()
+
+
+def test_build_paths_query_returns_leaves_and_components_from_trigger_table():
+    # Two entities share the leaf path; a nested path contributes a component.
+    _add_index_row("subscription.node.name", entity_id=uuid4())
+    _add_index_row("subscription.node.name", entity_id=uuid4())
+    _add_index_row("subscription.node.speed", value_type=FieldType.INTEGER)
+    # A different entity_type must not leak into SUBSCRIPTION results.
+    _add_index_row("product.other.field", entity_type="PRODUCT")
+
+    stmt = build_paths_query(EntityType.SUBSCRIPTION)
+    rows = db.session.execute(stmt).all()
+    leaves, components = process_path_rows(rows)
+
+    leaf_names = {leaf.name for leaf in leaves}
+    component_names = {c.name for c in components}
+    assert leaf_names == {"name", "speed"}
+    assert component_names == {"node"}
+    assert "field" not in leaf_names  # PRODUCT row excluded by the entity_type filter
+
+
+@pytest.mark.parametrize(
+    ("prefix", "expected_leaves"),
+    [
+        pytest.param("subscription.node", {"name"}, id="prefix-matches-node"),
+        pytest.param("subscription.iface", set(), id="prefix-matches-nothing"),
+    ],
+)
+def test_build_paths_query_prefix_filter(prefix, expected_leaves):
+    _add_index_row("subscription.node.name")
+    stmt = build_paths_query(EntityType.SUBSCRIPTION, prefix=prefix)
+    leaves, _ = process_path_rows(db.session.execute(stmt).all())
+    assert {leaf.name for leaf in leaves} == expected_leaves

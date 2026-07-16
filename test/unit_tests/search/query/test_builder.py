@@ -117,11 +117,13 @@ def test_build_paths_query_entity_type_filter_applied(entity_type: EntityType):
     assert entity_type.value in sql
 
 
-def test_build_paths_query_group_by_path_and_value_type():
-    """Query always groups by path and value_type."""
+def test_build_paths_query_reads_distinct_paths_table_without_group_by():
+    """Query reads the ai_search_paths table directly; rows are distinct, so no GROUP BY is needed."""
     stmt = build_paths_query(EntityType.SUBSCRIPTION)
-    sql = str(stmt.compile())
-    assert "group by" in sql.lower()
+    sql = str(stmt.compile()).lower()
+    assert "ai_search_paths" in sql
+    assert "ai_search_index" not in sql
+    assert "group by" not in sql
 
 
 # ---------------------------------------------------------------------------

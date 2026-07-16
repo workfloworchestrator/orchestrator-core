@@ -21,7 +21,7 @@ from sqlalchemy.sql.elements import Label
 from sqlalchemy.sql.selectable import CTE
 from sqlalchemy_utils.types.ltree import Ltree
 
-from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.db.models import AiSearchIndex, AiSearchPaths
 from orchestrator.core.search.aggregations import AggregationType, BaseAggregation, CountAggregation
 from orchestrator.core.search.core.types import EntityType, FieldType, FilterOp, UIType
 from orchestrator.core.search.filters import LtreeFilter
@@ -92,21 +92,23 @@ def build_candidate_query(query: Query) -> Select:
 
 
 def build_paths_query(entity_type: EntityType, prefix: str | None = None, q: str | None = None) -> Select:
-    """Build the query for retrieving paths and their value types for leaves/components processing."""
-    stmt = select(AiSearchIndex.path, AiSearchIndex.value_type).where(AiSearchIndex.entity_type == entity_type.value)
+    """Build the query for retrieving paths and their value types for leaves/components processing.
+
+    Reads the ai_search_paths distinct-paths table (one row per (entity_type, path, value_type)),
+    so no GROUP BY is required.
+    """
+    stmt = select(AiSearchPaths.path, AiSearchPaths.value_type).where(AiSearchPaths.entity_type == entity_type.value)
 
     if prefix:
         lquery_pattern = create_path_autocomplete_lquery(prefix)
         ltree_filter = LtreeFilter(op=FilterOp.MATCHES_LQUERY, value=lquery_pattern)
-        stmt = stmt.where(ltree_filter.to_expression(AiSearchIndex.path, path=""))
-
-    stmt = stmt.group_by(AiSearchIndex.path, AiSearchIndex.value_type)
+        stmt = stmt.where(ltree_filter.to_expression(AiSearchPaths.path, path=""))
 
     if q:
-        score = func.similarity(cast(AiSearchIndex.path, String), q)
-        stmt = stmt.order_by(score.desc(), AiSearchIndex.path)
+        score = func.similarity(cast(AiSearchPaths.path, String), q)
+        stmt = stmt.order_by(score.desc(), AiSearchPaths.path)
     else:
-        stmt = stmt.order_by(AiSearchIndex.path)
+        stmt = stmt.order_by(AiSearchPaths.path)
 
     return stmt
 
