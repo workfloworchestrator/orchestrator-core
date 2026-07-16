@@ -34,7 +34,17 @@ def initial_input_form_generator(product: UUID, product_name: str) -> FormGenera
 ```
 
 This yields a `FormPage` titled `f"{product_name} Summary"` containing one table with a row per
-field of `user_input`. For a modify workflow, pass the subscription's current values as `old_data`
+field of `user_input`.
+
+!!! note "Non-data fields in `new_data`/`old_data`"
+    Passing a whole form's dump straight in (as above) also includes its non-data fields, e.g.
+    `Divider` and `Label` fields. `Divider` fields are named `divider_N` by convention and are
+    dropped automatically. Prefix a `Label` field's name with `label_` (e.g. `label_settings`) to
+    get the same automatic exclusion. Fields with a real value that need more context
+    (e.g. showing `customer_id` as a customer name instead of a raw UUID) should use a formatter
+    instead, see below.
+
+For a modify workflow, pass the subscription's current values as `old_data`
 to render a **before / after** table instead:
 
 ```python
