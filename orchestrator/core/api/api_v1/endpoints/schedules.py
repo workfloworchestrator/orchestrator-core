@@ -40,7 +40,8 @@ async def validate_schedule_authorization(task: Workflow | None, user_model: OID
         raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to manage schedule with '{task.name}' task")
 
 
-@router.post("/", status_code=HTTPStatus.CREATED)
+@router.post("/", status_code=HTTPStatus.CREATED, include_in_schema=False)
+@router.post("", status_code=HTTPStatus.CREATED)
 async def create_scheduled_task(
     payload: APSchedulerJobCreate, user_model: OIDCUserModel | None = Depends(authenticate)
 ) -> dict[str, str]:
