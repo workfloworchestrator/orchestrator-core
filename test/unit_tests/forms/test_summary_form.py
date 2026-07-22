@@ -13,8 +13,8 @@
 
 """Tests for the summary form generator.
 
-Covers translation lookups, field filtering/formatting, table generation (single, before/after,
-single-column), form assembly, and the small summary formatters.
+Covers field filtering/formatting, table generation (single, before/after, single-column), form
+assembly, and the small summary formatters.
 """
 
 from unittest.mock import MagicMock, patch
@@ -57,6 +57,20 @@ def test_filter_summary_fields_excludes_labels_dividers_form_info_and_action_cho
     assert list(_filter_summary_fields(data, {})) == ["a", "b"]
 
 
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "my_label",
+        "sub_divider",
+    ],
+)
+def test_filter_summary_fields_only_excludes_label_and_divider_prefixes(field_name):
+    """label/divider only exclude a field when they're a prefix, not anywhere in the name."""
+    data = {field_name: 1}
+
+    assert list(_filter_summary_fields(data, {})) == [field_name]
+
+
 def test_filter_summary_fields_with_custom_exclude():
     data = {"a": 1, "b": 2}
 
@@ -66,10 +80,10 @@ def test_filter_summary_fields_with_custom_exclude():
 # --- _get_summary_labels / _get_column_values ---
 
 
-def test_get_summary_labels_uses_translation_by_default():
+def test_get_summary_labels_uses_field_name_by_default():
     data = {"subscription_id": "id-1"}
 
-    assert _get_summary_labels(data, {}) == ["Subscription"]
+    assert _get_summary_labels(data, {}) == ["subscription_id"]
 
 
 def test_get_summary_labels_uses_formatter_and_can_expand_to_multiple_labels():
@@ -135,11 +149,11 @@ def test_create_table_show_headers_false_yields_no_headers():
 
 
 def test_create_table_custom_header_callable():
-    options = {"name": "endpoints", "data": [({"a": 1}, None)], "header": lambda index: f"Endpoint {index}"}
+    options = {"name": "items", "data": [({"a": 1}, None)], "header": lambda index: f"Item {index}"}
 
     table_type = create_table(options)
 
-    assert table_type.__origin__.data["headers"] == ["Endpoint 1"]
+    assert table_type.__origin__.data["headers"] == ["Item 1"]
 
 
 # --- _table_number ---
@@ -148,11 +162,9 @@ def test_create_table_custom_header_callable():
 @pytest.mark.parametrize(
     "table_data,default,expected",
     [
-        ({"endpoint_nr": 5}, 99, 6),
-        ({"endpoint_nr": 0}, 99, 1),
-        ({TABLE_NUMBER_FIELD: 7}, 99, 7),
-        ({"endpoint_nr": 0, TABLE_NUMBER_FIELD: 7}, 99, 1),
-        ({}, 99, 99),
+        ({TABLE_NUMBER_FIELD: 7}, 99, "_7"),
+        ({}, 99, "_99"),
+        ({TABLE_NUMBER_FIELD: 0}, 99, "_0"),
     ],
 )
 def test_table_number(table_data, default, expected):
@@ -176,11 +188,11 @@ def test_make_summary_table_header_falls_back_to_default():
 
 
 def test_generate_before_after_tables_numbers_each_table():
-    options = {"name": "endpoints", "data": [({"a": 1}, {"a": 0}), ({"a": 2}, {"a": 1})]}
+    options = {"name": "items", "data": [({"a": 1}, {"a": 0}), ({"a": 2}, {"a": 1})]}
 
     names = [name for name, _ in _generate_before_after_tables(options)]
 
-    assert names == ["endpoints 1", "endpoints 2"]
+    assert names == ["items_1", "items_2"]
 
 
 def test_generate_before_after_tables_product_summary_has_no_numbering():
@@ -192,11 +204,12 @@ def test_generate_before_after_tables_product_summary_has_no_numbering():
 
 
 def test_generate_before_after_tables_uses_before_after_headers_by_default():
-    options = {"name": "endpoints", "data": [({"a": 1}, {"a": 0})]}
+    options = {"name": "items", "data": [({"a": 1}, {"a": 0})]}
 
     _, (table_type, _) = next(_generate_before_after_tables(options))
 
-    assert table_type.__origin__.data["headers"] == ["Before", "After"]
+    assert table_type.__origin__.data["headers"] == ["before", "after"]
+    assert table_type.__origin__.data["labels"] == ["a"]
     assert table_type.__origin__.data["columns"] == [["0"], ["1"]]
 
 
@@ -208,7 +221,7 @@ def test_generate_single_column_tables_numbers_each_table():
 
     names = [name for name, _ in _generate_single_column_tables(options)]
 
-    assert names == ["items 1", "items 2"]
+    assert names == ["items_1", "items_2"]
 
 
 def test_generate_single_column_tables_uses_table_number_field_for_naming():
@@ -216,7 +229,7 @@ def test_generate_single_column_tables_uses_table_number_field_for_naming():
 
     names = [name for name, _ in _generate_single_column_tables(options)]
 
-    assert names == ["items 5"]
+    assert names == ["items_5"]
 
 
 # --- _validate_uniform_old_data ---
@@ -231,7 +244,7 @@ def test_generate_single_column_tables_uses_table_number_field_for_naming():
     ],
 )
 def test_validate_uniform_old_data_allows_consistent_data(data):
-    _validate_uniform_old_data(data)
+    _validate_uniform_old_data("items", data)
 
 
 @pytest.mark.parametrize(
@@ -242,23 +255,23 @@ def test_validate_uniform_old_data_allows_consistent_data(data):
     ],
 )
 def test_validate_uniform_old_data_rejects_mixed_old_data(data):
-    with pytest.raises(ValueError, match="Inconsistent table data"):
-        _validate_uniform_old_data(data)
+    with pytest.raises(ValueError, match="Inconsistent table data for 'items'"):
+        _validate_uniform_old_data("items", data)
 
 
 # --- _table_fields ---
 
 
 def test_table_fields_dispatches_before_after_when_old_data_present():
-    options = {"name": "endpoints", "data": [({"a": 1}, {"a": 0})]}
+    options = {"name": "items", "data": [({"a": 1}, {"a": 0})]}
 
     fields = dict(_table_fields(options, 1))
 
-    assert set(fields) == {"divider_2", "endpoints 1"}
+    assert set(fields) == {"divider_2", "items_1"}
 
 
 def test_table_fields_raises_on_mixed_old_data():
-    options = {"name": "endpoints", "data": [({"a": 1}, None), ({"a": 2}, {"a": 1})]}
+    options = {"name": "items", "data": [({"a": 1}, None), ({"a": 2}, {"a": 1})]}
 
     with pytest.raises(ValueError, match="Inconsistent table data"):
         dict(_table_fields(options, 1))
@@ -269,7 +282,7 @@ def test_table_fields_dispatches_single_column_when_configured():
 
     fields = dict(_table_fields(options, 1))
 
-    assert set(fields) == {"divider_2", "items 1"}
+    assert set(fields) == {"divider_2", "items_1"}
 
 
 def test_table_fields_dispatches_plain_table_by_default():
@@ -281,7 +294,7 @@ def test_table_fields_dispatches_plain_table_by_default():
 
 
 def test_table_fields_uses_default_empty_message_when_no_data():
-    options = {"name": "empty_table"}
+    options = {"name": "empty_table", "data": []}
 
     fields = dict(_table_fields(options, 1))
 
@@ -289,7 +302,7 @@ def test_table_fields_uses_default_empty_message_when_no_data():
 
 
 def test_table_fields_uses_custom_empty_message():
-    options = {"name": "empty_table", "empty_message": "Nothing here"}
+    options = {"name": "empty_table", "data": [], "empty_message": "Nothing here"}
 
     fields = dict(_table_fields(options, 1))
 
@@ -331,7 +344,7 @@ def test_base_summary_wraps_single_product_row():
 
     schema = model.model_json_schema()
     product_summary_data = schema["properties"]["product_summary"]["uniforms"]["data"]
-    assert product_summary_data["headers"] == ["Before", "After"]
+    assert product_summary_data["headers"] == ["before", "after"]
     assert product_summary_data["columns"] == [["0"], ["1"]]
 
 
@@ -372,7 +385,7 @@ def test_subscription_summary_fields_includes_block_title(mock_subscription):
         result = list(subscription_summary_fields(mock_subscription.subscription_id))
 
     assert result == [
-        ("Subscription", str(mock_subscription.subscription_id)),
+        ("subscription_id", str(mock_subscription.subscription_id)),
         ("description", "some description"),
         ("title", "Block title"),
     ]

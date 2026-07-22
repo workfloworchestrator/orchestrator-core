@@ -174,7 +174,7 @@ For multi-step forms especially, it can be useful to use the `orchestrator.core.
 
 A common last step before submitting is a read-only recap of the values just entered (and, for
 modify workflows, what they looked like before). See [Summary Forms](workflows/summary-form.md)
-for `orchestrator.core.workflows.summary_form`, a toolkit for building this recap page.
+for `orchestrator.core.forms.summary_form`, a toolkit for building this recap page.
 
 ### Custom Form Fields
 

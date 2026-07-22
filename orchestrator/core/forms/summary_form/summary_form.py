@@ -11,36 +11,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
-from itertools import chain
-from typing import Any, TypedDict
+from itertools import chain, repeat
+from typing import Any, Required, TypedDict
 from uuid import UUID
 
-import structlog
 from more_itertools import first
 from pydantic import ConfigDict, create_model
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage, SubmitFormPage
 from orchestrator.core.forms.validators import Divider, MigrationSummary, migration_summary
-from orchestrator.core.services.translations import generate_translations
 from pydantic_forms.types import SummaryData, UUIDstr
 from pydantic_forms.validators import read_only_field
-
-logger = structlog.get_logger(__name__)
 
 RowGenerator = Generator[tuple[str, str], None, None]
 FormFieldGenerator = Generator[tuple[str, tuple], None, None]
 Formatter = Callable[[Any], RowGenerator]
 FormPageGenerator = Generator[type[FormPage], None, None]
 TableData = Sequence[tuple[dict, dict | None]]
-
-_TRANSLATIONS = generate_translations(language="en-GB")
-_FIELD_TRANSLATIONS: dict = _TRANSLATIONS["forms"]["fields"]  # type: ignore
-_SUMMARY_TRANSLATIONS: dict = _FIELD_TRANSLATIONS["summary"]
-
-MERGED_TRANSLATIONS = _FIELD_TRANSLATIONS | _SUMMARY_TRANSLATIONS
 
 
 TABLE_NUMBER_FIELD = "__table_number"
@@ -49,6 +38,7 @@ PRODUCT_SUMMARY_TABLE_NAME = "product_summary"
 DEFAULT_EXCLUDE_FIELDS = {
     TABLE_NUMBER_FIELD,
 }
+DEFAULT_FORMATTERS: dict[str, Formatter] = {}
 
 
 class BaseOptions(TypedDict, total=False):
@@ -57,48 +47,18 @@ class BaseOptions(TypedDict, total=False):
 
 
 class TableOptions(BaseOptions, total=False):
-    name: str
+    name: Required[str]
     header: Callable[[Any], str]
-    data: TableData
+    data: Required[TableData]
     empty_message: str
     single_column: bool  # Set True to spread columns out over separate tables
 
 
 class SummaryOptions(TypedDict, total=False):
-    product_name: str
-    product: TableOptions
+    product_name: Required[str]
+    product: Required[TableOptions]
     after_product: dict[str, tuple]
     tables: Sequence[TableOptions]
-
-
-def get_field_translation(key: str, default: str = "") -> str:
-    """Translate a form field key to its display label.
-
-    Use this for labels shared with the regular (non-summary) form, e.g. "subscription_id" or "description".
-    Falls back to `default`, or to `key` itself, when no translation is found.
-
-    >>> get_field_translation("subscription_id")
-    'Subscription'
-    >>> get_field_translation("some_unknown_field")
-    'some_unknown_field'
-    >>> get_field_translation("some_unknown_field", "My Default")
-    'My Default'
-    """
-    return _FIELD_TRANSLATIONS.get(key, default if default else key)
-
-
-def get_summary_translation(key: str, default: str = "") -> str:
-    """Translate a summary field key to its display label.
-
-    Like `get_field_translation`, but also checks summary-specific translation overrides
-    (forms.fields.summary.<key>) before falling back to the shared field translations.
-
-    >>> get_summary_translation("subscription_id")
-    'Subscription'
-    >>> get_summary_translation("some_unknown_field")
-    'some_unknown_field'
-    """
-    return MERGED_TRANSLATIONS.get(key, default if default else key)
 
 
 def _filter_summary_fields(data: dict, options: BaseOptions) -> Generator[str, None, None]:
@@ -110,9 +70,9 @@ def _filter_summary_fields(data: dict, options: BaseOptions) -> Generator[str, N
     exclude: set[str] = options.get("exclude", set()) | DEFAULT_EXCLUDE_FIELDS
 
     def should_include(field: str) -> bool:
-        if "label" in field:
+        if field.startswith("label"):
             return False
-        if "divider" in field:
+        if field.startswith("divider"):
             return False
         if field.startswith("form_info"):
             return False
@@ -136,7 +96,7 @@ def _get_summary_labels(data: dict, options: BaseOptions) -> list[str]:
             labels = [label for label, _ in formatter(data[field])]
             yield from labels
         else:
-            yield get_summary_translation(field)
+            yield field
 
     field_labels = (get_label(field) for field in _filter_summary_fields(data, options))
     return list(chain.from_iterable(field_labels))
@@ -183,19 +143,12 @@ def create_table(options: TableOptions, show_headers: bool = True) -> type[Migra
     return migration_summary(data=summary_data)
 
 
-def _table_number(*, table_data: dict, default: int) -> Any:
-    """Pick the 1-based number to show for a table.
+def _table_number(*, table_data: dict, default: int) -> str:
+    """Pick the `_<n>` suffix to append to a per-item table's name.
 
-    Prefers `table_data["endpoint_nr"]` (0-based, converted to 1-based) over
-    `table_data[TABLE_NUMBER_FIELD]`, and falls back to `default` when neither is set.
+    Uses `table_data[TABLE_NUMBER_FIELD]` if set, otherwise falls back to `_<default>`.
     """
-    if (endpoint_nr := table_data.get("endpoint_nr")) is not None:
-        return endpoint_nr + 1
-
-    if (table_number := table_data.get(TABLE_NUMBER_FIELD)) is not None:
-        return table_number
-
-    return default
+    return f"_{table_data.get(TABLE_NUMBER_FIELD, default)}"
 
 
 def _make_summary_table_header(options: TableOptions, index: int, default: str) -> str:
@@ -211,11 +164,10 @@ def _generate_before_after_tables(options: TableOptions) -> FormFieldGenerator:
     Instead of adding data items as columns to one and the same table (like create_table()) this creates a new
     table for each data item, with a before/after column.
     """
-
     after_items, _ = first(options["data"])
 
     labels = _get_summary_labels(after_items, options)
-    default_headers = ["Before", "After"]
+    default_headers = ["before", "after"]
     headers = [
         _make_summary_table_header(options, index, default) for index, default in enumerate(default_headers, start=1)
     ]
@@ -223,7 +175,7 @@ def _generate_before_after_tables(options: TableOptions) -> FormFieldGenerator:
     for num, (after, before) in enumerate(options["data"], 1):
         shown_index = _table_number(table_data=after, default=num)
         is_product_summary = options["name"] == PRODUCT_SUMMARY_TABLE_NAME
-        table_name = options["name"] if is_product_summary else f"{options['name']} {shown_index}".strip()
+        table_name = options["name"] if is_product_summary else f"{options['name']}{shown_index}"
 
         before_column: list[Any] = _get_column_values(before, options) if before else []
         after_column: list[Any] = _get_column_values(after, options)
@@ -250,14 +202,14 @@ def _generate_single_column_tables(options: TableOptions) -> FormFieldGenerator:
     for num, (kv, _) in enumerate(items, 1):
         shown_index = _table_number(table_data=kv, default=num)
         is_product_summary = options["name"] == PRODUCT_SUMMARY_TABLE_NAME
-        table_name = options["name"] if is_product_summary else f"{options['name']} {shown_index}"
+        table_name = options["name"] if is_product_summary else f"{options['name']}{shown_index}"
 
         single_column: list[Any] = _get_column_values(kv, options)
         summary_data = SummaryData(labels=labels, columns=[single_column], headers=headers)
         yield table_name, (migration_summary(data=summary_data), None)
 
 
-def _validate_uniform_old_data(data: TableData) -> None:
+def _validate_uniform_old_data(table_name: str, data: TableData) -> None:
     """Ensure a table's items are either all before/after pairs, or all plain (no old data).
 
     Mixing items with and without old data within one table is not supported. Use
@@ -266,9 +218,9 @@ def _validate_uniform_old_data(data: TableData) -> None:
     has_old_values = {bool(old) for _, old in data}
     if len(has_old_values) > 1:
         raise ValueError(
-            "Inconsistent table data: either every item must have old data (before/after table) "
-            "or none should (plain table) - mixing the two within one table is not supported. "
-            "Use make_table_data() to build consistent before/after data."
+            f"Inconsistent table data for '{table_name}': either every item must have old data "
+            "(before/after table) or none should (plain table) - mixing the two within one table "
+            "is not supported. Use make_table_data() to build consistent before/after data."
         )
 
 
@@ -282,7 +234,7 @@ def _table_fields(table: TableOptions, index: int) -> FormFieldGenerator:
     yield f"divider_{index + 1}", (Divider, None)
 
     data_items = table.get("data", [])
-    _validate_uniform_old_data(data_items)
+    _validate_uniform_old_data(table["name"], data_items)
     data = first(data_items, None)
 
     if data and data[1]:
@@ -337,7 +289,7 @@ def make_table_data(
     >>> make_table_data([{"a": 1}, {"a": 2}], [])
     [({'a': 1}, None), ({'a': 2}, None)]
     """
-    return list(zip(new_data, old_data if old_data else itertools.repeat(None)))
+    return list(zip(new_data, old_data if old_data else repeat(None)))
 
 
 def base_summary(
@@ -376,9 +328,9 @@ def subscription_summary_fields(subscription_id: UUID) -> RowGenerator:
     block = getattr(subscription, block_name, None)
     block_title = getattr(block, "title", "-") if block else "-"
 
-    yield get_field_translation("subscription_id"), str(subscription.subscription_id)
-    yield get_field_translation("description"), subscription.description
-    yield get_field_translation("title"), block_title
+    yield "subscription_id", str(subscription.subscription_id)
+    yield "description", subscription.description
+    yield "title", block_title
 
 
 def customer_name_summary_field(
@@ -398,7 +350,7 @@ def customer_name_summary_field(
     def _customer_name_summary_field(customer_id: UUIDstr) -> RowGenerator:
         """Formatter for showing customer name with the customer_id."""
         customer_name = get_customer_name_fn(customer_id)
-        yield get_field_translation("customer_id"), customer_name or f"Customer name not found for {customer_id}"
+        yield "customer_id", customer_name or f"Customer name not found for {customer_id}"
 
     return _customer_name_summary_field
 
@@ -415,11 +367,8 @@ def select_list_summary(field_name: str) -> Callable[[list], RowGenerator]:
     [('prefixes', '')]
     """
 
-    def _select_list_summary(list: list[str]) -> RowGenerator:
+    def _select_list_summary(_list: list[str]) -> RowGenerator:
         """Formatter for IPV X prefix list."""
-        yield get_summary_translation(field_name), ", ".join(list)
+        yield field_name, ", ".join(_list)
 
     return _select_list_summary
-
-
-DEFAULT_FORMATTERS: dict[str, Formatter] = {}

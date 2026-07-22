@@ -38,9 +38,10 @@ field of `user_input`.
 
 !!! note "Non-data fields in `new_data`/`old_data`"
     Passing a whole form's dump straight in (as above) also includes its non-data fields, e.g.
-    `Divider` and `Label` fields. `Divider` fields are named `divider_N` by convention and are
-    dropped automatically. Prefix a `Label` field's name with `label_` (e.g. `label_settings`) to
-    get the same automatic exclusion. Fields with a real value that need more context
+    `Divider` and `Label` fields. Any field name *starting with* `divider` (e.g. `divider_1`, the
+    by-convention name) or `label` (e.g. `label_settings`) is dropped automatically — the check is
+    a prefix match, not a substring match, so a real data field like `label_color` is excluded but
+    `my_label` or `sub_divider` are not. Fields with a real value that need more context
     (e.g. showing `customer_id` as a customer name instead of a raw UUID) should use a formatter
     instead, see below.
 
@@ -102,6 +103,27 @@ Use `single_column=True` when the items don't share a natural "before/after" or 
 relationship and read better as their own standalone tables (for example, a list of dissimilar
 endpoints).
 
+Per-item tables (before/after and single-column) are numbered by their position in `data` by
+default: the first item is `"item_1"`, the second `"item_2"`, and so on. That default breaks down
+once items carry an identity of their own that predates the summary — for example items 1, 2 and 3
+of a subscription, where the user removes item 2. Renumbering by position would relabel the
+remaining two as "item_1" and "item_2", even though the surviving item is still item 3 everywhere
+else (error messages, the previous form pages, `old_data`). Set `TABLE_NUMBER_FIELD`
+(`"__table_number"`) on the item's `new` dict to a number it should keep instead:
+
+```python
+tables = [
+    TableOptions(
+        name="item",
+        data=make_table_data(
+            [{**item, TABLE_NUMBER_FIELD: original_index} for original_index, item in surviving_items]
+        ),
+    ),
+]
+```
+
+`TABLE_NUMBER_FIELD` is excluded from the rendered rows like any other non-data field.
+
 ### `TableOptions` reference
 
 | Key | Purpose |
@@ -119,9 +141,12 @@ table, e.g. to show a callout) and `tables` (the list of extra `TableOptions` de
 
 ## Custom field formatters
 
-By default, a field is shown as its translated field name and `str(value)`. Some fields need
-richer rendering — for example a subscription ID that should show the linked subscription's
-description, or a composite value that should expand into several rows. A `Formatter` does this:
+By default, a field is shown as its field name and `str(value)`; the frontend translates the field
+name the same way it translates any other form field (falling back to the raw name if no
+translation exists — `forms.fields.summary.<key>` is checked before the shared `forms.fields.<key>`
+entry, see `en-GB.json`). Some fields need richer rendering — for example a subscription ID that
+should show the linked subscription's description, or a composite value that should expand into
+several rows. A `Formatter` does this:
 
 ```python
 from collections.abc import Generator
@@ -164,7 +189,38 @@ field shows up. A handful of general-purpose formatters ship out of the box:
 * `subscription_summary_fields(subscription_id)` — not a `Formatter` itself, but a helper that
   yields the standard `(subscription_id, description, title)` rows for a related subscription;
   handy to reuse from your own formatters (as `notification_summary` above could, if its field
-  also embedded a related subscription).
+  also embedded a related subscription). For example, an L2VPN endpoint holds a `sap` field whose
+  `port` is a reference to the port subscription it's attached to (see
+  [`example-orchestrator`](https://github.com/workfloworchestrator/example-orchestrator) for more
+  on the L2VPN product and its SAPs) — build a formatter for it that reuses
+  `subscription_summary_fields` for the port's own rows, then adds the SAP's VLAN range:
+
+  ```python
+  from orchestrator.core.forms.summary_form import DEFAULT_FORMATTERS, RowGenerator, subscription_summary_fields
+
+
+  def sap_summary(sap: dict) -> RowGenerator:
+      owner_subscription_id = sap.get("port", {}).get("owner_subscription_id")
+      if owner_subscription_id:
+          yield from subscription_summary_fields(owner_subscription_id)
+          yield "vlan", sap["vlanrange"]
+
+
+  DEFAULT_FORMATTERS.update({"sap": sap_summary})
+  ```
+
+  With `sap_summary` registered, a table of endpoints where each item has a `sap` field renders the
+  port's `subscription_id`, `description` and `title` plus `vlan` for every endpoint, instead of a
+  single row with the raw `sap` dict:
+
+  ```python
+  tables = [
+      TableOptions(
+          name="endpoint",
+          data=make_table_data([{"sap": endpoint.sap} for endpoint in new_endpoints]),
+      ),
+  ]
+  ```
 
 ## API summary
 
@@ -177,7 +233,7 @@ All of the above is importable from `orchestrator.core.forms.summary_form`:
 | `create_table` | Build a single table's `MigrationSummary` field directly |
 | `make_table_data` | Zip new/old item lists into `TableOptions["data"]` |
 | `SummaryOptions`, `TableOptions`, `BaseOptions` | Option `TypedDict`s |
+| `TABLE_NUMBER_FIELD` | Item dict key that overrides a per-item table's displayed number |
 | `DEFAULT_FORMATTERS` | Global, mutable field-name → `Formatter` registry |
 | `Formatter`, `RowGenerator` | Type aliases for writing your own formatters |
 | `customer_name_summary_field`, `select_list_summary`, `subscription_summary_fields` | Built-in formatter helpers |
-| `get_field_translation`, `get_summary_translation` | Look up the translated label for a field name |
