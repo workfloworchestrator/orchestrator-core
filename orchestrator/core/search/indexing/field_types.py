@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.core.search.core.types import EntityType, FieldType
+from orchestrator.core.search.indexing.schema import iter_model_field_annotations
 
 
 def _model_types(annotation: Any) -> set[type[BaseModel]]:
@@ -38,9 +39,8 @@ def _collect_field_types(
         return
 
     ancestors = ancestors | {model_type}
-    for name, field in model_type.model_fields.items():
+    for name, annotation in iter_model_field_annotations(model_type):
         field_path = f"{path}.{name}"
-        annotation = field.annotation
         is_list = get_origin(annotation) is list
         nested_model_types = _model_types(annotation)
         if nested_model_types:

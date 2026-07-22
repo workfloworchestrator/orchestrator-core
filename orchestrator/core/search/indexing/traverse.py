@@ -33,6 +33,7 @@ from orchestrator.core.schemas.process import ProcessBaseSchema
 from orchestrator.core.schemas.workflow import WorkflowSchema
 from orchestrator.core.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
 from orchestrator.core.search.core.types import LTREE_SEPARATOR, ExtractedField, FieldType
+from orchestrator.core.search.indexing.schema import iter_model_field_annotations
 from orchestrator.core.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)
@@ -62,18 +63,13 @@ class BaseTraverser(ABC):
         """Walks the fields of a Pydantic model, dispatching each to a field handler."""
         model_class = type(instance)
 
-        # Handle both standard and computed fields from the Pydantic model
-        all_fields = model_class.model_fields.copy()
-        all_fields.update(getattr(model_class, "__pydantic_computed_fields__", {}))
-
-        for name, field in all_fields.items():
+        for name, annotation in iter_model_field_annotations(model_class):
             try:
                 value = getattr(instance, name, None)
             except Exception as e:
                 logger.error(f"Failed to access field '{name}' on {model_class.__name__}", error=str(e))
                 continue
             new_path = f"{path}{LTREE_SEPARATOR}{name}" if path else name
-            annotation = field.annotation if hasattr(field, "annotation") else field.return_type
             yield from cls._yield_fields_for_value(value, new_path, annotation)
 
     @classmethod
