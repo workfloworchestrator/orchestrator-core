@@ -14,10 +14,24 @@
 """Tests for SubscriptionTraverser: end-to-end model traversal for simple, nested, and computed property subscriptions."""
 
 import pytest
+from pydantic import BaseModel, computed_field
 
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+from orchestrator.core.search.indexing.schema import iter_model_field_annotations
 from orchestrator.core.search.indexing.traverse import SubscriptionTraverser
+
+
+def test_iter_model_field_annotations_includes_declared_and_computed_fields() -> None:
+    class TestModel(BaseModel):
+        name: str
+
+        @computed_field
+        @property
+        def name_length(self) -> int:
+            return len(self.name)
+
+    assert dict(iter_model_field_annotations(TestModel)) == {"name": str, "name_length": int}
 
 
 def _assert_traverse_fields_match(mock_load_model, mock_db_subscription, subscription_instance, expected_fields):

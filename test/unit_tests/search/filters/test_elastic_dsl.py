@@ -20,7 +20,7 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from orchestrator.core.schemas.search_requests import SearchRequest
-from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, UIType
 from orchestrator.core.search.filters import FilterTree, PathFilter
 from orchestrator.core.search.filters.base import ContainsFilter, EqualityFilter, StringFilter
 from orchestrator.core.search.filters.date_filters import DateRangeFilter, DateValueFilter
@@ -79,10 +79,18 @@ def test_term_preserves_path() -> None:
 @pytest.mark.parametrize(
     "es_op, value, expected_filter_type, expected_op, expected_value_kind, expected_value",
     [
-        pytest.param("gt", "2025-01-01", DateValueFilter, FilterOp.GT, UIType.DATETIME, datetime(2025, 1, 1), id="date-gt"),
-        pytest.param("gte", "2025-06-15", DateValueFilter, FilterOp.GTE, UIType.DATETIME, datetime(2025, 6, 15), id="date-gte"),
-        pytest.param("lt", "2025-12-31", DateValueFilter, FilterOp.LT, UIType.DATETIME, datetime(2025, 12, 31), id="date-lt"),
-        pytest.param("lte", "2025-03-01", DateValueFilter, FilterOp.LTE, UIType.DATETIME, datetime(2025, 3, 1), id="date-lte"),
+        pytest.param(
+            "gt", "2025-01-01", DateValueFilter, FilterOp.GT, UIType.DATETIME, datetime(2025, 1, 1), id="date-gt"
+        ),
+        pytest.param(
+            "gte", "2025-06-15", DateValueFilter, FilterOp.GTE, UIType.DATETIME, datetime(2025, 6, 15), id="date-gte"
+        ),
+        pytest.param(
+            "lt", "2025-12-31", DateValueFilter, FilterOp.LT, UIType.DATETIME, datetime(2025, 12, 31), id="date-lt"
+        ),
+        pytest.param(
+            "lte", "2025-03-01", DateValueFilter, FilterOp.LTE, UIType.DATETIME, datetime(2025, 3, 1), id="date-lte"
+        ),
         pytest.param("gt", 100, NumericValueFilter, FilterOp.GT, UIType.NUMBER, 100, id="num-gt"),
         pytest.param("gte", 0, NumericValueFilter, FilterOp.GTE, UIType.NUMBER, 0, id="num-gte"),
         pytest.param("lt", 9999, NumericValueFilter, FilterOp.LT, UIType.NUMBER, 9999, id="num-lt"),
@@ -107,7 +115,15 @@ def test_range_single_bound(
 @pytest.mark.parametrize(
     "start, end, expected_filter_type, expected_value_kind, expected_start, expected_end",
     [
-        pytest.param("2025-01-01", "2025-12-31", DateRangeFilter, UIType.DATETIME, datetime(2025, 1, 1), datetime(2025, 12, 31), id="date-between"),
+        pytest.param(
+            "2025-01-01",
+            "2025-12-31",
+            DateRangeFilter,
+            UIType.DATETIME,
+            datetime(2025, 1, 1),
+            datetime(2025, 12, 31),
+            id="date-between",
+        ),
         pytest.param(100, 10000, NumericRangeFilter, UIType.NUMBER, 100, 10000, id="numeric-between"),
     ],
 )
@@ -340,9 +356,7 @@ def test_range_no_recognised_bounds_raises() -> None:
 )
 def test_bool_clause_accepts_single_query_object(clause_key: str) -> None:
     """A bare query dict (not wrapped in a list) is accepted, matching ES behaviour."""
-    es = ElasticQueryAdapter.validate_python(
-        {"bool": {clause_key: {"term": {"subscription.status": "active"}}}}
-    )
+    es = ElasticQueryAdapter.validate_python({"bool": {clause_key: {"term": {"subscription.status": "active"}}}})
     tree = elastic_to_filter_tree(es)
     assert len(tree.children) == 1
 
@@ -552,9 +566,10 @@ def test_search_request_accepts_elastic_dsl(
     filters: dict[str, Any], expected_op: BooleanOperator, expected_children: int
 ) -> None:
     request = SearchRequest(filters=filters)  # type: ignore[arg-type]
-    assert isinstance(request.filters, FilterTree)
-    assert request.filters.op == expected_op
-    assert len(request.filters.children) == expected_children
+    query = request.to_query(EntityType.SUBSCRIPTION)
+    assert isinstance(query.filters, FilterTree)
+    assert query.filters.op == expected_op
+    assert len(query.filters.children) == expected_children
 
 
 def test_search_request_accepts_filter_tree() -> None:
@@ -624,30 +639,12 @@ def test_must_not_contains_inverts_to_not_contains() -> None:
     assert leaf.condition.value == ".*LIR.*"
 
 
-def test_must_not_not_contains_inverts_to_contains() -> None:
-    es = ElasticQueryAdapter.validate_python(
-        {
-            "bool": {
-                "must_not": [
-                    {
-                        "regexp": {"description": ".*LIR.*"},
-                    }
-                ]
-            }
-        }
-    )
-    tree = elastic_to_filter_tree(es)
-    leaf = tree.children[0]
-    assert isinstance(leaf, PathFilter)
-    assert isinstance(leaf.condition, ContainsFilter)
-    assert leaf.condition.op == FilterOp.NOT_CONTAINS
-
-
 def test_search_request_accepts_contains_filter() -> None:
     request = SearchRequest(filters={"regexp": {"subscription.description": {"value": ".*fiber.*"}}})  # type: ignore[arg-type]
-    assert isinstance(request.filters, FilterTree)
-    assert len(request.filters.children) == 1
-    leaf = request.filters.children[0]
+    query = request.to_query(EntityType.SUBSCRIPTION)
+    assert isinstance(query.filters, FilterTree)
+    assert len(query.filters.children) == 1
+    leaf = query.filters.children[0]
     assert isinstance(leaf, PathFilter)
     assert isinstance(leaf.condition, ContainsFilter)
     assert leaf.condition.op == FilterOp.CONTAINS
