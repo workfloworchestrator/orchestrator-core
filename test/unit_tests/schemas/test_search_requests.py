@@ -22,6 +22,7 @@ from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.schemas.search_requests import SearchRequest
 from orchestrator.core.search.core.types import EntityType, RetrieverType, UIType
+from orchestrator.core.search.filters.base import PathFilter
 from orchestrator.core.search.indexing.field_types import _subscription_field_types
 from orchestrator.core.search.query.mixins import StructuredOrderBy
 
@@ -108,6 +109,7 @@ def test_to_query_resolves_digit_only_string_term_from_subscription_schema() -> 
     _subscription_field_types.cache_clear()
     assert query.filters is not None
     leaf = query.filters.children[0]
+    assert isinstance(leaf, PathFilter)
     assert leaf.value_kind == UIType.STRING
 
 
