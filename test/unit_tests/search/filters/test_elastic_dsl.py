@@ -20,7 +20,7 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from orchestrator.core.schemas.search_requests import SearchRequest
-from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, UIType
 from orchestrator.core.search.filters import FilterTree, PathFilter
 from orchestrator.core.search.filters.base import ContainsFilter, EqualityFilter, StringFilter
 from orchestrator.core.search.filters.date_filters import DateRangeFilter, DateValueFilter
@@ -617,9 +617,10 @@ def test_search_request_accepts_elastic_dsl(
     filters: dict[str, Any], expected_op: BooleanOperator, expected_children: int
 ) -> None:
     request = SearchRequest(filters=filters)  # type: ignore[arg-type]
-    assert isinstance(request.filters, FilterTree)
-    assert request.filters.op == expected_op
-    assert len(request.filters.children) == expected_children
+    query = request.to_query(EntityType.SUBSCRIPTION)
+    assert isinstance(query.filters, FilterTree)
+    assert query.filters.op == expected_op
+    assert len(query.filters.children) == expected_children
 
 
 def test_search_request_accepts_filter_tree() -> None:
@@ -689,30 +690,12 @@ def test_must_not_contains_inverts_to_not_contains() -> None:
     assert leaf.condition.value == ".*LIR.*"
 
 
-def test_must_not_not_contains_inverts_to_contains() -> None:
-    es = ElasticQueryAdapter.validate_python(
-        {
-            "bool": {
-                "must_not": [
-                    {
-                        "regexp": {"description": ".*LIR.*"},
-                    }
-                ]
-            }
-        }
-    )
-    tree = elastic_to_filter_tree(es)
-    leaf = tree.children[0]
-    assert isinstance(leaf, PathFilter)
-    assert isinstance(leaf.condition, ContainsFilter)
-    assert leaf.condition.op == FilterOp.NOT_CONTAINS
-
-
 def test_search_request_accepts_contains_filter() -> None:
     request = SearchRequest(filters={"regexp": {"subscription.description": {"value": ".*fiber.*"}}})  # type: ignore[arg-type]
-    assert isinstance(request.filters, FilterTree)
-    assert len(request.filters.children) == 1
-    leaf = request.filters.children[0]
+    query = request.to_query(EntityType.SUBSCRIPTION)
+    assert isinstance(query.filters, FilterTree)
+    assert len(query.filters.children) == 1
+    leaf = query.filters.children[0]
     assert isinstance(leaf, PathFilter)
     assert isinstance(leaf.condition, ContainsFilter)
     assert leaf.condition.op == FilterOp.CONTAINS
