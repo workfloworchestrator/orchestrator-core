@@ -491,6 +491,46 @@ def test_resolve_like_filter_term_not_in_text_falls_back_to_full_text():
     assert result[0].highlight_indices == [(0, len("Corelink 10G"))]
 
 
+@pytest.mark.parametrize(
+    "pattern, text, expected_indices",
+    [
+        pytest.param(".*SP.*", "IRB SP ah001a-jnx-okt-rg8-0a", [(4, 6)], id="dot-star-wrapped"),
+        pytest.param("SP", "IRB SP ah001a-jnx-okt-rg8-0a", [(4, 6)], id="plain-substring"),
+        pytest.param(".+aren.+", "SingAren SURF", [(4, 8)], id="dot-plus-wrapped"),
+        pytest.param("irb|sp", "IRB SP port", [(0, 3), (4, 6)], id="alternation"),
+    ],
+)
+def test_resolve_contains_filter_highlights_regex_matches(pattern, text, expected_indices):
+    """CONTAINS (`regexp`) patterns highlight with regex semantics, ignoring greedy `.*`/`.+` wrappers."""
+    tree = _single_leaf_filter_tree(
+        ContainsFilter(op=FilterOp.CONTAINS, value=pattern), path="subscription.description"
+    )
+    row = _row_with_highlights([(text, "subscription.description")])
+    result = _resolve_structured_matching_fields(row, tree)
+    assert len(result) == 1
+    assert result[0].text == text
+    assert result[0].highlight_indices == expected_indices
+
+
+@pytest.mark.parametrize(
+    "pattern, text",
+    [
+        pytest.param("[SP", "IRB SP port", id="invalid-regex"),
+        pytest.param(".*", "IRB SP port", id="match-all-wildcard-only"),
+        pytest.param(".*fiber.*", "Corelink 10G", id="pattern-not-in-text"),
+    ],
+)
+def test_resolve_contains_filter_falls_back_to_full_text(pattern, text):
+    """Patterns that cannot be located in the stored value highlight the whole value."""
+    tree = _single_leaf_filter_tree(
+        ContainsFilter(op=FilterOp.CONTAINS, value=pattern), path="subscription.description"
+    )
+    row = _row_with_highlights([(text, "subscription.description")])
+    result = _resolve_structured_matching_fields(row, tree)
+    assert len(result) == 1
+    assert result[0].highlight_indices == [(0, len(text))]
+
+
 def test_resolve_neq_filter_returns_null_highlight_indices():
     """NEQ filter returns the stored value as context but highlight_indices=None (no term to highlight)."""
     tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.NEQ, value="terminated"))
