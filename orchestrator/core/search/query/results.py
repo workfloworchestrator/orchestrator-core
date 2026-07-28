@@ -13,6 +13,7 @@
 
 """Query execution result models and formatting functions."""
 
+import re
 from collections.abc import Sequence
 from typing import Literal
 
@@ -219,6 +220,29 @@ def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
     return sorted(set(all_matches))
 
 
+def generate_regex_highlight_indices(text: str, pattern: str) -> list[tuple[int, int]]:
+    """Find spans matching a CONTAINS (``regexp``) filter pattern, ignoring greedy ``.*``/``.+`` wrappers.
+
+    Contains filters match in the database with the case-insensitive regex operator (``~*``),
+    so the pattern is applied as a regex here as well. Leading/trailing ``.*``/``.+`` are
+    stripped first so they don't swallow the surrounding text. An invalid pattern falls back
+    to literal word highlighting.
+    """
+
+    if not text or not pattern:
+        return []
+
+    core = re.sub(r"^(?:\.[*+])+", "", pattern) # removes leading greedy wildcard
+    core = re.sub(r"(?:\.[*+])+$", "", core) # removes trailing greedy wildcard
+    if not core:
+        return []
+    try:
+        spans = {m.span() for m in re.finditer(core, text, re.IGNORECASE) if m.start() < m.end()}
+    except re.error:  # FIXME rename to re.PatternError when dropping support for python < 3.13
+        return generate_highlight_indices(text, pattern)
+    return sorted(spans)
+
+
 def format_search_response(
     db_rows: Sequence[RowMapping],
     query: "SelectQuery | ExportQuery",
@@ -315,7 +339,7 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
     that leaf (``{"value", "path", "idx"}``). Flattening gives every (value, path) pair
     that satisfied any filter, deduplicated across leaves.
     """
-    from orchestrator.core.search.filters import ContainsFilter, EqualityFilter, LtreeFilter
+    from orchestrator.core.search.filters import ContainsFilter, EqualityFilter, LtreeFilter, StringFilter
     from orchestrator.core.search.retrieval.retrievers import Retriever
 
     leaf_arrays: list[list[dict]] | None = row.get(Retriever.HIGHLIGHT_MATCHES_LABEL)
@@ -340,7 +364,16 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
         if is_negation:
             return MatchingField(text=text, path=path, highlight_indices=None)
         term = str(getattr(leaf.condition, "value", "") or "") if leaf else ""
-        indices = generate_highlight_indices(text, term) if term else []
+        match leaf.condition if leaf else None:
+            case ContainsFilter():
+                indices = generate_regex_highlight_indices(text, term)
+            case StringFilter():
+                # LIKE patterns carry SQL wildcards that would never match literally;
+                # replace with spaces so the remaining words are highlighted individually.
+                term = term.replace("%", " ").replace("_", " ")
+                indices = generate_highlight_indices(text, term) if term.strip() else []
+            case _:
+                indices = generate_highlight_indices(text, term) if term.strip() else []
         return MatchingField(text=text, path=path, highlight_indices=indices or [(0, len(text))])
 
     return [build_matching_field(text, path, m) for (text, path), m in unique_matches.items()]
