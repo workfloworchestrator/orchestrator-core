@@ -232,8 +232,8 @@ def generate_regex_highlight_indices(text: str, pattern: str) -> list[tuple[int,
     if not text or not pattern:
         return []
 
-    core = re.sub(r"^(?:\.[*+])+", "", pattern)
-    core = re.sub(r"(?:\.[*+])+$", "", core)
+    core = re.sub(r"^(?:\.[*+])+", "", pattern) # removes leading greedy wildcard
+    core = re.sub(r"(?:\.[*+])+$", "", core) # removes trailing greedy wildcard
     if not core:
         return []
     try:

@@ -466,10 +466,10 @@ def test_resolve_equality_filter_value_highlighted(value, expected_text: str):
 @pytest.mark.parametrize(
     "pattern, text, expected_indices",
     [
-        pytest.param("%aren%", "SingAren SURF", [(4, 8)], id="wrapped-wildcards"),
-        pytest.param("aren%", "SingAren SURF", [(4, 8)], id="trailing-wildcard"),
-        pytest.param("%aren%surf%", "SingAren SURF", [(4, 8), (9, 13)], id="multiple-wildcards"),
-        pytest.param("nsi_dev%", "prefix nsi.dev suffix", [(7, 10), (11, 14)], id="underscore-wildcard-splits-words"),
+        pytest.param("%base%", "Database backup", [(4, 8)], id="wrapped-wildcards"),
+        pytest.param("base%", "Database backup", [(4, 8)], id="trailing-wildcard"),
+        pytest.param("%base%backup%", "Database backup", [(4, 8), (9, 15)], id="multiple-wildcards"),
+        pytest.param("foo_bar%", "prefix foo.bar suffix", [(7, 10), (11, 14)], id="underscore-wildcard-splits-words"),
     ],
 )
 def test_resolve_like_filter_strips_wildcards_before_highlighting(pattern, text, expected_indices):
@@ -484,20 +484,20 @@ def test_resolve_like_filter_strips_wildcards_before_highlighting(pattern, text,
 
 def test_resolve_like_filter_term_not_in_text_falls_back_to_full_text():
     """When the LIKE words do not occur in the stored value, the whole value is highlighted."""
-    tree = _single_leaf_filter_tree(StringFilter(op=FilterOp.LIKE, value="%fiber%"), path="subscription.description")
-    row = _row_with_highlights([("Corelink 10G", "subscription.description")])
+    tree = _single_leaf_filter_tree(StringFilter(op=FilterOp.LIKE, value="%banana%"), path="subscription.description")
+    row = _row_with_highlights([("widget assembly", "subscription.description")])
     result = _resolve_structured_matching_fields(row, tree)
     assert len(result) == 1
-    assert result[0].highlight_indices == [(0, len("Corelink 10G"))]
+    assert result[0].highlight_indices == [(0, len("widget assembly"))]
 
 
 @pytest.mark.parametrize(
     "pattern, text, expected_indices",
     [
-        pytest.param(".*SP.*", "IRB SP ah001a-jnx-okt-rg8-0a", [(4, 6)], id="dot-star-wrapped"),
-        pytest.param("SP", "IRB SP ah001a-jnx-okt-rg8-0a", [(4, 6)], id="plain-substring"),
-        pytest.param(".+aren.+", "SingAren SURF", [(4, 8)], id="dot-plus-wrapped"),
-        pytest.param("irb|sp", "IRB SP port", [(0, 3), (4, 6)], id="alternation"),
+        pytest.param(".*OK.*", "job OK done", [(4, 6)], id="dot-star-wrapped"),
+        pytest.param("OK", "job OK done", [(4, 6)], id="plain-substring"),
+        pytest.param(".+base.+", "Database backup", [(4, 8)], id="dot-plus-wrapped"),
+        pytest.param("foo|bar", "FOO BAR baz", [(0, 3), (4, 7)], id="alternation"),
     ],
 )
 def test_resolve_contains_filter_highlights_regex_matches(pattern, text, expected_indices):
@@ -515,9 +515,9 @@ def test_resolve_contains_filter_highlights_regex_matches(pattern, text, expecte
 @pytest.mark.parametrize(
     "pattern, text",
     [
-        pytest.param("[SP", "IRB SP port", id="invalid-regex"),
-        pytest.param(".*", "IRB SP port", id="match-all-wildcard-only"),
-        pytest.param(".*fiber.*", "Corelink 10G", id="pattern-not-in-text"),
+        pytest.param("[foo", "FOO BAR baz", id="invalid-regex"),
+        pytest.param(".*", "FOO BAR baz", id="match-all-wildcard-only"),
+        pytest.param(".*banana.*", "widget assembly", id="pattern-not-in-text"),
     ],
 )
 def test_resolve_contains_filter_falls_back_to_full_text(pattern, text):
