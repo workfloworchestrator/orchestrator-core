@@ -468,6 +468,8 @@ def test_resolve_equality_filter_value_highlighted(value, expected_text: str):
     [
         pytest.param("%base%", "Database backup", [(4, 8)], id="wrapped-wildcards"),
         pytest.param("base%", "Database backup", [(4, 8)], id="trailing-wildcard"),
+        pytest.param("%base%", "Database Database backup,", [(4, 8), (13, 17)], id="term-occurs-twice-in-text"),
+        pytest.param("%base%", "Databasebase", [(4, 8), (8, 12)], id="adjacent-matches-in-text"),
         pytest.param("%base%backup%", "Database backup", [(4, 8), (9, 15)], id="multiple-wildcards"),
         pytest.param("foo_bar%", "prefix foo.bar suffix", [(7, 10), (11, 14)], id="underscore-wildcard-splits-words"),
     ],

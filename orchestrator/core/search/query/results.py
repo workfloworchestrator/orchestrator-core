@@ -13,6 +13,7 @@
 
 """Query execution result models and formatting functions."""
 
+import re
 from collections.abc import Sequence
 from typing import Literal
 
@@ -227,7 +228,6 @@ def generate_regex_highlight_indices(text: str, pattern: str) -> list[tuple[int,
     stripped first so they don't swallow the surrounding text. An invalid pattern falls back
     to literal word highlighting.
     """
-    import re
 
     if not text or not pattern:
         return []
@@ -238,7 +238,7 @@ def generate_regex_highlight_indices(text: str, pattern: str) -> list[tuple[int,
         return []
     try:
         spans = {m.span() for m in re.finditer(core, text, re.IGNORECASE) if m.start() < m.end()}
-    except re.error:
+    except re.error:  # FIXME rename to re.PatternError when dropping support for python < 3.13
         return generate_highlight_indices(text, pattern)
     return sorted(spans)
 
