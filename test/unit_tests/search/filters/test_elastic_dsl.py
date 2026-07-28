@@ -368,6 +368,33 @@ def test_value_kind_inference(value: Any, expected_kind: UIType) -> None:
     assert leaf.value_kind == expected_kind
 
 
+def test_resolve_value_kind_falls_back_when_resolver_returns_none() -> None:
+    """When the resolver can't resolve a digit-only string, inference is used instead."""
+    from orchestrator.core.search.filters.elastic_dsl import _resolve_value_kind
+
+    assert _resolve_value_kind("field", "26", lambda _field, _value: None) == UIType.NUMBER
+
+
+def test_resolve_value_kind_uses_resolver_for_digit_only_string() -> None:
+    from orchestrator.core.search.filters.elastic_dsl import _resolve_value_kind
+
+    assert _resolve_value_kind("field", "26", lambda _field, _value: UIType.STRING) == UIType.STRING
+
+
+def test_resolve_value_kind_ignores_resolver_for_non_digit_string() -> None:
+    from orchestrator.core.search.filters.elastic_dsl import _resolve_value_kind
+
+    resolver_called = False
+
+    def resolver(_field: str, _value: Any) -> UIType | None:
+        nonlocal resolver_called
+        resolver_called = True
+        return UIType.STRING
+
+    assert _resolve_value_kind("field", "not-digits", resolver) == UIType.STRING
+    assert resolver_called is False
+
+
 # ---------------------------------------------------------------------------
 # validation / edge cases
 # ---------------------------------------------------------------------------
@@ -376,6 +403,28 @@ def test_value_kind_inference(value: Any, expected_kind: UIType) -> None:
 def test_empty_bool_raises() -> None:
     with pytest.raises(ValidationError, match="at least one clause"):
         ElasticQueryAdapter.validate_python({"bool": {}})
+
+
+def test_translate_node_unsupported_query_type_raises() -> None:
+    """_translate_node raises for a query type outside the known ElasticQuery union."""
+    from orchestrator.core.search.filters.elastic_dsl import _translate_node
+
+    class UnsupportedQuery:
+        pass
+
+    with pytest.raises(ValueError, match="Unsupported ES DSL query type"):
+        _translate_node(UnsupportedQuery())  # type: ignore[arg-type]
+
+
+def test_translate_bool_no_children_raises() -> None:
+    """_translate_bool raises if must/should/must_not clauses translate to no children."""
+    from orchestrator.core.search.filters.elastic_dsl import BoolClause, BoolQuery, _translate_bool
+
+    clause = BoolClause.model_construct(must=[], should=[], must_not=[])
+    query = BoolQuery.model_construct(bool=clause)
+
+    with pytest.raises(ValueError, match="bool query produced no children"):
+        _translate_bool(query)
 
 
 @pytest.mark.parametrize(
