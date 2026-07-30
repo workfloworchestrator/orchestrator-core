@@ -41,7 +41,7 @@ from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
 from {{workflows_module}}.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
 {%- endif %}
 {% if product.config.summary_forms -%}
-from {{workflows_module}}.shared import modify_summary_form
+from orchestrator.core.forms.summary_form import base_summary
 {%- endif %}
 {% if product_block_types -%}
 from {{ product_blocks_module }}.{{ product_block.variable }} import {{ product_block_types | map(attribute='type') | join(", ") }}
@@ -96,8 +96,8 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     user_input = yield Modify{{ product.type }}Form
     user_input_dict = user_input.dict()
     {% if product.config.summary_forms %}
-    summary_fields = [{% for field in fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
-    yield from modify_summary_form(user_input_dict, subscription.{{ product_block.name }}, summary_fields)
+    old_modify_form_data = Modify{{ product.type }}Form.model_construct().model_dump()
+    yield from base_summary(subscription.product.name, user_input_dict, old_modify_form_data)
     {%- endif %}
 
     return user_input_dict | {"subscription": subscription}
