@@ -176,7 +176,10 @@ def generate_shared_workflow_files(environment: Environment, config: dict, write
     template = environment.get_template("shared_workflows.j2")
     content = template.render()
     path = get_workflows_folder() / Path("shared.py")
-    writer(path, content)
+    if path.exists():
+        logger.warning("not overwriting existing shared workflow file", path=str(path))
+    else:
+        writer(path, content)
 
 
 def generate_workflow(f: Callable | None = None, workflow: str | None = None) -> Callable:

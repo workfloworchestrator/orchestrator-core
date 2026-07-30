@@ -79,3 +79,17 @@ def test_generate_unit_tests(mkdir_mock):
     result = runner.invoke(app, ["unit-tests", "--config-file", read_file("product_config3.yaml"), "--dryrun"])
     assert "def test_" in result.stdout
     assert result.exit_code == 0
+
+
+def test_generate_workflows_does_not_overwrite_existing_shared_py(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    shared = tmp_path / "workflows" / "shared.py"
+    shared.parent.mkdir(parents=True)
+    shared.write_text("# hand written shared workflow code\n")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["workflows", "--config-file", read_file("product_config3.yaml"), "--no-dryrun", "--force"]
+    )
+    assert result.exit_code == 0
+    assert shared.read_text() == "# hand written shared workflow code\n"
