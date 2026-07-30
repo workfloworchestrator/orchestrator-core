@@ -46,7 +46,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 
         customer_id: CustomerId
 
-        example2_settings: Label
+        label_example2_settings: Label
         divider_1: Divider
 
         example_int_enum_2: ExampleIntEnum2 | None = None

@@ -15,6 +15,7 @@ from typing import Annotated
 import structlog
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.summary_form import base_summary
 from orchestrator.core.forms.validators import CustomerId, Divider, Label
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
@@ -29,7 +30,6 @@ from workflows.example1.shared.forms import (
     annotated_int_must_be_unique_validator,
     must_be_unused_to_change_mode_validator,
 )
-from workflows.shared import create_summary_form
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:
@@ -55,7 +55,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 
         customer_id: CustomerId
 
-        example1_settings: Label
+        label_example1_settings: Label
         divider_1: Divider
 
         example_str_enum_1: validated_example_str_enum_1
@@ -67,14 +67,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     user_input = yield CreateExample1Form
     user_input_dict = user_input.dict()
 
-    summary_fields = [
-        "example_str_enum_1",
-        "unmodifiable_str",
-        "modifiable_boolean",
-        "annotated_int",
-        "always_optional_str",
-    ]
-    yield from create_summary_form(user_input_dict, product_name, summary_fields)
+    yield from base_summary(product_name, user_input_dict)
 
     return user_input_dict
 
