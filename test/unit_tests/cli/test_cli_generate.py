@@ -63,6 +63,18 @@ def test_generate_product_blocks(existing_product_blocks_mock):
     assert result.exit_code == 0
 
 
+@mock.patch("orchestrator.core.cli.generator.generator.product_block.get_existing_product_blocks")
+def test_generate_product_blocks_list_field_without_min_items(existing_product_blocks_mock):
+    existing_product_blocks_mock.return_value = {
+        "MyExistingProductBlock": "products.product_blocks.my_existing_product_block"
+    }
+    runner = CliRunner()
+    result = runner.invoke(app, ["product-blocks", "--config-file", read_file("product_config3.yaml"), "--dryrun"])
+    assert "Len(min_length=0)" in result.stdout
+    assert "Len(min_length=)" not in result.stdout
+    assert result.exit_code == 0
+
+
 def test_generate_workflows():
     runner = CliRunner()
     result = runner.invoke(app, ["workflows", "--config-file", read_file("product_config3.yaml"), "--dryrun"])
