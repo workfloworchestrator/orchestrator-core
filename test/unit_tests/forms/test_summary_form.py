@@ -17,12 +17,11 @@ Covers field filtering/formatting, table generation (single, before/after, singl
 assembly, and the small summary formatters.
 """
 
-from unittest.mock import MagicMock, patch
-from uuid import uuid4
+from typing import Annotated
 
 import pytest
+from pydantic import BaseModel, Field
 
-from orchestrator.core.forms.summary_form import summary_form as sf
 from orchestrator.core.forms.summary_form.summary_form import (
     TABLE_NUMBER_FIELD,
     _filter_summary_fields,
@@ -36,45 +35,71 @@ from orchestrator.core.forms.summary_form.summary_form import (
     _validate_uniform_old_data,
     base_summary,
     create_table,
+    exclude_summary_fields,
+    extract_user_input,
     generate_summary_form,
-    subscription_summary_fields,
 )
+from orchestrator.core.forms.validators import Divider, Label, migration_summary
+from pydantic_forms.types import SummaryData
+from pydantic_forms.validators import callout
 
 # --- _filter_summary_fields ---
 
 
-def test_filter_summary_fields_excludes_labels_dividers_form_info_and_action_choices():
+def test_filter_summary_fields_excludes_only_table_number_field():
     data = {
         "a": 1,
         "label_x": 1,
         "divider_1": None,
-        "form_info_x": 1,
         "action_choice_x": 1,
         TABLE_NUMBER_FIELD: 1,
         "b": 2,
     }
 
-    assert list(_filter_summary_fields(data, {})) == ["a", "b"]
+    assert list(_filter_summary_fields(data)) == ["a", "label_x", "divider_1", "action_choice_x", "b"]
 
 
-@pytest.mark.parametrize(
-    "field_name",
-    [
-        "my_label",
-        "sub_divider",
-    ],
-)
-def test_filter_summary_fields_only_excludes_label_and_divider_prefixes(field_name):
-    """label/divider only exclude a field when they're a prefix, not anywhere in the name."""
-    data = {field_name: 1}
-
-    assert list(_filter_summary_fields(data, {})) == [field_name]
+# --- extract_user_input ---
 
 
-def test_filter_summary_fields_with_custom_exclude():
+def test_extract_user_input_drops_label_divider_summary_and_callout_fields():
+    Summary = migration_summary(data=SummaryData(labels=[], columns=[]))
+    Note = callout(message="hello")
+
+    class Form(BaseModel):
+        a: int = 1
+        label_x: Label = None
+        divider_1: Divider = None
+        form_info: Summary = None
+        callout_1: Note = None
+
+    assert extract_user_input(Form()) == {"a": 1}
+
+
+def test_extract_user_input_with_exclude_types():
+    Custom = Annotated[str | None, Field(None, json_schema_extra={"format": "custom"})]
+
+    class Form(BaseModel):
+        a: int = 1
+        custom_x: Custom = None
+
+    assert extract_user_input(Form()) == {"a": 1, "custom_x": None}
+    assert extract_user_input(Form(), exclude_types=(Custom,)) == {"a": 1}
+
+
+# --- exclude_summary_fields ---
+
+
+def test_exclude_summary_fields_drops_given_fields():
+    data = {"a": 1, "peer_action_choice_1": "Edit peering", "b": 2}
+
+    assert exclude_summary_fields(data, {"peer_action_choice_1"}) == {"a": 1, "b": 2}
+
+
+def test_exclude_summary_fields_keeps_data_when_no_fields_given():
     data = {"a": 1, "b": 2}
 
-    assert list(_filter_summary_fields(data, {"exclude": {"b"}})) == ["a"]
+    assert exclude_summary_fields(data, []) == data
 
 
 # --- _get_summary_labels / _get_column_values ---
@@ -362,41 +387,3 @@ def test_base_summary_includes_extra_tables():
     schema = model.model_json_schema()
     product_summary_data = schema["properties"]["note"]["uniforms"]["data"]
     assert product_summary_data["labels"] == ["x"]
-
-
-# --- subscription_summary_fields ---
-
-
-@pytest.fixture
-def mock_subscription():
-    sub = MagicMock()
-    sub.subscription_id = uuid4()
-    sub.description = "some description"
-    sub._product_block_fields_ = {"ip_block": None}
-    return sub
-
-
-def test_subscription_summary_fields_includes_block_title(mock_subscription):
-    mock_subscription.ip_block.title = "Block title"
-
-    with patch.object(sf, "SubscriptionModel") as mock_model:
-        mock_model.from_subscription.return_value = mock_subscription
-
-        result = list(subscription_summary_fields(mock_subscription.subscription_id))
-
-    assert result == [
-        ("subscription_id", str(mock_subscription.subscription_id)),
-        ("description", "some description"),
-        ("title", "Block title"),
-    ]
-
-
-def test_subscription_summary_fields_defaults_title_when_block_has_none(mock_subscription):
-    del mock_subscription.ip_block.title
-
-    with patch.object(sf, "SubscriptionModel") as mock_model:
-        mock_model.from_subscription.return_value = mock_subscription
-
-        result = list(subscription_summary_fields(mock_subscription.subscription_id))
-
-    assert result[-1] == ("title", "-")

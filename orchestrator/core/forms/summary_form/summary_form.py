@@ -14,75 +14,125 @@
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from itertools import chain, repeat
 from typing import Any, Required, TypedDict
-from uuid import UUID
 
 from more_itertools import first
-from pydantic import ConfigDict, create_model
+from pydantic import BaseModel, ConfigDict, create_model
+from pydantic.fields import FieldInfo
 
-from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage, SubmitFormPage
-from orchestrator.core.forms.validators import Divider, MigrationSummary, migration_summary
-from pydantic_forms.types import SummaryData, UUIDstr
-from pydantic_forms.validators import read_only_field
+from orchestrator.core.forms.summary_form.formatters import DEFAULT_FORMATTERS, Formatter
+from orchestrator.core.forms.validators import Divider, Label, MigrationSummary, migration_summary
+from pydantic_forms.types import SummaryData
+from pydantic_forms.validators import callout, read_only_field
 
-RowGenerator = Generator[tuple[str, str], None, None]
 FormFieldGenerator = Generator[tuple[str, tuple], None, None]
-Formatter = Callable[[Any], RowGenerator]
 FormPageGenerator = Generator[type[FormPage], None, None]
 TableData = Sequence[tuple[dict, dict | None]]
 
 
 TABLE_NUMBER_FIELD = "__table_number"
-PRODUCT_SUMMARY_TABLE_NAME = "product_summary"
 
-DEFAULT_EXCLUDE_FIELDS = {
-    TABLE_NUMBER_FIELD,
-}
-DEFAULT_FORMATTERS: dict[str, Formatter] = {}
+PRODUCT_SUMMARY_TABLE_NAME = "product_summary"
 
 
 class BaseOptions(TypedDict, total=False):
-    exclude: set[str]
     formatter: dict[str, Formatter]
+    """Per-field `Formatter` overrides of `DEFAULT_FORMATTERS`."""
 
 
 class TableOptions(BaseOptions, total=False):
     name: Required[str]
+    """Table title, and field name prefix on the generated form."""
+
     header: Callable[[Any], str]
+    """Computes a column header from its 1-based index."""
+
     data: Required[TableData]
+    """Sequence[(new: dict, old: dict | None)] - the rows to render."""
+
     empty_message: str
-    single_column: bool  # Set True to spread columns out over separate tables
+    """Message shown when `data` is empty."""
+
+    single_column: bool
+    """Set True to render one table per item, instead of one combined table."""
 
 
 class SummaryOptions(TypedDict, total=False):
     product_name: Required[str]
+    """Title of the generated summary `FormPage`."""
+
     product: Required[TableOptions]
+
     after_product: dict[str, tuple]
+    """Extra fields merged in after the product table, e.g. to show a callout."""
+
     tables: Sequence[TableOptions]
+    """Any number of extra tables, e.g. one per endpoint a workflow is creating."""
 
 
-def _filter_summary_fields(data: dict, options: BaseOptions) -> Generator[str, None, None]:
+def _filter_summary_fields(data: dict) -> Generator[str, None, None]:
     """Yield the field names from `data` that should be shown in a summary table.
 
-    Drops labels, dividers, form-info fields, action-choice fields, and anything in
-    `options["exclude"]` (in addition to the always-excluded `DEFAULT_EXCLUDE_FIELDS`).
+    Drops `TABLE_NUMBER_FIELD` (a summary-form internal). Callers are responsible for excluding
+    anything else (e.g. UI-only fields) before building table data - see `extract_user_input()`.
     """
-    exclude: set[str] = options.get("exclude", set()) | DEFAULT_EXCLUDE_FIELDS
+    return (field for field in data.keys() if field != TABLE_NUMBER_FIELD)
 
-    def should_include(field: str) -> bool:
-        if field.startswith("label"):
-            return False
-        if field.startswith("divider"):
-            return False
-        if field.startswith("form_info"):
-            return False
-        if "action_choice_" in field:
-            return False
-        if field in exclude:
-            return False
-        return True
 
-    return (field for field in data.keys() if should_include(field))
+def _field_format(json_schema_extra: Any) -> str | None:
+    """Return the "format" key a field's `json_schema_extra` renders as, dict- or callable-based."""
+    if isinstance(json_schema_extra, dict):
+        return json_schema_extra.get("format")
+    if callable(json_schema_extra):
+        schema: dict[str, Any] = {}
+        json_schema_extra(schema)
+        return schema.get("format")
+    return None
+
+
+def _format_marker(annotated_type: Any) -> str | None:
+    """Return the format marker of an Annotated field type, if any."""
+    for meta in getattr(annotated_type, "__metadata__", ()):
+        if fmt := _field_format(getattr(meta, "json_schema_extra", None)):
+            return fmt
+    return None
+
+
+DEFAULT_EXCLUDED_TYPES = (
+    Divider,
+    Label,
+    migration_summary(data=SummaryData(labels=[], columns=[])),
+    callout(),
+)
+
+
+def extract_user_input(form: BaseModel, *, exclude_types: Iterable[Any] = ()) -> dict:
+    """`model_dump()` a form, dropping its Label/Divider/summary-table/callout fields.
+
+    Use this instead of `form.model_dump()` wherever a form is dumped: these field types are
+    UI-only display elements - their model value is always `None` (the displayed content lives in
+    the type's schema, not the field's value) - so they never carry real data, in a summary table
+    or anywhere else. Pass `exclude_types` for other display-only field types defined the same way
+    (an `Annotated[..., Field(json_schema_extra=...)]` alias).
+    """
+    excluded_formats = {fmt for t in (*DEFAULT_EXCLUDED_TYPES, *exclude_types) if (fmt := _format_marker(t))}
+
+    def is_excluded(field: FieldInfo) -> bool:
+        return _field_format(field.json_schema_extra) in excluded_formats
+
+    exclude = {name for name, field in type(form).model_fields.items() if is_excluded(field)}
+    return form.model_dump(exclude=exclude)
+
+
+def exclude_summary_fields(data: dict, fields: Iterable[str]) -> dict:
+    """Drop `fields` from `data` before it's used to build a summary table.
+
+    Use this for fields that must stay in the workflow's persisted state (so keep them out of
+    `extract_user_input`) but shouldn't be shown to the user in a summary table - e.g. a workflow's
+    own action-choice fields.
+    """
+    fields = set(fields)
+    return {key: value for key, value in data.items() if key not in fields}
 
 
 def _get_summary_labels(data: dict, options: BaseOptions) -> list[str]:
@@ -98,7 +148,7 @@ def _get_summary_labels(data: dict, options: BaseOptions) -> list[str]:
         else:
             yield field
 
-    field_labels = (get_label(field) for field in _filter_summary_fields(data, options))
+    field_labels = (get_label(field) for field in _filter_summary_fields(data))
     return list(chain.from_iterable(field_labels))
 
 
@@ -119,7 +169,7 @@ def _get_column_values(data: dict, options: BaseOptions) -> list[str]:
                 case _:
                     yield str(field_value)
 
-    field_values = (get_value(field) for field in _filter_summary_fields(data, options))
+    field_values = (get_value(field) for field in _filter_summary_fields(data))
     return list(chain.from_iterable(field_values))
 
 
@@ -314,61 +364,3 @@ def base_summary(
     )
 
     return generate_summary_form(summary_options)
-
-
-def subscription_summary_fields(subscription_id: UUID) -> RowGenerator:
-    """Formatter that yields subscription id, description, and block title rows for a linked subscription.
-
-    Use as a `Formatter` (in `DEFAULT_FORMATTERS` or a table's `options["formatter"]`) for a field that
-    holds another subscription's id, e.g. one subscription referencing another it depends on. Falls
-    back to "-" for the title when the subscription's first product block has no `title` attribute.
-    """
-    subscription = SubscriptionModel.from_subscription(subscription_id)
-    block_name = first(subscription._product_block_fields_.keys())
-    block = getattr(subscription, block_name, None)
-    block_title = getattr(block, "title", "-") if block else "-"
-
-    yield "subscription_id", str(subscription.subscription_id)
-    yield "description", subscription.description
-    yield "title", block_title
-
-
-def customer_name_summary_field(
-    get_customer_name_fn: Callable[[UUID | UUIDstr], str],
-) -> Callable[[UUIDstr], RowGenerator]:
-    """Build a `Formatter` for a customer id field that shows the resolved customer name instead of the raw id.
-
-    Pass a lookup function that resolves a customer id to a name; register the returned formatter under
-    the relevant field key, e.g. `DEFAULT_FORMATTERS["customer_id"] = customer_name_summary_field(...)`.
-
-    >>> list(customer_name_summary_field(lambda customer_id: "ACME")("cust-1"))
-    [('customer_id', 'ACME')]
-    >>> list(customer_name_summary_field(lambda customer_id: None)("cust-2"))
-    [('customer_id', 'Customer name not found for cust-2')]
-    """
-
-    def _customer_name_summary_field(customer_id: UUIDstr) -> RowGenerator:
-        """Formatter for showing customer name with the customer_id."""
-        customer_name = get_customer_name_fn(customer_id)
-        yield "customer_id", customer_name or f"Customer name not found for {customer_id}"
-
-    return _customer_name_summary_field
-
-
-def select_list_summary(field_name: str) -> Callable[[list], RowGenerator]:
-    """Build a `Formatter` for a multi-select list field that joins the selected values into one row.
-
-    Register the returned formatter under the relevant field key, e.g.
-    `DEFAULT_FORMATTERS["tags"] = select_list_summary("tags")`.
-
-    >>> list(select_list_summary("prefixes")(["1.1.1.1/32", "2.2.2.2/32"]))
-    [('prefixes', '1.1.1.1/32, 2.2.2.2/32')]
-    >>> list(select_list_summary("prefixes")([]))
-    [('prefixes', '')]
-    """
-
-    def _select_list_summary(_list: list[str]) -> RowGenerator:
-        """Formatter for IPV X prefix list."""
-        yield field_name, ", ".join(_list)
-
-    return _select_list_summary
