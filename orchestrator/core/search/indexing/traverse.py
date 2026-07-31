@@ -208,12 +208,9 @@ class ProductTraverser(BaseTraverser):
 
         # Extract all field names from the block as RESOURCE_TYPE
         if hasattr(type(block_instance), "model_fields"):
-            all_fields = type(block_instance).model_fields
-            computed_fields = getattr(block_instance, "__pydantic_computed_fields__", None)
-            if computed_fields:
-                all_fields.update(computed_fields)
+            all_field_names = [name for name, _ in iter_model_field_annotations(type(block_instance))]
 
-            for field_name in all_fields:
+            for field_name in all_field_names:
                 field_value = getattr(block_instance, field_name, None)
                 field_path = f"{block_path}.{field_name}"
 

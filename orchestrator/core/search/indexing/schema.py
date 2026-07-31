@@ -17,12 +17,11 @@ from collections.abc import Iterable
 from typing import Any
 
 from pydantic import BaseModel
-from pydantic.fields import ComputedFieldInfo, FieldInfo
 
 
 def iter_model_field_annotations(model_type: type[BaseModel]) -> Iterable[tuple[str, Any]]:
     """Yield declared and computed field names with their annotations."""
-    fields: dict[str, FieldInfo | ComputedFieldInfo] = dict(model_type.model_fields)
-    fields.update(getattr(model_type, "__pydantic_computed_fields__", {}))
-    for name, field in fields.items():
-        yield name, field.return_type if isinstance(field, ComputedFieldInfo) else field.annotation
+    for name, field in model_type.model_fields.items():
+        yield name, field.annotation
+    for name, computed_field in getattr(model_type, "__pydantic_computed_fields__", {}).items():
+        yield name, computed_field.return_type

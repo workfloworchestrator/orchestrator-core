@@ -17,9 +17,11 @@ from typing import Any, get_args, get_origin
 
 from pydantic import BaseModel
 
-from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
+from orchestrator.core.domain.lifecycle import lookup_specialized_type
 from orchestrator.core.search.core.types import EntityType, FieldType
 from orchestrator.core.search.indexing.schema import iter_model_field_annotations
+from orchestrator.core.types import SubscriptionLifecycle
 
 
 def _model_types(annotation: Any) -> set[type[BaseModel]]:
@@ -52,9 +54,13 @@ def _collect_field_types(
             field_types[indexed_path].add(FieldType.from_type_hint(annotation))
 
 
-def _all_subclasses(model_type: type[BaseModel]) -> set[type[BaseModel]]:
-    subclasses = set(model_type.__subclasses__())
-    return subclasses | {subclass for child in subclasses for subclass in _all_subclasses(child)}
+def _specialized_subscription_types(model_type: type[SubscriptionModel]) -> set[type[SubscriptionModel]]:
+    """Return a registered subscription model together with its lifecycle-specialized variants.
+
+    Uses the lifecycle registry maintained by ``register_specialized_type()`` instead of walking
+    ``__subclasses__()``, so only variants actually registered for this model are included.
+    """
+    return {lookup_specialized_type(model_type, lifecycle) for lifecycle in (None, *SubscriptionLifecycle)}
 
 
 @lru_cache(maxsize=1)
@@ -62,9 +68,9 @@ def _subscription_field_types() -> dict[str, frozenset[FieldType]]:
     """Build searchable subscription field types from registered Pydantic models."""
     field_types: dict[str, set[FieldType]] = defaultdict(set)
     model_types = {
-        model_type
+        specialized_type
         for registered_model_type in SUBSCRIPTION_MODEL_REGISTRY.values()
-        for model_type in {registered_model_type, *_all_subclasses(registered_model_type)}
+        for specialized_type in _specialized_subscription_types(registered_model_type)
     }
     for model_type in model_types:
         _collect_field_types(model_type, "subscription", field_types, set())
