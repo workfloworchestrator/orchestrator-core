@@ -12,19 +12,13 @@
 # limitations under the License.
 
 
-from typing import Any
-
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, TypeAdapter, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from orchestrator.core.search.core.types import EntityType, FieldType, RetrieverType, UIType
 from orchestrator.core.search.filters import ElasticQuery, FilterTree, elastic_to_filter_tree
 from orchestrator.core.search.indexing.field_types import resolve_field_types
 from orchestrator.core.search.query.mixins import StructuredOrderBy
 from orchestrator.core.search.query.queries import SelectQuery
-
-# Keys that identify an ES DSL query at the top level
-_ES_DSL_KEYS = frozenset({"term", "range", "wildcard", "regexp", "exists", "bool"})
-_ES_QUERY_ADAPTER: TypeAdapter[ElasticQuery] = TypeAdapter(ElasticQuery)
 
 
 def _resolve_digit_only_string_kind(entity_type: EntityType, path: str) -> UIType | None:
@@ -41,32 +35,13 @@ class SearchRequest(BaseModel):
 
     Only supports SELECT action, used by search endpoints.
     Accepts filters in either FilterTree format or Elasticsearch DSL format.
-    ES DSL filters are validated on receipt and converted after the entity type is known.
+    ES DSL filters are converted to FilterTree in to_query, once the entity type is known.
     """
 
-    filters: FilterTree | None = Field(
+    filters: FilterTree | ElasticQuery | None = Field(
         default=None,
         description="Structured filters to apply to the search. Accepts FilterTree or Elasticsearch DSL format.",
     )
-    _elastic_filters: ElasticQuery | None = PrivateAttr(default=None)
-
-    @model_validator(mode="wrap")
-    @classmethod
-    def _parse_elastic_dsl_filters(cls, value: Any, handler: Any) -> "SearchRequest":
-        """Validate ES DSL while retaining it for entity-aware conversion in to_query."""
-        if not isinstance(value, dict):
-            return handler(value)
-
-        raw_filters = value.get("filters")
-        if not (isinstance(raw_filters, dict) and _ES_DSL_KEYS & raw_filters.keys()):
-            return handler(value)
-
-        parsed_filters = _ES_QUERY_ADAPTER.validate_python(raw_filters)
-        input_data = dict(value)
-        input_data["filters"] = None
-        request = handler(input_data)
-        request._elastic_filters = parsed_filters
-        return request
 
     query: str | None = Field(
         default=None,
@@ -103,9 +78,9 @@ class SearchRequest(BaseModel):
             SelectQuery for search operation
         """
         filters = self.filters
-        if self._elastic_filters is not None:
+        if filters is not None and not isinstance(filters, FilterTree):
             filters = elastic_to_filter_tree(
-                self._elastic_filters,
+                filters,
                 value_kind_resolver=lambda path, _value: _resolve_digit_only_string_kind(entity_type, path),
             )
 
