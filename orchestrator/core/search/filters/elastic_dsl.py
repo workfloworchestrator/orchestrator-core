@@ -64,14 +64,6 @@ def _infer_value_kind(value: Any) -> UIType:
     return UIType.from_field_type(FieldType.infer(value))
 
 
-def _resolve_value_kind(field: str, value: Any, value_kind_resolver: ValueKindResolver | None) -> UIType:
-    """Resolve digit-only strings from the indexed model schema when available."""
-    if value_kind_resolver and isinstance(value, str) and value.isdigit():
-        if value_kind := value_kind_resolver(field, value):
-            return value_kind
-    return _infer_value_kind(value)
-
-
 # ---------------------------------------------------------------------------
 # Wildcard pattern conversion
 # ---------------------------------------------------------------------------
@@ -158,16 +150,6 @@ BoolQuery.model_rebuild()
 # ---------------------------------------------------------------------------
 
 _RANGE_KEYS = frozenset({"gt", "gte", "lt", "lte"})
-
-
-def _translate_term(query: TermQuery, value_kind_resolver: ValueKindResolver | None = None) -> PathFilter:
-    """Convert a term query to a PathFilter with EqualityFilter."""
-    field, value = next(iter(query.term.items()))
-    return PathFilter(
-        path=field,
-        condition=EqualityFilter(op=FilterOp.EQ, value=value),
-        value_kind=_resolve_value_kind(field, value, value_kind_resolver),
-    )
 
 
 def _translate_range(query: RangeQuery) -> PathFilter:
@@ -296,76 +278,16 @@ def _negate_node(node: FilterTree | PathFilter) -> FilterTree | PathFilter:
             return node
 
 
-def _translate_must_not(
-    queries: list[ElasticQuery], value_kind_resolver: ValueKindResolver | None = None
-) -> list[FilterTree | PathFilter]:
-    """Translate must_not clauses by inverting operators where possible."""
-    return [_negate_node(_translate_node(q, value_kind_resolver)) for q in queries]
-
-
-def _translate_node(
-    query: ElasticQuery, value_kind_resolver: ValueKindResolver | None = None
-) -> FilterTree | PathFilter:
-    """Recursively translate a single ES DSL node."""
-    match query:
-        case TermQuery():
-            return _translate_term(query, value_kind_resolver)
-        case RangeQuery():
-            return _translate_range(query)
-        case WildcardQuery():
-            return _translate_wildcard(query)
-        case RegexpQuery():
-            return _translate_regexp(query)
-        case ExistsQuery():
-            return _translate_exists(query)
-        case BoolQuery():
-            return _translate_bool(query, value_kind_resolver)
-        case _:
-            raise ValueError(f"Unsupported ES DSL query type: {type(query)}")
-
-
-def _translate_bool(query: BoolQuery, value_kind_resolver: ValueKindResolver | None = None) -> FilterTree | PathFilter:
-    """Translate a bool query into a FilterTree."""
-    clause = query.bool
-    children: list[FilterTree | PathFilter] = []
-
-    must_children = [_translate_node(q, value_kind_resolver) for q in clause.must]
-    should_children = [_translate_node(q, value_kind_resolver) for q in clause.should]
-    must_not_children = _translate_must_not(clause.must_not, value_kind_resolver)
-
-    # Build sub-trees for each clause type
-    if clause.must and clause.should:
-        # Both must and should: must is AND, should is OR, combine with AND
-        children.extend(must_children)
-        children.append(FilterTree(op=BooleanOperator.OR, children=should_children))
-    elif clause.must:
-        children.extend(must_children)
-    elif clause.should:
-        return (
-            FilterTree(op=BooleanOperator.OR, children=should_children)
-            if len(should_children) > 1
-            else should_children[0]
-        )
-
-    children.extend(must_not_children)
-
-    if not children:
-        raise ValueError("bool query produced no children after translation")
-
-    if len(children) == 1:
-        return children[0]
-
-    return FilterTree(op=BooleanOperator.AND, children=children)
-
-
-def elastic_to_filter_tree(es_query: ElasticQuery, value_kind_resolver: ValueKindResolver | None = None) -> FilterTree:
+def elastic_to_filter_tree(  # noqa: C901
+    es_query: ElasticQuery, value_kind_resolver: ValueKindResolver | None = None
+) -> FilterTree:
     """Convert an Elasticsearch DSL query to a FilterTree.
 
     Args:
         es_query: A parsed ElasticQuery (TermQuery, RangeQuery, WildcardQuery,
             ExistsQuery, or BoolQuery).
         value_kind_resolver: Optional resolver for term values, used to override
-            the default value-kind inference (see ``_resolve_value_kind``).
+            the default value-kind inference for digit-only strings.
 
     Returns:
         A FilterTree suitable for compilation to SQL.
@@ -373,7 +295,79 @@ def elastic_to_filter_tree(es_query: ElasticQuery, value_kind_resolver: ValueKin
     Raises:
         ValueError: If the query structure is invalid or exceeds MAX_DEPTH.
     """
-    result = _translate_node(es_query, value_kind_resolver)
+
+    def resolve_value_kind(field: str, value: Any) -> UIType:
+        """Resolve digit-only strings from the indexed model schema when available."""
+        if value_kind_resolver and isinstance(value, str) and value.isdigit():
+            if value_kind := value_kind_resolver(field, value):
+                return value_kind
+        return _infer_value_kind(value)
+
+    def translate_term(query: TermQuery) -> PathFilter:
+        """Convert a term query to a PathFilter with EqualityFilter."""
+        field, value = next(iter(query.term.items()))
+        return PathFilter(
+            path=field,
+            condition=EqualityFilter(op=FilterOp.EQ, value=value),
+            value_kind=resolve_value_kind(field, value),
+        )
+
+    def translate_must_not(queries: list[ElasticQuery]) -> list[FilterTree | PathFilter]:
+        """Translate must_not clauses by inverting operators where possible."""
+        return [_negate_node(translate_node(q)) for q in queries]
+
+    def translate_node(query: ElasticQuery) -> FilterTree | PathFilter:
+        """Recursively translate a single ES DSL node."""
+        match query:
+            case TermQuery():
+                return translate_term(query)
+            case RangeQuery():
+                return _translate_range(query)
+            case WildcardQuery():
+                return _translate_wildcard(query)
+            case RegexpQuery():
+                return _translate_regexp(query)
+            case ExistsQuery():
+                return _translate_exists(query)
+            case BoolQuery():
+                return translate_bool(query)
+            case _:
+                raise ValueError(f"Unsupported ES DSL query type: {type(query)}")
+
+    def translate_bool(query: BoolQuery) -> FilterTree | PathFilter:
+        """Translate a bool query into a FilterTree."""
+        clause = query.bool
+        children: list[FilterTree | PathFilter] = []
+
+        must_children = [translate_node(q) for q in clause.must]
+        should_children = [translate_node(q) for q in clause.should]
+        must_not_children = translate_must_not(clause.must_not)
+
+        # Build sub-trees for each clause type
+        if clause.must and clause.should:
+            # Both must and should: must is AND, should is OR, combine with AND
+            children.extend(must_children)
+            children.append(FilterTree(op=BooleanOperator.OR, children=should_children))
+        elif clause.must:
+            children.extend(must_children)
+        elif clause.should:
+            return (
+                FilterTree(op=BooleanOperator.OR, children=should_children)
+                if len(should_children) > 1
+                else should_children[0]
+            )
+
+        children.extend(must_not_children)
+
+        if not children:
+            raise ValueError("bool query produced no children after translation")
+
+        if len(children) == 1:
+            return children[0]
+
+        return FilterTree(op=BooleanOperator.AND, children=children)
+
+    result = translate_node(es_query)
     if isinstance(result, PathFilter):
         return FilterTree(op=BooleanOperator.AND, children=[result])
     return result
