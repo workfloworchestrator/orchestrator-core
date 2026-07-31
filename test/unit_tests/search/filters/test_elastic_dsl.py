@@ -14,7 +14,7 @@
 """Tests for orchestrator.core.search.filters.elastic_dsl: Elasticsearch DSL to FilterTree conversion, including term, range, wildcard, exists, and bool queries."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
@@ -79,10 +79,18 @@ def test_term_preserves_path() -> None:
 @pytest.mark.parametrize(
     "es_op, value, expected_filter_type, expected_op, expected_value_kind, expected_value",
     [
-        pytest.param("gt", "2025-01-01", DateValueFilter, FilterOp.GT, UIType.DATETIME, datetime(2025, 1, 1), id="date-gt"),
-        pytest.param("gte", "2025-06-15", DateValueFilter, FilterOp.GTE, UIType.DATETIME, datetime(2025, 6, 15), id="date-gte"),
-        pytest.param("lt", "2025-12-31", DateValueFilter, FilterOp.LT, UIType.DATETIME, datetime(2025, 12, 31), id="date-lt"),
-        pytest.param("lte", "2025-03-01", DateValueFilter, FilterOp.LTE, UIType.DATETIME, datetime(2025, 3, 1), id="date-lte"),
+        pytest.param(
+            "gt", "2025-01-01", DateValueFilter, FilterOp.GT, UIType.DATETIME, datetime(2025, 1, 1), id="date-gt"
+        ),
+        pytest.param(
+            "gte", "2025-06-15", DateValueFilter, FilterOp.GTE, UIType.DATETIME, datetime(2025, 6, 15), id="date-gte"
+        ),
+        pytest.param(
+            "lt", "2025-12-31", DateValueFilter, FilterOp.LT, UIType.DATETIME, datetime(2025, 12, 31), id="date-lt"
+        ),
+        pytest.param(
+            "lte", "2025-03-01", DateValueFilter, FilterOp.LTE, UIType.DATETIME, datetime(2025, 3, 1), id="date-lte"
+        ),
         pytest.param("gt", 100, NumericValueFilter, FilterOp.GT, UIType.NUMBER, 100, id="num-gt"),
         pytest.param("gte", 0, NumericValueFilter, FilterOp.GTE, UIType.NUMBER, 0, id="num-gte"),
         pytest.param("lt", 9999, NumericValueFilter, FilterOp.LT, UIType.NUMBER, 9999, id="num-lt"),
@@ -107,7 +115,15 @@ def test_range_single_bound(
 @pytest.mark.parametrize(
     "start, end, expected_filter_type, expected_value_kind, expected_start, expected_end",
     [
-        pytest.param("2025-01-01", "2025-12-31", DateRangeFilter, UIType.DATETIME, datetime(2025, 1, 1), datetime(2025, 12, 31), id="date-between"),
+        pytest.param(
+            "2025-01-01",
+            "2025-12-31",
+            DateRangeFilter,
+            UIType.DATETIME,
+            datetime(2025, 1, 1),
+            datetime(2025, 12, 31),
+            id="date-between",
+        ),
         pytest.param(100, 10000, NumericRangeFilter, UIType.NUMBER, 100, 10000, id="numeric-between"),
     ],
 )
@@ -158,9 +174,63 @@ def test_exists_to_ltree_filter() -> None:
     leaf = _parse_and_get_leaf({"exists": {"field": "node"}})
     assert leaf.path == "*"
     assert isinstance(leaf.condition, LtreeFilter)
-    assert leaf.condition.op == FilterOp.ENDS_WITH
+    assert leaf.condition.op == FilterOp.HAS_COMPONENT
     assert leaf.condition.value == "node"
     assert leaf.value_kind == UIType.COMPONENT
+
+
+def test_must_not_exists_inverts_to_not_has_component() -> None:
+    leaf = _parse_and_get_leaf({"bool": {"must_not": [{"exists": {"field": "port"}}]}})
+    assert leaf.path == "*"
+    assert isinstance(leaf.condition, LtreeFilter)
+    assert leaf.condition.op == FilterOp.NOT_HAS_COMPONENT
+    assert leaf.condition.value == "port"
+    assert leaf.value_kind == UIType.COMPONENT
+
+
+@pytest.mark.parametrize(
+    "op, inverted_op",
+    [
+        pytest.param(FilterOp.HAS_COMPONENT, FilterOp.NOT_HAS_COMPONENT, id="has-to-not-has"),
+        pytest.param(FilterOp.NOT_HAS_COMPONENT, FilterOp.HAS_COMPONENT, id="not-has-to-has"),
+    ],
+)
+def test_invert_path_filter_component_ops(
+    op: Literal[FilterOp.HAS_COMPONENT, FilterOp.NOT_HAS_COMPONENT], inverted_op: FilterOp
+) -> None:
+    pf = PathFilter(
+        path="*",
+        condition=LtreeFilter(op=op, value="port"),
+        value_kind=UIType.COMPONENT,
+    )
+    result = _invert_path_filter(pf)
+    assert isinstance(result.condition, LtreeFilter)
+    assert result.condition.op == inverted_op
+    assert result.condition.value == "port"
+
+
+def test_beta_subscriptions_not_has_component_payload() -> None:
+    """The full ES DSL payload sent by the beta-subscriptions page for 'doesn't have component port'."""
+    es = ElasticQueryAdapter.validate_python(
+        {
+            "bool": {
+                "must": [
+                    {"bool": {"should": [{"term": {"subscription.status": "active"}}]}},
+                    {"bool": {"must": [{"bool": {"must_not": {"exists": {"field": "port"}}}}]}},
+                ]
+            }
+        }
+    )
+    tree = elastic_to_filter_tree(es)
+    assert isinstance(tree, FilterTree)
+    assert tree.op == BooleanOperator.AND
+    status_leaf, component_leaf = tree.children
+    assert isinstance(status_leaf, PathFilter)
+    assert status_leaf.path == "subscription.status"
+    assert isinstance(component_leaf, PathFilter)
+    assert isinstance(component_leaf.condition, LtreeFilter)
+    assert component_leaf.condition.op == FilterOp.NOT_HAS_COMPONENT
+    assert component_leaf.condition.value == "port"
 
 
 # ---------------------------------------------------------------------------
@@ -340,9 +410,7 @@ def test_range_no_recognised_bounds_raises() -> None:
 )
 def test_bool_clause_accepts_single_query_object(clause_key: str) -> None:
     """A bare query dict (not wrapped in a list) is accepted, matching ES behaviour."""
-    es = ElasticQueryAdapter.validate_python(
-        {"bool": {clause_key: {"term": {"subscription.status": "active"}}}}
-    )
+    es = ElasticQueryAdapter.validate_python({"bool": {clause_key: {"term": {"subscription.status": "active"}}}})
     tree = elastic_to_filter_tree(es)
     assert len(tree.children) == 1
 

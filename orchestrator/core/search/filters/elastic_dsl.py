@@ -49,6 +49,8 @@ _INVERT_OP: dict[FilterOp, FilterOp] = {
     FilterOp.LTE: FilterOp.GT,
     FilterOp.CONTAINS: FilterOp.NOT_CONTAINS,
     FilterOp.NOT_CONTAINS: FilterOp.CONTAINS,
+    FilterOp.HAS_COMPONENT: FilterOp.NOT_HAS_COMPONENT,
+    FilterOp.NOT_HAS_COMPONENT: FilterOp.HAS_COMPONENT,
 }
 
 
@@ -214,11 +216,15 @@ def _translate_regexp(query: RegexpQuery) -> PathFilter:
 
 
 def _translate_exists(query: ExistsQuery) -> PathFilter:
-    """Convert an exists query to a PathFilter with LtreeFilter(ENDS_WITH)."""
+    """Convert an exists query to a PathFilter with LtreeFilter(HAS_COMPONENT).
+
+    HAS_COMPONENT matches the field anywhere in the path (lquery ``*.field.*``,
+    where ``*`` matches zero labels), covering both component and leaf fields.
+    """
     field_name = query.exists["field"]
     return PathFilter(
         path="*",
-        condition=LtreeFilter(op=FilterOp.ENDS_WITH, value=field_name),
+        condition=LtreeFilter(op=FilterOp.HAS_COMPONENT, value=field_name),
         value_kind=UIType.COMPONENT,
     )
 
@@ -228,10 +234,15 @@ def _invert_path_filter(pf: PathFilter) -> PathFilter:
     match pf.condition:
         case EqualityFilter(op=op, value=value):
             return pf.model_copy(update={"condition": EqualityFilter(op=_INVERT_OP[op], value=value)})  # type: ignore[arg-type]
-        case DateValueFilter(op=op) | NumericValueFilter(op=op) | ContainsFilter(op=op):
+        case (
+            DateValueFilter(op=op)
+            | NumericValueFilter(op=op)
+            | ContainsFilter(op=op)
+            | LtreeFilter(op=FilterOp.HAS_COMPONENT | FilterOp.NOT_HAS_COMPONENT as op)
+        ):
             return pf.model_copy(update={"condition": pf.condition.model_copy(update={"op": _INVERT_OP[op]})})
         case _:
-            # For range/string/ltree filters, we cannot simply invert.
+            # For range/string and other ltree filters, we cannot simply invert.
             # Return as-is; the caller wraps in must_not logic at the tree level.
             return pf
 
@@ -256,7 +267,13 @@ def _invert_range_to_or(
 def _negate_node(node: FilterTree | PathFilter) -> FilterTree | PathFilter:
     """Negate a single translated node for must_not semantics."""
     match node:
-        case PathFilter(condition=EqualityFilter() | DateValueFilter() | NumericValueFilter() | ContainsFilter()):
+        case PathFilter(
+            condition=EqualityFilter()
+            | DateValueFilter()
+            | NumericValueFilter()
+            | ContainsFilter()
+            | LtreeFilter(op=FilterOp.HAS_COMPONENT | FilterOp.NOT_HAS_COMPONENT)
+        ):
             return _invert_path_filter(node)
         case PathFilter(condition=DateRangeFilter(value=range_val)):
             return _invert_range_to_or(node, range_val, DateValueFilter)
