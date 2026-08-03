@@ -17,7 +17,7 @@ from sqlalchemy.sql.elements import ColumnElement, Label
 from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.search.core.types import FilterOp, SearchMetadata
+from orchestrator.core.search.core.types import SearchMetadata
 from orchestrator.core.search.filters import FilterTree, LtreeFilter, PathFilter
 from orchestrator.core.search.query.mixins import OrderDirection, StructuredOrderBy
 
@@ -25,21 +25,6 @@ from ..pagination import PageCursor
 from .base import Retriever
 
 ORDER_VALUE_LABEL = "order_value"
-
-
-def _positive_leaves(filters: FilterTree | None) -> list[PathFilter]:
-    """Return all filter leaves that have a matchable index row.
-
-    Absence filters (`not_has_component`) match entities without a corresponding
-    index row, so there is nothing to highlight for them.
-    """
-    if filters is None:
-        return []
-    return [
-        leaf
-        for leaf in filters.get_all_leaves()
-        if not (isinstance(leaf.condition, LtreeFilter) and leaf.condition.op == FilterOp.NOT_HAS_COMPONENT)
-    ]
 
 
 def _leaf_matches_json(cand: Subquery, leaf: PathFilter, idx: int) -> ColumnElement:
@@ -50,19 +35,13 @@ def _leaf_matches_json(cand: Subquery, leaf: PathFilter, idx: int) -> ColumnElem
     ``product_block.test.status``, …) rather than just the shallowest one.
 
     Path-predicate leaves (ltree) match on the row's path, so every row under a
-    matched component would satisfy them; a single row — the shallowest matching
-    path — is enough evidence of the match. For ``has_component`` the field values
-    are irrelevant to the filter, so the component itself is reported: its label as
-    the value, and the matched row's path truncated at that label.
+    matched subtree would satisfy them; a single row — the shallowest matching
+    path — is enough evidence of the match.
     """
     alias = aliased(AiSearchIndex)
     row_json = func.json_build_object("value", alias.value, "path", cast(alias.path, String), "idx", literal(idx))
 
     if isinstance(leaf.condition, LtreeFilter):
-        if leaf.condition.op == FilterOp.HAS_COMPONENT:
-            label = leaf.condition.value
-            component_path = func.subltree(alias.path, 0, func.index(alias.path, func.text2ltree(label)) + 1)
-            row_json = func.json_build_object("value", label, "path", cast(component_path, String), "idx", literal(idx))
         return (
             select(func.json_build_array(row_json))
             .where(alias.entity_id == cand.c.entity_id, leaf.matched_row_predicate(alias))
@@ -154,7 +133,7 @@ class StructuredRetriever(Retriever):
 
     def _highlight_columns(self, cand: Subquery) -> list[Label]:
         """Single JSON column aggregating per-leaf matched index rows."""
-        leaves = _positive_leaves(self.filters)
+        leaves = self.filters.get_highlightable_leaves() if self.filters else []
         if not leaves:
             return []
         return [_highlight_matches_column(cand, leaves)]

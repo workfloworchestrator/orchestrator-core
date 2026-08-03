@@ -18,6 +18,7 @@ path-predicate leaves (has_component, ends_with, ...) return a single
 representative row: the shallowest matching path.
 """
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
@@ -50,16 +51,6 @@ def _value_leaf() -> PathFilter:
     )
 
 
-def test_has_component_leaf_synthesizes_component_field() -> None:
-    """has_component reports the component itself: path truncated at the label, label as value."""
-    filters = FilterTree(op=BooleanOperator.AND, children=[_component_leaf(FilterOp.HAS_COMPONENT)])
-    sql = _compile(filters)
-    assert "subltree" in sql
-    assert "nlevel" in sql
-    assert "LIMIT" in sql
-    assert "json_agg" not in sql
-
-
 def test_ends_with_leaf_selects_single_representative_row() -> None:
     """ends_with matches leaf fields, so the row's own value and full path are reported."""
     filters = FilterTree(op=BooleanOperator.AND, children=[_component_leaf(FilterOp.ENDS_WITH, value="status")])
@@ -78,17 +69,35 @@ def test_value_leaf_aggregates_all_matching_rows() -> None:
     assert "LIMIT" not in sql
 
 
-def test_mixed_leaves_use_both_strategies() -> None:
-    filters = FilterTree(op=BooleanOperator.AND, children=[_value_leaf(), _component_leaf(FilterOp.HAS_COMPONENT)])
+def test_mixed_value_and_ends_with_leaves_use_both_strategies() -> None:
+    filters = FilterTree(
+        op=BooleanOperator.AND, children=[_value_leaf(), _component_leaf(FilterOp.ENDS_WITH, value="status")]
+    )
     sql = _compile(filters)
     assert "json_agg" in sql
     assert "nlevel" in sql
 
 
-def test_not_has_component_leaf_produces_no_highlight_column() -> None:
-    filters = FilterTree(op=BooleanOperator.AND, children=[_component_leaf(FilterOp.NOT_HAS_COMPONENT)])
+@pytest.mark.parametrize(
+    "op",
+    [
+        pytest.param(FilterOp.HAS_COMPONENT, id="has-component"),
+        pytest.param(FilterOp.NOT_HAS_COMPONENT, id="not-has-component"),
+    ],
+)
+def test_component_existence_leaf_produces_no_highlight_column(op: FilterOp) -> None:
+    """Existence filters are satisfied by every result (or by absence) — nothing to highlight."""
+    filters = FilterTree(op=BooleanOperator.AND, children=[_component_leaf(op)])
     sql = _compile(filters)
     assert Retriever.HIGHLIGHT_MATCHES_LABEL not in sql
+
+
+def test_mixed_value_and_has_component_highlights_value_leaf_only() -> None:
+    filters = FilterTree(op=BooleanOperator.AND, children=[_value_leaf(), _component_leaf(FilterOp.HAS_COMPONENT)])
+    sql = _compile(filters)
+    assert "json_agg" in sql
+    assert "nlevel" not in sql
+    assert "LIMIT" not in sql
 
 
 def test_no_filters_produces_no_highlight_column() -> None:

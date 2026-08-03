@@ -300,35 +300,15 @@ def test_resolve_missing_highlight_columns_returns_empty():
     assert result == []
 
 
-def test_resolve_ltree_has_component():
-    """LtreeFilter with HAS_COMPONENT returns one MatchingField from DB columns."""
-    tree = FilterTree(
-        op=BooleanOperator.AND,
-        children=[
-            PathFilter(
-                path="subscription",
-                condition=LtreeFilter(op=FilterOp.HAS_COMPONENT, value="node"),
-                value_kind=UIType.COMPONENT,
-            )
-        ],
-    )
-    row = _row_with_highlights([("node", "subscription.node")])
-    result = _resolve_structured_matching_fields(row, tree)
-    assert len(result) == 1
-    assert result[0].text == "node"
-    assert result[0].highlight_indices is None
-
-
 @pytest.mark.parametrize(
     "op",
     [
-        pytest.param(FilterOp.HAS_COMPONENT, id="has-component"),
         pytest.param(FilterOp.ENDS_WITH, id="ends-with"),
         pytest.param(FilterOp.MATCHES_LQUERY, id="matches-lquery"),
     ],
 )
 def test_resolve_ltree_leaf_returns_null_highlight_indices(
-    op: Literal[FilterOp.HAS_COMPONENT, FilterOp.ENDS_WITH, FilterOp.MATCHES_LQUERY],
+    op: Literal[FilterOp.ENDS_WITH, FilterOp.MATCHES_LQUERY],
 ):
     """Path-predicate leaves match on the row's path, not its value — nothing to highlight.
 
@@ -354,14 +334,21 @@ def test_resolve_ltree_leaf_returns_null_highlight_indices(
     assert result[0].highlight_indices is None
 
 
-def test_resolve_ltree_not_has_component_returns_empty():
-    """NOT_HAS_COMPONENT is excluded from positive leaves — returns empty."""
+@pytest.mark.parametrize(
+    "op",
+    [
+        pytest.param(FilterOp.HAS_COMPONENT, id="has-component"),
+        pytest.param(FilterOp.NOT_HAS_COMPONENT, id="not-has-component"),
+    ],
+)
+def test_resolve_component_existence_returns_empty(op: Literal[FilterOp.HAS_COMPONENT, FilterOp.NOT_HAS_COMPONENT]):
+    """Component-existence leaves are excluded from highlightable leaves — returns empty."""
     tree = FilterTree(
         op=BooleanOperator.AND,
         children=[
             PathFilter(
                 path="subscription",
-                condition=LtreeFilter(op=FilterOp.NOT_HAS_COMPONENT, value="node"),
+                condition=LtreeFilter(op=op, value="node"),
                 value_kind=UIType.COMPONENT,
             )
         ],
@@ -440,8 +427,17 @@ def test_resolve_or_filter_both_branches_returned():
     assert paths == {"subscription.status", "subscription.product.name"}
 
 
-def test_resolve_not_has_component_excluded_from_indexing():
-    """NOT_HAS_COMPONENT leaf is excluded; only the EQ leaf is indexed at position 0."""
+@pytest.mark.parametrize(
+    "op",
+    [
+        pytest.param(FilterOp.HAS_COMPONENT, id="has-component"),
+        pytest.param(FilterOp.NOT_HAS_COMPONENT, id="not-has-component"),
+    ],
+)
+def test_resolve_component_existence_excluded_from_indexing(
+    op: Literal[FilterOp.HAS_COMPONENT, FilterOp.NOT_HAS_COMPONENT],
+):
+    """Component-existence leaves are excluded; only the EQ leaf is indexed at position 0."""
     tree = FilterTree(
         op=BooleanOperator.AND,
         children=[
@@ -452,7 +448,7 @@ def test_resolve_not_has_component_excluded_from_indexing():
             ),
             PathFilter(
                 path="subscription",
-                condition=LtreeFilter(op=FilterOp.NOT_HAS_COMPONENT, value="node"),
+                condition=LtreeFilter(op=op, value="node"),
                 value_kind=UIType.COMPONENT,
             ),
         ],

@@ -153,8 +153,8 @@ def indexed_subscription_with_ports() -> UUID:
     return sub
 
 
-async def test_has_component_reports_component_not_field_value(indexed_subscription_with_ports):
-    """has_component reports the component itself, not an arbitrary field under it."""
+async def test_has_component_returns_result_without_matching_fields(indexed_subscription_with_ports):
+    """has_component is satisfied by every result, so no matching field is reported for it."""
     sub = indexed_subscription_with_ports
     filters = FilterTree(
         op=BooleanOperator.AND,
@@ -170,12 +170,7 @@ async def test_has_component_reports_component_not_field_value(indexed_subscript
     response = await engine.execute_search(_select_query(filters), db.session)
 
     assert [r.entity_id for r in response.results] == [str(sub)]
-    fields = response.results[0].matching_fields
-    assert len(fields) == 1
-    assert fields[0].text == "port"
-    # Shallowest instance wins: subscription.port, not subscription.sap.port.
-    assert fields[0].path == "subscription.port"
-    assert fields[0].highlight_indices is None
+    assert response.results[0].matching_fields == []
 
 
 async def test_multi_leaf_filter_returns_all_matching_fields(indexed_subscriptions):
