@@ -42,27 +42,46 @@ def _positive_leaves(filters: FilterTree | None) -> list[PathFilter]:
     ]
 
 
-def _highlight_matches_column(cand: Subquery, leaves: list[PathFilter]) -> Label:
-    """Single JSON array column — one json_agg subquery per positive filter leaf.
+def _leaf_matches_json(cand: Subquery, leaf: PathFilter, idx: int) -> ColumnElement:
+    """JSON array of the index rows matched by one filter leaf, as a correlated scalar subquery.
 
-    Each element in the outer array is itself a JSON array of all index rows that
-    matched the leaf, so a global filter (e.g. ``status = 'active'``) returns every
-    matching path (``product.status``, ``product_block.test.status``, …) rather than
-    just the shallowest one.
+    Value-filter leaves aggregate every matching row, so a global filter
+    (e.g. ``status = 'active'``) returns every matching path (``product.status``,
+    ``product_block.test.status``, …) rather than just the shallowest one.
+
+    Path-predicate leaves (ltree) match on the row's path, so every row under a
+    matched component would satisfy them; a single row — the shallowest matching
+    path — is enough evidence of the match. For ``has_component`` the field values
+    are irrelevant to the filter, so the component itself is reported: its label as
+    the value, and the matched row's path truncated at that label.
     """
-    json_arrays = []
-    for i, leaf in enumerate(leaves):
-        alias = aliased(AiSearchIndex)
-        json_arrays.append(
-            select(
-                func.json_agg(
-                    func.json_build_object("value", alias.value, "path", cast(alias.path, String), "idx", literal(i))
-                )
-            )
+    alias = aliased(AiSearchIndex)
+    row_json = func.json_build_object("value", alias.value, "path", cast(alias.path, String), "idx", literal(idx))
+
+    if isinstance(leaf.condition, LtreeFilter):
+        if leaf.condition.op == FilterOp.HAS_COMPONENT:
+            label = leaf.condition.value
+            component_path = func.subltree(alias.path, 0, func.index(alias.path, func.text2ltree(label)) + 1)
+            row_json = func.json_build_object("value", label, "path", cast(component_path, String), "idx", literal(idx))
+        return (
+            select(func.json_build_array(row_json))
             .where(alias.entity_id == cand.c.entity_id, leaf.matched_row_predicate(alias))
+            .order_by(func.nlevel(alias.path), alias.path)
+            .limit(1)
             .correlate(cand)
             .scalar_subquery()
         )
+    return (
+        select(func.json_agg(row_json))
+        .where(alias.entity_id == cand.c.entity_id, leaf.matched_row_predicate(alias))
+        .correlate(cand)
+        .scalar_subquery()
+    )
+
+
+def _highlight_matches_column(cand: Subquery, leaves: list[PathFilter]) -> Label:
+    """Single JSON array column — one matches subquery per positive filter leaf."""
+    json_arrays = [_leaf_matches_json(cand, leaf, i) for i, leaf in enumerate(leaves)]
     return func.json_build_array(*json_arrays).label(Retriever.HIGHLIGHT_MATCHES_LABEL)
 
 

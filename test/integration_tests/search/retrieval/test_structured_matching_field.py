@@ -137,6 +137,47 @@ async def test_ends_with_filter_returns_full_path_per_entity(indexed_subscriptio
     assert matching_by_id[str(sub_b)][0].text == "provisioning"
 
 
+@pytest.fixture
+def indexed_subscription_with_ports() -> UUID:
+    """One subscription with a root-level port component and a deeper port nested under a sap block."""
+    sub = uuid4()
+    db.session.add_all(
+        [
+            _index_row(sub, "subscription.description", "port subscription", title="port sub"),
+            _index_row(sub, "subscription.port.ims_circuit_id", "440572", title="port sub"),
+            _index_row(sub, "subscription.port.admin_state", "enabled", title="port sub"),
+            _index_row(sub, "subscription.sap.port.node_name", "asd001a-jnx", title="port sub"),
+        ]
+    )
+    db.session.commit()
+    return sub
+
+
+async def test_has_component_reports_component_not_field_value(indexed_subscription_with_ports):
+    """has_component reports the component itself, not an arbitrary field under it."""
+    sub = indexed_subscription_with_ports
+    filters = FilterTree(
+        op=BooleanOperator.AND,
+        children=[
+            PathFilter(
+                path="*",
+                condition=LtreeFilter(op=FilterOp.HAS_COMPONENT, value="port"),
+                value_kind=UIType.COMPONENT,
+            )
+        ],
+    )
+
+    response = await engine.execute_search(_select_query(filters), db.session)
+
+    assert [r.entity_id for r in response.results] == [str(sub)]
+    fields = response.results[0].matching_fields
+    assert len(fields) == 1
+    assert fields[0].text == "port"
+    # Shallowest instance wins: subscription.port, not subscription.sap.port.
+    assert fields[0].path == "subscription.port"
+    assert fields[0].highlight_indices is None
+
+
 async def test_multi_leaf_filter_returns_all_matching_fields(indexed_subscriptions):
     """With multiple filter leaves, a MatchingField is returned for each positive leaf."""
     sub_a, _ = indexed_subscriptions

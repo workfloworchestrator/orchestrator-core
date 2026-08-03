@@ -335,9 +335,10 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
     """Resolve matching fields from the retriever's aggregated JSON highlight column.
 
     The retriever emits a ``highlight_matches`` JSON column shaped as an array of arrays:
-    one inner array per positive filter leaf, each containing all index rows that matched
-    that leaf (``{"value", "path", "idx"}``). Flattening gives every (value, path) pair
-    that satisfied any filter, deduplicated across leaves.
+    one inner array per positive filter leaf, containing the index rows that matched
+    that leaf (``{"value", "path", "idx"}``) — all matching rows for value filters, a
+    single representative row for path-predicate (ltree) filters. Flattening gives every
+    (value, path) pair that satisfied any filter, deduplicated across leaves.
     """
     from orchestrator.core.search.filters import ContainsFilter, EqualityFilter, LtreeFilter, StringFilter
     from orchestrator.core.search.retrieval.retrievers import Retriever
