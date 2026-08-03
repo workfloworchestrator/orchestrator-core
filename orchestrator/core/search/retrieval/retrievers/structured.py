@@ -18,7 +18,7 @@ from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import SearchMetadata
-from orchestrator.core.search.filters import FilterTree, LtreeFilter, PathFilter
+from orchestrator.core.search.filters import FilterTree, PathFilter
 from orchestrator.core.search.query.mixins import OrderDirection, StructuredOrderBy
 
 from ..pagination import PageCursor
@@ -28,28 +28,15 @@ ORDER_VALUE_LABEL = "order_value"
 
 
 def _leaf_matches_json(cand: Subquery, leaf: PathFilter, idx: int) -> ColumnElement:
-    """JSON array of the index rows matched by one filter leaf, as a correlated scalar subquery.
+    """JSON array of all index rows matched by one filter leaf, as a correlated scalar subquery.
 
-    Value-filter leaves aggregate every matching row, so a global filter
-    (e.g. ``status = 'active'``) returns every matching path (``product.status``,
-    ``product_block.test.status``, …) rather than just the shallowest one.
-
-    Path-predicate leaves (ltree) match on the row's path, so every row under a
-    matched subtree would satisfy them; a single row — the shallowest matching
-    path — is enough evidence of the match.
+    Aggregating every matching row means a filter that can match in several places
+    (e.g. a global ``status = 'active'`` or ``ends_with status``) reports every
+    matching path (``subscription.status``, ``subscription.block.status``, …),
+    not just the first.
     """
     alias = aliased(AiSearchIndex)
     row_json = func.json_build_object("value", alias.value, "path", cast(alias.path, String), "idx", literal(idx))
-
-    if isinstance(leaf.condition, LtreeFilter):
-        return (
-            select(func.json_build_array(row_json))
-            .where(alias.entity_id == cand.c.entity_id, leaf.matched_row_predicate(alias))
-            .order_by(func.nlevel(alias.path), alias.path)
-            .limit(1)
-            .correlate(cand)
-            .scalar_subquery()
-        )
     return (
         select(func.json_agg(row_json))
         .where(alias.entity_id == cand.c.entity_id, leaf.matched_row_predicate(alias))

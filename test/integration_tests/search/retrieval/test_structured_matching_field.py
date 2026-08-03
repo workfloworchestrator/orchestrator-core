@@ -153,6 +153,44 @@ def indexed_subscription_with_ports() -> UUID:
     return sub
 
 
+@pytest.fixture
+def indexed_subscription_with_two_statuses() -> UUID:
+    """One subscription with a status field at the root and another inside a block."""
+    sub = uuid4()
+    db.session.add_all(
+        [
+            _index_row(sub, "subscription.status", "active", title="two status sub"),
+            _index_row(sub, "subscription.block.status", "provisioning", title="two status sub"),
+        ]
+    )
+    db.session.commit()
+    return sub
+
+
+async def test_ends_with_returns_all_matching_rows(indexed_subscription_with_two_statuses):
+    """An ends_with filter reports every matching row, not just the shallowest one."""
+    sub = indexed_subscription_with_two_statuses
+    filters = FilterTree(
+        op=BooleanOperator.AND,
+        children=[
+            PathFilter(
+                path="*",
+                condition=LtreeFilter(op=FilterOp.ENDS_WITH, value="status"),
+                value_kind=UIType.COMPONENT,
+            )
+        ],
+    )
+
+    response = await engine.execute_search(_select_query(filters), db.session)
+
+    assert [r.entity_id for r in response.results] == [str(sub)]
+    fields = response.results[0].matching_fields
+    assert {(f.path, f.text) for f in fields} == {
+        ("subscription.status", "active"),
+        ("subscription.block.status", "provisioning"),
+    }
+
+
 async def test_has_component_returns_result_without_matching_fields(indexed_subscription_with_ports):
     """has_component is satisfied by every result, so no matching field is reported for it."""
     sub = indexed_subscription_with_ports

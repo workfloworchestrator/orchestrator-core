@@ -13,9 +13,9 @@
 
 """Tests for the StructuredRetriever highlight-matches column SQL.
 
-Value-filter leaves aggregate every matching index row (json_agg), while
-path-predicate leaves (has_component, ends_with, ...) return a single
-representative row: the shallowest matching path.
+Every highlightable leaf aggregates all of its matching index rows (json_agg);
+component-existence leaves (has_component, not_has_component) produce no
+highlight column at all.
 """
 
 import pytest
@@ -51,31 +51,26 @@ def _value_leaf() -> PathFilter:
     )
 
 
-def test_ends_with_leaf_selects_single_representative_row() -> None:
-    """ends_with matches leaf fields, so the row's own value and full path are reported."""
-    filters = FilterTree(op=BooleanOperator.AND, children=[_component_leaf(FilterOp.ENDS_WITH, value="status")])
-    sql = _compile(filters)
-    assert "nlevel" in sql
-    assert "LIMIT" in sql
-    assert "subltree" not in sql
-    assert "json_agg" not in sql
-
-
-def test_value_leaf_aggregates_all_matching_rows() -> None:
-    filters = FilterTree(op=BooleanOperator.AND, children=[_value_leaf()])
+@pytest.mark.parametrize(
+    "leaf_factory",
+    [
+        pytest.param(_value_leaf, id="value-leaf"),
+        pytest.param(lambda: _component_leaf(FilterOp.ENDS_WITH, value="status"), id="ends-with-leaf"),
+    ],
+)
+def test_highlightable_leaf_aggregates_all_matching_rows(leaf_factory) -> None:
+    filters = FilterTree(op=BooleanOperator.AND, children=[leaf_factory()])
     sql = _compile(filters)
     assert "json_agg" in sql
-    assert "nlevel" not in sql
     assert "LIMIT" not in sql
 
 
-def test_mixed_value_and_ends_with_leaves_use_both_strategies() -> None:
+def test_mixed_value_and_ends_with_leaves_each_aggregate() -> None:
     filters = FilterTree(
         op=BooleanOperator.AND, children=[_value_leaf(), _component_leaf(FilterOp.ENDS_WITH, value="status")]
     )
     sql = _compile(filters)
-    assert "json_agg" in sql
-    assert "nlevel" in sql
+    assert sql.count("json_agg(") == 2
 
 
 @pytest.mark.parametrize(
@@ -95,9 +90,7 @@ def test_component_existence_leaf_produces_no_highlight_column(op: FilterOp) -> 
 def test_mixed_value_and_has_component_highlights_value_leaf_only() -> None:
     filters = FilterTree(op=BooleanOperator.AND, children=[_value_leaf(), _component_leaf(FilterOp.HAS_COMPONENT)])
     sql = _compile(filters)
-    assert "json_agg" in sql
-    assert "nlevel" not in sql
-    assert "LIMIT" not in sql
+    assert sql.count("json_agg(") == 1
 
 
 def test_no_filters_produces_no_highlight_column() -> None:
