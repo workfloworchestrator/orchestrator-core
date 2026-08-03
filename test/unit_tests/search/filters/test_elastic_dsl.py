@@ -171,46 +171,42 @@ def test_wildcard_pattern_conversion(es_pattern: str, expected_sql: str) -> None
 
 
 def test_exists_to_ltree_filter() -> None:
-    leaf = _parse_and_get_leaf({"exists": {"field": "node"}})
-    assert leaf.path == "*"
-    assert isinstance(leaf.condition, LtreeFilter)
-    assert leaf.condition.op == FilterOp.HAS_COMPONENT
-    assert leaf.condition.value == "node"
-    assert leaf.value_kind == UIType.COMPONENT
+    es = ElasticQueryAdapter.validate_python({"exists": {"field": "node"}})
+    assert elastic_to_filter_tree(es).model_dump(mode="json") == {
+        "op": "AND",
+        "children": [{"path": "*", "condition": {"op": "has_component", "value": "node"}, "value_kind": "component"}],
+    }
 
 
 def test_must_not_exists_inverts_to_not_has_component() -> None:
-    leaf = _parse_and_get_leaf({"bool": {"must_not": [{"exists": {"field": "port"}}]}})
-    assert leaf.path == "*"
-    assert isinstance(leaf.condition, LtreeFilter)
-    assert leaf.condition.op == FilterOp.NOT_HAS_COMPONENT
-    assert leaf.condition.value == "port"
-    assert leaf.value_kind == UIType.COMPONENT
+    es = ElasticQueryAdapter.validate_python({"bool": {"must_not": [{"exists": {"field": "port"}}]}})
+    assert elastic_to_filter_tree(es).model_dump(mode="json") == {
+        "op": "AND",
+        "children": [
+            {"path": "*", "condition": {"op": "not_has_component", "value": "port"}, "value_kind": "component"}
+        ],
+    }
 
 
 @pytest.mark.parametrize(
     "op, inverted_op",
     [
-        pytest.param(FilterOp.HAS_COMPONENT, FilterOp.NOT_HAS_COMPONENT, id="has-to-not-has"),
-        pytest.param(FilterOp.NOT_HAS_COMPONENT, FilterOp.HAS_COMPONENT, id="not-has-to-has"),
+        pytest.param(FilterOp.HAS_COMPONENT, "not_has_component", id="has-to-not-has"),
+        pytest.param(FilterOp.NOT_HAS_COMPONENT, "has_component", id="not-has-to-has"),
     ],
 )
 def test_invert_path_filter_component_ops(
-    op: Literal[FilterOp.HAS_COMPONENT, FilterOp.NOT_HAS_COMPONENT], inverted_op: FilterOp
+    op: Literal[FilterOp.HAS_COMPONENT, FilterOp.NOT_HAS_COMPONENT], inverted_op: str
 ) -> None:
-    pf = PathFilter(
-        path="*",
-        condition=LtreeFilter(op=op, value="port"),
-        value_kind=UIType.COMPONENT,
-    )
-    result = _invert_path_filter(pf)
-    assert isinstance(result.condition, LtreeFilter)
-    assert result.condition.op == inverted_op
-    assert result.condition.value == "port"
+    pf = PathFilter(path="*", condition=LtreeFilter(op=op, value="port"), value_kind=UIType.COMPONENT)
+    assert _invert_path_filter(pf).model_dump(mode="json") == {
+        "path": "*",
+        "condition": {"op": inverted_op, "value": "port"},
+        "value_kind": "component",
+    }
 
 
-def test_beta_subscriptions_not_has_component_payload() -> None:
-    """The full ES DSL payload sent by the beta-subscriptions page for 'doesn't have component port'."""
+def test_subscriptions_not_has_component_payload() -> None:
     es = ElasticQueryAdapter.validate_python(
         {
             "bool": {
@@ -221,16 +217,17 @@ def test_beta_subscriptions_not_has_component_payload() -> None:
             }
         }
     )
-    tree = elastic_to_filter_tree(es)
-    assert isinstance(tree, FilterTree)
-    assert tree.op == BooleanOperator.AND
-    status_leaf, component_leaf = tree.children
-    assert isinstance(status_leaf, PathFilter)
-    assert status_leaf.path == "subscription.status"
-    assert isinstance(component_leaf, PathFilter)
-    assert isinstance(component_leaf.condition, LtreeFilter)
-    assert component_leaf.condition.op == FilterOp.NOT_HAS_COMPONENT
-    assert component_leaf.condition.value == "port"
+    assert elastic_to_filter_tree(es).model_dump(mode="json") == {
+        "op": "AND",
+        "children": [
+            {
+                "path": "subscription.status",
+                "condition": {"op": "eq", "value": "active"},
+                "value_kind": "string",
+            },
+            {"path": "*", "condition": {"op": "not_has_component", "value": "port"}, "value_kind": "component"},
+        ],
+    }
 
 
 # ---------------------------------------------------------------------------
