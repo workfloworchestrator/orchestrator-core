@@ -232,8 +232,8 @@ def generate_regex_highlight_indices(text: str, pattern: str) -> list[tuple[int,
     if not text or not pattern:
         return []
 
-    core = re.sub(r"^(?:\.[*+])+", "", pattern) # removes leading greedy wildcard
-    core = re.sub(r"(?:\.[*+])+$", "", core) # removes trailing greedy wildcard
+    core = re.sub(r"^(?:\.[*+])+", "", pattern)  # removes leading greedy wildcard
+    core = re.sub(r"(?:\.[*+])+$", "", core)  # removes trailing greedy wildcard
     if not core:
         return []
     try:
@@ -365,6 +365,10 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
             return MatchingField(text=text, path=path, highlight_indices=None)
         term = str(getattr(leaf.condition, "value", "") or "") if leaf else ""
         match leaf.condition if leaf else None:
+            case LtreeFilter():
+                # Path-predicate leaves (has_component, ends_with, ...) match on the row's
+                # path, not its value text, so there is no substring to highlight.
+                return MatchingField(text=text, path=path, highlight_indices=None)
             case ContainsFilter():
                 indices = generate_regex_highlight_indices(text, term)
             case StringFilter():
