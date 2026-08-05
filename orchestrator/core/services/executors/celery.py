@@ -22,7 +22,7 @@ from sqlalchemy import select
 
 from orchestrator.core import app_settings
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import ProcessTable, db
+from orchestrator.core.db import ProcessTable, WorkflowTable, db
 from orchestrator.core.db.database import transactional
 from orchestrator.core.services.executors.types import ExecutorFunction
 from orchestrator.core.services.processes import (
@@ -33,10 +33,22 @@ from orchestrator.core.services.processes import (
     set_process_status,
 )
 from orchestrator.core.services.workflows import get_workflow_by_name
+from orchestrator.core.targets import Target
 from orchestrator.core.workflow import ProcessStat, ProcessStatus
 from pydantic_forms.types import State
 
 logger = structlog.get_logger(__name__)
+
+
+def _resolve_queue(workflow: WorkflowTable) -> str | None:
+    """Return the dedicated queue for this workflow's target, or None for default task_routes routing.
+
+    Pure lookup on an already-loaded workflow row; must never touch the database, as the
+    executor closes/commits its session right before publishing. The explicit Target()
+    conversion makes a corrupt persisted target fail loudly instead of silently routing
+    to the default queue.
+    """
+    return app_settings.CELERY_TARGET_QUEUES.get(Target(workflow.target))
 
 
 def _block_when_testing(task_result: AsyncResult) -> None:
@@ -60,13 +72,17 @@ def _celery_start_process(pstat: ProcessStat, user: str = SYSTEM_USER, **kwargs:
 
     task_name = NEW_TASK if wf_table.is_task else NEW_WORKFLOW
     trigger_task = get_celery_task(task_name)
+    # Resolve before the session boundary below; no workflow attribute may be read after it.
+    queue = _resolve_queue(wf_table)
 
     # Close the SessionTransaction on the API side.
     db.session.close()
 
     try:
         # Trigger the celery task. This will create a SessionTransaction on the worker to read the process.
-        result = trigger_task.delay(pstat.process_id, user)
+        options = {"queue": queue} if queue else {}
+        result = trigger_task.apply_async((pstat.process_id, user), **options)
+        logger.debug("Enqueued process", process_id=pstat.process_id, task=task_name, queue=queue or "default")
         _block_when_testing(result)
         return pstat.process_id
     except (ConnectionError, OperationalError) as e:
@@ -95,6 +111,8 @@ def _celery_resume_process(
 
     task_name = RESUME_TASK if process.workflow.is_task else RESUME_WORKFLOW
     trigger_task = get_celery_task(task_name)
+    # Resolve before the transaction boundary below; no workflow attribute may be read after it.
+    queue = _resolve_queue(process.workflow)
 
     # Final write action to the process: ensure the SessionTransaction is committed on the API side.
     with transactional(db, logger):
@@ -102,7 +120,9 @@ def _celery_resume_process(
 
     try:
         # Trigger the celery task. This will create a SessionTransaction on the worker to read the process.
-        result = trigger_task.delay(process.process_id, user)
+        options = {"queue": queue} if queue else {}
+        result = trigger_task.apply_async((process.process_id, user), **options)
+        logger.debug("Enqueued process", process_id=process.process_id, task=task_name, queue=queue or "default")
         _block_when_testing(result)
 
         return process.process_id
