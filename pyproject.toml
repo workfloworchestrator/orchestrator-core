@@ -218,6 +218,11 @@ known-first-party = [
 
 [tool.uv]
 index-url = "https://pypi.org/simple"
+# Cooldown: don't resolve versions published in the last 3 days (supply-chain protection).
+# Keep in sync with minimumReleaseAge in renovate.json.
+exclude-newer = "3 days"
+# Exempt our own libraries from the cooldown so their releases are available immediately.
+exclude-newer-package = { pydantic-forms = false, nwa-stdlib = false, oauth2-lib = false }
 override-dependencies = [
     "grpcio==1.76.0",  # Force grpcio 1.76.0 for Python 3.14 wheel support
 ]

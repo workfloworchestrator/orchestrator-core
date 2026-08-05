@@ -11,8 +11,15 @@
       "matchPackageNames": ["python"],
       "rangeStrategy": "widen",
       "enabled": false
+    },
+    {
+      "description": "Skip the release-age cooldown for our own libraries",
+      "matchPackageNames": ["pydantic-forms", "nwa-stdlib", "oauth2-lib"],
+      "minimumReleaseAge": "0 days"
     }
   ],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 3am on Wednesday"]
