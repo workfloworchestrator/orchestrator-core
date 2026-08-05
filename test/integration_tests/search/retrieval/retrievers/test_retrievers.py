@@ -25,6 +25,10 @@ from sqlalchemy.dialects import postgresql
 
 from orchestrator.core.db import db
 from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
+from orchestrator.core.search.filters import FilterTree, PathFilter
+from orchestrator.core.search.filters.base import EqualityFilter
+from orchestrator.core.search.filters.ltree_filters import LtreeFilter
 from orchestrator.core.search.query.mixins import OrderDirection, StructuredOrderBy
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
@@ -93,6 +97,36 @@ def test_structured_retriever_pagination_with_order_by(candidate_query, query_id
     query = retriever.apply(candidate_query)
     sql = compile_query_to_sql(query)
     assert_sql_matches_snapshot("StructuredRetriever.test_pagination_structure_with_order_by", sql, request)
+
+
+@pytest.mark.parametrize(
+    "leaf",
+    [
+        pytest.param(
+            PathFilter(
+                path="*",
+                condition=LtreeFilter(op=FilterOp.HAS_COMPONENT, value="port"),
+                value_kind=UIType.COMPONENT,
+            ),
+            id="has-component",
+        ),
+        pytest.param(
+            PathFilter(
+                path="subscription.status",
+                condition=EqualityFilter(op=FilterOp.EQ, value="active"),
+                value_kind=UIType.STRING,
+            ),
+            id="equality",
+        ),
+    ],
+)
+def test_structured_retriever_highlight_matches_executes(candidate_query, leaf):
+    """The highlight-matches subqueries (json_agg and single-representative-row) are valid PostgreSQL."""
+    filters = FilterTree(op=BooleanOperator.AND, children=[leaf])
+    retriever = StructuredRetriever(cursor=None, filters=filters)
+    query = retriever.apply(candidate_query)
+    rows = db.session.execute(query).mappings().all()
+    assert isinstance(rows, list)
 
 
 @pytest.mark.parametrize(

@@ -13,6 +13,7 @@
 
 """Tests for orchestrator.core.search.query.results -- text truncation with highlights, aggregation response formatting, and filter field extraction."""
 
+from typing import Literal
 from unittest.mock import MagicMock
 
 import pytest
@@ -299,32 +300,55 @@ def test_resolve_missing_highlight_columns_returns_empty():
     assert result == []
 
 
-def test_resolve_ltree_has_component():
-    """LtreeFilter with HAS_COMPONENT returns one MatchingField from DB columns."""
+@pytest.mark.parametrize(
+    "op",
+    [
+        pytest.param(FilterOp.ENDS_WITH, id="ends-with"),
+        pytest.param(FilterOp.MATCHES_LQUERY, id="matches-lquery"),
+    ],
+)
+def test_resolve_ltree_leaf_returns_null_highlight_indices(
+    op: Literal[FilterOp.ENDS_WITH, FilterOp.MATCHES_LQUERY],
+):
+    """Path-predicate leaves match on the row's path, not its value — nothing to highlight.
+
+    The stored value is returned as context (e.g. "SN8 IRB Service Port"), but no
+    highlight spans: highlighting the filter term inside the value would be coincidental,
+    and a full-span fallback would falsely claim the value matched.
+    """
     tree = FilterTree(
         op=BooleanOperator.AND,
         children=[
             PathFilter(
-                path="subscription",
-                condition=LtreeFilter(op=FilterOp.HAS_COMPONENT, value="node"),
+                path="*",
+                condition=LtreeFilter(op=op, value="port"),
                 value_kind=UIType.COMPONENT,
             )
         ],
     )
-    row = _row_with_highlights([("node", "subscription.node")])
+    row = _row_with_highlights([("SN8 IRB Service Port", "subscription.port.name")])
     result = _resolve_structured_matching_fields(row, tree)
     assert len(result) == 1
-    assert result[0].text == "node"
+    assert result[0].text == "SN8 IRB Service Port"
+    assert result[0].path == "subscription.port.name"
+    assert result[0].highlight_indices is None
 
 
-def test_resolve_ltree_not_has_component_returns_empty():
-    """NOT_HAS_COMPONENT is excluded from positive leaves — returns empty."""
+@pytest.mark.parametrize(
+    "op",
+    [
+        pytest.param(FilterOp.HAS_COMPONENT, id="has-component"),
+        pytest.param(FilterOp.NOT_HAS_COMPONENT, id="not-has-component"),
+    ],
+)
+def test_resolve_component_existence_returns_empty(op: Literal[FilterOp.HAS_COMPONENT, FilterOp.NOT_HAS_COMPONENT]):
+    """Component-existence leaves are excluded from highlightable leaves — returns empty."""
     tree = FilterTree(
         op=BooleanOperator.AND,
         children=[
             PathFilter(
                 path="subscription",
-                condition=LtreeFilter(op=FilterOp.NOT_HAS_COMPONENT, value="node"),
+                condition=LtreeFilter(op=op, value="node"),
                 value_kind=UIType.COMPONENT,
             )
         ],
@@ -403,8 +427,17 @@ def test_resolve_or_filter_both_branches_returned():
     assert paths == {"subscription.status", "subscription.product.name"}
 
 
-def test_resolve_not_has_component_excluded_from_indexing():
-    """NOT_HAS_COMPONENT leaf is excluded; only the EQ leaf is indexed at position 0."""
+@pytest.mark.parametrize(
+    "op",
+    [
+        pytest.param(FilterOp.HAS_COMPONENT, id="has-component"),
+        pytest.param(FilterOp.NOT_HAS_COMPONENT, id="not-has-component"),
+    ],
+)
+def test_resolve_component_existence_excluded_from_indexing(
+    op: Literal[FilterOp.HAS_COMPONENT, FilterOp.NOT_HAS_COMPONENT],
+):
+    """Component-existence leaves are excluded; only the EQ leaf is indexed at position 0."""
     tree = FilterTree(
         op=BooleanOperator.AND,
         children=[
@@ -415,7 +448,7 @@ def test_resolve_not_has_component_excluded_from_indexing():
             ),
             PathFilter(
                 path="subscription",
-                condition=LtreeFilter(op=FilterOp.NOT_HAS_COMPONENT, value="node"),
+                condition=LtreeFilter(op=op, value="node"),
                 value_kind=UIType.COMPONENT,
             ),
         ],
@@ -442,6 +475,7 @@ def test_resolve_ltree_matches_lquery():
     result = _resolve_structured_matching_fields(row, tree)
     assert len(result) == 1
     assert isinstance(result[0], MatchingField)
+    assert result[0].highlight_indices is None
 
 
 @pytest.mark.parametrize(
@@ -599,8 +633,8 @@ def test_format_structured_response_uses_highlight_columns_for_full_path():
     assert fields[0].highlight_indices == [(0, len("active"))]
 
 
-def test_format_structured_response_highlights_full_text_when_value_not_in_text():
-    """When the filter term does not occur in the stored value, the whole value is highlighted."""
+def test_format_structured_response_ltree_leaf_has_no_highlight_indices():
+    """Path-predicate leaves report the stored value as context without highlight spans."""
     tree = FilterTree(
         op=BooleanOperator.AND,
         children=[
@@ -621,7 +655,7 @@ def test_format_structured_response_highlights_full_text_when_value_not_in_text(
     assert len(fields) == 1
     assert fields[0].path == "subscription.status"
     assert fields[0].text == "active"
-    assert fields[0].highlight_indices == [(0, len("active"))]
+    assert fields[0].highlight_indices is None
 
 
 def test_format_structured_response_without_highlight_columns_returns_empty():

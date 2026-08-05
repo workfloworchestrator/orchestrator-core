@@ -232,8 +232,8 @@ def generate_regex_highlight_indices(text: str, pattern: str) -> list[tuple[int,
     if not text or not pattern:
         return []
 
-    core = re.sub(r"^(?:\.[*+])+", "", pattern) # removes leading greedy wildcard
-    core = re.sub(r"(?:\.[*+])+$", "", core) # removes trailing greedy wildcard
+    core = re.sub(r"^(?:\.[*+])+", "", pattern)  # removes leading greedy wildcard
+    core = re.sub(r"(?:\.[*+])+$", "", core)  # removes trailing greedy wildcard
     if not core:
         return []
     try:
@@ -335,7 +335,7 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
     """Resolve matching fields from the retriever's aggregated JSON highlight column.
 
     The retriever emits a ``highlight_matches`` JSON column shaped as an array of arrays:
-    one inner array per positive filter leaf, each containing all index rows that matched
+    one inner array per highlightable filter leaf, containing all index rows that matched
     that leaf (``{"value", "path", "idx"}``). Flattening gives every (value, path) pair
     that satisfied any filter, deduplicated across leaves.
     """
@@ -346,11 +346,7 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
     if not leaf_arrays:
         return []
 
-    positive_leaves = [
-        leaf
-        for leaf in filters.get_all_leaves()
-        if not (isinstance(leaf.condition, LtreeFilter) and leaf.condition.op == FilterOp.NOT_HAS_COMPONENT)
-    ]
+    positive_leaves = filters.get_highlightable_leaves()
 
     flat_matches = [m for inner in leaf_arrays if inner for m in inner]
     unique_matches = {(str(m["value"]), str(m["path"])): m for m in flat_matches}
@@ -365,6 +361,10 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
             return MatchingField(text=text, path=path, highlight_indices=None)
         term = str(getattr(leaf.condition, "value", "") or "") if leaf else ""
         match leaf.condition if leaf else None:
+            case LtreeFilter():
+                # Path-predicate leaves (ends_with, matches_lquery, ...) match on the row's
+                # path, not its value text, so there is no substring to highlight.
+                return MatchingField(text=text, path=path, highlight_indices=None)
             case ContainsFilter():
                 indices = generate_regex_highlight_indices(text, term)
             case StringFilter():

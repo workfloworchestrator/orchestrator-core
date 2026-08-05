@@ -260,6 +260,23 @@ class FilterTree(BaseModel):
                 leaves.extend(child.get_all_leaves())
         return leaves
 
+    def get_highlightable_leaves(self) -> list[PathFilter]:
+        """Collect the leaves that produce a matching field in search results.
+
+        Component-existence filters are excluded: `not_has_component` matches entities
+        without a corresponding index row, and `has_component` is satisfied by every
+        result by definition, so neither carries information worth reporting.
+
+        The retriever and the result resolver both index matches by position in this
+        list, so they must use this same method to stay aligned.
+        """
+        existence_ops = {FilterOp.HAS_COMPONENT, FilterOp.NOT_HAS_COMPONENT}
+        return [
+            leaf
+            for leaf in self.get_all_leaves()
+            if not (isinstance(leaf.condition, LtreeFilter) and leaf.condition.op in existence_ops)
+        ]
+
     @staticmethod
     def _build_correlates(
         alias: Any, entity_id_col: SQLAColumn, entity_type_value: str | None
