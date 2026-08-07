@@ -3,9 +3,15 @@
   "extends": [
     "config:recommended"
   ],
+  "labels": ["kind/dependencies"],
   "packageRules": [
     {
       "matchManagers": ["uv"]
+    },
+    {
+      "description": "Label GitHub Actions bumps so they land in the CI/Build release-notes section",
+      "matchManagers": ["github-actions"],
+      "labels": ["kind/ci"]
     },
     {
       "matchPackageNames": ["python"],
@@ -19,6 +25,10 @@
     }
   ],
   "minimumReleaseAge": "3 days",
+  "vulnerabilityAlerts": {
+    "enabled": false
+  },
+  "osvVulnerabilityAlerts": false,
   "internalChecksFilter": "strict",
   "lockFileMaintenance": {
     "enabled": true,

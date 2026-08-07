@@ -1,0 +1,33 @@
+# Path-based auto-labeling for actions/labeler.
+# Covers the labels that can be inferred from touched files. Type labels that
+# cannot be derived from paths (kind/feature vs. kind/bug) still need to be
+# applied by the author or a reviewer — see the PR template checklist.
+kind/documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "**/*.md"
+          - "mkdocs.yml"
+
+kind/test:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "test/**"
+
+kind/ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+
+kind/build:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "pyproject.toml"
+          - "uv.lock"
+          - "Dockerfile"
+          - "Justfile"
+
+area/search:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "orchestrator/search/**"
