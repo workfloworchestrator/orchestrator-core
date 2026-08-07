@@ -36,13 +36,17 @@ changelog:
     - title: 🔒 Security Updates
       labels:
         - kind/security
+    # Dependency Updates sits above CI / Build on purpose: a dependency PR often
+    # touches pyproject.toml / uv.lock and so also gets the path-based kind/build
+    # label. Since a PR lands in the FIRST matching category, listing
+    # dependencies first keeps those bumps in the right section.
+    - title: 📦 Dependency Updates
+      labels:
+        - kind/dependencies
     - title: 🔧 CI / Build / Tooling
       labels:
         - kind/ci
         - kind/build
-    - title: 📦 Dependency Updates
-      labels:
-        - kind/dependencies
     - title: 🔀 Other Changes
       labels:
         - "*"
