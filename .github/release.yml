@@ -1,5 +1,5 @@
 # Configuration for GitHub's auto-generated release notes.
-# https://docs.github.com/en/repositories/releasing-projects-on-a-repository/automatically-generated-release-notes
+# https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
 #
 # Labels are namespaced (kind/*, area/*) so this dedicated release-notes set
 # does not collide with the existing project-filter labels (bug, documentation).
