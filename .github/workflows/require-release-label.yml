@@ -1,0 +1,39 @@
+name: Require a release-notes label
+
+# Every PR to main must carry a label that tells the release-notes generator
+# what to do with it (see .github/release.yml):
+#   - kind/*         categorizes it by change type
+#   - area/*         categorizes it by code area (e.g. Search / LLM)
+#   - skip-changelog intentionally excludes it from the notes
+#
+# Some of these labels are applied automatically from changed paths by the
+# labeler workflow; the rest (kind/feature, kind/bug, ...) are set by the
+# author or a reviewer.
+#
+# NOTE: to actually block merging, add this job as a required status check in
+# the branch protection rules for 'main'.
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - labeled
+      - unlabeled
+      - synchronize
+
+jobs:
+  require-release-label:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fail if no release-notes label is set
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          echo "Labels on this PR: ${LABELS}"
+          if echo "${LABELS}" | jq -e 'any(.[]; startswith("kind/") or startswith("area/") or . == "skip-changelog")' >/dev/null; then
+            echo "Found a release-notes label — OK."
+          else
+            echo "::error::This PR needs a 'kind/*' or 'area/*' label (e.g. kind/feature, kind/bug), or 'skip-changelog' to exclude it, so it is handled correctly in the release notes."
+            exit 1
+          fi
