@@ -1,21 +1,68 @@
-name: Labeler
+name: PR labels
+
+# Applies path-based labels AND enforces that every PR to main carries a
+# release-notes label. These MUST live in one workflow: the enforcement job
+# `needs` the labeler job so it always evaluates the labels *after* they have
+# been applied. Running them as separate workflows races — the check reads a
+# label snapshot from before the labeler runs, and labels added by
+# GITHUB_TOKEN don't trigger a re-run, so the check gets stuck failing.
+#
+# NOTE: to actually block merging, add the `require-release-label` job as a
+# required status check in the branch protection rules for 'main'.
 on:
   pull_request_target:
     types:
       - opened
-      - synchronize
       - reopened
+      - synchronize
+      - labeled
+      - unlabeled
 
 permissions:
   contents: read
   pull-requests: write
 
 jobs:
-  labeler:
+  label:
     runs-on: ubuntu-24.04
     steps:
+      # `sync-labels: true` means the labeler both adds and REMOVES labels — but
+      # ONLY the ones it can derive from changed paths (see .github/labeler.yml:
+      # kind/documentation, kind/test, kind/ci, kind/build, area/search).
+      #
+      # It deliberately does NOT touch the type labels that require developer
+      # judgement (kind/feature, kind/bug, kind/refactor, kind/security, ...) or
+      # skip-changelog. Those cannot be inferred from file paths — they are the
+      # author's/reviewer's call — so they are set by hand and left untouched
+      # here. The require-release-label job below enforces that at least one
+      # such label ends up on the PR.
       - name: "🏷️ Apply path-based labels"
         uses: actions/labeler@v5
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           sync-labels: true
+
+  require-release-label:
+    # Run after the labeler so path-based labels are already applied, and even
+    # if the labeler was skipped or failed.
+    needs: label
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Fail if no release-notes label is set
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # Read the *live* labels, not the (stale) event payload snapshot.
+          LABELS=$(gh pr view "${PR}" --repo "${REPO}" --json labels --jq '[.labels[].name]')
+          echo "Labels on this PR: ${LABELS}"
+          if echo "${LABELS}" | jq -e 'any(.[]; startswith("kind/") or startswith("area/") or . == "skip-changelog")' >/dev/null; then
+            echo "Found a release-notes label — OK."
+          else
+            echo "::error::This PR needs a 'kind/*' or 'area/*' label (e.g. kind/feature, kind/bug), or 'skip-changelog' to exclude it, so it is handled correctly in the release notes."
+            exit 1
+          fi
