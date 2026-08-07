@@ -1,6 +1,10 @@
 # Configuration for GitHub's auto-generated release notes.
 # https://docs.github.com/en/repositories/releasing-projects-on-a-repository/automatically-generated-release-notes
 #
+# Labels are namespaced (kind/*, area/*) so this dedicated release-notes set
+# does not collide with the existing project-filter labels (bug, documentation).
+# Run .github/labels.sh to create/update these labels in the repo.
+#
 # Each PR is placed in the FIRST category whose labels it matches, so order
 # matters: more specific buckets (Search / LLM, Security) come before the
 # broader ones (Bug Fixes, Dependency Updates).
@@ -11,37 +15,34 @@ changelog:
   categories:
     - title: 🚀 Features
       labels:
-        - feature
-        - enhancement
+        - kind/feature
     - title: 🔍 Search / LLM
       labels:
-        - search
-        - llm
+        - area/search
+        - area/llm
     - title: 🐛 Bug Fixes
       labels:
-        - bug
-        - fix
+        - kind/bug
     - title: ♻️ Refactors & Internal Changes
       labels:
-        - refactor
-        - chore
-        - internal
+        - kind/refactor
+        - kind/chore
     - title: 🧪 Tests
       labels:
-        - test
+        - kind/test
     - title: 📚 Documentation
       labels:
-        - documentation
+        - kind/documentation
     - title: 🔒 Security Updates
       labels:
-        - security
+        - kind/security
     - title: 🔧 CI / Build / Tooling
       labels:
-        - ci
-        - build
+        - kind/ci
+        - kind/build
     - title: 📦 Dependency Updates
       labels:
-        - dependencies
+        - kind/dependencies
     - title: 🔀 Other Changes
       labels:
         - "*"
