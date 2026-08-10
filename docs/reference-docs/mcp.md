@@ -52,6 +52,8 @@ The default toolset covers the typical agent flow:
 | `get_subscription_domain_model`           | Get a subscription's full product-block tree (large) |
 | `get_process_status_counts`               | Aggregate process/task counts grouped by status      |
 
+On top of these, [AI / Hybrid Search](ai-search.md#what-you-can-search-and-where) contributes the `search`, `aggregate`, `discover_filter_paths`, `get_valid_operators`, `resolve_entity` and `export_query` tools.
+
 Tool names map 1:1 to the route's `operation_id`; tool descriptions come from the route's docstring; parameter schemas come from the route's Pydantic request model.
 
 ## Extending
