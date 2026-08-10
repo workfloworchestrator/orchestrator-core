@@ -116,6 +116,50 @@ celery.conf.task_routes = {
 
 If you decide to override the queue names in this configuration, you must also update the names accordingly after the `-Q` flag.
 
+### Dedicated queues per workflow target
+
+The four default queues separate tasks from workflows, but they cannot isolate a *class* of
+workflows whose volume or duration profile differs from interactive work. A typical example is a
+nightly job that fans out hundreds of `Target.RECONCILE` workflows: these are not tasks
+(`is_task=False`), so they land on `new_workflows`/`resume_workflows`, where they compete with
+user-initiated workflows and delay the resumption of suspended ones for the duration of the batch.
+The same shape applies to heavy `VALIDATE` sweeps or long-running `SYSTEM` migrations.
+
+The `CELERY_TARGET_QUEUES` setting routes workflows of a given `Target` to a dedicated queue,
+for both new starts and resumes. Env vars parse as JSON:
+
+```bash
+CELERY_TARGET_QUEUES='{"RECONCILE": "reconcile"}'
+```
+
+Then run a dedicated worker pool for the isolated class, alongside the existing ones:
+
+```shell
+celery -A your_orch.celery_worker worker -E -l INFO -Q reconcile
+```
+
+Notes on the semantics:
+
+- **Task names are unchanged.** A routed reconcile start is still a `tasks.new_workflow` message
+  that merely travels via the `reconcile` queue. Queue = *where*, task name = *what*; Flower and
+  event-based monitoring keep reporting accurate task types, and any worker can execute the
+  routed messages.
+- **Start and resume share the mapped queue**, keeping the whole workload class off the shared
+  queues so worker fleets and scaling policies stay per class (e.g. an HPA on a per-queue
+  utilization metric).
+- **Targets not listed keep the default routing**; the default (empty mapping) is exactly
+  today's behavior. Multiple classes compose naturally:
+  `CELERY_TARGET_QUEUES='{"RECONCILE": "reconcile", "VALIDATE": "validate"}'`.
+- **Fail-fast validation.** An unknown target key or an empty queue name fails at application
+  startup, not at enqueue time.
+- **Mapping `VALIDATE` also covers validation runs** started via the validation endpoints — they
+  start processes through the same path, so they follow the mapping like any other start.
+- **Ignored under `EXECUTOR="threadpool"`.**
+- **Rollback is config-only**: remove the mapping entry and routing reverts instantly; a worker
+  on the dedicated queue drains whatever remains.
+
+Kombu auto-declares the queue on first use, so no broker-side configuration is needed.
+
 ### Worker count
 
 How many workers one needs for each queue depends on the number of subscriptions they have, what resources (mostly RAM) they have available, and how demanding their workflows/tasks are on external systems.
