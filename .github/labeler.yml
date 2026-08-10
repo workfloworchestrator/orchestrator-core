@@ -30,4 +30,4 @@ kind/build:
 area/search:
   - changed-files:
       - any-glob-to-any-file:
-          - "orchestrator/search/**"
+          - "orchestrator/core/search/**"
