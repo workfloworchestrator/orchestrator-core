@@ -77,6 +77,11 @@ def _subscription_field_types() -> dict[str, frozenset[FieldType]]:
     return {path: frozenset(types) for path, types in field_types.items()}
 
 
+def clear_field_type_cache() -> None:
+    """Clear cached subscription field types after changing the model registry."""
+    _subscription_field_types.cache_clear()
+
+
 def resolve_field_types(entity_type: EntityType, path: str) -> frozenset[FieldType]:
     """Return the Pydantic-derived index types for an exact or global field path."""
     if entity_type != EntityType.SUBSCRIPTION:

@@ -23,7 +23,7 @@ from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.schemas.search_requests import SearchRequest
 from orchestrator.core.search.core.types import EntityType, RetrieverType, UIType
 from orchestrator.core.search.filters.base import PathFilter
-from orchestrator.core.search.indexing.field_types import _subscription_field_types
+from orchestrator.core.search.indexing.field_types import clear_field_type_cache
 from orchestrator.core.search.query.mixins import StructuredOrderBy
 
 
@@ -101,12 +101,12 @@ def test_to_query_resolves_digit_only_string_term_from_subscription_schema() -> 
 
         vlanrange: VlanRange | None = None
 
-    _subscription_field_types.cache_clear()
+    clear_field_type_cache()
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"VLAN": VlanRangeSubscription}, clear=True):
         request = SearchRequest(filters={"term": {"vlanrange": "26"}})  # type: ignore[arg-type]
         query = request.to_query(EntityType.SUBSCRIPTION)
 
-    _subscription_field_types.cache_clear()
+    clear_field_type_cache()
     assert query.filters is not None
     leaf = query.filters.children[0]
     assert isinstance(leaf, PathFilter)
@@ -119,12 +119,12 @@ def test_to_query_resolves_digit_only_numeric_term_from_subscription_schema() ->
 
         vlan_id: int | None = None
 
-    _subscription_field_types.cache_clear()
+    clear_field_type_cache()
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"VLAN": VlanIdSubscription}, clear=True):
         request = SearchRequest(filters={"term": {"vlan_id": "26"}})  # type: ignore[arg-type]
         query = request.to_query(EntityType.SUBSCRIPTION)
 
-    _subscription_field_types.cache_clear()
+    clear_field_type_cache()
     assert query.filters is not None
     leaf = query.filters.children[0]
     assert isinstance(leaf, PathFilter)
@@ -139,12 +139,12 @@ def test_to_query_falls_back_to_inference_for_unknown_field() -> None:
 
         name: str
 
-    _subscription_field_types.cache_clear()
+    clear_field_type_cache()
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"PLAIN": PlainSubscription}, clear=True):
         request = SearchRequest(filters={"term": {"unknown_field": "26"}})  # type: ignore[arg-type]
         query = request.to_query(EntityType.SUBSCRIPTION)
 
-    _subscription_field_types.cache_clear()
+    clear_field_type_cache()
     assert query.filters is not None
     leaf = query.filters.children[0]
     assert isinstance(leaf, PathFilter)

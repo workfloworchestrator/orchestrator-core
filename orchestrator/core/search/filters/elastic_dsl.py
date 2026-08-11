@@ -55,8 +55,8 @@ _INVERT_OP: dict[FilterOp, FilterOp] = {
 }
 
 
+# Given a field path and its raw term value, return the UIType to use, or None to fall back to inference.
 ValueKindResolver = Callable[[str, Any], UIType | None]
-"""Given a field path and its raw term value, return the UIType to use, or None to fall back to inference."""
 
 
 def _infer_value_kind(value: Any) -> UIType:

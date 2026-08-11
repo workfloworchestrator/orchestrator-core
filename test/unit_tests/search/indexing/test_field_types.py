@@ -23,7 +23,7 @@ from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.search.core.types import EntityType, FieldType
 from orchestrator.core.search.indexing.field_types import (
     _collect_field_types,
-    _subscription_field_types,
+    clear_field_type_cache,
     resolve_field_types,
 )
 from test.unit_tests.search.fixtures.blocks import BasicBlock
@@ -48,16 +48,39 @@ def test_resolve_field_types_non_subscription_entity_returns_empty() -> None:
     assert resolve_field_types(EntityType.WORKFLOW, "name") == frozenset()
 
 
+def test_clear_field_type_cache_refreshes_registered_models() -> None:
+    class InitialSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        initial_field: str
+
+    class RegisteredLaterSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        registered_later_field: int
+
+    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"INITIAL": InitialSubscription}, clear=True):
+        clear_field_type_cache()
+        assert resolve_field_types(EntityType.SUBSCRIPTION, "registered_later_field") == frozenset()
+
+        SUBSCRIPTION_MODEL_REGISTRY["REGISTERED_LATER"] = RegisteredLaterSubscription
+        clear_field_type_cache()
+
+        assert resolve_field_types(EntityType.SUBSCRIPTION, "registered_later_field") == frozenset({FieldType.INTEGER})
+
+    clear_field_type_cache()
+
+
 def test_resolve_field_types_resolves_nested_block_path() -> None:
     class BlockSubscription(SubscriptionModel, is_base=True):
         model_config = ConfigDict(arbitrary_types_allowed=True)
 
         basic_block: BasicBlock
 
-    _subscription_field_types.cache_clear()
+    clear_field_type_cache()
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"BLOCK": BlockSubscription}, clear=True):
         types = resolve_field_types(EntityType.SUBSCRIPTION, "subscription.basic_block.value")
-    _subscription_field_types.cache_clear()
+    clear_field_type_cache()
 
     assert types == frozenset({FieldType.INTEGER})
 
@@ -70,10 +93,10 @@ def test_resolve_field_types_global_path_matches_any_depth() -> None:
 
         basic_block: BasicBlock
 
-    _subscription_field_types.cache_clear()
+    clear_field_type_cache()
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"BLOCK": BlockSubscription}, clear=True):
         types = resolve_field_types(EntityType.SUBSCRIPTION, "value")
-    _subscription_field_types.cache_clear()
+    clear_field_type_cache()
 
     assert types == frozenset({FieldType.INTEGER})
 
@@ -84,9 +107,9 @@ def test_resolve_field_types_unknown_path_returns_empty() -> None:
 
         name: str
 
-    _subscription_field_types.cache_clear()
+    clear_field_type_cache()
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"SIMPLE": SimpleSubscription}, clear=True):
         types = resolve_field_types(EntityType.SUBSCRIPTION, "subscription.does_not_exist")
-    _subscription_field_types.cache_clear()
+    clear_field_type_cache()
 
     assert types == frozenset()
