@@ -64,7 +64,7 @@ This is what makes fuzzy matching tolerant of spelling.
 
 ### What embeddings add
 
-An **embedding** is a list of numbers that represents the meaning of a piece of text. Texts with
+An **embedding** is a vector (list) of numbers that represents the meaning of a piece of text. Texts with
 similar meanings get numerically close vectors, so "closeness" becomes a distance calculation the
 database can index and sort by.
 
@@ -100,11 +100,14 @@ stored with no embedding.
 
 Indexing is triggered from three places:
 
-- **Workflow steps**: `refresh_subscription_search_index` and `refresh_process_search_index` are
-  appended by the `create_workflow`, `modify_workflow`, `terminate_workflow` and
-  `reconcile_workflow` decorators. They swallow errors, so a failed re-index never fails the
-  workflow. Note that `validate_workflow` and workflows built with the bare `@workflow` decorator
-  do **not** refresh the index, so index those entities another way.
+- **Workflow steps**: the `create_workflow`, `modify_workflow`, `terminate_workflow` and
+  `reconcile_workflow` decorators append two steps, `refresh_subscription_search_index` and
+  `refresh_process_search_index`. The first re-indexes the workflow's subscription, the second
+  re-indexes the workflow's own process record. Both catch their own errors, so a failed re-index
+  never fails the workflow. `validate_workflow` and the bare `@workflow` decorator do not append
+  these steps, so a subscription or process changed by such a workflow keeps its previous index
+  entry until something re-indexes it. Add the two steps (`orchestrator.core.workflows.steps`) to
+  your own step list when the workflow changes indexed data.
 - **REST endpoints**: product and process updates re-index the entity they changed.
 - **The CLI**: see [Building and refreshing the index](#building-and-refreshing-the-index).
 
@@ -197,16 +200,11 @@ the required PostgreSQL extensions. All settings are listed under
 
 ### Running without embeddings
 
-Leaving `EMBEDDING_API_ENABLED` at its default of `False` is a supported mode, not a broken one:
-
-- Indexing stores every row with `embedding = NULL`. Nothing errors.
-- Searches route to fuzzy and structured retrieval. Semantic and hybrid are simply unavailable,
-  and requests that would have used them degrade to fuzzy.
-
-Embedding failures at runtime behave the same way *under automatic routing*: the embedding client
-returns nothing rather than raising, and the engine falls back to fuzzy. A request that names
-`semantic` or `hybrid` explicitly still fails with an error instead. See
-[Searching](#searching-read-path).
+`EMBEDDING_API_ENABLED` defaults to `False`. Indexing then stores every row with
+`embedding = NULL` and searches use fuzzy and structured retrieval only, so anything that would
+have been ranked semantically falls back to fuzzy. Runtime embedding failures behave the same
+way, except when a request names `semantic` or `hybrid` explicitly: those return an error rather
+than falling back. See [Searching](#searching-read-path).
 
 ### Building and refreshing the index
 
