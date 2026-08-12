@@ -13,6 +13,17 @@ changelog:
     labels:
       - skip-changelog
   categories:
+    # Breaking Changes is deliberately first. A breaking change is often also a
+    # feature or a bug fix, and since a PR lands in only the FIRST matching
+    # category it is listed here instead of there — that is the section readers
+    # of a major release need to see, and it keeps it from being buried.
+    #
+    # There is no way to make a category depend on the version being released:
+    # .github/release.yml is static config. The section is self-gating instead —
+    # it only appears when a PR in the release range carries kind/breaking.
+    - title: ⚠️ Breaking Changes
+      labels:
+        - kind/breaking
     - title: 🚀 Features
       labels:
         - kind/feature
