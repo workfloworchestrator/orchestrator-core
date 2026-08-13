@@ -364,8 +364,9 @@ def elastic_to_filter_tree(es_query: ElasticQuery, value_kind_resolver: ValueKin
     Args:
         es_query: A parsed ElasticQuery (TermQuery, RangeQuery, WildcardQuery,
             ExistsQuery, or BoolQuery).
-        value_kind_resolver: Optional resolver for term values, used to override
-            the default value-kind inference for digit-only strings.
+        value_kind_resolver: Optional schema-aware override for ambiguous term
+            values. It is consulted for digit-only strings; all other values use
+            normal inference.
 
     Returns:
         A FilterTree suitable for compilation to SQL.
