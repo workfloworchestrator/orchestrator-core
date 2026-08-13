@@ -15,12 +15,13 @@
 import inspect
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, cast, get_args
+from mypyc.primitives.dict_ops import isinstance_dict
+from typing import Any, cast, get_args, get_origin
 from uuid import UUID
 
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.domain.lifecycle import validate_subscription_model_product_type
-from orchestrator.core.types import StepFunc, is_list_type, is_optional_type, is_union_type
+from orchestrator.core.types import StepFunc, is_list_type, is_optional_type, is_union_type, is_of_type
 from orchestrator.core.utils.functional import logger
 from pydantic_forms.types import (
     FormGenerator,
@@ -158,6 +159,10 @@ def _convert_to_uuid(v: Any) -> UUID:
     return v if isinstance(v, UUID) else UUID(v)
 
 
+def is_dict_type(annotation):
+  return annotation is dict or get_origin(annotation) is dict
+
+
 def _apply_type_conversion(value: Any, annotation: Any, param_name: str) -> Any:
     """Apply UUID conversion based on annotation type.
 
@@ -178,7 +183,11 @@ def _apply_type_conversion(value: Any, annotation: Any, param_name: str) -> Any:
         return [_convert_to_uuid(item) for item in value]
     if is_optional_type(annotation, UUID):
         return None if value is None else _convert_to_uuid(value)
-    return value
+
+    if is_list_type(annotation, dict):
+        return [annotation(item) if _can_unwrap(annotation) else item for item in value]
+
+    return annotation(value) if _can_unwrap(annotation) else value
 
 
 def _handle_subscription_model_param(param_name: str, annotation: Any, state: State) -> SubscriptionModel:
@@ -406,6 +415,24 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:
     return arguments
 
 
+def _can_unwrap(obj: Any) -> bool:
+    return hasattr(obj, 'unwrap') and callable(getattr(obj, 'unwrap'))
+
+
+def _unwrap_state(state: State) -> State:
+    def _unwrap(value: Any) -> Any:
+        if _can_unwrap(value):
+            return value.unwrap()
+        elif isinstance(value, list):
+            return [_unwrap(item) for item in value]
+        elif isinstance(value, dict):
+            return _unwrap_state(value)
+        else:
+            return value
+
+    return {key: _unwrap(value) for key, value in state.items()}
+
+
 def inject_args(func: StepFunc) -> Callable[[State], State]:
     """Allow functions to specify values from the state dict as parameters named after the state keys.
 
@@ -491,6 +518,8 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
         # Support step functions that don't return anything
         if new_state is None:
             new_state = {}
+
+        new_state = _unwrap_state(new_state)
 
         _save_models(new_state)
 
