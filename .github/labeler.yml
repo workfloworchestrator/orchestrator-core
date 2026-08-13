@@ -18,6 +18,8 @@ kind/ci:
   - changed-files:
       - any-glob-to-any-file:
           - ".github/**"
+          - ".pre-commit-config.yaml"
+          - "codecov.yml"
 
 kind/build:
   - changed-files:
@@ -25,7 +27,10 @@ kind/build:
           - "pyproject.toml"
           - "uv.lock"
           - "Dockerfile"
+          - ".dockerignore"
           - "Justfile"
+          - "renovate.json"
+          - ".bumpversion.cfg"
 
 area/search:
   - changed-files:
