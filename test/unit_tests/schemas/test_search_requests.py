@@ -92,63 +92,34 @@ def test_to_query_propagates_fields() -> None:
     assert query.response_columns == ["name", "status"]
 
 
-def test_to_query_resolves_digit_only_string_term_from_subscription_schema() -> None:
+@pytest.mark.parametrize(
+    "field, expected_kind",
+    [
+        pytest.param("vlanrange", UIType.STRING, id="string-field"),
+        pytest.param("vlan_id", UIType.NUMBER, id="numeric-field"),
+        pytest.param("unknown_field", UIType.NUMBER, id="unknown-field-falls-back"),
+    ],
+)
+def test_to_query_resolves_digit_only_term_from_subscription_schema(field: str, expected_kind: UIType) -> None:
     class VlanRange(str):
         pass
 
-    class VlanRangeSubscription(SubscriptionModel, is_base=True):
+    class VlanSubscription(SubscriptionModel, is_base=True):
         model_config = ConfigDict(arbitrary_types_allowed=True)
 
         vlanrange: VlanRange | None = None
-
-    clear_field_type_cache()
-    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"VLAN": VlanRangeSubscription}, clear=True):
-        request = SearchRequest(filters={"term": {"vlanrange": "26"}})  # type: ignore[arg-type]
-        query = request.to_query(EntityType.SUBSCRIPTION)
-
-    clear_field_type_cache()
-    assert query.filters is not None
-    leaf = query.filters.children[0]
-    assert isinstance(leaf, PathFilter)
-    assert leaf.value_kind == UIType.STRING
-
-
-def test_to_query_resolves_digit_only_numeric_term_from_subscription_schema() -> None:
-    class VlanIdSubscription(SubscriptionModel, is_base=True):
-        model_config = ConfigDict(arbitrary_types_allowed=True)
-
         vlan_id: int | None = None
 
     clear_field_type_cache()
-    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"VLAN": VlanIdSubscription}, clear=True):
-        request = SearchRequest(filters={"term": {"vlan_id": "26"}})  # type: ignore[arg-type]
+    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"VLAN": VlanSubscription}, clear=True):
+        request = SearchRequest(filters={"term": {field: "26"}})  # type: ignore[arg-type]
         query = request.to_query(EntityType.SUBSCRIPTION)
 
     clear_field_type_cache()
     assert query.filters is not None
     leaf = query.filters.children[0]
     assert isinstance(leaf, PathFilter)
-    assert leaf.value_kind == UIType.NUMBER
-
-
-def test_to_query_falls_back_to_inference_for_unknown_field() -> None:
-    """When the resolver can't identify the field, value inference is used instead."""
-
-    class PlainSubscription(SubscriptionModel, is_base=True):
-        model_config = ConfigDict(arbitrary_types_allowed=True)
-
-        name: str
-
-    clear_field_type_cache()
-    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"PLAIN": PlainSubscription}, clear=True):
-        request = SearchRequest(filters={"term": {"unknown_field": "26"}})  # type: ignore[arg-type]
-        query = request.to_query(EntityType.SUBSCRIPTION)
-
-    clear_field_type_cache()
-    assert query.filters is not None
-    leaf = query.filters.children[0]
-    assert isinstance(leaf, PathFilter)
-    assert leaf.value_kind == UIType.NUMBER
+    assert leaf.value_kind == expected_kind
 
 
 def test_model_validate_rejects_non_dict_non_model_input() -> None:

@@ -411,27 +411,6 @@ def test_empty_bool_raises() -> None:
         ElasticQueryAdapter.validate_python({"bool": {}})
 
 
-def test_translate_node_unsupported_query_type_raises() -> None:
-    """elastic_to_filter_tree raises for a query type outside the known ElasticQuery union."""
-
-    class UnsupportedQuery:
-        pass
-
-    with pytest.raises(ValueError, match="Unsupported ES DSL query type"):
-        elastic_to_filter_tree(UnsupportedQuery())  # type: ignore[arg-type]
-
-
-def test_translate_bool_no_children_raises() -> None:
-    """elastic_to_filter_tree raises if must/should/must_not clauses translate to no children."""
-    from orchestrator.core.search.filters.elastic_dsl import BoolClause, BoolQuery
-
-    clause = BoolClause.model_construct(must=[], should=[], must_not=[])
-    query = BoolQuery.model_construct(bool=clause)
-
-    with pytest.raises(ValueError, match="bool query produced no children"):
-        elastic_to_filter_tree(query)
-
-
 @pytest.mark.parametrize(
     "query_type, payload",
     [

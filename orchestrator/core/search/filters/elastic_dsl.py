@@ -21,7 +21,7 @@ FilterTree representation used by the search engine.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Annotated, Any, Literal
+from typing import Any, Literal, TypeAlias
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -136,10 +136,7 @@ class BoolClause(BaseModel):
         return self
 
 
-ElasticQuery = Annotated[
-    TermQuery | RangeQuery | WildcardQuery | RegexpQuery | ExistsQuery | BoolQuery,
-    Field(discriminator=None),
-]
+ElasticQuery: TypeAlias = TermQuery | RangeQuery | WildcardQuery | RegexpQuery | ExistsQuery | BoolQuery
 
 # Rebuild models that reference the forward ref
 BoolClause.model_rebuild()
@@ -365,8 +362,7 @@ def elastic_to_filter_tree(es_query: ElasticQuery, value_kind_resolver: ValueKin
         es_query: A parsed ElasticQuery (TermQuery, RangeQuery, WildcardQuery,
             ExistsQuery, or BoolQuery).
         value_kind_resolver: Optional schema-aware override for ambiguous term
-            values. It is consulted for digit-only strings; all other values use
-            normal inference.
+            values.
 
     Returns:
         A FilterTree suitable for compilation to SQL.

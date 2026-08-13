@@ -69,7 +69,7 @@ class SearchRequest(BaseModel):
             SelectQuery for search operation
         """
         filters = self.filters
-        if filters is not None and not isinstance(filters, FilterTree):
+        if isinstance(filters, ElasticQuery):
             filters = elastic_to_filter_tree(
                 filters,
                 value_kind_resolver=lambda path, _value: resolve_field_value_kind(entity_type, path),

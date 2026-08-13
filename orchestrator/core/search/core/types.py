@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum, IntEnum
@@ -216,7 +217,7 @@ class FieldType(str, Enum):
 
         origin, args = get_origin_and_args(type_hint)
 
-        if origin is list:
+        if origin is list or origin is Sequence:
             return cls._handle_list_type(args)
 
         if origin is Literal:

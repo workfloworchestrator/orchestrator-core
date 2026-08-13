@@ -14,7 +14,7 @@
 from collections import defaultdict
 from collections.abc import Iterable
 from functools import lru_cache
-from typing import Any, get_args, get_origin
+from typing import Any, get_args
 
 from pydantic import BaseModel
 
@@ -23,7 +23,7 @@ from orchestrator.core.domain.base import DomainModel
 from orchestrator.core.domain.lifecycle import lookup_specialized_type
 from orchestrator.core.search.core.types import EntityType, FieldType, UIType
 from orchestrator.core.search.indexing.schema import iter_model_field_annotations
-from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.types import SubscriptionLifecycle, is_list_type
 
 
 def _model_types(annotation: Any) -> set[type[BaseModel]]:
@@ -59,23 +59,18 @@ def _collect_field_types(
     ancestors = ancestors | {model_type}
     for name, annotation in _field_annotations(model_type):
         field_path = f"{path}.{name}"
-        is_list = get_origin(annotation) is list
+        is_list = is_list_type(annotation)
+        indexed_path = f"{field_path}.*" if is_list else field_path
         nested_model_types = _model_types(annotation)
         if nested_model_types:
-            nested_path = f"{field_path}.*" if is_list else field_path
             for nested_model_type in nested_model_types:
-                _collect_field_types(nested_model_type, nested_path, field_types, ancestors)
+                _collect_field_types(nested_model_type, indexed_path, field_types, ancestors)
         else:
-            indexed_path = f"{field_path}.*" if is_list else field_path
             field_types[indexed_path].add(FieldType.from_type_hint(annotation))
 
 
 def _specialized_subscription_types(model_type: type[SubscriptionModel]) -> set[type[SubscriptionModel]]:
-    """Return a registered subscription model together with its lifecycle-specialized variants.
-
-    Uses the lifecycle registry maintained by ``register_specialized_type()`` instead of walking
-    ``__subclasses__()``, so only variants actually registered for this model are included.
-    """
+    """Return a registered subscription model and its lifecycle-specialized variants."""
     return {lookup_specialized_type(model_type, lifecycle) for lifecycle in (None, *SubscriptionLifecycle)}
 
 
@@ -93,9 +88,20 @@ def _subscription_field_types() -> dict[str, frozenset[FieldType]]:
     return {path: frozenset(types) for path, types in field_types.items()}
 
 
+@lru_cache(maxsize=1)
+def _subscription_field_suffix_types() -> dict[str, frozenset[FieldType]]:
+    """Build field types indexed by their final path segment."""
+    suffix_types: dict[str, set[FieldType]] = defaultdict(set)
+    for field_path, field_types in _subscription_field_types().items():
+        suffix = field_path.rsplit(".", maxsplit=1)[-1]
+        suffix_types[suffix].update(field_types)
+    return {suffix: frozenset(types) for suffix, types in suffix_types.items()}
+
+
 def clear_field_type_cache() -> None:
     """Clear cached subscription field types after changing the model registry."""
     _subscription_field_types.cache_clear()
+    _subscription_field_suffix_types.cache_clear()
 
 
 def resolve_field_types(entity_type: EntityType, path: str) -> frozenset[FieldType]:
@@ -103,13 +109,10 @@ def resolve_field_types(entity_type: EntityType, path: str) -> frozenset[FieldTy
     if entity_type != EntityType.SUBSCRIPTION:
         return frozenset()
 
-    field_types = _subscription_field_types()
     if "." in path:
         schema_path = ".".join("*" if segment.isdigit() else segment for segment in path.split("."))
-        return field_types.get(schema_path, frozenset())
-    return frozenset().union(
-        *(types for field_path, types in field_types.items() if field_path.rsplit(".", maxsplit=1)[-1] == path)
-    )
+        return _subscription_field_types().get(schema_path, frozenset())
+    return _subscription_field_suffix_types().get(path, frozenset())
 
 
 def resolve_field_value_kind(entity_type: EntityType, path: str) -> UIType | None:

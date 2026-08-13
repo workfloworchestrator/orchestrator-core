@@ -13,36 +13,36 @@
 
 """Tests for orchestrator.core.search.indexing.field_types: subscription field type indexing and resolution."""
 
-from collections import defaultdict
 from unittest.mock import patch
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.domain.base import ProductBlockModel, SubscriptionModel
 from orchestrator.core.search.core.types import EntityType, FieldType, UIType
 from orchestrator.core.search.indexing.field_types import (
-    _collect_field_types,
     clear_field_type_cache,
     resolve_field_types,
     resolve_field_value_kind,
 )
-from test.unit_tests.search.fixtures.blocks import BasicBlock, ComputedBlock
+from test.unit_tests.search.fixtures.blocks import BasicBlock, ComputedBlock, ListBlock
 
 
-def test_collect_field_types_stops_at_self_referential_ancestor() -> None:
-    """A model that references itself must not recurse infinitely."""
+def test_resolve_field_types_handles_recursive_subscription_model() -> None:
+    class RecursiveSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    class RecursiveModel(BaseModel):
         name: str
-        child: "RecursiveModel | None" = None
+        child: "RecursiveSubscription | None" = None
 
-    RecursiveModel.model_rebuild()
+    RecursiveSubscription.model_rebuild()
 
-    field_types: dict[str, set[FieldType]] = defaultdict(set)
-    _collect_field_types(RecursiveModel, "subscription", field_types, set())
+    clear_field_type_cache()
+    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"RECURSIVE": RecursiveSubscription}, clear=True):
+        types = resolve_field_types(EntityType.SUBSCRIPTION, "subscription.name")
+    clear_field_type_cache()
 
-    assert dict(field_types) == {"subscription.name": {FieldType.STRING}}
+    assert types == frozenset({FieldType.STRING})
 
 
 def test_resolve_field_types_non_subscription_entity_returns_empty() -> None:
@@ -86,6 +86,20 @@ def test_resolve_field_types_resolves_nested_block_path() -> None:
     assert types == frozenset({FieldType.INTEGER})
 
 
+def test_resolve_field_types_indexes_annotated_list_fields_with_wildcard_path() -> None:
+    class ListSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        list_block: ListBlock
+
+    clear_field_type_cache()
+    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"LIST": ListSubscription}, clear=True):
+        types = resolve_field_types(EntityType.SUBSCRIPTION, "subscription.list_block.required_ids.0")
+    clear_field_type_cache()
+
+    assert types == frozenset({FieldType.INTEGER})
+
+
 def test_resolve_field_types_uses_domain_field_registries() -> None:
     class DomainFieldsSubscription(SubscriptionModel, is_base=True):
         model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -123,33 +137,39 @@ def test_resolve_field_types_global_path_matches_any_depth() -> None:
 
 
 def test_resolve_field_value_kind_returns_only_unambiguous_types() -> None:
-    class StringSubscription(SubscriptionModel, is_base=True):
+    class StringBlock(ProductBlockModel):
+        ambiguous_value: str
+
+    class NumericBlock(ProductBlockModel):
+        ambiguous_value: int
+
+    class BlockSubscription(SubscriptionModel, is_base=True):
         model_config = ConfigDict(arbitrary_types_allowed=True)
 
         string_value: str
-        ambiguous_value: str
-
-    class NumericSubscription(SubscriptionModel, is_base=True):
-        model_config = ConfigDict(arbitrary_types_allowed=True)
-
         numeric_value: int
-        ambiguous_value: int
+        string_block: StringBlock
+        numeric_block: NumericBlock
 
     clear_field_type_cache()
-    with patch.dict(
-        SUBSCRIPTION_MODEL_REGISTRY,
-        {"STRING": StringSubscription, "NUMERIC": NumericSubscription},
-        clear=True,
-    ):
+    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"BLOCK": BlockSubscription}, clear=True):
         string_kind = resolve_field_value_kind(EntityType.SUBSCRIPTION, "string_value")
         numeric_kind = resolve_field_value_kind(EntityType.SUBSCRIPTION, "numeric_value")
         ambiguous_kind = resolve_field_value_kind(EntityType.SUBSCRIPTION, "ambiguous_value")
+        qualified_string_kind = resolve_field_value_kind(
+            EntityType.SUBSCRIPTION, "subscription.string_block.ambiguous_value"
+        )
+        qualified_numeric_kind = resolve_field_value_kind(
+            EntityType.SUBSCRIPTION, "subscription.numeric_block.ambiguous_value"
+        )
         other_entity_kind = resolve_field_value_kind(EntityType.WORKFLOW, "string_value")
     clear_field_type_cache()
 
     assert string_kind == UIType.STRING
     assert numeric_kind == UIType.NUMBER
     assert ambiguous_kind is None
+    assert qualified_string_kind == UIType.STRING
+    assert qualified_numeric_kind == UIType.NUMBER
     assert other_entity_kind is None
 
 
