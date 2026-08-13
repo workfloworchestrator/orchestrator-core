@@ -16,7 +16,7 @@
 from collections import defaultdict
 from unittest.mock import patch
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.core.domain.base import SubscriptionModel
@@ -26,7 +26,7 @@ from orchestrator.core.search.indexing.field_types import (
     clear_field_type_cache,
     resolve_field_types,
 )
-from test.unit_tests.search.fixtures.blocks import BasicBlock
+from test.unit_tests.search.fixtures.blocks import BasicBlock, ComputedBlock
 
 
 def test_collect_field_types_stops_at_self_referential_ancestor() -> None:
@@ -83,6 +83,26 @@ def test_resolve_field_types_resolves_nested_block_path() -> None:
     clear_field_type_cache()
 
     assert types == frozenset({FieldType.INTEGER})
+
+
+def test_resolve_field_types_uses_domain_field_registries() -> None:
+    class DomainFieldsSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        renamed_value: int = Field(alias="value")
+        basic_block: BasicBlock
+        computed_block: ComputedBlock
+
+    clear_field_type_cache()
+    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"DOMAIN": DomainFieldsSubscription}, clear=True):
+        scalar_types = resolve_field_types(EntityType.SUBSCRIPTION, "subscription.value")
+        nested_types = resolve_field_types(EntityType.SUBSCRIPTION, "subscription.basic_block.value")
+        computed_types = resolve_field_types(EntityType.SUBSCRIPTION, "subscription.computed_block.display_name")
+    clear_field_type_cache()
+
+    assert scalar_types == frozenset({FieldType.INTEGER})
+    assert nested_types == frozenset({FieldType.INTEGER})
+    assert computed_types == frozenset({FieldType.STRING})
 
 
 def test_resolve_field_types_global_path_matches_any_depth() -> None:

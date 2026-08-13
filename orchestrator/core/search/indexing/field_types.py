@@ -12,12 +12,14 @@
 # limitations under the License.
 
 from collections import defaultdict
+from collections.abc import Iterable
 from functools import lru_cache
 from typing import Any, get_args, get_origin
 
 from pydantic import BaseModel
 
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
+from orchestrator.core.domain.base import DomainModel
 from orchestrator.core.domain.lifecycle import lookup_specialized_type
 from orchestrator.core.search.core.types import EntityType, FieldType
 from orchestrator.core.search.indexing.schema import iter_model_field_annotations
@@ -31,6 +33,20 @@ def _model_types(annotation: Any) -> set[type[BaseModel]]:
     return {model_type for arg in get_args(annotation) for model_type in _model_types(arg)}
 
 
+def _field_annotations(model_type: type[BaseModel]) -> Iterable[tuple[str, Any]]:
+    """Yield fields using domain-model classification when available."""
+    if issubclass(model_type, DomainModel):
+        yield from model_type._non_product_block_fields_.items()
+        yield from model_type._product_block_fields_.items()
+        yield from (
+            (name, computed_field.return_type)
+            for name, computed_field in getattr(model_type, "__pydantic_computed_fields__", {}).items()
+        )
+        return
+
+    yield from iter_model_field_annotations(model_type)
+
+
 def _collect_field_types(
     model_type: type[BaseModel],
     path: str,
@@ -41,7 +57,7 @@ def _collect_field_types(
         return
 
     ancestors = ancestors | {model_type}
-    for name, annotation in iter_model_field_annotations(model_type):
+    for name, annotation in _field_annotations(model_type):
         field_path = f"{path}.{name}"
         is_list = get_origin(annotation) is list
         nested_model_types = _model_types(annotation)
