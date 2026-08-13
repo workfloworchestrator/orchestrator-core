@@ -20,11 +20,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.core.domain.base import SubscriptionModel
-from orchestrator.core.search.core.types import EntityType, FieldType
+from orchestrator.core.search.core.types import EntityType, FieldType, UIType
 from orchestrator.core.search.indexing.field_types import (
     _collect_field_types,
     clear_field_type_cache,
     resolve_field_types,
+    resolve_field_value_kind,
 )
 from test.unit_tests.search.fixtures.blocks import BasicBlock, ComputedBlock
 
@@ -119,6 +120,37 @@ def test_resolve_field_types_global_path_matches_any_depth() -> None:
     clear_field_type_cache()
 
     assert types == frozenset({FieldType.INTEGER})
+
+
+def test_resolve_field_value_kind_returns_only_unambiguous_types() -> None:
+    class StringSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        string_value: str
+        ambiguous_value: str
+
+    class NumericSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        numeric_value: int
+        ambiguous_value: int
+
+    clear_field_type_cache()
+    with patch.dict(
+        SUBSCRIPTION_MODEL_REGISTRY,
+        {"STRING": StringSubscription, "NUMERIC": NumericSubscription},
+        clear=True,
+    ):
+        string_kind = resolve_field_value_kind(EntityType.SUBSCRIPTION, "string_value")
+        numeric_kind = resolve_field_value_kind(EntityType.SUBSCRIPTION, "numeric_value")
+        ambiguous_kind = resolve_field_value_kind(EntityType.SUBSCRIPTION, "ambiguous_value")
+        other_entity_kind = resolve_field_value_kind(EntityType.WORKFLOW, "string_value")
+    clear_field_type_cache()
+
+    assert string_kind == UIType.STRING
+    assert numeric_kind == UIType.NUMBER
+    assert ambiguous_kind is None
+    assert other_entity_kind is None
 
 
 def test_resolve_field_types_unknown_path_returns_empty() -> None:

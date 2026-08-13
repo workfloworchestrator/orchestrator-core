@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.core.domain.base import DomainModel
 from orchestrator.core.domain.lifecycle import lookup_specialized_type
-from orchestrator.core.search.core.types import EntityType, FieldType
+from orchestrator.core.search.core.types import EntityType, FieldType, UIType
 from orchestrator.core.search.indexing.schema import iter_model_field_annotations
 from orchestrator.core.types import SubscriptionLifecycle
 
@@ -110,3 +110,13 @@ def resolve_field_types(entity_type: EntityType, path: str) -> frozenset[FieldTy
     return frozenset().union(
         *(types for field_path, types in field_types.items() if field_path.rsplit(".", maxsplit=1)[-1] == path)
     )
+
+
+def resolve_field_value_kind(entity_type: EntityType, path: str) -> UIType | None:
+    """Return the UI type for a schema-resolved field when it is unambiguous."""
+    field_types = resolve_field_types(entity_type, path)
+    if field_types == {FieldType.STRING}:
+        return UIType.STRING
+    if field_types and field_types <= {FieldType.INTEGER, FieldType.FLOAT}:
+        return UIType.NUMBER
+    return None

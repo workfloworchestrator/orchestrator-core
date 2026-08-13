@@ -14,20 +14,11 @@
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from orchestrator.core.search.core.types import EntityType, FieldType, RetrieverType, UIType
+from orchestrator.core.search.core.types import EntityType, RetrieverType
 from orchestrator.core.search.filters import ElasticQuery, FilterTree, elastic_to_filter_tree
-from orchestrator.core.search.indexing.field_types import resolve_field_types
+from orchestrator.core.search.indexing.field_types import resolve_field_value_kind
 from orchestrator.core.search.query.mixins import StructuredOrderBy
 from orchestrator.core.search.query.queries import SelectQuery
-
-
-def _resolve_digit_only_string_kind(entity_type: EntityType, path: str) -> UIType | None:
-    field_types = resolve_field_types(entity_type, path)
-    if field_types == {FieldType.STRING}:
-        return UIType.STRING
-    if field_types and field_types <= {FieldType.INTEGER, FieldType.FLOAT}:
-        return UIType.NUMBER
-    return None
 
 
 class SearchRequest(BaseModel):
@@ -81,7 +72,7 @@ class SearchRequest(BaseModel):
         if filters is not None and not isinstance(filters, FilterTree):
             filters = elastic_to_filter_tree(
                 filters,
-                value_kind_resolver=lambda path, _value: _resolve_digit_only_string_kind(entity_type, path),
+                value_kind_resolver=lambda path, _value: resolve_field_value_kind(entity_type, path),
             )
 
         return SelectQuery(
