@@ -418,7 +418,7 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:
 
 def _can_unwrap(obj: Any) -> bool:
     """Check if an object wraps a primitive type."""
-    return hasattr(obj, "unwrap") and callable(getattr(obj, "unwrap"))
+    return hasattr(obj, "unwrap") and callable(obj.unwrap)
 
 
 def _unwrap_state(state: State) -> State:
@@ -426,12 +426,11 @@ def _unwrap_state(state: State) -> State:
     def _unwrap(value: Any) -> Any:
         if _can_unwrap(value):
             return value.unwrap()
-        elif isinstance(value, list):
+        if isinstance(value, list):
             return [_unwrap(item) for item in value]
-        elif isinstance(value, dict):
+        if isinstance(value, dict):
             return _unwrap_state(value)
-        else:
-            return value
+        return value
 
     return {key: _unwrap(value) for key, value in state.items()}
 
