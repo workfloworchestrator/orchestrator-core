@@ -169,7 +169,7 @@ def _apply_wrapped_type_conversion(value: Any, annotation: Any) -> Any:
 
 
 def _apply_type_conversion(value: Any, annotation: Any) -> Any:
-    """Apply UUID conversion based on annotation type.
+    """Apply type conversion based on annotation.
 
     Args:
         value: The value to convert
