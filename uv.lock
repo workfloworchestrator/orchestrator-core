@@ -10,7 +10,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-08-11T10:10:55.217648Z"
+exclude-newer = "2026-08-11T10:15:17.566511Z"
 exclude-newer-span = "P3D"
 
 [options.exclude-newer-package]
@@ -2808,7 +2808,7 @@ wheels = [
 
 [[package]]
 name = "orchestrator-core"
-version = "5.2.0"
+version = "5.3.0a1"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
