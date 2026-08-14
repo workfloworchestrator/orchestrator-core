@@ -15,8 +15,7 @@
 import inspect
 from collections.abc import Callable
 from functools import wraps
-from mypyc.primitives.dict_ops import isinstance_dict
-from typing import Any, cast, get_args, get_origin
+from typing import Any, cast, get_args
 from uuid import UUID
 
 from orchestrator.core.domain.base import SubscriptionModel
