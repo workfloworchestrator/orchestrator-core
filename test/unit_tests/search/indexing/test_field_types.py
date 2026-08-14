@@ -120,6 +120,28 @@ def test_resolve_field_types_uses_domain_field_registries() -> None:
     assert computed_types == frozenset({FieldType.STRING})
 
 
+def test_resolve_field_types_includes_inherited_subscription_fields() -> None:
+    class InheritedFieldsSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        own_field: str
+
+    clear_field_type_cache()
+    try:
+        with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"INHERITED": InheritedFieldsSubscription}, clear=True):
+            customer_id_types = resolve_field_types(EntityType.SUBSCRIPTION, "subscription.customer_id")
+            description_types = resolve_field_types(EntityType.SUBSCRIPTION, "subscription.description")
+            note_types = resolve_field_types(EntityType.SUBSCRIPTION, "subscription.note")
+            product_name_types = resolve_field_types(EntityType.SUBSCRIPTION, "subscription.product.name")
+    finally:
+        clear_field_type_cache()
+
+    assert customer_id_types == frozenset({FieldType.STRING})
+    assert description_types == frozenset({FieldType.STRING})
+    assert note_types == frozenset({FieldType.STRING})
+    assert product_name_types == frozenset({FieldType.STRING})
+
+
 def test_resolve_field_types_global_path_matches_any_depth() -> None:
     """A dotless path (no ltree segments) matches the field name at any depth."""
 

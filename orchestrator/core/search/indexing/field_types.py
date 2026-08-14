@@ -37,11 +37,20 @@ def _model_types(annotation: Any) -> set[type[BaseModel]]:
 def _field_annotations(model_type: type[BaseModel]) -> Iterable[tuple[str, Any]]:
     """Yield fields using domain-model classification when available."""
     if issubclass(model_type, DomainModel):
+        classified_fields = {
+            *model_type._non_product_block_fields_,
+            *model_type._product_block_fields_,
+        }
         yield from model_type._non_product_block_fields_.items()
         yield from model_type._product_block_fields_.items()
         yield from (
             (name, computed_field.return_type)
             for name, computed_field in getattr(model_type, "__pydantic_computed_fields__", {}).items()
+        )
+        yield from (
+            (name, field.annotation)
+            for name, field in model_type.model_fields.items()
+            if name not in classified_fields
         )
         return
 
