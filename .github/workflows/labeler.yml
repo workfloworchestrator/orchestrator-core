@@ -37,7 +37,7 @@ jobs:
       # here. The require-release-label job below enforces that at least one
       # such label ends up on the PR.
       - name: "🏷️ Apply path-based labels"
-        uses: actions/labeler@v7
+        uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           sync-labels: true
