@@ -50,7 +50,7 @@ dependencies = [
     "nwa-stdlib~=1.12.1",
     # Capped at <3: oauth2-lib 3.0.0 swaps httpx for httpx2, which changes the client type passed to
     # OIDCAuth subclasses downstream. Lift to <4 once #1834 lands and the change can be announced.
-    "oauth2-lib>=2.6.1,<3",
+    "oauth2-lib>=3,<4",
     "orjson==3.11.9",
     "pgvector>=0.4.1",
     "prometheus-client==0.25.0",
