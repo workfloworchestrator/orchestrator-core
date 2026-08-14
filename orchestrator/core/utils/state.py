@@ -160,12 +160,15 @@ def _convert_to_uuid(v: Any) -> UUID:
 
 def _apply_wrapped_type_conversion(value: Any, annotation: Any) -> Any:
     """Apply conversion from primitive types to a wrapped type."""
+    def convert(value: Any) -> Any:
+        return annotation(value) if _can_unwrap(annotation) else value
+
     if is_list_type(annotation, Any):
-        return [annotation(item) if _can_unwrap(annotation) else item for item in value]
+        return [convert(item) for item in value]
 
     # Note: if there is a use-case for optional wrapped types, this needs to be added here
 
-    return annotation(value) if _can_unwrap(annotation) else value
+    return convert(value)
 
 
 def _apply_type_conversion(value: Any, annotation: Any) -> Any:
