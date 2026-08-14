@@ -19,7 +19,6 @@ import strawberry
 import structlog
 from fastapi.routing import APIRouter
 from graphql import GraphQLError
-from httpx import HTTPStatusError
 from strawberry.extensions import SchemaExtension
 from strawberry.fastapi import GraphQLRouter
 from strawberry.schema.config import StrawberryConfig
@@ -168,6 +167,12 @@ Mutation: type = merge_types("Mutation", (SettingsMutation, CustomerSubscription
 OrchestratorGraphqlRouter = GraphQLRouter
 
 
+def _is_not_found(error: BaseException | None) -> bool:
+    """Whether a resolver failed on a 404, whichever HTTP client it happened to use."""
+    response = getattr(error, "response", None)
+    return getattr(response, "status_code", None) == HTTPStatus.NOT_FOUND
+
+
 class OrchestratorSchema(strawberry.federation.Schema):
     def process_errors(
         self,
@@ -180,10 +185,7 @@ class OrchestratorSchema(strawberry.federation.Schema):
         """
         for error in errors:
             error_type = error.extensions.get("error_type") if error.extensions else None
-            if (
-                isinstance(error.original_error, HTTPStatusError)
-                and error.original_error.response.status_code == HTTPStatus.NOT_FOUND
-            ):
+            if _is_not_found(error.original_error):
                 message = str(error.original_error).splitlines()[0]  # Strip "For more info"
                 StrawberryLogger.logger.debug(message)
             elif error_type in (ErrorType.NOT_AUTHORIZED, ErrorType.NOT_AUTHENTICATED):
