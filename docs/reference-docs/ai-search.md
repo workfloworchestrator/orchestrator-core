@@ -1,303 +1,501 @@
 # AI / Hybrid Search
 
-This document describes the **AI search subsystem**: a schema-agnostic hybrid search engine that finds subscriptions, products, processes, and workflows by combining semantic (vector), fuzzy (trigram), and structured (hierarchical) matching over a single PostgreSQL index.
+AI / Hybrid Search finds subscriptions, products, processes and workflows by combining several
+kinds of matching (by meaning, by spelling, by structure and by exact value) over a single
+PostgreSQL index.
 
-It is distinct from the classic [Search](search.md) implementations (`subscriptions_search` full-text view and DB-table filtering). Where those match keywords, the AI search subsystem understands *fields*: every attribute of every entity is indexed as its own row, addressable by a hierarchical path, and searchable by meaning, spelling, or exact value.
+It exists because keyword search answers only one kind of question. A user who types
+`amsterdam node` wants results even if the description says "Amsterdam router"; a user who types
+`nod` wants results despite the typo; and a UI that offers "status is active **and** start date
+after 2025-01-01" needs typed, per-field filtering. Classic keyword search does none of these
+well. AI / Hybrid Search indexes **every field of every entity as its own row**, so all four
+kinds of matching run against the same data.
 
-> **Background.** The design and rationale are described in depth in [PostgreSQL hybrid search](https://timfrohlich.com/blog/postgresql-hybrid-search). This page documents the concrete implementation in `orchestrator/core/search/`.
+It is the successor to the [classic search](search.md) implementations and is the search behind
+`/api/search`, the GraphQL `search` field, and the orchestrator's agent tools.
 
-<!-- TOC -->
-- [AI / Hybrid Search](#ai-hybrid-search)
-  - [Overview](#overview)
-  - [Data model](#data-model)
-    - [`ai_search_index`](#ai_search_index)
-    - [Indexes](#indexes)
-    - [Field types and extensions](#field-types-and-extensions)
-    - [Supporting tables](#supporting-tables)
-  - [Indexing pipeline](#indexing-pipeline)
-    - [Traversal: models to paths](#traversal-models-to-paths)
-    - [The Indexer](#the-indexer)
-    - [What triggers indexing](#what-triggers-indexing)
-  - [Embeddings](#embeddings)
-  - [Retrieval and ranking](#retrieval-and-ranking)
-    - [Retriever selection](#retriever-selection)
-    - [Hybrid ranking (Reciprocal Rank Fusion)](#hybrid-ranking-reciprocal-rank-fusion)
-    - [Fuzzy, semantic, and structured retrievers](#fuzzy-semantic-and-structured-retrievers)
-    - [The query builder and EAV pivot](#the-query-builder-and-eav-pivot)
-    - [Filters](#filters)
-    - [Pagination](#pagination)
-  - [Query language and persistence](#query-language-and-persistence)
-  - [API, GraphQL, and MCP surfaces](#api-graphql-and-mcp-surfaces)
-    - [Search fallback waterfall](#search-fallback-waterfall)
-  - [Settings](#settings)
-  - [Operational notes](#operational-notes)
-<!-- TOC -->
+## How it compares to classic search
 
-## Overview
+|                | Classic search                                                          | AI / Hybrid Search                                                  |
+|----------------|-------------------------------------------------------------------------|---------------------------------------------------------------------|
+| Data structure | `subscriptions_search` materialized view, plus `WHERE` clauses on entity tables | `ai_search_index` table, one row per entity field                    |
+| Matches on     | whole-word keywords in one text blob per subscription                    | individual field values, by meaning, spelling, exact value or path  |
+| Query shape    | a query string, e.g. `tag:L2VPN -status:active`                          | free text plus a typed filter tree                                   |
+| Entities       | subscriptions (text search); others by DB-column filtering               | subscriptions, products, processes, workflows                        |
+| Freshness      | view refreshed at most once every two minutes                            | index updated by the standard workflow decorators, or on demand via the CLI |
+| Status         | text search on subscriptions is **deprecated** since 5.0                 | current                                                              |
 
-The subsystem combines **four search modalities** over one index:
+Classic search is still in place and still documented in [Search](search.md). New integrations
+should use AI / Hybrid Search.
 
-| Modality | Backed by | Postgres feature | Operator |
-|----------|-----------|------------------|----------|
-| **Semantic** | vector embeddings | `pgvector` (HNSW, L2) | `<->` |
-| **Fuzzy** | trigrams | `pg_trgm` word similarity | `<%`, `word_similarity()` |
-| **Structured** | hierarchical paths | `ltree` | `~`, `@>`, `<@` |
-| **Exact / typed** | typed value column | casts + comparisons | `=`, `ilike`, `~*`, numeric/date casts |
+## Key ideas
 
-A search request is turned into a **query plan** (a typed `Query` object), which the engine routes to a **retriever**. When both a text term and an embedding are available the retriever fuses semantic and fuzzy results with Reciprocal Rank Fusion; otherwise it uses whichever single modality applies. Results are entities (not fields), ranked and keyset-paginated.
+### One row per field
 
-The whole subsystem is part of the **core** runtime (its dependencies `litellm`, `pgvector`, and `sqlalchemy-utils` are core, not optional). Only the MCP *server mount* is gated by the `mcp` extra. Embeddings are optional at runtime: with `EMBEDDING_API_ENABLED=False`, indexing stores rows with `embedding = NULL` and search silently degrades to fuzzy/structured — nothing errors.
+A traditional search index stores one document per record. This subsystem stores one row per
+**field**, in a table called `ai_search_index`. A subscription with 40 fields contributes 40 rows.
 
+Each row records where the value came from as a dotted path like `subscription.node.name`,
+stored in a PostgreSQL [`ltree`](https://www.postgresql.org/docs/current/ltree.html) column.
+`ltree` is a column type for hierarchical labels; it lets the database ask "is this path below
+`subscription.node`?" using an index, rather than by string matching.
+
+Two things follow from this layout:
+
+- A query can address one field precisely ("status equals active") without the engine knowing
+  anything about the product model. The subsystem is schema-agnostic: new product blocks become
+  searchable simply by being indexed.
+- The number of *rows* grows with your data, but the number of distinct *paths* only grows with
+  your schema. A UI that needs "which fields can I filter on?" reads the much smaller
+  [`ai_search_paths`](#the-distinct-paths-table) table instead.
+
+### Four ways to match
+
+| Match type          | Answers                                    | Built on                                                        |
+|---------------------|--------------------------------------------|-----------------------------------------------------------------|
+| **Semantic**        | "which values *mean* something similar?"    | vector embeddings, compared with [pgvector](https://github.com/pgvector/pgvector) |
+| **Fuzzy**           | "which values are *spelled* similarly?"     | trigrams, via the `pg_trgm` extension                            |
+| **Structured**      | "which entities have a field under this path?" | `ltree` path operators                                        |
+| **Exact / typed**   | "which entities have status = active?"      | typed casts and comparisons on the value column                  |
+
+**Trigrams** are three-character slices of a word: `node` becomes `nod`, `ode`. Two strings that
+share many trigrams are similar, so `nod` still matches `node` and typos still find their target.
+This is what makes fuzzy matching tolerant of spelling.
+
+### What embeddings add
+
+An **embedding** is a vector (list) of numbers that represents the meaning of a piece of text. Texts with
+similar meanings get numerically close vectors, so "closeness" becomes a distance calculation the
+database can index and sort by.
+
+Embeddings are what let a search for `amsterdam router` return a subscription described as
+"AMS core node". There is no shared keyword, only shared meaning. They are generated by an
+external embedding API (through [LiteLLM](https://docs.litellm.ai/)) and stored alongside the
+value in the same row.
+
+Embeddings are **optional**. See [Running without embeddings](#running-without-embeddings).
+
+## How it works
+
+### Indexing (write path)
+
+```mermaid
+flowchart LR
+    A["Domain models<br/>Subscription, Product,<br/>Process, Workflow"] --> B["Traverse<br/>model to field paths"]
+    B --> C["Diff<br/>content hash per field"]
+    C --> D["Embed<br/>batched, text fields only"]
+    D --> E[("ai_search_index<br/>one row per entity field")]
+    C -.->|unchanged| F["skipped"]
 ```
-                indexing (write path)                         search (read path)
-  domain models ──► traverse ──► Indexer ──► ai_search_index ──► retriever ──► ranked entities
-  (Subscription,    (ltree      (hash diff,   (EAV: 1 row per     (fuzzy /       (RRF fused,
-   Product,          paths +     embed batch,   entity × field      semantic /     keyset
-   Process,          typed       upsert)        path)               hybrid /       paginated)
-   Workflow)         values)                                        structured)
+
+A traverser walks a domain model and emits one `(path, value, type)` triple per leaf field.
+Nested models extend the path; list elements get a numeric segment (`block.0`, `block.1`). The
+field's type comes from the model's *type hint*, not from the value, so a field declared `str`
+is still compared as a string when its value happens to look like a number.
+
+Each field is hashed. Only fields whose hash changed are written, and paths that traversal no
+longer produces are deleted, so re-indexing an unchanged entity does almost no work. Text values
+are embedded in batches sized against the embedding model's context window; everything else is
+stored with no embedding.
+
+Indexing is triggered from three places:
+
+- **Workflow steps**: the `create_workflow`, `modify_workflow`, `terminate_workflow` and
+  `reconcile_workflow` decorators append two steps, `refresh_subscription_search_index` and
+  `refresh_process_search_index`. The first re-indexes the workflow's subscription, the second
+  re-indexes the workflow's own process record. Both catch their own errors, so a failed re-index
+  never fails the workflow. `validate_workflow` and the bare `@workflow` decorator do not append
+  these steps, so a subscription or process changed by such a workflow keeps its previous index
+  entry until something re-indexes it. Add the two steps (`orchestrator.core.workflows.steps`) to
+  your own step list when the workflow changes indexed data.
+- **REST endpoints**: product and process updates re-index the entity they changed.
+- **The CLI**: see [Building and refreshing the index](#building-and-refreshing-the-index).
+
+### Searching (read path)
+
+```mermaid
+flowchart TD
+    Q["Search request<br/>free text and/or filters"] --> C["Candidate entities<br/>filters compiled to EXISTS subqueries"]
+    Q --> P["Pick a retriever<br/>based on available signals"]
+    C --> R["Rank the candidates"]
+    P --> R
+    R --> O["Ranked entities<br/>keyset paginated"]
 ```
 
-## Data model
+A request becomes a typed query object. Filters narrow the candidate entities; the free-text part
+decides *how* those candidates are ranked. The engine picks the retriever automatically:
 
-### `ai_search_index`
+| Available signals                      | Retriever      | Ranking                                             |
+|----------------------------------------|----------------|------------------------------------------------------|
+| Embedding **and** a single-word term    | **Hybrid**     | semantic and fuzzy rankings fused (see [RRF](#ranking-formulas)) |
+| Embedding only                          | **Semantic**   | closest embedding wins                               |
+| Single-word term only                   | **Fuzzy**      | highest trigram similarity wins                      |
+| Filters only                            | **Structured** | no relevance ranking; ordered by a chosen field      |
 
-The heart of the subsystem is one **entity–attribute–value (EAV)** table (`orchestrator/core/db/models.py`, migration `2026-04-13_262744958e0c_add_ai_search_tables.py`). Each scalar field of each entity is stored as its own row:
+Two rules explain most surprising routing decisions:
 
-| column | type | purpose |
-|--------|------|---------|
-| `entity_type` | `TEXT NOT NULL` | `SUBSCRIPTION` / `PRODUCT` / `PROCESS` / `WORKFLOW` |
-| `entity_id` | `UUID NOT NULL` | the entity this field belongs to |
-| `entity_title` | `TEXT` | human-readable label for the entity |
-| `path` | `LTREE NOT NULL` | hierarchical field path, e.g. `subscription.node.name` |
-| `value` | `TEXT NOT NULL` | the field value, stringified |
-| `value_type` | `field_type NOT NULL` | how to interpret/compare `value` |
-| `embedding` | `VECTOR(EMBEDDING_DIMENSION)` | embedding of the value text; `NULL` when not embeddable |
-| `content_hash` | `VARCHAR(64) NOT NULL` | SHA-256 of the field, for change detection |
+- **Fuzzy matching only applies to single-word text.** Trigram matching on a multi-word phrase
+  filters out nearly everything, so multi-word text is routed to semantic search. To force
+  trigram matching on a phrase, pass an explicit `retriever` of `hybrid` or `fuzzy`.
+- **Text that is a UUID is never embedded.** A UUID has no meaning to embed, so such queries route
+  to fuzzy matching.
 
-The primary key is composite: `(entity_id, path)`. One entity therefore contributes many rows — one per leaf field — which is why the table can hold millions of rows while the set of distinct *paths* stays schema-sized (see [Structured Search Field Paths](search.md#structured-search-field-paths) for the derived `ai_search_paths` table that exploits this).
+Callers can override the retriever explicitly. If an override needs an embedding and none can be
+produced, the request fails with a clear error rather than silently returning different results;
+under automatic routing the same situation falls back to fuzzy.
+
+Process searches use a variant of the fuzzy and hybrid retrievers that also searches the `state`
+JSONB of the process's most recent step. Process steps are deliberately left out of the index to
+keep its size manageable, so that column is read and matched at query time instead: candidates
+are found with a substring `ILIKE`, then scored with the same trigram similarity used for indexed
+fields. These rows never contribute a semantic score. Matches are reported under the path
+`process.last_step.state`.
+
+Results are entities, not fields, and are paginated with a keyset (cursor) rather than `OFFSET`,
+so pages stay stable while data changes underneath.
+
+## What you can search, and where
+
+Four entity types are indexed: **subscriptions**, **products**, **processes** and **workflows**.
+All three interfaces run the same engine.
+
+| Interface   | Where                       | What it offers                                                                             |
+|-------------|-----------------------------|--------------------------------------------------------------------------------------------|
+| **REST**    | `/api/search` (authenticated) | `POST /subscriptions`, `/products`, `/processes`, `/workflows` to search; `GET /paths` for field autocomplete; `GET /definitions` for the operators valid per UI type; `GET /queries/{id}`, `/results`, `/export` to re-run or export a saved query |
+| **GraphQL** | root fields                 | `search`, `searchPaths`, `searchDefinitions`, `searchQuery`, `searchQueryResults`, `searchQueryExport`, mirroring REST |
+| **Agent tools** | `/api/agent`            | `search`, `aggregate`, `discover_filter_paths`, `get_valid_operators`, `resolve_entity`, `export_query`, exposed as read-only [MCP](mcp.md) tools when `MCP_ENABLED` is set |
+
+The REST and GraphQL search routers are always registered, and the agent tools are ordinary REST
+endpoints that are always available. Only surfacing them over MCP is opt-in: that needs
+`MCP_ENABLED=True` and the `mcp` extra installed. See [MCP Server](mcp.md).
+
+Queries are stored in `search_queries` and addressed by `query_id`, so a caller can page through,
+re-run or export a search without re-sending it. The agent `search` and `aggregate` tools always
+store their query and return the id. REST and GraphQL store it when a result has a next page, and
+put the id in the page cursor, which is also what keeps paging consistent while data changes.
+
+!!! note "The LLM agent itself is not part of orchestrator-core"
+
+    Core provides the tools an agent calls and stores query and conversation state for it. The
+    agent loop lives in a separate package. A typical agent sequence is
+    `discover_filter_paths` → `get_valid_operators` → `search`/`aggregate` → `export_query`.
+
+## Running it
+
+### Enabling embeddings
+
+Search works out of the box without any embedding configuration. To enable semantic and hybrid
+retrieval, point the orchestrator at an embedding provider:
+
+```shell
+EMBEDDING_API_ENABLED=True
+EMBEDDING_API_KEY=sk-...                        # your provider's API key
+EMBEDDING_MODEL=openai/text-embedding-3-small   # default; any LiteLLM model id
+EMBEDDING_DIMENSION=1536                        # must match the model's output size
+```
+
+The [5.0 upgrade guide](../guides/upgrading/5.0.md) covers first-time setup end to end, including
+the required PostgreSQL extensions. All settings are listed under
+[Settings](#settings).
+
+### Running without embeddings
+
+`EMBEDDING_API_ENABLED` defaults to `False`. Indexing then stores every row with
+`embedding = NULL` and searches use fuzzy and structured retrieval only, so anything that would
+have been ranked semantically falls back to fuzzy. Runtime embedding failures behave the same
+way, except when a request names `semantic` or `hybrid` explicitly: those return an error rather
+than falling back. See [Searching](#searching-read-path).
+
+### Building and refreshing the index
+
+Workflows keep subscriptions and processes up to date on their own. Use the CLI for the initial
+build, and after bulk changes:
+
+```shell
+python main.py index subscriptions
+python main.py index products
+python main.py index processes
+python main.py index workflows
+```
+
+Each command accepts:
+
+| Option                | Effect                                                     |
+|-----------------------|------------------------------------------------------------|
+| `--<entity>-id UUID`  | index a single entity, e.g. `--subscription-id`             |
+| `--force-index`       | re-index every field, ignoring the content hashes           |
+| `--dry-run`           | make no database writes and no embedding calls              |
+| `--show-progress`     | show a progress bar                                        |
+
+`python main.py index rebuild-paths` recomputes the
+[distinct-paths table](#the-distinct-paths-table) from scratch.
+
+`python main.py search` runs individual search strategies from a shell (`structured`, `semantic`,
+`fuzzy`, `hierarchical`, `hybrid`, plus `generate-schema` and `nested-demo`), and
+`python main.py speedtest quick` measures query performance. These are exploration aids and do
+not map one-to-one onto the retrievers described above.
+
+### Running a local embedding server
+
+For a self-hosted endpoint, only OpenAI-compatible APIs are supported. To run
+[all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) locally with
+[Hugging Face TEI](https://github.com/huggingface/text-embeddings-inference):
+
+```shell
+docker run --rm -p 8080:80 ghcr.io/huggingface/text-embeddings-inference:cpu-1.8 \
+    --model-id sentence-transformers/all-MiniLM-L6-v2
+```
+
+Point the orchestrator at it and declare the model's vector size:
+
+```shell
+EMBEDDING_API_BASE=http://localhost:8080/v1
+EMBEDDING_DIMENSION=384
+EMBEDDING_MAX_BATCH_SIZE=32
+```
+
+`EMBEDDING_MAX_BATCH_SIZE` and `EMBEDDING_FALLBACK_MAX_TOKENS` exist for models like this one,
+whose limits LiteLLM cannot look up. They are not needed with hosted OpenAI models.
+
+Changing `EMBEDDING_DIMENSION` also requires a resize (see below).
+
+### Changing the embedding dimension
+
+`EMBEDDING_DIMENSION` is baked into the vector column type, so it cannot be changed by
+configuration alone:
+
+```shell
+python main.py embedding resize
+```
+
+!!! warning
+
+    `embedding resize` **deletes every row** from `ai_search_index` and `search_queries` before
+    altering the column. Re-index afterwards.
+
+## Implementation reference
+
+Everything below describes how the current implementation works. It is useful for debugging,
+performance work and maintenance, but it is not a stable interface.
+
+### Data model
+
+`ai_search_index` is an entity-attribute-value (EAV) table: each scalar field of each entity is
+one row.
+
+| Column          | Type                          | Purpose                                                       |
+|-----------------|-------------------------------|---------------------------------------------------------------|
+| `entity_type`   | `TEXT NOT NULL`               | `SUBSCRIPTION` / `PRODUCT` / `PROCESS` / `WORKFLOW`            |
+| `entity_id`     | `UUID NOT NULL`               | the entity this field belongs to                              |
+| `entity_title`  | `TEXT`                        | human-readable label for the entity                           |
+| `path`          | `LTREE NOT NULL`              | field path, e.g. `subscription.node.name`                     |
+| `value`         | `TEXT NOT NULL`               | the field value, stringified                                  |
+| `value_type`    | `field_type NOT NULL`         | how to interpret and compare `value`                          |
+| `embedding`     | `VECTOR(EMBEDDING_DIMENSION)` | embedding of the value text; `NULL` when not embeddable        |
+| `content_hash`  | `VARCHAR(64) NOT NULL`        | SHA-256 of the field, for change detection                    |
+
+The primary key is `(entity_id, path)`. `value_type` is a PostgreSQL enum generated from
+`FieldType`: `string`, `integer`, `float`, `boolean`, `datetime`, `uuid`, `block`,
+`resource_type`.
+
+The content hash covers `path`, `value`, `value_type` **and** `entity_title`, so renaming an
+entity re-indexes all of its rows.
+
+Only non-empty text values that do not *look* like a UUID, number, boolean or date are embedded.
+The embedded text is `"{path}: {value}"`, which gives the model the field name as context.
+
+Supporting tables:
+
+- **`search_queries`**: stored queries, with their parameters as JSONB and their embedding.
+  `run_id` is `NULL` for ordinary API and agent-tool searches, and set when the query belongs to
+  an agent run. This is what `query_id` re-run, paging and export read from.
+- **`agent_runs`** and **`graph_snapshots`**: conversation and graph state for an external
+  resumable agent. Core writes and reads them but contains no agent itself.
 
 ### Indexes
 
-Each index is paired with the modality it serves:
+Each index serves one match type:
 
-| index | definition | serves |
-|-------|------------|--------|
-| `ix_flat_embed_hnsw` | `HNSW (embedding vector_l2_ops) WITH (m=16, ef_construction=64)` | semantic NN via L2 distance (`<->`) |
-| `ix_flat_value_trgm` | `GIN (value gin_trgm_ops)` | fuzzy word-similarity (`<%`, `word_similarity`) |
-| `ix_flat_path_gist` | `GIST (path gist_ltree_ops)` | ltree matching (`~`, `@>`, `<@`) |
-| `ix_flat_path_btree` | `btree (path)` | exact path equality (the EAV pivot) |
-| `ix_ai_search_index_entity_id` | `btree (entity_id)` | candidate lookups by entity |
-| `idx_ai_search_index_content_hash` | `btree (content_hash)` | change detection during indexing |
+| Index                            | Definition                                                        | Serves                                     |
+|----------------------------------|-------------------------------------------------------------------|--------------------------------------------|
+| `ix_flat_embed_hnsw`             | `HNSW (embedding vector_l2_ops) WITH (m=16, ef_construction=64)`   | nearest-neighbour search by L2 distance (`<->`) |
+| `ix_flat_value_trgm`             | `GIN (value gin_trgm_ops)`                                        | trigram similarity (`<%`, `word_similarity`) |
+| `ix_flat_path_gist`              | `GIST (path gist_ltree_ops)`                                      | `ltree` matching (`~`, `@>`, `<@`)          |
+| `ix_flat_path_btree`             | `btree (path)`                                                    | exact path equality, used by the EAV pivot  |
+| `ix_ai_search_index_entity_id`   | `btree (entity_id)`                                               | candidate lookups by entity                 |
+| `idx_ai_search_index_content_hash` | `btree (content_hash)`                                          | change detection during indexing            |
 
-Note the operator-class coupling: HNSW is built with **`vector_l2_ops`**, so semantic and hybrid retrieval use **L2 distance (`<->`)**, not cosine (`<=>`).
+The HNSW index uses `vector_l2_ops`, so semantic ranking uses **L2 distance (`<->`)**, not cosine
+distance.
 
-### Field types and extensions
+The migration that creates these also creates the `uuid-ossp`, `ltree`, `unaccent`, `pg_trgm` and
+`vector` extensions, unless `vector` already exists and `LLM_FORCE_EXTENSION_MIGRATION` is off.
 
-`value_type` is the Postgres enum `field_type`, generated at migration time from `FieldType` (`orchestrator/core/search/core/types.py`):
+### Ranking formulas
 
-`string`, `integer`, `float`, `boolean`, `datetime`, `uuid`, `block`, `resource_type`
+**Fuzzy**: matches rows where `'<term>' <% value`, restricted to the string-like field types;
+an entity's score is the highest `word_similarity(term, value)` among its matched fields.
 
-The migration creates these extensions (guarded by `LLM_FORCE_EXTENSION_MIGRATION` or the absence of `vector`): `uuid-ossp`, `ltree`, `unaccent`, `pg_trgm`, `vector`.
+**Semantic**: considers rows with an embedding; an entity's score is
+`1 / (1 + min(embedding <-> query_vector))`, so a smaller distance gives a higher score, bounded
+to `[0, 1]`.
 
-### Supporting tables
+**Structured**: no relevance ranking (`score = 1.0`); results are ordered by an optional
+`order_by` field materialized from the index rows.
 
-- **`ai_search_paths`** — a derived distinct-paths table maintained by a refcount trigger, used to make `GET /api/search/paths` fast. Documented in [Structured Search Field Paths](search.md#structured-search-field-paths).
-- **`search_queries`** — persists every executed query (`parameters` JSONB, `query_embedding`, `query_number`). `run_id` is a nullable FK to `agent_runs`: `NULL` for standalone API/MCP searches; set when a query belongs to an agent run. Enables re-running and exporting a query by `query_id`.
-- **`agent_runs`** and **`graph_snapshots`** — state persistence (pydantic-graph snapshots, keyed `(run_id, sequence_number)`) for a *resumable external agent*. Core does not contain an LLM agent (see [Query language and persistence](#query-language-and-persistence)); these tables exist so an external agent can store and resume conversation state.
+**Hybrid** uses **Reciprocal Rank Fusion (RRF)**: rather than trying to make a distance and a
+similarity score comparable, it ranks results separately by each signal and combines the *ranks*.
 
-## Indexing pipeline
+Note the candidate set: hybrid starts from the fields that trigram-match the term (capped at 100
+field rows), then computes, per entity, the mean semantic distance and mean fuzzy similarity over
+those fields. Semantic similarity therefore re-ranks fuzzy matches; it does not add entities that
+the term missed entirely. Fields with no embedding count as distance `1.0`.
 
-Located in `orchestrator/core/search/indexing/`.
-
-### Traversal: models to paths
-
-`BaseTraverser` (`traverse.py`) recursively walks a Pydantic domain model and emits `ExtractedField(path, value, value_type)` tuples:
-
-- **Nested models** extend the ltree path and recurse.
-- **Lists** append a numeric segment per element: `block.0`, `block.1`, …
-- **Scalars** emit a leaf field. `value_type` is derived from the **type hint** (`FieldType.from_type_hint`), which unwraps `Annotated`/`Optional`/`Union`/`list`/`Literal`, maps `int/float/bool/str/datetime/UUID`, and maps `ProductBlockModel → block`, `IntEnum → integer`, other `Enum → string`.
-
-The `LTREE_SEPARATOR` is `.`. Concrete traversers specialise how the root model is loaded:
-
-| Traverser | Entity | Notes |
-|-----------|--------|-------|
-| `SubscriptionTraverser` | subscription | loads the specialized `SubscriptionModel` for the product |
-| `ProductTraverser` | product | builds a *template* subscription for the product and extracts the block schema (block → `block`, each field → `resource_type`); product names are sanitized into valid ltree labels |
-| `ProcessTraverser` | process | top-level fields only; excludes `traceback`, `failed_reason` |
-| `WorkflowTraverser` | workflow | top-level fields only |
-
-The `EntityConfig` for each entity type (table, traverser, PK column, root label, title paths) lives in `ENTITY_CONFIG_REGISTRY` (`registry.py`).
-
-### The Indexer
-
-`Indexer.run()` (`indexer.py`) streams entities and processes them in chunks (default 1000):
-
-1. **Change detection** — one query prefetches existing `content_hash`es for the chunk. `content_hash = sha256(f"{path}:{value}:{value_type}:{entity_title}")`. Only new or changed fields are upserted; unchanged fields are skipped. (Because the hash includes `entity_title`, a title change re-indexes all of that entity's rows.) `--force-index` ignores existing hashes.
-2. **Stale-path deletes** — paths that exist in the index but are no longer produced by traversal (`existing − current`) are deleted, batched to avoid stack-depth limits.
-3. **Embedding batches** — embeddable string fields are accumulated against a token budget (`max_ctx − max_ctx * EMBEDDING_SAFE_MARGIN_PERCENT`) and flushed when the next item would exceed it, or when `EMBEDDING_MAX_BATCH_SIZE` is reached. Fields larger than the model context window are skipped. The embedded text is `f"{path}: {value}"`.
-4. **Upsert** — `INSERT ... ON CONFLICT (entity_id, path) DO UPDATE SET entity_title, value, value_type, content_hash, embedding`.
-
-`--dry-run` performs no writes. Only string-typed, non-empty values that don't *look* like a UUID/number/bool/date are embedded (`FieldType.is_embeddable`); everything else is stored with `embedding = NULL`.
-
-### What triggers indexing
-
-`run_indexing_for_entity(entity_kind, entity_id=None, ...)` (`tasks.py`) is the single entry point. It is invoked from:
-
-- **Workflow steps** — `refresh_subscription_search_index` and `refresh_process_search_index` (`orchestrator/core/workflows/steps.py`) run at the end of create/modify/terminate workflows. They swallow exceptions so a failed re-index never fails the workflow.
-- **REST PATCH endpoints** — product and process updates re-index the affected entity.
-- **CLI** — `python main.py index subscriptions|products|processes|workflows` (with `--force-index`, `--dry-run`, `--show-progress`), and `python main.py index rebuild-paths` to rebuild `ai_search_paths`.
-
-## Embeddings
-
-Embeddings are generated through **litellm** (`orchestrator/core/search/core/embedding.py`), imported lazily because the import itself is expensive; when `EMBEDDING_API_ENABLED` is set, the import is pre-warmed at app startup.
-
-- **Indexing** uses `EmbeddingIndexer.get_embeddings_from_api_batch()` (synchronous, batched). It calls `litellm.embedding(model=EMBEDDING_MODEL, input=[lowercased texts], ...)` and **truncates each vector to `EMBEDDING_DIMENSION`**.
-- **Live queries** use `QueryEmbedder.generate_for_text_async()` (async, `timeout=5s`, `max_retries=0` — prioritising latency). It returns `None` when the API is disabled or the text is empty; callers treat `None` as "fall back to fuzzy/structured".
-
-All embedding errors degrade gracefully to empty/`None` rather than raising.
-
-Because `EMBEDDING_DIMENSION` is baked into the `embedding` column type, changing it requires the **`embedding resize` CLI** (`python main.py embedding resize`), which deletes all indexed rows and `ALTER`s the vector columns to the new dimension (followed by a re-index).
-
-## Retrieval and ranking
-
-Located in `orchestrator/core/search/retrieval/` and `orchestrator/core/search/query/`.
-
-### Retriever selection
-
-`RetrieverType` is `fuzzy`, `semantic`, or `hybrid`. The engine derives two inputs from the query text (`SearchMixin`):
-
-- `vector_query` — the text to embed (skipped when the text is a UUID).
-- `fuzzy_term` — the trigram term, populated **only for single-word text**. Multi-word free text is semantic-only under auto-routing unless an explicit `retriever` override is given.
-
-Routing (`Retriever._plan`):
-
-| Available | Retriever |
-|-----------|-----------|
-| embedding **and** fuzzy term | `RrfHybridRetriever` |
-| embedding only | `SemanticRetriever` |
-| fuzzy term only | `FuzzyRetriever` |
-| neither (filters only) | `StructuredRetriever` |
-
-Process entities that would route to fuzzy/hybrid are promoted to `ProcessHybridRetriever`, which additionally fuzzy-searches the latest process step's `state` JSONB. If embedding generation fails, auto-routing degrades to fuzzy.
-
-### Hybrid ranking (Reciprocal Rank Fusion)
-
-`RrfHybridRetriever` (`retrieval/retrievers/hybrid.py`) fuses the two modalities with **Reciprocal Rank Fusion** plus a **perfect-match boost**. Per matched entity it computes:
-
-- `avg_semantic_distance` = mean L2 distance of the entity's field embeddings to the query vector (NULL embeddings coalesced to `1.0`);
-- `avg_fuzzy_score` = mean `word_similarity(term, value)` over matched fields;
-- ranks by `dense_rank()`: `sem_rank` ascending on distance, `fuzzy_rank` descending on fuzzy score.
-
-The fused score (`compute_rrf_hybrid_score_sql`) is:
-
-```
-rrf      = 1/(k + sem_rank) + 1/(k + fuzzy_rank)          # k = 60
-rrf_max  = n_sources / (k + 1)                            # n_sources = 2
-beta     = rrf_max + rrf_max * margin_factor              # margin_factor = 0.05
-perfect  = 1 if avg_fuzzy_score >= 0.9 else 0
-fused    = rrf + beta * perfect
-score    = fused / (beta + rrf_max)                       # normalized to [0, 1]
+```text
+rrf     = 1/(k + sem_rank) + 1/(k + fuzzy_rank)   # k = 60
+rrf_max = n_sources / (k + 1)                     # n_sources = 2
+beta    = rrf_max * 1.05
+perfect = 1 if avg_fuzzy_score >= 0.9 else 0
+score   = (rrf + beta * perfect) / (beta + rrf_max)   # normalized to [0, 1]
 ```
 
-Because `beta > rrf_max`, any **perfect match** (average fuzzy similarity ≥ 0.9) always outranks any non-perfect result — exact text hits float to the top above semantic-only neighbours. Results are ordered `score DESC, entity_id ASC`.
-
-### Fuzzy, semantic, and structured retrievers
-
-- **Fuzzy** (`fuzzy.py`) — filters `value_type IN (string, uuid, block, resource_type)` and `'<term>' <% value`; score = `max(word_similarity(term, value))` per entity.
-- **Semantic** (`semantic.py`) — filters `embedding IS NOT NULL`; score = `1 / (1 + min(embedding <-> :query_vector))` per entity, so a smaller distance yields a higher, [0,1]-bounded score.
-- **Structured** (`structured.py`) — no relevance ranking (`score = 1.0`); orders by an optional `order_by` field materialized from the EAV rows, and emits `highlight_matches` for the positive filter leaves.
-
-### The query builder and EAV pivot
-
-`query/builder.py` turns a query plan into SQL:
-
-- `build_candidate_query` — `SELECT DISTINCT entity_id, entity_title FROM ai_search_index WHERE entity_type = :t` plus the filter tree compiled to correlated `EXISTS` subqueries.
-- **EAV → columns pivot** — to return or aggregate specific fields, rows are pivoted with `MAX(CASE WHEN path = :p THEN value END) AS <alias>` grouped by `entity_id`. This powers inline `response_columns` and aggregations (`COUNT/SUM/AVG/MIN/MAX`, temporal `date_trunc` grouping, and cumulative window sums).
-- `build_paths_query` — reads the derived `ai_search_paths` table for field-path autocomplete (see [Structured Search Field Paths](search.md#structured-search-field-paths)).
-
-The engine (`query/engine.py`) orchestrates: generate an embedding only when needed, route to a retriever, apply it, and fetch `limit + 1` rows to compute `has_more`.
+Because `beta` exceeds the largest possible `rrf`, any near-exact text match (average fuzzy
+similarity ≥ 0.9) always outranks every non-exact result. Ties break on `entity_id`.
 
 ### Filters
 
-Structured filtering is a typed, bounded tree (`filters/`):
+Structured filtering is a typed tree:
 
-- **`PathFilter`** — a predicate over one path: `{path, condition, value_kind}`. It adds a **type guard** (`value_type IN <types matching the value kind>`) so a numeric filter never matches a string row. A dotless "global" path (e.g. `status`) matches any path *ending* in that component; a dotted path matches exactly.
-- **`FilterTree`** — a recursive AND/OR tree (max depth 5). Each leaf compiles to a correlated `EXISTS (SELECT 1 FROM ai_search_index WHERE entity_id = ... AND <predicate>)`; `not_has_component` compiles to `NOT EXISTS`.
-- **Condition types** (union tried in order): `DateFilter` (timestamp casts, `between` half-open), `NumericFilter` (bigint/double casts, `between`), `StringFilter` (`ilike`, wildcard required), `ContainsFilter` (POSIX `~*`), `LtreeFilter` (`matches_lquery ~`, `is_ancestor @>`, `is_descendant <@`, `has_component`, `ends_with`), and `EqualityFilter` (`eq`/`neq`, case-insensitive, boolean-aware) last as the most generic.
+- A **`PathFilter`** is one predicate over one path, written as
+  `{path, condition, value_kind}`. It adds a type guard so a numeric filter can never match a
+  string row. A dotless path such as `status` matches any path *ending* in that component; a
+  dotted path must match exactly.
+- A **`FilterTree`** nests `PathFilter`s under `AND` / `OR`, up to five levels deep. Each leaf
+  compiles to a correlated `EXISTS (SELECT 1 FROM ai_search_index WHERE entity_id = ... AND ...)`;
+  `not_has_component` compiles to `NOT EXISTS`.
 
-Requests may also supply an Elasticsearch-style DSL, which is auto-converted to a `FilterTree` (`filters/elastic_dsl.py`).
+Condition types are a union tried in order: date (timestamp casts, half-open `between`), numeric
+(bigint/double casts), string (`ilike`, wildcard required), contains (POSIX `~*`), `ltree`
+(`matches_lquery`, `is_ancestor`, `is_descendant`, `has_component`, `ends_with`), and equality
+(`eq`/`neq`, case-insensitive, boolean-aware) last as the most general.
 
-### Pagination
+Requests may also send an Elasticsearch-style DSL, which is converted to a `FilterTree`.
 
-All retrievers use **keyset (cursor) pagination** rather than `OFFSET`: ranked retrievers page on `(score, entity_id)`, structured on `(order_value, entity_id)` or `entity_id`. The cursor encodes the last row's sort key, so pages stay stable as data changes.
+`GET /api/search/definitions` returns the valid operators and value schemas for each UI type,
+the `value_kind` a filter declares. Read it from there rather than from this page: it is generated
+from the same definitions the query builder uses.
 
-## Query language and persistence
+### Query types and persistence
 
-A search is a typed `Query` (`query/queries.py`), a discriminated union:
+A search is one of four typed query objects:
 
-| Query | Purpose | Limit |
-|-------|---------|-------|
-| `SelectQuery` | return matching entities | ≤ 100 |
-| `ExportQuery` | bulk export matching entities | ≤ 10000 |
-| `CountQuery` | count (optionally grouped) | — |
-| `AggregateQuery` | aggregations over matched entities | — |
+| Query            | Purpose                                   | Limit    |
+|------------------|-------------------------------------------|----------|
+| `SelectQuery`    | return matching entities                  | ≤ 100    |
+| `ExportQuery`    | bulk export matching entities             | ≤ 10 000 |
+| `CountQuery`     | count, optionally grouped                 | n/a      |
+| `AggregateQuery` | `COUNT`/`SUM`/`AVG`/`MIN`/`MAX` over matches | n/a   |
 
-Mixins add behavior: `SearchMixin` (query text, retriever, response columns), `GroupingMixin` (group-by, temporal grouping, cumulative, order-by, with validation), and `AggregationMixin`.
+Counts and aggregations need field values as columns, so the engine pivots the EAV rows with
+`MAX(CASE WHEN path = :p THEN value END)` grouped by `entity_id`. The same pivot powers inline
+`response_columns` on search results, temporal grouping (`date_trunc`) and cumulative window sums.
 
-`QueryState` (`query/state.py`) wraps a query with its embedding and persists it to `search_queries`; `load_from_id(query_id)` re-validates the stored JSONB back into the typed query (clamping legacy limits). Validation (`query/validation.py`) checks lquery syntax, path existence against the live index, filter/field-type compatibility, and aggregation/grouping constraints before any SQL runs.
+Before any SQL runs, queries are validated against the live index: lquery syntax, whether the
+referenced paths exist, whether the filter matches the field's type, and grouping and aggregation
+constraints.
 
-**The LLM agent is not part of orchestrator-core.** Core exposes the *tools* an agent needs (over MCP/REST) and persists query and graph state, but the agent loop itself lives in an external package. A typical agent flow is: `discover_filter_paths` → `get_valid_operators` → `search`/`aggregate` (which persist a `query_id`) → `export_query`.
+### The distinct-paths table
 
-## API, GraphQL, and MCP surfaces
+A filter UI needs to know which fields are queryable for an entity type, so it can offer
+autocomplete and render the right control per field. That is what `GET /api/search/paths`
+(GraphQL `searchPaths`, agent tool `discover_filter_paths`) answers.
 
-All three surfaces delegate to the same engine, query-state, and definitions code.
+Deriving that list by grouping `ai_search_index` on every request is slow, because the work scales
+with the number of entities rather than with the schema. The distinct paths are therefore
+materialized in a small companion table, `ai_search_paths`:
 
-**REST** — mounted at `/api/search` (behind auth):
+| Column        | Description                                                                     |
+|---------------|---------------------------------------------------------------------------------|
+| `entity_type` | `SUBSCRIPTION` / `PRODUCT` / `PROCESS` / `WORKFLOW`                              |
+| `path`        | the `ltree` field path, e.g. `subscription.node.name`                            |
+| `value_type`  | the field's type, used to pick the UI control                                    |
+| `refcount`    | how many `ai_search_index` rows currently carry this `(entity_type, path, value_type)` |
 
-| Endpoint | Purpose |
-|----------|---------|
-| `POST /subscriptions`, `/workflows`, `/products`, `/processes` | run a `SelectQuery`; retriever auto-selected |
-| `GET /paths` | field-path autocomplete (from `ai_search_paths`) |
-| `GET /definitions` | operator/UI-type matrix per field type |
-| `GET /queries/{id}` · `/results` · `/export` | re-run or export a saved query |
+The primary key is `(entity_type, path, value_type)`, so there is exactly one row per distinct
+path, typically a few thousand against millions of index rows. The endpoint filters this table
+by `entity_type`, matches an optional `ltree` prefix, and can rank the result by trigram
+similarity to a search term, so it stays fast no matter how many subscriptions exist.
 
-**GraphQL** — fields `search`, `search_paths`, `search_definitions`, `search_query_results`, `search_query`, `search_query_export` (`graphql/resolvers/search.py`), mirroring the REST surface.
+Unlike `subscriptions_search`, this table is never bulk-refreshed. A row trigger on
+`ai_search_index`, `ai_search_paths_maintain_trg`, keeps it exact: inserts increment a tuple's
+`refcount`, deletes decrement it and drop the row at zero, and updates move one count from the old
+tuple to the new one only when the tuple actually changes. Re-indexing a changed *value* is a
+no-op for this table.
 
-**MCP / agent tools** — mounted at `/api/agent`, exposed as read-only MCP tools when `MCP_ENABLED` and the `mcp` extra are present: `search`, `aggregate`, `discover_filter_paths`, `get_valid_operators`, `resolve_entity`, `export_query` (plus non-search workflow/process helpers).
+```sql
+SELECT tgname, tgenabled FROM pg_trigger WHERE tgname = 'ai_search_paths_maintain_trg';
+```
 
-### Search fallback waterfall
+Run `python main.py index rebuild-paths` to recompute the table if it drifts, for example after a
+manual `TRUNCATE ai_search_index`, which (unlike `DELETE`) does not fire the trigger.
 
-The MCP `search` tool runs `execute_search_with_fallback` (`search/fallback.py`): it first tries the exact structured query, then — if the result is empty and free text is present — **broadens** in up to `effort` passes (`LOW=0`, `MEDIUM=1`, `HIGH=3`):
+!!! note
 
-1. drop loose `like`/string filters but keep high-signal `eq`/range/component filters;
-2. drop all filters, use `HYBRID`;
-3. drop all filters, use `SEMANTIC`.
+    `ai_search_paths` was added by migration `ca79fd834ba0`. Installations below that revision do
+    not have it, and `GET /api/search/paths` fails until they migrate.
 
-When `EMBEDDING_API_ENABLED` is off, `SEMANTIC`/`HYBRID` passes degrade to `FUZZY`. The response reports which `search_type` was used and whether a fallback fired.
+### Empty-result broadening for the agent tool
 
-## Settings
+The agent `search` tool runs a broadening waterfall rather than returning nothing. It first runs
+the query as asked; if that returns no rows and free text is present, it retries with
+progressively looser criteria:
 
-`LLMSettings` (`orchestrator/core/settings.py`, instance `llm_settings`):
+1. drop loose `like` filters, keep high-signal `eq`, range and component filters;
+2. drop all filters, rank with hybrid;
+3. drop all filters, rank with semantic.
 
-| setting | default | purpose |
-|---------|---------|---------|
-| `EMBEDDING_API_ENABLED` | `False` | master switch; when off, search is fuzzy/structured only |
-| `EMBEDDING_MODEL` | `openai/text-embedding-3-small` | litellm model id (`provider/model`) |
-| `EMBEDDING_DIMENSION` | `1536` | vector size (100–2000); baked into column types |
-| `EMBEDDING_API_KEY` / `EMBEDDING_API_BASE` | `""` / `None` | credentials / endpoint |
-| `EMBEDDING_ENCODING_FORMAT` | `float` | litellm encoding format |
-| `EMBEDDING_SAFE_MARGIN_PERCENT` | `0.1` | token-budget headroom per embedding batch |
-| `EMBEDDING_FALLBACK_MAX_TOKENS` | `512` | context window when the model's is unknown |
-| `EMBEDDING_MAX_BATCH_SIZE` | `None` | max items per embedding batch (`None` = unlimited) |
-| `LLM_MAX_RETRIES` / `LLM_TIMEOUT` | `3` / `30` | litellm retry/timeout (indexing) |
-| `LLM_FORCE_EXTENSION_MIGRATION` | `False` | force `CREATE EXTENSION` in the tables migration |
+How far it goes is set by the request's `effort`: `low` = no retries, `medium` = one, `high` = all
+three. The first rung is skipped when it would be pointless (nothing loose to drop, or nothing
+high-signal to keep). With embeddings disabled, the hybrid and semantic rungs degrade to fuzzy.
+The response reports which retriever produced the results and whether broadening was used.
 
-The only related `AppSettings` flag is `MCP_ENABLED` (`False`), which controls the `/mcp` mount. REST and GraphQL search routers are always registered.
+### Settings
 
-## Operational notes
+All embedding settings live in `LLMSettings` (`orchestrator/core/settings.py`).
 
-- **Embeddings off is a valid mode.** With `EMBEDDING_API_ENABLED=False`, indexing writes `embedding = NULL` and search runs fuzzy/structured. No configuration errors; semantic/hybrid simply become unavailable and auto-route to fuzzy.
-- **Multi-word queries.** `fuzzy_term` is single-word only, so multi-word free text auto-routes to semantic. To force trigram matching on multi-word input, pass an explicit `retriever=hybrid`/`fuzzy`.
-- **Resizing embeddings** requires the `embedding resize` CLI and a full re-index — the dimension is fixed in the column type.
-- **Version note.** `ai_search_paths` and its trigger are added by migration `ca79fd834ba0` (2026-07-15); installations below that revision won't have it and `GET /api/search/paths` will fail until migrated.
-- **Reference.** For the design narrative behind this implementation, see [PostgreSQL hybrid search](https://timfrohlich.com/blog/postgresql-hybrid-search).
+| Setting                                 | Default                          | Purpose                                                    |
+|-----------------------------------------|----------------------------------|------------------------------------------------------------|
+| `EMBEDDING_API_ENABLED`                 | `False`                          | master switch; when off, search is fuzzy and structured only |
+| `EMBEDDING_MODEL`                       | `openai/text-embedding-3-small`  | LiteLLM model id, in `provider/model` form                  |
+| `EMBEDDING_DIMENSION`                   | `1536`                           | vector size (100 to 2000); baked into the column type          |
+| `EMBEDDING_API_KEY` / `EMBEDDING_API_BASE` | `""` / `None`                 | credentials and endpoint                                    |
+| `EMBEDDING_ENCODING_FORMAT`             | `float`                          | LiteLLM encoding format                                     |
+| `EMBEDDING_SAFE_MARGIN_PERCENT`         | `0.1`                            | token-budget headroom per embedding batch                   |
+| `EMBEDDING_FALLBACK_MAX_TOKENS`         | `512`                            | context window to assume when the model's is unknown        |
+| `EMBEDDING_MAX_BATCH_SIZE`              | `None`                           | maximum items per embedding batch (`None` = unlimited)      |
+| `LLM_MAX_RETRIES` / `LLM_TIMEOUT`       | `3` / `30`                       | LiteLLM retry and timeout, used during indexing             |
+| `LLM_FORCE_EXTENSION_MIGRATION`         | `False`                          | force `CREATE EXTENSION` in the search migration            |
+
+Live queries do not use `LLM_MAX_RETRIES`/`LLM_TIMEOUT`: they embed with a 5-second timeout and no
+retries, because a slow search is worse than one without semantic ranking.
+
+The only related `AppSettings` flag is `MCP_ENABLED` (default `False`), which mounts `/mcp`.
+
+### Where the code lives
+
+| Area                                             | Location                                                              |
+|--------------------------------------------------|-----------------------------------------------------------------------|
+| Traversal, change detection, embedding, upsert     | `orchestrator/core/search/indexing/`                                  |
+| Query objects, validation, SQL building, persistence | `orchestrator/core/search/query/`                                   |
+| Retrievers and pagination                          | `orchestrator/core/search/retrieval/`                                 |
+| Filter tree and operator definitions               | `orchestrator/core/search/filters/`                                   |
+| Field types and the embedding client               | `orchestrator/core/search/core/`                                      |
+| Agent broadening waterfall                         | `orchestrator/core/search/fallback.py`                                |
+| REST endpoints                                     | `orchestrator/core/api/api_v1/endpoints/search.py` and `mcp_tools.py` |
+| GraphQL resolvers                                  | `orchestrator/core/graphql/resolvers/search.py`                       |
+| CLI commands                                       | `orchestrator/core/cli/search/`                                       |
+| Tables                                             | `orchestrator/core/db/models.py`                                      |
+| Migrations                                         | `orchestrator/core/migrations/versions/schema/` (`262744958e0c`, `ca79fd834ba0`) |
+
+For the reasoning behind this design, see
+[PostgreSQL hybrid search](https://timfrohlich.com/blog/postgresql-hybrid-search).
