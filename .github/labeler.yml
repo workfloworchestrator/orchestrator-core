@@ -30,7 +30,6 @@ kind/build:
           - ".dockerignore"
           - "Justfile"
           - "renovate.json"
-          - ".bumpversion.cfg"
 
 area/search:
   - changed-files:
