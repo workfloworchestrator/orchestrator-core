@@ -950,3 +950,172 @@ def test_inject_args_union_subscription_model_base_type_mismatch(
     assert "must consist of lifecycle variants of the same SubscriptionModel base type" in error_msg
     assert "GenericProductOneInactive" in error_msg
     assert "GenericProductTwoInactive" in error_msg
+
+
+def test_inject_args_instantiate_primitive_wrapper_simple():
+    """Test that inject_args can instantiate primitive type wrappers with unwrap method."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class WrappedInt:
+        value: int
+
+        def unwrap(self) -> int:
+            return self.value
+
+    @inject_args
+    def step_with_wrapped_param(wrapped: WrappedInt) -> State:
+        return {"result": wrapped.unwrap()}
+
+    state = {"wrapped": {"value": 42}}
+    new_state = step_with_wrapped_param(state)
+
+    assert new_state["result"] == 42
+
+
+def test_inject_args_instantiate_primitive_wrapper_in_list():
+    """Test that inject_args can instantiate primitive type wrappers in lists."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class WrappedInt:
+        value: int
+
+        def unwrap(self) -> int:
+            return self.value
+
+    @inject_args
+    def step_with_wrapped_list(items: list[WrappedInt]) -> State:
+        return {"result": [item.unwrap() for item in items]}
+
+    state = {"items": [{"value": 1}, {"value": 2}, {"value": 3}]}
+    new_state = step_with_wrapped_list(state)
+
+    assert new_state["result"] == [1, 2, 3]
+
+
+def test_inject_args_instantiate_wrapper_then_unwrap_result():
+    """Test that return value with unwrappable objects gets unwrapped."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class WrappedStr:
+        data: str
+
+        def unwrap(self) -> str:
+            return self.data
+
+    @inject_args
+    def step_with_wrapped_return(text: str) -> State:
+        # Return the wrapper object
+        return {"result": WrappedStr(data=text)}
+
+    state = {"text": "hello"}
+    new_state = step_with_wrapped_return(state)
+
+    # The return value should be unwrapped via _unwrap_state
+    assert new_state["result"] == "hello"
+
+
+def test_inject_args_wrapper_nested_in_dict():
+    """Test that wrappers in nested dicts are properly instantiated and unwrapped."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class WrappedValue:
+        val: int
+
+        def unwrap(self) -> int:
+            return self.val
+
+    @inject_args
+    def step_with_nested_wrapper(data: dict) -> State:
+        return {"result": data}
+
+    state = {"data": {"nested": {"wrapped": WrappedValue(val=99)}}}
+    new_state = step_with_nested_wrapper(state)
+
+    # The wrapper in the nested dict should be unwrapped
+    assert new_state["result"]["nested"]["wrapped"] == 99
+
+
+def test_inject_args_wrapper_mixed_with_regular_types():
+    """Test that wrappers and regular types work together correctly."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class WrappedInt:
+        value: int
+
+        def unwrap(self) -> int:
+            return self.value
+
+    @inject_args
+    def step_mixed(wrapped: WrappedInt, regular: str, number: int) -> State:
+        return {
+            "wrapped_result": wrapped.unwrap(),
+            "regular_result": regular,
+            "number_result": number,
+        }
+
+    state = {"wrapped": {"value": 50}, "regular": "test", "number": 100}
+    new_state = step_mixed(state)
+
+    assert new_state["wrapped_result"] == 50
+    assert new_state["regular_result"] == "test"
+    assert new_state["number_result"] == 100
+
+
+def test_inject_args_wrapper_list_of_dicts_instantiation():
+    """Test that list[dict] containing wrapper data is properly handled."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class Item:
+        name: str
+        count: int
+
+        def unwrap(self) -> dict:
+            return {"name": self.name, "count": self.count}
+
+    @inject_args
+    def step_list_of_items(items: list[Item]) -> State:
+        return {"result": [item.unwrap() for item in items]}
+
+    state = {"items": [{"name": "a", "count": 1}, {"name": "b", "count": 2}]}
+    new_state = step_list_of_items(state)
+
+    assert new_state["result"] == [
+        {"name": "a", "count": 1},
+        {"name": "b", "count": 2},
+    ]
+
+
+def test_inject_args_wrapper_return_state_unwrapping():
+    """Test that _unwrap_state properly unwraps wrappers in returned state dict."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class WrappedData:
+        content: str
+
+        def unwrap(self) -> str:
+            return self.content
+
+    @inject_args
+    def step_returns_wrapper(text: str) -> State:
+        wrapped = WrappedData(content=text)
+        # Wrap multiple objects including nested ones
+        return {
+            "single_wrapper": wrapped,
+            "list_of_wrappers": [WrappedData(content="x"), WrappedData(content="y")],
+            "nested_dict": {"inner": wrapped},
+        }
+
+    state = {"text": "hello"}
+    new_state = step_returns_wrapper(state)
+
+    # All wrappers should be unwrapped in the returned state
+    assert new_state["single_wrapper"] == "hello"
+    assert new_state["list_of_wrappers"] == ["x", "y"]
+    assert new_state["nested_dict"]["inner"] == "hello"
