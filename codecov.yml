@@ -1,3 +1,9 @@
+codecov:
+  notify:
+    # This is the number of total jobs running codecov/codecov-action. Note: each matrix strategy counts as 1 job.
+    # Doing this prevents code coverage failures after each job posts their results individually.
+    # It also means less load on the codecov API.
+    after_n_builds: 10
 ignore:
   - "docs"
   - "test"
