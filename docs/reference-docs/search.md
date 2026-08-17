@@ -1,27 +1,24 @@
 # Search
 
-<!-- TOC -->
-- [Search](#search)
-  - [Usage](#usage)
-  - [Implementation 1: Filter on DB Table](#implementation-1-filter-on-db-table)
-  - [Implementation 2: Subscription Search](#implementation-2-subscription-search)
-    - [Postgres Text Search](#postgres-text-search)
-    - [Materialized View subscriptions\_search](#materialized-view-subscriptions_search)
-  - [Structured Search Field Paths](#structured-search-field-paths)
-    - [Table ai\_search\_paths](#table-ai_search_paths)
-<!-- TOC -->
+This page describes the two classic search implementations: query-string filtering on database
+tables, and text search on subscriptions.
 
-The orchestrator-core provides search functionality to find data within the Postgres DB.
+!!! warning "Subscription text search is deprecated"
 
-The below overview describes which objects can be searched through which endpoint, and the underlying search implementation.
+    Since 5.0, the `query` parameter on the subscriptions REST and GraphQL endpoints emits a
+    deprecation warning and will be removed in a future 5.x release. Use
+    [AI / Hybrid Search](ai-search.md) instead, which covers subscriptions, products, processes
+    and workflows through `/api/search`.
+
+The overview below describes which objects can be searched through which endpoint, and the underlying search implementation.
 
 | Object         | REST endpoint                      | GraphQL endpoint               | Implementation      |
 |----------------|------------------------------------|--------------------------------|---------------------|
 | Subscriptions  | `/api/subscriptions/search?query=` | `subscriptions(query: "...")`  | Subscription Search |
 | Processes      |                                    | `processes(query: "...")`      | Filter on DB table  |
-| Product Blocks |                                    | `product_blocks(query: "...")` | Filter on DB table  |
+| Product Blocks |                                    | `productBlocks(query: "...")`  | Filter on DB table  |
 | Products       |                                    | `products(query: "...")`       | Filter on DB table  |
-| Resource types |                                    | `resource_types(query: "...")` | Filter on DB table  |
+| Resource types |                                    | `resourceTypes(query: "...")`  | Filter on DB table  |
 | Workflows      |                                    | `workflows(query: "...")`      | Filter on DB table  |
 
 There are 2 implementations:
@@ -61,7 +58,7 @@ This implementation translates the user's search query to `WHERE` clauses on DB 
 
 We can distinguish these steps:
 
-* The module `search_query.py` parses the user's query and generates a sequence of sqlalchemy `.filter()` clauses
+* The module `orchestrator/core/utils/search_query.py` parses the user's query and generates a sequence of sqlalchemy `.filter()` clauses
 * The REST/GraphQL endpoint appends these clauses to the sqlalchemy `select()` to find objects that match the user's query
 
 ## Implementation 2: Subscription Search
@@ -71,7 +68,7 @@ This is a specialized implementation to allow searching values anywhere in a sub
 We can distinguish these steps/components:
 
  * The DB view `subscriptions_search` is a search index with _Text Search_ (TS) vectors. Both are explained in the next sections
- * The module `search_query.py` parses the user's query into a string that is used to create a TS query
+ * The module `orchestrator/core/utils/search_query.py` parses the user's query into a string that is used to create a TS query
  * The TS query is wrapped in a single sqlalchemy `.filter()` clause to match TS documents in `subscriptions_search` and get the corresponding `subscription_id`
  * The REST/GraphQL endpoint appends this clause to the sqlalchemy `select()` to find subscription objects that match the user's query
 
@@ -264,44 +261,3 @@ Updating the `subscriptions_search` materialized view is expensive and limited t
 This means that when 2 changes happen within, say, 5 seconds of each other, the first change will be picked up directly.
 However, the second change will only be processed on the next refresh of the view.
 So during that period the second change will not show up in the search results.
-
-## Structured Search Field Paths
-
-The structured-search UI needs to know which fields are queryable for a given entity type (Subscription, Product, Process, or Workflow), so it can offer field autocomplete and render the right filter control per field. The endpoint `GET /api/search/paths` provides this — its GraphQL equivalent is the `search_paths` field and its MCP equivalent is the `discover_filter_paths` tool. All three return the entity type's field *paths*: the dotted, hierarchical names of every leaf field and nested component in the schema (for example `subscription.node.name`), each annotated with the UI type to render.
-
-These paths are derived from `ai_search_index`, an entity-attribute-value (EAV) table maintained by the LLM/semantic search indexer that stores one row **per entity per field path**. Because it holds a row for every field of every entity it can contain millions of rows, whereas the set of *distinct* paths is bounded by the schema — typically a few thousand.
-
-### Table ai_search_paths
-
-Answering `/api/search/paths` by grouping the whole EAV table on every request is slow (the work scales with the data, not the schema). Instead the distinct paths are materialized in a small companion table that the endpoint reads directly:
-
-| column        | description                                                                              |
-|---------------|------------------------------------------------------------------------------------------|
-| `entity_type` | `SUBSCRIPTION` / `PRODUCT` / `PROCESS` / `WORKFLOW`                                       |
-| `path`        | the `ltree` field path, e.g. `subscription.node.name`                                    |
-| `value_type`  | the field's type (`string`, `integer`, `boolean`, …), used to pick the UI control        |
-| `refcount`    | number of `ai_search_index` rows currently carrying this `(entity_type, path, value_type)` tuple |
-
-The primary key is `(entity_type, path, value_type)`, so the table holds exactly one row per distinct path. The endpoint filters by `entity_type`, matches an optional `ltree` prefix (the `~` operator), and optionally ranks results by trigram similarity to a query term — all against this schema-sized table, so it stays fast regardless of how many subscriptions exist.
-
-**Trigger**
-
-Unlike `subscriptions_search`, this table is not a materialized view and is never bulk-refreshed. It is kept exact by a single row trigger on `ai_search_index`:
-
-* `ai_search_paths_maintain_trg` — `AFTER INSERT OR UPDATE OR DELETE ... FOR EACH ROW`
-
-The trigger reference-counts each tuple: an insert increments (or creates) the tuple's `refcount`; a delete decrements it and removes the row when the count reaches zero; an update moves one count from the old tuple to the new one, but only when the `(entity_type, path, value_type)` tuple actually changes (a re-index that only changes a value is a no-op). The table therefore stays correct as the indexer streams upserts and deletes, with no periodic refresh step.
-
-```sql
-SELECT tgname, tgenabled FROM pg_trigger WHERE tgname = 'ai_search_paths_maintain_trg';
-```
-
-**Rebuilding**
-
-The table can be recomputed from `ai_search_index` in a single pass with:
-
-```shell
-python main.py index rebuild-paths
-```
-
-This truncates `ai_search_paths` and repopulates exact reference counts (`INSERT ... SELECT ... GROUP BY entity_type, path, value_type`). Use it to recover from drift — for example after a manual `TRUNCATE ai_search_index`, which (unlike a row-level `DELETE`) does **not** fire the maintenance trigger and so would leave the paths table stale.

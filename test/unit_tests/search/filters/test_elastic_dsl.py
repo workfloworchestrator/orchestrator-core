@@ -20,7 +20,7 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from orchestrator.core.schemas.search_requests import SearchRequest
-from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, UIType
 from orchestrator.core.search.filters import FilterTree, PathFilter
 from orchestrator.core.search.filters.base import ContainsFilter, EqualityFilter, StringFilter
 from orchestrator.core.search.filters.date_filters import DateRangeFilter, DateValueFilter
@@ -368,6 +368,39 @@ def test_value_kind_inference(value: Any, expected_kind: UIType) -> None:
     assert leaf.value_kind == expected_kind
 
 
+def test_resolve_value_kind_falls_back_when_resolver_returns_none() -> None:
+    """When the resolver can't resolve a digit-only string, inference is used instead."""
+    es = ElasticQueryAdapter.validate_python({"term": {"field": "26"}})
+    tree = elastic_to_filter_tree(es, value_kind_resolver=lambda _field, _value: None)
+    leaf = tree.children[0]
+    assert isinstance(leaf, PathFilter)
+    assert leaf.value_kind == UIType.NUMBER
+
+
+def test_resolve_value_kind_uses_resolver_for_digit_only_string() -> None:
+    es = ElasticQueryAdapter.validate_python({"term": {"field": "26"}})
+    tree = elastic_to_filter_tree(es, value_kind_resolver=lambda _field, _value: UIType.STRING)
+    leaf = tree.children[0]
+    assert isinstance(leaf, PathFilter)
+    assert leaf.value_kind == UIType.STRING
+
+
+def test_resolve_value_kind_ignores_resolver_for_non_digit_string() -> None:
+    resolver_called = False
+
+    def resolver(_field: str, _value: Any) -> UIType | None:
+        nonlocal resolver_called
+        resolver_called = True
+        return UIType.STRING
+
+    es = ElasticQueryAdapter.validate_python({"term": {"field": "not-digits"}})
+    tree = elastic_to_filter_tree(es, value_kind_resolver=resolver)
+    leaf = tree.children[0]
+    assert isinstance(leaf, PathFilter)
+    assert leaf.value_kind == UIType.STRING
+    assert resolver_called is False
+
+
 # ---------------------------------------------------------------------------
 # validation / edge cases
 # ---------------------------------------------------------------------------
@@ -617,9 +650,10 @@ def test_search_request_accepts_elastic_dsl(
     filters: dict[str, Any], expected_op: BooleanOperator, expected_children: int
 ) -> None:
     request = SearchRequest(filters=filters)  # type: ignore[arg-type]
-    assert isinstance(request.filters, FilterTree)
-    assert request.filters.op == expected_op
-    assert len(request.filters.children) == expected_children
+    query = request.to_query(EntityType.SUBSCRIPTION)
+    assert isinstance(query.filters, FilterTree)
+    assert query.filters.op == expected_op
+    assert len(query.filters.children) == expected_children
 
 
 def test_search_request_accepts_filter_tree() -> None:
@@ -689,30 +723,12 @@ def test_must_not_contains_inverts_to_not_contains() -> None:
     assert leaf.condition.value == ".*LIR.*"
 
 
-def test_must_not_not_contains_inverts_to_contains() -> None:
-    es = ElasticQueryAdapter.validate_python(
-        {
-            "bool": {
-                "must_not": [
-                    {
-                        "regexp": {"description": ".*LIR.*"},
-                    }
-                ]
-            }
-        }
-    )
-    tree = elastic_to_filter_tree(es)
-    leaf = tree.children[0]
-    assert isinstance(leaf, PathFilter)
-    assert isinstance(leaf.condition, ContainsFilter)
-    assert leaf.condition.op == FilterOp.NOT_CONTAINS
-
-
 def test_search_request_accepts_contains_filter() -> None:
     request = SearchRequest(filters={"regexp": {"subscription.description": {"value": ".*fiber.*"}}})  # type: ignore[arg-type]
-    assert isinstance(request.filters, FilterTree)
-    assert len(request.filters.children) == 1
-    leaf = request.filters.children[0]
+    query = request.to_query(EntityType.SUBSCRIPTION)
+    assert isinstance(query.filters, FilterTree)
+    assert len(query.filters.children) == 1
+    leaf = query.filters.children[0]
     assert isinstance(leaf, PathFilter)
     assert isinstance(leaf.condition, ContainsFilter)
     assert leaf.condition.op == FilterOp.CONTAINS

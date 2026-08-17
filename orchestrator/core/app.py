@@ -59,6 +59,7 @@ from orchestrator.core.graphql.types import ScalarOverrideType, StrawberryModelT
 from orchestrator.core.log_config import LOGGER_OVERRIDES
 from orchestrator.core.metrics import ORCHESTRATOR_METRICS_REGISTRY, initialize_default_metrics
 from orchestrator.core.search.core.embedding import prewarm_embedding_dependencies
+from orchestrator.core.search.indexing.field_types import clear_field_type_cache
 from orchestrator.core.search.query.exceptions import QueryValidationError
 from orchestrator.core.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.core.services.worker_status_monitor import get_worker_status_monitor
@@ -297,6 +298,7 @@ class OrchestratorCore(FastAPI):
 
         """
         SUBSCRIPTION_MODEL_REGISTRY.update(product_to_subscription_model_mapping)
+        clear_field_type_cache()
 
     @staticmethod
     def register_table(base_class: type[BaseModel], custom_class: type[BaseModel]) -> None:

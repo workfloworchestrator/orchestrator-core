@@ -13,11 +13,17 @@
 
 """Tests for SearchRequest validation: limit bounds, order_by/query exclusivity, filter conversion, and to_query."""
 
-import pytest
-from pydantic import ValidationError
+from unittest.mock import patch
 
+import pytest
+from pydantic import ConfigDict, ValidationError
+
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.schemas.search_requests import SearchRequest
-from orchestrator.core.search.core.types import EntityType, RetrieverType
+from orchestrator.core.search.core.types import EntityType, RetrieverType, UIType
+from orchestrator.core.search.filters.base import PathFilter
+from orchestrator.core.search.indexing.field_types import clear_field_type_cache
 from orchestrator.core.search.query.mixins import StructuredOrderBy
 
 
@@ -66,7 +72,7 @@ def test_order_by_without_query_succeeds() -> None:
 )
 def test_elastic_dsl_filter_converted(elastic_filter: dict) -> None:
     schema = SearchRequest(filters=elastic_filter)  # type: ignore[arg-type]
-    assert schema.filters is not None
+    assert schema.to_query(EntityType.SUBSCRIPTION).filters is not None
 
 
 @pytest.mark.parametrize(
@@ -84,6 +90,59 @@ def test_to_query_propagates_fields() -> None:
     assert query.query_text == "search text"
     assert query.limit == 15
     assert query.response_columns == ["name", "status"]
+
+
+@pytest.mark.parametrize(
+    "field, expected_kind",
+    [
+        pytest.param("vlanrange", UIType.STRING, id="string-field"),
+        pytest.param("vlan_id", UIType.NUMBER, id="numeric-field"),
+        pytest.param("unknown_field", UIType.NUMBER, id="unknown-field-falls-back"),
+    ],
+)
+def test_to_query_resolves_digit_only_term_from_subscription_schema(field: str, expected_kind: UIType) -> None:
+    class VlanRange(str):
+        pass
+
+    class VlanSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        vlanrange: VlanRange | None = None
+        vlan_id: int | None = None
+
+    clear_field_type_cache()
+    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"VLAN": VlanSubscription}, clear=True):
+        request = SearchRequest(filters={"term": {field: "26"}})  # type: ignore[arg-type]
+        query = request.to_query(EntityType.SUBSCRIPTION)
+
+    clear_field_type_cache()
+    assert query.filters is not None
+    leaf = query.filters.children[0]
+    assert isinstance(leaf, PathFilter)
+    assert leaf.value_kind == expected_kind
+
+
+def test_model_validate_rejects_non_dict_non_model_input() -> None:
+    with pytest.raises(ValidationError):
+        SearchRequest.model_validate(42)
+
+
+def test_to_query_preserves_native_filter_tree() -> None:
+    request = SearchRequest(
+        filters={  # type: ignore[arg-type]
+            "op": "AND",
+            "children": [
+                {
+                    "path": "subscription.status",
+                    "condition": {"op": "eq", "value": "active"},
+                    "value_kind": "string",
+                }
+            ],
+        }
+    )
+
+    query = request.to_query(EntityType.SUBSCRIPTION)
+    assert query.filters == request.filters
 
 
 @pytest.mark.parametrize(
