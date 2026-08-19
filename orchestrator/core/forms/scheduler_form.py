@@ -31,6 +31,8 @@ from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.workflow import Workflow, default_user_inputs
 from orchestrator.core.workflows import get_workflow
 from pydantic_forms.types import FormGenerator, FormGeneratorAsync, State
+from pydantic_forms.validators import callout
+from pydantic_forms.validators.components.callout import CalloutMessageType
 from pydantic_forms.validators.components.read_only import read_only_field
 
 logger = structlog.get_logger(__name__)
@@ -60,6 +62,14 @@ class ButtonConfig(TypedDict, total=False):
 class Buttons(TypedDict):
     previous: ButtonConfig
     next: ButtonConfig
+
+
+FasterIntervalCallout = callout(
+    header="Need a finer interval?",
+    message="The shortest option here is 1 hour. For anything shorter, down to seconds, "
+    "switch to a Cron schedule instead.",
+    message_type=CalloutMessageType.PRIMARY,
+)
 
 
 INTERVAL_MAPPING = {
@@ -204,6 +214,7 @@ async def configure_schedule_form(state: State) -> FormGeneratorAsync:
 
         start_date: DateTimeField = default_timestamp  # type: ignore
         if schedule_type_form.schedule_type == ScheduleTypeEnum.INTERVAL:
+            interval_callout: FasterIntervalCallout  # type: ignore[valid-type]
             interval: Intervals
         if schedule_type_form.schedule_type == ScheduleTypeEnum.CRON:
             cron: Annotated[str, AfterValidator(validate_cron)]
