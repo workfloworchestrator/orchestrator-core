@@ -274,7 +274,7 @@ def list_recent_processes_endpoint(params: ListRecentProcessesRequest) -> list[P
     operation_id="list_subscriptions",
     openapi_extra=READONLY_TOOL,
 )
-def list_subscriptions_endpoint(params: ListSubscriptionsRequest) -> ListSubscriptionsResponse:
+async def list_subscriptions_endpoint(params: ListSubscriptionsRequest) -> ListSubscriptionsResponse:
     """List subscriptions, newest first, at most 10 per page.
 
     While ``has_more`` is true, call again with ``offset=next_offset`` for the
