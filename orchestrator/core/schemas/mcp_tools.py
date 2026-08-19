@@ -64,6 +64,15 @@ class ListRecentProcessesRequest(OrchestratorBaseModel):
     limit: int = Field(default=20, ge=1, le=100, description="Maximum number of processes to return.")
 
 
+class ListSubscriptionsRequest(OrchestratorBaseModel):
+    limit: int = Field(default=10, ge=1, le=10, description="Maximum number of subscriptions per page.")
+    offset: int = Field(
+        default=0,
+        ge=0,
+        description="Number of subscriptions to skip; pass next_offset from the previous page to continue.",
+    )
+
+
 # Response models
 
 
@@ -101,6 +110,25 @@ class ProductSummary(OrchestratorBaseModel):
     product_type: str
     tag: str | None = None
     description: str | None = None
+
+
+class SubscriptionSummary(OrchestratorBaseModel):
+    subscription_id: UUID
+    description: str | None = None
+    status: SubscriptionLifecycle
+    insync: bool
+    product_name: str
+    customer_id: str | None = None
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+
+
+class ListSubscriptionsResponse(OrchestratorBaseModel):
+    subscriptions: list[SubscriptionSummary]
+    has_more: bool = Field(description="True when more subscriptions exist beyond this page.")
+    next_offset: int | None = Field(
+        default=None, description="Pass as offset in the next call to fetch the following page; null on the last page."
+    )
 
 
 class SubscriptionDetailsResponse(OrchestratorBaseModel):
