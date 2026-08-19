@@ -14,6 +14,7 @@
 from collections import defaultdict
 from collections.abc import Iterable
 from functools import lru_cache
+from itertools import chain
 from typing import Any, get_args
 
 from pydantic import BaseModel
@@ -36,11 +37,20 @@ def _model_types(annotation: Any) -> set[type[BaseModel]]:
 def _field_annotations(model_type: type[BaseModel]) -> Iterable[tuple[str, Any]]:
     """Yield fields using domain-model classification when available."""
     if issubclass(model_type, DomainModel):
+        classified_fields = {
+            *model_type._non_product_block_fields_,
+            *model_type._product_block_fields_,
+        }
         yield from model_type._non_product_block_fields_.items()
         yield from model_type._product_block_fields_.items()
         yield from (
             (name, computed_field.return_type)
             for name, computed_field in getattr(model_type, "__pydantic_computed_fields__", {}).items()
+        )
+        yield from (
+            (name, field.annotation)
+            for name, field in model_type.model_fields.items()
+            if name not in classified_fields
         )
         return
 
@@ -50,23 +60,35 @@ def _field_annotations(model_type: type[BaseModel]) -> Iterable[tuple[str, Any]]
 def _collect_field_types(
     model_type: type[BaseModel],
     path: str,
-    field_types: dict[str, set[FieldType]],
     ancestors: set[type[BaseModel]],
-) -> None:
+) -> Iterable[tuple[str, FieldType]]:
+    """Recursively yield indexed-path/FieldType entries for a model, guarding against recursive references."""
     if model_type in ancestors:
         return
 
     ancestors = ancestors | {model_type}
-    for name, annotation in _field_annotations(model_type):
-        field_path = f"{path}.{name}"
-        is_list = is_list_type(annotation)
-        indexed_path = f"{field_path}.*" if is_list else field_path
-        nested_model_types = _model_types(annotation)
-        if nested_model_types:
-            for nested_model_type in nested_model_types:
-                _collect_field_types(nested_model_type, indexed_path, field_types, ancestors)
-        else:
-            field_types[indexed_path].add(FieldType.from_type_hint(annotation))
+    yield from chain.from_iterable(
+        _field_type_entries(name, annotation, path, ancestors) for name, annotation in _field_annotations(model_type)
+    )
+
+
+def _field_type_entries(
+    name: str,
+    annotation: Any,
+    path: str,
+    ancestors: set[type[BaseModel]],
+) -> Iterable[tuple[str, FieldType]]:
+    """Return the indexed-path/FieldType entries contributed by a single field."""
+    field_path = f"{path}.{name}"
+    indexed_path = f"{field_path}.*" if is_list_type(annotation) else field_path
+    nested_model_types = _model_types(annotation)
+    if not nested_model_types:
+        yield indexed_path, FieldType.from_type_hint(annotation)
+        return
+
+    yield from chain.from_iterable(
+        _collect_field_types(nested_model_type, indexed_path, ancestors) for nested_model_type in nested_model_types
+    )
 
 
 def _specialized_subscription_types(model_type: type[SubscriptionModel]) -> set[type[SubscriptionModel]]:
@@ -83,8 +105,10 @@ def _subscription_field_types() -> dict[str, frozenset[FieldType]]:
         for registered_model_type in SUBSCRIPTION_MODEL_REGISTRY.values()
         for specialized_type in _specialized_subscription_types(registered_model_type)
     }
-    for model_type in model_types:
-        _collect_field_types(model_type, "subscription", field_types, set())
+    for path, field_type in chain.from_iterable(
+        _collect_field_types(model_type, "subscription", set()) for model_type in model_types
+    ):
+        field_types[path].add(field_type)
     return {path: frozenset(types) for path, types in field_types.items()}
 
 
