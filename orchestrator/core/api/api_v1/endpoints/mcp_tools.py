@@ -39,6 +39,9 @@ Why these are curated rather than auto-generated from the existing REST API:
 * ``list_recent_processes`` —> REST ``GET /processes/?filter=k,v,k,v`` uses
   a flat positional filter syntax that LLMs handle poorly; this exposes
   named kwargs.
+* ``list_subscriptions`` —> no list route exists on ``/subscriptions``
+  (browsing lives in GraphQL) and ``search`` deliberately refuses to
+  enumerate without criteria; this gives agents a deterministic listing.
 * ``get_subscription_details`` —> REST ``GET /subscriptions/domain-model/{id}``
   returns the full product-block tree; this returns a flat header.
 """
@@ -54,7 +57,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import ProcessTable, WorkflowTable, db
+from orchestrator.core.db import ProcessTable, SubscriptionTable, WorkflowTable, db
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas.mcp_search import (
     AggregateToolRequest,
@@ -72,6 +75,8 @@ from orchestrator.core.schemas.mcp_search import (
 from orchestrator.core.schemas.mcp_tools import (
     GetWorkflowFormRequest,
     ListRecentProcessesRequest,
+    ListSubscriptionsRequest,
+    ListSubscriptionsResponse,
     ListWorkflowsRequest,
     ProcessIdRequest,
     ProcessStatusResponse,
@@ -79,6 +84,7 @@ from orchestrator.core.schemas.mcp_tools import (
     ProductSummary,
     SubscriptionDetailsResponse,
     SubscriptionIdRequest,
+    SubscriptionSummary,
     WorkflowFormPage,
 )
 from orchestrator.core.schemas.workflow import SubscriptionWorkflowListsSchema, WorkflowSchema
@@ -262,6 +268,49 @@ def list_recent_processes_endpoint(params: ListRecentProcessesRequest) -> list[P
 
 
 @router.post(
+    "/list_subscriptions",
+    response_model=ListSubscriptionsResponse,
+    tags=[AGENT_EXPOSED_TAG],
+    operation_id="list_subscriptions",
+    openapi_extra=READONLY_TOOL,
+)
+def list_subscriptions_endpoint(params: ListSubscriptionsRequest) -> ListSubscriptionsResponse:
+    """List subscriptions, newest first, at most 10 per page.
+
+    While ``has_more`` is true, call again with ``offset=next_offset`` for the
+    next page. Returns flat summary rows without product blocks; use
+    get_subscription_details or get_subscription_domain_model for one
+    subscription's full data, and ``search`` to find or filter subscriptions.
+    """
+    stmt = (
+        select(SubscriptionTable)
+        .options(joinedload(SubscriptionTable.product))
+        .order_by(SubscriptionTable.start_date.desc().nulls_first(), SubscriptionTable.subscription_id)
+        .offset(params.offset)
+        .limit(params.limit + 1)
+    )
+    rows = db.session.scalars(stmt).unique().all()
+    has_more = len(rows) > params.limit
+    return ListSubscriptionsResponse(
+        subscriptions=[
+            SubscriptionSummary(
+                subscription_id=s.subscription_id,
+                description=s.description,
+                status=s.status,
+                insync=s.insync,
+                product_name=s.product.name,
+                customer_id=s.customer_id,
+                start_date=s.start_date,
+                end_date=s.end_date,
+            )
+            for s in rows[: params.limit]
+        ],
+        has_more=has_more,
+        next_offset=params.offset + params.limit if has_more else None,
+    )
+
+
+@router.post(
     "/get_subscription_details",
     response_model=SubscriptionDetailsResponse,
     tags=[AGENT_EXPOSED_TAG],
@@ -318,7 +367,9 @@ def get_subscription_details_endpoint(params: SubscriptionIdRequest) -> Subscrip
 async def search_endpoint(params: SearchToolRequest) -> SearchToolResponse:
     """Find and rank entities (subscriptions, products, workflows, processes).
 
-    Pass ``query_text`` for semantic/fuzzy ranking and/or structured ``filters``. To filter: first call
+    Pass ``query_text`` for semantic/fuzzy ranking and/or structured ``filters``; at least one is
+    required, a call without criteria is rejected, use the ``list_*`` tools (e.g.
+    ``list_subscriptions``) to enumerate entities instead. To filter: first call
     discover_filter_paths for the fields you need, check operators with get_valid_operators, then build
     the filter_tree from ONLY those exact paths. If a filtered search returns nothing, it automatically
     broadens (drops filters, re-ranks by similarity) up to ``effort`` passes and sets
