@@ -401,6 +401,31 @@ def test_resolve_value_kind_ignores_resolver_for_non_digit_string() -> None:
     assert resolver_called is False
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param(26, id="int"),
+        pytest.param(26.0, id="float"),
+    ],
+)
+def test_resolve_value_kind_uses_resolver_for_numeric_value(value: Any) -> None:
+    """Unquoted numeric values from the database payload should also be schema-resolved."""
+    es = ElasticQueryAdapter.validate_python({"term": {"field": value}})
+    tree = elastic_to_filter_tree(es, value_kind_resolver=lambda _field, _value: UIType.STRING)
+    leaf = tree.children[0]
+    assert isinstance(leaf, PathFilter)
+    assert leaf.value_kind == UIType.STRING
+
+
+def test_resolve_value_kind_falls_back_for_numeric_value_when_resolver_returns_none() -> None:
+    """When the resolver can't resolve a numeric value, inference is used instead."""
+    es = ElasticQueryAdapter.validate_python({"term": {"field": 26}})
+    tree = elastic_to_filter_tree(es, value_kind_resolver=lambda _field, _value: None)
+    leaf = tree.children[0]
+    assert isinstance(leaf, PathFilter)
+    assert leaf.value_kind == UIType.NUMBER
+
+
 # ---------------------------------------------------------------------------
 # validation / edge cases
 # ---------------------------------------------------------------------------

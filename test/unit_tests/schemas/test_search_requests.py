@@ -13,6 +13,7 @@
 
 """Tests for SearchRequest validation: limit bounds, order_by/query exclusivity, filter conversion, and to_query."""
 
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -113,6 +114,35 @@ def test_to_query_resolves_digit_only_term_from_subscription_schema(field: str, 
     clear_field_type_cache()
     with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"VLAN": VlanSubscription}, clear=True):
         request = SearchRequest(filters={"term": {field: "26"}})  # type: ignore[arg-type]
+        query = request.to_query(EntityType.SUBSCRIPTION)
+
+    clear_field_type_cache()
+    assert query.filters is not None
+    leaf = query.filters.children[0]
+    assert isinstance(leaf, PathFilter)
+    assert leaf.value_kind == expected_kind
+
+
+@pytest.mark.parametrize(
+    "value, expected_kind",
+    [
+        pytest.param("26", UIType.STRING, id="quoted-string"),
+        pytest.param(26, UIType.STRING, id="unquoted-int"),
+        pytest.param(26.0, UIType.STRING, id="unquoted-float"),
+    ],
+)
+def test_to_query_resolves_unquoted_numeric_term_for_string_field(value: Any, expected_kind: UIType) -> None:
+    class VlanRange(str):
+        pass
+
+    class VlanSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        vlanrange: VlanRange | None = None
+
+    clear_field_type_cache()
+    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"VLAN": VlanSubscription}, clear=True):
+        request = SearchRequest(filters={"term": {"vlanrange": value}})  # type: ignore[arg-type]
         query = request.to_query(EntityType.SUBSCRIPTION)
 
     clear_field_type_cache()
