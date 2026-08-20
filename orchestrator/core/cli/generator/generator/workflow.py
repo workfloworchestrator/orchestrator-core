@@ -23,6 +23,7 @@ from jinja2 import Environment
 from orchestrator.core.cli.generator.generator.enums import get_int_enums, get_str_enums
 from orchestrator.core.cli.generator.generator.helpers import (
     ProdGenContext,
+    create_dunder_init_files,
     get_constrained_ints,
     get_existing_product_blocks,
     get_input_fields,
@@ -118,6 +119,7 @@ def shared_product_workflow_folder(config: dict) -> Path:
 def create_product_workflow_paths(config: dict) -> None:
     path = product_workflow_folder(config) / Path("shared")
     path.mkdir(parents=True, exist_ok=True)
+    create_dunder_init_files(path)
 
 
 def get_product_workflow_path(config: dict, workflow_type: str) -> Path:
