@@ -52,7 +52,9 @@ def write_file(path: Path, content: str, append: bool, force: bool) -> None:
         if not path.parent.exists():
             logger.info("creating missing folder(s)", path=str(path.parent))
             path.parent.mkdir(parents=True, exist_ok=True)
-        if not force and path.exists():
+
+        file_exists = path.exists()
+        if not force and file_exists:
             action = "append" if append else "overwrite"
             logger.warning(f"file already exists, rerun with --force if you want to {action}", path=str(path))
             return
@@ -63,7 +65,8 @@ def write_file(path: Path, content: str, append: bool, force: bool) -> None:
     except Exception as exception:
         logger.error("failed to write file", path=str(path), message=str(exception))
     else:
-        logger.info("wrote file", path=str(path), append=append, force=force)
+        overwrote = file_exists and not append
+        logger.info("overwrote file" if overwrote else "wrote file", path=str(path), append=append, force=force)
 
 
 def ruff(content: str) -> str:
