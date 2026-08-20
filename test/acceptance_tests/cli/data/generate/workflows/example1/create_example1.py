@@ -65,7 +65,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         always_optional_str: str | None = None
 
     user_input = yield CreateExample1Form
-    user_input_dict = user_input.dict()
+    user_input_dict = user_input.model_dump()
 
     yield from base_summary(product_name, user_input_dict)
 

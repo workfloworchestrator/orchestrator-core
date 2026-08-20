@@ -167,7 +167,7 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
 
     user_input_node = yield NodeIdForm
 
-    return {**user_input.dict(), **user_input_node.dict()}
+    return user_input.model_dump() | user_input_node.model_dump()
 ```
 
 For multi-step forms especially, it can be useful to use the `orchestrator.core.forms.SubmitFormPage` class, which is just a subclass of `orchestrator.core.forms.FormPage` that has some metadata informing the frontend that this form is the last page in the flow so it can style the submit button differently. This is entirely optional.
