@@ -150,8 +150,8 @@ _RANGE_KEYS = frozenset({"gt", "gte", "lt", "lte"})
 
 
 def _resolve_value_kind(field: str, value: Any, value_kind_resolver: ValueKindResolver | None) -> UIType:
-    """Resolve digit-only strings from the indexed model schema when available."""
-    if value_kind_resolver and isinstance(value, str) and value.isdigit():
+    """Resolve ambiguous numeric values from the indexed model schema when available."""
+    if value_kind_resolver and FieldType.infer(value) in (FieldType.INTEGER, FieldType.FLOAT):
         if value_kind := value_kind_resolver(field, value):
             return value_kind
     return _infer_value_kind(value)
