@@ -52,7 +52,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         example_int_enum_2: ExampleIntEnum2 | None = None
 
     user_input = yield CreateExample2Form
-    user_input_dict = user_input.dict()
+    user_input_dict = user_input.model_dump()
 
     return user_input_dict
 

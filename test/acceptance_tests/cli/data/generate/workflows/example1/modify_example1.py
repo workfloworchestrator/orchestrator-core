@@ -60,7 +60,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
         always_optional_str: str | None = example1.always_optional_str
 
     user_input = yield ModifyExample1Form
-    user_input_dict = user_input.dict()
+    user_input_dict = user_input.model_dump()
 
     old_modify_form_data = ModifyExample1Form.model_construct().model_dump()
     yield from base_summary(subscription.product.name, user_input_dict, old_modify_form_data)
