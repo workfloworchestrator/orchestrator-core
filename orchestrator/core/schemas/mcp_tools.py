@@ -65,12 +65,7 @@ class ListRecentProcessesRequest(OrchestratorBaseModel):
 
 
 class ListSubscriptionsRequest(OrchestratorBaseModel):
-    limit: int = Field(default=10, ge=1, le=10, description="Maximum number of subscriptions per page.")
-    offset: int = Field(
-        default=0,
-        ge=0,
-        description="Number of subscriptions to skip; pass next_offset from the previous page to continue.",
-    )
+    limit: int = Field(default=10, ge=1, le=20, description="Maximum number of subscriptions to return.")
 
 
 # Response models
@@ -125,10 +120,7 @@ class SubscriptionSummary(OrchestratorBaseModel):
 
 class ListSubscriptionsResponse(OrchestratorBaseModel):
     subscriptions: list[SubscriptionSummary]
-    has_more: bool = Field(description="True when more subscriptions exist beyond this page.")
-    next_offset: int | None = Field(
-        default=None, description="Pass as offset in the next call to fetch the following page; null on the last page."
-    )
+    has_more: bool = Field(description="True when more subscriptions exist beyond the returned limit.")
 
 
 class SubscriptionDetailsResponse(OrchestratorBaseModel):

@@ -54,7 +54,7 @@ import structlog
 from fastapi.routing import APIRouter
 from pydantic import ValidationError
 from sqlalchemy import select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, raiseload
 
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import ProcessTable, SubscriptionTable, WorkflowTable, db
@@ -240,7 +240,7 @@ def list_recent_processes_endpoint(params: ListRecentProcessesRequest) -> list[P
     """
     stmt = (
         select(ProcessTable)
-        .options(joinedload(ProcessTable.workflow))
+        .options(joinedload(ProcessTable.workflow), raiseload("*"))
         .order_by(ProcessTable.started_at.desc())
         .limit(params.limit)
     )
@@ -275,22 +275,22 @@ def list_recent_processes_endpoint(params: ListRecentProcessesRequest) -> list[P
     openapi_extra=READONLY_TOOL,
 )
 async def list_subscriptions_endpoint(params: ListSubscriptionsRequest) -> ListSubscriptionsResponse:
-    """List subscriptions, newest first, at most 10 per page.
+    """List the newest subscriptions, at most 20.
 
-    While ``has_more`` is true, call again with ``offset=next_offset`` for the
-    next page. Returns flat summary rows without product blocks; use
+    Returns flat summary rows without product blocks; use
     get_subscription_details or get_subscription_domain_model for one
-    subscription's full data, and ``search`` to find or filter subscriptions.
+    subscription's full data. When ``has_more`` is true the listing is
+    truncated; use ``search`` to find or filter subscriptions instead of
+    listing further.
     """
     stmt = (
         select(SubscriptionTable)
-        .options(joinedload(SubscriptionTable.product))
+        .options(joinedload(SubscriptionTable.product), raiseload("*"))
+        # NULL start_date means not yet provisioned, i.e. the newest lifecycle stage.
         .order_by(SubscriptionTable.start_date.desc().nulls_first(), SubscriptionTable.subscription_id)
-        .offset(params.offset)
         .limit(params.limit + 1)
     )
     rows = db.session.scalars(stmt).unique().all()
-    has_more = len(rows) > params.limit
     return ListSubscriptionsResponse(
         subscriptions=[
             SubscriptionSummary(
@@ -305,8 +305,7 @@ async def list_subscriptions_endpoint(params: ListSubscriptionsRequest) -> ListS
             )
             for s in rows[: params.limit]
         ],
-        has_more=has_more,
-        next_offset=params.offset + params.limit if has_more else None,
+        has_more=len(rows) > params.limit,
     )
 
 
