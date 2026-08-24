@@ -18,10 +18,11 @@ from uuid import UUID
 from fastapi.param_functions import Body, Depends
 from fastapi.routing import APIRouter
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import ProductBlockTable, ProductTable, SubscriptionTable, db
+from orchestrator.core.db import ProductBlockTable, ProductTable, SubscriptionTable, get_async_session
 from orchestrator.core.domain.lifecycle import ProductLifecycle
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas import ProductSchema
@@ -40,7 +41,11 @@ router = APIRouter()
     operation_id="list_products",
     openapi_extra=READONLY_TOOL,
 )
-def fetch(tag: str | None = None, product_type: str | None = None) -> list[ProductSchema]:
+async def fetch(
+    tag: str | None = None,
+    product_type: str | None = None,
+    session: AsyncSession = Depends(get_async_session),
+) -> list[ProductSchema]:
     """List products, optionally filtered by ``tag`` or ``product_type``.
 
     May return many rows; pass ``tag`` or ``product_type`` to narrow the result.
@@ -55,7 +60,8 @@ def fetch(tag: str | None = None, product_type: str | None = None) -> list[Produ
     if product_type:
         stmt = stmt.filter(ProductTable.__dict__["product_type"] == product_type)
 
-    return list(db.session.scalars(stmt))
+    result = await session.scalars(stmt)
+    return list(result)
 
 
 @router.get(
@@ -65,18 +71,18 @@ def fetch(tag: str | None = None, product_type: str | None = None) -> list[Produ
     operation_id="get_product",
     openapi_extra=READONLY_TOOL,
 )
-def product_by_id(product_id: UUID) -> ProductTable:
+async def product_by_id(product_id: UUID, session: AsyncSession = Depends(get_async_session)) -> ProductTable:
     """Get a single product by id, including fixed inputs, product blocks and workflows.
 
     Use after ``list_products`` to inspect one product's full definition.
     """
-    product = _product_by_id(product_id)
+    product = await _product_by_id(product_id, session)
     if not product:
         raise_status(HTTPStatus.NOT_FOUND, f"Product id {product_id} not found")
     return product
 
 
-def _product_by_id(product_id: UUID) -> ProductTable | None:
+async def _product_by_id(product_id: UUID, session: AsyncSession) -> ProductTable | None:
     stmt = (
         select(ProductTable)
         .options(
@@ -86,7 +92,8 @@ def _product_by_id(product_id: UUID) -> ProductTable | None:
         )
         .filter(ProductTable.product_id == product_id)
     )
-    return db.session.scalars(stmt).unique().one_or_none()
+    result = await session.scalars(stmt)
+    return result.unique().one_or_none()
 
 
 async def _index_products(product_id: UUID) -> AsyncGenerator[None, Any]:
@@ -100,17 +107,20 @@ async def _index_products(product_id: UUID) -> AsyncGenerator[None, Any]:
     response_model=ProductSchema,
     dependencies=[Depends(_index_products)],
 )
-async def patch_product_by_id(product_id: UUID, data: ProductPatchSchema = Body(...)) -> ProductTable:
-    product = _product_by_id(product_id)
+async def patch_product_by_id(
+    product_id: UUID, data: ProductPatchSchema = Body(...), session: AsyncSession = Depends(get_async_session)
+) -> ProductTable:
+    product = await _product_by_id(product_id, session)
     if not product:
         raise_status(HTTPStatus.NOT_FOUND, f"Product id {product_id} not found")
 
-    return await _patch_product(data, product)
+    return await _patch_product(data, product, session)
 
 
 async def _patch_product(
     data: ProductPatchSchema,
     product: ProductTable,
+    session: AsyncSession,
 ) -> ProductTable:
 
     updated_properties = data.model_dump(exclude_unset=True)
@@ -125,7 +135,7 @@ async def _patch_product(
 
         # Validate: cannot set END_OF_LIFE if non-terminated subscriptions exist
         if new_status == ProductLifecycle.END_OF_LIFE:
-            non_terminated_count = db.session.scalar(
+            non_terminated_count = await session.scalar(
                 select(func.count(SubscriptionTable.subscription_id)).where(
                     SubscriptionTable.product_id == product.product_id,
                     SubscriptionTable.status != SubscriptionLifecycle.TERMINATED,
@@ -140,5 +150,5 @@ async def _patch_product(
 
         product.status = new_status
 
-    db.session.commit()
+    await session.commit()
     return product

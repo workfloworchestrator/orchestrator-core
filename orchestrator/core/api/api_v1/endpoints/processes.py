@@ -30,6 +30,7 @@ from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked, first, last
 from sentry_sdk.tracing import trace
 from sqlalchemy import CompoundSelect, Select, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer, joinedload
 from sqlalchemy.sql.functions import count
 from starlette.responses import Response
@@ -37,7 +38,7 @@ from starlette.responses import Response
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.api.helpers import add_response_range
-from orchestrator.core.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
+from orchestrator.core.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db, get_async_session
 from orchestrator.core.db.filters import Filter
 from orchestrator.core.db.filters.process import filter_processes
 from orchestrator.core.db.sorting import Sort, SortOrder
@@ -441,7 +442,7 @@ async def _patch_process(data: ProcessPatchSchema, process: ProcessTable) -> Pro
     operation_id="get_process_status_counts",
     openapi_extra=READONLY_TOOL,
 )
-def status_counts() -> ProcessStatusCounts:
+async def status_counts(session: AsyncSession = Depends(get_async_session)) -> ProcessStatusCounts:
     """Get aggregate counts of processes and tasks grouped by status.
 
     Cheap dashboard-style summary; use before listing to gauge system state.
@@ -452,7 +453,8 @@ def status_counts() -> ProcessStatusCounts:
         .with_only_columns(ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status))
         .group_by(ProcessTable.is_task, ProcessTable.last_status)
     )
-    rows = db.session.execute(stmt).all()
+    result = await session.execute(stmt)
+    rows = result.all()
     return ProcessStatusCounts(
         process_counts={status: num_processes for is_task, status, num_processes in rows if not is_task},
         task_counts={status: num_processes for is_task, status, num_processes in rows if is_task},

@@ -17,6 +17,7 @@ import structlog
 from requests.exceptions import RequestException
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.db import EngineSettingsTable, db
 from orchestrator.core.schemas.engine_settings import EngineSettingsSchema, GlobalStatusEnum
@@ -29,6 +30,12 @@ logger = structlog.get_logger(__name__)
 def get_engine_settings_table() -> EngineSettingsTable:
     """Returns the EngineSettingsTable object. Raises an exception if the query does not return exactly one row."""
     return db.session.execute(select(EngineSettingsTable)).scalar_one()
+
+
+async def get_engine_settings_table_async(session: AsyncSession) -> EngineSettingsTable:
+    """Async counterpart of ``get_engine_settings_table``, for endpoints using an ``AsyncSession``."""
+    result = await session.execute(select(EngineSettingsTable))
+    return result.scalar_one()
 
 
 def get_engine_settings_table_for_update() -> EngineSettingsTable:

@@ -51,13 +51,15 @@ from typing import Any
 from uuid import UUID
 
 import structlog
+from fastapi.param_functions import Depends
 from fastapi.routing import APIRouter
 from pydantic import ValidationError
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, raiseload
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import ProcessTable, SubscriptionTable, WorkflowTable, db
+from orchestrator.core.db import ProcessTable, SubscriptionTable, WorkflowTable, db, get_async_session
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas.mcp_search import (
     AggregateToolRequest,
@@ -233,7 +235,9 @@ def get_process_status_endpoint(params: ProcessIdRequest) -> ProcessStatusRespon
     operation_id="list_recent_processes",
     openapi_extra=READONLY_TOOL,
 )
-def list_recent_processes_endpoint(params: ListRecentProcessesRequest) -> list[ProcessSummary]:
+async def list_recent_processes_endpoint(
+    params: ListRecentProcessesRequest, session: AsyncSession = Depends(get_async_session)
+) -> list[ProcessSummary]:
     """List recent workflow processes, optionally filtered by status or workflow.
 
     May return many rows; pass ``status``/``workflow_name`` or a smaller ``limit`` to narrow.
@@ -251,7 +255,8 @@ def list_recent_processes_endpoint(params: ListRecentProcessesRequest) -> list[P
     if params.workflow_name is not None:
         stmt = stmt.join(WorkflowTable).where(WorkflowTable.name == params.workflow_name)
 
-    processes = db.session.scalars(stmt).unique().all()
+    result = await session.scalars(stmt)
+    processes = result.unique().all()
     return [
         ProcessSummary(
             process_id=p.process_id,
@@ -553,7 +558,7 @@ async def discover_filter_paths_endpoint(params: DiscoverFilterPathsRequest) -> 
     operation_id="get_valid_operators",
     openapi_extra=READONLY_TOOL,
 )
-def get_valid_operators_endpoint() -> dict[str, list[FilterOp]]:
+async def get_valid_operators_endpoint() -> dict[str, list[FilterOp]]:
     """Return the mapping of field types to their valid filter operators — check before choosing an operator.
 
     Use only an operator compatible with the field's type, and prefer the BROADEST operator that still

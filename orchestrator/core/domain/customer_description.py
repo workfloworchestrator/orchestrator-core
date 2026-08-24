@@ -17,9 +17,10 @@ from uuid import UUID
 from fastapi.routing import APIRouter
 from pytz import timezone
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.core.api.models import delete
-from orchestrator.core.db import SubscriptionCustomerDescriptionTable, db
+from orchestrator.core.api.models import delete_async
+from orchestrator.core.db import SubscriptionCustomerDescriptionTable
 from orchestrator.core.utils.errors import StaleDataError
 from orchestrator.core.utils.validate_data_version import validate_data_version
 from orchestrator.core.websocket import invalidate_subscription_cache
@@ -27,26 +28,27 @@ from orchestrator.core.websocket import invalidate_subscription_cache
 router = APIRouter()
 
 
-def get_customer_description_by_customer_subscription(
-    customer_id: str, subscription_id: UUID
+async def get_customer_description_by_customer_subscription(
+    customer_id: str, subscription_id: UUID, session: AsyncSession
 ) -> SubscriptionCustomerDescriptionTable | None:
     stmt = select(SubscriptionCustomerDescriptionTable).filter(
         SubscriptionCustomerDescriptionTable.customer_id == customer_id,
         SubscriptionCustomerDescriptionTable.subscription_id == str(subscription_id),
     )
-    return db.session.scalars(stmt).one_or_none()
+    result = await session.scalars(stmt)
+    return result.one_or_none()
 
 
 async def create_subscription_customer_description(
-    customer_id: str, subscription_id: UUID, description: str
+    customer_id: str, subscription_id: UUID, description: str, session: AsyncSession
 ) -> SubscriptionCustomerDescriptionTable:
     customer_description = SubscriptionCustomerDescriptionTable(
         customer_id=customer_id,
         subscription_id=subscription_id,
         description=description,
     )
-    db.session.add(customer_description)
-    db.session.commit()
+    session.add(customer_description)
+    await session.commit()
     await invalidate_subscription_cache(customer_description.subscription_id)
     return customer_description
 
@@ -54,6 +56,7 @@ async def create_subscription_customer_description(
 async def update_subscription_customer_description(
     customer_description: SubscriptionCustomerDescriptionTable,
     description: str,
+    session: AsyncSession,
     created_at: datetime | None = None,
     version: int | None = None,
 ) -> SubscriptionCustomerDescriptionTable:
@@ -62,18 +65,18 @@ async def update_subscription_customer_description(
 
     customer_description.description = description
     customer_description.created_at = created_at if created_at else datetime.now(tz=timezone("UTC"))
-    db.session.commit()
+    await session.commit()
     await invalidate_subscription_cache(customer_description.subscription_id)
     return customer_description
 
 
 async def delete_subscription_customer_description_by_customer_subscription(
-    customer_id: str, subscription_id: UUID
+    customer_id: str, subscription_id: UUID, session: AsyncSession,
 ) -> SubscriptionCustomerDescriptionTable | None:
-    customer_description = get_customer_description_by_customer_subscription(customer_id, subscription_id)
+    customer_description = await get_customer_description_by_customer_subscription(customer_id, subscription_id, session)
     if not customer_description:
         return None
 
-    delete(SubscriptionCustomerDescriptionTable, customer_description.id)
+    await delete_async(SubscriptionCustomerDescriptionTable, customer_description.id, session)
     await invalidate_subscription_cache(customer_description.subscription_id)
     return customer_description
