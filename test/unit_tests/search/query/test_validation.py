@@ -20,6 +20,7 @@ import pytest
 from orchestrator.core.search.aggregations import AggregationType
 from orchestrator.core.search.core.types import EntityType, FieldType, FilterOp, UIType
 from orchestrator.core.search.filters import (
+    ContainsFilter,
     DateValueFilter,
     EqualityFilter,
     LtreeFilter,
@@ -77,6 +78,18 @@ def test_ltree_filter_always_compatible(field_type: FieldType):
         ),
         pytest.param(EqualityFilter(op=FilterOp.EQ, value=True), FieldType.BOOLEAN, True, id="eq-boolean-valid"),
         pytest.param(EqualityFilter(op=FilterOp.EQ, value=1), FieldType.INTEGER, True, id="eq-integer-valid"),
+        pytest.param(
+            ContainsFilter(op=FilterOp.NOT_CONTAINS, value="core"),
+            FieldType.STRING,
+            True,
+            id="not-contains-string-valid",
+        ),
+        pytest.param(
+            ContainsFilter(op=FilterOp.NOT_CONTAINS, value="core"),
+            FieldType.INTEGER,
+            False,
+            id="not-contains-integer-invalid",
+        ),
     ],
 )
 def test_filter_compatibility_matrix(filter_condition, field_type: FieldType, expected: bool):
