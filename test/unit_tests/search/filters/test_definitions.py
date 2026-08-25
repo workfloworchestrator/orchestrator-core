@@ -29,7 +29,7 @@ pytestmark = pytest.mark.search
 _NUMERIC_OPS = [FilterOp.EQ, FilterOp.NEQ, FilterOp.LT, FilterOp.LTE, FilterOp.GT, FilterOp.GTE, FilterOp.BETWEEN]
 _BOOLEAN_OPS = [FilterOp.EQ, FilterOp.NEQ]
 _DATETIME_OPS = [FilterOp.EQ, FilterOp.NEQ, FilterOp.LT, FilterOp.LTE, FilterOp.GT, FilterOp.GTE, FilterOp.BETWEEN]
-_STRING_OPS = [FilterOp.EQ, FilterOp.NEQ, FilterOp.LIKE]
+_STRING_OPS = [FilterOp.EQ, FilterOp.NEQ, FilterOp.LIKE, FilterOp.NOT_CONTAINS]
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +62,7 @@ def test_operators_for_field_type(field_type: FieldType, expected_ops: list[Filt
         pytest.param(FieldType.FLOAT, 7, id="float"),
         pytest.param(FieldType.BOOLEAN, 2, id="boolean"),
         pytest.param(FieldType.DATETIME, 7, id="datetime"),
-        pytest.param(FieldType.STRING, 3, id="string"),
+        pytest.param(FieldType.STRING, 4, id="string"),
     ],
 )
 def test_operators_count(field_type: FieldType, expected_count: int) -> None:
@@ -155,9 +155,9 @@ def test_datetime_non_between_ops_have_datetime_kind() -> None:
         pytest.param(FieldType.RESOURCE_TYPE, id="resource_type"),
     ],
 )
-def test_string_like_schema_has_three_ops_with_like(field_type: FieldType) -> None:
+def test_string_like_schema_has_four_ops_with_like_and_not_contains(field_type: FieldType) -> None:
     schema = value_schema_for(field_type)
-    assert set(schema.keys()) == {FilterOp.EQ, FilterOp.NEQ, FilterOp.LIKE}
+    assert set(schema.keys()) == {FilterOp.EQ, FilterOp.NEQ, FilterOp.LIKE, FilterOp.NOT_CONTAINS}
 
 
 @pytest.mark.parametrize(
@@ -171,7 +171,7 @@ def test_string_like_schema_has_three_ops_with_like(field_type: FieldType) -> No
 )
 def test_string_like_schema_ops_have_string_kind(field_type: FieldType) -> None:
     schema = value_schema_for(field_type)
-    for op in [FilterOp.EQ, FilterOp.NEQ, FilterOp.LIKE]:
+    for op in [FilterOp.EQ, FilterOp.NEQ, FilterOp.LIKE, FilterOp.NOT_CONTAINS]:
         assert schema[op].kind == UIType.STRING
 
 
