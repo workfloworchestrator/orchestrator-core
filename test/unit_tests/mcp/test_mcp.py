@@ -18,7 +18,7 @@ These tests verify that:
 1. The agent-tagged REST routes carry the ``AGENT_EXPOSED_TAG`` and have
    stable ``operation_id`` values that map 1:1 to the MCP tool names.
 2. ``FastMCP.from_fastapi`` introspects the FastAPI app's routes, derives
-   input schemas from their pydantic models, and produces exactly the 22
+   input schemas from their pydantic models, and produces exactly the 23
    tools we expect via ``RouteMap`` tag-based filtering.
 3. Each tool carries ``ToolAnnotations`` (read-only/idempotent/destructive
    hints + a humanized title) declared per route via ``openapi_extra``
@@ -28,11 +28,13 @@ These tests verify that:
 
 from __future__ import annotations
 
+from http import HTTPStatus
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from orchestrator.core.api.api_v1.endpoints import (
     mcp_tools,
@@ -61,6 +63,7 @@ EXPECTED_TOOL_NAMES = {
     "get_subscription_available_workflows",
     "get_process_status",
     "list_recent_processes",
+    "list_subscriptions",
     "get_subscription_details",
     "get_product",  # GET /api/products/{product_id}
     "get_product_block",  # GET /api/product_blocks/{product_block_id}
@@ -281,3 +284,17 @@ async def test_query_validation_error_surfaces_as_422_through_mcp(
     message = str(excinfo.value)
     assert "422" in message
     assert expected_detail in message
+
+
+def test_search_without_criteria_rejected_as_422(app_with_agent_routes: FastAPI) -> None:
+    """A search call with neither ``query_text`` nor ``filters`` fails loudly.
+
+    Guards the ``SearchToolRequest`` validator: a criteria-less search used to
+    rank nothing and return an empty result set, which LLM callers reported as
+    "no data" instead of recognizing a bad call. (That a 422 reaches the MCP
+    caller as a ToolError is covered by
+    ``test_query_validation_error_surfaces_as_422_through_mcp``.)
+    """
+    client = TestClient(app_with_agent_routes)
+    response = client.post("/api/agent/search", json={"entity_type": "SUBSCRIPTION"})
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY

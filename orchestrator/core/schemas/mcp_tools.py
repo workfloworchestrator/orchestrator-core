@@ -64,6 +64,10 @@ class ListRecentProcessesRequest(OrchestratorBaseModel):
     limit: int = Field(default=20, ge=1, le=100, description="Maximum number of processes to return.")
 
 
+class ListSubscriptionsRequest(OrchestratorBaseModel):
+    limit: int = Field(default=10, ge=1, le=20, description="Maximum number of subscriptions to return.")
+
+
 # Response models
 
 
@@ -101,6 +105,22 @@ class ProductSummary(OrchestratorBaseModel):
     product_type: str
     tag: str | None = None
     description: str | None = None
+
+
+class SubscriptionSummary(OrchestratorBaseModel):
+    subscription_id: UUID
+    description: str | None = None
+    status: SubscriptionLifecycle
+    insync: bool
+    product_name: str
+    customer_id: str | None = None
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+
+
+class ListSubscriptionsResponse(OrchestratorBaseModel):
+    subscriptions: list[SubscriptionSummary]
+    has_more: bool = Field(description="True when more subscriptions exist beyond the returned limit.")
 
 
 class SubscriptionDetailsResponse(OrchestratorBaseModel):
