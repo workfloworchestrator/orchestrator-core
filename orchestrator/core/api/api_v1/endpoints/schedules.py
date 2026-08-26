@@ -16,13 +16,15 @@ import structlog
 from fastapi import Depends
 from fastapi.routing import APIRouter
 from more_itertools import first
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.schedules.service import add_scheduled_task_to_queue, get_linker_entries_by_schedule_ids
+from orchestrator.core.db import get_async_session
+from orchestrator.core.schedules.service import add_scheduled_task_to_queue, get_linker_entries_by_schedule_ids_async
 from orchestrator.core.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
 from orchestrator.core.security import authenticate
-from orchestrator.core.services.workflows import get_workflow_by_workflow_id
+from orchestrator.core.services.workflows import get_workflow_by_workflow_id_async
 from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.workflow import Workflow
 from orchestrator.core.workflows import get_workflow
@@ -55,13 +57,15 @@ async def create_scheduled_task(
 
 @router.put("/", status_code=HTTPStatus.OK)
 async def update_scheduled_task(
-    payload: APSchedulerJobUpdate, user_model: OIDCUserModel | None = Depends(authenticate)
+    payload: APSchedulerJobUpdate,
+    user_model: OIDCUserModel | None = Depends(authenticate),
+    session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
     """Update a scheduled task."""
-    schedules = get_linker_entries_by_schedule_ids([str(payload.schedule_id)])
+    schedules = await get_linker_entries_by_schedule_ids_async([str(payload.schedule_id)], session)
     if not (schedule := first(schedules, None)):
         raise_status(HTTPStatus.NOT_FOUND, "Schedule does not exist")
-    if not (workflow_table := get_workflow_by_workflow_id(str(schedule.workflow_id))):
+    if not (workflow_table := await get_workflow_by_workflow_id_async(str(schedule.workflow_id), session)):
         raise_status(HTTPStatus.NOT_FOUND, "Task does not exist")
 
     task_key = workflow_table.name
@@ -74,10 +78,12 @@ async def update_scheduled_task(
 
 @router.delete("/", status_code=HTTPStatus.OK)
 async def delete_scheduled_task(
-    payload: APSchedulerJobDelete, user_model: OIDCUserModel | None = Depends(authenticate)
+    payload: APSchedulerJobDelete,
+    user_model: OIDCUserModel | None = Depends(authenticate),
+    session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
     """Delete a scheduled task."""
-    if not (workflow_table := get_workflow_by_workflow_id(str(payload.workflow_id))):
+    if not (workflow_table := await get_workflow_by_workflow_id_async(str(payload.workflow_id), session)):
         raise_status(HTTPStatus.NOT_FOUND, "Task does not exist")
 
     task = get_workflow(workflow_table.name)

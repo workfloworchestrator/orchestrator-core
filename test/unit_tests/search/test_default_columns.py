@@ -49,7 +49,9 @@ async def test_include_columns_toggle(include_columns, input_cols, expected_cols
         patch("orchestrator.core.api.api_v1.endpoints.search.db"),
     ):
         mock_execute.return_value = mock_response
-        await _perform_search_and_fetch(EntityType.SUBSCRIPTION, request, include_columns=include_columns)
+        await _perform_search_and_fetch(
+            MagicMock(), EntityType.SUBSCRIPTION, request, include_columns=include_columns
+        )
 
     called_query = mock_execute.call_args[0][0]
     assert called_query.response_columns == expected_cols

@@ -98,6 +98,19 @@ def reset_search_index(*, tx_commit: bool = False) -> None:
     return
 
 
+async def reset_search_index_async(session: AsyncSession, *, tx_commit: bool = False) -> None:
+    """Async counterpart of ``reset_search_index``, for endpoints using an ``AsyncSession``."""
+    try:
+        await session.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY subscriptions_search;"))
+    except SQLAlchemyError as e:
+        logger.error("Something went wrong while refreshing materialized view", msg=str(e))
+        raise e
+    finally:
+        if tx_commit:
+            await session.commit()
+    return
+
+
 def generate_engine_settings_schema(
     engine_settings: EngineSettingsTable,
 ) -> EngineSettingsSchema:

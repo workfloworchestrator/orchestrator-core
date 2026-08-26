@@ -17,6 +17,7 @@ import structlog
 from apscheduler.schedulers.base import BaseScheduler
 from apscheduler.triggers.base import BaseTrigger
 from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core import app_settings
 from orchestrator.core.db import db
@@ -136,6 +137,17 @@ def get_linker_entries_by_schedule_ids(schedule_ids: list[str]) -> list[Workflow
         return []
 
     return db.session.query(WorkflowApschedulerJob).filter(WorkflowApschedulerJob.schedule_id.in_(schedule_ids)).all()
+
+
+async def get_linker_entries_by_schedule_ids_async(
+    schedule_ids: list[str], session: AsyncSession
+) -> list[WorkflowApschedulerJob]:
+    """Async counterpart to :func:`get_linker_entries_by_schedule_ids` for use in async endpoints."""
+    if not schedule_ids:
+        return []
+
+    stmt = select(WorkflowApschedulerJob).where(WorkflowApschedulerJob.schedule_id.in_(schedule_ids))
+    return list(await session.scalars(stmt))
 
 
 def _add_linker_entry(workflow_id: UUID, schedule_id: str) -> None:

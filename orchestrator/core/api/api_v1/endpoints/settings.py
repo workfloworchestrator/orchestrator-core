@@ -23,7 +23,7 @@ from starlette.concurrency import run_in_threadpool
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import get_async_session
+from orchestrator.core.db import EngineSettingsTable, get_async_session
 from orchestrator.core.schemas import (
     EngineSettingsBaseSchema,
     EngineSettingsSchema,
@@ -31,7 +31,11 @@ from orchestrator.core.schemas import (
 )
 from orchestrator.core.security import authenticate
 from orchestrator.core.services import processes, settings
-from orchestrator.core.services.settings import generate_engine_settings_schema, get_engine_settings_table_async
+from orchestrator.core.services.settings import (
+    generate_engine_settings_schema,
+    get_engine_settings_table_async,
+    reset_search_index_async,
+)
 from orchestrator.core.services.settings_env_variables import get_all_exposed_settings
 from orchestrator.core.settings import ExecutorType, app_settings
 from orchestrator.core.utils.expose_settings import SettingsExposedSchema
@@ -65,11 +69,23 @@ async def get_cache_names() -> dict[str, str]:
 
 
 @router.post("/search-index/reset")
-async def reset_search_index() -> None:
+async def reset_search_index(session: AsyncSession = Depends(get_async_session)) -> None:
     try:
-        settings.reset_search_index(tx_commit=True)
+        await reset_search_index_async(session, tx_commit=True)
     except SQLAlchemyError:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR)
+
+
+def _marshall_engine_status_for_update(new_global_lock: bool) -> EngineSettingsTable | None:
+    """Lock the engine settings row and marshall processes to the new global lock state.
+
+    Kept as a single sync unit-of-work (run via ``run_in_threadpool``): the row lock taken by
+    ``get_engine_settings_table_for_update`` must be held on the same session that
+    ``marshall_processes`` commits against, and ``marshall_processes`` can drive the sync
+    workflow engine (e.g. ``resume_process``), which cannot be converted to a true async sibling.
+    """
+    current_engine_settings = settings.get_engine_settings_table_for_update()
+    return processes.marshall_processes(current_engine_settings, new_global_lock)
 
 
 @router.put("/status", response_model=EngineSettingsSchema)
@@ -87,9 +103,8 @@ async def set_global_status(
 
     """
 
-    current_engine_settings = settings.get_engine_settings_table_for_update()
-
-    if not (updated_engine_settings := processes.marshall_processes(current_engine_settings, body.global_lock)):
+    updated_engine_settings = await run_in_threadpool(_marshall_engine_status_for_update, body.global_lock)
+    if not updated_engine_settings:
         raise_status(
             status=HTTPStatus.INTERNAL_SERVER_ERROR,
             detail="Something went wrong while updating the database aborting, possible manual intervention required",

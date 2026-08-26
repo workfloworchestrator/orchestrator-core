@@ -26,9 +26,9 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Text, cast, func
+from sqlalchemy import Text, cast, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.core.db.database import WrappedSession
 from orchestrator.core.db.models import (
     ProcessTable,
     ProductTable,
@@ -96,8 +96,8 @@ def _classify_id(raw: str) -> tuple[IdForm, str]:
     return IdForm.FULL_UUID, norm
 
 
-def resolve_entity_id_prefix(
-    session: WrappedSession,
+async def resolve_entity_id_prefix(
+    session: AsyncSession,
     entity_type: EntityType,
     prefix: str,
     limit: int,
@@ -109,10 +109,11 @@ def resolve_entity_id_prefix(
     text; on large tables this is a sequential scan, bounded by the limit.
     """
     spec = _ENTITY_LOOKUP[entity_type]
-    rows = (
-        session.query(spec.id_col, spec.title_expr)
+    stmt = (
+        select(spec.id_col, spec.title_expr)
         .filter(cast(spec.id_col, Text).ilike(f"{prefix}%"))
         .limit(limit + 1)
-        .all()
     )
+    result = await session.execute(stmt)
+    rows = result.all()
     return [ResolvedEntity(entity_id=str(row[0]), title=str(row[1])) for row in rows]

@@ -14,9 +14,10 @@
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.core.db import SearchQueryTable, db
+from orchestrator.core.db import SearchQueryTable, db, get_async_session
 from orchestrator.core.schemas.search import (
     CursorInfoSchema,
     ExportResponse,
@@ -43,6 +44,7 @@ logger = structlog.get_logger(__name__)
 
 
 async def _perform_search_and_fetch(
+    session: AsyncSession,
     entity_type: EntityType | None = None,
     request: SearchRequest | None = None,
     cursor: str | None = None,
@@ -52,6 +54,7 @@ async def _perform_search_and_fetch(
     """Execute search with optional pagination.
 
     Args:
+        session: Async database session
         entity_type: Entity type to search
         request: Search request for new search
         cursor: Pagination cursor (loads saved query state)
@@ -69,11 +72,11 @@ async def _perform_search_and_fetch(
 
         if cursor:
             page_cursor = PageCursor.decode(cursor)
-            query_state = QueryState.load_from_id(page_cursor.query_id, SelectQuery)
+            query_state = await QueryState.load_from_id(page_cursor.query_id, SelectQuery, session)
             query = query_state.query
 
         elif query_id:
-            query_state = QueryState.load_from_id(query_id, SelectQuery)
+            query_state = await QueryState.load_from_id(query_id, SelectQuery, session)
             query = query_state.query
 
         elif request and entity_type:
@@ -92,7 +95,7 @@ async def _perform_search_and_fetch(
         if not search_response.results:
             return SearchResultsSchema(search_metadata=search_response.metadata)
 
-        next_page_cursor = encode_next_page_cursor(search_response, page_cursor, query)
+        next_page_cursor = await encode_next_page_cursor(search_response, page_cursor, query, session)
         has_next_page = next_page_cursor is not None
         page_info = PageInfoSchema(
             has_next_page=has_next_page,
@@ -129,8 +132,11 @@ async def search_subscriptions(
     request: SearchRequest,
     cursor: str | None = None,
     include_columns: bool = True,
+    session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(EntityType.SUBSCRIPTION, request, cursor, include_columns=include_columns)
+    return await _perform_search_and_fetch(
+        session, EntityType.SUBSCRIPTION, request, cursor, include_columns=include_columns
+    )
 
 
 @router.post("/workflows", response_model=SearchResultsSchema[SearchResult])
@@ -138,8 +144,9 @@ async def search_workflows(
     request: SearchRequest,
     cursor: str | None = None,
     include_columns: bool = True,
+    session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(EntityType.WORKFLOW, request, cursor, include_columns=include_columns)
+    return await _perform_search_and_fetch(session, EntityType.WORKFLOW, request, cursor, include_columns=include_columns)
 
 
 @router.post("/products", response_model=SearchResultsSchema[SearchResult])
@@ -147,8 +154,9 @@ async def search_products(
     request: SearchRequest,
     cursor: str | None = None,
     include_columns: bool = True,
+    session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(EntityType.PRODUCT, request, cursor, include_columns=include_columns)
+    return await _perform_search_and_fetch(session, EntityType.PRODUCT, request, cursor, include_columns=include_columns)
 
 
 @router.post("/processes", response_model=SearchResultsSchema[SearchResult])
@@ -156,8 +164,9 @@ async def search_processes(
     request: SearchRequest,
     cursor: str | None = None,
     include_columns: bool = True,
+    session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(EntityType.PROCESS, request, cursor, include_columns=include_columns)
+    return await _perform_search_and_fetch(session, EntityType.PROCESS, request, cursor, include_columns=include_columns)
 
 
 @router.get(
@@ -264,9 +273,10 @@ async def get_query_results(query_id: UUID) -> QueryResultsResponse:
 async def get_by_query_id(
     query_id: str,
     cursor: str | None = None,
+    session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
     """Retrieve and execute a saved search by query_id."""
-    return await _perform_search_and_fetch(query_id=query_id, cursor=cursor)
+    return await _perform_search_and_fetch(session, query_id=query_id, cursor=cursor)
 
 
 @router.get(
@@ -274,7 +284,9 @@ async def get_by_query_id(
     summary="Export query results by query_id",
     response_model=ExportResponse,
 )
-async def export_by_query_id(query_id: str) -> ExportResponse:
+async def export_by_query_id(
+    query_id: str, session: AsyncSession = Depends(get_async_session)
+) -> ExportResponse:
     """Export search results using query_id.
 
     The query is retrieved from the database, re-executed, and results are returned
@@ -282,6 +294,7 @@ async def export_by_query_id(query_id: str) -> ExportResponse:
 
     Args:
         query_id: QueryTypes UUID
+        session: Async database session
 
     Returns:
         ExportResponse containing 'page' with an array of flattened entity records.
@@ -291,7 +304,7 @@ async def export_by_query_id(query_id: str) -> ExportResponse:
     """
     try:
         # Load SelectQuery from the database (what gets saved during search)
-        query_state = QueryState.load_from_id(query_id, SelectQuery)
+        query_state = await QueryState.load_from_id(query_id, SelectQuery, session)
 
         # Convert to ExportQuery with export-appropriate limit
         export_query = ExportQuery(

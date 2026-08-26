@@ -25,6 +25,7 @@ from pytz import utc
 from requests.adapters import MaxRetryError
 from sqlalchemy import delete, select
 from sqlalchemy.exc import NoResultFound, SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from nwastdlib.ex import show_ex
@@ -47,7 +48,7 @@ from orchestrator.core.utils.errors import ApiException, InconsistentDataError, 
 from orchestrator.core.utils.json import json_dumps, json_loads
 from orchestrator.core.websocket import (
     broadcast_invalidate_status_counts,
-    broadcast_process_update_to_websocket,
+    broadcast_process_update_to_websocket_async,
 )
 from orchestrator.core.workflow import (
     CALLBACK_TOKEN_KEY,
@@ -445,6 +446,22 @@ def _get_process(process_id: UUID) -> ProcessTable:
     return process
 
 
+async def get_process_async(process_id: UUID, session: AsyncSession) -> ProcessTable:
+    process = await session.get(
+        ProcessTable,
+        process_id,
+        options=[
+            joinedload(ProcessTable.steps),
+            joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
+        ],
+    )
+
+    if not process:
+        raise_status(HTTPStatus.NOT_FOUND, f"Process with process_id {process_id} not found")
+
+    return process
+
+
 def _run_process_async(process_id: UUID, f: Callable, broadcast_func: BroadcastFunc | None = None) -> UUID:
 
     def run() -> WFProcess:
@@ -729,18 +746,20 @@ def continue_awaiting_process(
     return resume_func(process, broadcast_func=broadcast_func)
 
 
-def update_awaiting_process_progress(
+async def update_awaiting_process_progress(
     process: ProcessTable,
     *,
     token: str,
     data: str | State,
+    session: AsyncSession,
 ) -> UUID:
     """Update progress for a process awaiting data from a callback.
 
     Args:
-        process: Process from database
+        process: Process from database, loaded through ``session``
         token: The token which was generated for the process. This must match.
         data: Progress data posted to the callback
+        session: Async database session that loaded ``process``
 
     Returns:
         process id
@@ -757,12 +776,13 @@ def update_awaiting_process_progress(
     progress_key = DEFAULT_CALLBACK_PROGRESS_KEY
     state = {**state, progress_key: data} | {"__remove_keys": [progress_key]}
 
-    # Commit the SessionTransaction before the "output" of this function: a websocket event
-    with transactional(db, logger):
-        replace_current_step_state(process, new_state=state)
+    # Commit the transaction before the "output" of this function: a websocket event
+    current_step = process.steps[-1]
+    current_step.state = state
+    await session.commit()
 
     # Emit the websocket event
-    broadcast_process_update_to_websocket(process.process_id)
+    await broadcast_process_update_to_websocket_async(process.process_id)
 
     return process.process_id
 

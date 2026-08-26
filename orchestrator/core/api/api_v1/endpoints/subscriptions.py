@@ -22,7 +22,9 @@ import structlog
 from fastapi import Depends
 from fastapi.routing import APIRouter
 from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import contains_eager, defer, joinedload
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -37,6 +39,7 @@ from orchestrator.core.db import (
     SubscriptionMetadataTable,
     SubscriptionTable,
     db,
+    get_async_session,
 )
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas import SubscriptionWorkflowListsSchema
@@ -45,14 +48,14 @@ from orchestrator.core.security import authenticate
 from orchestrator.core.services.subscriptions import (
     format_extended_domain_model,
     format_special_types,
-    get_subscription,
+    get_subscription_async,
     subscription_workflows,
 )
 from orchestrator.core.settings import app_settings
 from orchestrator.core.targets import Target
 from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.utils.get_subscription_dict import get_subscription_dict
-from orchestrator.core.websocket import sync_invalidate_subscription_cache
+from orchestrator.core.websocket import invalidate_subscription_cache
 from orchestrator.core.workflows import get_workflow
 
 router = APIRouter()
@@ -146,8 +149,12 @@ async def subscription_details_by_id_with_domain_model(
     "/search",
     response_model=list[SubscriptionWithMetadata],
 )
-def subscriptions_search(
-    response: Response, query: str, range: str | None = None, sort: str | None = None
+async def subscriptions_search(
+    response: Response,
+    query: str,
+    range: str | None = None,
+    sort: str | None = None,
+    session: AsyncSession = Depends(get_async_session),
 ) -> list[dict]:
     """Get subscriptions filtered based on a search query string.
 
@@ -156,6 +163,7 @@ def subscriptions_search(
         query: The search query
         range: Range
         sort: Sort
+        session: AsyncSession dependency
 
     Returns:
         List of subscriptions
@@ -172,8 +180,9 @@ def subscriptions_search(
         contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
     )
     stmt = add_subscription_search_query_filter(stmt, query)
-    stmt = add_response_range(stmt, range_, response, unit="subscriptions")
-    sequence = db.session.execute(stmt).all()
+    stmt = await add_response_range(stmt, range_, response, session, unit="subscriptions")
+    result = await session.execute(stmt)
+    sequence = result.all()
     return [{**s.__dict__, "metadata": md} for s, md in sequence]
 
 
@@ -183,10 +192,10 @@ def subscriptions_search(
     response_model_by_alias=True,
     response_model_exclude_none=True,
 )
-def subscription_workflows_by_id(
-    subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate)
+async def subscription_workflows_by_id(
+    subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate), session: AsyncSession = Depends(get_async_session)
 ) -> dict[str, list[dict[str, list[Any] | str]]]:
-    subscription = db.session.get(
+    subscription = await session.get(
         SubscriptionTable,
         subscription_id,
         options=[
@@ -197,37 +206,37 @@ def subscription_workflows_by_id(
     if not subscription:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    return _authorized_subscription_workflows(subscription, current_user)
+    return await run_in_threadpool(_authorized_subscription_workflows, subscription, current_user)
 
+async def _failed_processes(subscription_id: UUID, session: AsyncSession) -> list[str]:
+    if app_settings.DISABLE_INSYNC_CHECK:
+        return []
+
+    stmt = (
+        select(ProcessSubscriptionTable)
+        .join(ProcessTable)
+        .filter(ProcessSubscriptionTable.subscription_id == subscription_id)
+        .filter(~ProcessTable.is_task)
+        .filter(ProcessTable.last_status != "completed")
+        .filter(ProcessTable.last_status != "aborted")
+    )
+    _failed_processes = await session.scalars(stmt)
+    return [str(p.process_id) for p in _failed_processes]
 
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
-def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate)) -> None:
-    def failed_processes() -> list[str]:
-        if app_settings.DISABLE_INSYNC_CHECK:
-            return []
-        stmt = (
-            select(ProcessSubscriptionTable)
-            .join(ProcessTable)
-            .filter(ProcessSubscriptionTable.subscription_id == subscription_id)
-            .filter(~ProcessTable.is_task)
-            .filter(ProcessTable.last_status != "completed")
-            .filter(ProcessTable.last_status != "aborted")
-        )
-        _failed_processes = db.session.scalars(stmt)
-        return [str(p.process_id) for p in _failed_processes]
-
+async def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate), session: AsyncSession = Depends(get_async_session)) -> None:
     try:
-        subscription = get_subscription(subscription_id, for_update=True)
+        subscription: SubscriptionTable = await get_subscription_async(subscription_id, session, for_update=True)
         if not subscription.insync:
             logger.info(
                 "Subscription not in sync, trying to change..", subscription_id=subscription_id, user=current_user
             )
-            failed_processes_list = failed_processes()
+            failed_processes_list = await _failed_processes(subscription_id, session)
             if not failed_processes_list:
                 subscription.insync = True
-                db.session.commit()
+                await session.commit()
                 logger.info("Subscription set in sync", user=current_user)
-                sync_invalidate_subscription_cache(subscription.subscription_id)
+                await invalidate_subscription_cache(subscription.subscription_id)
             else:
                 raise_status(
                     HTTPStatus.UNPROCESSABLE_ENTITY,

@@ -57,9 +57,10 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, raiseload
+from starlette.concurrency import run_in_threadpool
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import ProcessTable, SubscriptionTable, WorkflowTable, db, get_async_session
+from orchestrator.core.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db, get_async_session
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas.mcp_search import (
     AggregateToolRequest,
@@ -106,9 +107,9 @@ from orchestrator.core.search.query.validation import (
     validate_order_by_fields,
     validate_temporal_grouping_field,
 )
-from orchestrator.core.services.processes import _get_process, load_process
-from orchestrator.core.services.subscriptions import get_subscription, subscription_workflows
-from orchestrator.core.services.workflows import get_workflows
+from orchestrator.core.services.processes import get_process_async, load_process
+from orchestrator.core.services.subscriptions import get_subscription_async, subscription_workflows
+from orchestrator.core.services.workflows import get_workflows_async
 from orchestrator.core.utils.enrich_process import enrich_process
 from orchestrator.core.workflows import get_workflow
 
@@ -126,7 +127,9 @@ router = APIRouter()
     operation_id="list_workflows",
     openapi_extra=READONLY_TOOL,
 )
-def list_workflows_endpoint(params: ListWorkflowsRequest) -> list[WorkflowSchema]:
+async def list_workflows_endpoint(
+    params: ListWorkflowsRequest, session: AsyncSession = Depends(get_async_session)
+) -> list[WorkflowSchema]:
     """List all registered workflows in the orchestrator.
 
     Use this to discover what workflows are available before starting one.
@@ -137,7 +140,7 @@ def list_workflows_endpoint(params: ListWorkflowsRequest) -> list[WorkflowSchema
         filters["target"] = params.target.upper()
     if params.is_task is not None:
         filters["is_task"] = params.is_task
-    return list(get_workflows(filters=filters or None, include_steps=False))
+    return await get_workflows_async(session, filters=filters or None, include_steps=False)
 
 
 @router.post(
@@ -147,7 +150,7 @@ def list_workflows_endpoint(params: ListWorkflowsRequest) -> list[WorkflowSchema
     operation_id="get_workflow_form",
     openapi_extra=READONLY_TOOL,
 )
-def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> WorkflowFormPage:
+async def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> WorkflowFormPage:
     """Get the JSON Schema of a workflow's form page by page.
 
     IMPORTANT: Workflow forms are multi-page. You MUST call this tool repeatedly,
@@ -181,7 +184,7 @@ def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> WorkflowFormPa
     operation_id="get_subscription_available_workflows",
     openapi_extra=READONLY_TOOL,
 )
-def get_subscription_available_workflows_endpoint(params: SubscriptionIdRequest) -> SubscriptionWorkflowListsSchema:
+async def get_subscription_available_workflows_endpoint(params: SubscriptionIdRequest, session: AsyncSession = Depends(get_async_session)) -> SubscriptionWorkflowListsSchema:
     """Get workflows available for a specific subscription.
 
     Shows which workflows can be run on this subscription and why some may be
@@ -190,10 +193,15 @@ def get_subscription_available_workflows_endpoint(params: SubscriptionIdRequest)
     carry a ``reason`` field.
     """
     try:
-        subscription = get_subscription(UUID(params.subscription_id))
+        subscription: SubscriptionTable = await get_subscription_async(
+            UUID(params.subscription_id),
+            session,
+            options=[joinedload(SubscriptionTable.product).joinedload(ProductTable.workflows)],
+        )
     except ValueError as exc:
         raise_status(HTTPStatus.NOT_FOUND, f"Subscription not found: {exc}")
-    return SubscriptionWorkflowListsSchema.model_validate(subscription_workflows(subscription))
+    workflows = await run_in_threadpool(subscription_workflows, subscription)
+    return SubscriptionWorkflowListsSchema.model_validate(workflows)
 
 
 @router.post(
@@ -203,13 +211,13 @@ def get_subscription_available_workflows_endpoint(params: SubscriptionIdRequest)
     operation_id="get_process_status",
     openapi_extra=READONLY_TOOL,
 )
-def get_process_status_endpoint(params: ProcessIdRequest) -> ProcessStatusResponse:
+async def get_process_status_endpoint(params: ProcessIdRequest, session: AsyncSession = Depends(get_async_session)) -> ProcessStatusResponse:
     """Get the current status and details of a workflow process.
 
     If the process is SUSPENDED, the response includes the form schema for the
     input needed to resume it.
     """
-    process = _get_process(UUID(params.process_id))
+    process = await get_process_async(UUID(params.process_id), session)
     pstat = load_process(process)
     enriched = enrich_process(process, pstat)
     return ProcessStatusResponse(
@@ -279,7 +287,7 @@ async def list_recent_processes_endpoint(
     operation_id="list_subscriptions",
     openapi_extra=READONLY_TOOL,
 )
-async def list_subscriptions_endpoint(params: ListSubscriptionsRequest) -> ListSubscriptionsResponse:
+async def list_subscriptions_endpoint(params: ListSubscriptionsRequest, session: AsyncSession = Depends(get_async_session)) -> ListSubscriptionsResponse:
     """List the newest subscriptions, at most 20.
 
     Returns flat summary rows without product blocks; use
@@ -295,7 +303,8 @@ async def list_subscriptions_endpoint(params: ListSubscriptionsRequest) -> ListS
         .order_by(SubscriptionTable.start_date.desc().nulls_first(), SubscriptionTable.subscription_id)
         .limit(params.limit + 1)
     )
-    rows = db.session.scalars(stmt).unique().all()
+    result = await session.scalars(stmt)
+    rows = result.unique().all()
     return ListSubscriptionsResponse(
         subscriptions=[
             SubscriptionSummary(
@@ -321,14 +330,16 @@ async def list_subscriptions_endpoint(params: ListSubscriptionsRequest) -> ListS
     operation_id="get_subscription_details",
     openapi_extra=READONLY_TOOL,
 )
-def get_subscription_details_endpoint(params: SubscriptionIdRequest) -> SubscriptionDetailsResponse:
+async def get_subscription_details_endpoint(params: SubscriptionIdRequest, session: AsyncSession = Depends(get_async_session)) -> SubscriptionDetailsResponse:
     """Get summary information about a subscription.
 
     Returns a flat header (status, product, customer, dates), no nested
     product blocks or in-use-by relations.
     """
     try:
-        subscription = get_subscription(UUID(params.subscription_id))
+        subscription: SubscriptionTable = await get_subscription_async(
+            UUID(params.subscription_id), session, options=[joinedload(SubscriptionTable.product)]
+        )
     except ValueError as exc:
         raise_status(HTTPStatus.NOT_FOUND, f"Subscription not found: {exc}")
     return SubscriptionDetailsResponse(
@@ -368,7 +379,9 @@ def get_subscription_details_endpoint(params: SubscriptionIdRequest) -> Subscrip
     operation_id="search",
     openapi_extra=READONLY_TOOL,
 )
-async def search_endpoint(params: SearchToolRequest) -> SearchToolResponse:
+async def search_endpoint(
+    params: SearchToolRequest, session: AsyncSession = Depends(get_async_session)
+) -> SearchToolResponse:
     """Find and rank entities (subscriptions, products, workflows, processes).
 
     Pass ``query_text`` for semantic/fuzzy ranking and/or structured ``filters``; at least one is
@@ -409,7 +422,7 @@ async def search_endpoint(params: SearchToolRequest) -> SearchToolResponse:
     except (ValidationError, ValueError) as exc:
         raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
 
-    query_id = QueryState(query=query, query_embedding=response.query_embedding).save()
+    query_id = await QueryState(query=query, query_embedding=response.query_embedding).save(session)
     return SearchToolResponse(
         query_id=query_id,
         entity_type=params.entity_type,
@@ -467,7 +480,9 @@ def _build_aggregate_query(params: AggregateToolRequest) -> CountQuery | Aggrega
     operation_id="aggregate",
     openapi_extra=READONLY_TOOL,
 )
-async def aggregate_endpoint(params: AggregateToolRequest) -> AggregateToolResponse:
+async def aggregate_endpoint(
+    params: AggregateToolRequest, session: AsyncSession = Depends(get_async_session)
+) -> AggregateToolResponse:
     """Count entities or compute statistics (SUM/AVG/MIN/MAX), optionally grouped.
 
     operation='count' counts rows (optionally grouped by ``group_by`` / ``temporal_group_by``);
@@ -492,7 +507,7 @@ async def aggregate_endpoint(params: AggregateToolRequest) -> AggregateToolRespo
 
     query = _build_aggregate_query(params)
     response = await engine.execute_aggregation(query, db.session)
-    query_id = QueryState(query=query).save()
+    query_id = await QueryState(query=query).save(session)
     return AggregateToolResponse(
         query_id=query_id,
         total_results=response.total_results,
@@ -508,7 +523,7 @@ async def aggregate_endpoint(params: AggregateToolRequest) -> AggregateToolRespo
     operation_id="discover_filter_paths",
     openapi_extra=READONLY_TOOL,
 )
-async def discover_filter_paths_endpoint(params: DiscoverFilterPathsRequest) -> dict[str, FieldPathDiscovery]:
+async def discover_filter_paths_endpoint(params: DiscoverFilterPathsRequest, session: AsyncSession = Depends(get_async_session)) -> dict[str, FieldPathDiscovery]:
     """Discover the valid, database-specific filter paths for field names — the MANDATORY first step before filtering.
 
     Filter and group-by paths cannot be guessed: ALWAYS call this before building a filter_tree for
@@ -520,7 +535,8 @@ async def discover_filter_paths_endpoint(params: DiscoverFilterPathsRequest) -> 
     results: dict[str, FieldPathDiscovery] = {}
     for field_name in params.field_names:
         stmt = build_paths_query(entity_type=params.entity_type, prefix="", q=field_name).limit(100)
-        rows = db.session.execute(stmt).all()
+        result = await session.execute(stmt)
+        rows = result.all()
         leaves, components = process_path_rows(rows)
 
         matching_leaves = [
@@ -582,7 +598,7 @@ async def get_valid_operators_endpoint() -> dict[str, list[FilterOp]]:
     operation_id="resolve_entity",
     openapi_extra=READONLY_TOOL,
 )
-def resolve_entity_endpoint(params: ResolveEntityRequest) -> ResolveEntityResponse:
+async def resolve_entity_endpoint(params: ResolveEntityRequest, session: AsyncSession = Depends(get_async_session)) -> ResolveEntityResponse:
     """Resolve a full UUID or partial id-prefix to one entity, or list candidates to disambiguate."""
     form, normalized = _classify_id(params.id_or_prefix)
     if form is IdForm.NON_HEX:
@@ -598,7 +614,7 @@ def resolve_entity_endpoint(params: ResolveEntityRequest) -> ResolveEntityRespon
             message="Need at least 4 characters of the id to look it up.",
         )
 
-    matches = resolve_entity_id_prefix(db.session, params.entity_type, normalized, limit=_PREFIX_MATCH_LIMIT)
+    matches = await resolve_entity_id_prefix(session, params.entity_type, normalized, limit=_PREFIX_MATCH_LIMIT)
     if not matches:
         return ResolveEntityResponse(
             status="not_found",
@@ -633,10 +649,10 @@ def resolve_entity_endpoint(params: ResolveEntityRequest) -> ResolveEntityRespon
     operation_id="export_query",
     openapi_extra=READONLY_TOOL,
 )
-def export_query_endpoint(params: ExportQueryRequest) -> ExportQueryResponse:
+async def export_query_endpoint(params: ExportQueryRequest, session: AsyncSession = Depends(get_async_session)) -> ExportQueryResponse:
     """Prepare a CSV export download for a previously executed search ``query_id``."""
     try:
-        QueryState.load_from_id(str(params.query_id), SelectQuery)
+        await QueryState.load_from_id(str(params.query_id), SelectQuery, session)
     except QueryStateNotFoundError:
         raise_status(HTTPStatus.NOT_FOUND, f"Query {params.query_id} not found. Run a search first.")
     return ExportQueryResponse(

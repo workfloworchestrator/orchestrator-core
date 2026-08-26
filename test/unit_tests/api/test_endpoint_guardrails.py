@@ -22,27 +22,7 @@ from starlette.routing import BaseRoute, Router
 # This allowlist must only ever SHRINK. All new endpoints must be `async def`,
 # offloading blocking IO with `await run_in_threadpool(...)` or using
 # `db.async_session()`. See https://github.com/workfloworchestrator/orchestrator-core/issues/1251
-KNOWN_SYNC_ENDPOINTS: frozenset[str] = frozenset(
-    {
-        "orchestrator.core.api.api_v1.endpoints.mcp_tools.export_query_endpoint",
-        "orchestrator.core.api.api_v1.endpoints.mcp_tools.get_process_status_endpoint",
-        "orchestrator.core.api.api_v1.endpoints.mcp_tools.get_subscription_available_workflows_endpoint",
-        "orchestrator.core.api.api_v1.endpoints.mcp_tools.get_subscription_details_endpoint",
-        "orchestrator.core.api.api_v1.endpoints.mcp_tools.get_workflow_form_endpoint",
-        "orchestrator.core.api.api_v1.endpoints.mcp_tools.list_workflows_endpoint",
-        "orchestrator.core.api.api_v1.endpoints.mcp_tools.resolve_entity_endpoint",
-        "orchestrator.core.api.api_v1.endpoints.processes.abort_process_endpoint",
-        "orchestrator.core.api.api_v1.endpoints.processes.continue_awaiting_process_endpoint",
-        "orchestrator.core.api.api_v1.endpoints.processes.delete",
-        "orchestrator.core.api.api_v1.endpoints.processes.processes_filterable",
-        "orchestrator.core.api.api_v1.endpoints.processes.show",
-        "orchestrator.core.api.api_v1.endpoints.processes.update_progress_on_awaiting_process_endpoint",
-        "orchestrator.core.api.api_v1.endpoints.subscriptions.subscription_set_in_sync",
-        "orchestrator.core.api.api_v1.endpoints.subscriptions.subscription_workflows_by_id",
-        "orchestrator.core.api.api_v1.endpoints.subscriptions.subscriptions_search",
-        "orchestrator.core.api.api_v1.endpoints.translations.get_translations",
-    }
-)
+KNOWN_SYNC_ENDPOINTS: frozenset[str] = frozenset()
 
 
 def _qualified_name(route: APIRoute) -> str:

@@ -26,6 +26,7 @@ from uuid import UUID
 import strawberry.scalars
 import structlog
 from graphql import GraphQLError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.db import SearchQueryTable, db
 from orchestrator.core.graphql.schemas.search import (
@@ -174,10 +175,13 @@ async def _execute_search_and_paginate(
     query: SelectQuery,
     query_state: QueryState[SelectQuery],
     page_cursor: PageCursor | None,
+    session: AsyncSession,
 ) -> SearchResultsConnection:
     """Execute a search query and build a paginated connection result."""
     search_response = await engine.execute_search(query, db.session, page_cursor, query_state.query_embedding)
-    next_page_cursor = encode_next_page_cursor(search_response, page_cursor, query) if search_response.results else None
+    next_page_cursor = (
+        await encode_next_page_cursor(search_response, page_cursor, query, session) if search_response.results else None
+    )
 
     return _build_search_results_connection(
         results=search_response.results,
@@ -215,18 +219,19 @@ async def resolve_search(
         page_cursor: PageCursor | None = None
         query: SelectQuery
 
-        if cursor:
-            page_cursor = PageCursor.decode(cursor)
-            query_state = QueryState.load_from_id(page_cursor.query_id, SelectQuery)
-            query = query_state.query
-        else:
-            query = input.to_select_query(entity_type)
-            query_state = QueryState(query=query, query_embedding=None)
+        async with db.async_session() as session:
+            if cursor:
+                page_cursor = PageCursor.decode(cursor)
+                query_state = await QueryState.load_from_id(page_cursor.query_id, SelectQuery, session)
+                query = query_state.query
+            else:
+                query = input.to_select_query(entity_type)
+                query_state = QueryState(query=query, query_embedding=None)
 
-        if not include_columns:
-            query = query.model_copy(update={"response_columns": []})
+            if not include_columns:
+                query = query.model_copy(update={"response_columns": []})
 
-        return await _execute_search_and_paginate(query, query_state, page_cursor)
+            return await _execute_search_and_paginate(query, query_state, page_cursor, session)
     except (InvalidCursorError, ValueError) as e:
         raise GraphQLError(str(e), extensions={"code": "VALIDATION_ERROR"}) from e
     except QueryStateNotFoundError as e:
@@ -383,13 +388,14 @@ async def resolve_search_query(
     try:
         page_cursor: PageCursor | None = None
 
-        if cursor:
-            page_cursor = PageCursor.decode(cursor)
-            query_state = QueryState.load_from_id(page_cursor.query_id, SelectQuery)
-        else:
-            query_state = QueryState.load_from_id(query_id, SelectQuery)
+        async with db.async_session() as session:
+            if cursor:
+                page_cursor = PageCursor.decode(cursor)
+                query_state = await QueryState.load_from_id(page_cursor.query_id, SelectQuery, session)
+            else:
+                query_state = await QueryState.load_from_id(query_id, SelectQuery, session)
 
-        return await _execute_search_and_paginate(query_state.query, query_state, page_cursor)
+            return await _execute_search_and_paginate(query_state.query, query_state, page_cursor, session)
     except (InvalidCursorError, ValueError) as e:
         raise GraphQLError(str(e), extensions={"code": "VALIDATION_ERROR"}) from e
     except QueryStateNotFoundError as e:
@@ -415,7 +421,8 @@ async def resolve_search_query_export(
         ExportResponseType with flattened entity records.
     """
     try:
-        query_state = QueryState.load_from_id(query_id, SelectQuery)
+        async with db.async_session() as session:
+            query_state = await QueryState.load_from_id(query_id, SelectQuery, session)
 
         export_query = ExportQuery(
             entity_type=query_state.query.entity_type,

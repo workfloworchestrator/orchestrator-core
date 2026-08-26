@@ -22,6 +22,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Select, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response
 from structlog import get_logger
 
@@ -39,8 +40,8 @@ def _quote_if_kv_pair(token: str) -> str:
     return f'"{token}"' if ":" in token else token
 
 
-def add_response_range(
-    stmt: Selectable, range_: list[int] | None, response: Response, unit: str = "items"
+async def add_response_range(
+    stmt: Selectable, range_: list[int] | None, response: Response, session: AsyncSession, unit: str = "items"
 ) -> Selectable:
     if range_ is not None and len(range_) == 2:
         total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
