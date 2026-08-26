@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
 import pytest
@@ -184,4 +184,12 @@ def computed_product_instance(product_uuid: UUID) -> ProductModel:
 
 @pytest.fixture
 def mock_db_session() -> MagicMock:
-    return MagicMock()
+    session = MagicMock()
+    session.execute = AsyncMock(return_value=MagicMock())
+    session.scalar = AsyncMock(return_value=MagicMock())
+    return session
+
+
+@pytest.fixture
+def async_db_session() -> AsyncMock:
+    return AsyncMock()

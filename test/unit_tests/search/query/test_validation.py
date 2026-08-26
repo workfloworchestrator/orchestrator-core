@@ -13,7 +13,7 @@
 
 """Tests for orchestrator.core.search.query.validation -- filter compatibility, complete filter validation, aggregation/temporal/grouping/order-by field validation."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -109,7 +109,7 @@ def test_filter_compatibility_matrix(filter_condition, field_type: FieldType, ex
         pytest.param("   ", id="whitespace"),
     ],
 )
-async def test_complete_filter_empty_path_raises(path: str):
+async def test_complete_filter_empty_path_raises(path: str, async_db_session):
     """Empty or whitespace-only path raises EmptyFilterPathError."""
     pf = PathFilter(
         path=path,
@@ -117,12 +117,12 @@ async def test_complete_filter_empty_path_raises(path: str):
         value_kind=UIType.STRING,
     )
     with pytest.raises(EmptyFilterPathError):
-        await complete_filter_validation(pf, EntityType.SUBSCRIPTION)
+        await complete_filter_validation(pf, EntityType.SUBSCRIPTION, async_db_session)
 
 
 @pytest.mark.asyncio
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_complete_filter_path_not_found_raises(mock_vfp: MagicMock):
+async def test_complete_filter_path_not_found_raises(mock_vfp: AsyncMock, async_db_session):
     """Path absent from index raises PathNotFoundError."""
     mock_vfp.return_value = None
     pf = PathFilter(
@@ -131,12 +131,12 @@ async def test_complete_filter_path_not_found_raises(mock_vfp: MagicMock):
         value_kind=UIType.STRING,
     )
     with pytest.raises(PathNotFoundError):
-        await complete_filter_validation(pf, EntityType.SUBSCRIPTION)
+        await complete_filter_validation(pf, EntityType.SUBSCRIPTION, async_db_session)
 
 
 @pytest.mark.asyncio
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_complete_filter_incompatible_type_raises(mock_vfp: MagicMock):
+async def test_complete_filter_incompatible_type_raises(mock_vfp: AsyncMock, async_db_session):
     """Numeric operator on a string field raises IncompatibleFilterTypeError."""
     mock_vfp.return_value = FieldType.STRING.value
     pf = PathFilter(
@@ -145,12 +145,12 @@ async def test_complete_filter_incompatible_type_raises(mock_vfp: MagicMock):
         value_kind=UIType.NUMBER,
     )
     with pytest.raises(IncompatibleFilterTypeError):
-        await complete_filter_validation(pf, EntityType.SUBSCRIPTION)
+        await complete_filter_validation(pf, EntityType.SUBSCRIPTION, async_db_session)
 
 
 @pytest.mark.asyncio
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_complete_filter_wrong_entity_prefix_raises(mock_vfp: MagicMock):
+async def test_complete_filter_wrong_entity_prefix_raises(mock_vfp: AsyncMock, async_db_session):
     """Path with wrong entity prefix raises InvalidEntityPrefixError."""
     mock_vfp.return_value = FieldType.STRING.value
     pf = PathFilter(
@@ -159,12 +159,12 @@ async def test_complete_filter_wrong_entity_prefix_raises(mock_vfp: MagicMock):
         value_kind=UIType.STRING,
     )
     with pytest.raises(InvalidEntityPrefixError):
-        await complete_filter_validation(pf, EntityType.SUBSCRIPTION)
+        await complete_filter_validation(pf, EntityType.SUBSCRIPTION, async_db_session)
 
 
 @pytest.mark.asyncio
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_complete_filter_valid_path_passes(mock_vfp: MagicMock):
+async def test_complete_filter_valid_path_passes(mock_vfp: AsyncMock, async_db_session):
     """A correctly-typed path with the right entity prefix should not raise."""
     mock_vfp.return_value = FieldType.STRING.value
     pf = PathFilter(
@@ -172,12 +172,12 @@ async def test_complete_filter_valid_path_passes(mock_vfp: MagicMock):
         condition=EqualityFilter(op=FilterOp.EQ, value="active"),
         value_kind=UIType.STRING,
     )
-    await complete_filter_validation(pf, EntityType.SUBSCRIPTION)
+    await complete_filter_validation(pf, EntityType.SUBSCRIPTION, async_db_session)
 
 
 @pytest.mark.asyncio
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_complete_filter_wildcard_path_skips_prefix_check(mock_vfp: MagicMock):
+async def test_complete_filter_wildcard_path_skips_prefix_check(mock_vfp: AsyncMock, async_db_session):
     """Paths starting with '*' bypass the entity-prefix check."""
     mock_vfp.return_value = FieldType.STRING.value
     pf = PathFilter(
@@ -185,7 +185,7 @@ async def test_complete_filter_wildcard_path_skips_prefix_check(mock_vfp: MagicM
         condition=EqualityFilter(op=FilterOp.EQ, value="foo"),
         value_kind=UIType.STRING,
     )
-    await complete_filter_validation(pf, EntityType.SUBSCRIPTION)
+    await complete_filter_validation(pf, EntityType.SUBSCRIPTION, async_db_session)
 
 
 # =============================================================================
@@ -215,22 +215,22 @@ AGGREGATION_TYPE_COMPATIBILITY_MATRIX = [
 
 @pytest.mark.parametrize("agg_type, field_type, should_raise", AGGREGATION_TYPE_COMPATIBILITY_MATRIX)
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_aggregation_field_compatibility(
-    mock_vfp: MagicMock, agg_type: AggregationType, field_type: FieldType, should_raise: bool
+async def test_validate_aggregation_field_compatibility(
+    mock_vfp: AsyncMock, agg_type: AggregationType, field_type: FieldType, should_raise: bool, async_db_session
 ):
     mock_vfp.return_value = field_type.value
     if should_raise:
         with pytest.raises(IncompatibleAggregationTypeError):
-            validate_aggregation_field(agg_type, "subscription.field")
+            await validate_aggregation_field(agg_type, "subscription.field", async_db_session)
     else:
-        validate_aggregation_field(agg_type, "subscription.field")
+        await validate_aggregation_field(agg_type, "subscription.field", async_db_session)
 
 
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_aggregation_field_path_not_found_raises(mock_vfp: MagicMock):
+async def test_validate_aggregation_field_path_not_found_raises(mock_vfp: AsyncMock, async_db_session):
     mock_vfp.return_value = None
     with pytest.raises(PathNotFoundError):
-        validate_aggregation_field(AggregationType.SUM, "subscription.missing")
+        await validate_aggregation_field(AggregationType.SUM, "subscription.missing", async_db_session)
 
 
 # =============================================================================
@@ -249,20 +249,22 @@ TEMPORAL_GROUPING_FIELD_TYPE_MATRIX = [
 
 @pytest.mark.parametrize("field_type, should_raise", TEMPORAL_GROUPING_FIELD_TYPE_MATRIX)
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_temporal_grouping_field_type_matrix(mock_vfp: MagicMock, field_type: FieldType, should_raise: bool):
+async def test_validate_temporal_grouping_field_type_matrix(
+    mock_vfp: AsyncMock, field_type: FieldType, should_raise: bool, async_db_session
+):
     mock_vfp.return_value = field_type.value
     if should_raise:
         with pytest.raises(IncompatibleTemporalGroupingTypeError):
-            validate_temporal_grouping_field("subscription.some_field")
+            await validate_temporal_grouping_field("subscription.some_field", async_db_session)
     else:
-        validate_temporal_grouping_field("subscription.some_field")
+        await validate_temporal_grouping_field("subscription.some_field", async_db_session)
 
 
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_temporal_grouping_field_path_not_found_raises(mock_vfp: MagicMock):
+async def test_validate_temporal_grouping_field_path_not_found_raises(mock_vfp: AsyncMock, async_db_session):
     mock_vfp.return_value = None
     with pytest.raises(PathNotFoundError):
-        validate_temporal_grouping_field("subscription.missing")
+        await validate_temporal_grouping_field("subscription.missing", async_db_session)
 
 
 # =============================================================================
@@ -271,36 +273,36 @@ def test_validate_temporal_grouping_field_path_not_found_raises(mock_vfp: MagicM
 
 
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_grouping_fields_all_paths_found_passes(mock_vfp: MagicMock):
+async def test_validate_grouping_fields_all_paths_found_passes(mock_vfp: AsyncMock, async_db_session):
     mock_vfp.return_value = FieldType.STRING.value
-    validate_grouping_fields(["subscription.status", "subscription.product.name"])
+    await validate_grouping_fields(["subscription.status", "subscription.product.name"], async_db_session)
 
 
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_grouping_fields_one_path_not_found_raises(mock_vfp: MagicMock):
+async def test_validate_grouping_fields_one_path_not_found_raises(mock_vfp: AsyncMock, async_db_session):
     mock_vfp.side_effect = [FieldType.STRING.value, None]
     with pytest.raises(PathNotFoundError):
-        validate_grouping_fields(["subscription.status", "subscription.missing"])
+        await validate_grouping_fields(["subscription.status", "subscription.missing"], async_db_session)
 
 
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_grouping_fields_empty_list_passes(mock_vfp: MagicMock):
-    validate_grouping_fields([])
+async def test_validate_grouping_fields_empty_list_passes(mock_vfp: AsyncMock, async_db_session):
+    await validate_grouping_fields([], async_db_session)
     mock_vfp.assert_not_called()
 
 
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_grouping_fields_single_path_not_found_raises(mock_vfp: MagicMock):
+async def test_validate_grouping_fields_single_path_not_found_raises(mock_vfp: AsyncMock, async_db_session):
     mock_vfp.return_value = None
     with pytest.raises(PathNotFoundError):
-        validate_grouping_fields(["subscription.nonexistent"])
+        await validate_grouping_fields(["subscription.nonexistent"], async_db_session)
 
 
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_grouping_fields_validates_each_path_once(mock_vfp: MagicMock):
+async def test_validate_grouping_fields_validates_each_path_once(mock_vfp: AsyncMock, async_db_session):
     mock_vfp.return_value = FieldType.STRING.value
     paths = ["subscription.status", "subscription.product.name", "subscription.start_date"]
-    validate_grouping_fields(paths)
+    await validate_grouping_fields(paths, async_db_session)
     assert mock_vfp.call_count == len(paths)
 
 
@@ -309,37 +311,37 @@ def test_validate_grouping_fields_validates_each_path_once(mock_vfp: MagicMock):
 # =============================================================================
 
 
-def test_validate_order_by_fields_none_passes():
+async def test_validate_order_by_fields_none_passes(async_db_session):
     """None order_by should return immediately without error."""
-    validate_order_by_fields(None)
+    await validate_order_by_fields(None, async_db_session)
 
 
-def test_validate_order_by_fields_empty_list_passes():
-    validate_order_by_fields([])
+async def test_validate_order_by_fields_empty_list_passes(async_db_session):
+    await validate_order_by_fields([], async_db_session)
 
 
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_order_by_fields_path_with_dot_found_passes(mock_vfp: MagicMock):
+async def test_validate_order_by_fields_path_with_dot_found_passes(mock_vfp: AsyncMock, async_db_session):
     mock_vfp.return_value = FieldType.STRING.value
-    validate_order_by_fields([OrderBy(field="subscription.status", direction=OrderDirection.ASC)])
+    await validate_order_by_fields([OrderBy(field="subscription.status", direction=OrderDirection.ASC)], async_db_session)
 
 
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_order_by_fields_path_with_dot_not_found_raises(mock_vfp: MagicMock):
+async def test_validate_order_by_fields_path_with_dot_not_found_raises(mock_vfp: AsyncMock, async_db_session):
     mock_vfp.return_value = None
     with pytest.raises(PathNotFoundError):
-        validate_order_by_fields([OrderBy(field="subscription.missing", direction=OrderDirection.DESC)])
+        await validate_order_by_fields([OrderBy(field="subscription.missing", direction=OrderDirection.DESC)], async_db_session)
 
 
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_order_by_fields_alias_without_dot_skipped(mock_vfp: MagicMock):
+async def test_validate_order_by_fields_alias_without_dot_skipped(mock_vfp: AsyncMock, async_db_session):
     """Aggregation aliases (no dot) are skipped and validate_filter_path is not called."""
-    validate_order_by_fields([OrderBy(field="count", direction=OrderDirection.DESC)])
+    await validate_order_by_fields([OrderBy(field="count", direction=OrderDirection.DESC)], async_db_session)
     mock_vfp.assert_not_called()
 
 
 @patch("orchestrator.core.search.query.validation.validate_filter_path")
-def test_validate_order_by_fields_mixed_alias_and_path(mock_vfp: MagicMock):
+async def test_validate_order_by_fields_mixed_alias_and_path(mock_vfp: AsyncMock, async_db_session):
     """Aliases are skipped; only path-based fields are validated."""
     mock_vfp.return_value = FieldType.STRING.value
     order_by = [
@@ -347,8 +349,8 @@ def test_validate_order_by_fields_mixed_alias_and_path(mock_vfp: MagicMock):
         OrderBy(field="subscription.status"),
         OrderBy(field="revenue"),
     ]
-    validate_order_by_fields(order_by)
-    mock_vfp.assert_called_once_with("subscription.status")
+    await validate_order_by_fields(order_by, async_db_session)
+    mock_vfp.assert_called_once_with("subscription.status", async_db_session)
 
 
 # =============================================================================
@@ -356,40 +358,40 @@ def test_validate_order_by_fields_mixed_alias_and_path(mock_vfp: MagicMock):
 # =============================================================================
 
 
-def test_validate_structured_order_by_element_none_request_passes():
+async def test_validate_structured_order_by_element_none_request_passes(async_db_session):
     """None request returns early without error."""
-    validate_structured_order_by_element(EntityType.SUBSCRIPTION, None)
+    await validate_structured_order_by_element(EntityType.SUBSCRIPTION, None, async_db_session)
 
 
 @patch("orchestrator.core.search.query.validation.get_ai_search_index_by_entity_type_and_path")
-def test_validate_structured_order_by_element_valid_passes(mock_get: MagicMock):
+async def test_validate_structured_order_by_element_valid_passes(mock_get: AsyncMock, async_db_session):
     mock_get.return_value = {"path": "subscription.status"}
     request_mock = MagicMock()
     request_mock.order_by.element = "subscription.status"
-    validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock)
+    await validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock, async_db_session)
 
 
 @patch("orchestrator.core.search.query.validation.get_ai_search_index_by_entity_type_and_path")
-def test_validate_structured_order_by_element_invalid_raises(mock_get: MagicMock):
+async def test_validate_structured_order_by_element_invalid_raises(mock_get: AsyncMock, async_db_session):
     element = "subscription.nonexistent"
     mock_get.return_value = None
     request_mock = MagicMock()
     request_mock.order_by.element = element
     with pytest.raises(ValueError, match=f"Element {element} is not a valid path"):
-        validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock)
+        await validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock, async_db_session)
 
 
-def test_validate_structured_order_by_element_none_entity_type_skips():
+async def test_validate_structured_order_by_element_none_entity_type_skips(async_db_session):
     """entity_type=None means validation is skipped even with a request."""
     request_mock = MagicMock()
     request_mock.order_by.element = "subscription.status"
-    validate_structured_order_by_element(None, request_mock)
+    await validate_structured_order_by_element(None, request_mock, async_db_session)
 
 
 @patch("orchestrator.core.search.query.validation.get_ai_search_index_by_entity_type_and_path")
-def test_validate_structured_order_by_element_no_order_by_passes(mock_get: MagicMock):
+async def test_validate_structured_order_by_element_no_order_by_passes(mock_get: AsyncMock, async_db_session):
     """Request with order_by=None should not trigger validation."""
     request_mock = MagicMock()
     request_mock.order_by = None
-    validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock)
+    await validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock, async_db_session)
     mock_get.assert_not_called()

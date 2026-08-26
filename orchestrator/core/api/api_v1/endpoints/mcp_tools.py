@@ -60,7 +60,7 @@ from sqlalchemy.orm import joinedload, raiseload
 from starlette.concurrency import run_in_threadpool
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db, get_async_session
+from orchestrator.core.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, get_async_session
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas.mcp_search import (
     AggregateToolRequest,
@@ -407,7 +407,7 @@ async def search_endpoint(
     ``aggregate`` instead.
     """
     if params.filters is not None:
-        await validate_filter_tree(params.filters, params.entity_type)
+        await validate_filter_tree(params.filters, params.entity_type, session)
 
     try:
         response, query, fallback_used = await execute_search_with_fallback(
@@ -417,7 +417,7 @@ async def search_endpoint(
             limit=params.limit,
             retriever=params.retriever,
             effort=params.effort,
-            db_session=db.session,
+            db_session=session,
         )
     except (ValidationError, ValueError) as exc:
         raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
@@ -494,19 +494,19 @@ async def aggregate_endpoint(
     ``group_by`` on that field — one call that returns one bucket per value. Do NOT issue separate
     per-value counts; that loses the distribution.
     """
-    validate_grouping_fields(params.group_by or [])
+    await validate_grouping_fields(params.group_by or [], session)
     for agg in params.aggregations or []:
         if isinstance(agg, FieldAggregation):
-            validate_aggregation_field(agg.type, agg.field)
+            await validate_aggregation_field(agg.type, agg.field, session)
     for tg in params.temporal_group_by or []:
-        validate_temporal_grouping_field(tg.field)
-    validate_order_by_fields(params.order_by)
+        await validate_temporal_grouping_field(tg.field, session)
+    await validate_order_by_fields(params.order_by, session)
 
     if params.filters is not None:
-        await validate_filter_tree(params.filters, params.entity_type)
+        await validate_filter_tree(params.filters, params.entity_type, session)
 
     query = _build_aggregate_query(params)
-    response = await engine.execute_aggregation(query, db.session)
+    response = await engine.execute_aggregation(query, session)
     query_id = await QueryState(query=query).save(session)
     return AggregateToolResponse(
         query_id=query_id,

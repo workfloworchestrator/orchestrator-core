@@ -26,6 +26,7 @@ from uuid import UUID
 import strawberry.scalars
 import structlog
 from graphql import GraphQLError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.db import SearchQueryTable, db
@@ -178,7 +179,7 @@ async def _execute_search_and_paginate(
     session: AsyncSession,
 ) -> SearchResultsConnection:
     """Execute a search query and build a paginated connection result."""
-    search_response = await engine.execute_search(query, db.session, page_cursor, query_state.query_embedding)
+    search_response = await engine.execute_search(query, session, page_cursor, query_state.query_embedding)
     next_page_cursor = (
         await encode_next_page_cursor(search_response, page_cursor, query, session) if search_response.results else None
     )
@@ -263,17 +264,19 @@ async def resolve_search_paths(
         PathsResponseType with leaves and components.
     """
     try:
-        if prefix:
-            lquery_pattern = create_path_autocomplete_lquery(prefix)
-            if not is_lquery_syntactically_valid(lquery_pattern, db.session):
-                raise GraphQLError(
-                    f"Prefix '{prefix}' creates an invalid search pattern.",
-                    extensions={"code": "VALIDATION_ERROR"},
-                )
+        async with db.async_session() as session:
+            if prefix:
+                lquery_pattern = create_path_autocomplete_lquery(prefix)
+                if not await is_lquery_syntactically_valid(lquery_pattern, session):
+                    raise GraphQLError(
+                        f"Prefix '{prefix}' creates an invalid search pattern.",
+                        extensions={"code": "VALIDATION_ERROR"},
+                    )
 
-        stmt = build_paths_query(entity_type=entity_type, prefix=prefix, q=q)
-        stmt = stmt.limit(max(1, min(limit, 10)))
-        rows = db.session.execute(stmt).all()
+            stmt = build_paths_query(entity_type=entity_type, prefix=prefix, q=q)
+            stmt = stmt.limit(max(1, min(limit, 10)))
+            execute_result = await session.execute(stmt)
+            rows = execute_result.all()
 
         leaves, components = process_path_rows(rows)
 
@@ -327,43 +330,46 @@ async def resolve_search_query_results(
         raise GraphQLError(f"Invalid query_id format: {query_id}", extensions={"code": "VALIDATION_ERROR"}) from e
 
     try:
-        row = db.session.query(SearchQueryTable).filter_by(query_id=query_uuid).first()
-        if not row:
-            raise GraphQLError(f"Query {query_uuid} not found", extensions={"code": "NOT_FOUND"})
+        async with db.async_session() as session:
+            stmt = select(SearchQueryTable).filter_by(query_id=query_uuid)
+            execute_result = await session.execute(stmt)
+            row = execute_result.scalar_one_or_none()
+            if not row:
+                raise GraphQLError(f"Query {query_uuid} not found", extensions={"code": "NOT_FOUND"})
 
-        query = QueryAdapter.validate_python(row.parameters)
+            query = QueryAdapter.validate_python(row.parameters)
 
-        match query:
-            case SelectQuery():
-                embedding = list(row.query_embedding) if row.query_embedding is not None else None
-                search_response = await engine.execute_search(query, db.session, query_embedding=embedding)
-                result_rows = [
-                    ResultRow(
-                        group_values={
-                            "entity_id": result.entity_id,
-                            "title": result.entity_title,
-                            "entity_type": result.entity_type.value,
-                        },
-                        aggregations={"score": result.score},
+            match query:
+                case SelectQuery():
+                    embedding = list(row.query_embedding) if row.query_embedding is not None else None
+                    search_response = await engine.execute_search(query, session, query_embedding=embedding)
+                    result_rows = [
+                        ResultRow(
+                            group_values={
+                                "entity_id": result.entity_id,
+                                "title": result.entity_title,
+                                "entity_type": result.entity_type.value,
+                            },
+                            aggregations={"score": result.score},
+                        )
+                        for result in search_response.results
+                    ]
+                    domain_resp = QueryResultsResponse(
+                        results=result_rows,
+                        total_results=len(result_rows),
+                        metadata=search_response.metadata,
                     )
-                    for result in search_response.results
-                ]
-                domain_resp = QueryResultsResponse(
-                    results=result_rows,
-                    total_results=len(result_rows),
-                    metadata=search_response.metadata,
-                )
-                return _query_results_response_to_gql(domain_resp)
+                    return _query_results_response_to_gql(domain_resp)
 
-            case CountQuery() | AggregateQuery():
-                domain_resp = await engine.execute_aggregation(query, db.session)
-                return _query_results_response_to_gql(domain_resp)
+                case CountQuery() | AggregateQuery():
+                    domain_resp = await engine.execute_aggregation(query, session)
+                    return _query_results_response_to_gql(domain_resp)
 
-            case _:
-                raise GraphQLError(
-                    f"Unsupported query type: {query.query_type}",
-                    extensions={"code": "VALIDATION_ERROR"},
-                )
+                case _:
+                    raise GraphQLError(
+                        f"Unsupported query type: {query.query_type}",
+                        extensions={"code": "VALIDATION_ERROR"},
+                    )
     except GraphQLError:
         raise
     except QueryStateNotFoundError as e:
@@ -424,13 +430,13 @@ async def resolve_search_query_export(
         async with db.async_session() as session:
             query_state = await QueryState.load_from_id(query_id, SelectQuery, session)
 
-        export_query = ExportQuery(
-            entity_type=query_state.query.entity_type,
-            filters=query_state.query.filters,
-            query_text=query_state.query.query_text,
-        )
+            export_query = ExportQuery(
+                entity_type=query_state.query.entity_type,
+                filters=query_state.query.filters,
+                query_text=query_state.query.query_text,
+            )
 
-        export_records = await engine.execute_export(export_query, db.session, query_state.query_embedding)
+            export_records = await engine.execute_export(export_query, session, query_state.query_embedding)
         return ExportResponseType(page=cast(list[strawberry.scalars.JSON], export_records))
     except ValueError as e:
         raise GraphQLError(str(e), extensions={"code": "VALIDATION_ERROR"}) from e

@@ -38,7 +38,7 @@ async def reindex_with_model(model_config, target_dimension: int, console) -> No
         target_dimension: Target embedding dimension (already capped at 2000)
         console: Rich console for output
     """
-    from sqlalchemy import text
+    from sqlalchemy import select, text
 
     from orchestrator.core.cli.search.resize_embedding import alter_embedding_column_dimension
     from orchestrator.core.db import SubscriptionTable, db
@@ -50,10 +50,10 @@ async def reindex_with_model(model_config, target_dimension: int, console) -> No
 
     # Truncate existing data and resize columns
     console.print(f"Resizing embedding column to {target_dimension} dimensions...")
-    with db.session as session:
-        session.execute(text("TRUNCATE TABLE ai_search_index CASCADE"))
-        session.execute(text("TRUNCATE TABLE search_queries CASCADE"))
-        session.commit()
+    async with db.async_session() as session:
+        await session.execute(text("TRUNCATE TABLE ai_search_index CASCADE"))
+        await session.execute(text("TRUNCATE TABLE search_queries CASCADE"))
+        await session.commit()
 
     alter_embedding_column_dimension(target_dimension)
     console.print(f"Resized to {target_dimension} dimensions")
@@ -66,14 +66,14 @@ async def reindex_with_model(model_config, target_dimension: int, console) -> No
     for sub_data, embedding in zip(TEST_SUBSCRIPTIONS, embeddings):
         embedding_map[str(sub_data["subscription_id"])] = embedding
 
-    with db.session as session:
-        subscriptions = session.query(SubscriptionTable).all()
+    async with db.async_session() as session:
+        subscriptions = (await session.execute(select(SubscriptionTable))).scalars().all()
         for subscription in subscriptions:
             sub_id = str(subscription.subscription_id)
             if sub_id in embedding_map:
                 index_subscription(subscription, embedding_map[sub_id], session)
 
-        session.commit()
+        await session.commit()
 
     console.print(f"Re-indexed {len(embedding_map)} entities with {model_config.name}")
 
@@ -137,7 +137,7 @@ async def benchmark_single_model(
         query_embedding = EmbeddingIndexer.get_embeddings_from_api_batch([query.query_text], dry_run=False)[0]
 
         # Execute search
-        with db.session as session:
+        async with db.async_session() as session:
             start_time = perf_counter()
             response = await engine.execute_search(
                 query=SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query.query_text, limit=10),
