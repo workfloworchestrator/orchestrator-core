@@ -48,25 +48,24 @@ def read_config(config_file: Path) -> dict:
 
 
 def write_file(path: Path, content: str, append: bool, force: bool) -> None:
+    file_exists = path.exists()
+    mode = "a" if append else "w"
+    action = "append" if file_exists and append else "overwrite" if file_exists else "write"
+
+    if not force and file_exists:
+        logger.warning("file already exists, rerun with --force", action=action, path=str(path))
+        return
+
     try:
         if not path.parent.exists():
             logger.info("creating missing folder(s)", path=str(path.parent))
             path.parent.mkdir(parents=True, exist_ok=True)
-
-        file_exists = path.exists()
-        if not force and file_exists:
-            action = "append" if append else "overwrite"
-            logger.warning(f"file already exists, rerun with --force if you want to {action}", path=str(path))
-            return
-
-        mode = "a" if append else "w"
         with open(path, mode) as writer:
             writer.write(content)
     except Exception as exception:
-        logger.error("failed to write file", path=str(path), message=str(exception))
+        logger.error("write file failed", action=action, path=str(path), message=str(exception))
     else:
-        overwrote = file_exists and not append
-        logger.info("overwrote file" if overwrote else "wrote file", path=str(path), append=append, force=force)
+        logger.info("write file successful", action=action, path=str(path))
 
 
 def ruff(content: str) -> str:
