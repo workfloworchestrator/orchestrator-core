@@ -14,10 +14,14 @@
 """Tests for process-exit indexing wiring in the processes service."""
 
 import sys
-from unittest.mock import patch
+from unittest.mock import call, patch
 from uuid import uuid4
 
-from orchestrator.core.services.processes import _safe_index_process
+import pytest
+
+from orchestrator.core.services.processes import _run_process_async, _safe_index_process
+from orchestrator.core.settings import ExecutorType, app_settings
+from orchestrator.core.workflow import Process as WFProcess
 from orchestrator.core.workflow import Success
 
 
@@ -72,3 +76,31 @@ def test_fail_awaiting_process_indexes_on_exit(mock_hook):
         assert fail_awaiting_process(process=None) is result
 
     mock_hook.assert_called_once_with(process_id, result)
+
+
+@pytest.mark.parametrize(
+    "workflow_raises,expect_indexed",
+    [
+        pytest.param(False, True, id="committed-result-is-indexed"),
+        pytest.param(True, False, id="lost-database-access-skips-indexing"),
+    ],
+)
+@patch("orchestrator.core.search.indexing.hooks.index_process_and_subscriptions")
+def test_run_process_async_indexes_only_while_the_session_is_alive(mock_hook, workflow_raises, expect_indexed):
+    """Indexing runs inside the database scope, so the failure path that loses the session must skip it."""
+    process_id = uuid4()
+    result = Success({})
+
+    def workflow() -> WFProcess:
+        if workflow_raises:
+            raise RuntimeError("lost the database")
+        return result
+
+    with (
+        patch("orchestrator.core.services.processes.db"),
+        patch("orchestrator.core.services.processes._db_log_process_ex"),
+        patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
+    ):
+        assert _run_process_async(process_id, workflow) == process_id
+
+    assert mock_hook.call_args_list == ([call(process_id, result)] if expect_indexed else [])
