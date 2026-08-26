@@ -14,11 +14,24 @@
 """Tests for the process-exit indexing hook: state extraction, entity indexing and strictness."""
 
 from types import SimpleNamespace
+from unittest.mock import call, patch
 from uuid import uuid4
 
 import pytest
 
-from orchestrator.core.search.indexing.hooks import extract_subscription_ids
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.indexing.hooks import extract_subscription_ids, index_process_and_subscriptions
+from orchestrator.core.settings import llm_settings
+from orchestrator.core.workflow import (
+    Abort,
+    AwaitingCallback,
+    Complete,
+    Failed,
+    Skipped,
+    Success,
+    Suspend,
+    Waiting,
+)
 
 pytestmark = pytest.mark.search
 
@@ -62,3 +75,63 @@ def test_extract_subscription_ids(state, expected):
 def test_extract_subscription_ids_accepts_uuid_objects():
     subscription_id = uuid4()
     assert extract_subscription_ids({"subscription_id": subscription_id}) == {str(subscription_id)}
+
+
+@pytest.mark.parametrize(
+    "process_variant",
+    [
+        pytest.param(Success, id="success"),
+        pytest.param(Skipped, id="skipped"),
+        pytest.param(Complete, id="complete"),
+        pytest.param(Suspend, id="suspend"),
+        pytest.param(Abort, id="abort"),
+        pytest.param(Waiting, id="waiting"),
+        pytest.param(AwaitingCallback, id="awaiting-callback"),
+        pytest.param(Failed, id="failed"),
+    ],
+)
+@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
+def test_process_is_always_indexed(mock_run_indexing, process_variant):
+    process_id = uuid4()
+
+    index_process_and_subscriptions(process_id, process_variant({}))
+
+    mock_run_indexing.assert_called_once_with(EntityType.PROCESS, str(process_id))
+
+
+@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
+def test_subscriptions_from_state_are_indexed(mock_run_indexing):
+    process_id = uuid4()
+
+    index_process_and_subscriptions(process_id, Success({"subscription_id": SUB_ID_A}))
+
+    assert mock_run_indexing.call_args_list == [
+        call(EntityType.PROCESS, str(process_id)),
+        call(EntityType.SUBSCRIPTION, SUB_ID_A),
+    ]
+
+
+@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
+def test_non_dict_state_still_indexes_process(mock_run_indexing):
+    process_id = uuid4()
+
+    index_process_and_subscriptions(process_id, Failed(RuntimeError("boom")))
+
+    mock_run_indexing.assert_called_once_with(EntityType.PROCESS, str(process_id))
+
+
+@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
+def test_indexing_error_is_swallowed_when_not_strict(mock_run_indexing, monkeypatch):
+    monkeypatch.setattr(llm_settings, "SEARCH_INDEXING_STRICT", False)
+    mock_run_indexing.side_effect = RuntimeError("index error")
+
+    index_process_and_subscriptions(uuid4(), Success({}))  # must not raise
+
+
+@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
+def test_indexing_error_is_raised_when_strict(mock_run_indexing, monkeypatch):
+    monkeypatch.setattr(llm_settings, "SEARCH_INDEXING_STRICT", True)
+    mock_run_indexing.side_effect = RuntimeError("index error")
+
+    with pytest.raises(RuntimeError, match="index error"):
+        index_process_and_subscriptions(uuid4(), Success({}))

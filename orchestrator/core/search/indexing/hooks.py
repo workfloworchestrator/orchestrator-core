@@ -19,9 +19,17 @@ workflow steps, so that indexing also happens for failed, aborted and suspended 
 
 from collections.abc import Iterable
 from itertools import chain
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import structlog
+
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.indexing.tasks import run_indexing_for_entity
+from orchestrator.core.settings import llm_settings
+
+if TYPE_CHECKING:
+    from orchestrator.core.workflow import Process as WFProcess
 
 logger = structlog.get_logger(__name__)
 
@@ -60,3 +68,28 @@ def extract_subscription_ids(state: object) -> set[str]:
 
     values = (state.get(key) for key in SUBSCRIPTION_STATE_KEYS)
     return set(chain.from_iterable(map(_extract_ids, values)))
+
+
+def index_process_and_subscriptions(process_id: UUID, result: "WFProcess") -> None:
+    """Index a process and every subscription referenced by its final state.
+
+    Called whenever a process exits: completed, failed, aborted, suspended or awaiting callback.
+    Runs after the process' final status has been committed, so the indexed record carries the
+    real terminal status.
+
+    Args:
+        process_id: The process to index.
+        result: Final process value; `unwrap()` provides the state to scan for subscriptions.
+
+    Raises:
+        Exception: Only when `llm_settings.SEARCH_INDEXING_STRICT` is True. Otherwise failures
+            are logged and swallowed so indexing can never break a process.
+    """
+    try:
+        run_indexing_for_entity(EntityType.PROCESS, str(process_id))
+        for subscription_id in extract_subscription_ids(result.unwrap()):
+            run_indexing_for_entity(EntityType.SUBSCRIPTION, subscription_id)
+    except Exception as ex:
+        if llm_settings.SEARCH_INDEXING_STRICT:
+            raise
+        logger.warning("Failed to index process and subscriptions", process_id=str(process_id), error=str(ex))
