@@ -97,6 +97,16 @@ def _safe_broadcast_process_update(process_id: UUID, broadcast_func: BroadcastFu
         logger.exception("Failed to broadcast process update", process_id=process_id)
 
 
+def _safe_index_process(process_id: UUID, result: WFProcess) -> None:
+    """Index a process and its subscriptions on exit; no-op when the search extra is not installed."""
+    try:
+        from orchestrator.core.search.indexing.hooks import index_process_and_subscriptions
+    except ImportError:
+        return
+
+    index_process_and_subscriptions(process_id, result)
+
+
 def get_execution_context() -> dict[ExecutorFunction, Callable]:
     if app_settings.EXECUTOR == ExecutorType.WORKER:
         from orchestrator.core.services.executors.celery import CELERY_EXECUTION_CONTEXT
@@ -460,6 +470,7 @@ def _run_process_async(process_id: UUID, f: Callable, broadcast_func: BroadcastF
                     finally:
                         db.session.commit()
                     _safe_broadcast_process_update(process_id, broadcast_func)
+                    _safe_index_process(process_id, result)
             except Exception as ex:
                 # We lost access to database here, so we can only log
                 logger.exception("Unknown workflow failure", process_id=process_id)
@@ -813,13 +824,17 @@ def abort_process(process: ProcessTable, user: str, broadcast_func: Callable | N
     pstat = load_process(process)
 
     pstat.update(current_user=user)
-    return abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+    result = abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+    _safe_index_process(pstat.process_id, result)
+    return result
 
 
 def fail_awaiting_process(process: ProcessTable, broadcast_func: BroadcastFunc | None = None) -> WFProcess:
     """Fail a process that has been stuck awaiting a callback past its timeout."""
     pstat = load_process(process)
-    return fail_awaiting_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+    result = fail_awaiting_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+    _safe_index_process(pstat.process_id, result)
+    return result
 
 
 def _recoverwf(wf: Workflow, log: list[WFProcess]) -> tuple[WFProcess, StepList]:
