@@ -100,14 +100,13 @@ stored with no embedding.
 
 Indexing is triggered from three places:
 
-- **Workflow steps**: the `create_workflow`, `modify_workflow`, `terminate_workflow` and
-  `reconcile_workflow` decorators append two steps, `refresh_subscription_search_index` and
-  `refresh_process_search_index`. The first re-indexes the workflow's subscription, the second
-  re-indexes the workflow's own process record. Both catch their own errors, so a failed re-index
-  never fails the workflow. `validate_workflow` and the bare `@workflow` decorator do not append
-  these steps, so a subscription or process changed by such a workflow keeps its previous index
-  entry until something re-indexes it. Add the two steps (`orchestrator.core.workflows.steps`) to
-  your own step list when the workflow changes indexed data.
+- **Process exit**: whenever a process exits — completed, failed, aborted, suspended or timed out
+  awaiting a callback — the process record and every subscription referenced by its final state
+  are re-indexed. This runs after the terminal status has been committed, so the indexed process
+  carries its real status. It applies to every workflow, including `validate_workflow` and the
+  bare `@workflow` decorator, so no step wiring is needed in your own workflows. Failures are
+  logged and swallowed by default, so a failed re-index never breaks a process; set
+  `SEARCH_INDEXING_STRICT` to raise instead.
 - **REST endpoints**: product and process updates re-index the entity they changed.
 - **The CLI**: see [Building and refreshing the index](#building-and-refreshing-the-index).
 

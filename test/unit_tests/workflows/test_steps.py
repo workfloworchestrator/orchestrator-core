@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for workflow steps: unsync/unsync_unchecked (fallback/backup/insync logic), store_process_subscription deprecation, and refresh_search_index error handling."""
+"""Tests for workflow steps: unsync/unsync_unchecked (fallback/backup/insync logic) and store_process_subscription deprecation."""
 
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -22,8 +22,6 @@ from pydantic import ValidationError
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.utils.functional import orig
 from orchestrator.core.workflows.steps import (
-    refresh_process_search_index,
-    refresh_subscription_search_index,
     store_process_subscription,
     unsync,
     unsync_unchecked,
@@ -165,20 +163,3 @@ def test_store_process_subscription_deprecation_warning():
         store_process_subscription()
         mock_logger.warning.assert_called_once()
         assert "deprecated" in mock_logger.warning.call_args[0][0].lower()
-
-
-# --- refresh_search_index ---
-
-
-@pytest.mark.parametrize(
-    "step_fn,arg_name,arg_value",
-    [
-        pytest.param(refresh_subscription_search_index, "subscription", MagicMock(), id="subscription"),
-        pytest.param(refresh_process_search_index, "process_id", str(uuid4()), id="process"),
-    ],
-)
-@patch("orchestrator.core.workflows.steps.reset_search_index")
-def test_refresh_search_index_exception_swallowed(mock_reset, step_fn, arg_name, arg_value):
-    mock_reset.side_effect = RuntimeError("search error")
-    result = orig(step_fn)(**{arg_name: arg_value})
-    assert result == {}
