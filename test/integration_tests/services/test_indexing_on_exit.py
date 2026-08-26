@@ -115,6 +115,7 @@ def indexing_timeout_wf():
 def _backdate_await_step(process_id: UUIDstr, seconds: int) -> None:
     """Move the awaiting step's started_at into the past so its timeout counts as elapsed."""
     process = db.session.get(ProcessTable, process_id)
+    assert process is not None
     await_step = process.steps[-1]
     await_step.started_at = nowtz() - timedelta(seconds=seconds)
     db.session.add(await_step)
