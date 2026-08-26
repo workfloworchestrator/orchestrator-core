@@ -283,3 +283,17 @@ process exits (completed, failed, aborted, suspended or awaiting callback) inste
 steps. The `refresh_subscription_search_index` and `refresh_process_search_index` steps have been
 removed — delete any references to them from custom workflow step lists. Indexing failures are
 logged and swallowed by default; set `SEARCH_INDEXING_STRICT=true` to have them raise.
+
+Operational notes:
+
+- The removed subscription-index step force-refreshed the legacy `subscriptions_search` PostgreSQL
+  materialized view. Database-trigger refreshes are throttled to 120 seconds, so the
+  `/subscriptions/search` full-text-search endpoint may now stay stale longer on quiet systems.
+  The new `ai_search_index` vector index is unaffected.
+- Process aborts and callback-timeout sweeps now index synchronously, including live embedding API
+  calls when `EMBEDDING_API_ENABLED=true`. This may add request or sweep latency; strict mode can
+  also surface abort indexing failures at request level. Both effects are absent with the defaults
+  (`SEARCH_INDEXING_STRICT=false`, `EMBEDDING_API_ENABLED=false`).
+- Processes suspended or failed before this upgrade may resume against a step list shortened by the
+  two removed indexing steps. This matches the existing supported "step removed before done" case
+  and needs no operator action.

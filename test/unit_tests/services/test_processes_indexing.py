@@ -20,7 +20,7 @@ from uuid import uuid4
 import pytest
 
 from orchestrator.core.services.processes import _run_process_async, _safe_index_process
-from orchestrator.core.settings import ExecutorType, app_settings
+from orchestrator.core.settings import ExecutorType, app_settings, llm_settings
 from orchestrator.core.workflow import Process as WFProcess
 from orchestrator.core.workflow import Success
 
@@ -104,3 +104,25 @@ def test_run_process_async_indexes_only_while_the_session_is_alive(mock_hook, wo
         assert _run_process_async(process_id, workflow) == process_id
 
     assert mock_hook.call_args_list == ([call(process_id, result)] if expect_indexed else [])
+
+
+@patch("orchestrator.core.search.indexing.hooks.index_process_and_subscriptions")
+def test_run_process_async_strict_indexing_failure_is_not_masked_as_workflow_failure(mock_hook, monkeypatch):
+    """Strict mode exists to surface indexing bugs, so the workflow's own error handler must not eat them."""
+    monkeypatch.setattr(llm_settings, "SEARCH_INDEXING_STRICT", True)
+    mock_hook.side_effect = RuntimeError("index exploded")
+    process_id = uuid4()
+    result = Success({})
+
+    with (
+        patch("orchestrator.core.services.processes.db"),
+        patch("orchestrator.core.services.processes._db_log_process_ex") as mock_log_ex,
+        patch("orchestrator.core.services.processes.logger") as mock_logger,
+        patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
+        pytest.raises(RuntimeError, match="index exploded"),
+    ):
+        _run_process_async(process_id, lambda: result)
+
+    # The workflow itself never failed, so neither the DB-loss logger nor its process log may fire.
+    mock_log_ex.assert_not_called()
+    assert not any("Unknown workflow failure" in str(c) for c in mock_logger.exception.call_args_list)

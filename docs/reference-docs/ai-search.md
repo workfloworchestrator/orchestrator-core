@@ -100,11 +100,14 @@ stored with no embedding.
 
 Indexing is triggered from three places:
 
-- **Process exit**: whenever a process exits — completed, failed, aborted, suspended or timed out
-  awaiting a callback — the process record and every subscription referenced by its final state
-  are re-indexed. This runs after the terminal status has been committed, so the indexed process
-  carries its real status. It applies to every workflow, including `validate_workflow` and the
-  bare `@workflow` decorator, so no step wiring is needed in your own workflows. Failures are
+- **Process exit**: whenever a process reaches a normal exit through the workflow engine — completed, failed,
+  aborted, suspended or timed out awaiting a callback (but not when execution fails before reaching
+  that exit path, such as after losing database access) — the process record is re-indexed. Completed, aborted, suspended and
+  callback-timeout exits also re-index the subscriptions referenced by their final state. A failed
+  step replaces that state with an error record, so a failed exit re-indexes only the process.
+  This runs after the terminal status has been committed, so the indexed process
+  carries its real status. It applies to every workflow that reaches this exit hook, including
+  `validate_workflow` and the bare `@workflow` decorator, so no step wiring is needed. Failures are
   logged and swallowed by default, so a failed re-index never breaks a process; set
   `SEARCH_INDEXING_STRICT` to raise instead.
 - **REST endpoints**: product and process updates re-index the entity they changed.

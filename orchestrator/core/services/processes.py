@@ -470,11 +470,16 @@ def _run_process_async(process_id: UUID, f: Callable, broadcast_func: BroadcastF
                     finally:
                         db.session.commit()
                     _safe_broadcast_process_update(process_id, broadcast_func)
-                    _safe_index_process(process_id, result)
             except Exception as ex:
                 # We lost access to database here, so we can only log
                 logger.exception("Unknown workflow failure", process_id=process_id)
                 result = Failed(ex)
+            else:
+                # A fresh scope: the workflow's own scope just closed above. Deliberately outside
+                # the except above so a strict-mode indexing failure propagates on its own terms,
+                # instead of being logged as "Unknown workflow failure" and masked as Failed(ex).
+                with db.database_scope():
+                    _safe_index_process(process_id, result)
 
             return result
 

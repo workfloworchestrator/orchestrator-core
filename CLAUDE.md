@@ -16,6 +16,18 @@ uv run ruff format orchestrator        # format
 pre-commit run --all-files             # format, lint, type check.
 ```
 
+## Tool Calls
+- One tool call = exactly one valid JSON object. Never concatenate or repeat the payload.
+- Keep each call small. Split large edits into several focused `Edit` calls instead of one giant one.
+- Anchor `Edit` on short, unique, **ASCII-only** snippets. Non-ASCII in `old_string`/`new_string`
+  (em dash `—`, en dash `–`, curly quotes `’ “ ”`) is a common cause of malformed calls — anchor on
+  surrounding ASCII text and leave the non-ASCII characters untouched in the file.
+- Use absolute paths everywhere. Prefer `Read`/`Edit`/`Write` for files and `Bash` only for commands
+  (never `cat`/`sed`/`awk`/`echo >` to read or rewrite files).
+- `Read` before `Edit`. Don't re-read just to confirm an edit succeeded — `Edit` errors if it failed.
+- Batch only genuinely independent calls in one block; anything order-dependent goes sequentially.
+- If a call fails to parse, shrink the payload and retry once — don't resend the identical payload.
+
 ## Code Style
 - Line length: **120**
 - **No relative imports** — all imports must be absolute (`ban-relative-imports = "all"`)

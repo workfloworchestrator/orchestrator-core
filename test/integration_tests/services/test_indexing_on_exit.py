@@ -14,6 +14,9 @@
 """Integration tests asserting that processes and subscriptions are indexed when a process exits."""
 
 from unittest.mock import call, patch
+from uuid import UUID
+
+import pytest
 
 from nwastdlib import const
 from orchestrator.core.config.assignee import Assignee
@@ -25,6 +28,8 @@ from orchestrator.core.workflow import ProcessStatus, done, init, inputstep, ste
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import UUIDstr
 from test.integration_tests.workflows import WorkflowInstanceForTests, assert_aborted
+
+pytestmark = pytest.mark.search
 
 
 @step("Succeeding step")
@@ -84,6 +89,16 @@ def indexing_subscription_wf():
 
 @patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
 def test_completed_process_is_indexed_with_final_status(mock_run_indexing):
+    # Capture the status as the DB saw it at the moment indexing ran. Asserting the status only
+    # after the workflow returns would pass even if indexing had run before the commit.
+    status_when_indexed = []
+
+    def record_status_at_call_time(entity_type, entity_id):
+        indexed = db.session.get(ProcessTable, UUID(entity_id))
+        status_when_indexed.append(indexed.last_status if indexed else None)
+
+    mock_run_indexing.side_effect = record_status_at_call_time
+
     with WorkflowInstanceForTests(indexing_success_wf, "indexing_success_wf"):
         process_id = start_process("indexing_success_wf", [{}])
 
@@ -94,6 +109,9 @@ def test_completed_process_is_indexed_with_final_status(mock_run_indexing):
         # state, so the process is the only entity indexed.
         assert call(EntityType.PROCESS, str(process_id)) in mock_run_indexing.call_args_list
         assert mock_run_indexing.call_count == 1
+
+        # The ordering guarantee: COMPLETED was already committed when the indexer was invoked.
+        assert status_when_indexed == [ProcessStatus.COMPLETED]
 
 
 @patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")

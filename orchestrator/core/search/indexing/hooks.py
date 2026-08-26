@@ -70,26 +70,59 @@ def extract_subscription_ids(state: object) -> set[str]:
     return set(chain.from_iterable(map(_extract_ids, values)))
 
 
+def _is_uuid(candidate: str) -> bool:
+    try:
+        UUID(candidate)
+    except ValueError:
+        return False
+    return True
+
+
+def _index_entity(entity_type: EntityType, entity_id: str, process_id: UUID) -> None:
+    """Index a single entity, isolated from every other entity indexed for the same process exit.
+
+    Args:
+        entity_type: The kind of entity to index.
+        entity_id: The entity's id.
+        process_id: The process this entity was indexed on behalf of, for log context.
+
+    Raises:
+        Exception: Only when `llm_settings.SEARCH_INDEXING_STRICT` is True. Otherwise failures
+            are logged and swallowed so one bad entity never blocks the rest, or the process.
+    """
+    try:
+        run_indexing_for_entity(entity_type, entity_id)
+    except Exception as ex:
+        if llm_settings.SEARCH_INDEXING_STRICT:
+            raise
+        logger.warning(
+            "Failed to index entity",
+            entity_type=entity_type,
+            entity_id=entity_id,
+            process_id=str(process_id),
+            error=str(ex),
+        )
+
+
 def index_process_and_subscriptions(process_id: UUID, result: "WFProcess") -> None:
     """Index a process and every subscription referenced by its final state.
 
     Called whenever a process exits: completed, failed, aborted, suspended or awaiting callback.
     Runs after the process' final status has been committed, so the indexed record carries the
-    real terminal status.
+    real terminal status. The process and each subscription are indexed independently: a failure
+    indexing one entity never prevents indexing the others, and a state value that merely looks
+    like a subscription id (e.g. an opaque human-readable label) is skipped rather than raised on.
 
     Args:
         process_id: The process to index.
         result: Final process value; `unwrap()` provides the state to scan for subscriptions.
 
     Raises:
-        Exception: Only when `llm_settings.SEARCH_INDEXING_STRICT` is True. Otherwise failures
-            are logged and swallowed so indexing can never break a process.
+        Exception: Only when `llm_settings.SEARCH_INDEXING_STRICT` is True, and then only for the
+            entity that actually failed — other entities are still attempted first.
     """
-    try:
-        run_indexing_for_entity(EntityType.PROCESS, str(process_id))
-        for subscription_id in extract_subscription_ids(result.unwrap()):
-            run_indexing_for_entity(EntityType.SUBSCRIPTION, subscription_id)
-    except Exception as ex:
-        if llm_settings.SEARCH_INDEXING_STRICT:
-            raise
-        logger.warning("Failed to index process and subscriptions", process_id=str(process_id), error=str(ex))
+    _index_entity(EntityType.PROCESS, str(process_id), process_id)
+
+    subscription_ids = extract_subscription_ids(result.unwrap())
+    for subscription_id in filter(_is_uuid, subscription_ids):
+        _index_entity(EntityType.SUBSCRIPTION, subscription_id, process_id)
