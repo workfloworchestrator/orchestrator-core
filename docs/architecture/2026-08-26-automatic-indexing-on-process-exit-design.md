@@ -273,3 +273,13 @@ BREAKING: The `refresh_subscription_search_index` and `refresh_process_search_in
 ## Implementation Plan
 
 This spec is ready for the `writing-plans` skill, which will produce a detailed step-by-step implementation plan with task decomposition and verification checkpoints.
+
+## Release notes
+
+The repository has no local changelog file — release notes are generated on GitHub Releases from merged PR labels (see `.github/release.yml`). Include the following note in the release for this change:
+
+**BREAKING:** Search indexing of processes and subscriptions now happens automatically when a
+process exits (completed, failed, aborted, suspended or awaiting callback) instead of in workflow
+steps. The `refresh_subscription_search_index` and `refresh_process_search_index` steps have been
+removed — delete any references to them from custom workflow step lists. Indexing failures are
+logged and swallowed by default; set `SEARCH_INDEXING_STRICT=true` to have them raise.
