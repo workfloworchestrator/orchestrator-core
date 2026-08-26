@@ -194,11 +194,17 @@ except Exception as ex:
 **ImportError handling (search extra absent):**
 Handled at each call site via the `try/except ImportError: pass` guard. If the search extra is not installed, ImportError is caught and indexing is silently skipped. This is independent of `SEARCH_INDEXING_STRICT` (a missing optional extra is not an error, it's unsupported).
 
-### Removal of Old Steps
+### Deprecation of Old Steps
 
-**Delete from `orchestrator/core/workflows/steps.py`:**
-- `refresh_subscription_search_index` function (lines 144–165)
-- `refresh_process_search_index` function (lines 168–189)
+**Keep in `orchestrator/core/workflows/steps.py`, as deprecated no-ops:**
+- `refresh_subscription_search_index`
+- `refresh_process_search_index`
+
+Both keep their original names and signatures so downstream step lists that still reference them
+import and run unchanged, but their bodies are gone: each emits a `DeprecationWarning` (plus a
+structlog warning) and returns `{}`. They deliberately do **not** index — the process-exit hook
+already does that, so indexing here would duplicate the work and re-introduce the expensive
+materialized-view refresh this change removes.
 
 **Remove wiring from `orchestrator/core/workflows/utils.py`:**
 - `create_workflow` decorator: remove `>> refresh_subscription_search_index >> refresh_process_search_index >>` from the steplist (around lines 305–314)
@@ -211,7 +217,7 @@ Handled at each call site via the `try/except ImportError: pass` guard. If the s
 
 **Test updates:**
 - `test/unit_tests/workflows/test_utils.py`: Update `step_names` assertions (lines 57–58, 86–87, 112–113, etc.) in `create_workflow`, `modify_workflow`, `terminate_workflow`, and `reconcile_workflow` tests to remove the two refresh-step names from expected step lists.
-- `test/unit_tests/workflows/test_steps.py`: Delete `test_refresh_search_index_exception_swallowed` (lines 163–176); the steps no longer exist.
+- `test/unit_tests/workflows/test_steps.py`: Replace `test_refresh_search_index_exception_swallowed` with tests asserting the deprecated steps are no-ops that warn and never index.
 
 ### Testing Strategy
 
@@ -284,11 +290,14 @@ All tests use `@pytest.mark.parametrize` to avoid test duplication (per project 
 
 ### Backward Compatibility
 
-**Breaking change:** The two workflow steps are deleted entirely. Downstream repositories that reference these step names in custom step lists will fail to import.
+**Not a breaking change.** Both step names remain importable and runnable, so downstream repositories
+that reference them in custom step lists keep working without edits. What changes is that the steps
+no longer do anything: indexing moved to the process-exit hook, and each call now emits a
+`DeprecationWarning` pointing at the removal.
 
-**Mitigation:** Include in the release CHANGELOG:
+**Mitigation:** Include in the release notes:
 ```
-BREAKING: The `refresh_subscription_search_index` and `refresh_process_search_index` workflow steps have been removed. Indexing now happens automatically when processes exit. If you have custom workflows that reference these steps by name (e.g., `>> refresh_subscription_search_index >>`), remove those references.
+DEPRECATED: The `refresh_subscription_search_index` and `refresh_process_search_index` workflow steps are now no-ops that emit a DeprecationWarning. Search indexing happens automatically when a process exits, so these steps are no longer needed — remove them from custom workflow step lists at your convenience.
 ```
 
 ## Benefits
@@ -308,11 +317,12 @@ This spec is ready for the `writing-plans` skill, which will produce a detailed 
 
 The repository has no local changelog file — release notes are generated on GitHub Releases from merged PR labels (see `.github/release.yml`). Include the following note in the release for this change:
 
-**BREAKING:** Search indexing of processes and subscriptions now happens automatically when a
+**DEPRECATED:** Search indexing of processes and subscriptions now happens automatically when a
 process exits (completed, failed, aborted, suspended or awaiting callback) instead of in workflow
-steps. The `refresh_subscription_search_index` and `refresh_process_search_index` steps have been
-removed — delete any references to them from custom workflow step lists. Indexing failures are
-logged and swallowed by default; set `SEARCH_INDEXING_STRICT=true` to have them raise.
+steps. The `refresh_subscription_search_index` and `refresh_process_search_index` steps remain as
+no-ops for backwards compatibility and emit a `DeprecationWarning` when called — remove them from
+custom workflow step lists at your convenience. Indexing failures are logged and swallowed by
+default; set `SEARCH_INDEXING_STRICT=true` to have them raise.
 
 Operational notes:
 

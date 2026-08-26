@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
 from copy import deepcopy
 
 import structlog
@@ -138,3 +139,45 @@ def set_status(status: SubscriptionLifecycle) -> Step:
 
     _set_status.__doc__ = f"Set subscription to '{status}'."
     return _set_status
+
+
+def _warn_refresh_search_index_deprecated(step_name: str) -> None:
+    """Warn that a legacy search-index workflow step no longer performs indexing.
+
+    Args:
+        step_name: Name of the deprecated workflow step being called.
+    """
+    message = (
+        f"The '{step_name}' workflow step is deprecated and is now a no-op because search indexing "
+        "now happens automatically when the process exits. Remove this step from custom workflow step lists."
+    )
+    warnings.warn(message, DeprecationWarning, stacklevel=3)
+    logger.warning("Search-index workflow step is deprecated", step=step_name, hint="Remove it from the step list")
+
+
+@step("Refresh subscription search index")
+def refresh_subscription_search_index(subscription: SubscriptionModel | None) -> State:
+    """Deprecated no-op retained for compatibility with existing custom workflow step lists.
+
+    Args:
+        subscription: Unused legacy argument.
+
+    Returns:
+        An empty state update. Indexing is performed automatically on process exit.
+    """
+    _warn_refresh_search_index_deprecated("refresh_subscription_search_index")
+    return {}
+
+
+@step("Refresh process search index")
+def refresh_process_search_index(process_id: UUIDstr | None) -> State:
+    """Deprecated no-op retained for compatibility with existing custom workflow step lists.
+
+    Args:
+        process_id: Unused legacy argument.
+
+    Returns:
+        An empty state update. Indexing is performed automatically on process exit.
+    """
+    _warn_refresh_search_index_deprecated("refresh_process_search_index")
+    return {}

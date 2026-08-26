@@ -27,6 +27,7 @@ from orchestrator.core.services.processes import abort_process, fail_awaiting_pr
 from orchestrator.core.targets import Target
 from orchestrator.core.utils.datetime import nowtz
 from orchestrator.core.workflow import ProcessStatus, callback_step, done, init, inputstep, step, workflow
+from orchestrator.core.workflows.steps import refresh_process_search_index, refresh_subscription_search_index
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import UUIDstr
 from test.integration_tests.workflows import WorkflowInstanceForTests, assert_aborted
@@ -83,6 +84,14 @@ def indexing_abort_wf():
 @workflow(target=Target.SYSTEM, initial_input_form=const(SubscriptionForm))
 def indexing_subscription_wf():
     return init >> store_subscription_id_step >> done
+
+
+# Mimics a downstream workflow that has not yet dropped the deprecated refresh steps.
+@workflow(target=Target.SYSTEM, initial_input_form=const(SubscriptionForm))
+def indexing_legacy_steps_wf():
+    return (
+        init >> store_subscription_id_step >> refresh_subscription_search_index >> refresh_process_search_index >> done
+    )
 
 
 @step("Call external system")
@@ -209,6 +218,21 @@ def test_timed_out_awaiting_process_is_indexed(mock_run_indexing, generic_subscr
 
         assert call(EntityType.PROCESS, str(process_id)) in mock_run_indexing.call_args_list
         assert call(EntityType.SUBSCRIPTION, str(generic_subscription_1)) in mock_run_indexing.call_args_list
+
+
+@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
+def test_workflow_still_referencing_the_deprecated_steps_runs(mock_run_indexing, generic_subscription_1):
+    """Downstream step lists that still contain the old refresh steps must keep working untouched."""
+    with WorkflowInstanceForTests(indexing_legacy_steps_wf, "indexing_legacy_steps_wf"):
+        process_id = start_process("indexing_legacy_steps_wf", [{"subscription_id": generic_subscription_1}])
+
+        process = db.session.get(ProcessTable, process_id)
+        assert process.last_status == ProcessStatus.COMPLETED
+        assert "Refresh subscription search index" in [process_step.name for process_step in process.steps]
+
+        # Indexing came from the exit hook, and the deprecated steps did not index a second time.
+        assert mock_run_indexing.call_args_list.count(call(EntityType.SUBSCRIPTION, str(generic_subscription_1))) == 1
+        assert mock_run_indexing.call_args_list.count(call(EntityType.PROCESS, str(process_id))) == 1
 
 
 @patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
