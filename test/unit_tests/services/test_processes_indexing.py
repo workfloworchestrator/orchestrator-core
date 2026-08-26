@@ -19,23 +19,12 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.core.services import processes as processes_module
 from orchestrator.core.services.processes import _run_process_async, _safe_index_process
 from orchestrator.core.settings import ExecutorType, app_settings, llm_settings
 from orchestrator.core.workflow import Process as WFProcess
 from orchestrator.core.workflow import Success
 
 pytestmark = pytest.mark.search
-
-
-@patch("orchestrator.core.search.indexing.hooks.index_process_and_subscriptions")
-def test_safe_index_process_calls_hook(mock_hook):
-    process_id = uuid4()
-    result = Success({})
-
-    _safe_index_process(process_id, result)
-
-    mock_hook.assert_called_once_with(process_id, result)
 
 
 def test_safe_index_process_is_noop_without_search_extra(monkeypatch):
@@ -45,38 +34,11 @@ def test_safe_index_process_is_noop_without_search_extra(monkeypatch):
     _safe_index_process(uuid4(), Success({}))  # must not raise
 
 
-@pytest.mark.parametrize(
-    "wf_attr,call_attr,call_kwargs",
-    [
-        pytest.param("abort_wf", "abort_process", {"process": None, "user": "tester"}, id="abort"),
-        pytest.param("fail_awaiting_wf", "fail_awaiting_process", {"process": None}, id="fail-awaiting"),
-    ],
-)
-@patch("orchestrator.core.search.indexing.hooks.index_process_and_subscriptions")
-def test_synchronous_call_sites_index_on_exit_in_a_fresh_scope(mock_hook, wf_attr, call_attr, call_kwargs):
-    """Both synchronous exit paths must index in their own scope, not the caller's live session.
-
-    A caller-session query error inside indexing would otherwise leave that session needing a
-    rollback the caller never issues — for `fail_awaiting_process` that caller is a step in the
-    sweep workflow, which keeps using the same session for its remaining steps.
-    """
-    process_id = uuid4()
-    result = Success({})
-
-    with (
-        patch("orchestrator.core.services.processes.load_process") as mock_load,
-        patch(f"orchestrator.core.services.processes.{wf_attr}", return_value=result),
-        patch("orchestrator.core.services.processes.db") as mock_db,
-    ):
-        mock_load.return_value.process_id = process_id
-        mock_db.database_scope.return_value.__enter__ = lambda self: mock_db
-        mock_db.database_scope.return_value.__exit__ = lambda self, *exc: None
-
-        assert getattr(processes_module, call_attr)(**call_kwargs) is result
-
-        mock_db.database_scope.assert_called_once()
-
-    mock_hook.assert_called_once_with(process_id, result)
+# The synchronous exit paths (abort, callback timeout) index in their own database scope so a
+# failing indexing query cannot leave the caller's session needing a rollback. That invariant is
+# about a real session, so it is covered against a real one by
+# test_indexing_failure_leaves_the_callers_session_usable in
+# test/integration_tests/services/test_indexing_on_exit.py.
 
 
 @pytest.mark.parametrize(

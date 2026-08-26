@@ -176,30 +176,18 @@ REFRESH_STEPS = [
 
 
 @pytest.mark.parametrize("step_fn,kwargs", REFRESH_STEPS)
-def test_refresh_search_index_step_is_a_no_op(step_fn, kwargs):
-    """Kept only so existing downstream step lists still import and run; indexing happens on exit."""
-    with pytest.warns(DeprecationWarning, match="indexing now happens automatically"):
-        assert orig(step_fn)(**kwargs) == {}
+def test_refresh_search_index_step_is_a_deprecated_no_op(step_fn, kwargs):
+    """Kept only so existing downstream step lists still import and run; indexing happens on exit.
 
-
-@pytest.mark.parametrize("step_fn,kwargs", REFRESH_STEPS)
-def test_refresh_search_index_step_does_not_index(step_fn, kwargs):
-    """Indexing here would duplicate the work the process-exit hook already does."""
-    kwargs = {key: MagicMock() if value is None else value for key, value in kwargs.items()}
-
+    That these steps no longer index is asserted where it is observable: the integration test
+    `test_workflow_still_referencing_the_deprecated_steps_runs` counts real indexer calls for a
+    workflow that still has both steps in its step list.
+    """
     with (
-        patch("orchestrator.core.search.indexing.tasks.run_indexing_for_entity") as mock_run_indexing,
-        pytest.warns(DeprecationWarning),
+        patch("orchestrator.core.workflows.steps.logger") as mock_logger,
+        pytest.warns(DeprecationWarning, match="indexing now happens automatically"),
     ):
-        orig(step_fn)(**kwargs)
-
-    mock_run_indexing.assert_not_called()
-
-
-@pytest.mark.parametrize("step_fn,kwargs", REFRESH_STEPS)
-def test_refresh_search_index_step_logs_deprecation(step_fn, kwargs):
-    with patch("orchestrator.core.workflows.steps.logger") as mock_logger, pytest.warns(DeprecationWarning):
-        orig(step_fn)(**kwargs)
+        assert orig(step_fn)(**kwargs) == {}
 
     mock_logger.warning.assert_called_once()
     assert "deprecated" in str(mock_logger.warning.call_args).lower()

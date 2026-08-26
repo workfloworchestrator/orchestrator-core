@@ -23,14 +23,8 @@ from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing.hooks import extract_subscription_ids, index_process_and_subscriptions
 from orchestrator.core.settings import llm_settings
 from orchestrator.core.workflow import (
-    Abort,
-    AwaitingCallback,
-    Complete,
     Failed,
-    Skipped,
     Success,
-    Suspend,
-    Waiting,
 )
 
 pytestmark = pytest.mark.search
@@ -78,46 +72,25 @@ def test_extract_subscription_ids_accepts_uuid_objects():
 
 
 @pytest.mark.parametrize(
-    "process_variant",
+    "result,expect_subscription",
     [
-        pytest.param(Success, id="success"),
-        pytest.param(Skipped, id="skipped"),
-        pytest.param(Complete, id="complete"),
-        pytest.param(Suspend, id="suspend"),
-        pytest.param(Abort, id="abort"),
-        pytest.param(Waiting, id="waiting"),
-        pytest.param(AwaitingCallback, id="awaiting-callback"),
-        pytest.param(Failed, id="failed"),
+        # The state shape is what varies here, not the Process variant: `unwrap` is defined once on
+        # the base class, and the process is indexed before it is ever called.
+        pytest.param(Success({}), False, id="state-without-subscription"),
+        pytest.param(Failed(RuntimeError("boom")), False, id="state-replaced-by-an-error"),
+        pytest.param(Success({"subscription_id": SUB_ID_A}), True, id="state-with-subscription"),
     ],
 )
 @patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
-def test_process_is_always_indexed(mock_run_indexing, process_variant):
+def test_process_is_indexed_whatever_its_final_state_holds(mock_run_indexing, result, expect_subscription):
+    """A failed process carries an error record instead of a state, and must still be indexed."""
     process_id = uuid4()
 
-    index_process_and_subscriptions(process_id, process_variant({}))
+    index_process_and_subscriptions(process_id, result)
 
-    mock_run_indexing.assert_called_once_with(EntityType.PROCESS, str(process_id))
-
-
-@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
-def test_subscriptions_from_state_are_indexed(mock_run_indexing):
-    process_id = uuid4()
-
-    index_process_and_subscriptions(process_id, Success({"subscription_id": SUB_ID_A}))
-
-    assert mock_run_indexing.call_args_list == [
-        call(EntityType.PROCESS, str(process_id)),
-        call(EntityType.SUBSCRIPTION, SUB_ID_A),
-    ]
-
-
-@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
-def test_non_dict_state_still_indexes_process(mock_run_indexing):
-    process_id = uuid4()
-
-    index_process_and_subscriptions(process_id, Failed(RuntimeError("boom")))
-
-    mock_run_indexing.assert_called_once_with(EntityType.PROCESS, str(process_id))
+    indexed = mock_run_indexing.call_args_list
+    assert call(EntityType.PROCESS, str(process_id)) in indexed
+    assert (call(EntityType.SUBSCRIPTION, SUB_ID_A) in indexed) is expect_subscription
 
 
 @patch("orchestrator.core.search.indexing.hooks.logger")
@@ -137,27 +110,20 @@ def test_indexing_error_is_swallowed_when_not_strict(mock_run_indexing, mock_log
     assert "index error" in kwargs["error"]
 
 
+@patch("orchestrator.core.search.indexing.hooks.logger")
 @patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
-def test_malformed_subscription_id_is_skipped_but_process_is_still_indexed(mock_run_indexing, monkeypatch):
-    """A human-readable label under a subscription key must not disable indexing for the exit."""
+def test_malformed_subscription_id_is_skipped_and_logged(mock_run_indexing, mock_logger, monkeypatch):
+    """A human-readable label under a subscription key is dropped, but never without a trace.
+
+    Silently dropping it would hide a future change in how subscriptions are held in state: no
+    exception, no log, and subscription indexing quietly stops.
+    """
     monkeypatch.setattr(llm_settings, "SEARCH_INDEXING_STRICT", False)
     process_id = uuid4()
 
     index_process_and_subscriptions(process_id, Success({"subscription": "not-a-uuid-but-a-string"}))
 
     mock_run_indexing.assert_called_once_with(EntityType.PROCESS, str(process_id))
-
-
-@patch("orchestrator.core.search.indexing.hooks.logger")
-@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
-def test_skipped_subscription_candidate_is_logged(mock_run_indexing, mock_logger, monkeypatch):
-    """Dropping a candidate silently would hide a future state-shape regression completely."""
-    monkeypatch.setattr(llm_settings, "SEARCH_INDEXING_STRICT", False)
-    process_id = uuid4()
-
-    index_process_and_subscriptions(process_id, Success({"subscription": "not-a-uuid-but-a-string"}))
-
-    mock_logger.debug.assert_called_once()
     _, kwargs = mock_logger.debug.call_args
     assert kwargs["candidate"] == "not-a-uuid-but-a-string"
     assert kwargs["process_id"] == str(process_id)
@@ -206,16 +172,20 @@ def test_failing_process_index_does_not_skip_subscriptions(mock_run_indexing, mo
 def test_one_failing_subscription_does_not_skip_the_rest(mock_run_indexing, monkeypatch):
     monkeypatch.setattr(llm_settings, "SEARCH_INDEXING_STRICT", False)
 
-    def fail_subscription_a(entity_type, entity_id):
-        if entity_id == SUB_ID_A:
+    # Fail whichever subscription is indexed first. `extract_subscription_ids` returns a set, so
+    # the order is not fixed -- asserting both were attempted holds whichever one failed, and
+    # avoids patching the hook's own helper just to pin an order the hook never promises.
+    failed_first = False
+
+    def fail_the_first_subscription(entity_type, entity_id):
+        nonlocal failed_first
+        if entity_type == EntityType.SUBSCRIPTION and not failed_first:
+            failed_first = True
             raise RuntimeError("subscription index error")
 
-    mock_run_indexing.side_effect = fail_subscription_a
+    mock_run_indexing.side_effect = fail_the_first_subscription
 
-    # extract_subscription_ids returns a set, so patch it to pin the order and keep the test deterministic:
-    # the failing subscription must come first for this to prove the second one is still reached.
-    with patch("orchestrator.core.search.indexing.hooks.extract_subscription_ids", return_value=[SUB_ID_A, SUB_ID_B]):
-        index_process_and_subscriptions(uuid4(), Success({"subscriptions": [SUB_ID_A, SUB_ID_B]}))
+    index_process_and_subscriptions(uuid4(), Success({"subscriptions": [SUB_ID_A, SUB_ID_B]}))
 
     assert call(EntityType.SUBSCRIPTION, SUB_ID_A) in mock_run_indexing.call_args_list
     assert call(EntityType.SUBSCRIPTION, SUB_ID_B) in mock_run_indexing.call_args_list
