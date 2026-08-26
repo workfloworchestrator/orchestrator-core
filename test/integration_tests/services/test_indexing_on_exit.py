@@ -73,8 +73,10 @@ def test_completed_process_is_indexed_with_final_status(mock_run_indexing):
         process = db.session.get(ProcessTable, process_id)
         assert process.last_status == ProcessStatus.COMPLETED
 
-        # Indexing happened once, after the terminal status was committed.
+        # Indexing happened once, after the terminal status was committed. No subscription in
+        # state, so the process is the only entity indexed.
         assert call(EntityType.PROCESS, str(process_id)) in mock_run_indexing.call_args_list
+        assert mock_run_indexing.call_count == 1
 
 
 @patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
