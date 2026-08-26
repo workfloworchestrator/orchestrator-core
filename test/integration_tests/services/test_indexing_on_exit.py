@@ -16,14 +16,15 @@
 from unittest.mock import call, patch
 
 from nwastdlib import const
+from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.services.processes import abort_process, start_process
 from orchestrator.core.targets import Target
-from orchestrator.core.workflow import ProcessStatus, done, init, step, workflow
+from orchestrator.core.workflow import ProcessStatus, done, init, inputstep, step, workflow
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import UUIDstr
-from test.integration_tests.workflows import WorkflowInstanceForTests
+from test.integration_tests.workflows import WorkflowInstanceForTests, assert_aborted
 
 
 @step("Succeeding step")
@@ -41,6 +42,15 @@ def store_subscription_id_step(subscription_id):
     return {"subscription_id": subscription_id}
 
 
+@inputstep("Wait for user input", assignee=Assignee.SYSTEM)
+def suspending_step():
+    class ConfirmForm(FormPage):
+        confirm: bool = True
+
+    user_input = yield ConfirmForm
+    return user_input.model_dump()
+
+
 class SubscriptionForm(FormPage):
     subscription_id: UUIDstr
 
@@ -54,6 +64,13 @@ def indexing_success_wf():
 @workflow(target=Target.SYSTEM)
 def indexing_failure_wf():
     return init >> failing_step >> done
+
+
+# Suspends on the inputstep, so `start_process` returns with the process still SUSPENDED. That is a
+# prerequisite for the abort test: `abort_wf` early-returns unchanged on an already-complete state.
+@workflow(target=Target.SYSTEM)
+def indexing_abort_wf():
+    return init >> succeeding_step >> suspending_step >> done
 
 
 @workflow(target=Target.SYSTEM, initial_input_form=const(SubscriptionForm))
@@ -92,14 +109,23 @@ def test_failed_process_is_indexed(mock_run_indexing):
 
 @patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
 def test_aborted_process_is_indexed(mock_run_indexing):
-    with WorkflowInstanceForTests(indexing_success_wf, "indexing_abort_wf"):
+    with WorkflowInstanceForTests(indexing_abort_wf, "indexing_abort_wf"):
         process_id = start_process("indexing_abort_wf", [{}])
+
+        # The process must really be suspended: `abort_wf` returns the state untouched when it is
+        # already complete, which would make the abort below a no-op and this test vacuous.
         process = db.session.get(ProcessTable, process_id)
+        assert process.last_status == ProcessStatus.SUSPENDED
+
         mock_run_indexing.reset_mock()
 
-        abort_process(process, user="tester")
+        result = abort_process(process, user="tester")
 
-    assert call(EntityType.PROCESS, str(process_id)) in mock_run_indexing.call_args_list
+        assert_aborted(result)
+        db.session.refresh(process)
+        assert process.last_status == ProcessStatus.ABORTED
+
+        assert call(EntityType.PROCESS, str(process_id)) in mock_run_indexing.call_args_list
 
 
 @patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
