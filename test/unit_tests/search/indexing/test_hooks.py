@@ -148,6 +148,32 @@ def test_malformed_subscription_id_is_skipped_but_process_is_still_indexed(mock_
     mock_run_indexing.assert_called_once_with(EntityType.PROCESS, str(process_id))
 
 
+@patch("orchestrator.core.search.indexing.hooks.logger")
+@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
+def test_skipped_subscription_candidate_is_logged(mock_run_indexing, mock_logger, monkeypatch):
+    """Dropping a candidate silently would hide a future state-shape regression completely."""
+    monkeypatch.setattr(llm_settings, "SEARCH_INDEXING_STRICT", False)
+    process_id = uuid4()
+
+    index_process_and_subscriptions(process_id, Success({"subscription": "not-a-uuid-but-a-string"}))
+
+    mock_logger.debug.assert_called_once()
+    _, kwargs = mock_logger.debug.call_args
+    assert kwargs["candidate"] == "not-a-uuid-but-a-string"
+    assert kwargs["process_id"] == str(process_id)
+
+
+@patch("orchestrator.core.search.indexing.hooks.logger")
+@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
+def test_valid_subscription_id_is_not_logged_as_skipped(mock_run_indexing, mock_logger, monkeypatch):
+    """The debug log must stay quiet for real traffic, otherwise it is noise nobody reads."""
+    monkeypatch.setattr(llm_settings, "SEARCH_INDEXING_STRICT", False)
+
+    index_process_and_subscriptions(uuid4(), Success({"subscription_id": SUB_ID_A}))
+
+    mock_logger.debug.assert_not_called()
+
+
 @patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
 def test_malformed_subscription_id_does_not_hide_a_valid_one(mock_run_indexing, monkeypatch):
     monkeypatch.setattr(llm_settings, "SEARCH_INDEXING_STRICT", False)

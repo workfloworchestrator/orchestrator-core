@@ -23,8 +23,10 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 import structlog
+from more_itertools import partition
 
 from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.core.validators import is_uuid
 from orchestrator.core.search.indexing.tasks import run_indexing_for_entity
 from orchestrator.core.settings import llm_settings
 
@@ -70,12 +72,25 @@ def extract_subscription_ids(state: object) -> set[str]:
     return set(chain.from_iterable(map(_extract_ids, values)))
 
 
-def _is_uuid(candidate: str) -> bool:
-    try:
-        UUID(candidate)
-    except ValueError:
-        return False
-    return True
+def _indexable_subscription_ids(candidates: Iterable[str], process_id: UUID) -> Iterable[str]:
+    """Keep the candidates that are real subscription ids, logging the ones dropped.
+
+    A candidate that is not a UUID is a state key collision (something non-subscription stored
+    under a subscription key), not an id. Indexing it would raise, so it is dropped -- but never
+    silently: without a trace, a future change to how subscriptions are held in state would stop
+    subscription indexing with no exception, no log and no failing test.
+
+    Args:
+        candidates: Subscription id candidates read out of the process state.
+        process_id: The process being indexed, for log context.
+
+    Returns:
+        The candidates that can be indexed.
+    """
+    skipped, indexable = partition(is_uuid, candidates)
+    for candidate in skipped:
+        logger.debug("Skipping non-UUID subscription candidate", candidate=candidate, process_id=str(process_id))
+    return indexable
 
 
 def _index_entity(entity_type: EntityType, entity_id: str, process_id: UUID) -> None:
@@ -124,5 +139,5 @@ def index_process_and_subscriptions(process_id: UUID, result: "WFProcess") -> No
     _index_entity(EntityType.PROCESS, str(process_id), process_id)
 
     subscription_ids = extract_subscription_ids(result.unwrap())
-    for subscription_id in filter(_is_uuid, subscription_ids):
+    for subscription_id in _indexable_subscription_ids(subscription_ids, process_id):
         _index_entity(EntityType.SUBSCRIPTION, subscription_id, process_id)

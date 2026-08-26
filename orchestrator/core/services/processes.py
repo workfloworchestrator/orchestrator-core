@@ -830,7 +830,10 @@ def abort_process(process: ProcessTable, user: str, broadcast_func: Callable | N
 
     pstat.update(current_user=user)
     result = abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
-    _safe_index_process(pstat.process_id, result)
+    # `abort_wf` has committed by now, so a fresh scope sees the final state. Indexing on its own
+    # session keeps a failed indexing query from leaving the caller's session needing a rollback.
+    with db.database_scope():
+        _safe_index_process(pstat.process_id, result)
     return result
 
 
@@ -838,7 +841,10 @@ def fail_awaiting_process(process: ProcessTable, broadcast_func: BroadcastFunc |
     """Fail a process that has been stuck awaiting a callback past its timeout."""
     pstat = load_process(process)
     result = fail_awaiting_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
-    _safe_index_process(pstat.process_id, result)
+    # Own scope, as in `abort_process`: the sweep workflow calls this from inside a step and keeps
+    # using its session for the remaining steps, so indexing must not be able to poison it.
+    with db.database_scope():
+        _safe_index_process(pstat.process_id, result)
     return result
 
 

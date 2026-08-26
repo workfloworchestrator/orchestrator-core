@@ -49,25 +49,44 @@ def index_process_and_subscriptions(process_id: UUID, result: WFProcess) -> None
 
 **Call sites (3 total):**
 
+All three call sites go through one wrapper, `_safe_index_process`, which owns the lazy import:
+
+```python
+def _safe_index_process(process_id: UUID, result: WFProcess) -> None:
+    """Index a process and its subscriptions on exit; no-op when the search extra is not installed."""
+    try:
+        from orchestrator.core.search.indexing.hooks import index_process_and_subscriptions
+    except ImportError:
+        return
+
+    index_process_and_subscriptions(process_id, result)
+```
+
 1. **`orchestrator/core/services/processes.py:_run_process_async.run()`**  
-   After `db.session.commit()` in the finally block, inside `with db.database_scope():`. Covers:
+   In an `else` branch on the workflow's `try`, in a fresh `db.database_scope()`. Covers:
    - Successful workflow completion
    - Internally-caught Failed steps (steps that return Failed without raising Python exceptions)
    - Suspended/waiting/awaiting_callback pauses
-   - Rare "unknown workflow failure" path (optional, best-effort due to DB access loss)
 
    Call pattern:
    ```python
-   finally:
-       db.session.commit()
-   _safe_broadcast_process_update(process_id, broadcast_func)
-   # NEW: Index process on exit
-   try:
-       from orchestrator.core.search.indexing.hooks import index_process_and_subscriptions
-       index_process_and_subscriptions(process_id, result)
-   except ImportError:
-       pass  # search extra not installed
+   except Exception as ex:
+       # We lost access to database here, so we can only log
+       logger.exception("Unknown workflow failure", process_id=process_id)
+       result = Failed(ex)
+   else:
+       with db.database_scope():
+           _safe_index_process(process_id, result)
    ```
+
+   The `else` branch is load-bearing, not cosmetic. Indexing from inside the `try` would let a
+   strict-mode indexing failure be caught by the `except` above, logged as "Unknown workflow
+   failure" and — worse — overwrite an already-committed successful `result` with `Failed(ex)`.
+   Python does not route `else`-block exceptions back into the same statement's `except` clauses,
+   so this keeps indexing errors on their own terms.
+
+   The rare "unknown workflow failure" path deliberately does **not** index: it is reached
+   precisely because database access was lost, which is what indexing needs.
 
 2. **`orchestrator/core/services/processes.py:abort_process()`**  
    After `abort_wf(...)` returns, before returning to caller. Covers synchronous abort requests via the API.
@@ -78,12 +97,8 @@ def index_process_and_subscriptions(process_id: UUID, result: WFProcess) -> None
        pstat = load_process(process)
        pstat.update(current_user=user)
        result = abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
-       # NEW: Index process on abort
-       try:
-           from orchestrator.core.search.indexing.hooks import index_process_and_subscriptions
-           index_process_and_subscriptions(pstat.process_id, result)
-       except ImportError:
-           pass
+       with db.database_scope():
+           _safe_index_process(pstat.process_id, result)
        return result
    ```
 
@@ -92,7 +107,17 @@ def index_process_and_subscriptions(process_id: UUID, result: WFProcess) -> None
 
    Same pattern as `abort_process()`.
 
-**Lazy import guard:** Each call site wraps the hook call in `try/except ImportError: pass` to keep the `search` extra fully optional. If the search extra is not installed, the hook is silently skipped.
+**Own database scope:** every call site indexes inside its own `db.database_scope()`. Both
+`abort_wf` and `fail_awaiting_wf` commit through `transactional` before returning, so a fresh
+session sees the final state. More importantly, `run_indexing_for_entity` runs its query on
+whatever session is active: on a shared session a failed indexing query would leave the caller's
+session needing a rollback that the caller never issues. `fail_awaiting_process` is called from
+inside a step of the `validate_awaiting_callbacks` sweep workflow, which keeps using its session
+for the remaining steps, so this isolation is what makes "indexing can never break a process"
+true rather than merely intended.
+
+**Lazy import guard:** `_safe_index_process` returns silently on `ImportError`, keeping the
+`search` extra fully optional.
 
 ### State Extraction & Subscription Lookup
 
@@ -233,7 +258,7 @@ All tests use `@pytest.mark.parametrize` to avoid test duplication (per project 
    - Mock the import of the hook module to raise ImportError.
    - Verify the call site's `try/except ImportError: pass` guard works; no exception escapes to the caller.
 
-**Integration tests** in `test/integration_tests/workflows/`:
+**Integration tests** in `test/integration_tests/services/test_indexing_on_exit.py`:
 
 1. **Real workflow end-to-end indexing:**
    - Create and run a real workflow (via test helper or `create_process` + `resume_process` calls).
@@ -251,6 +276,11 @@ All tests use `@pytest.mark.parametrize` to avoid test duplication (per project 
 4. **Subscription extraction from various state forms:**
    - Run workflows with different subscription storage patterns (single SubscriptionModel, subscription_id UUID, nested forms).
    - Verify the correct subscription(s) are indexed in each case.
+   - *Shipped as:* the plain `subscription_id` form end-to-end, plus the callback-timeout test which
+     also asserts its subscription is indexed. The serialized-`{"subscription": {...}}` form that
+     `create_workflow`/`modify_workflow` produce is covered by unit tests over
+     `extract_subscription_ids` rather than a decorator-built workflow; the shapes were confirmed by
+     tracing `to_serializable`, but an end-to-end guard for that form is still worth adding.
 
 ### Backward Compatibility
 

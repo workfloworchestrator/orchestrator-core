@@ -13,6 +13,7 @@
 
 """Integration tests asserting that processes and subscriptions are indexed when a process exits."""
 
+from datetime import timedelta
 from unittest.mock import call, patch
 from uuid import UUID
 
@@ -22,9 +23,10 @@ from nwastdlib import const
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.search.core.types import EntityType
-from orchestrator.core.services.processes import abort_process, start_process
+from orchestrator.core.services.processes import abort_process, fail_awaiting_process, start_process
 from orchestrator.core.targets import Target
-from orchestrator.core.workflow import ProcessStatus, done, init, inputstep, step, workflow
+from orchestrator.core.utils.datetime import nowtz
+from orchestrator.core.workflow import ProcessStatus, callback_step, done, init, inputstep, step, workflow
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import UUIDstr
 from test.integration_tests.workflows import WorkflowInstanceForTests, assert_aborted
@@ -81,6 +83,42 @@ def indexing_abort_wf():
 @workflow(target=Target.SYSTEM, initial_input_form=const(SubscriptionForm))
 def indexing_subscription_wf():
     return init >> store_subscription_id_step >> done
+
+
+@step("Call external system")
+def calling_step():
+    return {}
+
+
+@step("Validate callback result")
+def validating_step():
+    return {}
+
+
+# Awaits a callback that never arrives, so the process parks in AWAITING_CALLBACK until the
+# timeout sweep fails it. Keeps `subscription_id` in state, which `fail_awaiting_wf` preserves.
+@workflow(target=Target.SYSTEM, initial_input_form=const(SubscriptionForm))
+def indexing_timeout_wf():
+    return (
+        init
+        >> store_subscription_id_step
+        >> callback_step(
+            name="Await external system",
+            action_step=calling_step,
+            validate_step=validating_step,
+            timeout=300,
+        )
+        >> done
+    )
+
+
+def _backdate_await_step(process_id: UUIDstr, seconds: int) -> None:
+    """Move the awaiting step's started_at into the past so its timeout counts as elapsed."""
+    process = db.session.get(ProcessTable, process_id)
+    await_step = process.steps[-1]
+    await_step.started_at = nowtz() - timedelta(seconds=seconds)
+    db.session.add(await_step)
+    db.session.commit()
 
 
 # Every database assertion stays inside the `WorkflowInstanceForTests` block: leaving it deletes the
@@ -144,6 +182,32 @@ def test_aborted_process_is_indexed(mock_run_indexing):
         assert process.last_status == ProcessStatus.ABORTED
 
         assert call(EntityType.PROCESS, str(process_id)) in mock_run_indexing.call_args_list
+
+
+@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
+def test_timed_out_awaiting_process_is_indexed(mock_run_indexing, generic_subscription_1):
+    """The callback-timeout exit is the one Failed path whose state keeps its subscription.
+
+    `fail_awaiting_wf` rebuilds the state from the previous one, unlike a failing step which
+    replaces it with an error record. It is also the only exit called from inside another
+    workflow's step, so it runs against a live caller session.
+    """
+    with WorkflowInstanceForTests(indexing_timeout_wf, "indexing_timeout_wf"):
+        process_id = start_process("indexing_timeout_wf", [{"subscription_id": generic_subscription_1}])
+
+        process = db.session.get(ProcessTable, process_id)
+        assert process.last_status == ProcessStatus.AWAITING_CALLBACK
+
+        _backdate_await_step(process_id, seconds=600)
+        mock_run_indexing.reset_mock()
+
+        fail_awaiting_process(db.session.get(ProcessTable, process_id))
+
+        db.session.refresh(process)
+        assert process.last_status == ProcessStatus.FAILED
+
+        assert call(EntityType.PROCESS, str(process_id)) in mock_run_indexing.call_args_list
+        assert call(EntityType.SUBSCRIPTION, str(generic_subscription_1)) in mock_run_indexing.call_args_list
 
 
 @patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
