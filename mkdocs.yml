@@ -140,6 +140,7 @@ nav:
       - Workflows: getting-started/workflows.md
       - Docker: getting-started/docker.md
       - Orchestrator UI: getting-started/orchestration-ui.md
+      - Orchestrator Shell: getting-started/orchestrator-shell.md
   - Architecture:
       - Architecture; TL;DR: architecture/tldr.md
       - Orchestration Philosophy: architecture/orchestration/philosophy.md
