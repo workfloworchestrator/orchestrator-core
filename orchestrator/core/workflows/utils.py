@@ -47,7 +47,6 @@ from orchestrator.core.workflows.steps import (
     refresh_subscription_search_index,
     resync,
     set_status,
-    store_process_subscription,
     unsync,
     unsync_unchecked,
 )
@@ -360,7 +359,6 @@ def modify_workflow(
     def _modify_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = (
             init
-            >> store_process_subscription()
             >> unsync
             >> f()
             >> (additional_steps or StepList())
@@ -417,7 +415,6 @@ def terminate_workflow(
     def _terminate_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = (
             init
-            >> store_process_subscription()
             >> unsync
             >> f()
             >> (additional_steps or StepList())
@@ -467,7 +464,7 @@ def validate_workflow(
         _warn_description_deprecated()
 
     def _validate_workflow(f: Callable[[], StepList]) -> Workflow:
-        steplist = init >> store_process_subscription() >> unsync_unchecked >> f() >> resync >> done
+        steplist = init >> unsync_unchecked >> f() >> resync >> done
 
         return make_workflow(
             f,
@@ -515,7 +512,6 @@ def reconcile_workflow(
     def _reconcile_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = (
             init
-            >> store_process_subscription()
             >> unsync_unchecked
             >> f()
             >> (additional_steps or StepList())

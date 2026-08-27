@@ -37,6 +37,7 @@ from orchestrator.core.distlock import distlock_manager
 from orchestrator.core.schemas.engine_settings import WorkerStatus
 from orchestrator.core.services.executors.types import ExecutorFunction
 from orchestrator.core.services.input_state import store_input_state
+from orchestrator.core.services.process_subscription import store_process_subscription_relation
 from orchestrator.core.services.workflows import get_workflow_by_name
 from orchestrator.core.settings import ExecutorType, app_settings
 from orchestrator.core.types import BroadcastFunc
@@ -527,6 +528,11 @@ def create_process(
 
     with transactional(db, logger):
         _db_create_process(pstat)
+        if user_inputs and (subscription_id := user_inputs[0].get("subscription_id")):
+            # Only store the Process Subscription relation if a subscription ID is present
+            # For creation workflows where this is not the case, this is handled in
+            # `SubscriptionModel.from_product_id()`.
+            store_process_subscription_relation(process_id=process_id, subscription_id=subscription_id)
         store_input_state(process_id, state | initial_state, "initial_state")
 
     return pstat
