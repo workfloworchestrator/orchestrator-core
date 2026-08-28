@@ -58,11 +58,30 @@ def test_process_subscription_relation_is_idempotent(generic_subscription_1):
         ).one()
 
 
+def test_process_subscription_none_for_task(generic_subscription_1):
+    class Form(FormPage):
+        subscription_id: UUID
+
+    @workflow(target=Target.VALIDATE, initial_input_form=const(Form))
+    def test_store_process_subscription():
+        return init >> done
+
+    with WorkflowInstanceForTests(test_store_process_subscription, "test_store_process_subscription"):
+        result, _, _ = run_workflow("test_store_process_subscription", [{"subscription_id": generic_subscription_1}])
+
+        assert_complete(result)
+        state = extract_state(result)
+        with pytest.raises(NoResultFound):
+            db.session.query(ProcessSubscriptionTable).filter(
+                ProcessSubscriptionTable.process_id == state["process_id"]
+            ).one()
+
+
 def test_process_subscription_relation_stored_in_workflow(generic_subscription_1):
     class Form(FormPage):
         subscription_id: UUID
 
-    @workflow(target=Target.SYSTEM, initial_input_form=const(Form))
+    @workflow(target=Target.MODIFY, initial_input_form=const(Form))
     def test_store_process_subscription():
         return init >> done
 

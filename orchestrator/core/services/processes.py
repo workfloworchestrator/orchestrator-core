@@ -30,7 +30,13 @@ from nwastdlib.ex import show_ex
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.config.assignee import Assignee
-from orchestrator.core.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.core.db import (
+    EngineSettingsTable,
+    ProcessStepTable,
+    ProcessSubscriptionTable,
+    ProcessTable,
+    db,
+)
 from orchestrator.core.db.database import transactional
 from orchestrator.core.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.core.distlock import distlock_manager
@@ -529,10 +535,13 @@ def create_process(
     with transactional(db, logger):
         _db_create_process(pstat)
         if user_inputs and (subscription_id := user_inputs[0].get("subscription_id")):
-            # Only store the Process Subscription relation if a subscription ID is present
+            # Only store the Process Subscription relation in workflows where if a subscription ID is present.
             # For creation workflows where this is not the case, this is handled in
             # `SubscriptionModel.from_product_id()`.
-            store_process_subscription_relation(process_id=process_id, subscription_id=subscription_id)
+            # For tasks, this is not stored.
+            workflow_table = get_workflow_by_name(workflow.name)
+            if workflow_table and not workflow_table.is_task:
+                store_process_subscription_relation(process_id=process_id, subscription_id=subscription_id)
         store_input_state(process_id, state | initial_state, "initial_state")
 
     return pstat
