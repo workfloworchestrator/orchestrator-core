@@ -13,6 +13,7 @@
 import time
 import uuid
 from http import HTTPStatus
+from queue import Queue
 from threading import Condition, Event
 from unittest import mock
 from uuid import uuid4
@@ -63,14 +64,24 @@ from test.helpers import URL_STR_TYPE
 from test.integration_tests.workflows import WorkflowInstanceForTests
 
 test_condition = Condition()
+# Signalled by long_running_step right before it starts waiting on test_condition, so tests can
+# block until the background worker is actually waiting instead of guessing with time.sleep().
+# A notify_all() sent before the worker reaches wait() is silently lost, which strands that
+# worker in wait() forever and permanently eats one of the thread pool's workers.
+step_waiting: Queue = Queue()
 callback_key = "lgjyjNvu-C6vMbaUmjPZPxoJ1t8yS_41ottoe64qP5A"
 
 
 @pytest.fixture
 def long_running_workflow():
+    # Drop any stale signal left behind by a previous (e.g. failed) use of this fixture.
+    while not step_waiting.empty():
+        step_waiting.get_nowait()
+
     @step("Long Running Step")
     def long_running_step():
         with test_condition:
+            step_waiting.put(None)
             test_condition.wait()
         return {"done": True}
 
@@ -162,6 +173,7 @@ def test_delete_process_404(test_client, started_process):
     assert HTTPStatus.NOT_FOUND == response.status_code
 
 
+@pytest.mark.timeout(30)
 def test_long_running_pause(test_client, long_running_workflow):
     app_settings.TESTING = False
     # Start the workflow
@@ -176,7 +188,7 @@ def test_long_running_pause(test_client, long_running_workflow):
     assert HTTPStatus.OK == response.status_code
 
     # Let it run until the first lock step is started
-    time.sleep(1)
+    step_waiting.get(timeout=10)
 
     response = test_client.put("/api/settings/status", json={"global_lock": True})
     assert response.json()["global_lock"] is True
@@ -209,8 +221,8 @@ def test_long_running_pause(test_client, long_running_workflow):
     assert response.json()["running_processes"] in [0, 1]
     assert response.json()["global_status"] == "RUNNING"
 
-    # Let it continue executing
-    time.sleep(1)
+    # Let it continue executing until the second lock step is started
+    step_waiting.get(timeout=10)
 
     # Let it finish after second lock step
     with test_condition:

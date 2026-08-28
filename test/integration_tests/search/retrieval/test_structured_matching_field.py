@@ -18,11 +18,9 @@ so the reported matching field must contain the full stored path (e.g. ``subscri
 resolved per entity from the index rather than echoed from the filter input.
 """
 
-from collections.abc import AsyncGenerator
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db import db
@@ -31,13 +29,6 @@ from orchestrator.core.search.core.types import BooleanOperator, EntityType, Fie
 from orchestrator.core.search.filters import EqualityFilter, FilterTree, LtreeFilter, PathFilter
 from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.queries import SelectQuery
-
-
-@pytest.fixture
-async def async_session() -> AsyncGenerator[AsyncSession, None]:
-    """Async session for the engine; the index fixtures commit through the sync session."""
-    async with db.async_session() as session:
-        yield session
 
 
 def _index_row(entity_id: UUID, path: str, value: str, title: str) -> AiSearchIndex:

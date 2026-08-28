@@ -38,7 +38,7 @@ from starlette.responses import Response
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.api.helpers import add_response_range
-from orchestrator.core.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, get_async_session
+from orchestrator.core.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db, get_async_session
 from orchestrator.core.db.filters import Filter
 from orchestrator.core.db.filters.process import filter_processes
 from orchestrator.core.db.sorting import Sort, SortOrder
@@ -82,9 +82,8 @@ from orchestrator.core.utils.enrich_process import enrich_process
 from orchestrator.core.utils.errors import StartPredicateError
 from orchestrator.core.websocket import (
     WS_CHANNELS,
-    broadcast_invalidate_status_counts,
     broadcast_invalidate_status_counts_async,
-    broadcast_process_update_to_websocket,
+    broadcast_process_update_to_websocket_async,
     websocket_manager,
 )
 from orchestrator.core.workflow import ProcessStat, ProcessStatus, StepList, Workflow
@@ -189,8 +188,8 @@ async def delete(process_id: UUID, session: AsyncSession = Depends(get_async_ses
     await session.delete(process)
     await session.commit()
 
-    broadcast_invalidate_status_counts()
-    broadcast_process_update_to_websocket(process.process_id)
+    await broadcast_invalidate_status_counts_async()
+    await broadcast_process_update_to_websocket_async(process.process_id)
 
 
 @router.post(
@@ -309,11 +308,10 @@ async def continue_awaiting_process_endpoint(
     token: str,
     request: Request,
     json_data: State = Body(...),
-    session: AsyncSession = Depends(get_async_session),
 ) -> None:
     check_global_lock()
 
-    process = await get_process_async(process_id, session)
+    process = await run_in_threadpool(_get_process, process_id)
 
     if process.last_status != ProcessStatus.AWAITING_CALLBACK:
         raise_status(HTTPStatus.CONFLICT, "This process is not in an awaiting state.")
@@ -355,9 +353,7 @@ async def update_progress_on_awaiting_process_endpoint(
 @router.put(
     "/resume-all", response_model=ProcessResumeAllSchema, dependencies=[Depends(check_global_lock, use_cache=False)]
 )
-async def resume_all_processes_endpoint(
-    request: Request, user: str = Depends(user_name), session: AsyncSession = Depends(get_async_session)
-) -> dict[str, int]:
+async def resume_all_processes_endpoint(request: Request, user: str = Depends(user_name)) -> dict[str, int]:
     """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
 
     The retry is started in the background, returning status 200 and number of processes in message.
@@ -379,8 +375,7 @@ async def resume_all_processes_endpoint(
         )
         .filter(ProcessTable.is_task.is_(True))
     )
-    result = await session.scalars(stmt)
-    processes_to_resume = result.all()
+    processes_to_resume = db.session.scalars(stmt).all()
 
     broadcast_func = api_broadcast_process_data(request)
     if not await _async_resume_processes(processes_to_resume, user, broadcast_func=broadcast_func):
@@ -403,10 +398,9 @@ async def abort_process_endpoint(
     process_id: UUID,
     request: Request,
     user: str = Depends(user_name),
-    session: AsyncSession = Depends(get_async_session),
 ) -> None:
     """Abort a running workflow process. This is irreversible."""
-    process = await get_process_async(process_id, session)
+    process = await run_in_threadpool(_get_process, process_id)
 
     broadcast_func = api_broadcast_process_data(request)
     try:
@@ -477,9 +471,8 @@ async def status_counts(session: AsyncSession = Depends(get_async_session)) -> P
 
 
 @router.get("/{process_id}", response_model=ProcessSchema)
-async def show(process_id: UUID,
-    session: AsyncSession = Depends(get_async_session),) -> dict[str, Any]:
-    process = await get_process_async(process_id, session)
+async def show(process_id: UUID) -> dict[str, Any]:
+    process =await run_in_threadpool(_get_process, process_id)
     p = load_process(process)
 
     return enrich_process(process, p)

@@ -66,6 +66,8 @@ async def update_subscription_customer_description(
     customer_description.description = description
     customer_description.created_at = created_at if created_at else datetime.now(tz=timezone("UTC"))
     await session.commit()
+    # Refresh the version incremented by the database trigger.
+    await session.refresh(customer_description, attribute_names=["version"])
     await invalidate_subscription_cache(customer_description.subscription_id)
     return customer_description
 
