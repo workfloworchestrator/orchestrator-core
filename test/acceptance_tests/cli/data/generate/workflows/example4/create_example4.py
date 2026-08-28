@@ -58,12 +58,14 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 @step("Construct Subscription model")
 def construct_example4_model(
     product: UUIDstr,
+    process_id: UUIDstr,
     customer_id: UUIDstr,
     num_val: int | None,
 ) -> State:
     example4 = Example4Inactive.from_product_id(
         product_id=product,
         customer_id=customer_id,
+        process_id=process_id,
         status=SubscriptionLifecycle.INITIAL,
     )
     example4.example4.num_val = num_val

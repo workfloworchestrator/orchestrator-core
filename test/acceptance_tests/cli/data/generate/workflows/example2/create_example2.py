@@ -59,12 +59,14 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 @step("Construct Subscription model")
 def construct_example2_model(
     product: UUIDstr,
+    process_id: UUIDstr,
     customer_id: UUIDstr,
     example_int_enum_2: ExampleIntEnum2 | None,
 ) -> State:
     example2 = Example2Inactive.from_product_id(
         product_id=product,
         customer_id=customer_id,
+        process_id=process_id,
         status=SubscriptionLifecycle.INITIAL,
     )
     example2.example2.example_int_enum_2 = example_int_enum_2
