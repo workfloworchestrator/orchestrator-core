@@ -141,6 +141,22 @@ nav:
       - Docker: getting-started/docker.md
       - Orchestrator UI: getting-started/orchestration-ui.md
       - Orchestrator Shell: getting-started/orchestrator-shell.md
+  - Guides:
+      - Product Modeling:
+          - Importing Existing Products: guides/product-modeling/imports.md
+          - Backfilling Existing Subscriptions: guides/product-modeling/backfilling.md
+      - Creating Tasks and Schedules: guides/tasks.md
+      - Testing: guides/testing.md
+      - Scaling the Orchestrator: guides/scaling.md
+      - Pausing the Orchestrator: guides/pause-and-resume.md
+      - Generating a Config File: guides/generate-config-file.md
+      - Upgrade Guides:
+          - v2.x: guides/upgrading/2.0.md
+          - v3.x: guides/upgrading/3.0.md
+          - v4.x: guides/upgrading/4.0.md
+          - v4.7: guides/upgrading/4.7.md
+          - v4.8: guides/upgrading/4.8.md
+          - v5.0: guides/upgrading/5.0.md
   - Architecture:
       - Architecture; TL;DR: architecture/tldr.md
       - Orchestration Philosophy: architecture/orchestration/philosophy.md
@@ -162,22 +178,6 @@ nav:
       - Extensibility:
           - Packaging: architecture/extensibility/packaging.md
           - Optional Modules: architecture/extensibility/modules.md
-  - Guides:
-      - Product Modeling:
-          - Importing Existing Products: guides/product-modeling/imports.md
-          - Backfilling Existing Subscriptions: guides/product-modeling/backfilling.md
-      - Creating Tasks and Schedules: guides/tasks.md
-      - Testing: guides/testing.md
-      - Scaling the Orchestrator: guides/scaling.md
-      - Pausing the Orchestrator: guides/pause-and-resume.md
-      - Generating a Config File: guides/generate-config-file.md
-      - Upgrade Guides:
-          - v2.x: guides/upgrading/2.0.md
-          - v3.x: guides/upgrading/3.0.md
-          - v4.x: guides/upgrading/4.0.md
-          - v4.7: guides/upgrading/4.7.md
-          - v4.8: guides/upgrading/4.8.md
-          - v5.0: guides/upgrading/5.0.md
   - Reference Documentation:
       - TL;DR: reference-docs/tldr.md
       - API docs:
