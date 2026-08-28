@@ -14,7 +14,7 @@
 """Tests for process-exit indexing wiring in the processes service."""
 
 import sys
-from unittest.mock import call, patch
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -42,15 +42,21 @@ def test_safe_index_process_is_noop_without_search_extra(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "workflow_raises,expect_indexed",
+    "workflow_raises",
     [
-        pytest.param(False, True, id="committed-result-is-indexed"),
-        pytest.param(True, False, id="lost-database-access-skips-indexing"),
+        pytest.param(False, id="committed-result-is-indexed"),
+        pytest.param(True, id="inner-except-indexes-before-re-raise"),
     ],
 )
 @patch("orchestrator.core.search.indexing.hooks.index_process_and_subscriptions")
-def test_run_process_async_indexes_only_while_the_session_is_alive(mock_hook, workflow_raises, expect_indexed):
-    """Indexing runs inside the database scope, so the failure path that loses the session must skip it."""
+def test_run_process_async_indexes_after_workflow_commits(mock_hook, workflow_raises):
+    """A live session always results in indexing, whether the workflow returned or raised.
+
+    When the workflow raises, _db_log_process_ex commits FAILED inside the inner except
+    and indexing runs there before the re-raise. Only the true lost-database path (outer
+    except, the scope itself failing) skips indexing — that path is covered by the
+    strictness test below.
+    """
     process_id = uuid4()
     result = Success({})
 
@@ -66,7 +72,8 @@ def test_run_process_async_indexes_only_while_the_session_is_alive(mock_hook, wo
     ):
         assert _run_process_async(process_id, workflow) == process_id
 
-    assert mock_hook.call_args_list == ([call(process_id, result)] if expect_indexed else [])
+    assert mock_hook.call_count == 1
+    assert mock_hook.call_args[0][0] == process_id
 
 
 @patch("orchestrator.core.search.indexing.hooks.index_process_and_subscriptions")

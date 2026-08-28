@@ -466,6 +466,11 @@ def _run_process_async(process_id: UUID, f: Callable, broadcast_func: BroadcastF
                     except Exception as ex:
                         # We still have access to the database, so we can log at least something
                         _db_log_process_ex(process_id, ex)
+                        # _db_log_process_ex committed FAILED above, so the session is still live.
+                        # Index now, before the re-raise, so this FAILED exit isn't the one exit
+                        # path that is silently invisible to search.
+                        with db.database_scope():
+                            _safe_index_process(process_id, Failed(ex))
                         raise
                     finally:
                         db.session.commit()
