@@ -44,18 +44,17 @@ def test_safe_index_process_is_noop_without_search_extra(monkeypatch):
 @pytest.mark.parametrize(
     "workflow_raises",
     [
-        pytest.param(False, id="committed-result-is-indexed"),
-        pytest.param(True, id="inner-except-indexes-before-re-raise"),
+        pytest.param(False, id="successful-result-is-indexed"),
+        pytest.param(True, id="failed-result-is-indexed"),
     ],
 )
 @patch("orchestrator.core.search.indexing.hooks.index_process_and_subscriptions")
 def test_run_process_async_indexes_after_workflow_commits(mock_hook, workflow_raises):
-    """A live session always results in indexing, whether the workflow returned or raised.
+    """A live session always results in fresh-scope indexing after the workflow scope closes.
 
-    When the workflow raises, _db_log_process_ex commits FAILED inside the inner except
-    and indexing runs there before the re-raise. Only the true lost-database path (outer
-    except, the scope itself failing) skips indexing — that path is covered by the
-    strictness test below.
+    When the workflow raises, _db_log_process_ex commits FAILED and its result is indexed
+    through the same fresh scope as a successful result. Only failure of the workflow's
+    database scope itself skips indexing.
     """
     process_id = uuid4()
     result = Success({})
@@ -76,23 +75,34 @@ def test_run_process_async_indexes_after_workflow_commits(mock_hook, workflow_ra
     assert mock_hook.call_args[0][0] == process_id
 
 
+@pytest.mark.parametrize(
+    "workflow_raises",
+    [
+        pytest.param(False, id="successful-workflow"),
+        pytest.param(True, id="failed-workflow"),
+    ],
+)
 @patch("orchestrator.core.search.indexing.hooks.index_process_and_subscriptions")
-def test_run_process_async_strict_indexing_failure_is_not_masked_as_workflow_failure(mock_hook, monkeypatch):
-    """Strict mode exists to surface indexing bugs, so the workflow's own error handler must not eat them."""
+def test_run_process_async_strict_indexing_failure_is_not_masked_as_workflow_failure(
+    mock_hook, monkeypatch, workflow_raises
+):
+    """Strict mode lets indexing failures escape after either workflow outcome."""
     monkeypatch.setattr(llm_settings, "SEARCH_INDEXING_STRICT", True)
     mock_hook.side_effect = RuntimeError("index exploded")
     process_id = uuid4()
-    result = Success({})
+
+    def workflow() -> WFProcess:
+        if workflow_raises:
+            raise RuntimeError("workflow exploded")
+        return Success({})
 
     with (
         patch("orchestrator.core.services.processes.db"),
-        patch("orchestrator.core.services.processes._db_log_process_ex") as mock_log_ex,
+        patch("orchestrator.core.services.processes._db_log_process_ex"),
         patch("orchestrator.core.services.processes.logger") as mock_logger,
         patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
         pytest.raises(RuntimeError, match="index exploded"),
     ):
-        _run_process_async(process_id, lambda: result)
+        _run_process_async(process_id, workflow)
 
-    # The workflow itself never failed, so neither the DB-loss logger nor its process log may fire.
-    mock_log_ex.assert_not_called()
     assert not any("Unknown workflow failure" in str(c) for c in mock_logger.exception.call_args_list)
