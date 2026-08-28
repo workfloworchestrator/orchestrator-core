@@ -105,7 +105,7 @@ def test_process_subscription_relation_stored_in_create_workflow(generic_product
         yield WaitForm
         return {}
 
-    @step("Create new subscription")
+    @step("Create new subscription")  # type: ignore[untyped-decorator]
     def create_subscription(process_id: UUIDstr) -> State:
         GenericProductOneInactive, _ = generic_product_type_1
         gen_subscription = GenericProductOneInactive.from_product_id(
