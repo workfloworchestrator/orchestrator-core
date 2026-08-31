@@ -535,7 +535,7 @@ def create_process(
     with transactional(db, logger):
         _db_create_process(pstat)
         if user_inputs and (subscription_id := user_inputs[0].get("subscription_id")):
-            # Only store the Process Subscription relation in workflows where if a subscription ID is present.
+            # Only store the Process Subscription relation in workflows where a subscription ID is present.
             # For creation workflows where this is not the case, this is handled in
             # `SubscriptionModel.from_product_id()`.
             # For tasks, this is not stored.
