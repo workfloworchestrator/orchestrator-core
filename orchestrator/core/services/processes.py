@@ -227,7 +227,7 @@ PROCESS_STEP_HANDLER: ProcessHandlerFunc = _default_process_func
 
 def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> ProcessTable:
     try:
-        p = db.session.query(ProcessTable).where(ProcessTable.process_id == process_id).one()
+        p = db.session.get_one(ProcessTable, process_id)
     except NoResultFound as e:
         raise ValueError(f"Failed to write step to process: process with PID {process_id} not found") from e
 

@@ -115,7 +115,7 @@ def test_process_log_db_step_success(simple_workflow):
     db.session.commit()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
     state_data = {"foo": "bar"}
     state = Success(state_data)
 
@@ -132,9 +132,9 @@ def test_process_log_db_step_success(simple_workflow):
     assert p.last_status == ProcessStatus.RUNNING
     assert p.last_step == "step"
     assert p.failed_reason is None
-    assert p.assignee == "assignee"
+    assert p.assignee == Assignee.KLANTSUPPORT
 
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
@@ -148,7 +148,7 @@ def test_process_log_db_step_success(simple_workflow):
     assert p.last_status == ProcessStatus.RUNNING
     assert p.last_step == "step"
     assert p.failed_reason is None
-    assert p.assignee == "assignee"
+    assert p.assignee == Assignee.KLANTSUPPORT
 
 
 def test_db_log_step_strips_subscription_models_inside_transactional(
@@ -170,7 +170,7 @@ def test_db_log_step_strips_subscription_models_inside_transactional(
     db.session.commit()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
     state = Success({"subscription": subscription})
 
     with transactional(db, MagicMock()):
@@ -239,7 +239,7 @@ def test_process_log_db_step_skipped(simple_workflow):
     db.session.commit()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
     state_data = {"foo": "bar"}
     state = Skipped(state_data)
 
@@ -256,9 +256,9 @@ def test_process_log_db_step_skipped(simple_workflow):
     assert p.last_status == ProcessStatus.RUNNING
     assert p.last_step == "step"
     assert p.failed_reason is None
-    assert p.assignee == "assignee"
+    assert p.assignee == Assignee.KLANTSUPPORT
 
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
@@ -272,7 +272,7 @@ def test_process_log_db_step_skipped(simple_workflow):
     assert p.last_status == ProcessStatus.RUNNING
     assert p.last_step == "step"
     assert p.failed_reason is None
-    assert p.assignee == "assignee"
+    assert p.assignee == Assignee.KLANTSUPPORT
 
 
 def test_process_log_db_step_suspend(simple_workflow):
@@ -287,7 +287,7 @@ def test_process_log_db_step_suspend(simple_workflow):
     db.session.commit()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
     state_data = {"foo": "bar"}
     state = Suspend(state_data)
 
@@ -304,9 +304,9 @@ def test_process_log_db_step_suspend(simple_workflow):
     assert p.last_status == ProcessStatus.SUSPENDED
     assert p.last_step == "step"
     assert p.failed_reason is None
-    assert p.assignee == "assignee"
+    assert p.assignee == Assignee.KLANTSUPPORT
 
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
@@ -320,7 +320,7 @@ def test_process_log_db_step_suspend(simple_workflow):
     assert p.last_status == ProcessStatus.SUSPENDED
     assert p.last_step == "step"
     assert p.failed_reason is None
-    assert p.assignee == "assignee"
+    assert p.assignee == Assignee.KLANTSUPPORT
 
 
 def test_process_log_db_step_waiting(simple_workflow):
@@ -335,7 +335,7 @@ def test_process_log_db_step_waiting(simple_workflow):
     db.session.commit()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
     state_data = "expected failure"
     state = Waiting(error_state_to_dict(Exception(state_data)))
 
@@ -352,9 +352,9 @@ def test_process_log_db_step_waiting(simple_workflow):
     assert p.last_status == ProcessStatus.WAITING
     assert p.last_step == "step"
     assert p.failed_reason == state_data
-    assert p.assignee == "assignee"
+    assert p.assignee == Assignee.KLANTSUPPORT
 
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
     result = _db_log_step(pstat, step, state)
     assert result.iswaiting()
 
@@ -371,7 +371,7 @@ def test_process_log_db_step_waiting(simple_workflow):
     assert p.last_status == ProcessStatus.WAITING
     assert p.last_step == "step"
     assert p.failed_reason == state_data
-    assert p.assignee == "assignee"
+    assert p.assignee == Assignee.KLANTSUPPORT
 
 
 def test_process_log_db_step_failed(simple_workflow):
@@ -442,7 +442,7 @@ def test_process_log_db_step_assertion_failed(simple_workflow):
     db.session.commit()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
 
     state_data = AssertionError("Assertion failure")
     state = Failed(state_data)
@@ -459,12 +459,12 @@ def test_process_log_db_step_assertion_failed(simple_workflow):
     saved_state.pop("traceback")
     assert psteps[0].state == saved_state
     assert psteps[0].created_by == "user"
-    assert p.last_status == ProcessStatus.INCONSISTENT_DATA
+    assert p.last_status == ProcessStatus.FAILED
     assert p.last_step == "step"
     assert p.failed_reason == "Assertion failure"
-    assert p.assignee == Assignee.NOC
+    assert p.assignee == Assignee.KLANTSUPPORT
 
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
@@ -479,10 +479,10 @@ def test_process_log_db_step_assertion_failed(simple_workflow):
     del pstep_state["class"]
     assert pstep_state == {"error": "Assertion failure", "retries": 1}
     assert psteps[0].created_by == "user"
-    assert p.last_status == ProcessStatus.INCONSISTENT_DATA
+    assert p.last_status == ProcessStatus.FAILED
     assert p.last_step == "step"
     assert p.failed_reason == "Assertion failure"
-    assert p.assignee == Assignee.NOC
+    assert p.assignee == Assignee.KLANTSUPPORT
 
 
 def test_process_log_db_step_api_failed(simple_workflow):
@@ -498,7 +498,7 @@ def test_process_log_db_step_api_failed(simple_workflow):
     db.session.commit()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
 
     state_data = ApiException(HTTPStatus.BAD_GATEWAY, "API failure")
     state = Failed(state_data)
@@ -518,9 +518,9 @@ def test_process_log_db_step_api_failed(simple_workflow):
     assert p.last_status == ProcessStatus.API_UNAVAILABLE
     assert p.last_step == "step"
     assert p.failed_reason == "API failure"
-    assert p.assignee == Assignee.SYSTEM
+    assert p.assignee == Assignee.KLANTSUPPORT
 
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
@@ -544,7 +544,7 @@ def test_process_log_db_step_api_failed(simple_workflow):
     assert p.last_status == ProcessStatus.API_UNAVAILABLE
     assert p.last_step == "step"
     assert p.failed_reason == "API failure"
-    assert p.assignee == Assignee.SYSTEM
+    assert p.assignee == Assignee.KLANTSUPPORT
 
 
 def test_process_log_db_step_abort(simple_workflow):
@@ -559,7 +559,7 @@ def test_process_log_db_step_abort(simple_workflow):
     db.session.commit()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.NOC)
     state_data = {"foo": "bar"}
     state = Abort(state_data)
 
@@ -576,9 +576,9 @@ def test_process_log_db_step_abort(simple_workflow):
     assert p.last_status == ProcessStatus.ABORTED
     assert p.last_step == "step"
     assert p.failed_reason is None
-    assert p.assignee == "assignee"
+    assert p.assignee == Assignee.NOC
 
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.NOC)
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
@@ -592,7 +592,7 @@ def test_process_log_db_step_abort(simple_workflow):
     assert p.last_status == ProcessStatus.ABORTED
     assert p.last_step == "step"
     assert p.failed_reason is None
-    assert p.assignee == "assignee"
+    assert p.assignee == Assignee.NOC
 
 
 def test_process_log_db_step_complete(simple_workflow):
@@ -607,7 +607,7 @@ def test_process_log_db_step_complete(simple_workflow):
     db.session.commit()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.NOC)
     state_data = {"foo": "bar"}
     state = Complete(state_data)
 
@@ -624,9 +624,9 @@ def test_process_log_db_step_complete(simple_workflow):
     assert p.last_status == ProcessStatus.COMPLETED
     assert p.last_step == "step"
     assert p.failed_reason is None
-    assert p.assignee == "assignee"
+    assert p.assignee == Assignee.NOC
 
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.NOC)
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
@@ -640,7 +640,7 @@ def test_process_log_db_step_complete(simple_workflow):
     assert p.last_status == ProcessStatus.COMPLETED
     assert p.last_step == "step"
     assert p.failed_reason is None
-    assert p.assignee == "assignee"
+    assert p.assignee == Assignee.NOC
 
 
 @pytest.fixture
@@ -680,11 +680,11 @@ def test_run_process_async_broadcasts_after_status_commit(simple_workflow):
 
     def broadcast_func(broadcast_process_id):
         with db.database_scope():
-            process = db.session.get(ProcessTable, broadcast_process_id)
+            process = db.session.get_one(ProcessTable, broadcast_process_id)
             observed_statuses.append(process.last_status)
 
     def run_func():
-        process = db.session.get(ProcessTable, process_id)
+        process = db.session.get_one(ProcessTable, process_id)
         process.last_status = ProcessStatus.COMPLETED
         return Complete({"foo": "bar"})
 
@@ -705,7 +705,7 @@ def test_run_process_async_swallows_final_broadcast_exception(simple_workflow):
     db.session.commit()
 
     def run_func():
-        process = db.session.get(ProcessTable, process_id)
+        process = db.session.get_one(ProcessTable, process_id)
         process.last_status = ProcessStatus.COMPLETED
         return Complete({"foo": "bar"})
 
@@ -735,7 +735,7 @@ async def test_broadcast_process_update_async_invalidates_subscription_cache_on_
     from orchestrator.core.websocket import broadcast_process_update_to_websocket_async
 
     process_id, subscription_id = process_with_subscription
-    process = db.session.get(ProcessTable, process_id)
+    process = db.session.get_one(ProcessTable, process_id)
     process.last_status = terminal_status
     db.session.commit()
 
@@ -773,7 +773,7 @@ async def test_broadcast_process_update_async_does_not_invalidate_subscription_c
     from orchestrator.core.websocket import broadcast_process_update_to_websocket_async
 
     process_id, _ = process_with_subscription
-    process = db.session.get(ProcessTable, process_id)
+    process = db.session.get_one(ProcessTable, process_id)
     process.last_status = non_terminal_status
     db.session.commit()
 
@@ -792,13 +792,13 @@ def test_process_log_db_step_no_process_id(simple_workflow):
     process_id = uuid4()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.NOC)
     state_data = {"foo": "bar"}
     state = Complete(state_data)
 
     with pytest.raises(ValueError) as exc_info:
         _db_log_step(pstat, step, state)
-    assert f"Failed to write failure step to process: process with PID {process_id} not found" in str(exc_info.value)
+    assert f"Failed to write step to process: process with PID {process_id} not found" in str(exc_info.value)
 
 
 def test_process_log_db_step_deduplication(simple_workflow):
@@ -870,7 +870,7 @@ def test_safe_logstep(simple_workflow):
     db.session.commit()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.KLANTSUPPORT)
     state_data = {"not_serializable": object()}
     state = Complete(state_data)
 
@@ -912,7 +912,7 @@ def test_safe_logstep_critical_failure():
     # Skip storing the actual process to let `_db_log_step` fail
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
-    step = make_step_function(lambda: None, "step", None, "assignee")
+    step = make_step_function(lambda: None, "step", None, Assignee.NOC)
     state_data = {"not_serializable": object()}
     state = Complete(state_data)
 
@@ -933,7 +933,7 @@ def test_safe_logstep_critical_failure():
                         Failed(
                             {
                                 "class": "Exception",
-                                "error": f"Failed to write failure step to process: process with PID {process_id} not found",
+                                "error": f"Failed to write step to process: process with PID {process_id} not found",
                                 "traceback": mock.ANY,
                             }
                         ),
@@ -941,7 +941,7 @@ def test_safe_logstep_critical_failure():
                 ]
             )
 
-        assert f"Failed to write failure step to process: process with PID {process_id} not found" in str(e.value)
+        assert f"Failed to write step to process: process with PID {process_id} not found" in str(e.value)
 
 
 @mock.patch("orchestrator.core.services.processes._get_process")
@@ -1257,7 +1257,7 @@ def test_load_process_with_altered_steps(num_steps_finished, step_names):
     workflow_1 = workflow_decorator(lambda: init >> step1 >> done)
     with WorkflowInstanceForTests(workflow_1, "test_wf"):
         _, p_stat, steps = run_workflow("test_wf", [{"test_field": "test"}])
-        process_table = db.session.get(ProcessTable, p_stat.process_id)
+        process_table = db.session.get_one(ProcessTable, p_stat.process_id)
 
         for step_fn, wf_process in steps[:num_steps_finished]:
             process_table.steps.append(
