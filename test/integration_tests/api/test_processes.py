@@ -174,8 +174,8 @@ def test_delete_process_404(test_client, started_process):
 
 
 @pytest.mark.timeout(30)
-def test_long_running_pause(test_client, long_running_workflow):
-    app_settings.TESTING = False
+def test_long_running_pause(test_client, long_running_workflow, monkeypatch):
+    monkeypatch.setattr(app_settings, "TESTING", False)
     # Start the workflow
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{}])
     assert HTTPStatus.CREATED == response.status_code, (
@@ -233,8 +233,6 @@ def test_long_running_pause(test_client, long_running_workflow):
     assert HTTPStatus.OK == response.status_code
     # assume ordered steplist
     assert response.json()["steps"][3]["status"] == "complete"
-
-    app_settings.TESTING = True
 
 
 def test_service_unavailable_engine_locked(test_client, test_workflow):
@@ -520,7 +518,7 @@ def test_resume_all_processes(test_client, mocked_processes_resumeall):
     assert response.json()["count"] == 3
 
 
-def test_resume_all_processes_multiple_calls(test_client, mocked_processes_resumeall):
+def test_resume_all_processes_multiple_calls(test_client, mocked_processes_resumeall, monkeypatch):
     """Test only 1 of multiple resume-all calls is successful.
 
     This uses the "MemoryDistlockManager" reference implementation.
@@ -531,14 +529,12 @@ def test_resume_all_processes_multiple_calls(test_client, mocked_processes_resum
         event.wait(2)  # To keep the lock open for a while
 
     # Disable Testing setting since we want to run async
-    app_settings.TESTING = False
+    monkeypatch.setattr(app_settings, "TESTING", False)
 
     with mock.patch("orchestrator.core.services.processes.resume_process", new=resume_noop):
         responses = [test_client.put("/api/processes/resume-all") for _ in range(5)]
         responses.sort(key=lambda r: r.status_code)
         event.set()
-
-    app_settings.TESTING = True
 
     assert responses[0].status_code == HTTPStatus.OK
     assert responses[0].json()["count"] == 3

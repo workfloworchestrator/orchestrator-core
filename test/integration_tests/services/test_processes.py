@@ -997,7 +997,7 @@ def test_db_log_process_ex(simple_workflow):
     assert p.last_status == "failed"
 
 
-def test_run_process_async_success(fastapi_app):
+def test_run_process_async_success(fastapi_app, monkeypatch):
     process_id = uuid4()
     event = Event()
 
@@ -1005,7 +1005,7 @@ def test_run_process_async_success(fastapi_app):
         return Success(event.wait(1))
 
     # Disable Testing setting since we want to run async
-    app_settings.TESTING = False
+    monkeypatch.setattr(app_settings, "TESTING", False)
     _run_process_async(process_id, run_func)
     sleep(0.01)
 
@@ -1017,11 +1017,10 @@ def test_run_process_async_success(fastapi_app):
 
     fastapi_app.worker_status_monitor._refresh_once()
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 0
-    app_settings.TESTING = True
 
 
 @mock.patch("orchestrator.core.services.processes._db_log_process_ex")
-def test_run_process_async_exception(mock_db_log_process_ex, fastapi_app):
+def test_run_process_async_exception(mock_db_log_process_ex, fastapi_app, monkeypatch):
     process_id = uuid4()
     event = Event()
 
@@ -1030,7 +1029,7 @@ def test_run_process_async_exception(mock_db_log_process_ex, fastapi_app):
         raise ValueError("Failed")
 
     # Disable Testing setting since we want to run async
-    app_settings.TESTING = False
+    monkeypatch.setattr(app_settings, "TESTING", False)
     _run_process_async(process_id, run_func)
     sleep(0.1)
 
@@ -1045,7 +1044,6 @@ def test_run_process_async_exception(mock_db_log_process_ex, fastapi_app):
 
     mock_db_log_process_ex.assert_called_once_with(process_id, mock.ANY)
     assert repr(mock_db_log_process_ex.call_args[0][1]) == "ValueError('Failed')"
-    app_settings.TESTING = True
 
 
 @mock.patch("orchestrator.core.services.executors.threadpool.db")
