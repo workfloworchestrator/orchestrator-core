@@ -48,7 +48,7 @@ jobs:
       - name: Install uv and set the python version
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
-          version: "0.12.5"
+          version: "0.12.7"
           python-version: ${{ matrix.python-version }}
 
       - name: Install project and dependencies
