@@ -47,9 +47,9 @@ This **Workflow Orchestrator** provides a framework through which you can manage
 framework helps and guides **you**, the person who needs to get things done, through the steps from
 automation to orchestration. With an easy to use set of API's and examples, you should be up and running and seeing
 results, before you completely understand all ins and outs of the project. The Workflow Orchestrator enables you to define
-products to which users can subscribe, and helps you intelligently manage the lifecycle, with the use of **Creation**, 
+products to which users can subscribe, and helps you intelligently manage the lifecycle, with the use of **Creation**,
 **Modification**, **Termination** and **Validation** workflows, of resources that you provide to your users.
-The Application extends a FastAPI application and therefore can make use of all the awesome features of FastAPI, 
+The Application extends a FastAPI application and therefore can make use of all the awesome features of FastAPI,
 pydantic and async python.
 
 ## What does a workflow look like? It must be pretty complex!!
