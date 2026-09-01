@@ -260,7 +260,7 @@ requests confirmation before proceeding:
 Finally, we wire this all up in our StepList. Instead of including the step
 directly, provide the step as a parameter to the interaction function:
 
-=== "`orchestrator-core` ≥ 5.1"
+=== "`orchestrator-core` ≥ 5.4"
 
     ```python
     from orchestrator.core.types import SubscriptionLifecycle

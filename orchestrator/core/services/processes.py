@@ -76,7 +76,7 @@ from orchestrator.core.workflows import get_workflow
 from orchestrator.core.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core import post_form
 from pydantic_forms.exceptions import FormValidationError
-from pydantic_forms.types import State
+from pydantic_forms.types import State, UUIDstr
 
 logger = structlog.get_logger(__name__)
 
@@ -532,16 +532,22 @@ def create_process(
         user_model=user_model,
     )
 
+    def _sid_in_initial_user_input(user_inputs: list[State] | None) -> UUIDstr | None:
+        return user_inputs[0].get("subscription_id") if user_inputs else None
+
+    def _is_proper_workflow(workflow_name: str) -> bool:
+        """Returns true if the workflow exists in the database and is NOT a task."""
+        workflow_table = get_workflow_by_name(workflow_name)
+        return not workflow_table.is_task if workflow_table else True
+
     with transactional(db, logger):
         _db_create_process(pstat)
-        if user_inputs and (subscription_id := user_inputs[0].get("subscription_id")):
-            # Only store the Process Subscription relation in workflows where a subscription ID is present.
-            # For creation workflows where this is not the case, this is handled in
-            # `SubscriptionModel.from_product_id()`.
-            # For tasks, this is not stored.
-            workflow_table = get_workflow_by_name(workflow.name)
-            if workflow_table and not workflow_table.is_task:
-                store_process_subscription_relation(process_id=process_id, subscription_id=subscription_id)
+        # Only store the Process Subscription relation in workflows where a subscription ID is present.
+        # For creation workflows where this is not the case, this is handled in
+        # `SubscriptionModel.from_product_id()`.
+        # For tasks, this is never stored.
+        if (subscription_id := _sid_in_initial_user_input(user_inputs)) and _is_proper_workflow(workflow.name):
+            store_process_subscription_relation(process_id=process_id, subscription_id=subscription_id)
         store_input_state(process_id, state | initial_state, "initial_state")
 
     return pstat
