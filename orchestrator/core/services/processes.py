@@ -30,13 +30,20 @@ from nwastdlib.ex import show_ex
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.config.assignee import Assignee
-from orchestrator.core.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.core.db import (
+    EngineSettingsTable,
+    ProcessStepTable,
+    ProcessSubscriptionTable,
+    ProcessTable,
+    db,
+)
 from orchestrator.core.db.database import transactional
 from orchestrator.core.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.core.distlock import distlock_manager
 from orchestrator.core.schemas.engine_settings import WorkerStatus
 from orchestrator.core.services.executors.types import ExecutorFunction
 from orchestrator.core.services.input_state import store_input_state
+from orchestrator.core.services.process_subscription import store_process_subscription_relation
 from orchestrator.core.services.workflows import get_workflow_by_name
 from orchestrator.core.settings import ExecutorType, app_settings
 from orchestrator.core.types import BroadcastFunc
@@ -69,7 +76,7 @@ from orchestrator.core.workflows import get_workflow
 from orchestrator.core.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core import post_form
 from pydantic_forms.exceptions import FormValidationError
-from pydantic_forms.types import State
+from pydantic_forms.types import State, UUIDstr
 
 logger = structlog.get_logger(__name__)
 
@@ -525,8 +532,22 @@ def create_process(
         user_model=user_model,
     )
 
+    def _sid_in_initial_user_input(user_inputs: list[State] | None) -> UUIDstr | None:
+        return user_inputs[0].get("subscription_id") if user_inputs else None
+
+    def _is_proper_workflow(workflow_name: str) -> bool:
+        """Returns true if the workflow exists in the database and is NOT a task."""
+        workflow_table = get_workflow_by_name(workflow_name)
+        return not workflow_table.is_task if workflow_table else True
+
     with transactional(db, logger):
         _db_create_process(pstat)
+        # Only store the Process Subscription relation in workflows where a subscription ID is present.
+        # For creation workflows where this is not the case, this is handled in
+        # `SubscriptionModel.from_product_id()`.
+        # For tasks, this is never stored.
+        if (subscription_id := _sid_in_initial_user_input(user_inputs)) and _is_proper_workflow(workflow.name):
+            store_process_subscription_relation(process_id=process_id, subscription_id=subscription_id)
         store_input_state(process_id, state | initial_state, "initial_state")
 
     return pstat

@@ -29,7 +29,23 @@ user input from a form page, but could also be provided programmatically by eith
 called. Data sources can include external API resources, CSV- or YAML files, etc. If desired, interaction with all
 external provisioning systems can be skipped, resulting in a creation workflow that could be as simple as follows.
 
-=== "`orchestrator-core` ≥ 5.0"
+=== "`orchestrator-core` ≥ 5.4"
+
+    ```python
+    from orchestrator.core.workflow import StepList, begin
+    from orchestrator.core.workflows.utils import create_workflow
+
+    @create_workflow("Create imported Node")
+    def create_imported_node() -> StepList:
+        """Workflow to import a Node without provisioning it."""
+        return (
+            begin
+            >> create_subscription
+            >> initialize_subscription
+        )
+    ```
+
+=== "`orchestrator-core` == 5.0"
 
     ```python
     from orchestrator.core.workflow import StepList, begin

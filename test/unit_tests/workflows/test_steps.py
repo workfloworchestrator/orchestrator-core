@@ -151,11 +151,18 @@ def test_unsync_unchecked_works_when_already_out_of_sync(mock_from_sub, mock_inv
 # --- store_process_subscription ---
 
 
-def test_store_process_subscription_deprecation_warning():
+def test_store_process_subscription_target_deprecation_warning():
     from orchestrator.core.targets import Target
 
     with patch("orchestrator.core.workflows.steps.logger") as mock_logger:
         store_process_subscription(Target.CREATE)
+        assert mock_logger.warning.call_count == 2
+        assert "deprecated" in mock_logger.warning.call_args[0][0].lower()
+
+
+def test_store_process_subscription_deprecation_warning():
+    with patch("orchestrator.core.workflows.steps.logger") as mock_logger:
+        store_process_subscription()
         mock_logger.warning.assert_called_once()
         assert "deprecated" in mock_logger.warning.call_args[0][0].lower()
 

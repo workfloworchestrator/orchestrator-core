@@ -636,14 +636,14 @@ def test_step_group_with_inputform_resume():
     group = step_group("Multistep", begin >> step2 >> user_action >> validate_name)
 
     class Form(FormPage):
-        subscription_id: UUID
+        id: UUID
 
     @workflow(target=Target.CREATE, initial_input_form=const(Form))
     def test_wf():
         return init >> step1 >> group >> step3 >> done
 
     with WorkflowInstanceForTests(test_wf, "step_group_test_workflow"):
-        init_state = {"subscription_id": uuid4()}
+        init_state = {"id": uuid4()}
 
         result, process, step_log = run_workflow("step_group_test_workflow", init_state)
 

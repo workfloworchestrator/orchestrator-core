@@ -19,7 +19,6 @@ from orchestrator.core.forms.summary_form import base_summary
 from orchestrator.core.forms.validators import CustomerId, Divider, Label
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from pydantic import AfterValidator, ConfigDict
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -76,6 +75,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 def construct_example1_model(
     product: UUIDstr,
     customer_id: UUIDstr,
+    process_id: UUIDstr,
     example_str_enum_1: ExampleStrEnum1,
     unmodifiable_str: str,
     modifiable_boolean: bool,
@@ -85,6 +85,7 @@ def construct_example1_model(
     example1 = Example1Inactive.from_product_id(
         product_id=product,
         customer_id=customer_id,
+        process_id=process_id,
         status=SubscriptionLifecycle.INITIAL,
     )
     example1.example1.example_str_enum_1 = example_str_enum_1
@@ -109,6 +110,6 @@ additional_steps = begin
 @create_workflow(initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
 def create_example1() -> StepList:
     return (
-        begin >> construct_example1_model >> store_process_subscription()
+        begin >> construct_example1_model
         # TODO add provision step(s)
     )
