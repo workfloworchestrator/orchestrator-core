@@ -375,7 +375,7 @@ async def resume_all_processes_endpoint(request: Request, user: str = Depends(us
         )
         .filter(ProcessTable.is_task.is_(True))
     )
-    processes_to_resume = db.session.scalars(stmt).all()
+    processes_to_resume = await run_in_threadpool(lambda: db.session.scalars(stmt).all())
 
     broadcast_func = api_broadcast_process_data(request)
     if not await _async_resume_processes(processes_to_resume, user, broadcast_func=broadcast_func):
