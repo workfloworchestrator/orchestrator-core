@@ -25,7 +25,6 @@ from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import Divider, Label, CustomerId, MigrationSummary
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 
 {%- for namespace, type in types_to_import %}
@@ -129,6 +128,5 @@ def create_{{ product.variable }}() -> StepList:
     return (
         begin
         >> construct_{{ product.variable }}_model
-        >> store_process_subscription()
         # TODO add provision step(s)
     )

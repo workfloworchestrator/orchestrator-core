@@ -63,6 +63,7 @@ from orchestrator.core.domain.subscription_instance_transform import (
     field_transformation_rules,
     transform_instance_fields,
 )
+from orchestrator.core.services.process_subscription import store_process_subscription_relation
 from orchestrator.core.services.products import get_product_by_id
 from orchestrator.core.types import (
     SAFE_USED_BY_TRANSITIONS_FOR_STATUS,
@@ -1197,6 +1198,7 @@ class SubscriptionModel(DomainModel):
         product_id: UUID | UUIDstr,
         customer_id: str,
         status: SubscriptionLifecycle = SubscriptionLifecycle.INITIAL,
+        process_id: UUID | UUIDstr | None = None,
         description: str | None = None,
         insync: bool = False,
         start_date: datetime | None = None,
@@ -1238,6 +1240,9 @@ class SubscriptionModel(DomainModel):
             version=version,
         )
         db.session.add(subscription)
+
+        if process_id:
+            store_process_subscription_relation(process_id=process_id, subscription_id=subscription_id)
 
         fixed_inputs = {fi.name: fi.value for fi in product_db.fixed_inputs}
         instances = cls._init_instances(subscription_id)
