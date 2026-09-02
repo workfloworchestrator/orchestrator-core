@@ -99,16 +99,8 @@ class SearchMixin(BaseModel):
 
     @property
     def fuzzy_term(self) -> str | None:
-        """Extract fuzzy term from query text.
-
-        Only single-word queries are used for fuzzy search to avoid
-        the trigram operator filtering out too many results.
-        This matches the original logic from BaseQuery.
-        """
-        if not self.query_text:
-            return None
-        words = self.query_text.split()
-        return self.query_text if len(words) == 1 else None
+        """Text used for trigram (fuzzy) matching: the full query text, or None when there is none."""
+        return self.query_text or None
 
 
 class GroupingMixin(BaseModel):

@@ -13,14 +13,14 @@
 
 """Tests for ProcessHybridRetriever SQL query generation.
 
-Covers semantic distance expression, indexed candidates, JSONB candidates,
+Covers the fuzzy (indexed + JSONB) candidates, the optional semantic candidates,
 the apply() method (CTEs, UNION ALL, RRF scoring, pagination), and metadata.
 """
 
 import uuid
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
 from orchestrator.core.db.models import AiSearchIndex
@@ -51,15 +51,6 @@ def query_id() -> uuid.UUID:
     return uuid.uuid4()
 
 
-def _build_indexed_stmt(retriever, candidate_query):
-    """Build the indexed-candidates statement with standard args."""
-    cand = candidate_query.subquery()
-    sem_val = retriever._get_semantic_distance_expr()
-    best_similarity = func.word_similarity(retriever.fuzzy_term, AiSearchIndex.value)
-    filter_condition = AiSearchIndex.value_type.in_(retriever.SEARCHABLE_FIELD_TYPES)
-    return retriever._build_indexed_candidates(cand, sem_val, best_similarity, filter_condition)
-
-
 # ---------------------------------------------------------------------------
 # Init
 # ---------------------------------------------------------------------------
@@ -82,42 +73,16 @@ def test_init_stores_q_vec_as_given(q_vec):
 def test_init_parent_attributes_set():
     """Parent attributes are correctly initialised."""
     retriever = ProcessHybridRetriever(
-        q_vec=[0.1, 0.2], fuzzy_term="world", cursor=None, k=30, field_candidates_limit=50
+        q_vec=[0.1, 0.2], fuzzy_term="world", cursor=None, k=30, field_candidates_limit=50, semantic_candidates_limit=7
     )
     assert retriever.fuzzy_term == "world"
     assert retriever.k == 30
     assert retriever.field_candidates_limit == 50
+    assert retriever.semantic_candidates_limit == 7
 
 
 # ---------------------------------------------------------------------------
-# Semantic distance expression
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "q_vec,expect_literal_only",
-    [
-        pytest.param(None, True, id="none_q_vec_literal_only"),
-        pytest.param([0.1, 0.9], False, id="q_vec_uses_embedding"),
-    ],
-)
-def test_semantic_distance_expr(q_vec, expect_literal_only):
-    """None -> literal 1.0 only (no <-> or coalesce); list -> embedding distance with coalesce."""
-    retriever = ProcessHybridRetriever(q_vec=q_vec, fuzzy_term="term", cursor=None)
-    expr = retriever._get_semantic_distance_expr()
-    sql = compile_sql(select(expr))
-
-    assert "semantic_distance" in sql
-    if expect_literal_only:
-        assert "<->" not in sql
-        assert "coalesce" not in sql.lower()
-    else:
-        assert "<->" in sql
-        assert "coalesce" in sql.lower()
-
-
-# ---------------------------------------------------------------------------
-# Indexed candidates
+# Indexed (fuzzy) candidates
 # ---------------------------------------------------------------------------
 
 
@@ -127,29 +92,32 @@ def test_semantic_distance_expr(q_vec, expect_literal_only):
         pytest.param("ai_search_index", lambda sql: "ai_search_index" in sql.lower(), id="selects_ai_search_index"),
         pytest.param("entity_id", lambda sql: "entity_id" in sql, id="has_entity_id"),
         pytest.param("entity_title", lambda sql: "entity_title" in sql, id="has_entity_title"),
-        pytest.param("semantic_distance", lambda sql: "semantic_distance" in sql, id="has_semantic_distance"),
         pytest.param("fuzzy_score", lambda sql: "fuzzy_score" in sql, id="has_fuzzy_score"),
+        pytest.param("word_similarity", lambda sql: "word_similarity" in sql, id="scores_with_word_similarity"),
+        pytest.param("trigram_gate", lambda sql: "<%" in sql, id="filters_with_trigram_operator"),
         pytest.param("value_type_in", lambda sql: "value_type" in sql and "IN" in sql, id="filters_by_value_type"),
+        pytest.param("no_semantic", lambda sql: "semantic_distance" not in sql, id="has_no_semantic_distance"),
     ],
 )
-def test_indexed_candidates_sql_structure(candidate_query, assertion_key, assertion_check):
-    """The indexed-candidates query contains expected SQL elements."""
+def test_fuzzy_candidates_sql_structure(candidate_query, assertion_key, assertion_check):
+    """The fuzzy-candidates query contains expected SQL elements."""
     retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="foo", cursor=None)
-    sql = compile_sql(_build_indexed_stmt(retriever, candidate_query))
+    sql = compile_sql(retriever._build_fuzzy_candidates(candidate_query))
     assert assertion_check(sql)
 
 
-def test_indexed_candidates_joins_candidates_cte(candidate_query):
-    """The indexed-candidates query joins on the candidates CTE entity_id."""
+def test_fuzzy_candidates_probe_candidate_membership(candidate_query):
+    """The fuzzy-candidates query checks candidate membership per row with a scalar subquery."""
     retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="foo", cursor=None)
-    sql = compile_sql(_build_indexed_stmt(retriever, candidate_query))
-    assert "entity_id" in sql
+    sql = compile_sql(retriever._build_fuzzy_candidates(candidate_query))
+    assert "candidate_members" in sql
+    assert "IS NOT NULL" in sql
 
 
-def test_indexed_candidates_applies_limit(candidate_query):
-    """The indexed-candidates query has a LIMIT clause."""
+def test_fuzzy_candidates_applies_limit(candidate_query):
+    """The fuzzy-candidates query has a LIMIT clause."""
     retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="foo", cursor=None, field_candidates_limit=42)
-    sql = compile_sql(_build_indexed_stmt(retriever, candidate_query))
+    sql = compile_sql(retriever._build_fuzzy_candidates(candidate_query))
     assert "LIMIT" in sql
 
 
@@ -164,7 +132,7 @@ def test_indexed_candidates_applies_limit(candidate_query):
         pytest.param("process_steps", id="references_process_step_table"),
         pytest.param("LATERAL", id="uses_lateral_subquery"),
         pytest.param("word_similarity", id="uses_word_similarity"),
-        pytest.param("semantic_distance", id="has_semantic_distance_label"),
+        pytest.param("fuzzy_score", id="has_fuzzy_score_label"),
     ],
 )
 def test_jsonb_candidates_sql_contains(candidate_query, sql_fragment):
@@ -252,24 +220,18 @@ def test_apply_process_steps_in_union(candidate_query):
 
 
 @pytest.mark.parametrize(
-    "q_vec,expect_q_vec_param",
+    "q_vec,expect_semantic_source",
     [
-        pytest.param(None, False, id="none_q_vec_no_param"),
-        pytest.param([0.1, 0.2, 0.3], True, id="q_vec_with_param"),
+        pytest.param(None, False, id="none_q_vec_fuzzy_only"),
+        pytest.param([0.1, 0.2, 0.3], True, id="q_vec_adds_semantic_source"),
     ],
 )
-def test_apply_q_vec_param(candidate_query, q_vec, expect_q_vec_param):
-    """q_vec presence determines whether :q_vec bind-param and <-> operator appear."""
+@pytest.mark.parametrize("fragment", ["q_vec", "<->", "semantic_candidates", "semantic_scores", "FULL OUTER JOIN"])
+def test_apply_semantic_source_only_with_q_vec(candidate_query, q_vec, expect_semantic_source, fragment):
+    """Without q_vec the statement is fuzzy-only: no vector operator, bind param, or semantic CTEs."""
     retriever = ProcessHybridRetriever(q_vec=q_vec, fuzzy_term="term", cursor=None)
-    stmt = retriever.apply(candidate_query)
-    sql = str(stmt.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": False}))
-
-    if expect_q_vec_param:
-        assert "q_vec" in sql
-        assert "<->" in sql
-    else:
-        assert "q_vec" not in sql
-        assert "<->" not in sql
+    sql = compile_sql(retriever.apply(candidate_query))
+    assert (fragment in sql) is expect_semantic_source
 
 
 def test_apply_with_cursor_adds_pagination_where_clause(candidate_query, query_id):

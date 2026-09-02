@@ -127,24 +127,23 @@ decides *how* those candidates are ranked. The engine picks the retriever automa
 
 | Available signals                      | Retriever      | Ranking                                             |
 |----------------------------------------|----------------|------------------------------------------------------|
-| Embedding **and** a single-word term    | **Hybrid**     | semantic and fuzzy rankings fused (see [RRF](#ranking-formulas)) |
-| Embedding only                          | **Semantic**   | closest embedding wins                               |
-| Single-word term only                   | **Fuzzy**      | highest trigram similarity wins                      |
+| Text **and** an embedding               | **Hybrid**     | trigram and semantic rankings fused (see [RRF](#ranking-formulas)) |
+| Text that is a UUID                     | **Fuzzy**      | highest trigram similarity wins                      |
 | Filters only                            | **Structured** | no relevance ranking; ordered by a chosen field      |
 
-Two rules explain most surprising routing decisions:
+Any free text, single-word or a whole phrase, is fuzzy-matched on the full text *and* ranked
+semantically. In a domain where most searches are identifiers, names and descriptions, the
+trigram signal is the strongest one, so it is always included; the semantic source keeps
+plain-language queries working when no field contains the words. The only text that is not
+embedded is a UUID, which has no meaning to embed and routes to fuzzy matching.
 
-- **Fuzzy matching only applies to single-word text.** Trigram matching on a multi-word phrase
-  filters out nearly everything, so multi-word text is routed to semantic search. To force
-  trigram matching on a phrase, pass an explicit `retriever` of `hybrid` or `fuzzy`.
-- **Text that is a UUID is never embedded.** A UUID has no meaning to embed, so such queries route
-  to fuzzy matching.
+The pure **Semantic** retriever (closest embedding wins) is available as an explicit
+`retriever` override only. Callers can override the retriever explicitly. If an override needs an
+embedding and none can be produced, the request fails with a clear error rather than silently
+returning different results; under automatic routing the same situation falls back to fuzzy on
+the full text.
 
-Callers can override the retriever explicitly. If an override needs an embedding and none can be
-produced, the request fails with a clear error rather than silently returning different results;
-under automatic routing the same situation falls back to fuzzy.
-
-Process searches use a variant of the fuzzy and hybrid retrievers that also searches the `state`
+Process searches use a variant of the hybrid retriever that also searches the `state`
 JSONB of the process's most recent step. Process steps are deliberately left out of the index to
 keep its size manageable, so that column is read and matched at query time instead: candidates
 are found with a substring `ILIKE`, then scored with the same trigram similarity used for indexed
@@ -232,8 +231,8 @@ Each command accepts:
 
 `python main.py search` runs individual search strategies from a shell (`structured`, `semantic`,
 `fuzzy`, `hierarchical`, `hybrid`, plus `generate-schema` and `nested-demo`), and
-`python main.py speedtest quick` measures query performance. These are exploration aids and do
-not map one-to-one onto the retrievers described above.
+`python main.py speedtest quick` measures query performance. These are exploration aids; the
+`semantic`, `fuzzy` and `hybrid` commands force the retriever of the same name.
 
 ### Running a local embedding server
 
@@ -328,6 +327,14 @@ Each index serves one match type:
 The HNSW index uses `vector_l2_ops`, so semantic ranking uses **L2 distance (`<->`)**, not cosine
 distance.
 
+The hybrid retriever reads its semantic candidates as a `ORDER BY embedding <-> query LIMIT n`
+scan of this index. With pgvector's default (non-iterative) scan the index returns at most about
+`hnsw.ef_search` rows (default 40) regardless of the `LIMIT`, so the engine sets
+`hnsw.iterative_scan = relaxed_order` for the search transaction (via `set_config(..., is_local)`),
+which is available from **pgvector 0.8**. On older pgvector the database rejects the setting; the
+engine logs that once, runs the search without it, and the semantic source is then capped at
+roughly `ef_search` rows.
+
 The migration that creates these also creates the `uuid-ossp`, `ltree`, `unaccent`, `pg_trgm` and
 `vector` extensions, unless `vector` already exists and `LLM_FORCE_EXTENSION_MIGRATION` is off.
 
@@ -346,21 +353,32 @@ to `[0, 1]`.
 **Hybrid** uses **Reciprocal Rank Fusion (RRF)**: rather than trying to make a distance and a
 similarity score comparable, it ranks results separately by each signal and combines the *ranks*.
 
-Note the candidate set: hybrid starts from the fields that trigram-match the term (capped at 100
-field rows), then computes, per entity, the mean semantic distance and mean fuzzy similarity over
-those fields. Semantic similarity therefore re-ranks fuzzy matches; it does not add entities that
-the term missed entirely. Fields with no embedding count as distance `1.0`.
+It draws candidates from two independent sources:
+
+- the **fuzzy source**: the fields that trigram-match the full query text (`'<text>' <% value`),
+  best matches first, capped at 100 field rows;
+- the **semantic source**: the fields closest to the query embedding (HNSW index scan), capped at
+  400 field rows.
+
+Each source is reduced to one row per entity using its *best* field (highest `word_similarity`,
+smallest distance) and ranked on its own with a dense rank (equal scores share a rank). The two
+rankings are joined with a full outer join, so an entity found by only one source still gets a
+score and the missing source contributes `0`. Plain-language queries that no field trigram-matches
+therefore come out in the semantic order, while identifiers and names are lifted by the trigram
+match. The reported matching field is the best fuzzy field when there is one, otherwise the best
+semantic field.
 
 ```text
-rrf     = 1/(k + sem_rank) + 1/(k + fuzzy_rank)   # k = 60
+rrf     = 1/(k + sem_rank) + 1/(k + fuzzy_rank)   # k = 60; a NULL rank contributes 0
 rrf_max = n_sources / (k + 1)                     # n_sources = 2
 beta    = rrf_max * 1.05
-perfect = 1 if avg_fuzzy_score >= 0.9 else 0
+perfect = 1 if best_fuzzy_score >= 0.9 else 0
 score   = (rrf + beta * perfect) / (beta + rrf_max)   # normalized to [0, 1]
 ```
 
-Because `beta` exceeds the largest possible `rrf`, any near-exact text match (average fuzzy
-similarity ≥ 0.9) always outranks every non-exact result. Ties break on `entity_id`.
+Because `beta` exceeds the largest possible `rrf`, any near-exact text match (best fuzzy
+similarity ≥ 0.9) always outranks every non-exact result, including entities that only semantic
+ranking would have put on top. Ties break on `entity_id`.
 
 ### Filters
 

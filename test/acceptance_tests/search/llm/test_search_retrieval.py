@@ -41,11 +41,12 @@ from test.acceptance_tests.search.llm.fixtures import (
 from test.acceptance_tests.search.llm.helpers import get_expected_ranking
 
 
-class TestSemanticRetrieval:
-    """Test semantic retrieval (multi-word queries use SemanticRetriever).
+class TestMultiWordRetrieval:
+    """Test retrieval for multi-word queries (auto-routed to HybridRetriever).
 
-    All benchmark queries are multi-word, so fuzzy_term=None and they use SemanticRetriever.
-    These tests validate rankings match ground truth.
+    Hybrid fuses trigram matching on the full text with semantic ranking; when no field
+    trigram-matches the phrase the order equals the semantic ranking. These tests validate
+    rankings match ground truth.
     """
 
     @pytest.fixture(autouse=True)
@@ -66,7 +67,7 @@ class TestSemanticRetrieval:
         ],
     )
     async def test_ranking_matches_ground_truth(self, query_text, indexed_subscriptions, mock_embeddings):
-        """Test that semantic search ranking matches ground truth for multi-word queries."""
+        """Test that hybrid search ranking matches ground truth for multi-word queries."""
 
         query = SelectQuery(
             entity_type=EntityType.SUBSCRIPTION,
@@ -75,9 +76,9 @@ class TestSemanticRetrieval:
         )
         response = await engine.execute_search(query, db.session)
 
-        # Verify semantic retriever was used (multi-word queries don't set fuzzy_term)
-        assert response.metadata == SearchMetadata.semantic(), (
-            f"Expected semantic retriever for multi-word query, got {response.metadata.search_type}"
+        # Verify hybrid retriever was used (any embeddable text is auto-routed to hybrid)
+        assert response.metadata == SearchMetadata.hybrid(), (
+            f"Expected hybrid retriever for multi-word query, got {response.metadata.search_type}"
         )
 
         result_ids = [str(r.entity_id) for r in response.results]
@@ -89,9 +90,8 @@ class TestSemanticRetrieval:
 
 
 class TestHybridRetrieval:
-    """Test hybrid retrieval (single-word queries use HybridRetriever).
+    """Test hybrid retrieval for single-word queries.
 
-    Single-word queries set both vector_query and fuzzy_term, triggering HybridRetriever.
     These tests validate rankings match ground truth.
     """
 

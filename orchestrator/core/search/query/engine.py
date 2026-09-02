@@ -13,6 +13,7 @@
 
 import structlog
 from sqlalchemy import Select, func, select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from orchestrator.core.search.core.types import SearchMetadata
@@ -61,6 +62,32 @@ def _create_cursor_info(
     return total_items, start_cursor, end_cursor
 
 
+_rejected_session_settings: set[str] = set()
+
+
+def _apply_session_settings(db_session: Session, settings: dict[str, str]) -> None:
+    """Apply transaction-local Postgres settings (``set_config(..., is_local=True)``, like ``SET LOCAL``).
+
+    Each setting runs in its own savepoint so a value the server rejects does not abort the search
+    transaction. That happens on pgvector < 0.8, which reserves the ``hnsw`` prefix but does not
+    define ``hnsw.iterative_scan``: the search then runs without the setting. Rejections are logged
+    once per setting per process.
+    """
+    for name, value in settings.items():
+        try:
+            with db_session.begin_nested():
+                db_session.execute(select(func.set_config(name, value, True)))
+        except DBAPIError as exc:
+            if name not in _rejected_session_settings:
+                _rejected_session_settings.add(name)
+                logger.warning(
+                    "Search session setting rejected by the database; continuing without it",
+                    setting=name,
+                    value=value,
+                    error=str(exc.orig),
+                )
+
+
 async def _execute_search(
     query: SelectQuery | ExportQuery,
     db_session: Session,
@@ -97,6 +124,8 @@ async def _execute_search(
     final_stmt = retriever.apply(candidate_query)
     final_stmt_with_limit = final_stmt.limit(limit)
     logger.debug(final_stmt_with_limit)
+
+    _apply_session_settings(db_session, retriever.session_settings)
 
     result = db_session.execute(final_stmt_with_limit).mappings().all()
     result_rows = list(result)

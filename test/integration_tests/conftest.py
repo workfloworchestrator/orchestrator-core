@@ -21,6 +21,16 @@ the same module is path-discovered AND named as a plugin.
 
 pytest_plugins = ["test.integration_tests._fixtures"]
 
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--record",
+        action="store_true",
+        default=False,
+        help="Record SQL snapshots for retriever tests (test/integration_tests/search/retrieval/retrievers).",
+    )
+
+
 # Re-export non-fixture symbols (constants, classes, plain helpers) that
 # individual test files import by name. Fixtures and hooks are NOT
 # re-exported — they reach tests through the plugin loaded above.

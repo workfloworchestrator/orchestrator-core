@@ -56,10 +56,10 @@ def test_select_query_with_text_search():
 
 
 def test_select_query_with_multi_word_text():
-    """SelectQuery with multi-word text (no fuzzy search)."""
+    """SelectQuery with multi-word text uses the full text for both vector and fuzzy search."""
     query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text="multiple word search")
-    assert query.vector_query is not None
-    assert query.fuzzy_term is None
+    assert query.vector_query == "multiple word search"
+    assert query.fuzzy_term == "multiple word search"
 
 
 def test_select_query_with_uuid_text():

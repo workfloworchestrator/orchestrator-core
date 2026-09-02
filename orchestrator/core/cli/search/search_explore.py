@@ -19,7 +19,7 @@ from pydantic import ValidationError
 
 from orchestrator.core.cli.search.display import display_filtered_paths_only, display_results
 from orchestrator.core.db import db
-from orchestrator.core.search.core.types import EntityType, FilterOp, UIType
+from orchestrator.core.search.core.types import EntityType, FilterOp, RetrieverType, UIType
 from orchestrator.core.search.filters import EqualityFilter, FilterTree, LtreeFilter, PathFilter
 from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.queries import SelectQuery
@@ -63,7 +63,7 @@ def semantic(query_text: str, entity_type: EntityType = EntityType.SUBSCRIPTION,
         },
         ...
     """
-    query = SelectQuery(entity_type=entity_type, query_text=query_text, limit=limit)
+    query = SelectQuery(entity_type=entity_type, query_text=query_text, limit=limit, retriever=RetrieverType.SEMANTIC)
     search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
     display_results(search_response.results, db.session, "Distance")
 
@@ -81,7 +81,7 @@ def fuzzy(term: str, entity_type: EntityType = EntityType.SUBSCRIPTION, limit: i
         },
         ...
     """
-    query = SelectQuery(entity_type=entity_type, query_text=term, limit=limit)
+    query = SelectQuery(entity_type=entity_type, query_text=term, limit=limit, retriever=RetrieverType.FUZZY)
     search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
     display_results(search_response.results, db.session, "Similarity")
 
@@ -121,7 +121,7 @@ def hybrid(query_text: str, term: str, entity_type: EntityType = EntityType.SUBS
     Example:
         dotenv run python main.py search hybrid "reptile store" "Kingswood"
     """
-    query = SelectQuery(entity_type=entity_type, query_text=query_text, limit=limit)
+    query = SelectQuery(entity_type=entity_type, query_text=query_text, limit=limit, retriever=RetrieverType.HYBRID)
     logger.info("Executing Hybrid Search", query_text=query_text, term=term)
     search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
     display_results(search_response.results, db.session, "Hybrid Score")

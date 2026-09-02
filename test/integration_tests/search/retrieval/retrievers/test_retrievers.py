@@ -20,7 +20,7 @@ query building, pagination, metadata, and the compute_rrf_hybrid_score_sql funct
 import uuid
 
 import pytest
-from sqlalchemy import literal, select
+from sqlalchemy import Float, Integer, literal, select
 from sqlalchemy.dialects import postgresql
 
 from orchestrator.core.db import db
@@ -216,24 +216,57 @@ def test_rrf_hybrid_retriever_pagination_structure(candidate_query, query_id, re
 
 
 @pytest.mark.parametrize(
-    "avg_fuzzy_score,expected_flag",
+    "best_fuzzy_score,expected_flag",
     [
         pytest.param(0.89, 0, id="below_threshold"),
         pytest.param(0.90, 1, id="at_threshold"),
         pytest.param(0.95, 1, id="above_threshold"),
     ],
 )
-def test_rrf_perfect_match_detection(avg_fuzzy_score, expected_flag):
+def test_rrf_perfect_match_detection(best_fuzzy_score, expected_flag):
     """Test perfect match flag evaluates correctly based on the threshold."""
     components = compute_rrf_hybrid_score_sql(
         sem_rank_col=literal(1),
         fuzzy_rank_col=literal(1),
-        avg_fuzzy_score_col=literal(avg_fuzzy_score),
+        best_fuzzy_score_col=literal(best_fuzzy_score),
         k=60,
         perfect_threshold=0.9,
     )
     result_flag = db.session.execute(select(components["perfect"])).scalar()
     assert result_flag is not None and result_flag == expected_flag
+
+
+@pytest.mark.parametrize(
+    "sem_rank,fuzzy_rank,expected_rrf",
+    [
+        pytest.param(None, 3, 1 / 63, id="no_semantic_source"),
+        pytest.param(2, None, 1 / 62, id="no_fuzzy_source"),
+        pytest.param(None, None, 0.0, id="no_sources"),
+    ],
+)
+def test_rrf_missing_source_contributes_zero(sem_rank, fuzzy_rank, expected_rrf):
+    """An entity absent from a source (NULL rank) gets no contribution from it, not a NULL score."""
+    result = compute_rrf_hybrid_score_sql(
+        sem_rank_col=literal(sem_rank, type_=Integer),
+        fuzzy_rank_col=literal(fuzzy_rank, type_=Integer),
+        best_fuzzy_score_col=literal(0.5),
+        k=60,
+        perfect_threshold=0.9,
+    )
+    rrf_val = db.session.execute(select(result["rrf_num"])).scalar()
+    assert rrf_val is not None and float(rrf_val) == pytest.approx(expected_rrf, abs=0.0001)
+
+
+def test_rrf_perfect_match_requires_fuzzy_score():
+    """An entity without a fuzzy score (NULL) is never a perfect match."""
+    components = compute_rrf_hybrid_score_sql(
+        sem_rank_col=literal(1),
+        fuzzy_rank_col=literal(None, type_=Integer),
+        best_fuzzy_score_col=literal(None, type_=Float),
+        k=60,
+        perfect_threshold=0.9,
+    )
+    assert db.session.execute(select(components["perfect"])).scalar() == 0
 
 
 @pytest.mark.parametrize(
@@ -249,7 +282,7 @@ def test_rrf_base_score_component(k, sem_rank, fuzzy_rank, expected_rrf):
     result = compute_rrf_hybrid_score_sql(
         sem_rank_col=literal(sem_rank),
         fuzzy_rank_col=literal(fuzzy_rank),
-        avg_fuzzy_score_col=literal(0.5),
+        best_fuzzy_score_col=literal(0.5),
         k=k,
         perfect_threshold=0.9,
     )
@@ -272,7 +305,7 @@ def test_rrf_normalized_score_is_always_in_range(sem_rank, fuzzy_rank, fuzzy_sco
     components = compute_rrf_hybrid_score_sql(
         sem_rank_col=literal(sem_rank),
         fuzzy_rank_col=literal(fuzzy_rank),
-        avg_fuzzy_score_col=literal(fuzzy_score),
+        best_fuzzy_score_col=literal(fuzzy_score),
         k=60,
         perfect_threshold=0.9,
     )
@@ -294,7 +327,7 @@ def test_rrf_n_sources_affects_rrf_max(n_sources, expected_numerator):
     components = compute_rrf_hybrid_score_sql(
         sem_rank_col=literal(1),
         fuzzy_rank_col=literal(1),
-        avg_fuzzy_score_col=literal(0.5),
+        best_fuzzy_score_col=literal(0.5),
         k=k,
         perfect_threshold=0.9,
         n_sources=n_sources,
@@ -319,7 +352,7 @@ def test_rrf_margin_factor_affects_beta(margin_factor, expected_multiplier):
     components = compute_rrf_hybrid_score_sql(
         sem_rank_col=literal(1),
         fuzzy_rank_col=literal(1),
-        avg_fuzzy_score_col=literal(0.5),
+        best_fuzzy_score_col=literal(0.5),
         k=k,
         perfect_threshold=0.9,
         n_sources=n_sources,

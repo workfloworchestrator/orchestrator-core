@@ -14,8 +14,10 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import DBAPIError
 
 from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.engine import execute_aggregation, execute_export, execute_search
 from orchestrator.core.search.query.queries import CountQuery, ExportQuery, SelectQuery
 from orchestrator.core.search.query.results import SearchResponse, SearchResult
@@ -195,3 +197,46 @@ async def test_execute_aggregation_format_response_called_with_correct_args():
         await execute_aggregation(query, mock_db)
 
     mock_format.assert_called_once_with(fake_rows, [], query)
+
+
+# ---------------------------------------------------------------------------
+# Session settings
+# ---------------------------------------------------------------------------
+
+
+def _rejecting_session(rejected: set[str]) -> MagicMock:
+    """A session whose ``set_config`` fails for the given setting names; ``begin_nested`` is a plain context manager."""
+    session = MagicMock()
+    session.begin_nested.return_value.__enter__ = MagicMock()
+    session.begin_nested.return_value.__exit__ = MagicMock(return_value=False)
+
+    def execute(stmt):
+        name = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+        if any(f"'{r}'" in name for r in rejected):
+            raise DBAPIError("set_config", {}, Exception("invalid configuration parameter name"))
+        return MagicMock()
+
+    session.execute.side_effect = execute
+    return session
+
+
+def test_apply_session_settings_runs_each_setting_in_a_savepoint():
+    session = _rejecting_session(set())
+    engine._apply_session_settings(session, {"hnsw.iterative_scan": "relaxed_order", "work_mem": "64MB"})
+    assert session.begin_nested.call_count == 2
+    assert session.execute.call_count == 2
+
+
+def test_apply_session_settings_skips_rejected_setting_and_keeps_going():
+    session = _rejecting_session({"hnsw.does_not_exist"})
+    engine._rejected_session_settings.discard("hnsw.does_not_exist")
+    engine._apply_session_settings(session, {"hnsw.does_not_exist": "x", "hnsw.iterative_scan": "relaxed_order"})
+    assert session.execute.call_count == 2
+    assert "hnsw.does_not_exist" in engine._rejected_session_settings
+
+
+def test_apply_session_settings_with_nothing_to_apply_touches_no_session():
+    session = _rejecting_session(set())
+    engine._apply_session_settings(session, {})
+    session.execute.assert_not_called()
+    session.begin_nested.assert_not_called()

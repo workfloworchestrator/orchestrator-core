@@ -46,9 +46,9 @@ class Retriever(ABC):
         """Pick the retriever class that will handle this query.
 
         Internal helper consumed by `needs_embedding()` and `route()`;
-        Honors explicit `query.retriever` overrides first,
-        then falls back to auto-routing based on which search criteria are
-        present. Process-entity queries that would use Fuzzy or RrfHybrid are
+        Honors explicit `query.retriever` overrides first, then auto-routes:
+        embeddable text -> Hybrid, UUID text -> Fuzzy, no text -> Structured.
+        Process-entity queries that would use Fuzzy or RrfHybrid are
         promoted to ProcessHybridRetriever (which adds JSONB last_step search).
         """
         from .fuzzy import FuzzyRetriever
@@ -63,11 +63,11 @@ class Retriever(ABC):
             retriever_cls = SemanticRetriever
         elif query.retriever == RetrieverType.HYBRID:
             retriever_cls = RrfHybridRetriever
-        elif query.vector_query and query.fuzzy_term:
-            retriever_cls = RrfHybridRetriever
         elif query.vector_query:
-            retriever_cls = SemanticRetriever
+            # Any embeddable text: fuse trigram matching on the full text with semantic ranking.
+            retriever_cls = RrfHybridRetriever
         elif query.fuzzy_term:
+            # Text that is not embedded (a UUID): trigram matching only.
             retriever_cls = FuzzyRetriever
         else:
             retriever_cls = StructuredRetriever
@@ -114,10 +114,10 @@ class Retriever(ABC):
         Selects the retriever class via `_plan()`, then constructs it. The
         rules in short:
 
-        - Hybrid:    embedding + fuzzy term available
-        - Semantic:  embedding available, no fuzzy term
-        - Fuzzy:    fuzzy term available (or fallback when embedding generation fails)
+        - Hybrid:    query text + embedding available
+        - Fuzzy:     query text is a UUID (never embedded), or fallback when embedding generation fails
         - Structured: only filters available
+        - Semantic:  explicit override only
         - Process entities use ProcessHybridRetriever in place of Fuzzy/Hybrid.
 
         For explicit `query.retriever` overrides, raises ValueError when
@@ -159,9 +159,7 @@ class Retriever(ABC):
                 else FuzzyRetriever(query.query_text, cursor)  # type: ignore[arg-type]
             )
 
-        # Explicit overrides honor the full query_text; auto-routed fuzzy/hybrid use
-        # the (single-word) fuzzy_term from the search mixin.
-        fuzzy_text = query.query_text if override is not None else query.fuzzy_term
+        fuzzy_text = query.query_text
 
         if retriever_cls is StructuredRetriever:
             return StructuredRetriever(cursor, query.order_by, query.filters)
@@ -174,6 +172,14 @@ class Retriever(ABC):
         if retriever_cls is ProcessHybridRetriever and fuzzy_text is not None:
             return ProcessHybridRetriever(query_embedding, fuzzy_text, cursor)
         raise RuntimeError(f"Unreachable: _plan() returned {retriever_cls.__name__} but required inputs are missing")
+
+    @property
+    def session_settings(self) -> dict[str, str]:
+        """Postgres settings the engine applies with ``set_config(name, value, is_local=True)`` before executing.
+
+        Transaction-local, so they never leak beyond the search statement.
+        """
+        return {}
 
     @abstractmethod
     def apply(self, candidate_query: Select) -> Select:
