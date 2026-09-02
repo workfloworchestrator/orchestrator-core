@@ -1,5 +1,7 @@
 # Custom Process Step Handler
 
+!!! info "Added in version 5.4"
+
 After each workflow step is completed, the Orchestrator will store the output of this step in the `Process` table in the
 subscription database. By default, this will update the `last_status`, and in case the step was a failure, it will set
 the `failed_reason` and the `traceback`.
