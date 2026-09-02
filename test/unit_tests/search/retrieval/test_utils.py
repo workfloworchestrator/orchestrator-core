@@ -30,6 +30,19 @@ from orchestrator.core.search.query.results import generate_highlight_indices, t
         pytest.param("The quick brown fox jumps", "elephant", [], id="no-match"),
         pytest.param("fox fox fox", "fox", [(0, 3), (4, 7), (8, 11)], id="duplicate-matches"),
         pytest.param("The Cat sat on the catalog.", "cat", [(4, 7), (19, 22)], id="word-and-substring"),
+        pytest.param(
+            "Node Peering asd066d-jnp-02",
+            '"Node Peering asd066d-jnp-0"',
+            [(0, 4), (5, 12), (13, 26)],
+            id="quoted-query",
+        ),
+        pytest.param(
+            "Node asd066d-jnp-03", '"Node Peering asd066d-jnp-0"', [(0, 4), (5, 18)], id="quoted-query-partial"
+        ),
+        pytest.param("The quick brown fox jumps", "fox,", [(16, 19)], id="trailing-punctuation"),
+        pytest.param("The quick brown fox jumps", "fox -", [(16, 19)], id="punctuation-only-word-ignored"),
+        pytest.param("asd066d-jnp-02 port", "asd066d-jnp", [(0, 11)], id="inner-hyphen-preserved"),
+        pytest.param("(fox)", "(fox)", [(1, 4)], id="wrapped-in-parentheses"),
     ],
 )
 def test_generate_highlight_indices(text: str, term: str, expected: list):
