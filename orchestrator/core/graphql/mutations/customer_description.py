@@ -17,7 +17,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oauth2_lib.strawberry import authenticated_mutation_field
-from orchestrator.core.db import SubscriptionCustomerDescriptionTable, db
+from orchestrator.core.db import SubscriptionCustomerDescriptionTable
 from orchestrator.core.domain.customer_description import (
     create_subscription_customer_description,
     delete_subscription_customer_description_by_customer_subscription,
@@ -25,7 +25,7 @@ from orchestrator.core.domain.customer_description import (
     update_subscription_customer_description,
 )
 from orchestrator.core.graphql.schemas.customer_description import CustomerDescription
-from orchestrator.core.graphql.types import MutationError, NotFoundError
+from orchestrator.core.graphql.types import MutationError, NotFoundError, OrchestratorInfo
 from orchestrator.core.utils.errors import StaleDataError
 
 logger = structlog.get_logger(__name__)
@@ -37,18 +37,19 @@ async def upsert_customer_description(
     current_description = await get_customer_description_by_customer_subscription(customer_id, subscription_id, session)
 
     if current_description:
-        return await update_subscription_customer_description(current_description, description, session, version=version)
+        return await update_subscription_customer_description(
+            current_description, description, session, version=version
+        )
     return await create_subscription_customer_description(customer_id, subscription_id, description, session)
 
 
 async def resolve_upsert_customer_description(
-    customer_id: str, subscription_id: UUID, description: str, version: int | None = None
+    info: OrchestratorInfo, customer_id: str, subscription_id: UUID, description: str, version: int | None = None
 ) -> CustomerDescription | NotFoundError | MutationError:
     try:
-        async with db.async_session() as session:
-            customer_description = await upsert_customer_description(
-                customer_id, subscription_id, description, version, session
-            )
+        customer_description = await upsert_customer_description(
+            customer_id, subscription_id, description, version, info.context.session
+        )
     except StaleDataError as error:
         return MutationError(message=str(error))
     except Exception:
@@ -57,12 +58,11 @@ async def resolve_upsert_customer_description(
 
 
 async def resolve_remove_customer_description(
-    customer_id: str, subscription_id: UUID
+    info: OrchestratorInfo, customer_id: str, subscription_id: UUID
 ) -> CustomerDescription | NotFoundError | MutationError:
-    async with db.async_session() as session:
-        description = await delete_subscription_customer_description_by_customer_subscription(
-            customer_id=customer_id, subscription_id=subscription_id, session=session
-        )
+    description = await delete_subscription_customer_description_by_customer_subscription(
+        customer_id=customer_id, subscription_id=subscription_id, session=info.context.session
+    )
     if not description:
         return NotFoundError(message="Customer description not found")
     return CustomerDescription.from_pydantic(description)  # type: ignore
