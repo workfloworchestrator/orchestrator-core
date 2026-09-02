@@ -21,7 +21,7 @@ from uuid import UUID
 import structlog
 from fastapi import Depends
 from fastapi.routing import APIRouter
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.concurrency import run_in_threadpool
@@ -32,13 +32,11 @@ from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.api.helpers import add_response_range, add_subscription_search_query_filter
 from orchestrator.core.db import (
-    ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
     ProductTable,
     SubscriptionMetadataTable,
     SubscriptionTable,
-    db,
     get_async_session,
 )
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
@@ -61,25 +59,6 @@ from orchestrator.core.workflows import get_workflow
 router = APIRouter()
 
 logger = structlog.get_logger(__name__)
-
-
-def _delete_subscription_tree(subscription: SubscriptionTable) -> None:
-    db.session.delete(subscription)
-    db.session.commit()
-
-
-def _delete_process_subscriptions(process_subscriptions: list[ProcessSubscriptionTable]) -> None:
-    for process_subscription in process_subscriptions:
-        process_id = str(process_subscription.process_id)
-        subscription_id = str(process_subscription.subscription_id)
-        db.session.execute(delete(ProcessSubscriptionTable).filter(ProcessSubscriptionTable.process_id == process_id))
-        db.session.execute(delete(ProcessStepTable).filter(ProcessStepTable.process_id == process_id))
-        db.session.execute(delete(ProcessTable).filter(ProcessTable.process_id == process_id))
-        subscription = db.session.scalars(
-            select(SubscriptionTable).filter(SubscriptionTable.subscription_id == subscription_id)
-        ).first()
-        if subscription:
-            _delete_subscription_tree(subscription)
 
 
 def _apply_auth_reason(workflow_dict: dict[str, Any], current_user: OIDCUserModel | None) -> None:

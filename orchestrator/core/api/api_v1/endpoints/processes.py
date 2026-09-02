@@ -73,7 +73,7 @@ from orchestrator.core.services.processes import (
     load_process,
     resume_process,
     start_process,
-    update_awaiting_process_progress,
+    update_awaiting_process_progress_async,
 )
 from orchestrator.core.services.settings import get_engine_settings_table
 from orchestrator.core.settings import app_settings
@@ -345,7 +345,7 @@ async def update_progress_on_awaiting_process_endpoint(
         raise_status(HTTPStatus.CONFLICT, "This process is not in an awaiting state.")
 
     try:
-        await update_awaiting_process_progress(process, token=token, data=data, session=session)
+        await update_awaiting_process_progress_async(process, token=token, data=data, session=session)
     except AssertionError as exc:
         raise_status(HTTPStatus.NOT_FOUND, str(exc))
 

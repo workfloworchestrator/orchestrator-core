@@ -12,10 +12,9 @@
 # limitations under the License.
 
 
+import anyio
 import httpx
-import requests
 import structlog
-from requests.exceptions import RequestException
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,14 +81,7 @@ def post_update_to_slack(engine_status: EngineSettingsSchema, user: str) -> None
         None
 
     """
-    try:
-        message = _engine_status_slack_message(engine_status, user)
-        requests.post(app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL, json=message, timeout=5)
-
-    # Catch all Request exceptions and log. Then pass
-    except RequestException:
-        logger.exception("Post to slack failed.")
-        pass
+    anyio.run(post_update_to_slack_async, engine_status, user)
 
 
 async def post_update_to_slack_async(engine_status: EngineSettingsSchema, user: str) -> None:

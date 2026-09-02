@@ -48,6 +48,7 @@ from orchestrator.core.utils.errors import ApiException, InconsistentDataError, 
 from orchestrator.core.utils.json import json_dumps, json_loads
 from orchestrator.core.websocket import (
     broadcast_invalidate_status_counts,
+    broadcast_process_update_to_websocket,
     broadcast_process_update_to_websocket_async,
 )
 from orchestrator.core.workflow import (
@@ -748,7 +749,44 @@ def continue_awaiting_process(
     return resume_func(process, broadcast_func=broadcast_func)
 
 
-async def update_awaiting_process_progress(
+def update_awaiting_process_progress(
+    process: ProcessTable,
+    *,
+    token: str,
+    data: str | State,
+) -> UUID:
+    """Update progress for a process awaiting data from a callback.
+
+    Args:
+        process: Process from database
+        token: The token which was generated for the process. This must match.
+        data: Progress data posted to the callback
+
+    Returns:
+        process id
+
+    Raises:
+        AssertionError: if the supplied token does not match the generated process token.
+
+    """
+    pstat = load_process(process)
+
+    ensure_correct_callback_token(pstat, token=token)
+
+    state = pstat.state.unwrap()
+    progress_key = DEFAULT_CALLBACK_PROGRESS_KEY
+    state = {**state, progress_key: data} | {"__remove_keys": [progress_key]}
+
+    # Commit the SessionTransaction before the "output" of this function: a websocket event
+    with transactional(db, logger):
+        replace_current_step_state(process, new_state=state)
+
+    # Emit the websocket event
+    broadcast_process_update_to_websocket(process.process_id)
+
+    return process.process_id
+
+async def update_awaiting_process_progress_async(
     process: ProcessTable,
     *,
     token: str,
