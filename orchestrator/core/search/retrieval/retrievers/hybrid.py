@@ -58,6 +58,7 @@ def compute_rrf_hybrid_score_sql(
     n_sources: int = 2,
     margin_factor: float = 0.05,
     score_numeric_type: TypeEngine | None = None,
+    perfect_semantic_weight: float = 0.002,
 ) -> RrfScoreSqlComponents:
     """Compute RRF (Reciprocal Rank Fusion) hybrid score as SQL expressions for database execution.
 
@@ -80,6 +81,10 @@ def compute_rrf_hybrid_score_sql(
         n_sources: Number of ranking sources being fused (default: 2 for semantic + fuzzy)
         margin_factor: Margin above rrf_max as fraction (default: 0.05 = 5%)
         score_numeric_type: SQLAlchemy numeric type for casting scores
+        perfect_semantic_weight: Factor applied to the semantic term of perfect matches (default 0.002).
+            Among perfect matches the text decides: the semantic rank only breaks exact fuzzy-rank ties.
+            The default keeps the semantic term below the gap between any two adjacent fuzzy ranks up to
+            rank 100 (``(k+1) / ((k+100) * (k+101))`` for k=60), so it can never overturn one.
 
     Returns:
         RrfScoreSqlComponents: Dictionary of SQL expressions for score components
@@ -100,12 +105,17 @@ def compute_rrf_hybrid_score_sql(
         -   A `NULL` rank means the entity was not returned by that source and contributes
             `0` to the RRF sum; a `NULL` best fuzzy score never counts as a perfect match.
     """
-    # RRF (rank-based): sum of 1/(k + rank_i) for each ranking source; a missing source contributes 0
-    rrf_raw = func.coalesce(1.0 / (k + sem_rank_col), 0.0) + func.coalesce(1.0 / (k + fuzzy_rank_col), 0.0)
-    rrf_num = cast(rrf_raw, score_numeric_type) if score_numeric_type else rrf_raw
-
     # Perfect flag to boost near perfect fuzzy matches (NULL score -> else branch -> 0)
-    perfect = case((best_fuzzy_score_col >= perfect_threshold, 1), else_=0).label("perfect_match")
+    is_perfect = best_fuzzy_score_col >= perfect_threshold
+    perfect = case((is_perfect, 1), else_=0).label("perfect_match")
+
+    # RRF (rank-based): sum of 1/(k + rank_i) for each ranking source; a missing source contributes 0.
+    # For perfect matches the semantic term is reduced to a tiebreaker (see perfect_semantic_weight).
+    sem_weight = case((is_perfect, perfect_semantic_weight), else_=1.0)
+    rrf_raw = func.coalesce(sem_weight * (1.0 / (k + sem_rank_col)), 0.0) + func.coalesce(
+        1.0 / (k + fuzzy_rank_col), 0.0
+    )
+    rrf_num = cast(rrf_raw, score_numeric_type) if score_numeric_type else rrf_raw
 
     # Dynamic beta based on k and number of sources
     # rrf_max = n_sources / (k + 1)
@@ -295,9 +305,13 @@ class RrfHybridRetriever(Retriever):
     def _ranked_results(self, fuzzy_scores: CTE, semantic_scores: CTE | None) -> CTE:
         """Full outer join of both per-entity sources with a dense rank per source (NULL when absent)."""
         f = fuzzy_scores.c
+        # Equal fuzzy scores are broken by the depth of the matching field: an entity whose own
+        # description/title matches ranks above entities that carry the same text in a nested block.
         fuzzy_rank = case(
             (f.entity_id.is_(None), null()),
-            else_=func.dense_rank().over(order_by=f.best_fuzzy_score.desc().nulls_last()),
+            else_=func.dense_rank().over(
+                order_by=[f.best_fuzzy_score.desc().nulls_last(), func.nlevel(f.highlight_path).asc().nulls_last()]
+            ),
         ).label("fuzzy_rank")
 
         if semantic_scores is None:

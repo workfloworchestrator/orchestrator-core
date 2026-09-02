@@ -361,24 +361,28 @@ It draws candidates from two independent sources:
   400 field rows.
 
 Each source is reduced to one row per entity using its *best* field (highest `word_similarity`,
-smallest distance) and ranked on its own with a dense rank (equal scores share a rank). The two
-rankings are joined with a full outer join, so an entity found by only one source still gets a
-score and the missing source contributes `0`. Plain-language queries that no field trigram-matches
-therefore come out in the semantic order, while identifiers and names are lifted by the trigram
-match. The reported matching field is the best fuzzy field when there is one, otherwise the best
-semantic field.
+smallest distance) and ranked on its own with a dense rank (equal scores share a rank). Equal fuzzy
+scores are ordered by the depth of the matching path, so an entity whose own description matches
+ranks above entities that carry the same text in a nested block. The two rankings are joined with
+a full outer join, so an entity found by only one source still gets a score and the missing source
+contributes `0`. Plain-language queries that no field trigram-matches therefore come out in the
+semantic order, while identifiers and names are lifted by the trigram match. The reported matching
+field is the best fuzzy field when there is one, otherwise the best semantic field.
 
 ```text
-rrf     = 1/(k + sem_rank) + 1/(k + fuzzy_rank)   # k = 60; a NULL rank contributes 0
+perfect = 1 if best_fuzzy_score >= 0.9 else 0
+w_sem   = 0.002 if perfect else 1                 # semantics only break ties between perfect matches
+rrf     = w_sem/(k + sem_rank) + 1/(k + fuzzy_rank)   # k = 60; a NULL rank contributes 0
 rrf_max = n_sources / (k + 1)                     # n_sources = 2
 beta    = rrf_max * 1.05
-perfect = 1 if best_fuzzy_score >= 0.9 else 0
 score   = (rrf + beta * perfect) / (beta + rrf_max)   # normalized to [0, 1]
 ```
 
 Because `beta` exceeds the largest possible `rrf`, any near-exact text match (best fuzzy
-similarity ≥ 0.9) always outranks every non-exact result, including entities that only semantic
-ranking would have put on top. Ties break on `entity_id`.
+similarity ≥ 0.9) always outranks every non-perfect result, including entities that only semantic
+ranking would have put on top. Among perfect matches the text decides: the semantic term is scaled
+down so far that it cannot overturn a fuzzy-rank difference, and only orders entities with the same
+fuzzy score and matching depth. Ties break on `entity_id`.
 
 ### Filters
 

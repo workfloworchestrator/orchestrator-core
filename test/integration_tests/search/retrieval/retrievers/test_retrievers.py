@@ -257,6 +257,34 @@ def test_rrf_missing_source_contributes_zero(sem_rank, fuzzy_rank, expected_rrf)
     assert rrf_val is not None and float(rrf_val) == pytest.approx(expected_rrf, abs=0.0001)
 
 
+@pytest.mark.parametrize(
+    "best_fuzzy_score,sem_rank,fuzzy_rank,expected_rrf",
+    [
+        pytest.param(0.5, 1, 2, 1 / 61 + 1 / 62, id="non_perfect_full_semantic_term"),
+        pytest.param(0.95, 1, 2, 0.002 / 61 + 1 / 62, id="perfect_semantic_is_a_tiebreaker"),
+        pytest.param(0.95, 50, 1, 0.002 / 110 + 1 / 61, id="perfect_deep_semantic_rank"),
+    ],
+)
+def test_rrf_semantic_term_is_scaled_down_for_perfect_matches(best_fuzzy_score, sem_rank, fuzzy_rank, expected_rrf):
+    """Among perfect matches the fuzzy rank decides; the semantic rank only breaks exact ties."""
+    result = compute_rrf_hybrid_score_sql(
+        sem_rank_col=literal(sem_rank),
+        fuzzy_rank_col=literal(fuzzy_rank),
+        best_fuzzy_score_col=literal(best_fuzzy_score),
+        k=60,
+        perfect_threshold=0.9,
+    )
+    rrf_val = db.session.execute(select(result["rrf_num"])).scalar()
+    assert rrf_val is not None and float(rrf_val) == pytest.approx(expected_rrf, abs=1e-6)
+
+
+def test_rrf_perfect_semantic_weight_never_overturns_an_adjacent_fuzzy_rank():
+    """Default weight: best possible semantic term < smallest fuzzy-rank gap within the 100-row cap."""
+    k, cap, weight = 60, 100, 0.002
+    smallest_gap = 1 / (k + cap) - 1 / (k + cap + 1)
+    assert weight / (k + 1) < smallest_gap
+
+
 def test_rrf_perfect_match_requires_fuzzy_score():
     """An entity without a fuzzy score (NULL) is never a perfect match."""
     components = compute_rrf_hybrid_score_sql(

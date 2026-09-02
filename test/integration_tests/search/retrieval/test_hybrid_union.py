@@ -73,7 +73,8 @@ class Seeded:
     sibling = uuid4()
     semantic_only = uuid4()
     terminated = uuid4()
-    axes = {exact: 1, sibling: 2, semantic_only: 0, terminated: 3}
+    referrer = uuid4()  # carries EXACT_DESCRIPTION in a nested block field, not in its own description
+    axes = {exact: 1, sibling: 2, semantic_only: 0, terminated: 3, referrer: 4}
 
 
 @pytest.fixture
@@ -89,6 +90,15 @@ def seeded() -> type[Seeded]:
         _index_row(Seeded.semantic_only, "subscription.status", "active", "semantic"),
         _index_row(Seeded.terminated, "subscription.description", TERMINATED_DESCRIPTION, "terminated", _vec(3)),
         _index_row(Seeded.terminated, "subscription.status", "terminated", "terminated"),
+        _index_row(Seeded.referrer, "subscription.description", "IP Peer referrer", "referrer", _vec(4)),
+        _index_row(
+            Seeded.referrer,
+            "subscription.ip_peer_block.peers.0.peer_group.title",
+            EXACT_DESCRIPTION,
+            "referrer",
+            _vec(4),
+        ),
+        _index_row(Seeded.referrer, "subscription.status", "active", "referrer"),
     ]
     db.session.add_all(rows)
     db.session.commit()
@@ -122,11 +132,22 @@ def test_exact_match_ranks_first_and_is_perfect_despite_weaker_sibling_field(see
     """The flag uses the best field: the 0.71 node title does not drag the 1.0 description below 0.9."""
     rows = _run_retriever(EXACT_DESCRIPTION, _vec(seeded.axes[seeded.exact]))
 
-    assert [r["entity_id"] for r in rows[:2]] == [seeded.exact, seeded.sibling]
-    assert [r["perfect_match"] for r in rows[:2]] == [1, 1]
+    assert [r["entity_id"] for r in rows[:3]] == [seeded.exact, seeded.referrer, seeded.sibling]
+    assert [r["perfect_match"] for r in rows[:3]] == [1, 1, 1]
     assert rows[0]["highlight_path"] == "subscription.description"
     assert rows[0]["highlight_text"] == EXACT_DESCRIPTION
-    assert float(rows[0]["score"]) == pytest.approx(1.0)
+
+
+def test_entity_itself_outranks_entity_referencing_the_same_text(seeded):
+    """Equal fuzzy scores: the shallower matching path wins, and a semantic edge cannot flip a perfect match.
+
+    The referrer carries the exact text in a nested field and gets the closest embedding here; the
+    subscription whose own description matches must still come first.
+    """
+    rows = _run_retriever(EXACT_DESCRIPTION, _vec(seeded.axes[seeded.referrer]))
+
+    assert [r["entity_id"] for r in rows[:2]] == [seeded.exact, seeded.referrer]
+    assert rows[1]["highlight_path"] == "subscription.ip_peer_block.peers.0.peer_group.title"
 
 
 def test_entity_without_trigram_hit_is_still_ranked_semantically(seeded):
@@ -137,8 +158,8 @@ def test_entity_without_trigram_hit_is_still_ranked_semantically(seeded):
     assert rows[0]["highlight_path"] == "subscription.description"
     assert rows[0]["highlight_text"] == SEMANTIC_DESCRIPTION
     assert {r["perfect_match"] for r in rows} == {0}
-    # Every embedded entity is present (four descriptions carry an embedding)
-    assert {r["entity_id"] for r in rows} == {seeded.exact, seeded.sibling, seeded.semantic_only, seeded.terminated}
+    # Every embedded entity is present (every seeded description carries an embedding)
+    assert {r["entity_id"] for r in rows} == set(seeded.axes)
 
 
 def test_fuzzy_only_hits_appear_below_perfect_matches(seeded):
@@ -212,7 +233,10 @@ async def test_engine_falls_back_to_fuzzy_without_embedding(seeded):
         response = await engine.execute_search(query, db.session)
 
     assert response.metadata == SearchMetadata.fuzzy()
-    assert response.results[0].entity_id == str(seeded.exact)
+    # The fuzzy retriever has no depth tiebreak: the entity itself and the referrer both score 1.0
+    top_two = response.results[:2]
+    assert {r.entity_id for r in top_two} == {str(seeded.exact), str(seeded.referrer)}
+    assert all(r.score == pytest.approx(1.0) for r in top_two)
 
 
 async def test_engine_applies_iterative_scan_for_the_transaction(seeded):
@@ -238,7 +262,7 @@ async def test_engine_pagination_continues_after_cursor(seeded):
     assert first_page.has_more is True
     assert len(first_page.results) == 2
     first_ids = {r.entity_id for r in first_page.results}
-    assert first_ids == {str(seeded.exact), str(seeded.sibling)}
+    assert first_ids == {str(seeded.exact), str(seeded.referrer)}
     assert all(r.entity_id not in first_ids for r in second_page.results)
     assert all(r.score <= last.score for r in second_page.results)
     assert len(second_page.results) == 2
