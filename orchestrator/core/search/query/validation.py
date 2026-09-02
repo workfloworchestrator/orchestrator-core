@@ -88,6 +88,21 @@ async def get_structured_filter_schema(session: AsyncSession) -> dict[str, str]:
     return {str(path): value_type.value for path, value_type in result}
 
 
+async def get_existing_paths(paths: list[str], session: AsyncSession) -> set[str]:
+    """Return the subset of the given paths that exist in the index.
+
+    Args:
+        paths: LTree path strings to check.
+        session: Async database session.
+
+    Returns:
+        set[str]: The paths from `paths` that exist in the index.
+    """
+    stmt = select(AiSearchIndex.path).where(AiSearchIndex.path.in_([Ltree(path) for path in paths])).distinct()
+    result = await session.execute(stmt)
+    return {str(path) for path in result.scalars()}
+
+
 async def validate_filter_path(path: str, session: AsyncSession) -> str | None:
     """Check if a given path exists in the index and return its field type.
 
@@ -228,9 +243,13 @@ async def validate_grouping_fields(group_by_paths: list[str], session: AsyncSess
     Raises:
         PathNotFoundError: If any path doesn't exist in the database
     """
+    if not group_by_paths:
+        return
+
+    existing_paths = await get_existing_paths(group_by_paths, session)
+
     for path in group_by_paths:
-        field_type = await validate_filter_path(path, session)
-        if field_type is None:
+        if path not in existing_paths:
             raise PathNotFoundError(path)
 
 
@@ -252,14 +271,16 @@ async def validate_order_by_fields(order_by: list[OrderBy] | None, session: Asyn
     if order_by is None:
         return
 
-    for order_instr in order_by:
-        # Skip aggregation aliases (no dots, e.g., 'count', 'revenue')
-        if "." not in order_instr.field:
-            continue
+    # Skip aggregation aliases (no dots, e.g., 'count', 'revenue')
+    path_fields = [instr.field for instr in order_by if "." in instr.field]
+    if not path_fields:
+        return
 
-        field_type = await validate_filter_path(order_instr.field, session)
-        if field_type is None:
-            raise PathNotFoundError(order_instr.field)
+    existing_paths = await get_existing_paths(path_fields, session)
+
+    for field in path_fields:
+        if field not in existing_paths:
+            raise PathNotFoundError(field)
 
 
 async def get_ai_search_index_by_entity_type_and_path(

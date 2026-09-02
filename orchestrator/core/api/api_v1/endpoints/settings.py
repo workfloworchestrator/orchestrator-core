@@ -113,7 +113,7 @@ async def set_global_status(
 
     if app_settings.SLACK_ENGINE_SETTINGS_HOOK_ENABLED:
         user_name = user.user_name if user else processes.SYSTEM_USER
-        settings.post_update_to_slack(engine_settings_schema, user_name)
+        await settings.post_update_to_slack_async(engine_settings_schema, user_name)
 
     if websocket_manager.enabled:
         # send engine status to socket.
@@ -164,7 +164,9 @@ async def get_exposed_settings() -> list[SettingsExposedSchema]:
 if app_settings.ENABLE_WEBSOCKETS:
 
     @ws_router.websocket("/ws-status/")
-    async def websocket_get_global_status(websocket: WebSocket, token: str = Query(...), session: AsyncSession = Depends(get_async_session)) -> None:
+    async def websocket_get_global_status(
+        websocket: WebSocket, token: str = Query(...), session: AsyncSession = Depends(get_async_session)
+    ) -> None:
         error = await websocket_manager.authorize(websocket, token)
 
         await websocket.accept()

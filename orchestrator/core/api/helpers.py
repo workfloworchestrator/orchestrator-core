@@ -27,7 +27,6 @@ from starlette.responses import Response
 from structlog import get_logger
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import db
 from orchestrator.core.db.models import SubscriptionSearchView
 from orchestrator.core.db.range.range import Selectable, apply_range_to_statement
 from orchestrator.core.domain.base import SubscriptionModel
@@ -44,7 +43,7 @@ async def add_response_range(
     stmt: Selectable, range_: list[int] | None, response: Response, session: AsyncSession, unit: str = "items"
 ) -> Selectable:
     if range_ is not None and len(range_) == 2:
-        total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+        total = session.scalar(select(func.count()).select_from(stmt.subquery()))
         range_start, range_end = range_
         try:
             stmt = apply_range_to_statement(stmt, range_start, range_end)

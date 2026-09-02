@@ -21,7 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import get_async_session
-from orchestrator.core.schedules.service import add_scheduled_task_to_queue, get_linker_entries_by_schedule_ids_async
+from orchestrator.core.schedules.service import (
+    add_scheduled_task_to_queue_async,
+    get_linker_entries_by_schedule_ids_async,
+)
 from orchestrator.core.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
 from orchestrator.core.security import authenticate
 from orchestrator.core.services.workflows import get_workflow_by_workflow_id_async
@@ -51,7 +54,7 @@ async def create_scheduled_task(
     task = get_workflow(task_key)
 
     await validate_schedule_authorization(task, user_model)
-    add_scheduled_task_to_queue(payload)
+    await add_scheduled_task_to_queue_async(payload)
     return {"message": "Added to Create Queue", "status": "CREATED"}
 
 
@@ -72,7 +75,7 @@ async def update_scheduled_task(
     task = get_workflow(task_key)
 
     await validate_schedule_authorization(task, user_model)
-    add_scheduled_task_to_queue(payload)
+    await add_scheduled_task_to_queue_async(payload)
     return {"message": "Added to Update Queue", "status": "UPDATED"}
 
 
@@ -89,5 +92,5 @@ async def delete_scheduled_task(
     task = get_workflow(workflow_table.name)
 
     await validate_schedule_authorization(task, user_model)
-    add_scheduled_task_to_queue(payload)
+    await add_scheduled_task_to_queue_async(payload)
     return {"message": "Added to Delete Queue", "status": "DELETED"}

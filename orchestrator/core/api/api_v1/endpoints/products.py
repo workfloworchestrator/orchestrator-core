@@ -15,6 +15,7 @@ from http import HTTPStatus
 from typing import Any, AsyncGenerator
 from uuid import UUID
 
+from fastapi.concurrency import run_in_threadpool
 from fastapi.param_functions import Body, Depends
 from fastapi.routing import APIRouter
 from sqlalchemy import func, select
@@ -98,7 +99,7 @@ async def _product_by_id(product_id: UUID, session: AsyncSession) -> ProductTabl
 
 async def _index_products(product_id: UUID) -> AsyncGenerator[None, Any]:
     yield
-    run_indexing_for_entity(EntityType.PRODUCT, str(product_id))
+    await run_in_threadpool(run_indexing_for_entity, EntityType.PRODUCT, str(product_id))
 
 
 @router.patch(

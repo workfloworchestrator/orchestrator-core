@@ -272,15 +272,15 @@ async def test_validate_temporal_grouping_field_path_not_found_raises(mock_vfp: 
 # =============================================================================
 
 
-@patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_validate_grouping_fields_all_paths_found_passes(mock_vfp: AsyncMock, async_db_session):
-    mock_vfp.return_value = FieldType.STRING.value
+@patch("orchestrator.core.search.query.validation.get_existing_paths")
+async def test_validate_grouping_fields_all_paths_found_passes(mock_get_existing_paths: AsyncMock, async_db_session):
+    mock_get_existing_paths.return_value = {"subscription.status", "subscription.product.name"}
     await validate_grouping_fields(["subscription.status", "subscription.product.name"], async_db_session)
 
 
-@patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_validate_grouping_fields_one_path_not_found_raises(mock_vfp: AsyncMock, async_db_session):
-    mock_vfp.side_effect = [FieldType.STRING.value, None]
+@patch("orchestrator.core.search.query.validation.get_existing_paths")
+async def test_validate_grouping_fields_one_path_not_found_raises(mock_get_existing_paths: AsyncMock, async_db_session):
+    mock_get_existing_paths.return_value = {"subscription.status"}
     with pytest.raises(PathNotFoundError):
         await validate_grouping_fields(["subscription.status", "subscription.missing"], async_db_session)
 
@@ -291,19 +291,19 @@ async def test_validate_grouping_fields_empty_list_passes(mock_vfp: AsyncMock, a
     mock_vfp.assert_not_called()
 
 
-@patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_validate_grouping_fields_single_path_not_found_raises(mock_vfp: AsyncMock, async_db_session):
-    mock_vfp.return_value = None
+@patch("orchestrator.core.search.query.validation.get_existing_paths")
+async def test_validate_grouping_fields_single_path_not_found_raises(mock_get_existing_paths: AsyncMock, async_db_session):
+    mock_get_existing_paths.return_value = set()
     with pytest.raises(PathNotFoundError):
         await validate_grouping_fields(["subscription.nonexistent"], async_db_session)
 
 
-@patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_validate_grouping_fields_validates_each_path_once(mock_vfp: AsyncMock, async_db_session):
-    mock_vfp.return_value = FieldType.STRING.value
+@patch("orchestrator.core.search.query.validation.get_existing_paths")
+async def test_validate_grouping_fields_validates_each_path_once(mock_get_existing_paths: AsyncMock, async_db_session):
     paths = ["subscription.status", "subscription.product.name", "subscription.start_date"]
+    mock_get_existing_paths.return_value = set(paths)
     await validate_grouping_fields(paths, async_db_session)
-    assert mock_vfp.call_count == len(paths)
+    mock_get_existing_paths.assert_called_once_with(paths, async_db_session)
 
 
 # =============================================================================
@@ -320,15 +320,15 @@ async def test_validate_order_by_fields_empty_list_passes(async_db_session):
     await validate_order_by_fields([], async_db_session)
 
 
-@patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_validate_order_by_fields_path_with_dot_found_passes(mock_vfp: AsyncMock, async_db_session):
-    mock_vfp.return_value = FieldType.STRING.value
+@patch("orchestrator.core.search.query.validation.get_existing_paths")
+async def test_validate_order_by_fields_path_with_dot_found_passes(mock_get_existing_paths: AsyncMock, async_db_session):
+    mock_get_existing_paths.return_value = {"subscription.status"}
     await validate_order_by_fields([OrderBy(field="subscription.status", direction=OrderDirection.ASC)], async_db_session)
 
 
-@patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_validate_order_by_fields_path_with_dot_not_found_raises(mock_vfp: AsyncMock, async_db_session):
-    mock_vfp.return_value = None
+@patch("orchestrator.core.search.query.validation.get_existing_paths")
+async def test_validate_order_by_fields_path_with_dot_not_found_raises(mock_get_existing_paths: AsyncMock, async_db_session):
+    mock_get_existing_paths.return_value = set()
     with pytest.raises(PathNotFoundError):
         await validate_order_by_fields([OrderBy(field="subscription.missing", direction=OrderDirection.DESC)], async_db_session)
 
@@ -340,17 +340,17 @@ async def test_validate_order_by_fields_alias_without_dot_skipped(mock_vfp: Asyn
     mock_vfp.assert_not_called()
 
 
-@patch("orchestrator.core.search.query.validation.validate_filter_path")
-async def test_validate_order_by_fields_mixed_alias_and_path(mock_vfp: AsyncMock, async_db_session):
+@patch("orchestrator.core.search.query.validation.get_existing_paths")
+async def test_validate_order_by_fields_mixed_alias_and_path(mock_get_existing_paths: AsyncMock, async_db_session):
     """Aliases are skipped; only path-based fields are validated."""
-    mock_vfp.return_value = FieldType.STRING.value
+    mock_get_existing_paths.return_value = {"subscription.status"}
     order_by = [
         OrderBy(field="count"),
         OrderBy(field="subscription.status"),
         OrderBy(field="revenue"),
     ]
     await validate_order_by_fields(order_by, async_db_session)
-    mock_vfp.assert_called_once_with("subscription.status", async_db_session)
+    mock_get_existing_paths.assert_called_once_with(["subscription.status"], async_db_session)
 
 
 # =============================================================================

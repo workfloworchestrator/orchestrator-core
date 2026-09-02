@@ -34,7 +34,7 @@ async def _disallow(_: OIDCUserModel | None = None) -> bool:
     return False
 
 
-@patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue_async")
 def test_create_scheduled_task(mock_add, test_client):
     @workflow(target=Target.SYSTEM, authorize_callback=_allow)
     def create_task_wf():
@@ -102,7 +102,7 @@ def test_create_scheduled_task_unauthorized(test_client):
     )
 
 
-@patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue_async")
 @patch("orchestrator.core.api.api_v1.endpoints.schedules.get_workflow_by_workflow_id_async")
 @patch("orchestrator.core.api.api_v1.endpoints.schedules.get_linker_entries_by_schedule_ids_async")
 def test_update_scheduled_task(
@@ -203,7 +203,7 @@ def test_update_scheduled_task_unauthorized(
     )
 
 
-@patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
+@patch("orchestrator.core.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue_async")
 @patch("orchestrator.core.api.api_v1.endpoints.schedules.get_workflow_by_workflow_id_async")
 def test_delete_scheduled_task(mock_get_workflow_by_workflow_id, mock_add, test_client):
     @workflow(target=Target.SYSTEM, authorize_callback=_allow)

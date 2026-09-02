@@ -12,6 +12,7 @@
 # limitations under the License.
 
 
+import httpx
 import requests
 import structlog
 from requests.exceptions import RequestException
@@ -60,6 +61,16 @@ def generate_engine_global_status(engine_settings: EngineSettingsTable, running_
     return GlobalStatusEnum.RUNNING
 
 
+def _engine_status_slack_message(engine_status: EngineSettingsSchema, user: str) -> dict[str, str]:
+    """Build the Slack message body announcing an engine settings update."""
+    if engine_status.global_lock is True:
+        action = f"stopped the `{app_settings.ENVIRONMENT}` workflow engine. The orchestrator will pause all running processes."
+    else:
+        action = f"started the `{app_settings.ENVIRONMENT}` workflow engine. The orchestrator will pick up all pending processes."
+
+    return {"text": f"User `{user}` {action}"}
+
+
 def post_update_to_slack(engine_status: EngineSettingsSchema, user: str) -> None:
     """Post engine settings update to slack.
 
@@ -72,16 +83,33 @@ def post_update_to_slack(engine_status: EngineSettingsSchema, user: str) -> None
 
     """
     try:
-        if engine_status.global_lock is True:
-            action = f"stopped the `{app_settings.ENVIRONMENT}` workflow engine. The orchestrator will pause all running processes."
-        else:
-            action = f"started the `{app_settings.ENVIRONMENT}` workflow engine. The orchestrator will pick up all pending processes."
-
-        message = {"text": f"User `{user}` {action}"}
+        message = _engine_status_slack_message(engine_status, user)
         requests.post(app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL, json=message, timeout=5)
 
     # Catch all Request exceptions and log. Then pass
     except RequestException:
+        logger.exception("Post to slack failed.")
+        pass
+
+
+async def post_update_to_slack_async(engine_status: EngineSettingsSchema, user: str) -> None:
+    """Async Post engine settings update to slack.
+
+    Args:
+        engine_status: EngineStatus
+        user: The user who executed the change
+
+    Returns:
+        None
+
+    """
+    try:
+        message = _engine_status_slack_message(engine_status, user)
+        async with httpx.AsyncClient() as client:
+            await client.post(app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL, json=message, timeout=5)
+
+    # Catch all Request exceptions and log. Then pass
+    except httpx.RequestError:
         logger.exception("Post to slack failed.")
         pass
 

@@ -431,15 +431,15 @@ def _db_log_process_ex(process_id: UUID, ex: Exception) -> None:
 
 
 def _get_process(process_id: UUID) -> ProcessTable:
-    process = db.session.get(
-        ProcessTable,
-        process_id,
-        options=[
+    stmt = (
+        select(ProcessTable)
+        .where(ProcessTable.process_id == process_id)
+        .options(
             joinedload(ProcessTable.steps),
             joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
-        ],
+        )
     )
-
+    process = db.session.execute(stmt).unique().scalar_one_or_none()
     if not process:
         raise_status(HTTPStatus.NOT_FOUND, f"Process with process_id {process_id} not found")
 
@@ -447,14 +447,16 @@ def _get_process(process_id: UUID) -> ProcessTable:
 
 
 async def get_process_async(process_id: UUID, session: AsyncSession) -> ProcessTable:
-    process = await session.get(
-        ProcessTable,
-        process_id,
-        options=[
+    stmt = (
+        select(ProcessTable)
+        .where(ProcessTable.process_id == process_id)
+        .options(
             joinedload(ProcessTable.steps),
             joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
-        ],
+        )
     )
+    result = await session.execute(stmt)
+    process = result.unique().scalar_one_or_none()
 
     if not process:
         raise_status(HTTPStatus.NOT_FOUND, f"Process with process_id {process_id} not found")
