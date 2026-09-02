@@ -22,21 +22,15 @@ from uuid import UUID, uuid4
 import structlog
 from deepmerge.merger import Merger
 from pytz import utc
+from requests.adapters import MaxRetryError
 from sqlalchemy import delete, select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import NoResultFound, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from nwastdlib.ex import show_ex
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.config.assignee import Assignee
-from orchestrator.core.db import (
-    EngineSettingsTable,
-    ProcessStepTable,
-    ProcessSubscriptionTable,
-    ProcessTable,
-    db,
-)
+from orchestrator.core.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.core.db.database import transactional
 from orchestrator.core.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.core.distlock import distlock_manager
@@ -48,7 +42,7 @@ from orchestrator.core.services.workflows import get_workflow_by_name
 from orchestrator.core.settings import ExecutorType, app_settings
 from orchestrator.core.types import BroadcastFunc
 from orchestrator.core.utils.datetime import nowtz
-from orchestrator.core.utils.errors import StartPredicateError, error_state_to_dict
+from orchestrator.core.utils.errors import ApiException, InconsistentDataError, StartPredicateError, error_state_to_dict
 from orchestrator.core.utils.json import json_dumps, json_loads
 from orchestrator.core.websocket import (
     broadcast_invalidate_status_counts,
@@ -81,6 +75,7 @@ from pydantic_forms.types import State, UUIDstr
 logger = structlog.get_logger(__name__)
 
 StateMerger = Merger([(dict, ["merge"])], ["override"], ["override"])
+ProcessHandlerFunc = Callable[[ProcessTable, WFProcess], ProcessTable]
 
 SYSTEM_USER = "SYSTEM"
 
@@ -195,14 +190,38 @@ def delete_process(process_id: UUID) -> None:
     broadcast_invalidate_status_counts()
 
 
+def _default_process_func(p: ProcessTable, process_state: WFProcess) -> ProcessTable:
+    """Default behaviour for setting the `last_status` and Assignee of a process."""
+    step_state: State = process_state.unwrap()
+    if process_state.isfailed() and p.is_task:
+        # Check if we need a special failed status:
+        match step_state.get("class"):
+            case InconsistentDataError.__name__:
+                p.last_status = ProcessStatus.INCONSISTENT_DATA
+            case MaxRetryError.__name__ | ApiException.__name__:
+                p.last_status = ProcessStatus.API_UNAVAILABLE
+            case _:
+                p.last_status = ProcessStatus.FAILED
+
+    return p
+
+
+#: The Process Step handler function is called before each step is to be stored in the database.
+#: By default, it will set the last status of the process.
+#: This function can be replaced by a custom `ProcessHandlerFunc` if the user needs custom behavior.
+PROCESS_STEP_HANDLER: ProcessHandlerFunc = _default_process_func
+
+
 def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> ProcessTable:
-    p = db.session.get(ProcessTable, process_id)
-    if p is None:
-        raise ValueError(f"Failed to write failure step to process: process with PID {process_id} not found")
+    try:
+        p = db.session.get_one(ProcessTable, process_id)
+    except NoResultFound as e:
+        raise ValueError(f"Failed to write step to process: process with PID {process_id} not found") from e
 
     p.last_step = step.name
     p.last_status = process_state.overall_status
     p.assignee = step.assignee
+
     step_state: State = process_state.unwrap()
     if process_state.isfailed() or process_state.iswaiting():
         failed_reason = step_state.get("error")
@@ -212,33 +231,11 @@ def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> P
         # Truncate failed_reason (from end) and traceback (from start) to fit database constraints
         p.failed_reason = failed_reason[:FAILED_REASON_LENGTH] if failed_reason else failed_reason
         p.traceback = traceback[-TRACEBACK_LENGTH:] if traceback else traceback
-
-        if process_state.isfailed() and p.is_task:
-            # Check if we need a special failed status:
-            # If it is an AssertionError:
-            if step_state.get("class") == "AssertionError" or step_state.get("class") == "InconsistentData":
-                p.assignee = Assignee.NOC
-                p.last_status = ProcessStatus.INCONSISTENT_DATA
-            # If we encounter a connectivity issue with an underlying api:
-            elif step_state.get("class") == "MaxRetryError" or (
-                step_state.get("class") == "ApiException"
-                and step_state.get("status_code")
-                in (
-                    HTTPStatus.BAD_GATEWAY,
-                    HTTPStatus.SERVICE_UNAVAILABLE,
-                    HTTPStatus.GATEWAY_TIMEOUT,
-                )
-            ):
-                p.assignee = Assignee.SYSTEM
-                p.last_status = ProcessStatus.API_UNAVAILABLE
-            else:
-                p.assignee = Assignee.SYSTEM
-
     else:
         p.failed_reason = None
         p.traceback = None
 
-    return p
+    return PROCESS_STEP_HANDLER(p, process_state)
 
 
 def ensure_correct_process_status(process_id: UUID, last_status: str) -> None:
@@ -819,7 +816,7 @@ def abort_process(process: ProcessTable, user: str, broadcast_func: Callable | N
     return abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
 
 
-def fail_awaiting_process(process: ProcessTable, broadcast_func: Callable | None = None) -> WFProcess:
+def fail_awaiting_process(process: ProcessTable, broadcast_func: BroadcastFunc | None = None) -> WFProcess:
     """Fail a process that has been stuck awaiting a callback past its timeout."""
     pstat = load_process(process)
     return fail_awaiting_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
@@ -900,7 +897,7 @@ def set_process_status(process: ProcessTable, status: ProcessStatus) -> None:
 def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bool) -> EngineSettingsTable | None:
     """Manage processes depending on the engine status.
 
-    This function only has to act when in the transitioning fases, i.e Pausing and Starting
+    This function only has to act when in the transitioning phases, i.e Pausing and Starting
 
     Args:
         engine_settings: Engine status containing the lock and status fields

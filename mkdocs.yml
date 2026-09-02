@@ -206,6 +206,7 @@ nav:
           - Callback step: reference-docs/workflows/callbacks.md
           - Run Predicates: reference-docs/workflows/run-predicates.md
           - Summary Forms: reference-docs/workflows/summary-form.md
+          - Process Step Handler: reference-docs/workflows/process-step-handler.md
       - Websockets: reference-docs/websockets.md
       - Search: reference-docs/search.md
       - AI / Hybrid Search: reference-docs/ai-search.md
