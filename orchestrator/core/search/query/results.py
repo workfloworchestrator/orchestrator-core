@@ -197,14 +197,16 @@ def truncate_text_with_highlights(
 
 
 def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
-    """Finds all occurrences of individual words from the term, including both word boundary and substring matches."""
-    import re
+    """Finds all occurrences of individual words from the term, including both word boundary and substring matches.
 
+    Leading and trailing punctuation is stripped from each word (``"Node`` matches ``Node``), mirroring
+    pg_trgm, which ignores non-alphanumeric characters when matching.
+    """
     if not text or not term:
         return []
 
     all_matches = []
-    words = [w.strip() for w in term.split() if w.strip()]
+    words = [w for w in (re.sub(r"^\W+|\W+$", "", w) for w in term.split()) if w]
 
     for word in words:
         # First find word boundary matches

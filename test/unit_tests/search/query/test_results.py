@@ -551,7 +551,7 @@ def test_resolve_contains_filter_highlights_regex_matches(pattern, text, expecte
 @pytest.mark.parametrize(
     "pattern, text",
     [
-        pytest.param("[foo", "FOO BAR baz", id="invalid-regex"),
+        pytest.param("[qux", "FOO BAR baz", id="invalid-regex-word-not-in-text"),
         pytest.param(".*", "FOO BAR baz", id="match-all-wildcard-only"),
         pytest.param(".*banana.*", "widget assembly", id="pattern-not-in-text"),
     ],
@@ -565,6 +565,14 @@ def test_resolve_contains_filter_falls_back_to_full_text(pattern, text):
     result = _resolve_structured_matching_fields(row, tree)
     assert len(result) == 1
     assert result[0].highlight_indices == [(0, len(text))]
+
+
+def test_resolve_contains_filter_invalid_regex_highlights_literal_words():
+    """An invalid regex falls back to word highlighting, ignoring the punctuation that broke the pattern."""
+    tree = _single_leaf_filter_tree(ContainsFilter(op=FilterOp.CONTAINS, value="[foo"), path="subscription.description")
+    row = _row_with_highlights([("FOO BAR baz", "subscription.description")])
+    result = _resolve_structured_matching_fields(row, tree)
+    assert result[0].highlight_indices == [(0, 3)]
 
 
 def test_resolve_neq_filter_returns_null_highlight_indices():
