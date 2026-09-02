@@ -193,35 +193,22 @@ def delete_process(process_id: UUID) -> None:
 def _default_process_func(p: ProcessTable, process_state: WFProcess) -> ProcessTable:
     """Default behaviour for setting the `last_status` and Assignee of a process."""
     step_state: State = process_state.unwrap()
-    if process_state.isfailed() or process_state.iswaiting():
-        failed_reason = step_state.get("error")
-        # pop also removes the traceback from the dict
-        traceback = step_state.pop("traceback", None)
-
-        # Truncate failed_reason (from end) and traceback (from start) to fit database constraints
-        p.failed_reason = failed_reason[:FAILED_REASON_LENGTH] if failed_reason else failed_reason
-        p.traceback = traceback[-TRACEBACK_LENGTH:] if traceback else traceback
-
-        if process_state.isfailed() and p.is_task:
-            # Check if we need a special failed status:
-            match step_state.get("class"):
-                case InconsistentDataError.__name__:
-                    p.last_status = ProcessStatus.INCONSISTENT_DATA
-                case MaxRetryError.__name__ | ApiException.__name__:
-                    p.last_status = ProcessStatus.API_UNAVAILABLE
-                case _:
-                    p.last_status = ProcessStatus.FAILED
-
-    else:
-        p.failed_reason = None
-        p.traceback = None
+    if process_state.isfailed() and p.is_task:
+        # Check if we need a special failed status:
+        match step_state.get("class"):
+            case InconsistentDataError.__name__:
+                p.last_status = ProcessStatus.INCONSISTENT_DATA
+            case MaxRetryError.__name__ | ApiException.__name__:
+                p.last_status = ProcessStatus.API_UNAVAILABLE
+            case _:
+                p.last_status = ProcessStatus.FAILED
 
     return p
 
 
 #: The Process Step handler function is called before each step is to be stored in the database.
-#: By default, it will set the failed reason, traceback, and last status of the process.
-#: This function can be replaced by a custom `ProcessHandlerFunc` if the user needs custom behavior or error handling.
+#: By default, it will set the last status of the process.
+#: This function can be replaced by a custom `ProcessHandlerFunc` if the user needs custom behavior.
 PROCESS_STEP_HANDLER: ProcessHandlerFunc = _default_process_func
 
 
@@ -234,6 +221,20 @@ def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> P
     p.last_step = step.name
     p.last_status = process_state.overall_status
     p.assignee = step.assignee
+
+    step_state: State = process_state.unwrap()
+    if process_state.isfailed() or process_state.iswaiting():
+        failed_reason = step_state.get("error")
+        # pop also removes the traceback from the dict
+        traceback = step_state.pop("traceback", None)
+
+        # Truncate failed_reason (from end) and traceback (from start) to fit database constraints
+        p.failed_reason = failed_reason[:FAILED_REASON_LENGTH] if failed_reason else failed_reason
+        p.traceback = traceback[-TRACEBACK_LENGTH:] if traceback else traceback
+    else:
+        p.failed_reason = None
+        p.traceback = None
+
     return PROCESS_STEP_HANDLER(p, process_state)
 
 
