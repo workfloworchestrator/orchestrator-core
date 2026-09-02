@@ -123,13 +123,15 @@ flowchart TD
 ```
 
 A request becomes a typed query object. Filters narrow the candidate entities; the free-text part
-decides *how* those candidates are ranked. The engine picks the retriever automatically:
+decides *how* those candidates are ranked. The engine picks the retriever automatically unless the
+request names one:
 
 | Available signals                      | Retriever      | Ranking                                             |
 |----------------------------------------|----------------|------------------------------------------------------|
 | Text **and** an embedding               | **Hybrid**     | trigram and semantic rankings fused (see [RRF](#ranking-formulas)) |
 | Text that is a UUID                     | **Fuzzy**      | highest trigram similarity wins                      |
 | Filters only                            | **Structured** | no relevance ranking; ordered by a chosen field      |
+| Explicit `retriever: semantic`          | **Semantic**   | closest embedding wins; never chosen automatically   |
 
 Any free text, single-word or a whole phrase, is fuzzy-matched on the full text *and* ranked
 semantically. In a domain where most searches are identifiers, names and descriptions, the
@@ -137,11 +139,10 @@ trigram signal is the strongest one, so it is always included; the semantic sour
 plain-language queries working when no field contains the words. The only text that is not
 embedded is a UUID, which has no meaning to embed and routes to fuzzy matching.
 
-The pure **Semantic** retriever (closest embedding wins) is available as an explicit
-`retriever` override only. Callers can override the retriever explicitly. If an override needs an
-embedding and none can be produced, the request fails with a clear error rather than silently
-returning different results; under automatic routing the same situation falls back to fuzzy on
-the full text.
+Callers can override the retriever explicitly with `retriever: fuzzy`, `semantic` or `hybrid`.
+If an override needs an embedding and none can be produced, the request fails with a clear error
+rather than silently returning different results; under automatic routing the same situation
+falls back to fuzzy on the full text.
 
 Process searches use a variant of the hybrid retriever that also searches the `state`
 JSONB of the process's most recent step. Process steps are deliberately left out of the index to
