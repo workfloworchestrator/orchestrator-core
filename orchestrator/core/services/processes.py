@@ -35,6 +35,7 @@ from orchestrator.core.db.database import transactional
 from orchestrator.core.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.core.distlock import distlock_manager
 from orchestrator.core.schemas.engine_settings import WorkerStatus
+from orchestrator.core.search.indexing.hooks import index_process_and_subscriptions
 from orchestrator.core.services.executors.types import ExecutorFunction
 from orchestrator.core.services.input_state import store_input_state
 from orchestrator.core.services.process_subscription import store_process_subscription_relation
@@ -95,16 +96,6 @@ def _safe_broadcast_process_update(process_id: UUID, broadcast_func: BroadcastFu
         broadcast_func(process_id)
     except Exception:
         logger.exception("Failed to broadcast process update", process_id=process_id)
-
-
-def _safe_index_process(process_id: UUID, result: WFProcess) -> None:
-    """Index a process and its subscriptions on exit; no-op when the search extra is not installed."""
-    try:
-        from orchestrator.core.search.indexing.hooks import index_process_and_subscriptions
-    except ImportError:
-        return
-
-    index_process_and_subscriptions(process_id, result)
 
 
 def get_execution_context() -> dict[ExecutorFunction, Callable]:
@@ -479,7 +470,7 @@ def _run_process_async(process_id: UUID, f: Callable, broadcast_func: BroadcastF
                 # the except above so a strict-mode indexing failure propagates on its own terms,
                 # instead of being logged as "Unknown workflow failure" and masked as Failed(ex).
                 with db.database_scope():
-                    _safe_index_process(process_id, result)
+                    index_process_and_subscriptions(process_id, result)
 
             return result
 
@@ -805,12 +796,11 @@ async def _async_resume_processes(
                     if process.last_status == ProcessStatus.RUNNING:
                         # Process has been started by something else in the meantime
                         logger.info("Cannot resume a running process", process_id=_proc.process_id)
-                        continue
-                    elif process.last_status == ProcessStatus.RESUMED:  # noqa: RET507
+                    elif process.last_status == ProcessStatus.RESUMED:
                         # Process has been resumed by something else in the meantime
                         logger.info("Cannot resume a resumed process", process_id=_proc.process_id)
-                        continue
-                    resume_process(process, user=user_name, broadcast_func=broadcast_func)
+                    else:
+                        resume_process(process, user=user_name, broadcast_func=broadcast_func)
                 except Exception:
                     logger.exception("Failed to resume process", process_id=_proc.process_id)
             logger.info("Completed resuming processes")
@@ -833,7 +823,7 @@ def abort_process(process: ProcessTable, user: str, broadcast_func: Callable | N
     # `abort_wf` has committed by now, so a fresh scope sees the final state. Indexing on its own
     # session keeps a failed indexing query from leaving the caller's session needing a rollback.
     with db.database_scope():
-        _safe_index_process(pstat.process_id, result)
+        index_process_and_subscriptions(pstat.process_id, result)
     return result
 
 
@@ -844,7 +834,7 @@ def fail_awaiting_process(process: ProcessTable, broadcast_func: BroadcastFunc |
     # Own scope, as in `abort_process`: the sweep workflow calls this from inside a step and keeps
     # using its session for the remaining steps, so indexing must not be able to poison it.
     with db.database_scope():
-        _safe_index_process(pstat.process_id, result)
+        index_process_and_subscriptions(pstat.process_id, result)
     return result
 
 

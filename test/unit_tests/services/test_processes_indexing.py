@@ -13,25 +13,17 @@
 
 """Tests for process-exit indexing wiring in the processes service."""
 
-import sys
 from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 
-from orchestrator.core.services.processes import _run_process_async, _safe_index_process
+from orchestrator.core.services.processes import _run_process_async
 from orchestrator.core.settings import ExecutorType, app_settings, llm_settings
 from orchestrator.core.workflow import Process as WFProcess
 from orchestrator.core.workflow import Success
 
 pytestmark = pytest.mark.search
-
-
-def test_safe_index_process_is_noop_without_search_extra(monkeypatch):
-    # A None entry in sys.modules makes the import raise ImportError, simulating a missing extra.
-    monkeypatch.setitem(sys.modules, "orchestrator.core.search.indexing.hooks", None)
-
-    _safe_index_process(uuid4(), Success({}))  # must not raise
 
 
 # The synchronous exit paths (abort, callback timeout) index in their own database scope so a
@@ -48,7 +40,7 @@ def test_safe_index_process_is_noop_without_search_extra(monkeypatch):
         pytest.param(True, id="failed-result-is-indexed"),
     ],
 )
-@patch("orchestrator.core.search.indexing.hooks.index_process_and_subscriptions")
+@patch("orchestrator.core.services.processes.index_process_and_subscriptions")
 def test_run_process_async_indexes_after_workflow_commits(mock_hook, workflow_raises):
     """A live session always results in fresh-scope indexing after the workflow scope closes.
 
@@ -82,7 +74,7 @@ def test_run_process_async_indexes_after_workflow_commits(mock_hook, workflow_ra
         pytest.param(True, id="failed-workflow"),
     ],
 )
-@patch("orchestrator.core.search.indexing.hooks.index_process_and_subscriptions")
+@patch("orchestrator.core.services.processes.index_process_and_subscriptions")
 def test_run_process_async_strict_indexing_failure_is_not_masked_as_workflow_failure(
     mock_hook, monkeypatch, workflow_raises
 ):
