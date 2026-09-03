@@ -63,7 +63,7 @@ class SemanticRetriever(Retriever):
 
     @property
     def session_settings(self) -> Sequence[SessionSetting]:
-        """Iterative scan, so the bounded plan reaches its limit instead of stopping at ~ef_search rows."""
+        """Session settings needed by the bounded HNSW plan."""
         return (HNSW_ITERATIVE_SCAN,) if self.is_bounded else ()
 
     def apply(self, candidate_query: Select) -> Select:

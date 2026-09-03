@@ -21,6 +21,7 @@ from sqlalchemy import BindParameter, Numeric, Select, literal
 from orchestrator.core.search.core.types import EntityType, FieldType, RetrieverType, SearchMetadata
 from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
 from orchestrator.core.search.retrieval.session import SessionSetting
+from orchestrator.core.settings import llm_settings
 
 from ..pagination import PageCursor
 
@@ -170,11 +171,14 @@ class Retriever(ABC):
         if retriever_cls is FuzzyRetriever and fuzzy_text is not None:
             return FuzzyRetriever(fuzzy_text, cursor)
         if retriever_cls is SemanticRetriever and query_embedding is not None:
+            candidates_limit = llm_settings.SEARCH_SEMANTIC_CANDIDATE_LIMIT
             return SemanticRetriever(
                 query_embedding,
                 cursor,
                 entity_type=query.entity_type,
-                candidates_limit=cls._semantic_candidates_limit(query),
+                candidates_limit=None
+                if isinstance(query, ExportQuery) or query.limit > candidates_limit
+                else candidates_limit,
             )
         if retriever_cls is RrfHybridRetriever and query_embedding is not None and fuzzy_text is not None:
             return RrfHybridRetriever(query_embedding, fuzzy_text, cursor)
@@ -182,26 +186,11 @@ class Retriever(ABC):
             return ProcessHybridRetriever(query_embedding, fuzzy_text, cursor)
         raise RuntimeError(f"Unreachable: _plan() returned {retriever_cls.__name__} but required inputs are missing")
 
-    @staticmethod
-    def _semantic_candidates_limit(query: "SelectQuery | ExportQuery") -> int | None:
-        """How far down the nearest-neighbour list a query may reach, or None for no cap.
-
-        An export is a single query, no cursor, for up to `MAX_EXPORT_LIMIT` entities, and a window
-        of `n` fields yields at most `n` entities, so a window would silently truncate it: exports keep
-        ranking the full corpus. Interactive searches ask for at most `MAX_LIMIT` entities per page
-        and take a window from the HNSW index instead, which bounds how deep their pagination can go.
-        """
-        from orchestrator.core.settings import llm_settings
-
-        if isinstance(query, ExportQuery):
-            return None
-        return llm_settings.SEARCH_SEMANTIC_CANDIDATE_LIMIT
-
     @property
     def session_settings(self) -> Sequence[SessionSetting]:
-        """Postgres settings the engine applies with ``set_config(name, value, is_local=True)`` before executing.
+        """Postgres settings this retriever's statement needs, applied by the engine before executing it.
 
-        Transaction-local, so they never leak beyond the search statement.
+        See :func:`orchestrator.core.search.retrieval.session.apply_session_settings` for their lifetime.
         """
         return ()
 

@@ -45,6 +45,7 @@ def _make_query(
     entity_type: EntityType = EntityType.SUBSCRIPTION,
     vector_query: object = None,
     query_text: str | None = None,
+    limit: int = SelectQuery.DEFAULT_LIMIT,
 ) -> MagicMock:
     query = MagicMock()
     query.retriever = None  # auto-routing; explicit overrides are tested separately
@@ -53,6 +54,7 @@ def _make_query(
     query.vector_query = vector_query
     query.query_text = query_text
     query.order_by = None
+    query.limit = limit
     return query
 
 
@@ -156,20 +158,28 @@ def test_process_hybrid_with_no_embedding_carries_none_embedding() -> None:
 
 
 @pytest.mark.parametrize(
-    "query_cls,bounded,settings",
+    "query_cls,query_limit,window_limit,bounded,settings",
     [
-        pytest.param(SelectQuery, True, (HNSW_ITERATIVE_SCAN,), id="select_reads_a_window_from_the_index"),
-        pytest.param(ExportQuery, False, (), id="export_ranks_the_whole_corpus"),
+        pytest.param(SelectQuery, 100, 123, True, (HNSW_ITERATIVE_SCAN,), id="select_reads_a_window_from_the_index"),
+        pytest.param(SelectQuery, 10, 9, False, (), id="select_uses_exhaustive_when_window_is_too_small"),
+        pytest.param(ExportQuery, 100, 123, False, (), id="export_ranks_the_whole_corpus"),
     ],
 )
-def test_semantic_window_is_for_interactive_searches_only(query_cls, bounded: bool, settings, monkeypatch) -> None:
-    """One export query asks for more entities than a window holds, so it keeps the exhaustive plan."""
-    monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_LIMIT", 123)
-    query = query_cls(entity_type=EntityType.SUBSCRIPTION, query_text=QUERY_TEXT, retriever=RetrieverType.SEMANTIC)
+def test_semantic_window_is_used_only_when_it_can_satisfy_the_query_limit(
+    query_cls, query_limit: int, window_limit: int, bounded: bool, settings, monkeypatch
+) -> None:
+    """Exports stay exhaustive; selects use a window only when it can satisfy the requested entity limit."""
+    monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_LIMIT", window_limit)
+    query = query_cls(
+        entity_type=EntityType.SUBSCRIPTION,
+        query_text=QUERY_TEXT,
+        retriever=RetrieverType.SEMANTIC,
+        limit=query_limit,
+    )
 
     retriever = Retriever.route(query, cursor=None, query_embedding=EMBEDDING)
 
     assert isinstance(retriever, SemanticRetriever)
     assert retriever.is_bounded is bounded
-    assert retriever.candidates_limit == (123 if bounded else None)
+    assert retriever.candidates_limit == (window_limit if bounded else None)
     assert tuple(retriever.session_settings) == settings
