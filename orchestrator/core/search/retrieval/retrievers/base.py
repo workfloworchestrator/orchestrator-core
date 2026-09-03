@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from decimal import Decimal
 
 import structlog
@@ -19,6 +20,8 @@ from sqlalchemy import BindParameter, Numeric, Select, literal
 
 from orchestrator.core.search.core.types import EntityType, FieldType, RetrieverType, SearchMetadata
 from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
+from orchestrator.core.search.retrieval.session import SessionSetting
+from orchestrator.core.settings import llm_settings
 
 from ..pagination import PageCursor
 
@@ -168,12 +171,28 @@ class Retriever(ABC):
         if retriever_cls is FuzzyRetriever and fuzzy_text is not None:
             return FuzzyRetriever(fuzzy_text, cursor)
         if retriever_cls is SemanticRetriever and query_embedding is not None:
-            return SemanticRetriever(query_embedding, cursor)
+            candidates_limit = llm_settings.SEARCH_SEMANTIC_CANDIDATE_LIMIT
+            return SemanticRetriever(
+                query_embedding,
+                cursor,
+                entity_type=query.entity_type,
+                candidates_limit=None
+                if isinstance(query, ExportQuery) or query.limit > candidates_limit
+                else candidates_limit,
+            )
         if retriever_cls is RrfHybridRetriever and query_embedding is not None and fuzzy_text is not None:
             return RrfHybridRetriever(query_embedding, fuzzy_text, cursor)
         if retriever_cls is ProcessHybridRetriever and fuzzy_text is not None:
             return ProcessHybridRetriever(query_embedding, fuzzy_text, cursor)
         raise RuntimeError(f"Unreachable: _plan() returned {retriever_cls.__name__} but required inputs are missing")
+
+    @property
+    def session_settings(self) -> Sequence[SessionSetting]:
+        """Postgres settings this retriever's statement needs, applied by the engine before executing it.
+
+        See :func:`orchestrator.core.search.retrieval.session.apply_session_settings` for their lifetime.
+        """
+        return ()
 
     @abstractmethod
     def apply(self, candidate_query: Select) -> Select:

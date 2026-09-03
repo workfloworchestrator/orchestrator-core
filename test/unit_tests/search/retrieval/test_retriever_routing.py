@@ -22,13 +22,16 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.core.types import EntityType, RetrieverType
+from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
 from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
 from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
 from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
 from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
 from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
+from orchestrator.core.search.retrieval.session import HNSW_ITERATIVE_SCAN
+from orchestrator.core.settings import llm_settings
 
 pytestmark = pytest.mark.search
 
@@ -42,6 +45,7 @@ def _make_query(
     entity_type: EntityType = EntityType.SUBSCRIPTION,
     vector_query: object = None,
     query_text: str | None = None,
+    limit: int = SelectQuery.DEFAULT_LIMIT,
 ) -> MagicMock:
     query = MagicMock()
     query.retriever = None  # auto-routing; explicit overrides are tested separately
@@ -50,6 +54,7 @@ def _make_query(
     query.vector_query = vector_query
     query.query_text = query_text
     query.order_by = None
+    query.limit = limit
     return query
 
 
@@ -150,3 +155,31 @@ def test_process_hybrid_with_no_embedding_carries_none_embedding() -> None:
     query = _make_query(fuzzy_term=FUZZY_TERM, entity_type=EntityType.PROCESS)
     retriever = Retriever.route(query, cursor=None, query_embedding=None)
     assert isinstance(retriever, ProcessHybridRetriever)
+
+
+@pytest.mark.parametrize(
+    "query_cls,query_limit,window_limit,bounded,settings",
+    [
+        pytest.param(SelectQuery, 100, 123, True, (HNSW_ITERATIVE_SCAN,), id="select_reads_a_window_from_the_index"),
+        pytest.param(SelectQuery, 10, 9, False, (), id="select_uses_exhaustive_when_window_is_too_small"),
+        pytest.param(ExportQuery, 100, 123, False, (), id="export_ranks_the_whole_corpus"),
+    ],
+)
+def test_semantic_window_is_used_only_when_it_can_satisfy_the_query_limit(
+    query_cls, query_limit: int, window_limit: int, bounded: bool, settings, monkeypatch
+) -> None:
+    """Exports stay exhaustive; selects use a window only when it can satisfy the requested entity limit."""
+    monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_LIMIT", window_limit)
+    query = query_cls(
+        entity_type=EntityType.SUBSCRIPTION,
+        query_text=QUERY_TEXT,
+        retriever=RetrieverType.SEMANTIC,
+        limit=query_limit,
+    )
+
+    retriever = Retriever.route(query, cursor=None, query_embedding=EMBEDDING)
+
+    assert isinstance(retriever, SemanticRetriever)
+    assert retriever.is_bounded is bounded
+    assert retriever.candidates_limit == (window_limit if bounded else None)
+    assert tuple(retriever.session_settings) == settings

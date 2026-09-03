@@ -25,7 +25,7 @@ from sqlalchemy.dialects import postgresql
 
 from orchestrator.core.db import db
 from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, UIType
 from orchestrator.core.search.filters import FilterTree, PathFilter
 from orchestrator.core.search.filters.base import EqualityFilter
 from orchestrator.core.search.filters.ltree_filters import LtreeFilter
@@ -186,6 +186,22 @@ def test_semantic_retriever_pagination_structure(candidate_query, query_id, requ
     query = retriever.apply(candidate_query)
     sql = compile_query_to_sql(query)
     assert_sql_matches_snapshot("SemanticRetriever.test_pagination_structure", sql, request)
+
+
+def test_semantic_retriever_bounded_query_structure(candidate_query, query_id, request):
+    """Bounded plan pins the shape that makes the partial HNSW index usable.
+
+    The entity type is a literal so the index predicate matches, candidate filters sit inside the
+    window, and the cursor and ordering sit outside it.
+    """
+    cursor = PageCursor(score=0.92, id="entity-456", query_id=query_id)
+    filtered = candidate_query.where(AiSearchIndex.value == "active")
+    retriever = SemanticRetriever(
+        [0.1, 0.2, 0.3], cursor=cursor, entity_type=EntityType.SUBSCRIPTION, candidates_limit=400
+    )
+    query = retriever.apply(filtered)
+    sql = compile_query_to_sql(query)
+    assert_sql_matches_snapshot("SemanticRetriever.test_bounded_query_structure", sql, request)
 
 
 # ---------------------------------------------------------------------------
