@@ -172,6 +172,9 @@ class LLMSettings(BaseSettings):
     # Toggle creation of extensions
     LLM_FORCE_EXTENSION_MIGRATION: bool = False
 
+    # Indexing behaviour
+    SEARCH_INDEXING_STRICT: bool = False  # Raise on indexing errors (dev/test); log and continue by default
+
 
 llm_settings = LLMSettings()
 

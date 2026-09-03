@@ -35,6 +35,7 @@ from orchestrator.core.db.database import transactional
 from orchestrator.core.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.core.distlock import distlock_manager
 from orchestrator.core.schemas.engine_settings import WorkerStatus
+from orchestrator.core.search.indexing.hooks import index_process_and_subscriptions
 from orchestrator.core.services.executors.types import ExecutorFunction
 from orchestrator.core.services.input_state import store_input_state
 from orchestrator.core.services.process_subscription import store_process_subscription_relation
@@ -456,7 +457,7 @@ def _run_process_async(process_id: UUID, f: Callable, broadcast_func: BroadcastF
                     except Exception as ex:
                         # We still have access to the database, so we can log at least something
                         _db_log_process_ex(process_id, ex)
-                        raise
+                        result = Failed(ex)
                     finally:
                         db.session.commit()
                     _safe_broadcast_process_update(process_id, broadcast_func)
@@ -464,6 +465,12 @@ def _run_process_async(process_id: UUID, f: Callable, broadcast_func: BroadcastF
                 # We lost access to database here, so we can only log
                 logger.exception("Unknown workflow failure", process_id=process_id)
                 result = Failed(ex)
+            else:
+                # A fresh scope: the workflow's own scope just closed above. Deliberately outside
+                # the except above so a strict-mode indexing failure propagates on its own terms,
+                # instead of being logged as "Unknown workflow failure" and masked as Failed(ex).
+                with db.database_scope():
+                    index_process_and_subscriptions(process_id, result)
 
             return result
 
@@ -789,12 +796,11 @@ async def _async_resume_processes(
                     if process.last_status == ProcessStatus.RUNNING:
                         # Process has been started by something else in the meantime
                         logger.info("Cannot resume a running process", process_id=_proc.process_id)
-                        continue
-                    elif process.last_status == ProcessStatus.RESUMED:  # noqa: RET507
+                    elif process.last_status == ProcessStatus.RESUMED:
                         # Process has been resumed by something else in the meantime
                         logger.info("Cannot resume a resumed process", process_id=_proc.process_id)
-                        continue
-                    resume_process(process, user=user_name, broadcast_func=broadcast_func)
+                    else:
+                        resume_process(process, user=user_name, broadcast_func=broadcast_func)
                 except Exception:
                     logger.exception("Failed to resume process", process_id=_proc.process_id)
             logger.info("Completed resuming processes")
@@ -813,13 +819,23 @@ def abort_process(process: ProcessTable, user: str, broadcast_func: Callable | N
     pstat = load_process(process)
 
     pstat.update(current_user=user)
-    return abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+    result = abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+    # `abort_wf` has committed by now, so a fresh scope sees the final state. Indexing on its own
+    # session keeps a failed indexing query from leaving the caller's session needing a rollback.
+    with db.database_scope():
+        index_process_and_subscriptions(pstat.process_id, result)
+    return result
 
 
 def fail_awaiting_process(process: ProcessTable, broadcast_func: BroadcastFunc | None = None) -> WFProcess:
     """Fail a process that has been stuck awaiting a callback past its timeout."""
     pstat = load_process(process)
-    return fail_awaiting_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+    result = fail_awaiting_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+    # Own scope, as in `abort_process`: the sweep workflow calls this from inside a step and keeps
+    # using its session for the remaining steps, so indexing must not be able to poison it.
+    with db.database_scope():
+        index_process_and_subscriptions(pstat.process_id, result)
+    return result
 
 
 def _recoverwf(wf: Workflow, log: list[WFProcess]) -> tuple[WFProcess, StepList]:

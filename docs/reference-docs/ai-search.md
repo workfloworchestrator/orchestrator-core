@@ -22,7 +22,7 @@ It is the successor to the [classic search](search.md) implementations and is th
 | Matches on     | whole-word keywords in one text blob per subscription                    | individual field values, by meaning, spelling, exact value or path  |
 | Query shape    | a query string, e.g. `tag:L2VPN -status:active`                          | free text plus a typed filter tree                                   |
 | Entities       | subscriptions (text search); others by DB-column filtering               | subscriptions, products, processes, workflows                        |
-| Freshness      | view refreshed at most once every two minutes                            | index updated by the standard workflow decorators, or on demand via the CLI |
+| Freshness      | view refreshed at most once every two minutes                            | index updated automatically on process exit, or on demand via the CLI |
 | Status         | text search on subscriptions is **deprecated** since 5.0                 | current                                                              |
 
 Classic search is still in place and still documented in [Search](search.md). New integrations
@@ -100,14 +100,16 @@ stored with no embedding.
 
 Indexing is triggered from three places:
 
-- **Workflow steps**: the `create_workflow`, `modify_workflow`, `terminate_workflow` and
-  `reconcile_workflow` decorators append two steps, `refresh_subscription_search_index` and
-  `refresh_process_search_index`. The first re-indexes the workflow's subscription, the second
-  re-indexes the workflow's own process record. Both catch their own errors, so a failed re-index
-  never fails the workflow. `validate_workflow` and the bare `@workflow` decorator do not append
-  these steps, so a subscription or process changed by such a workflow keeps its previous index
-  entry until something re-indexes it. Add the two steps (`orchestrator.core.workflows.steps`) to
-  your own step list when the workflow changes indexed data.
+- **Process exit**: whenever a process reaches a normal exit through the workflow engine — completed, failed,
+  aborted, suspended or timed out awaiting a callback (but not when execution fails before reaching
+  that exit path, such as after losing database access) — the process record is re-indexed. Completed, aborted, suspended and
+  callback-timeout exits also re-index the subscriptions referenced by their final state. A failed
+  step replaces that state with an error record, so a failed exit re-indexes only the process.
+  This runs after the terminal status has been committed, so the indexed process
+  carries its real status. It applies to every workflow that reaches this exit hook, including
+  `validate_workflow` and the bare `@workflow` decorator, so no step wiring is needed. Failures are
+  logged and swallowed by default, so a failed re-index never breaks a process; set
+  `SEARCH_INDEXING_STRICT` to raise instead.
 - **REST endpoints**: product and process updates re-index the entity they changed.
 - **The CLI**: see [Building and refreshing the index](#building-and-refreshing-the-index).
 
