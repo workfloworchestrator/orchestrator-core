@@ -12,7 +12,9 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from decimal import Decimal
+from typing import NamedTuple
 
 import structlog
 from sqlalchemy import BindParameter, Numeric, Select, literal
@@ -23,6 +25,25 @@ from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
 from ..pagination import PageCursor
 
 logger = structlog.get_logger(__name__)
+
+
+class SessionSetting(NamedTuple):
+    """A Postgres setting applied for the duration of the search transaction.
+
+    Rendered into ``SET LOCAL``, which takes no bind parameters, so instances are code constants:
+    never build one from configuration or request data.
+    """
+
+    name: str
+    value: str
+
+    @property
+    def statement(self) -> str:
+        return f"SET LOCAL {self.name} = '{self.value}'"
+
+
+# pgvector >= 0.8: keep walking the HNSW index until the LIMIT is met instead of stopping at ~ef_search rows.
+HNSW_ITERATIVE_SCAN = SessionSetting("hnsw.iterative_scan", "relaxed_order")
 
 
 class Retriever(ABC):
@@ -168,12 +189,40 @@ class Retriever(ABC):
         if retriever_cls is FuzzyRetriever and fuzzy_text is not None:
             return FuzzyRetriever(fuzzy_text, cursor)
         if retriever_cls is SemanticRetriever and query_embedding is not None:
-            return SemanticRetriever(query_embedding, cursor)
+            return SemanticRetriever(
+                query_embedding,
+                cursor,
+                entity_type=query.entity_type,
+                candidates_limit=cls._semantic_candidates_limit(query),
+            )
         if retriever_cls is RrfHybridRetriever and query_embedding is not None and fuzzy_text is not None:
             return RrfHybridRetriever(query_embedding, fuzzy_text, cursor)
         if retriever_cls is ProcessHybridRetriever and fuzzy_text is not None:
             return ProcessHybridRetriever(query_embedding, fuzzy_text, cursor)
         raise RuntimeError(f"Unreachable: _plan() returned {retriever_cls.__name__} but required inputs are missing")
+
+    @staticmethod
+    def _semantic_candidates_limit(query: "SelectQuery | ExportQuery") -> int | None:
+        """How far down the nearest-neighbour list a query may reach, or None for no cap.
+
+        An export is a single query, no cursor, for up to `MAX_EXPORT_LIMIT` entities, and a window
+        of `n` fields yields at most `n` entities, so a window would silently truncate it: exports keep
+        ranking the full corpus. Interactive searches ask for at most `MAX_LIMIT` entities per page
+        and take a window from the HNSW index instead, which bounds how deep their pagination can go.
+        """
+        from orchestrator.core.settings import llm_settings
+
+        if isinstance(query, ExportQuery):
+            return None
+        return llm_settings.SEARCH_SEMANTIC_CANDIDATE_LIMIT
+
+    @property
+    def session_settings(self) -> Sequence[SessionSetting]:
+        """Postgres settings the engine applies with ``set_config(name, value, is_local=True)`` before executing.
+
+        Transaction-local, so they never leak beyond the search statement.
+        """
+        return ()
 
     @abstractmethod
     def apply(self, candidate_query: Select) -> Select:

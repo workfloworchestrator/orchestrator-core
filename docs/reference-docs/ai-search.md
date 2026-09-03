@@ -320,15 +320,28 @@ Each index serves one match type:
 
 | Index                            | Definition                                                        | Serves                                     |
 |----------------------------------|-------------------------------------------------------------------|--------------------------------------------|
-| `ix_flat_embed_hnsw`             | `HNSW (embedding vector_l2_ops) WITH (m=16, ef_construction=64)`   | nearest-neighbour search by L2 distance (`<->`) |
+| `ix_flat_embed_hnsw_<entity type>` | `HNSW (embedding vector_l2_ops) WITH (m=16, ef_construction=64)`, partial on one `entity_type` | nearest-neighbour search by L2 distance (`<->`) |
 | `ix_flat_value_trgm`             | `GIN (value gin_trgm_ops)`                                        | trigram similarity (`<%`, `word_similarity`) |
 | `ix_flat_path_gist`              | `GIST (path gist_ltree_ops)`                                      | `ltree` matching (`~`, `@>`, `<@`)          |
 | `ix_flat_path_btree`             | `btree (path)`                                                    | exact path equality, used by the EAV pivot  |
 | `ix_ai_search_index_entity_id`   | `btree (entity_id)`                                               | candidate lookups by entity                 |
 | `idx_ai_search_index_content_hash` | `btree (content_hash)`                                          | change detection during indexing            |
 
-The HNSW index uses `vector_l2_ops`, so semantic ranking uses **L2 distance (`<->`)**, not cosine
+The HNSW indexes use `vector_l2_ops`, so semantic ranking uses **L2 distance (`<->`)**, not cosine
 distance.
+
+There is one partial HNSW index per entity type rather than a single shared one. A search covers a
+single entity type, and on a shared index that restriction is a post-filter: the scan walks the
+nearest vectors of *all* types and can exhaust its candidate frontier before reaching a single row
+of the type being searched. A partial index makes the scan walk only that type's vectors. For the
+planner to match the partial index the retriever renders the entity type as a **literal**, not a
+bind parameter.
+
+Reading a bounded window from the index also needs `hnsw.iterative_scan = relaxed_order`, which the
+engine applies with `SET LOCAL` for the duration of each search transaction. Without it the scan
+stops at roughly `ef_search` rows regardless of the requested limit. The setting arrived in
+**pgvector 0.8**; on older versions Postgres rejects it, and because each setting is applied inside
+its own savepoint the search still runs, just over a smaller candidate window.
 
 The migration that creates these also creates the `uuid-ossp`, `ltree`, `unaccent`, `pg_trgm` and
 `vector` extensions, unless `vector` already exists and `LLM_FORCE_EXTENSION_MIGRATION` is off.
@@ -341,6 +354,14 @@ an entity's score is the highest `word_similarity(term, value)` among its matche
 **Semantic**: considers rows with an embedding; an entity's score is
 `1 / (1 + min(embedding <-> query_vector))`, so a smaller distance gives a higher score, bounded
 to `[0, 1]`.
+
+It runs one of two plans. Interactive searches take the `SEARCH_SEMANTIC_CANDIDATE_LIMIT` fields
+nearest the query embedding straight from the entity type's partial HNSW index, applying the
+structured filters *inside* that scan, and rank only those. Ranking within the window is exact;
+only which fields enter the window is approximate, and the window bounds how deep pagination can
+reach. Exports keep the exhaustive plan, which scores every embedded field of every candidate and
+needs a sequential scan: an export is a single query, without a cursor, for up to 10000 entities,
+and a window of 2000 fields can never yield that many.
 
 **Structured**: no relevance ranking (`score = 1.0`); results are ordered by an optional
 `order_by` field materialized from the index rows.
@@ -477,6 +498,7 @@ All embedding settings live in `LLMSettings` (`orchestrator/core/settings.py`).
 | `EMBEDDING_MAX_BATCH_SIZE`              | `None`                           | maximum items per embedding batch (`None` = unlimited)      |
 | `LLM_MAX_RETRIES` / `LLM_TIMEOUT`       | `3` / `30`                       | LiteLLM retry and timeout, used during indexing             |
 | `LLM_FORCE_EXTENSION_MIGRATION`         | `False`                          | force `CREATE EXTENSION` in the search migration            |
+| `SEARCH_SEMANTIC_CANDIDATE_LIMIT`       | `2000`                           | fields the semantic retriever reads from the HNSW index per search; bounds how deep its pagination reaches |
 
 Live queries do not use `LLM_MAX_RETRIES`/`LLM_TIMEOUT`: they embed with a 5-second timeout and no
 retries, because a slow search is worse than one without semantic ranking.

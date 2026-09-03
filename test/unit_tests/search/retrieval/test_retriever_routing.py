@@ -22,13 +22,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.core.search.core.types import EntityType
-from orchestrator.core.search.retrieval.retrievers.base import Retriever
+from orchestrator.core.search.core.types import EntityType, RetrieverType
+from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
+from orchestrator.core.search.retrieval.retrievers.base import HNSW_ITERATIVE_SCAN, Retriever
 from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
 from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
 from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
 from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
 from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
+from orchestrator.core.settings import llm_settings
 
 pytestmark = pytest.mark.search
 
@@ -150,3 +152,23 @@ def test_process_hybrid_with_no_embedding_carries_none_embedding() -> None:
     query = _make_query(fuzzy_term=FUZZY_TERM, entity_type=EntityType.PROCESS)
     retriever = Retriever.route(query, cursor=None, query_embedding=None)
     assert isinstance(retriever, ProcessHybridRetriever)
+
+
+@pytest.mark.parametrize(
+    "query_cls,bounded,settings",
+    [
+        pytest.param(SelectQuery, True, (HNSW_ITERATIVE_SCAN,), id="select_reads_a_window_from_the_index"),
+        pytest.param(ExportQuery, False, (), id="export_ranks_the_whole_corpus"),
+    ],
+)
+def test_semantic_window_is_for_interactive_searches_only(query_cls, bounded: bool, settings, monkeypatch) -> None:
+    """One export query asks for more entities than a window holds, so it keeps the exhaustive plan."""
+    monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_LIMIT", 123)
+    query = query_cls(entity_type=EntityType.SUBSCRIPTION, query_text=QUERY_TEXT, retriever=RetrieverType.SEMANTIC)
+
+    retriever = Retriever.route(query, cursor=None, query_embedding=EMBEDDING)
+
+    assert isinstance(retriever, SemanticRetriever)
+    assert retriever.is_bounded is bounded
+    assert retriever.candidates_limit == (123 if bounded else None)
+    assert tuple(retriever.session_settings) == settings

@@ -172,6 +172,17 @@ class LLMSettings(BaseSettings):
     # Toggle creation of extensions
     LLM_FORCE_EXTENSION_MIGRATION: bool = False
 
+    # Retrieval behaviour
+    SEARCH_SEMANTIC_CANDIDATE_LIMIT: int = Field(
+        2000,
+        gt=0,
+        description=(
+            "How many index fields the semantic retriever pulls from the HNSW index per search. "
+            "Higher reaches further down the result list at the cost of a slower scan; exports are "
+            "not capped."
+        ),
+    )
+
     # Indexing behaviour
     SEARCH_INDEXING_STRICT: bool = False  # Raise on indexing errors (dev/test); log and continue by default
 
