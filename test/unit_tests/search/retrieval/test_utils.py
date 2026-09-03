@@ -40,8 +40,15 @@ from orchestrator.core.search.query.results import generate_highlight_indices, t
             "Node asd066d-jnp-03", '"Node Peering asd066d-jnp-0"', [(0, 4), (5, 18)], id="quoted-query-partial"
         ),
         pytest.param("The quick brown fox jumps", "fox,", [(16, 19)], id="trailing-punctuation"),
+        pytest.param("Node Peering asd066d-jnp-02", "«Node» ‘Peering’", [(0, 4), (5, 12)], id="unicode-quotes"),
         pytest.param("The quick brown fox jumps", "fox -", [(16, 19)], id="punctuation-only-word-ignored"),
         pytest.param("asd066d-jnp-02 port", "asd066d-jnp", [(0, 11)], id="inner-hyphen-preserved"),
+        pytest.param(
+            "Corelink Amsterdam connectivity course",
+            "C++ course",
+            [(32, 38)],
+            id="symbol-token-kept-whole",
+        ),
         pytest.param("(fox)", "(fox)", [(1, 4)], id="wrapped-in-parentheses"),
     ],
 )
