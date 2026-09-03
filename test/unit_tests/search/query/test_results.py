@@ -569,7 +569,10 @@ def test_resolve_contains_filter_falls_back_to_full_text(pattern, text):
 
 def test_resolve_contains_filter_invalid_regex_highlights_literal_words():
     """An invalid regex falls back to word highlighting, ignoring the punctuation that broke the pattern."""
-    tree = _single_leaf_filter_tree(ContainsFilter(op=FilterOp.CONTAINS, value="[foo"), path="subscription.description")
+    tree = _single_leaf_filter_tree(
+        ContainsFilter(op=FilterOp.CONTAINS, value="[foo"),
+        path="subscription.description",
+    )
     row = _row_with_highlights([("FOO BAR baz", "subscription.description")])
     result = _resolve_structured_matching_fields(row, tree)
     assert result[0].highlight_indices == [(0, 3)]
