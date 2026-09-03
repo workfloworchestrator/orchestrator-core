@@ -16,12 +16,14 @@
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import func, select, text
+from sqlalchemy.orm import aliased
 from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db import db
 from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.search.core.types import EntityType, FieldType, RetrieverType
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FieldType, FilterOp, RetrieverType, UIType
+from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter
 from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.builder import build_candidate_query
 from orchestrator.core.search.query.queries import SelectQuery
@@ -71,12 +73,27 @@ def indexed_vectors() -> list[UUID]:
     return ids
 
 
-def _semantic_query(limit: int = 10) -> SelectQuery:
+def _semantic_query(limit: int = 10, filters: FilterTree | None = None) -> SelectQuery:
     return SelectQuery(
         entity_type=EntityType.SUBSCRIPTION,
         query_text="description",
         retriever=RetrieverType.SEMANTIC,
         limit=limit,
+        filters=filters,
+    )
+
+
+def _description_is(value: str) -> FilterTree:
+    """The filter shape production sends: a path leaf that becomes a correlated EXISTS on entity_id."""
+    return FilterTree(
+        op=BooleanOperator.AND,
+        children=[
+            PathFilter(
+                path="subscription.description",
+                condition=EqualityFilter(op=FilterOp.EQ, value=value),
+                value_kind=UIType.STRING,
+            )
+        ],
     )
 
 
@@ -109,6 +126,48 @@ def test_bounded_and_exhaustive_plans_agree(indexed_vectors):
     exhaustive = SemanticRetriever(_basis_vector(0), None, candidates_limit=None)
 
     assert _run(bounded, query) == _run(exhaustive, query) == [str(i) for i in indexed_vectors]
+
+
+def test_filtered_candidate_query_uses_bounded_plan(indexed_vectors):
+    """A production filter is an entity predicate; it must land inside the window, not be dropped by the guard."""
+    candidate_query = build_candidate_query(_semantic_query(filters=_description_is("description 1")))
+    retriever = SemanticRetriever(_basis_vector(0), None, EntityType.SUBSCRIPTION, candidates_limit=100)
+
+    stmt = retriever.apply(candidate_query)
+    results = db.session.execute(stmt).mappings().all()
+
+    assert "semantic_candidates" in str(stmt)
+    assert [row.entity_id for row in results] == [indexed_vectors[1]]
+
+
+def test_joined_candidate_query_uses_exhaustive_plan(indexed_vectors):
+    filter_row = aliased(AiSearchIndex)
+    candidate_query = (
+        select(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
+        .join(filter_row, filter_row.entity_id == AiSearchIndex.entity_id)
+        .where(filter_row.value == "description 1")
+        .distinct()
+    )
+    retriever = SemanticRetriever(_basis_vector(0), None, EntityType.SUBSCRIPTION, candidates_limit=100)
+
+    stmt = retriever.apply(candidate_query)
+    results = db.session.execute(stmt).mappings().all()
+
+    assert "semantic_candidates" not in str(stmt)
+    assert [row.entity_id for row in results] == [indexed_vectors[1]]
+
+
+def test_grouped_candidate_query_uses_exhaustive_plan():
+    candidate_query = (
+        select(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
+        .where(AiSearchIndex.entity_type == EntityType.SUBSCRIPTION.value)
+        .distinct()
+        .group_by(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
+        .having(func.count() > 1)
+    )
+    retriever = SemanticRetriever(_basis_vector(0), None, EntityType.SUBSCRIPTION, candidates_limit=100)
+
+    assert "semantic_candidates" not in str(retriever.apply(candidate_query))
 
 
 async def test_search_applies_the_iterative_scan_setting(indexed_vectors, async_session):

@@ -50,7 +50,9 @@ class SemanticRetriever(Retriever):
         return (HNSW_ITERATIVE_SCAN,) if self.is_bounded else ()
 
     def apply(self, candidate_query: Select) -> Select:
-        if self.is_bounded:
+        use_bounded_plan = self.is_bounded and self._supports_bounded_plan(candidate_query)
+
+        if use_bounded_plan:
             source = self._candidate_window(candidate_query).cte("semantic_candidates")
             entity_id = source.c.entity_id
             entity_title = source.c.entity_title
@@ -94,7 +96,7 @@ class SemanticRetriever(Retriever):
             .select_from(from_clause)
             .distinct(entity_id, entity_title)
         )
-        if not self.is_bounded:
+        if not use_bounded_plan:
             combined_query = combined_query.where(AiSearchIndex.embedding.isnot(None))
         final_query = combined_query.subquery("ranked_semantic")
 
@@ -109,6 +111,22 @@ class SemanticRetriever(Retriever):
         stmt = self._apply_semantic_pagination(stmt, final_query.c.score, final_query.c.entity_id)
 
         return stmt.order_by(final_query.c.score.desc().nulls_last(), final_query.c.entity_id.asc())
+
+    @staticmethod
+    def _supports_bounded_plan(candidate_query: Select) -> bool:
+        """Only allow query shapes whose semantics survive copying their filters into the HNSW window."""
+        columns = list(candidate_query.selected_columns)
+        if (
+            candidate_query.get_final_froms() != [AiSearchIndex.__table__]
+            or len(columns) != 2
+            or not columns[0].shares_lineage(AiSearchIndex.entity_id)
+            or not columns[1].shares_lineage(AiSearchIndex.entity_title)
+        ):
+            return False
+
+        expected = select(*columns).where(*candidate_query._where_criteria).distinct()
+
+        return candidate_query.compare(expected)
 
     def _candidate_window(self, candidate_query: Select) -> Select:
         """Index fields closest to the query embedding, capped at `candidates_limit`.
