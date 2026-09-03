@@ -196,17 +196,24 @@ def truncate_text_with_highlights(
     return truncated_text, adjusted_indices if adjusted_indices else None
 
 
+# Trims punctuation that wraps or terminates a word in prose (quotes of any flavour, brackets, commas)
+# from both ends of a query word. ``+``, ``#`` and ``@`` are kept because they carry meaning at a word
+# edge (``C++``, ``#1234``, ``@user``) and trimming them would highlight the bare remainder everywhere.
+EDGE_PUNCTUATION_RE = re.compile(r"^[^\w+#@]+|[^\w+#@]+$")
+
+
 def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
     """Finds all occurrences of individual words from the term, including both word boundary and substring matches.
 
-    Leading and trailing punctuation is stripped from each word (``"Node`` matches ``Node``), mirroring
-    pg_trgm, which ignores non-alphanumeric characters when matching.
+    Wrapping punctuation is stripped from the edges of each word, so a quoted query highlights the words
+    it wraps (``"Node`` highlights ``Node``). Identifiers keep their inner punctuation and are matched
+    whole, so ``asd066d-jnp-02`` is one word rather than three.
     """
     if not text or not term:
         return []
 
     all_matches = []
-    words = [w for w in (re.sub(r"^\W+|\W+$", "", w) for w in term.split()) if w]
+    words = [w for w in (EDGE_PUNCTUATION_RE.sub("", w) for w in term.split()) if w]
 
     for word in words:
         # First find word boundary matches
