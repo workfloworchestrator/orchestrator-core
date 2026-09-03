@@ -10,9 +10,9 @@ these technologies, you should definitely read up on them to get a better unders
 database components work. The database models we use for the orchestrator-core live in `orchestrator-core/db/models.py`.
 
 ??? example "Example: `orchestrator-core/db/models.py`"
-    `python linenums="1"
+    ```python linenums="1"
     {% include '../../orchestrator/core/db/models.py' %}
-    `
+    ```
 
 ## Setting Up the Database Initially
 
@@ -27,8 +27,8 @@ appropriate saving in the database occurs. You can see how we do this with the `
 the SQLAlchemy `Session` object:
 
 ::: orchestrator.core.db.database.WrappedSession
-options:
-heading_level: 3
+    options:
+        heading_level: 3
 
 ## Multiple Heads
 
