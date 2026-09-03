@@ -43,7 +43,7 @@ async def add_response_range(
     stmt: Selectable, range_: list[int] | None, response: Response, session: AsyncSession, unit: str = "items"
 ) -> Selectable:
     if range_ is not None and len(range_) == 2:
-        total = session.scalar(select(func.count()).select_from(stmt.subquery()))
+        total = await session.scalar(select(func.count()).select_from(stmt.subquery()))
         range_start, range_end = range_
         try:
             stmt = apply_range_to_statement(stmt, range_start, range_end)
