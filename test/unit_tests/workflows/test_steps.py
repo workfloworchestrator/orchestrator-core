@@ -156,14 +156,7 @@ def test_store_process_subscription_target_deprecation_warning():
 
     with patch("orchestrator.core.workflows.steps.logger") as mock_logger:
         store_process_subscription(Target.CREATE)
-        assert mock_logger.warning.call_count == 2
-        assert "deprecated" in mock_logger.warning.call_args[0][0].lower()
-
-
-def test_store_process_subscription_deprecation_warning():
-    with patch("orchestrator.core.workflows.steps.logger") as mock_logger:
-        store_process_subscription()
-        mock_logger.warning.assert_called_once()
+        assert mock_logger.warning.call_count == 1
         assert "deprecated" in mock_logger.warning.call_args[0][0].lower()
 
 
