@@ -14,36 +14,17 @@
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from decimal import Decimal
-from typing import NamedTuple
 
 import structlog
 from sqlalchemy import BindParameter, Numeric, Select, literal
 
 from orchestrator.core.search.core.types import EntityType, FieldType, RetrieverType, SearchMetadata
 from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
+from orchestrator.core.search.retrieval.session import SessionSetting
 
 from ..pagination import PageCursor
 
 logger = structlog.get_logger(__name__)
-
-
-class SessionSetting(NamedTuple):
-    """A Postgres setting applied for the duration of the search transaction.
-
-    Rendered into ``SET LOCAL``, which takes no bind parameters, so instances are code constants:
-    never build one from configuration or request data.
-    """
-
-    name: str
-    value: str
-
-    @property
-    def statement(self) -> str:
-        return f"SET LOCAL {self.name} = '{self.value}'"
-
-
-# pgvector >= 0.8: keep walking the HNSW index until the LIMIT is met instead of stopping at ~ef_search rows.
-HNSW_ITERATIVE_SCAN = SessionSetting("hnsw.iterative_scan", "relaxed_order")
 
 
 class Retriever(ABC):

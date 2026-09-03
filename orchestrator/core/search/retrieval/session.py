@@ -12,15 +12,34 @@
 # limitations under the License.
 
 from collections.abc import Sequence
+from typing import NamedTuple
 
 import structlog
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.core.search.retrieval.retrievers.base import SessionSetting
-
 logger = structlog.get_logger(__name__)
+
+
+class SessionSetting(NamedTuple):
+    """A Postgres setting applied for the duration of the search transaction.
+
+    Rendered into ``SET LOCAL``, which takes no bind parameters, so instances are code constants:
+    never build one from configuration or request data.
+    """
+
+    name: str
+    value: str
+
+    @property
+    def statement(self) -> str:
+        return f"SET LOCAL {self.name} = '{self.value}'"
+
+
+# pgvector >= 0.8: keep walking the HNSW index until the LIMIT is met instead of stopping at ~ef_search rows.
+HNSW_ITERATIVE_SCAN = SessionSetting("hnsw.iterative_scan", "relaxed_order")
+
 
 # Settings the database refused, so the warning is logged once per process instead of once per search.
 _rejected_session_settings: set[str] = set()
@@ -50,4 +69,4 @@ async def apply_session_settings(db_session: AsyncSession, settings: Sequence[Se
                 )
 
 
-__all__ = ["apply_session_settings"]
+__all__ = ["HNSW_ITERATIVE_SCAN", "SessionSetting", "apply_session_settings"]

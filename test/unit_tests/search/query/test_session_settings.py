@@ -19,7 +19,7 @@ import pytest
 from sqlalchemy.exc import DBAPIError
 
 from orchestrator.core.search.retrieval import session as retrieval_session
-from orchestrator.core.search.retrieval.retrievers.base import HNSW_ITERATIVE_SCAN, SessionSetting
+from orchestrator.core.search.retrieval.session import HNSW_ITERATIVE_SCAN, SessionSetting
 
 OTHER_SETTING = SessionSetting("hnsw.ef_search", "100")
 

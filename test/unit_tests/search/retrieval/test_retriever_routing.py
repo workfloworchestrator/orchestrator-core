@@ -24,7 +24,8 @@ import pytest
 
 from orchestrator.core.search.core.types import EntityType, RetrieverType
 from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
-from orchestrator.core.search.retrieval.retrievers.base import HNSW_ITERATIVE_SCAN, Retriever
+from orchestrator.core.search.retrieval.retrievers.base import Retriever
+from orchestrator.core.search.retrieval.session import HNSW_ITERATIVE_SCAN
 from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
 from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
 from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever

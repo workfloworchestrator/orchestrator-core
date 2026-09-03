@@ -26,7 +26,7 @@ from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.builder import build_candidate_query
 from orchestrator.core.search.query.queries import SelectQuery
 from orchestrator.core.search.retrieval.pagination import PageCursor
-from orchestrator.core.search.retrieval.retrievers.base import HNSW_ITERATIVE_SCAN
+from orchestrator.core.search.retrieval.session import HNSW_ITERATIVE_SCAN
 from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
 from orchestrator.core.settings import llm_settings
 
