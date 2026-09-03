@@ -710,6 +710,20 @@ def replace_current_step_state(process: ProcessTable, *, new_state: State) -> No
     db.session.add(current_step)
 
 
+def replace_current_step_state_async(process: ProcessTable, *, new_state: State, session: AsyncSession) -> None:
+    """Replace the state of the current step in a process.
+
+    Args:
+        process: Process from database, loaded through ``session``
+        new_state: The new state
+        session: Async database session
+
+    """
+    current_step = process.steps[-1]
+    current_step.state = new_state
+    session.add(current_step)
+
+
 def continue_awaiting_process(
     process: ProcessTable,
     *,
@@ -786,6 +800,7 @@ def update_awaiting_process_progress(
 
     return process.process_id
 
+
 async def update_awaiting_process_progress_async(
     process: ProcessTable,
     *,
@@ -817,8 +832,7 @@ async def update_awaiting_process_progress_async(
     state = {**state, progress_key: data} | {"__remove_keys": [progress_key]}
 
     # Commit the transaction before the "output" of this function: a websocket event
-    current_step = process.steps[-1]
-    current_step.state = state
+    replace_current_step_state_async(process, new_state=state, session=session)
     await session.commit()
 
     # Emit the websocket event
