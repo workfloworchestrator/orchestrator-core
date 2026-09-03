@@ -25,15 +25,7 @@ from .base import Retriever
 
 
 class SemanticRetriever(Retriever):
-    """Ranks results based on the minimum semantic vector distance.
-
-    Runs one of two plans. The *bounded* plan takes the `candidates_limit` fields nearest to the
-    query embedding straight from the entity type's partial HNSW index and ranks only those. The
-    *exhaustive* plan computes a distance for every embedded field of every candidate, which needs a
-    sequential scan but can rank the whole corpus; it is used when no limit or entity type is given.
-    Exports need it: one export query asks for up to `MAX_EXPORT_LIMIT` entities, and a window of
-    `n` fields can yield at most `n` entities, so a window would silently truncate the export.
-    """
+    """Ranks results based on the minimum semantic vector distance."""
 
     def __init__(
         self,
@@ -42,15 +34,6 @@ class SemanticRetriever(Retriever):
         entity_type: EntityType | None = None,
         candidates_limit: int | None = None,
     ) -> None:
-        """Initialize the retriever.
-
-        Args:
-            vector_query: Query embedding to measure distance against.
-            cursor: Pagination cursor, or None for the first page.
-            entity_type: Entity type to scan; required for the bounded plan, since it is rendered
-                as a literal so the planner can match the per-type partial HNSW index.
-            candidates_limit: How many index fields to consider. None runs the exhaustive plan.
-        """
         self.vector_query = vector_query
         self.cursor = cursor
         self.entity_type = entity_type
@@ -67,9 +50,52 @@ class SemanticRetriever(Retriever):
         return (HNSW_ITERATIVE_SCAN,) if self.is_bounded else ()
 
     def apply(self, candidate_query: Select) -> Select:
-        combined_query = (
-            self._bounded_ranking(candidate_query) if self.is_bounded else self._exhaustive_ranking(candidate_query)
+        if self.is_bounded:
+            source = self._candidate_window(candidate_query).cte("semantic_candidates")
+            entity_id = source.c.entity_id
+            entity_title = source.c.entity_title
+            value = source.c.value
+            path = source.c.path
+            dist = source.c.semantic_distance
+            from_clause = source
+        else:
+            cand = candidate_query.subquery()
+            entity_id = AiSearchIndex.entity_id
+            entity_title = AiSearchIndex.entity_title
+            value = AiSearchIndex.value
+            path = AiSearchIndex.path
+            dist = AiSearchIndex.embedding.l2_distance(self.vector_query)
+            from_clause = AiSearchIndex.__table__.join(cand, cand.c.entity_id == AiSearchIndex.entity_id)
+
+        raw_min = func.min(dist).over(partition_by=entity_id)
+
+        # Normalize score to preserve ordering in accordance with other retrievers:
+        # smaller distance = higher score
+        similarity = literal(1.0, type_=self.SCORE_NUMERIC_TYPE) / (
+            literal(1.0, type_=self.SCORE_NUMERIC_TYPE) + cast(raw_min, self.SCORE_NUMERIC_TYPE)
         )
+
+        score = cast(
+            func.round(cast(similarity, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
+        ).label(self.SCORE_LABEL)
+
+        combined_query = (
+            select(
+                entity_id,
+                entity_title,
+                score,
+                func.first_value(value)
+                .over(partition_by=entity_id, order_by=[dist.asc(), path.asc()])
+                .label(self.HIGHLIGHT_TEXT_LABEL),
+                func.first_value(path)
+                .over(partition_by=entity_id, order_by=[dist.asc(), path.asc()])
+                .label(self.HIGHLIGHT_PATH_LABEL),
+            )
+            .select_from(from_clause)
+            .distinct(entity_id, entity_title)
+        )
+        if not self.is_bounded:
+            combined_query = combined_query.where(AiSearchIndex.embedding.isnot(None))
         final_query = combined_query.subquery("ranked_semantic")
 
         stmt = select(
@@ -83,53 +109,6 @@ class SemanticRetriever(Retriever):
         stmt = self._apply_semantic_pagination(stmt, final_query.c.score, final_query.c.entity_id)
 
         return stmt.order_by(final_query.c.score.desc().nulls_last(), final_query.c.entity_id.asc())
-
-    def _score(self, distance: ColumnElement, entity_id: ColumnElement) -> ColumnElement:
-        """Turn the smallest distance per entity into a descending score in `(0, 1]`."""
-        raw_min = func.min(distance).over(partition_by=entity_id)
-
-        # Normalize score to preserve ordering in accordance with other retrievers:
-        # smaller distance = higher score
-        similarity = literal(1.0, type_=self.SCORE_NUMERIC_TYPE) / (
-            literal(1.0, type_=self.SCORE_NUMERIC_TYPE) + cast(raw_min, self.SCORE_NUMERIC_TYPE)
-        )
-        return cast(
-            func.round(cast(similarity, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
-        ).label(self.SCORE_LABEL)
-
-    def _exhaustive_ranking(self, candidate_query: Select) -> Select:
-        """Rank every embedded field of every candidate entity, without a candidate window."""
-        cand = candidate_query.subquery()
-        dist = AiSearchIndex.embedding.l2_distance(self.vector_query)
-
-        return (
-            select(
-                AiSearchIndex.entity_id,
-                AiSearchIndex.entity_title,
-                self._score(dist, AiSearchIndex.entity_id),
-                *self._highlight_columns(dist, AiSearchIndex.entity_id, AiSearchIndex.value, AiSearchIndex.path),
-            )
-            .select_from(AiSearchIndex)
-            .join(cand, cand.c.entity_id == AiSearchIndex.entity_id)
-            .where(AiSearchIndex.embedding.isnot(None))
-            .distinct(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
-        )
-
-    def _bounded_ranking(self, candidate_query: Select) -> Select:
-        """Rank only the fields inside the nearest-neighbour window."""
-        window = self._candidate_window(candidate_query).cte("semantic_candidates")
-        dist = window.c.semantic_distance
-
-        return (
-            select(
-                window.c.entity_id,
-                window.c.entity_title,
-                self._score(dist, window.c.entity_id),
-                *self._highlight_columns(dist, window.c.entity_id, window.c.value, window.c.path),
-            )
-            .select_from(window)
-            .distinct(window.c.entity_id, window.c.entity_title)
-        )
 
     def _candidate_window(self, candidate_query: Select) -> Select:
         """Index fields closest to the query embedding, capped at `candidates_limit`.
@@ -160,16 +139,6 @@ class SemanticRetriever(Retriever):
             .where(and_(*conditions))
             .order_by(distance.asc())
             .limit(self.candidates_limit)
-        )
-
-    def _highlight_columns(
-        self, distance: ColumnElement, entity_id: ColumnElement, value: ColumnElement, path: ColumnElement
-    ) -> tuple[ColumnElement, ColumnElement]:
-        """Value and path of each entity's closest field, used to highlight the match."""
-        order = [distance.asc(), path.asc()]
-        return (
-            func.first_value(value).over(partition_by=entity_id, order_by=order).label(self.HIGHLIGHT_TEXT_LABEL),
-            func.first_value(path).over(partition_by=entity_id, order_by=order).label(self.HIGHLIGHT_PATH_LABEL),
         )
 
     @property
