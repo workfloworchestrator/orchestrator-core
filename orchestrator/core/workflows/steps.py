@@ -16,9 +16,8 @@ from copy import deepcopy
 import structlog
 from pydantic import ValidationError
 
-from orchestrator.core.db import db
-from orchestrator.core.db.models import ProcessSubscriptionTable
 from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.services.process_subscription import store_process_subscription_relation
 from orchestrator.core.services.subscriptions import get_subscription
 from orchestrator.core.targets import Target
 from orchestrator.core.types import SubscriptionLifecycle
@@ -109,12 +108,6 @@ def unsync_unchecked(subscription_id: UUIDstr) -> State:
     return {"subscription": subscription}
 
 
-def store_process_subscription_relationship(process_id: UUIDstr, subscription_id: UUIDstr) -> ProcessSubscriptionTable:
-    process_subscription = ProcessSubscriptionTable(process_id=process_id, subscription_id=subscription_id)
-    db.session.add(process_subscription)
-    return process_subscription
-
-
 def store_process_subscription(workflow_target: Target | None = None) -> Step:
     if workflow_target:
         deprecation_warning = (
@@ -125,7 +118,7 @@ def store_process_subscription(workflow_target: Target | None = None) -> Step:
 
     @step("Create Process Subscription relation")
     def _store_process_subscription(process_id: UUIDstr, subscription_id: UUIDstr) -> None:
-        store_process_subscription_relationship(process_id, subscription_id)
+        store_process_subscription_relation(process_id, subscription_id)
 
     return _store_process_subscription
 
