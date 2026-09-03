@@ -2805,7 +2805,7 @@ wheels = [
 
 [[package]]
 name = "orchestrator-core"
-version = "5.4.0a2"
+version = "5.4.0a3"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
@@ -2873,7 +2873,7 @@ dev = [
     { name = "pytest-codspeed" },
     { name = "pytest-cov" },
     { name = "pytest-httpx" },
-      { name = "pytest-timeout" },
+    { name = "pytest-timeout" },
     { name = "pytest-xdist" },
     { name = "requests-mock" },
     { name = "ruff" },
