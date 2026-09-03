@@ -13,7 +13,6 @@
 
 """Module that implements process related API endpoints."""
 
-import asyncio
 import struct
 import zlib
 from collections.abc import AsyncGenerator
@@ -30,14 +29,16 @@ from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked, first, last
 from sentry_sdk.tracing import trace
 from sqlalchemy import CompoundSelect, Select, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer, joinedload
 from sqlalchemy.sql.functions import count
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.api.helpers import add_response_range
-from orchestrator.core.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
+from orchestrator.core.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db, get_async_session
 from orchestrator.core.db.filters import Filter
 from orchestrator.core.db.filters.process import filter_processes
 from orchestrator.core.db.sorting import Sort, SortOrder
@@ -68,10 +69,11 @@ from orchestrator.core.services.processes import (
     abort_process,
     can_be_resumed,
     continue_awaiting_process,
+    get_process_async,
     load_process,
     resume_process,
     start_process,
-    update_awaiting_process_progress,
+    update_awaiting_process_progress_async,
 )
 from orchestrator.core.services.settings import get_engine_settings_table
 from orchestrator.core.settings import app_settings
@@ -80,9 +82,8 @@ from orchestrator.core.utils.enrich_process import enrich_process
 from orchestrator.core.utils.errors import StartPredicateError
 from orchestrator.core.websocket import (
     WS_CHANNELS,
-    broadcast_invalidate_status_counts,
     broadcast_invalidate_status_counts_async,
-    broadcast_process_update_to_websocket,
+    broadcast_process_update_to_websocket_async,
     websocket_manager,
 )
 from orchestrator.core.workflow import ProcessStat, ProcessStatus, StepList, Workflow
@@ -173,9 +174,10 @@ def user_name(
 
 
 @router.delete("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def delete(process_id: UUID) -> None:
+async def delete(process_id: UUID, session: AsyncSession = Depends(get_async_session)) -> None:
     stmt = select(ProcessTable).filter_by(process_id=process_id)
-    process = db.session.execute(stmt).scalar_one_or_none()
+    result = await session.execute(stmt)
+    process = result.scalar_one_or_none()
 
     if not process:
         raise_status(HTTPStatus.NOT_FOUND)
@@ -183,11 +185,11 @@ def delete(process_id: UUID) -> None:
     if not process.is_task:
         raise_status(HTTPStatus.BAD_REQUEST)
 
-    db.session.delete(db.session.get(ProcessTable, process_id))
-    db.session.commit()
+    await session.delete(process)
+    await session.commit()
 
-    broadcast_invalidate_status_counts()
-    broadcast_process_update_to_websocket(process.process_id)
+    await broadcast_invalidate_status_counts_async()
+    await broadcast_process_update_to_websocket_async(process.process_id)
 
 
 @router.post(
@@ -227,7 +229,7 @@ async def new_process(
         raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to start '{workflow_key}' workflow")
 
     try:
-        process_id = await asyncio.to_thread(
+        process_id = await run_in_threadpool(
             start_process,
             workflow_key,
             user_inputs=json_data,
@@ -262,7 +264,7 @@ async def resume_process_endpoint(
     Provide the awaited input as ``json_data`` — fetch its schema from
     ``get_process_status`` for the suspended process.
     """
-    process = await asyncio.to_thread(_get_process, process_id)
+    process = await run_in_threadpool(_get_process, process_id)
 
     pstat = load_process(process)
     steps = get_steps_to_evaluate_for_rbac(pstat)
@@ -292,7 +294,7 @@ async def resume_process_endpoint(
     await broadcast_invalidate_status_counts_async()
     broadcast_func = api_broadcast_process_data(request)
 
-    await asyncio.to_thread(resume_process, process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
+    await run_in_threadpool(resume_process, process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
 
 
 @router.post(
@@ -301,7 +303,7 @@ async def resume_process_endpoint(
     status_code=HTTPStatus.OK,
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
-def continue_awaiting_process_endpoint(
+async def continue_awaiting_process_endpoint(
     process_id: UUID,
     token: str,
     request: Request,
@@ -309,14 +311,16 @@ def continue_awaiting_process_endpoint(
 ) -> None:
     check_global_lock()
 
-    process = _get_process(process_id)
+    process = await run_in_threadpool(_get_process, process_id)
 
     if process.last_status != ProcessStatus.AWAITING_CALLBACK:
         raise_status(HTTPStatus.CONFLICT, "This process is not in an awaiting state.")
 
     try:
         broadcast_func = api_broadcast_process_data(request)
-        continue_awaiting_process(process, token=token, input_data=json_data, broadcast_func=broadcast_func)
+        await run_in_threadpool(
+            continue_awaiting_process, process, token=token, input_data=json_data, broadcast_func=broadcast_func
+        )
     except AssertionError as e:
         raise_status(HTTPStatus.NOT_FOUND, str(e))
     except ValueError as e:
@@ -329,18 +333,19 @@ def continue_awaiting_process_endpoint(
     status_code=HTTPStatus.OK,
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
-def update_progress_on_awaiting_process_endpoint(
+async def update_progress_on_awaiting_process_endpoint(
     process_id: UUID,
     token: str,
     data: str | State = Body(...),
+    session: AsyncSession = Depends(get_async_session),
 ) -> None:
-    process = _get_process(process_id)
+    process = await get_process_async(process_id, session)
 
     if process.last_status != ProcessStatus.AWAITING_CALLBACK:
         raise_status(HTTPStatus.CONFLICT, "This process is not in an awaiting state.")
 
     try:
-        update_awaiting_process_progress(process, token=token, data=data)
+        await update_awaiting_process_progress_async(process, token=token, data=data, session=session)
     except AssertionError as exc:
         raise_status(HTTPStatus.NOT_FOUND, str(exc))
 
@@ -370,7 +375,7 @@ async def resume_all_processes_endpoint(request: Request, user: str = Depends(us
         )
         .filter(ProcessTable.is_task.is_(True))
     )
-    processes_to_resume = db.session.scalars(stmt).all()
+    processes_to_resume = await run_in_threadpool(lambda: db.session.scalars(stmt).all())
 
     broadcast_func = api_broadcast_process_data(request)
     if not await _async_resume_processes(processes_to_resume, user, broadcast_func=broadcast_func):
@@ -389,14 +394,18 @@ async def resume_all_processes_endpoint(request: Request, user: str = Depends(us
     operation_id="abort_workflow_process",
     openapi_extra=DESTRUCTIVE_TOOL,
 )
-def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depends(user_name)) -> None:
+async def abort_process_endpoint(
+    process_id: UUID,
+    request: Request,
+    user: str = Depends(user_name),
+) -> None:
     """Abort a running workflow process. This is irreversible."""
-    process = _get_process(process_id)
+    process = await run_in_threadpool(_get_process, process_id)
 
     broadcast_func = api_broadcast_process_data(request)
     try:
-        abort_process(process, user, broadcast_func=broadcast_func)
-        broadcast_invalidate_status_counts()
+        await run_in_threadpool(abort_process, process, user, broadcast_func=broadcast_func)
+        await broadcast_invalidate_status_counts_async()
         return
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
@@ -416,21 +425,22 @@ async def _index_processes(process_id: UUID) -> AsyncGenerator[None, Any]:
 async def update_process(
     process_id: UUID,
     data: ProcessPatchSchema = Body(...),
+    session: AsyncSession = Depends(get_async_session)
 ) -> ProcessTable:
-    process = _get_process(process_id)
+    process = await get_process_async(process_id, session)
     if not process:
         raise_status(HTTPStatus.NOT_FOUND, f"Process id {process_id} not found")
 
-    return await _patch_process(data, process)
+    return await _patch_process(data, process, session)
 
 
-async def _patch_process(data: ProcessPatchSchema, process: ProcessTable) -> ProcessTable:
+async def _patch_process(data: ProcessPatchSchema, process: ProcessTable, session: AsyncSession) -> ProcessTable:
     updated_properties = data.model_dump(exclude_unset=True)  # `None` is allowed, but must be explicitly set
 
     for field, value in updated_properties.items():
         setattr(process, field, value)
 
-    db.session.commit()
+    await session.commit()
     return process
 
 
@@ -441,7 +451,7 @@ async def _patch_process(data: ProcessPatchSchema, process: ProcessTable) -> Pro
     operation_id="get_process_status_counts",
     openapi_extra=READONLY_TOOL,
 )
-def status_counts() -> ProcessStatusCounts:
+async def status_counts(session: AsyncSession = Depends(get_async_session)) -> ProcessStatusCounts:
     """Get aggregate counts of processes and tasks grouped by status.
 
     Cheap dashboard-style summary; use before listing to gauge system state.
@@ -452,7 +462,8 @@ def status_counts() -> ProcessStatusCounts:
         .with_only_columns(ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status))
         .group_by(ProcessTable.is_task, ProcessTable.last_status)
     )
-    rows = db.session.execute(stmt).all()
+    result = await session.execute(stmt)
+    rows = result.all()
     return ProcessStatusCounts(
         process_counts={status: num_processes for is_task, status, num_processes in rows if not is_task},
         task_counts={status: num_processes for is_task, status, num_processes in rows if is_task},
@@ -460,8 +471,8 @@ def status_counts() -> ProcessStatusCounts:
 
 
 @router.get("/{process_id}", response_model=ProcessSchema)
-def show(process_id: UUID) -> dict[str, Any]:
-    process = _get_process(process_id)
+async def show(process_id: UUID) -> dict[str, Any]:
+    process =await run_in_threadpool(_get_process, process_id)
     p = load_process(process)
 
     return enrich_process(process, p)
@@ -484,12 +495,13 @@ def _calculate_processes_crc32_checksum(results: list[ProcessTable]) -> int:
 
 
 @router.get("/", response_model=list[ProcessSchema])
-def processes_filterable(  # noqa: C901
+async def processes_filterable(  # noqa: C901
     response: Response,
     range: str | None = None,
     sort: str | None = None,
     filter: str | None = None,
     if_none_match: str | None = Header(None),
+    session: AsyncSession = Depends(get_async_session),
 ) -> list[dict[str, Any]]:
     _range: list[int] | None = list(map(int, range.split(","))) if range else None
     _sort: list[str] | None = sort.split(",") if sort else None
@@ -516,9 +528,10 @@ def processes_filterable(  # noqa: C901
         pydantic_sorting = [Sort(field=field, order=SortOrder[value.upper()]) for field, value in chunked(_sort, 2)]
         processes = sort_processes(processes, pydantic_sorting, handle_process_error)
 
-    processes = add_response_range(processes, _range, response, unit="processes")
+    processes = await add_response_range(processes, _range, response, session, unit="processes")
 
-    results = list(db.session.scalars(processes).unique())
+    result = await session.scalars(processes)
+    results = list(result.unique())
 
     # Calculate a CRC32 checksum of all the process id's and last_modified_at dates in order as entity tag
     checksum = _calculate_processes_crc32_checksum(results)

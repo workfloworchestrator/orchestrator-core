@@ -14,12 +14,13 @@
 from http import HTTPStatus
 from uuid import UUID
 
-from fastapi.param_functions import Body
+from fastapi.param_functions import Body, Depends
 from fastapi.routing import APIRouter
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.api.models import delete
-from orchestrator.core.db import SubscriptionCustomerDescriptionTable, db
+from orchestrator.core.api.models import delete_async
+from orchestrator.core.db import SubscriptionCustomerDescriptionTable, get_async_session
 from orchestrator.core.domain.customer_description import (
     create_subscription_customer_description,
     get_customer_description_by_customer_subscription,
@@ -33,42 +34,44 @@ router = APIRouter()
 
 
 @router.post("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-async def save_subscription_customer_description_endpoint(data: SubscriptionDescriptionBaseSchema = Body(...)) -> None:
-    await create_subscription_customer_description(data.customer_id, data.subscription_id, data.description)
+async def save_subscription_customer_description_endpoint(data: SubscriptionDescriptionBaseSchema = Body(...), session: AsyncSession = Depends(get_async_session)) -> None:
+    await create_subscription_customer_description(data.customer_id, data.subscription_id, data.description, session)
 
 
 @router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 async def update_subscription_customer_description_endpoint(
-    data: UpdateSubscriptionDescriptionSchema = Body(...),
+    data: UpdateSubscriptionDescriptionSchema = Body(...), session: AsyncSession = Depends(get_async_session),
 ) -> None:
-    description = get_customer_description_by_customer_subscription(data.customer_id, data.subscription_id)
+    description = await get_customer_description_by_customer_subscription(data.customer_id, data.subscription_id, session)
     if description:
         try:
-            await update_subscription_customer_description(description, data.description, data.created_at, data.version)
+            await update_subscription_customer_description(description, data.description, session, data.created_at, data.version)
         except StaleDataError as error:
             raise_status(HTTPStatus.BAD_REQUEST, str(error))
 
 
 @router.delete("/{_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def delete_subscription_customer_descriptions(_id: UUID) -> None:
-    description = db.session.get(SubscriptionCustomerDescriptionTable, _id)
+async def delete_subscription_customer_descriptions(_id: UUID, session: AsyncSession = Depends(get_async_session),) -> None:
+    description = await session.get(SubscriptionCustomerDescriptionTable, _id)
     if description:
-        delete(SubscriptionCustomerDescriptionTable, _id)
+        await delete_async(SubscriptionCustomerDescriptionTable, _id, session)
 
 
 @router.get("/{_id}", response_model=SubscriptionDescriptionSchema)
-def get_subscription_customer_descriptions(_id: UUID) -> str:
-    description = db.session.get(SubscriptionCustomerDescriptionTable, _id)
+async def get_subscription_customer_descriptions(
+    _id: UUID, session: AsyncSession = Depends(get_async_session)
+) -> SubscriptionCustomerDescriptionTable:
+    description = await session.get(SubscriptionCustomerDescriptionTable, _id)
     if description is None:
         raise_status(HTTPStatus.NOT_FOUND)
     return description
 
 
 @router.get("/customer/{customer_id}/subscription/{subscription_id}", response_model=SubscriptionDescriptionSchema)
-def get_subscription_customer_description_by_customer_subscription(
-    customer_id: str, subscription_id: UUID
+async def get_subscription_customer_description_by_customer_subscription(
+    customer_id: str, subscription_id: UUID, session: AsyncSession = Depends(get_async_session)
 ) -> SubscriptionCustomerDescriptionTable:
-    description = get_customer_description_by_customer_subscription(customer_id, subscription_id)
+    description = await get_customer_description_by_customer_subscription(customer_id, subscription_id, session)
     if description is None:
         raise_status(HTTPStatus.NOT_FOUND)
     return description
