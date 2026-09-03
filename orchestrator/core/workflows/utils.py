@@ -43,10 +43,9 @@ from orchestrator.core.workflow import (
     step,
 )
 from orchestrator.core.workflows.steps import (
-    refresh_process_search_index,
-    refresh_subscription_search_index,
     resync,
     set_status,
+    store_process_subscription,
     unsync,
     unsync_unchecked,
 )
@@ -301,16 +300,7 @@ def create_workflow(
     create_initial_input_form_generator = wrap_create_initial_input_form(initial_input_form)
 
     def _create_workflow(f: Callable[[], StepList]) -> Workflow:
-        steplist = (
-            init
-            >> f()
-            >> (additional_steps or StepList())
-            >> set_status(status)
-            >> resync
-            >> refresh_subscription_search_index
-            >> refresh_process_search_index
-            >> done
-        )
+        steplist = init >> f() >> (additional_steps or StepList()) >> set_status(status) >> resync >> done
 
         return make_workflow(
             f,
@@ -358,14 +348,7 @@ def modify_workflow(
 
     def _modify_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = (
-            init
-            >> unsync
-            >> f()
-            >> (additional_steps or StepList())
-            >> resync
-            >> refresh_subscription_search_index
-            >> refresh_process_search_index
-            >> done
+            init >> store_process_subscription() >> unsync >> f() >> (additional_steps or StepList()) >> resync >> done
         )
 
         return make_workflow(
@@ -415,13 +398,12 @@ def terminate_workflow(
     def _terminate_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = (
             init
+            >> store_process_subscription()
             >> unsync
             >> f()
             >> (additional_steps or StepList())
             >> set_status(SubscriptionLifecycle.TERMINATED)
             >> resync
-            >> refresh_subscription_search_index
-            >> refresh_process_search_index
             >> done
         )
 
@@ -464,7 +446,7 @@ def validate_workflow(
         _warn_description_deprecated()
 
     def _validate_workflow(f: Callable[[], StepList]) -> Workflow:
-        steplist = init >> unsync_unchecked >> f() >> resync >> done
+        steplist = init >> store_process_subscription() >> unsync_unchecked >> f() >> resync >> done
 
         return make_workflow(
             f,
@@ -512,12 +494,11 @@ def reconcile_workflow(
     def _reconcile_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = (
             init
+            >> store_process_subscription()
             >> unsync_unchecked
             >> f()
             >> (additional_steps or StepList())
             >> resync
-            >> refresh_subscription_search_index
-            >> refresh_process_search_index
             >> done
         )
 
