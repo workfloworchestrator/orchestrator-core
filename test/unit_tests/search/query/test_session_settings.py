@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.exc import DBAPIError
 
-from orchestrator.core.search.query import engine
+from orchestrator.core.search.retrieval import session as retrieval_session
 from orchestrator.core.search.retrieval.retrievers.base import HNSW_ITERATIVE_SCAN, SessionSetting
 
 OTHER_SETTING = SessionSetting("hnsw.ef_search", "100")
@@ -59,9 +59,9 @@ class _FakeSession:
 @pytest.fixture(autouse=True)
 def _forget_rejected_settings():
     """The warn-once cache is process global; keep tests independent of each other."""
-    engine._rejected_session_settings.clear()
+    retrieval_session._rejected_session_settings.clear()
     yield
-    engine._rejected_session_settings.clear()
+    retrieval_session._rejected_session_settings.clear()
 
 
 @pytest.mark.parametrize(
@@ -75,7 +75,7 @@ async def test_settings_are_applied_as_set_local(settings):
     """SET LOCAL lasts for the transaction, which is exactly the lifetime the search needs."""
     session = _FakeSession()
 
-    await engine._apply_session_settings(session, settings)
+    await retrieval_session.apply_session_settings(session, settings)
 
     assert session.executed == [f"SET LOCAL {s.name} = '{s.value}'" for s in settings]
 
@@ -85,8 +85,8 @@ async def test_a_rejected_setting_is_skipped_and_warned_about_once():
     session = _FakeSession(reject={HNSW_ITERATIVE_SCAN.name})
 
     for _ in range(3):
-        await engine._apply_session_settings(session, (HNSW_ITERATIVE_SCAN, OTHER_SETTING))
+        await retrieval_session.apply_session_settings(session, (HNSW_ITERATIVE_SCAN, OTHER_SETTING))
 
     assert session.rolled_back == [DBAPIError] * 3, "each rejection rolls back only its own savepoint"
     assert sum(OTHER_SETTING.name in sql for sql in session.executed) == 3
-    assert engine._rejected_session_settings == {HNSW_ITERATIVE_SCAN.name}
+    assert retrieval_session._rejected_session_settings == {HNSW_ITERATIVE_SCAN.name}
