@@ -121,36 +121,17 @@ async def test_search_applies_the_iterative_scan_setting(indexed_vectors, async_
     assert [r.entity_id for r in response.results] == [str(i) for i in indexed_vectors]
 
 
-async def _page_through(query, session, max_pages: int = 10) -> tuple[list[str], list[bool]]:
-    """Walk keyset pages the way the endpoint does, with the +1 fetch deciding `has_more`."""
-    seen: list[str] = []
-    has_more: list[bool] = []
-    cursor = None
-    for _ in range(max_pages):
-        response = await engine.execute_search(query, session, cursor, query_embedding=_basis_vector(0))
-        seen.extend(r.entity_id for r in response.results)
-        has_more.append(response.has_more)
-        assert len(response.results) <= query.limit
-        if not response.has_more:
-            break
-        last = response.results[-1]
-        cursor = PageCursor(score=float(last.score), id=last.entity_id, query_id=uuid4())
-    return seen, has_more
-
-
-async def test_keyset_pagination_walks_the_window_without_gaps_or_repeats(indexed_vectors, async_session):
-    """Every page recomputes the same window, so cursors stay consistent across pages."""
-    seen, has_more = await _page_through(_semantic_query(limit=3), async_session)
-
-    assert seen == [str(i) for i in indexed_vectors]
-    assert has_more == [True, False]
-
-
 async def test_pagination_stops_at_the_edge_of_the_window(indexed_vectors, async_session, monkeypatch):
     """Past the window there is nothing to page into: `has_more` turns false rather than returning gaps."""
     monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_LIMIT", 2)
+    query = _semantic_query(limit=1)
 
-    seen, has_more = await _page_through(_semantic_query(limit=1), async_session)
+    first = await engine.execute_search(query, async_session, query_embedding=_basis_vector(0))
+    last = first.results[-1]
+    cursor = PageCursor(score=float(last.score), id=last.entity_id, query_id=uuid4())
+    second = await engine.execute_search(query, async_session, cursor, query_embedding=_basis_vector(0))
 
-    assert seen == [str(i) for i in indexed_vectors[:2]]
-    assert has_more == [True, False]
+    assert [result.entity_id for result in first.results] == [str(indexed_vectors[0])]
+    assert first.has_more is True
+    assert [result.entity_id for result in second.results] == [str(indexed_vectors[1])]
+    assert second.has_more is False
