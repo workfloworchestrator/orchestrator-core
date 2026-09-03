@@ -18,9 +18,12 @@ from fastapi.param_functions import Depends
 from fastapi.routing import APIRouter
 from redis.asyncio import Redis as AIORedis
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
+from orchestrator.core.db import EngineSettingsTable, get_async_session
 from orchestrator.core.schemas import (
     EngineSettingsBaseSchema,
     EngineSettingsSchema,
@@ -28,7 +31,11 @@ from orchestrator.core.schemas import (
 )
 from orchestrator.core.security import authenticate
 from orchestrator.core.services import processes, settings
-from orchestrator.core.services.settings import generate_engine_settings_schema
+from orchestrator.core.services.settings import (
+    generate_engine_settings_schema,
+    get_engine_settings_table_async,
+    reset_search_index_async,
+)
 from orchestrator.core.services.settings_env_variables import get_all_exposed_settings
 from orchestrator.core.settings import ExecutorType, app_settings
 from orchestrator.core.utils.expose_settings import SettingsExposedSchema
@@ -57,16 +64,28 @@ async def clear_cache(name: str) -> int | None:
 
 
 @router.get("/cache-names")
-def get_cache_names() -> dict[str, str]:
+async def get_cache_names() -> dict[str, str]:
     return CACHE_FLUSH_OPTIONS
 
 
 @router.post("/search-index/reset")
-async def reset_search_index() -> None:
+async def reset_search_index(session: AsyncSession = Depends(get_async_session)) -> None:
     try:
-        settings.reset_search_index(tx_commit=True)
+        await reset_search_index_async(session, tx_commit=True)
     except SQLAlchemyError:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR)
+
+
+def _marshall_engine_status_for_update(new_global_lock: bool) -> EngineSettingsTable | None:
+    """Lock the engine settings row and marshall processes to the new global lock state.
+
+    Kept as a single sync unit-of-work (run via ``run_in_threadpool``): the row lock taken by
+    ``get_engine_settings_table_for_update`` must be held on the same session that
+    ``marshall_processes`` commits against, and ``marshall_processes`` can drive the sync
+    workflow engine (e.g. ``resume_process``), which cannot be converted to a true async sibling.
+    """
+    current_engine_settings = settings.get_engine_settings_table_for_update()
+    return processes.marshall_processes(current_engine_settings, new_global_lock)
 
 
 @router.put("/status", response_model=EngineSettingsSchema)
@@ -84,9 +103,8 @@ async def set_global_status(
 
     """
 
-    current_engine_settings = settings.get_engine_settings_table_for_update()
-
-    if not (updated_engine_settings := processes.marshall_processes(current_engine_settings, body.global_lock)):
+    updated_engine_settings = await run_in_threadpool(_marshall_engine_status_for_update, body.global_lock)
+    if not updated_engine_settings:
         raise_status(
             status=HTTPStatus.INTERNAL_SERVER_ERROR,
             detail="Something went wrong while updating the database aborting, possible manual intervention required",
@@ -95,7 +113,7 @@ async def set_global_status(
 
     if app_settings.SLACK_ENGINE_SETTINGS_HOOK_ENABLED:
         user_name = user.user_name if user else processes.SYSTEM_USER
-        settings.post_update_to_slack(engine_settings_schema, user_name)
+        await settings.post_update_to_slack_async(engine_settings_schema, user_name)
 
     if websocket_manager.enabled:
         # send engine status to socket.
@@ -106,7 +124,7 @@ async def set_global_status(
 
 
 @router.get("/worker-status", response_model=WorkerStatus)
-def get_worker_status() -> WorkerStatus:
+async def get_worker_status() -> WorkerStatus:
     """Return data on job workers and queues.
 
     Returns:
@@ -119,29 +137,36 @@ def get_worker_status() -> WorkerStatus:
     if app_settings.EXECUTOR == ExecutorType.WORKER:
         from orchestrator.core.services.tasks import CeleryJobWorkerStatus
 
-        return CeleryJobWorkerStatus()
-    return processes.ThreadPoolWorkerStatus()
+        return await run_in_threadpool(CeleryJobWorkerStatus)
+    return await run_in_threadpool(processes.ThreadPoolWorkerStatus)
 
 
 @router.get("/status", response_model=EngineSettingsSchema)
-def get_global_status() -> EngineSettingsSchema:
+async def get_global_status(session: AsyncSession = Depends(get_async_session)) -> EngineSettingsSchema:
     """Retrieve the global status object.
 
     Returns:
         The global status of the engine
 
     """
-    engine_settings = settings.get_engine_settings_table()
+    engine_settings = await get_engine_settings_table_async(session)
     return generate_engine_settings_schema(engine_settings)
 
 
 ws_router = APIRouter()
 
 
+@router.get("/overview", response_model=list[SettingsExposedSchema])
+async def get_exposed_settings() -> list[SettingsExposedSchema]:
+    return get_all_exposed_settings()
+
+
 if app_settings.ENABLE_WEBSOCKETS:
 
     @ws_router.websocket("/ws-status/")
-    async def websocket_get_global_status(websocket: WebSocket, token: str = Query(...)) -> None:
+    async def websocket_get_global_status(
+        websocket: WebSocket, token: str = Query(...), session: AsyncSession = Depends(get_async_session)
+    ) -> None:
         error = await websocket_manager.authorize(websocket, token)
 
         await websocket.accept()
@@ -149,14 +174,9 @@ if app_settings.ENABLE_WEBSOCKETS:
             await websocket_manager.disconnect(websocket, reason=error)
             return
 
-        engine_settings = settings.get_engine_settings_table()
+        engine_settings = await get_engine_settings_table_async(session)
 
         await websocket.send_text(json_dumps({"engine-status": generate_engine_settings_schema(engine_settings)}))
 
         channel = WS_CHANNELS.ENGINE_SETTINGS
         await websocket_manager.connect(websocket, channel)
-
-
-@router.get("/overview", response_model=list[SettingsExposedSchema])
-def get_exposed_settings() -> list[SettingsExposedSchema]:
-    return get_all_exposed_settings()

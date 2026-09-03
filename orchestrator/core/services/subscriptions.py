@@ -25,6 +25,7 @@ import structlog
 from more_itertools import first
 from sqlalchemy import Text, cast, not_, select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Query, aliased, joinedload
 from sqlalchemy.sql.expression import or_
 
@@ -87,6 +88,39 @@ def get_subscription(
 
     try:
         subscription = db.session.get(model, subscription_id, with_for_update=for_update)
+    except SQLAlchemyError as e:
+        raise ValueError("Invalid subscription id") from e
+
+    if subscription:
+        return subscription
+    raise ValueError(f"Subscription with {subscription_id} does not exist in the database")
+
+
+async def get_subscription_async(
+    subscription_id: UUID | UUIDstr,
+    session: AsyncSession,
+    model: type[T] = SubscriptionTable,
+    options: Sequence[Any] | None = None,
+    for_update: bool = False,
+) -> T:
+    """Async counterpart to :func:`get_subscription` for use in async endpoints.
+
+    Args:
+        subscription_id: The subscription_id
+        session: Async database session
+        model: SubscriptionModelType
+        options: SQLAlchemy loader options, e.g. to eagerly load relationships that
+            would otherwise trigger an implicit (unsupported) lazy load on an async session
+        for_update: specify whether we intend to update the subscription
+
+    Returns: A subscription object
+
+    Raises: ValueError: if the requested Subscription does not exist in de database.
+
+    """
+
+    try:
+        subscription = await session.get(model, subscription_id, options=options, with_for_update=for_update)
     except SQLAlchemyError as e:
         raise ValueError("Invalid subscription id") from e
 

@@ -73,19 +73,19 @@ async def run_single_query(query_text: str, embedding_lookup: dict[str, list[flo
     else:
         query_embedding = embedding_lookup[query_text]
 
-    with db.session as session:
-        start_time = time.perf_counter()
+    start_time = time.perf_counter()
+    async with db.async_session() as session:
         response = await engine.execute_search(
             query=query, db_session=session, cursor=None, query_embedding=query_embedding
         )
-        end_time = time.perf_counter()
+    end_time = time.perf_counter()
 
-        return {
-            "query": query_text,
-            "time": end_time - start_time,
-            "results": len(response.results),
-            "search_type": response.metadata.search_type if hasattr(response, "metadata") else "unknown",
-        }
+    return {
+        "query": query_text,
+        "time": end_time - start_time,
+        "results": len(response.results),
+        "search_type": response.metadata.search_type if hasattr(response, "metadata") else "unknown",
+    }
 
 
 @app.command()

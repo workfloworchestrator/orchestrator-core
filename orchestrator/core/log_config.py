@@ -39,12 +39,13 @@ def logger_config(name: str, default_level: str = "INFO") -> tuple[str, dict]:
 
 LOGGER_OVERRIDES = dict(
     [
+        logger_config("LiteLLM", default_level="WARNING"),
         logger_config("asyncio"),
         logger_config("httpcore"),
         logger_config("openai", default_level="WARNING"),
         logger_config("orchestrator.core.graphql.autoregistration"),
         logger_config("sqlalchemy.engine", default_level="WARNING"),
+        logger_config("urllib3.connectionpool"),
         logger_config("uvicorn"),
-        logger_config("LiteLLM", default_level="WARNING"),
     ]
 )

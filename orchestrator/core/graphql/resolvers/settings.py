@@ -35,7 +35,7 @@ from orchestrator.core.services.settings import (
     generate_engine_settings_schema,
     get_engine_settings_table,
     get_engine_settings_table_for_update,
-    post_update_to_slack,
+    post_update_to_slack_async,
 )
 from orchestrator.core.settings import ExecutorType, app_settings
 from orchestrator.core.utils.redis import delete_keys_matching_pattern
@@ -97,7 +97,7 @@ async def set_status(info: OrchestratorInfo, global_lock: bool) -> Error | Engin
     if app_settings.SLACK_ENGINE_SETTINGS_HOOK_ENABLED:
         oidc_user = await info.context.get_current_user
         user_name = oidc_user.name if oidc_user else SYSTEM_USER
-        post_update_to_slack(engine_settings_schema, user_name)
+        await post_update_to_slack_async(engine_settings_schema, user_name)
 
     return EngineSettingsType.from_pydantic(engine_settings_schema)
 

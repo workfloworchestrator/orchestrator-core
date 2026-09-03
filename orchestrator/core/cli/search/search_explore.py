@@ -23,11 +23,22 @@ from orchestrator.core.search.core.types import EntityType, FilterOp, UIType
 from orchestrator.core.search.filters import EqualityFilter, FilterTree, LtreeFilter, PathFilter
 from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.queries import SelectQuery
+from orchestrator.core.search.query.results import SearchResponse
 from orchestrator.core.search.query.validation import get_structured_filter_schema
 
 app = typer.Typer(help="Experiment with the subscription search indexes.")
 
 logger = structlog.getLogger(__name__)
+
+
+async def _run_search(query: SelectQuery) -> SearchResponse:
+    async with db.async_session() as session:
+        return await engine.execute_search(query=query, db_session=session)
+
+
+async def _run_generate_schema() -> dict[str, str]:
+    async with db.async_session() as session:
+        return await get_structured_filter_schema(session)
 
 
 @app.command()
@@ -45,7 +56,7 @@ def structured(path: str, value: str, entity_type: EntityType = EntityType.SUBSC
     """
     path_filter = PathFilter(path=path, condition=EqualityFilter(op=FilterOp.EQ, value=value), value_kind=UIType.STRING)
     query = SelectQuery(entity_type=entity_type, filters=FilterTree.from_flat_and([path_filter]), limit=limit)
-    search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
+    search_response = asyncio.run(_run_search(query))
     display_filtered_paths_only(search_response.results, query, db.session)
     display_results(search_response.results, db.session, "Match")
 
@@ -64,7 +75,7 @@ def semantic(query_text: str, entity_type: EntityType = EntityType.SUBSCRIPTION,
         ...
     """
     query = SelectQuery(entity_type=entity_type, query_text=query_text, limit=limit)
-    search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
+    search_response = asyncio.run(_run_search(query))
     display_results(search_response.results, db.session, "Distance")
 
 
@@ -82,7 +93,7 @@ def fuzzy(term: str, entity_type: EntityType = EntityType.SUBSCRIPTION, limit: i
         ...
     """
     query = SelectQuery(entity_type=entity_type, query_text=term, limit=limit)
-    search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
+    search_response = asyncio.run(_run_search(query))
     display_results(search_response.results, db.session, "Similarity")
 
 
@@ -110,7 +121,7 @@ def hierarchical(
     query = SelectQuery(
         entity_type=entity_type, filters=FilterTree.from_flat_and([path_filter]), query_text=query_text, limit=limit
     )
-    search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
+    search_response = asyncio.run(_run_search(query))
     display_results(search_response.results, db.session, "Hierarchical Score")
 
 
@@ -123,7 +134,7 @@ def hybrid(query_text: str, term: str, entity_type: EntityType = EntityType.SUBS
     """
     query = SelectQuery(entity_type=entity_type, query_text=query_text, limit=limit)
     logger.info("Executing Hybrid Search", query_text=query_text, term=term)
-    search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
+    search_response = asyncio.run(_run_search(query))
     display_results(search_response.results, db.session, "Hybrid Score")
 
 
@@ -138,7 +149,7 @@ def generate_schema() -> None:
         dotenv run python main.py search generate-schema
     """
 
-    schema_map = get_structured_filter_schema()
+    schema_map = asyncio.run(_run_generate_schema())
 
     if not schema_map:
         logger.warning("No filterable paths found in the search index.")
@@ -210,7 +221,7 @@ def nested_demo(entity_type: EntityType = EntityType.SUBSCRIPTION, limit: int = 
     )
 
     query = SelectQuery(entity_type=entity_type, filters=tree, limit=limit)
-    search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
+    search_response = asyncio.run(_run_search(query))
 
     display_results(search_response.results, db.session, "Score")
 

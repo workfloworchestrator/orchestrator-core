@@ -16,8 +16,10 @@ from uuid import UUID
 
 import structlog
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.core.db import SearchQueryTable, db
+from orchestrator.core.db import SearchQueryTable
 from orchestrator.core.search.core.exceptions import QueryStateNotFoundError
 from orchestrator.core.search.query.queries import BaseQuery, Query
 
@@ -40,12 +42,13 @@ class QueryState(BaseModel, Generic[T]):
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def load_from_id(cls, query_id: UUID | str, expected_type: type[T]) -> "QueryState[T]":
+    async def load_from_id(cls, query_id: UUID | str, expected_type: type[T], session: AsyncSession) -> "QueryState[T]":
         """Load query state from database by query_id with type validation.
 
         Args:
             query_id: UUID or string UUID of the saved query
             expected_type: Expected query type class (SelectQuery, ExportQuery, etc.)
+            session: Async database session
 
         Returns:
             QueryState with validated query type
@@ -62,7 +65,8 @@ class QueryState(BaseModel, Generic[T]):
             except (ValueError, TypeError) as e:
                 raise ValueError(f"Invalid query_id format: {query_id}") from e
 
-        search_query = db.session.query(SearchQueryTable).filter_by(query_id=query_uuid).first()
+        result = await session.execute(select(SearchQueryTable).filter_by(query_id=query_uuid))
+        search_query = result.scalar_one_or_none()
         if not search_query:
             raise QueryStateNotFoundError(f"Query {query_uuid} not found in database")
 
@@ -80,8 +84,8 @@ class QueryState(BaseModel, Generic[T]):
 
         return cls(query=query, query_embedding=search_query.query_embedding)
 
-    def save(self, run_id: UUID | None = None, query_number: int = 1) -> UUID:
+    async def save(self, session: AsyncSession, run_id: UUID | None = None, query_number: int = 1) -> UUID:
         row = SearchQueryTable.from_state(state=self, run_id=run_id, query_number=query_number)
-        db.session.add(row)
-        db.session.commit()
+        session.add(row)
+        await session.commit()
         return row.query_id

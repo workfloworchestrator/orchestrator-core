@@ -72,11 +72,11 @@ def _select_query(filters: FilterTree) -> SelectQuery:
     return SelectQuery(entity_type=EntityType.SUBSCRIPTION, filters=filters)
 
 
-async def test_global_field_filter_returns_full_path(indexed_subscriptions):
+async def test_global_field_filter_returns_full_path(indexed_subscriptions, async_session):
     """Filtering on the global field 'status' reports the full indexed path, not the filter input."""
     sub_a, _ = indexed_subscriptions
 
-    response = await engine.execute_search(_select_query(_eq_filter("status", "active")), db.session)
+    response = await engine.execute_search(_select_query(_eq_filter("status", "active")), async_session)
 
     assert [r.entity_id for r in response.results] == [str(sub_a)]
     fields = response.results[0].matching_fields
@@ -85,11 +85,11 @@ async def test_global_field_filter_returns_full_path(indexed_subscriptions):
     assert fields[0].text == "active"
 
 
-async def test_global_field_filter_resolves_path_per_entity(indexed_subscriptions):
+async def test_global_field_filter_resolves_path_per_entity(indexed_subscriptions, async_session):
     """The full path comes from the entity's own matched row, also for nested block fields."""
     _, sub_b = indexed_subscriptions
 
-    response = await engine.execute_search(_select_query(_eq_filter("status", "provisioning")), db.session)
+    response = await engine.execute_search(_select_query(_eq_filter("status", "provisioning")), async_session)
 
     assert [r.entity_id for r in response.results] == [str(sub_b)]
     fields = response.results[0].matching_fields
@@ -98,11 +98,11 @@ async def test_global_field_filter_resolves_path_per_entity(indexed_subscription
     assert fields[0].text == "provisioning"
 
 
-async def test_full_path_filter_returns_full_path(indexed_subscriptions):
+async def test_full_path_filter_returns_full_path(indexed_subscriptions, async_session):
     """Filtering on an explicit full path keeps reporting that full path."""
     sub_a, _ = indexed_subscriptions
 
-    response = await engine.execute_search(_select_query(_eq_filter("subscription.status", "active")), db.session)
+    response = await engine.execute_search(_select_query(_eq_filter("subscription.status", "active")), async_session)
 
     assert [r.entity_id for r in response.results] == [str(sub_a)]
     fields = response.results[0].matching_fields
@@ -111,7 +111,7 @@ async def test_full_path_filter_returns_full_path(indexed_subscriptions):
     assert fields[0].text == "active"
 
 
-async def test_ends_with_filter_returns_full_path_per_entity(indexed_subscriptions):
+async def test_ends_with_filter_returns_full_path_per_entity(indexed_subscriptions, async_session):
     """A path-only ends_with filter on 'status' resolves each entity's own full path and value."""
     sub_a, sub_b = indexed_subscriptions
     filters = FilterTree(
@@ -125,7 +125,7 @@ async def test_ends_with_filter_returns_full_path_per_entity(indexed_subscriptio
         ],
     )
 
-    response = await engine.execute_search(_select_query(filters), db.session)
+    response = await engine.execute_search(_select_query(filters), async_session)
 
     matching_by_id = {r.entity_id: r.matching_fields for r in response.results}
     assert set(matching_by_id) == {str(sub_a), str(sub_b)}
@@ -167,7 +167,7 @@ def indexed_subscription_with_two_statuses() -> UUID:
     return sub
 
 
-async def test_ends_with_returns_all_matching_rows(indexed_subscription_with_two_statuses):
+async def test_ends_with_returns_all_matching_rows(indexed_subscription_with_two_statuses, async_session):
     """An ends_with filter reports every matching row, not just the shallowest one."""
     sub = indexed_subscription_with_two_statuses
     filters = FilterTree(
@@ -181,7 +181,7 @@ async def test_ends_with_returns_all_matching_rows(indexed_subscription_with_two
         ],
     )
 
-    response = await engine.execute_search(_select_query(filters), db.session)
+    response = await engine.execute_search(_select_query(filters), async_session)
 
     assert [r.entity_id for r in response.results] == [str(sub)]
     fields = response.results[0].matching_fields
@@ -191,7 +191,7 @@ async def test_ends_with_returns_all_matching_rows(indexed_subscription_with_two
     }
 
 
-async def test_has_component_returns_result_without_matching_fields(indexed_subscription_with_ports):
+async def test_has_component_returns_result_without_matching_fields(indexed_subscription_with_ports, async_session):
     """has_component is satisfied by every result, so no matching field is reported for it."""
     sub = indexed_subscription_with_ports
     filters = FilterTree(
@@ -205,13 +205,13 @@ async def test_has_component_returns_result_without_matching_fields(indexed_subs
         ],
     )
 
-    response = await engine.execute_search(_select_query(filters), db.session)
+    response = await engine.execute_search(_select_query(filters), async_session)
 
     assert [r.entity_id for r in response.results] == [str(sub)]
     assert response.results[0].matching_fields == []
 
 
-async def test_multi_leaf_filter_returns_all_matching_fields(indexed_subscriptions):
+async def test_multi_leaf_filter_returns_all_matching_fields(indexed_subscriptions, async_session):
     """With multiple filter leaves, a MatchingField is returned for each positive leaf."""
     sub_a, _ = indexed_subscriptions
     filters = FilterTree(
@@ -228,7 +228,7 @@ async def test_multi_leaf_filter_returns_all_matching_fields(indexed_subscriptio
         ],
     )
 
-    response = await engine.execute_search(_select_query(filters), db.session)
+    response = await engine.execute_search(_select_query(filters), async_session)
 
     assert [r.entity_id for r in response.results] == [str(sub_a)]
     fields = response.results[0].matching_fields

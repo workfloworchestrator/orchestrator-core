@@ -14,11 +14,13 @@
 from http import HTTPStatus
 from uuid import UUID
 
-from fastapi.param_functions import Body
+from fastapi.param_functions import Body, Depends
 from fastapi.routing import APIRouter
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import db
+from orchestrator.core.db import get_async_session
 from orchestrator.core.db.models import ProductBlockTable
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas.product_block import ProductBlockPatchSchema, ProductBlockSchema
@@ -33,9 +35,13 @@ router = APIRouter()
     operation_id="get_product_block",
     openapi_extra=READONLY_TOOL,
 )
-def get_product_block_description(product_block_id: UUID) -> str:
+async def get_product_block_description(
+    product_block_id: UUID, session: AsyncSession = Depends(get_async_session)
+) -> ProductBlockTable:
     """Get a single product block definition by id, including its resource types."""
-    product_block = db.session.get(ProductBlockTable, product_block_id)
+    product_block = await session.get(
+        ProductBlockTable, product_block_id, options=[selectinload(ProductBlockTable.resource_types)]
+    )
     if product_block is None:
         raise_status(HTTPStatus.NOT_FOUND)
     return product_block
@@ -43,22 +49,25 @@ def get_product_block_description(product_block_id: UUID) -> str:
 
 @router.patch("/{product_block_id}", status_code=HTTPStatus.CREATED, response_model=ProductBlockSchema)
 async def patch_product_block_by_id(
-    product_block_id: UUID, data: ProductBlockPatchSchema = Body(...)
+    product_block_id: UUID,
+    data: ProductBlockPatchSchema = Body(...),
+    session: AsyncSession = Depends(get_async_session),
 ) -> ProductBlockTable:
-    product_block = db.session.get(ProductBlockTable, product_block_id)
+    product_block = await session.get(ProductBlockTable, product_block_id)
     if not product_block:
         raise_status(HTTPStatus.NOT_FOUND, f"Product_block id {product_block_id} not found")
 
-    return await _patch_product_block_description(data, product_block)
+    return await _patch_product_block_description(data, product_block, session)
 
 
 async def _patch_product_block_description(
     data: ProductBlockPatchSchema,
     product_block: ProductBlockTable,
+    session: AsyncSession,
 ) -> ProductBlockTable:
 
     updated_properties = data.model_dump(exclude_unset=True)
     description = updated_properties.get("description", product_block.description)
     product_block.description = description
-    db.session.commit()
+    await session.commit()
     return product_block

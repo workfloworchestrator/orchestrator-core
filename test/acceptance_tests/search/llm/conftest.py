@@ -12,9 +12,12 @@
 # limitations under the License.
 import asyncio
 import os
+from typing import AsyncGenerator
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.db import ProductTable, SubscriptionTable, db
 from orchestrator.core.db.models import AiSearchIndex
@@ -97,23 +100,26 @@ def maybe_run_benchmark(request, worker_id, database):
     # Setup test data
     from orchestrator.core.db import ProductTable, SubscriptionTable
 
-    with db.session as session:
-        product = ProductTable(**TEST_PRODUCT)
-        session.add(product)
-        session.flush()
+    async def _setup_benchmark_data():
+        async with db.async_session() as session:
+            product = ProductTable(**TEST_PRODUCT)
+            session.add(product)
+            await session.flush()
 
-        for sub_data in TEST_SUBSCRIPTIONS:
-            subscription = SubscriptionTable(
-                subscription_id=sub_data["subscription_id"],
-                description=sub_data["description"],
-                product_id=product.product_id,
-                customer_id=sub_data["customer_id"],
-                insync=sub_data["insync"],
-                status=sub_data["status"],
-            )
-            session.add(subscription)
+            for sub_data in TEST_SUBSCRIPTIONS:
+                subscription = SubscriptionTable(
+                    subscription_id=sub_data["subscription_id"],
+                    description=sub_data["description"],
+                    product_id=product.product_id,
+                    customer_id=sub_data["customer_id"],
+                    insync=sub_data["insync"],
+                    status=sub_data["status"],
+                )
+                session.add(subscription)
 
-        session.commit()
+            await session.commit()
+
+    asyncio.run(_setup_benchmark_data())
 
     from test.acceptance_tests.search.llm.scripts.benchmark.benchmark import run_benchmark
 
@@ -178,18 +184,29 @@ def mock_embeddings(embedding_fixtures: dict[str, list[float]]):
 
 
 @pytest.fixture
-def test_subscriptions(db_session) -> list[SubscriptionTable]:
+async def async_session() -> AsyncGenerator[AsyncSession]:
+    """Async session for executing search queries.
+
+    The search engine is async-only; the sync `db.session` cannot be awaited.
+    """
+    async with db.async_session() as session:
+        yield session
+
+
+@pytest.fixture
+async def test_subscriptions() -> AsyncGenerator[list[SubscriptionTable]]:
     """Create test subscriptions with semantic content for search testing.
 
     These subscriptions contain meaningful descriptions for semantic search testing.
+
+    Written through the async session: the search engine reads through the async engine's
+    own connection, which cannot see rows written via the sync `db.session` inside the
+    per-test transaction.
     """
     product = ProductTable(**TEST_PRODUCT)
-    db.session.add(product)
-    db.session.flush()
 
-    subscriptions = []
-    for sub_data in TEST_SUBSCRIPTIONS:
-        subscription = SubscriptionTable(
+    subscriptions = [
+        SubscriptionTable(
             subscription_id=sub_data["subscription_id"],
             description=sub_data["description"],
             product_id=product.product_id,
@@ -197,34 +214,60 @@ def test_subscriptions(db_session) -> list[SubscriptionTable]:
             insync=sub_data["insync"],
             status=sub_data["status"],
         )
-        subscriptions.append(subscription)
-        db.session.add(subscription)
+        for sub_data in TEST_SUBSCRIPTIONS
+    ]
 
-    db.session.commit()
-    return subscriptions
+    async with db.async_session() as session:
+        session.add(product)
+        await session.flush()
+        session.add_all(subscriptions)
+        await session.commit()
+
+    try:
+        yield subscriptions
+    finally:
+        async with db.async_session() as session:
+            await session.execute(delete(SubscriptionTable).where(SubscriptionTable.product_id == product.product_id))
+            await session.execute(delete(ProductTable).where(ProductTable.product_id == product.product_id))
+            await session.commit()
 
 
 @pytest.fixture
-def indexed_subscriptions(db_session, test_subscriptions, mock_embeddings, embedding_fixtures):
+async def indexed_subscriptions(test_subscriptions, mock_embeddings, embedding_fixtures):
     """Index test subscriptions into AiSearchIndex table.
 
     This manually indexes subscriptions to test retrieval behavior without needing
     the full product registry setup. The focus is on testing search ranking with
     semantically meaningful descriptions.
     """
-    for idx, sub in enumerate(test_subscriptions, start=1):
-        embedding = embedding_fixtures.get(sub.description.lower())
-        if embedding is None:
-            raise ValueError(f"No embedding found for subscription '{sub.description}' in ground_truth.json. ")
+    entity_ids = [sub.subscription_id for sub in test_subscriptions]
 
-        index_subscription(sub, embedding, db.session, subscription_index=idx)
+    async with db.async_session() as session:
+        for idx, sub in enumerate(test_subscriptions, start=1):
+            embedding = embedding_fixtures.get(sub.description.lower())
+            if embedding is None:
+                raise ValueError(f"No embedding found for subscription '{sub.description}' in ground_truth.json. ")
 
-    db.session.commit()
+            index_subscription(sub, embedding, session, subscription_index=idx)
 
-    indexed_count = (
-        db.session.query(AiSearchIndex).filter(AiSearchIndex.entity_type == EntityType.SUBSCRIPTION.value).count()
-    )
+        await session.commit()
+
+        indexed_count = (
+            await session.scalar(
+                select(func.count())
+                .select_from(AiSearchIndex)
+                .where(
+                    AiSearchIndex.entity_type == EntityType.SUBSCRIPTION.value,
+                    AiSearchIndex.entity_id.in_(entity_ids),
+                )
+            )
+        ) or 0
 
     assert indexed_count > 0, f"Subscriptions should be indexed, found {indexed_count} records"
 
-    return test_subscriptions
+    try:
+        yield test_subscriptions
+    finally:
+        async with db.async_session() as session:
+            await session.execute(delete(AiSearchIndex).where(AiSearchIndex.entity_id.in_(entity_ids)))
+            await session.commit()

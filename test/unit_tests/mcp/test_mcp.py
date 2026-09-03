@@ -120,8 +120,10 @@ def app_with_agent_routes() -> FastAPI:
     real implementations dereference ``request.app.auth_manager`` which only
     ``OrchestratorCore`` sets up. The MCP path through ``tools/list`` doesn't
     actually invoke any tool body, so swapping these out is safe for the
-    listing test.
+    listing test. ``get_async_session`` is also overridden with a bare
+    ``AsyncMock`` since no real database is configured for this app.
     """
+    from orchestrator.core.db import get_async_session
     from orchestrator.core.security import authenticate, authorize
 
     app = FastAPI(title="orchestrator-core-mcp-test", version="test")
@@ -134,6 +136,7 @@ def app_with_agent_routes() -> FastAPI:
     app.include_router(subscriptions.router, prefix="/api/subscriptions")
     app.dependency_overrides[authenticate] = lambda: None
     app.dependency_overrides[authorize] = lambda: None
+    app.dependency_overrides[get_async_session] = lambda: AsyncMock()
     # Mirror OrchestratorCore.__init__: search-layer validation errors -> 422.
     app.add_exception_handler(QueryValidationError, query_validation_handler)  # type: ignore[arg-type]
     return app

@@ -13,10 +13,11 @@
 
 """Tests for engine settings: global status computation, Slack notification, search index refresh, and schema generation."""
 
+import json
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
-from requests.exceptions import RequestException
 from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.core.schemas.engine_settings import EngineSettingsSchema, GlobalStatusEnum
@@ -24,6 +25,7 @@ from orchestrator.core.services.settings import (
     generate_engine_global_status,
     generate_engine_settings_schema,
     post_update_to_slack,
+    post_update_to_slack_async,
     reset_search_index,
 )
 
@@ -67,34 +69,78 @@ def test_generate_engine_global_status(global_lock: bool, running_count: int, ex
     ],
     ids=["lock_true_posts_stop_message", "lock_false_posts_start_message"],
 )
-def test_post_update_to_slack_sends_correct_message(global_lock: bool, expected_action_fragment: str):
+def test_post_update_to_slack_sends_correct_message(
+    global_lock: bool, expected_action_fragment: str, httpx_mock
+):
     engine_status = MagicMock(spec=EngineSettingsSchema)
     engine_status.global_lock = global_lock
+    hook_url = "https://hooks.slack.example/test"
+    httpx_mock.add_response(url=hook_url, method="POST")
 
-    with patch("orchestrator.core.services.settings.requests.post") as mock_post:
-        with patch("orchestrator.core.services.settings.app_settings") as mock_app_settings:
-            mock_app_settings.ENVIRONMENT = "test-env"
-            mock_app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL = "https://hooks.slack.example/test"
+    with patch("orchestrator.core.services.settings.app_settings") as mock_app_settings:
+        mock_app_settings.ENVIRONMENT = "test-env"
+        mock_app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL = hook_url
 
-            post_update_to_slack(engine_status, "testuser")
+        post_update_to_slack(engine_status, "testuser")
 
-    mock_post.assert_called_once()
-    call_kwargs = mock_post.call_args
-    message_text = call_kwargs.kwargs["json"]["text"]
+    sent_request = httpx_mock.get_requests()[0]
+    message_text = json.loads(sent_request.content)["text"]
     assert "testuser" in message_text
     assert expected_action_fragment in message_text
 
 
-def test_post_update_to_slack_handles_request_exception_silently():
+def test_post_update_to_slack_handles_request_exception_silently(httpx_mock):
     engine_status = MagicMock(spec=EngineSettingsSchema)
     engine_status.global_lock = False
+    hook_url = "https://hooks.slack.example/test"
+    httpx_mock.add_exception(httpx.ConnectError("network error"), url=hook_url)
 
-    with patch("orchestrator.core.services.settings.requests.post", side_effect=RequestException("network error")):
-        with patch("orchestrator.core.services.settings.app_settings") as mock_app_settings:
-            mock_app_settings.ENVIRONMENT = "test-env"
-            mock_app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL = "https://hooks.slack.example/test"
-            # Must not raise
-            post_update_to_slack(engine_status, "testuser")
+    with patch("orchestrator.core.services.settings.app_settings") as mock_app_settings:
+        mock_app_settings.ENVIRONMENT = "test-env"
+        mock_app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL = hook_url
+        # Must not raise
+        post_update_to_slack(engine_status, "testuser")
+
+
+@pytest.mark.parametrize(
+    "global_lock, expected_action_fragment",
+    [
+        (True, "pause all running processes"),
+        (False, "pick up all pending processes"),
+    ],
+    ids=["lock_true_posts_stop_message", "lock_false_posts_start_message"],
+)
+async def test_post_update_to_slack_async_sends_correct_message(
+    global_lock: bool, expected_action_fragment: str, httpx_mock
+):
+    engine_status = MagicMock(spec=EngineSettingsSchema)
+    engine_status.global_lock = global_lock
+    hook_url = "https://hooks.slack.example/test"
+    httpx_mock.add_response(url=hook_url, method="POST")
+
+    with patch("orchestrator.core.services.settings.app_settings") as mock_app_settings:
+        mock_app_settings.ENVIRONMENT = "test-env"
+        mock_app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL = hook_url
+
+        await post_update_to_slack_async(engine_status, "testuser")
+
+    sent_request = httpx_mock.get_requests()[0]
+    message_text = json.loads(sent_request.content)["text"]
+    assert "testuser" in message_text
+    assert expected_action_fragment in message_text
+
+
+async def test_post_update_to_slack_async_handles_request_exception_silently(httpx_mock):
+    engine_status = MagicMock(spec=EngineSettingsSchema)
+    engine_status.global_lock = False
+    hook_url = "https://hooks.slack.example/test"
+    httpx_mock.add_exception(httpx.ConnectError("network error"), url=hook_url)
+
+    with patch("orchestrator.core.services.settings.app_settings") as mock_app_settings:
+        mock_app_settings.ENVIRONMENT = "test-env"
+        mock_app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL = hook_url
+        # Must not raise
+        await post_update_to_slack_async(engine_status, "testuser")
 
 
 def test_reset_search_index_executes_refresh():

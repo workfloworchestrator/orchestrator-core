@@ -17,6 +17,7 @@ import structlog
 from apscheduler.schedulers.base import BaseScheduler
 from apscheduler.triggers.base import BaseTrigger
 from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core import app_settings
 from orchestrator.core.db import db
@@ -32,11 +33,12 @@ from orchestrator.core.schemas.schedules import (
 from orchestrator.core.services.processes import start_process
 from orchestrator.core.services.workflows import get_workflow_by_workflow_id
 from orchestrator.core.utils.errors import StartPredicateError
-from orchestrator.core.utils.redis_client import create_redis_client
+from orchestrator.core.utils.redis_client import create_redis_asyncio_client, create_redis_client
 from pydantic_forms.exceptions import FormValidationError
 from pydantic_forms.types import State
 
 redis_connection = create_redis_client(app_settings.CACHE_URI.get_secret_value())
+redis_connection_async = create_redis_asyncio_client(app_settings.CACHE_URI.get_secret_value())
 
 SCHEDULER_QUEUE = "scheduler:queue:"
 
@@ -78,6 +80,17 @@ def add_scheduled_task_to_queue(payload: APSchedulerJobs) -> None:
     """
     bytes_dump = serialize_payload(payload)
     redis_connection.lpush(SCHEDULER_QUEUE, bytes_dump)
+    logger.info("Added scheduled task to queue")
+
+
+async def add_scheduled_task_to_queue_async(payload: APSchedulerJobs) -> None:
+    """Async counterpart to :func:`add_scheduled_task_to_queue` for use in async endpoints.
+
+    Args:
+        payload: APSchedulerJobs The scheduled task to create, update or delete
+    """
+    bytes_dump = serialize_payload(payload)
+    await redis_connection_async.lpush(SCHEDULER_QUEUE, bytes_dump)
     logger.info("Added scheduled task to queue")
 
 
@@ -135,7 +148,19 @@ def get_linker_entries_by_schedule_ids(schedule_ids: list[str]) -> list[Workflow
     if not schedule_ids:
         return []
 
-    return db.session.query(WorkflowApschedulerJob).filter(WorkflowApschedulerJob.schedule_id.in_(schedule_ids)).all()
+    stmt = select(WorkflowApschedulerJob).where(WorkflowApschedulerJob.schedule_id.in_(schedule_ids))
+    return list(db.session.scalars(stmt))
+
+
+async def get_linker_entries_by_schedule_ids_async(
+    schedule_ids: list[str], session: AsyncSession
+) -> list[WorkflowApschedulerJob]:
+    """Async counterpart to :func:`get_linker_entries_by_schedule_ids` for use in async endpoints."""
+    if not schedule_ids:
+        return []
+
+    stmt = select(WorkflowApschedulerJob).where(WorkflowApschedulerJob.schedule_id.in_(schedule_ids))
+    return list(await session.scalars(stmt))
 
 
 def _add_linker_entry(workflow_id: UUID, schedule_id: str) -> None:

@@ -15,8 +15,8 @@ from unittest.mock import patch
 from uuid import UUID
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.core.db import db
 from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, SearchMetadata, UIType
 from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter
 from orchestrator.core.search.query import engine
@@ -65,7 +65,9 @@ class TestSemanticRetrieval:
             QUERY_ASIAN_CUISINE,
         ],
     )
-    async def test_ranking_matches_ground_truth(self, query_text, indexed_subscriptions, mock_embeddings):
+    async def test_ranking_matches_ground_truth(
+        self, query_text, indexed_subscriptions, mock_embeddings, async_session: AsyncSession
+    ):
         """Test that semantic search ranking matches ground truth for multi-word queries."""
 
         query = SelectQuery(
@@ -73,7 +75,7 @@ class TestSemanticRetrieval:
             query_text=query_text,
             limit=10,
         )
-        response = await engine.execute_search(query, db.session)
+        response = await engine.execute_search(query, async_session)
 
         # Verify semantic retriever was used (multi-word queries don't set fuzzy_term)
         assert response.metadata == SearchMetadata.semantic(), (
@@ -108,7 +110,9 @@ class TestHybridRetrieval:
             QUERY_PANCAKES,
         ],
     )
-    async def test_ranking_matches_ground_truth(self, query_text, indexed_subscriptions, mock_embeddings):
+    async def test_ranking_matches_ground_truth(
+        self, query_text, indexed_subscriptions, mock_embeddings, async_session: AsyncSession
+    ):
         """Test that hybrid search ranking matches ground truth for single-word queries."""
 
         query = SelectQuery(
@@ -116,7 +120,7 @@ class TestHybridRetrieval:
             query_text=query_text,
             limit=10,
         )
-        response = await engine.execute_search(query, db.session)
+        response = await engine.execute_search(query, async_session)
 
         # Verify hybrid retriever was used (single-word queries use hybrid)
         assert response.metadata == SearchMetadata.hybrid(), (
@@ -135,7 +139,7 @@ class TestFuzzyRetrieval:
     """Test fuzzy retrieval (text-only search without embeddings)."""
 
     @pytest.mark.asyncio
-    async def test_fuzzy_only_when_embedding_fails(self, indexed_subscriptions):
+    async def test_fuzzy_only_when_embedding_fails(self, indexed_subscriptions, async_session: AsyncSession):
         """Test that fuzzy retriever is used when embedding generation fails (returns None)."""
         query = SelectQuery(
             entity_type=EntityType.SUBSCRIPTION,
@@ -145,7 +149,7 @@ class TestFuzzyRetrieval:
 
         # Mock embedding generation to return None (simulating failure)
         with patch("orchestrator.core.search.core.embedding.QueryEmbedder.generate_for_text_async", return_value=None):
-            response = await engine.execute_search(query, db.session)
+            response = await engine.execute_search(query, async_session)
 
         # Verify fuzzy retriever was used when embedding generation failed
         assert response.metadata == SearchMetadata.fuzzy(), (
@@ -163,7 +167,9 @@ class TestStructuredRetrieval:
     """Test structured retrieval (filter-only queries use StructuredRetriever)."""
 
     @pytest.mark.asyncio
-    async def test_filter_only_uses_structured_retriever(self, indexed_subscriptions, mock_embeddings):
+    async def test_filter_only_uses_structured_retriever(
+        self, indexed_subscriptions, mock_embeddings, async_session: AsyncSession
+    ):
         """Test that filter-only queries use structured retriever."""
         query = SelectQuery(
             entity_type=EntityType.SUBSCRIPTION,
@@ -180,7 +186,7 @@ class TestStructuredRetrieval:
             limit=10,
         )
 
-        response = await engine.execute_search(query, db.session)
+        response = await engine.execute_search(query, async_session)
 
         # Verify structured retriever was used
         assert response.metadata == SearchMetadata.structured(), (
@@ -203,7 +209,9 @@ class TestStructuredRetrieval:
         )
 
     @pytest.mark.asyncio
-    async def test_filter_only_uses_structured_retriever_with_cursor(self, indexed_subscriptions, mock_embeddings):
+    async def test_filter_only_uses_structured_retriever_with_cursor(
+        self, indexed_subscriptions, mock_embeddings, async_session: AsyncSession
+    ):
         """Test that structured retriever with cursor correctly returns the total and start cursor."""
 
         query = SelectQuery(
@@ -222,7 +230,9 @@ class TestStructuredRetrieval:
 
         subscription_15_uuid: UUID = indexed_subscriptions[15].subscription_id
         response = await engine.execute_search(
-            query, db.session, cursor=PageCursor(score=0, id=str(subscription_15_uuid), query_id=subscription_15_uuid)
+            query,
+            async_session,
+            cursor=PageCursor(score=0, id=str(subscription_15_uuid), query_id=subscription_15_uuid),
         )
 
         # Verify structured retriever was used
@@ -237,7 +247,9 @@ class TestStructuredRetrieval:
         assert response.end_cursor == 20
 
     @pytest.mark.asyncio
-    async def test_filter_only_uses_structured_retriever_with_no_results(self, indexed_subscriptions, mock_embeddings):
+    async def test_filter_only_uses_structured_retriever_with_no_results(
+        self, indexed_subscriptions, mock_embeddings, async_session: AsyncSession
+    ):
         """Test that structured retriever with cursor correctly returns the total and start cursor."""
 
         query = SelectQuery(
@@ -254,7 +266,7 @@ class TestStructuredRetrieval:
             ),
         )
 
-        response = await engine.execute_search(query, db.session)
+        response = await engine.execute_search(query, async_session)
 
         # Verify structured retriever was used
         assert response.metadata == SearchMetadata.structured(), (

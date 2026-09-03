@@ -32,6 +32,7 @@ from oauth2_lib.fastapi import AuthManager
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.graphql.autoregistration import create_subscription_strawberry_type, register_domain_models
+from orchestrator.core.graphql.extensions.db_session import DbSessionExtension
 from orchestrator.core.graphql.extensions.model_cache import ModelCacheExtension
 from orchestrator.core.graphql.extensions.stats import StatsExtension
 from orchestrator.core.graphql.mutations.customer_description import CustomerSubscriptionDescriptionMutation
@@ -217,6 +218,7 @@ def default_context_getter(
 
 
 def get_extensions(mutation: Any, query: Any) -> Iterable[type[SchemaExtension]]:
+    yield DbSessionExtension
     yield ModelCacheExtension
     yield ErrorHandlerExtension
     if app_settings.ENABLE_GRAPHQL_DEPRECATION_CHECKER:

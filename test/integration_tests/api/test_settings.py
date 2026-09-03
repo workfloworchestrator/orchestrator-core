@@ -12,8 +12,7 @@
 # limitations under the License.
 
 from http import HTTPStatus
-from unittest import mock
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings
@@ -78,9 +77,10 @@ def test_reset_search_index(test_client, generic_subscription_1, generic_subscri
 
 
 def test_reset_search_index_error(test_client, generic_subscription_1, generic_subscription_2):
-    with mock.patch.object(db, "session") as ex:
-        session_execute_mock = Mock(side_effect=SQLAlchemyError("Database error"))
-        ex.attach_mock(session_execute_mock, "execute")
+    with patch(
+        "orchestrator.core.api.api_v1.endpoints.settings.reset_search_index_async",
+        side_effect=SQLAlchemyError("Database error"),
+    ):
         response = test_client.post("/api/settings/search-index/reset")
         assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 

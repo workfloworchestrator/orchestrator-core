@@ -228,7 +228,7 @@ class OrchestratorCore(FastAPI):
         prewarm_embedding_dependencies()
 
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
-        def _index() -> str:
+        async def _index() -> str:
             return "Orchestrator Core"
 
     def add_sentry(

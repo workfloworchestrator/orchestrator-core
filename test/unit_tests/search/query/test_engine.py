@@ -126,7 +126,7 @@ async def test_execute_aggregation_simple_count_uses_build_simple_count_query():
     mock_mappings = MagicMock()
     mock_mappings.mappings.return_value.all.return_value = []
 
-    mock_db = MagicMock()
+    mock_db = AsyncMock()
     mock_db.execute.return_value = mock_mappings
 
     with (
@@ -154,7 +154,7 @@ async def test_execute_aggregation_grouped_count_uses_build_aggregation_query():
     mock_mappings = MagicMock()
     mock_mappings.mappings.return_value.all.return_value = []
 
-    mock_db = MagicMock()
+    mock_db = AsyncMock()
     mock_db.execute.return_value = mock_mappings
 
     with (
@@ -183,7 +183,7 @@ async def test_execute_aggregation_format_response_called_with_correct_args():
     fake_rows = [{"total_count": 42}]
     mock_mappings = MagicMock()
     mock_mappings.mappings.return_value.all.return_value = fake_rows
-    mock_db = MagicMock()
+    mock_db = AsyncMock()
     mock_db.execute.return_value = mock_mappings
 
     with (

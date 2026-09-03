@@ -18,7 +18,7 @@ cursors, first-page vs subsequent-page cursor generation, and DB persistence beh
 """
 
 import base64
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -158,13 +158,14 @@ def test_invalid_cursor_raises_invalid_cursor_error(bad_cursor):
         pytest.param(_make_page_cursor(), id="with_existing_cursor"),
     ],
 )
-def test_has_more_false_returns_none(cursor):
+async def test_has_more_false_returns_none(cursor):
     """When has_more is False, encode_next_page_cursor returns None regardless of cursor."""
     result_item = _make_search_result()
     response = _make_search_response([result_item], has_more=False)
     query_mock = MagicMock()
+    session_mock = MagicMock()
 
-    result = encode_next_page_cursor(response, cursor=cursor, query=query_mock)
+    result = await encode_next_page_cursor(response, cursor=cursor, query=query_mock, session=session_mock)
 
     assert result is None
 
@@ -174,19 +175,20 @@ def test_has_more_false_returns_none(cursor):
 # ---------------------------------------------------------------------------
 
 
-def test_first_page_saves_query_and_returns_cursor():
+async def test_first_page_saves_query_and_returns_cursor():
     """First page persists search query to DB and returns a valid cursor."""
     result_item = _make_search_result(entity_id="entity-abc-001", score=0.75)
     response = _make_search_response([result_item], has_more=True, query_embedding=[0.1, 0.2, 0.3])
     query_mock = MagicMock()
+    session_mock = MagicMock()
     saved_query_id = uuid4()
 
     with patch("orchestrator.core.search.query.state.QueryState") as mock_qs:
-        mock_qs.return_value.save.return_value = saved_query_id
-        encoded = encode_next_page_cursor(response, cursor=None, query=query_mock)
+        mock_qs.return_value.save = AsyncMock(return_value=saved_query_id)
+        encoded = await encode_next_page_cursor(response, cursor=None, query=query_mock, session=session_mock)
 
     assert encoded is not None
-    mock_qs.return_value.save.assert_called_once()
+    mock_qs.return_value.save.assert_called_once_with(session_mock)
 
     decoded = PageCursor.decode(encoded)
     assert decoded.query_id == saved_query_id
@@ -194,7 +196,7 @@ def test_first_page_saves_query_and_returns_cursor():
     assert decoded.score == pytest.approx(0.75)
 
 
-def test_first_page_uses_last_result_for_cursor():
+async def test_first_page_uses_last_result_for_cursor():
     """First page cursor is built from the last result in the list."""
     results = [
         _make_search_result(entity_id="first-entity", score=0.9),
@@ -202,11 +204,12 @@ def test_first_page_uses_last_result_for_cursor():
     ]
     response = _make_search_response(results, has_more=True)
     query_mock = MagicMock()
+    session_mock = MagicMock()
     saved_query_id = uuid4()
 
     with patch("orchestrator.core.search.query.state.QueryState") as mock_qs:
-        mock_qs.return_value.save.return_value = saved_query_id
-        encoded = encode_next_page_cursor(response, cursor=None, query=query_mock)
+        mock_qs.return_value.save = AsyncMock(return_value=saved_query_id)
+        encoded = await encode_next_page_cursor(response, cursor=None, query=query_mock, session=session_mock)
 
     decoded = PageCursor.decode(encoded)
     assert decoded.id == "last-entity"
@@ -218,16 +221,17 @@ def test_first_page_uses_last_result_for_cursor():
 # ---------------------------------------------------------------------------
 
 
-def test_subsequent_page_reuses_cursor_query_id():
+async def test_subsequent_page_reuses_cursor_query_id():
     """Subsequent pages reuse the existing cursor query_id without DB operations."""
     existing_query_id = uuid4()
     existing_cursor = _make_page_cursor(query_id=existing_query_id)
     result_item = _make_search_result(entity_id="next-entity", score=0.6)
     response = _make_search_response([result_item], has_more=True)
     query_mock = MagicMock()
+    session_mock = MagicMock()
 
     with patch("orchestrator.core.search.query.state.QueryState") as mock_qs:
-        encoded = encode_next_page_cursor(response, cursor=existing_cursor, query=query_mock)
+        encoded = await encode_next_page_cursor(response, cursor=existing_cursor, query=query_mock, session=session_mock)
 
     mock_qs.assert_not_called()
 
@@ -237,16 +241,19 @@ def test_subsequent_page_reuses_cursor_query_id():
     assert decoded.score == pytest.approx(0.6)
 
 
-def test_subsequent_page_ignores_query_argument():
+async def test_subsequent_page_ignores_query_argument():
     """The query argument is not used on subsequent pages -- only cursor.query_id matters."""
     existing_query_id = uuid4()
     existing_cursor = _make_page_cursor(query_id=existing_query_id)
     result_item = _make_search_result()
     response = _make_search_response([result_item], has_more=True)
     different_query_mock = MagicMock()
+    session_mock = MagicMock()
 
     with patch("orchestrator.core.search.query.state.QueryState"):
-        encoded = encode_next_page_cursor(response, cursor=existing_cursor, query=different_query_mock)
+        encoded = await encode_next_page_cursor(
+            response, cursor=existing_cursor, query=different_query_mock, session=session_mock
+        )
 
     decoded = PageCursor.decode(encoded)
     assert decoded.query_id == existing_query_id

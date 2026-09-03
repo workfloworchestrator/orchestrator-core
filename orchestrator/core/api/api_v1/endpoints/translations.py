@@ -14,6 +14,7 @@
 import structlog
 from fastapi import Path
 from fastapi.routing import APIRouter
+from starlette.concurrency import run_in_threadpool
 
 from orchestrator.core.services.translations import generate_translations
 
@@ -24,5 +25,5 @@ router = APIRouter()
 
 
 @router.get("/{language}", response_model=dict)
-def get_translations(language: str = Path(..., pattern="^[a-z]+-[A-Z]+$")) -> dict:
-    return generate_translations(language)
+async def get_translations(language: str = Path(..., pattern="^[a-z]+-[A-Z]+$")) -> dict:
+    return await run_in_threadpool(generate_translations, language)

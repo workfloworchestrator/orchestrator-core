@@ -13,7 +13,7 @@
 
 import structlog
 from sqlalchemy import Select, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.search.core.types import SearchMetadata
 from orchestrator.core.search.query.results import (
@@ -39,9 +39,9 @@ from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
 logger = structlog.get_logger(__name__)
 
 
-def _create_cursor_info(
+async def _create_cursor_info(
     final_stmt: Select,
-    db_session: Session,
+    db_session: AsyncSession,
     cursor: PageCursor | None,
     query: SelectQuery | ExportQuery,
     query_embedding: list[float] | None,
@@ -49,10 +49,10 @@ def _create_cursor_info(
     row_count: int,
 ) -> tuple[int | None, int | None, int | None]:
     total_count_stmt = Retriever.route(query, None, query_embedding).apply(candidate_query) if cursor else final_stmt
-    total_items_or_none = db_session.scalar(select(func.count()).select_from(total_count_stmt.subquery()))
+    total_items_or_none = await db_session.scalar(select(func.count()).select_from(total_count_stmt.subquery()))
     total_items = total_items_or_none or 0
     count_with_cursor_or_none = (
-        db_session.scalar(select(func.count()).select_from(final_stmt.subquery())) if cursor else total_items
+        await db_session.scalar(select(func.count()).select_from(final_stmt.subquery())) if cursor else total_items
     )
     count_with_cursor = count_with_cursor_or_none or 0
     start_cursor = total_items - count_with_cursor
@@ -63,7 +63,7 @@ def _create_cursor_info(
 
 async def _execute_search(
     query: SelectQuery | ExportQuery,
-    db_session: Session,
+    db_session: AsyncSession,
     limit: int,
     cursor: PageCursor | None = None,
     query_embedding: list[float] | None = None,
@@ -98,7 +98,8 @@ async def _execute_search(
     final_stmt_with_limit = final_stmt.limit(limit)
     logger.debug(final_stmt_with_limit)
 
-    result = db_session.execute(final_stmt_with_limit).mappings().all()
+    execute_result = await db_session.execute(final_stmt_with_limit)
+    result = execute_result.mappings().all()
     result_rows = list(result)
     row_count = len(result_rows)
 
@@ -106,7 +107,7 @@ async def _execute_search(
     start_cursor: int | None = None
     end_cursor: int | None = None
     if isinstance(retriever, StructuredRetriever) and row_count > 0:
-        total_items, start_cursor, end_cursor = _create_cursor_info(
+        total_items, start_cursor, end_cursor = await _create_cursor_info(
             final_stmt, db_session, cursor, query, query_embedding, candidate_query, row_count
         )
 
@@ -114,7 +115,8 @@ async def _execute_search(
     if query.response_columns and result_rows:
         entity_ids = [str(row.entity_id) for row in result_rows]
         col_stmt = build_response_columns_query(entity_ids, query.entity_type, query.response_columns)
-        col_rows = db_session.execute(col_stmt).all()
+        col_execute_result = await db_session.execute(col_stmt)
+        col_rows = col_execute_result.all()
         column_data = process_response_columns(col_rows, query.response_columns)
 
     return format_search_response(
@@ -124,7 +126,7 @@ async def _execute_search(
 
 async def execute_search(
     query: SelectQuery,
-    db_session: Session,
+    db_session: AsyncSession,
     cursor: PageCursor | None = None,
     query_embedding: list[float] | None = None,
 ) -> SearchResponse:
@@ -156,7 +158,7 @@ async def execute_search(
 
 async def execute_export(
     query: ExportQuery,
-    db_session: Session,
+    db_session: AsyncSession,
     query_embedding: list[float] | None = None,
 ) -> list[dict]:
     """Execute a search and export flattened entity data.
@@ -182,7 +184,7 @@ async def execute_export(
 
 async def execute_aggregation(
     query: CountQuery | AggregateQuery,
-    db_session: Session,
+    db_session: AsyncSession,
 ) -> QueryResultsResponse:
     """Execute aggregation query and return formatted results.
 
@@ -205,6 +207,7 @@ async def execute_aggregation(
 
     logger.debug("Executing aggregation query", sql=str(agg_query))
 
-    result_rows = db_session.execute(agg_query).mappings().all()
+    agg_execute_result = await db_session.execute(agg_query)
+    result_rows = agg_execute_result.mappings().all()
 
     return format_aggregation_response(result_rows, group_column_names, query)

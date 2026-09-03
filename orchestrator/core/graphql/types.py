@@ -18,6 +18,7 @@ from typing import Any, TypeVar
 
 import strawberry
 from graphql import GraphQLError, GraphQLNamedType
+from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.dataloader import DataLoader
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 from strawberry.types import Info
@@ -52,6 +53,7 @@ def serialize_vlan(vlan: VlanRanges) -> list[tuple[int, int]]:
 class OrchestratorContext(OauthContext):
     broadcast_thread: ProcessDataBroadcastThread | None
     graphql_models: StrawberryModelType
+    _session: AsyncSession | None
 
     def __init__(
         self,
@@ -62,12 +64,24 @@ class OrchestratorContext(OauthContext):
         self.errors: list[GraphQLError] = []
         self.broadcast_thread = broadcast_thread
         self.graphql_models = graphql_models or {}
+        self._session = None
         self.core_in_use_by_subs_loader: SubsLoaderType = DataLoader(load_fn=in_use_by_subs_loader)
         self.core_depends_on_subs_loader: SubsLoaderType = DataLoader(load_fn=depends_on_subs_loader)
         self.core_last_validation_datetime_loader: LastValidationLoaderType = DataLoader(
             load_fn=last_validation_datetime_loader
         )
         super().__init__(auth_manager)
+
+    @property
+    def session(self) -> AsyncSession:
+        """The AsyncSession opened by ``DbSessionExtension`` for this GraphQL operation."""
+        if self._session is None:
+            raise RuntimeError("No AsyncSession available; is DbSessionExtension registered?")
+        return self._session
+
+    @session.setter
+    def session(self, value: AsyncSession) -> None:
+        self._session = value
 
 
 OrchestratorInfo = Info[OrchestratorContext, RootValueType]

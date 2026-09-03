@@ -25,6 +25,7 @@ from pytz import utc
 from requests.adapters import MaxRetryError
 from sqlalchemy import delete, select
 from sqlalchemy.exc import NoResultFound, SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from nwastdlib.ex import show_ex
@@ -48,6 +49,7 @@ from orchestrator.core.utils.json import json_dumps, json_loads
 from orchestrator.core.websocket import (
     broadcast_invalidate_status_counts,
     broadcast_process_update_to_websocket,
+    broadcast_process_update_to_websocket_async,
 )
 from orchestrator.core.workflow import (
     CALLBACK_TOKEN_KEY,
@@ -430,14 +432,32 @@ def _db_log_process_ex(process_id: UUID, ex: Exception) -> None:
 
 
 def _get_process(process_id: UUID) -> ProcessTable:
-    process = db.session.get(
-        ProcessTable,
-        process_id,
-        options=[
+    stmt = (
+        select(ProcessTable)
+        .where(ProcessTable.process_id == process_id)
+        .options(
             joinedload(ProcessTable.steps),
             joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
-        ],
+        )
     )
+    process = db.session.execute(stmt).unique().scalar_one_or_none()
+    if not process:
+        raise_status(HTTPStatus.NOT_FOUND, f"Process with process_id {process_id} not found")
+
+    return process
+
+
+async def get_process_async(process_id: UUID, session: AsyncSession) -> ProcessTable:
+    stmt = (
+        select(ProcessTable)
+        .where(ProcessTable.process_id == process_id)
+        .options(
+            joinedload(ProcessTable.steps),
+            joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
+        )
+    )
+    result = await session.execute(stmt)
+    process = result.unique().scalar_one_or_none()
 
     if not process:
         raise_status(HTTPStatus.NOT_FOUND, f"Process with process_id {process_id} not found")
@@ -690,6 +710,20 @@ def replace_current_step_state(process: ProcessTable, *, new_state: State) -> No
     db.session.add(current_step)
 
 
+def replace_current_step_state_async(process: ProcessTable, *, new_state: State, session: AsyncSession) -> None:
+    """Replace the state of the current step in a process.
+
+    Args:
+        process: Process from database, loaded through ``session``
+        new_state: The new state
+        session: Async database session
+
+    """
+    current_step = process.steps[-1]
+    current_step.state = new_state
+    session.add(current_step)
+
+
 def continue_awaiting_process(
     process: ProcessTable,
     *,
@@ -763,6 +797,46 @@ def update_awaiting_process_progress(
 
     # Emit the websocket event
     broadcast_process_update_to_websocket(process.process_id)
+
+    return process.process_id
+
+
+async def update_awaiting_process_progress_async(
+    process: ProcessTable,
+    *,
+    token: str,
+    data: str | State,
+    session: AsyncSession,
+) -> UUID:
+    """Update progress for a process awaiting data from a callback.
+
+    Args:
+        process: Process from database, loaded through ``session``
+        token: The token which was generated for the process. This must match.
+        data: Progress data posted to the callback
+        session: Async database session that loaded ``process``
+
+    Returns:
+        process id
+
+    Raises:
+        AssertionError: if the supplied token does not match the generated process token.
+
+    """
+    pstat = load_process(process)
+
+    ensure_correct_callback_token(pstat, token=token)
+
+    state = pstat.state.unwrap()
+    progress_key = DEFAULT_CALLBACK_PROGRESS_KEY
+    state = {**state, progress_key: data} | {"__remove_keys": [progress_key]}
+
+    # Commit the transaction before the "output" of this function: a websocket event
+    replace_current_step_state_async(process, new_state=state, session=session)
+    await session.commit()
+
+    # Emit the websocket event
+    await broadcast_process_update_to_websocket_async(process.process_id)
 
     return process.process_id
 
