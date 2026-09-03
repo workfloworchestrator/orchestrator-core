@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
 from typing import TypedDict
 
 from sqlalchemy import (
@@ -32,10 +33,10 @@ from sqlalchemy.sql.expression import CTE, ColumnElement, Label
 from sqlalchemy.types import TypeEngine
 
 from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.search.core.types import SearchMetadata
+from orchestrator.core.search.core.types import EntityType, SearchMetadata
 
 from ..pagination import PageCursor
-from .base import Retriever
+from .base import HNSW_ITERATIVE_SCAN, Retriever, SessionSetting
 
 
 class RrfScoreSqlComponents(TypedDict):
@@ -169,6 +170,7 @@ class RrfHybridRetriever(Retriever):
         k: int = 60,
         field_candidates_limit: int = 100,
         semantic_candidates_limit: int = 400,
+        entity_type: EntityType | None = None,
     ) -> None:
         self.q_vec = q_vec
         self.fuzzy_term = fuzzy_term
@@ -176,12 +178,11 @@ class RrfHybridRetriever(Retriever):
         self.k = k
         self.field_candidates_limit = field_candidates_limit
         self.semantic_candidates_limit = semantic_candidates_limit
+        self.entity_type = entity_type
 
     @property
-    def session_settings(self) -> dict[str, str]:
-        # With the default (non-iterative) scan pgvector returns at most ~ef_search rows from the
-        # HNSW index regardless of LIMIT; the iterative scan keeps going until the LIMIT is met.
-        return {"hnsw.iterative_scan": "relaxed_order"}
+    def session_settings(self) -> Sequence[SessionSetting]:
+        return (HNSW_ITERATIVE_SCAN,)
 
     def apply(self, candidate_query: Select) -> Select:
         field_candidates = self._build_fuzzy_candidates(candidate_query).cte("field_candidates")
@@ -191,9 +192,18 @@ class RrfHybridRetriever(Retriever):
     # ------------------------------------------------------------------ sources
 
     def _build_fuzzy_candidates(self, candidate_query: Select) -> Select:
-        """Index fields that trigram-match the term, best matches first, capped at `field_candidates_limit`."""
+        """Index fields that trigram-match the term, best matches first, capped at `field_candidates_limit`.
+
+        Equal similarities are ordered by semantic distance (when an embedding is available), so a
+        common term whose matches exceed the cap keeps the semantically closest ones rather than an
+        arbitrary set by entity id.
+        """
         best_similarity = func.word_similarity(self.fuzzy_term, AiSearchIndex.value)
         filter_condition = literal(self.fuzzy_term).op("<%")(AiSearchIndex.value)
+        tiebreak: list[ColumnElement] = []
+        if self.q_vec:
+            q_param: BindParameter[list[float]] = bindparam("q_vec", self.q_vec, type_=AiSearchIndex.embedding.type)
+            tiebreak.append(AiSearchIndex.embedding.op("<->")(q_param).asc().nulls_last())
         return (
             select(
                 AiSearchIndex.entity_id,
@@ -210,7 +220,9 @@ class RrfHybridRetriever(Retriever):
                     self._membership_probe(candidate_query),
                 )
             )
-            .order_by(best_similarity.desc().nulls_last(), AiSearchIndex.entity_id.asc(), AiSearchIndex.path.asc())
+            .order_by(
+                best_similarity.desc().nulls_last(), *tiebreak, AiSearchIndex.entity_id.asc(), AiSearchIndex.path.asc()
+            )
             .limit(self.field_candidates_limit)
         )
 
@@ -218,10 +230,9 @@ class RrfHybridRetriever(Retriever):
     def _membership_select(candidate_query: Select) -> Select:
         """Plain (non-DISTINCT) `entity_id` select sharing the candidate query's WHERE clause.
 
-        Both sources restrict rows with ``entity_id IN (...)`` so the planner can drive a semi join
-        from the trigram or HNSW index. That only happens when the subquery is a plain select; a
-        DISTINCT/GROUP BY subquery or a JOIN against the candidate subquery makes the planner fall
-        back to a hash join over a sequential scan of the whole index table.
+        Used by the fuzzy source's per-row membership probe. A DISTINCT/GROUP BY subquery or a JOIN
+        against the candidate subquery would make the planner fall back to a hash join over a
+        sequential scan of the whole index table.
         """
         stmt = select(AiSearchIndex.entity_id)
         if candidate_query.whereclause is not None:
@@ -242,9 +253,20 @@ class RrfHybridRetriever(Retriever):
         return probe.isnot(None)
 
     def _build_semantic_candidates(self, candidate_query: Select) -> Select:
-        """Index fields closest to the query embedding, capped at `semantic_candidates_limit`."""
+        """Index fields closest to the query embedding, capped at `semantic_candidates_limit`.
+
+        The candidate conditions are applied *inside* the index scan rather than through a join, so
+        the iterative HNSW scan keeps walking until it has `semantic_candidates_limit` matching rows.
+        The entity type is rendered as a literal so the planner can prove the predicate of that
+        entity type's partial HNSW index (migration 544fd845554d) whatever plan cache is in use.
+        """
         q_param: BindParameter[list[float]] = bindparam("q_vec", self.q_vec, type_=AiSearchIndex.embedding.type)
         distance = AiSearchIndex.embedding.op("<->")(q_param)
+        conditions: list[ColumnElement[bool]] = [AiSearchIndex.embedding.isnot(None)]
+        if self.entity_type is not None:
+            conditions.append(AiSearchIndex.entity_type == literal(self.entity_type.value, literal_execute=True))
+        if candidate_query.whereclause is not None:
+            conditions.append(candidate_query.whereclause)
         return (
             select(
                 AiSearchIndex.entity_id,
@@ -254,12 +276,7 @@ class RrfHybridRetriever(Retriever):
                 distance.label("semantic_distance"),
             )
             .select_from(AiSearchIndex)
-            .where(
-                and_(
-                    AiSearchIndex.embedding.isnot(None),
-                    AiSearchIndex.entity_id.in_(self._membership_select(candidate_query)),
-                )
-            )
+            .where(and_(*conditions))
             .order_by(distance.asc())
             .limit(self.semantic_candidates_limit)
         )
@@ -359,6 +376,7 @@ class RrfHybridRetriever(Retriever):
             best_fuzzy_score_col=ranked.c.best_fuzzy_score,
             k=self.k,
             perfect_threshold=self.PERFECT_THRESHOLD,
+            n_sources=1 if semantic_candidates is None else 2,
             score_numeric_type=self.SCORE_NUMERIC_TYPE,
         )
 

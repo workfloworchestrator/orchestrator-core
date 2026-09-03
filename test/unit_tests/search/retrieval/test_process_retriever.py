@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
 from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.search.core.types import SearchMetadata
+from orchestrator.core.search.core.types import EntityType, SearchMetadata
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
 
@@ -232,6 +232,25 @@ def test_apply_semantic_source_only_with_q_vec(candidate_query, q_vec, expect_se
     retriever = ProcessHybridRetriever(q_vec=q_vec, fuzzy_term="term", cursor=None)
     sql = compile_sql(retriever.apply(candidate_query))
     assert (fragment in sql) is expect_semantic_source
+
+
+@pytest.mark.parametrize(
+    "entity_type,expected_literal",
+    [
+        pytest.param(EntityType.PROCESS, "'PROCESS'", id="entity_type_inlined_for_partial_index"),
+        pytest.param(None, None, id="no_entity_type_no_literal"),
+    ],
+)
+def test_semantic_candidates_inline_entity_type_literal(candidate_query, entity_type, expected_literal):
+    """The entity type is rendered inline so the planner can use that type's partial HNSW index."""
+    retriever = ProcessHybridRetriever(q_vec=[0.1, 0.2], fuzzy_term="term", cursor=None, entity_type=entity_type)
+    sql = str(
+        retriever._build_semantic_candidates(candidate_query).compile(
+            dialect=postgresql.dialect(), compile_kwargs={"render_postcompile": True}
+        )
+    )
+    assert ("'PROCESS'" in sql) is (expected_literal is not None)
+    assert "IN (SELECT" not in sql  # conditions live inside the index scan, not in a membership subquery
 
 
 def test_apply_with_cursor_adds_pagination_where_clause(candidate_query, query_id):

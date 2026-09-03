@@ -33,6 +33,7 @@ from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.builder import build_candidate_query
 from orchestrator.core.search.query.queries import SelectQuery
 from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers.base import SessionSetting
 from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
 from orchestrator.core.settings import llm_settings
 
@@ -119,7 +120,8 @@ def _active_filter() -> FilterTree:
 
 def _run_retriever(query_text: str, q_vec: list[float], filters: FilterTree | None = None, limit: int = 10) -> list:
     query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text, filters=filters, limit=limit)
-    stmt = RrfHybridRetriever(q_vec, query_text, cursor=None).apply(build_candidate_query(query)).limit(limit)
+    retriever = RrfHybridRetriever(q_vec, query_text, cursor=None, entity_type=EntityType.SUBSCRIPTION)
+    stmt = retriever.apply(build_candidate_query(query)).limit(limit)
     return list(db.session.execute(stmt).mappings().all())
 
 
@@ -276,7 +278,7 @@ async def test_engine_skips_a_setting_the_database_rejects(seeded):
     # Load the pgvector library in this backend so the reserved-prefix check raises an ERROR, not a WARNING.
     db.session.execute(text("select '[0]'::vector"))
     query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=EXACT_DESCRIPTION, limit=10)
-    settings = {"hnsw.does_not_exist": "x", "hnsw.iterative_scan": "relaxed_order"}
+    settings = (SessionSetting("hnsw.does_not_exist", "x"), SessionSetting("hnsw.iterative_scan", "relaxed_order"))
 
     with (
         patch(EMBEDDER, return_value=_vec(seeded.axes[seeded.exact])),

@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
+
 import structlog
 from sqlalchemy import Select, func, select
 from sqlalchemy.exc import DBAPIError
@@ -25,6 +27,7 @@ from orchestrator.core.search.query.results import (
 )
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers import Retriever
+from orchestrator.core.search.retrieval.retrievers.base import SessionSetting
 from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 
 from .builder import (
@@ -65,7 +68,7 @@ def _create_cursor_info(
 _rejected_session_settings: set[str] = set()
 
 
-def _apply_session_settings(db_session: Session, settings: dict[str, str]) -> None:
+def _apply_session_settings(db_session: Session, settings: Sequence[SessionSetting]) -> None:
     """Apply transaction-local Postgres settings (``set_config(..., is_local=True)``, like ``SET LOCAL``).
 
     Each setting runs in its own savepoint so a value the server rejects does not abort the search
@@ -73,17 +76,17 @@ def _apply_session_settings(db_session: Session, settings: dict[str, str]) -> No
     define ``hnsw.iterative_scan``: the search then runs without the setting. Rejections are logged
     once per setting per process.
     """
-    for name, value in settings.items():
+    for setting in settings:
         try:
             with db_session.begin_nested():
-                db_session.execute(select(func.set_config(name, value, True)))
+                db_session.execute(select(func.set_config(setting.name, setting.value, True)))
         except DBAPIError as exc:
-            if name not in _rejected_session_settings:
-                _rejected_session_settings.add(name)
+            if setting.name not in _rejected_session_settings:
+                _rejected_session_settings.add(setting.name)
                 logger.warning(
                     "Search session setting rejected by the database; continuing without it",
-                    setting=name,
-                    value=value,
+                    setting=setting.name,
+                    value=setting.value,
                     error=str(exc.orig),
                 )
 

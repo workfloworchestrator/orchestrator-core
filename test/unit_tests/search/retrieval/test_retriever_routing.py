@@ -139,6 +139,15 @@ def test_hybrid_carries_full_query_text_and_embedding() -> None:
     assert isinstance(retriever, RrfHybridRetriever)
     assert retriever.fuzzy_term == MULTI_WORD
     assert retriever.q_vec == EMBEDDING
+    assert retriever.entity_type == EntityType.SUBSCRIPTION
+
+
+@pytest.mark.parametrize("entity_type", [EntityType.PRODUCT, EntityType.WORKFLOW, EntityType.PROCESS])
+def test_hybrid_carries_entity_type(entity_type: EntityType) -> None:
+    """The semantic source restricts the HNSW scan to the queried entity type."""
+    retriever = Retriever.route(_query(MULTI_WORD, entity_type), cursor=None, query_embedding=EMBEDDING)
+    assert isinstance(retriever, RrfHybridRetriever)
+    assert retriever.entity_type == entity_type
 
 
 def test_semantic_override_carries_embedding() -> None:
@@ -175,3 +184,4 @@ def test_process_fallback_carries_none_embedding() -> None:
     assert isinstance(retriever, ProcessHybridRetriever)
     assert retriever.q_vec is None
     assert retriever.fuzzy_term == MULTI_WORD
+    assert retriever.entity_type == EntityType.PROCESS

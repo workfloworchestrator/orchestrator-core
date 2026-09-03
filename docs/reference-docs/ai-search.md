@@ -318,15 +318,18 @@ Each index serves one match type:
 
 | Index                            | Definition                                                        | Serves                                     |
 |----------------------------------|-------------------------------------------------------------------|--------------------------------------------|
-| `ix_flat_embed_hnsw`             | `HNSW (embedding vector_l2_ops) WITH (m=16, ef_construction=64)`   | nearest-neighbour search by L2 distance (`<->`) |
+| `ix_flat_embed_hnsw_<entity_type>` | `HNSW (embedding vector_l2_ops) WITH (m=16, ef_construction=64) WHERE entity_type = '<TYPE>' AND embedding IS NOT NULL`, one per entity type | nearest-neighbour search by L2 distance (`<->`) within one entity type |
 | `ix_flat_value_trgm`             | `GIN (value gin_trgm_ops)`                                        | trigram similarity (`<%`, `word_similarity`) |
 | `ix_flat_path_gist`              | `GIST (path gist_ltree_ops)`                                      | `ltree` matching (`~`, `@>`, `<@`)          |
 | `ix_flat_path_btree`             | `btree (path)`                                                    | exact path equality, used by the EAV pivot  |
 | `ix_ai_search_index_entity_id`   | `btree (entity_id)`                                               | candidate lookups by entity                 |
 | `idx_ai_search_index_content_hash` | `btree (content_hash)`                                          | change detection during indexing            |
 
-The HNSW index uses `vector_l2_ops`, so semantic ranking uses **L2 distance (`<->`)**, not cosine
-distance.
+The HNSW indexes use `vector_l2_ops`, so semantic ranking uses **L2 distance (`<->`)**, not cosine
+distance. They are partial, one per entity type (migration `544fd845554d`): a search for
+subscriptions walks a graph of subscription vectors only. On a single shared index the entity-type
+restriction was a post-filter, and when process rows dominate the index a scan could exhaust its
+candidate frontier before meeting any subscription, returning no semantic candidates at all.
 
 The hybrid retriever reads its semantic candidates as a `ORDER BY embedding <-> query LIMIT n`
 scan of this index. With pgvector's default (non-iterative) scan the index returns at most about
@@ -357,7 +360,7 @@ similarity score comparable, it ranks results separately by each signal and comb
 It draws candidates from two independent sources:
 
 - the **fuzzy source**: the fields that trigram-match the full query text (`'<text>' <% value`),
-  best matches first, capped at 100 field rows;
+  best matches first with ties broken by semantic distance, capped at 100 field rows;
 - the **semantic source**: the fields closest to the query embedding (HNSW index scan), capped at
   400 field rows.
 

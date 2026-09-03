@@ -12,7 +12,9 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from decimal import Decimal
+from typing import NamedTuple
 
 import structlog
 from sqlalchemy import BindParameter, Numeric, Select, literal
@@ -23,6 +25,17 @@ from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
 from ..pagination import PageCursor
 
 logger = structlog.get_logger(__name__)
+
+
+class SessionSetting(NamedTuple):
+    """A Postgres setting applied for the duration of the search transaction (``SET LOCAL`` semantics)."""
+
+    name: str
+    value: str
+
+
+# pgvector >= 0.8: keep walking the HNSW index until the LIMIT is met instead of stopping at ~ef_search rows.
+HNSW_ITERATIVE_SCAN = SessionSetting("hnsw.iterative_scan", "relaxed_order")
 
 
 class Retriever(ABC):
@@ -154,7 +167,7 @@ class Retriever(ABC):
             # embedder couldn't produce a vector. needs_embedding=True for auto-route
             # implies query.query_text is set.
             return (
-                ProcessHybridRetriever(None, query.query_text, cursor)
+                ProcessHybridRetriever(None, query.query_text, cursor, entity_type=query.entity_type)
                 if is_process
                 else FuzzyRetriever(query.query_text, cursor)  # type: ignore[arg-type]
             )
@@ -168,18 +181,18 @@ class Retriever(ABC):
         if retriever_cls is SemanticRetriever and query_embedding is not None:
             return SemanticRetriever(query_embedding, cursor)
         if retriever_cls is RrfHybridRetriever and query_embedding is not None and fuzzy_text is not None:
-            return RrfHybridRetriever(query_embedding, fuzzy_text, cursor)
+            return RrfHybridRetriever(query_embedding, fuzzy_text, cursor, entity_type=query.entity_type)
         if retriever_cls is ProcessHybridRetriever and fuzzy_text is not None:
-            return ProcessHybridRetriever(query_embedding, fuzzy_text, cursor)
+            return ProcessHybridRetriever(query_embedding, fuzzy_text, cursor, entity_type=query.entity_type)
         raise RuntimeError(f"Unreachable: _plan() returned {retriever_cls.__name__} but required inputs are missing")
 
     @property
-    def session_settings(self) -> dict[str, str]:
+    def session_settings(self) -> Sequence[SessionSetting]:
         """Postgres settings the engine applies with ``set_config(name, value, is_local=True)`` before executing.
 
         Transaction-local, so they never leak beyond the search statement.
         """
-        return {}
+        return ()
 
     @abstractmethod
     def apply(self, candidate_query: Select) -> Select:

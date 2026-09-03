@@ -21,6 +21,7 @@ from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.engine import execute_aggregation, execute_export, execute_search
 from orchestrator.core.search.query.queries import CountQuery, ExportQuery, SelectQuery
 from orchestrator.core.search.query.results import SearchResponse, SearchResult
+from orchestrator.core.search.retrieval.retrievers.base import SessionSetting
 
 pytestmark = pytest.mark.search
 
@@ -222,7 +223,9 @@ def _rejecting_session(rejected: set[str]) -> MagicMock:
 
 def test_apply_session_settings_runs_each_setting_in_a_savepoint():
     session = _rejecting_session(set())
-    engine._apply_session_settings(session, {"hnsw.iterative_scan": "relaxed_order", "work_mem": "64MB"})
+    engine._apply_session_settings(
+        session, (SessionSetting("hnsw.iterative_scan", "relaxed_order"), SessionSetting("work_mem", "64MB"))
+    )
     assert session.begin_nested.call_count == 2
     assert session.execute.call_count == 2
 
@@ -230,13 +233,15 @@ def test_apply_session_settings_runs_each_setting_in_a_savepoint():
 def test_apply_session_settings_skips_rejected_setting_and_keeps_going():
     session = _rejecting_session({"hnsw.does_not_exist"})
     engine._rejected_session_settings.discard("hnsw.does_not_exist")
-    engine._apply_session_settings(session, {"hnsw.does_not_exist": "x", "hnsw.iterative_scan": "relaxed_order"})
+    engine._apply_session_settings(
+        session, (SessionSetting("hnsw.does_not_exist", "x"), SessionSetting("hnsw.iterative_scan", "relaxed_order"))
+    )
     assert session.execute.call_count == 2
     assert "hnsw.does_not_exist" in engine._rejected_session_settings
 
 
 def test_apply_session_settings_with_nothing_to_apply_touches_no_session():
     session = _rejecting_session(set())
-    engine._apply_session_settings(session, {})
+    engine._apply_session_settings(session, ())
     session.execute.assert_not_called()
     session.begin_nested.assert_not_called()

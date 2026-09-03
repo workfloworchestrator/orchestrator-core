@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
 from typing import Any
 
 from sqlalchemy import Select, String, and_, cast, func, literal, select
@@ -20,6 +21,7 @@ from sqlalchemy_utils import LtreeType
 from orchestrator.core.db.models import ProcessStepTable
 from orchestrator.core.search.core.types import SearchMetadata
 
+from .base import SessionSetting
 from .hybrid import RrfHybridRetriever
 
 
@@ -42,8 +44,8 @@ class ProcessHybridRetriever(RrfHybridRetriever):
         self.q_vec = q_vec
 
     @property
-    def session_settings(self) -> dict[str, str]:
-        return super().session_settings if self.q_vec is not None else {}
+    def session_settings(self) -> Sequence[SessionSetting]:
+        return super().session_settings if self.q_vec is not None else ()
 
     def _build_jsonb_candidates(self, cand: Subquery) -> Select:
         """Build fuzzy candidates from the last process_step.state JSONB column."""
