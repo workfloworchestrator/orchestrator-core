@@ -22,11 +22,11 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Select, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response
 from structlog import get_logger
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import db
 from orchestrator.core.db.models import SubscriptionSearchView
 from orchestrator.core.db.range.range import Selectable, apply_range_to_statement
 from orchestrator.core.domain.base import SubscriptionModel
@@ -39,11 +39,11 @@ def _quote_if_kv_pair(token: str) -> str:
     return f'"{token}"' if ":" in token else token
 
 
-def add_response_range(
-    stmt: Selectable, range_: list[int] | None, response: Response, unit: str = "items"
+async def add_response_range(
+    stmt: Selectable, range_: list[int] | None, response: Response, session: AsyncSession, unit: str = "items"
 ) -> Selectable:
     if range_ is not None and len(range_) == 2:
-        total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+        total = await session.scalar(select(func.count()).select_from(stmt.subquery()))
         range_start, range_end = range_
         try:
             stmt = apply_range_to_statement(stmt, range_start, range_end)

@@ -13,7 +13,6 @@
 
 import pytest
 
-from orchestrator.core.db import db
 from orchestrator.core.search.aggregations import (
     AggregationType,
     CountAggregation,
@@ -50,7 +49,7 @@ class TestCandidateQueryBuilder:
     """Test build_candidate_query SQL generation with filters."""
 
     @pytest.mark.asyncio
-    async def test_complex_filter_and_logic(self, indexed_subscriptions, mock_embeddings):
+    async def test_complex_filter_and_logic(self, indexed_subscriptions, mock_embeddings, async_session):
         """Test AND logic with multiple filters executes correctly."""
         query = SelectQuery(
             entity_type=EntityType.SUBSCRIPTION,
@@ -61,13 +60,13 @@ class TestCandidateQueryBuilder:
             limit=30,
         )
 
-        response = await engine.execute_search(query, db.session)
+        response = await engine.execute_search(query, async_session)
 
         # 21 subscriptions have both status=active AND insync=true
         assert len(response.results) == 21, f"Should return 21 results, got {len(response.results)}"
 
     @pytest.mark.asyncio
-    async def test_complex_filter_or_logic(self, indexed_subscriptions, mock_embeddings):
+    async def test_complex_filter_or_logic(self, indexed_subscriptions, mock_embeddings, async_session):
         """Test OR logic with multiple filters executes correctly."""
         query = SelectQuery(
             entity_type=EntityType.SUBSCRIPTION,
@@ -78,13 +77,13 @@ class TestCandidateQueryBuilder:
             limit=30,
         )
 
-        response = await engine.execute_search(query, db.session)
+        response = await engine.execute_search(query, async_session)
 
         # 21 active + 1 provisioning = 22 total
         assert len(response.results) == 22, f"Should return 22 results, got {len(response.results)}"
 
     @pytest.mark.asyncio
-    async def test_nested_filter_logic(self, indexed_subscriptions, mock_embeddings):
+    async def test_nested_filter_logic(self, indexed_subscriptions, mock_embeddings, async_session):
         """Test nested AND/OR filter combinations execute correctly."""
         query = SelectQuery(
             entity_type=EntityType.SUBSCRIPTION,
@@ -101,7 +100,7 @@ class TestCandidateQueryBuilder:
             limit=30,
         )
 
-        response = await engine.execute_search(query, db.session)
+        response = await engine.execute_search(query, async_session)
 
         # insync=true AND (active OR provisioning) = 21 (all insync=true are active)
         assert len(response.results) == 21, f"Should return 21 results, got {len(response.results)}"
@@ -111,26 +110,26 @@ class TestAggregationQueryBuilder:
     """Test build_aggregation_query SQL generation."""
 
     @pytest.mark.asyncio
-    async def test_simple_count_no_grouping(self, indexed_subscriptions):
+    async def test_simple_count_no_grouping(self, indexed_subscriptions, async_session):
         """Test simple COUNT query without grouping."""
         query = CountQuery(
             entity_type=EntityType.SUBSCRIPTION,
         )
 
-        response = await engine.execute_aggregation(query, db.session)
+        response = await engine.execute_aggregation(query, async_session)
 
         assert len(response.results) == 1, "Should have single result for simple count"
         assert response.results[0].aggregations["total_count"] == 22, "Should count all 22 subscriptions"
 
     @pytest.mark.asyncio
-    async def test_count_with_grouping(self, indexed_subscriptions):
+    async def test_count_with_grouping(self, indexed_subscriptions, async_session):
         """Test COUNT query with GROUP BY."""
         query = CountQuery(
             entity_type=EntityType.SUBSCRIPTION,
             group_by=["status"],
         )
 
-        response = await engine.execute_aggregation(query, db.session)
+        response = await engine.execute_aggregation(query, async_session)
 
         assert len(response.results) == 2, "Should have 2 status groups"
         assert response.total_results == 2, "Should report 2 total groups"
@@ -141,7 +140,7 @@ class TestAggregationQueryBuilder:
         assert results_by_status[SubscriptionLifecycle.PROVISIONING.value] == 1, "Should have 1 provisioning"
 
     @pytest.mark.asyncio
-    async def test_aggregate_with_multiple_aggregations(self, indexed_subscriptions):
+    async def test_aggregate_with_multiple_aggregations(self, indexed_subscriptions, async_session):
         """Test AGGREGATE query with multiple aggregations."""
         query = AggregateQuery(
             entity_type=EntityType.SUBSCRIPTION,
@@ -151,7 +150,7 @@ class TestAggregationQueryBuilder:
             ],
         )
 
-        response = await engine.execute_aggregation(query, db.session)
+        response = await engine.execute_aggregation(query, async_session)
 
         assert len(response.results) == 2, "Should have 2 status groups"
 
@@ -161,7 +160,7 @@ class TestAggregationQueryBuilder:
         assert results_by_status[SubscriptionLifecycle.PROVISIONING.value]["count"] == 1
 
     @pytest.mark.asyncio
-    async def test_count_with_filters(self, indexed_subscriptions):
+    async def test_count_with_filters(self, indexed_subscriptions, async_session):
         """Test COUNT query with filters applied."""
         query = CountQuery(
             entity_type=EntityType.SUBSCRIPTION,
@@ -172,7 +171,7 @@ class TestAggregationQueryBuilder:
             group_by=["insync"],
         )
 
-        response = await engine.execute_aggregation(query, db.session)
+        response = await engine.execute_aggregation(query, async_session)
 
         # Only active subscriptions, all 21 have insync=true
         assert len(response.results) == 1, "Should have 1 insync group (all active are insync=true)"
@@ -180,7 +179,7 @@ class TestAggregationQueryBuilder:
         assert response.results[0].aggregations["count"] == 21
 
     @pytest.mark.asyncio
-    async def test_aggregate_with_cumulative(self, indexed_subscriptions):
+    async def test_aggregate_with_cumulative(self, indexed_subscriptions, async_session):
         """Test cumulative aggregation with temporal grouping.
 
         Test data: 22 subscriptions distributed across 2024 (2 per month for Jan-Oct, 1 each for Nov-Dec).
@@ -197,7 +196,7 @@ class TestAggregationQueryBuilder:
             cumulative=True,
         )
 
-        response = await engine.execute_aggregation(query, db.session)
+        response = await engine.execute_aggregation(query, async_session)
 
         assert len(response.results) == 12, f"Should have 12 monthly groups, got {len(response.results)}"
 
@@ -213,7 +212,7 @@ class TestAggregationQueryBuilder:
             )
 
     @pytest.mark.asyncio
-    async def test_count_with_ordering(self, indexed_subscriptions):
+    async def test_count_with_ordering(self, indexed_subscriptions, async_session):
         """Test COUNT query with ORDER BY."""
         query = CountQuery(
             entity_type=EntityType.SUBSCRIPTION,
@@ -221,7 +220,7 @@ class TestAggregationQueryBuilder:
             order_by=[OrderBy(field="count", direction=OrderDirection.DESC)],
         )
 
-        response = await engine.execute_aggregation(query, db.session)
+        response = await engine.execute_aggregation(query, async_session)
 
         # Should be ordered by count descending (active=21, provisioning=1)
         assert len(response.results) == 2, "Should have 2 status groups"
@@ -239,7 +238,7 @@ class TestExportQueryBuilder:
     """Test export query execution with filters."""
 
     @pytest.mark.asyncio
-    async def test_export_with_filters(self, indexed_subscriptions, mock_embeddings):
+    async def test_export_with_filters(self, indexed_subscriptions, mock_embeddings, async_session):
         """Test EXPORT query with filters fetches flattened data."""
         query = ExportQuery(
             entity_type=EntityType.SUBSCRIPTION,
@@ -250,7 +249,7 @@ class TestExportQueryBuilder:
             limit=30,
         )
 
-        export_data = await engine.execute_export(query, db.session)
+        export_data = await engine.execute_export(query, async_session)
 
         # Should export all 21 active subscriptions
         assert len(export_data) == 21, f"Should export 21 active subscriptions, got {len(export_data)}"

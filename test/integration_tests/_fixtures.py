@@ -485,9 +485,22 @@ def test_client(fastapi_app):
 
 
 @pytest.fixture
-def test_client_graphql(fastapi_app_graphql):
-    """Client to test GraphQL queries."""
-    return JsonTestClient(fastapi_app_graphql)
+def test_client_graphql(fastapi_app_graphql, db_session):
+    """Client to test GraphQL queries.
+
+    GraphQL resolvers call ``db.async_session()`` directly. Patch it so
+    they land on the sync per‑test transaction opened by ``db_session``
+    (just like the async‑endpoint REST test‑client does via
+    ``dependency_overrides`` on ``get_async_session``).
+    """
+    from test.integration_tests._async_session import session_joined_async
+
+    original = db.async_session
+    db.async_session = session_joined_async
+    try:
+        yield JsonTestClient(fastapi_app_graphql)
+    finally:
+        db.async_session = original
 
 
 @pytest.fixture

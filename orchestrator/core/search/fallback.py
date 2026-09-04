@@ -26,8 +26,8 @@ from __future__ import annotations
 from enum import Enum
 
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.core.db.database import WrappedSession
 from orchestrator.core.search.core.types import EntityType, RetrieverType
 from orchestrator.core.search.filters import FilterTree, PathFilter, StringFilter
 from orchestrator.core.search.query import engine
@@ -120,7 +120,7 @@ async def _attempt_query(
     entity_type: EntityType,
     query_text: str,
     limit: int,
-    db_session: WrappedSession,
+    db_session: AsyncSession,
 ) -> tuple[SearchResponse, SelectQuery] | None:
     """Run one broadening pass with the given filters/retriever; return it (with its query) only if it produced rows.
 
@@ -150,7 +150,7 @@ async def _run_broadening_fallback(
     entity_type: EntityType,
     query_text: str,
     limit: int,
-    db_session: WrappedSession,
+    db_session: AsyncSession,
     passes: int,
 ) -> tuple[SearchResponse, SelectQuery] | None:
     """Try up to ``passes`` broadening rungs, returning the first that produced rows.
@@ -181,7 +181,7 @@ async def execute_search_with_fallback(
     limit: int,
     retriever: RetrieverType | None,
     effort: SearchEffort,
-    db_session: WrappedSession,
+    db_session: AsyncSession,
 ) -> tuple[SearchResponse, SelectQuery, bool]:
     """Run the structured pass, then broaden progressively when it returns zero rows.
 

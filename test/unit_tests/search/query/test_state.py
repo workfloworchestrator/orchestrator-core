@@ -13,7 +13,7 @@
 
 """Tests for orchestrator.core.search.query.state -- QueryState loading from UUID/string, error handling, and limit clamping."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
 
 import pytest
@@ -41,19 +41,13 @@ def _make_mock_search_query(
     return mock
 
 
-def _patch_db_first(return_value):
-    """Return a context manager that patches the db query chain used by QueryState.load_from_id.
-
-    Replaces the module-level ``db`` symbol with a ``MagicMock`` whose chain
-    ``session.query(...).filter_by(...).first()`` returns ``return_value``.
-    Patching the symbol itself (rather than ``db.session.query``) avoids
-    resolving the ``WrappedDatabase`` ``__getattr__`` chain, which raises
-    ``RuntimeWarning`` when no real database is configured. This keeps the
-    test pure and runnable under the unit conftest.
-    """
-    mock_db = MagicMock()
-    mock_db.session.query.return_value.filter_by.return_value.first.return_value = return_value
-    return patch("orchestrator.core.search.query.state.db", new=mock_db)
+def _make_session(return_value):
+    """Build an AsyncSession mock whose ``execute(...).scalar_one_or_none()`` returns ``return_value``."""
+    session = MagicMock()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = return_value
+    session.execute = AsyncMock(return_value=result)
+    return session
 
 
 # =============================================================================
@@ -61,26 +55,26 @@ def _patch_db_first(return_value):
 # =============================================================================
 
 
-def test_load_from_uuid_object_returns_query_state():
+async def test_load_from_uuid_object_returns_query_state():
     mock_row = _make_mock_search_query()
-    with _patch_db_first(mock_row):
-        state = QueryState.load_from_id(_QUERY_UUID, SelectQuery)
+    session = _make_session(mock_row)
+    state = await QueryState.load_from_id(_QUERY_UUID, SelectQuery, session)
     assert isinstance(state, QueryState)
     assert isinstance(state.query, SelectQuery)
 
 
-def test_load_from_uuid_object_query_embedding_none():
+async def test_load_from_uuid_object_query_embedding_none():
     mock_row = _make_mock_search_query(query_embedding=None)
-    with _patch_db_first(mock_row):
-        state = QueryState.load_from_id(_QUERY_UUID, SelectQuery)
+    session = _make_session(mock_row)
+    state = await QueryState.load_from_id(_QUERY_UUID, SelectQuery, session)
     assert state.query_embedding is None
 
 
-def test_load_from_uuid_object_query_embedding_list():
+async def test_load_from_uuid_object_query_embedding_list():
     embedding = [0.1, 0.2, 0.3]
     mock_row = _make_mock_search_query(query_embedding=embedding)
-    with _patch_db_first(mock_row):
-        state = QueryState.load_from_id(_QUERY_UUID, SelectQuery)
+    session = _make_session(mock_row)
+    state = await QueryState.load_from_id(_QUERY_UUID, SelectQuery, session)
     assert state.query_embedding == embedding
 
 
@@ -89,19 +83,19 @@ def test_load_from_uuid_object_query_embedding_list():
 # =============================================================================
 
 
-def test_load_from_string_uuid_returns_query_state():
+async def test_load_from_string_uuid_returns_query_state():
     mock_row = _make_mock_search_query()
-    with _patch_db_first(mock_row):
-        state = QueryState.load_from_id(_QUERY_UUID_STR, SelectQuery)
+    session = _make_session(mock_row)
+    state = await QueryState.load_from_id(_QUERY_UUID_STR, SelectQuery, session)
     assert isinstance(state, QueryState)
     assert isinstance(state.query, SelectQuery)
 
 
-def test_load_from_string_uuid_embedding_round_trips():
+async def test_load_from_string_uuid_embedding_round_trips():
     embedding = [1.0, 2.0, 3.0]
     mock_row = _make_mock_search_query(query_embedding=embedding)
-    with _patch_db_first(mock_row):
-        state = QueryState.load_from_id(_QUERY_UUID_STR, SelectQuery)
+    session = _make_session(mock_row)
+    state = await QueryState.load_from_id(_QUERY_UUID_STR, SelectQuery, session)
     assert state.query_embedding == embedding
 
 
@@ -120,9 +114,10 @@ def test_load_from_string_uuid_embedding_round_trips():
         pytest.param(None, id="none-value"),
     ],
 )
-def test_load_from_invalid_format_raises(bad_id):
+async def test_load_from_invalid_format_raises(bad_id):
+    session = _make_session(None)
     with pytest.raises((ValueError, TypeError)):
-        QueryState.load_from_id(bad_id, SelectQuery)
+        await QueryState.load_from_id(bad_id, SelectQuery, session)
 
 
 # =============================================================================
@@ -130,16 +125,16 @@ def test_load_from_invalid_format_raises(bad_id):
 # =============================================================================
 
 
-def test_load_not_found_raises_query_state_not_found_error():
-    with _patch_db_first(None):
-        with pytest.raises(QueryStateNotFoundError):
-            QueryState.load_from_id(_QUERY_UUID, SelectQuery)
+async def test_load_not_found_raises_query_state_not_found_error():
+    session = _make_session(None)
+    with pytest.raises(QueryStateNotFoundError):
+        await QueryState.load_from_id(_QUERY_UUID, SelectQuery, session)
 
 
-def test_load_not_found_error_message_contains_uuid():
-    with _patch_db_first(None):
-        with pytest.raises(QueryStateNotFoundError, match=str(_QUERY_UUID)):
-            QueryState.load_from_id(_QUERY_UUID, SelectQuery)
+async def test_load_not_found_error_message_contains_uuid():
+    session = _make_session(None)
+    with pytest.raises(QueryStateNotFoundError, match=str(_QUERY_UUID)):
+        await QueryState.load_from_id(_QUERY_UUID, SelectQuery, session)
 
 
 # =============================================================================
@@ -155,17 +150,17 @@ def test_load_not_found_error_message_contains_uuid():
         pytest.param(BaseQuery.MAX_LIMIT - 5, BaseQuery.MAX_LIMIT - 5, id="below-max-not-clamped"),
     ],
 )
-def test_load_limit_clamping(limit: int, expected_limit: int):
+async def test_load_limit_clamping(limit: int, expected_limit: int):
     params = {**_MINIMAL_PARAMS, "limit": limit}
     mock_row = _make_mock_search_query(parameters=params)
-    with _patch_db_first(mock_row):
-        state = QueryState.load_from_id(_QUERY_UUID, SelectQuery)
+    session = _make_session(mock_row)
+    state = await QueryState.load_from_id(_QUERY_UUID, SelectQuery, session)
     assert state.query.limit == expected_limit
 
 
-def test_load_parameters_without_limit_key_uses_default():
+async def test_load_parameters_without_limit_key_uses_default():
     """Parameters dict without 'limit' key should use the default limit."""
     mock_row = _make_mock_search_query(parameters=_MINIMAL_PARAMS)
-    with _patch_db_first(mock_row):
-        state = QueryState.load_from_id(_QUERY_UUID, SelectQuery)
+    session = _make_session(mock_row)
+    state = await QueryState.load_from_id(_QUERY_UUID, SelectQuery, session)
     assert state.query.limit == BaseQuery.DEFAULT_LIMIT

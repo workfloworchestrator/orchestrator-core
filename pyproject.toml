@@ -1,7 +1,7 @@
 [project]
 name = "orchestrator-core"
 description = "This is the orchestrator workflow engine."
-version = "5.4.0a1"
+version = "5.4.0a3"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -91,7 +91,7 @@ mcp = [
 # Local dependencies for development
 [dependency-groups]
 docs = [
-    "click<=8.4.2",
+    "click<=8.5.0",
     "mkdocs>=1.6.1",
     "mkdocs-embed-external-markdown>=3.0.2",
     "mkdocs-include-markdown-plugin>=7.1.6",
@@ -120,6 +120,7 @@ dev = [
     "pytest-codspeed>=3.2.0",
     "pytest-cov>=6.2.1",
     "pytest-httpx>=0.29.0",
+    "pytest-timeout>=2.3.1",
     "pytest-xdist>=3.7.0",
     "requests-mock>=1.12.1",
     "ruff>=0.15.11",

@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for workflow steps: unsync/unsync_unchecked (fallback/backup/insync logic), store_process_subscription deprecation, and refresh_search_index error handling."""
+"""Tests for workflow steps: unsync/unsync_unchecked (fallback/backup/insync logic), store_process_subscription deprecation and the deprecated refresh-search-index no-ops."""
 
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -156,29 +156,31 @@ def test_store_process_subscription_target_deprecation_warning():
 
     with patch("orchestrator.core.workflows.steps.logger") as mock_logger:
         store_process_subscription(Target.CREATE)
-        assert mock_logger.warning.call_count == 2
+        assert mock_logger.warning.call_count == 1
         assert "deprecated" in mock_logger.warning.call_args[0][0].lower()
 
 
-def test_store_process_subscription_deprecation_warning():
-    with patch("orchestrator.core.workflows.steps.logger") as mock_logger:
-        store_process_subscription()
-        mock_logger.warning.assert_called_once()
-        assert "deprecated" in mock_logger.warning.call_args[0][0].lower()
+# --- deprecated refresh search index steps ---
+
+REFRESH_STEPS = [
+    pytest.param(refresh_subscription_search_index, {"subscription": None}, id="subscription"),
+    pytest.param(refresh_process_search_index, {"process_id": None}, id="process"),
+]
 
 
-# --- refresh_search_index ---
+@pytest.mark.parametrize("step_fn,kwargs", REFRESH_STEPS)
+def test_refresh_search_index_step_is_a_deprecated_no_op(step_fn, kwargs):
+    """Kept only so existing downstream step lists still import and run; indexing happens on exit.
 
+    That these steps no longer index is asserted where it is observable: the integration test
+    `test_workflow_still_referencing_the_deprecated_steps_runs` counts real indexer calls for a
+    workflow that still has both steps in its step list.
+    """
+    with (
+        patch("orchestrator.core.workflows.steps.logger") as mock_logger,
+        pytest.warns(DeprecationWarning, match="indexing now happens automatically"),
+    ):
+        assert orig(step_fn)(**kwargs) == {}
 
-@pytest.mark.parametrize(
-    "step_fn,arg_name,arg_value",
-    [
-        pytest.param(refresh_subscription_search_index, "subscription", MagicMock(), id="subscription"),
-        pytest.param(refresh_process_search_index, "process_id", str(uuid4()), id="process"),
-    ],
-)
-@patch("orchestrator.core.workflows.steps.reset_search_index")
-def test_refresh_search_index_exception_swallowed(mock_reset, step_fn, arg_name, arg_value):
-    mock_reset.side_effect = RuntimeError("search error")
-    result = orig(step_fn)(**{arg_name: arg_value})
-    assert result == {}
+    mock_logger.warning.assert_called_once()
+    assert "deprecated" in str(mock_logger.warning.call_args).lower()

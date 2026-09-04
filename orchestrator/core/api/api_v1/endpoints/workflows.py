@@ -14,11 +14,12 @@
 from http import HTTPStatus
 from uuid import UUID
 
-from fastapi.param_functions import Body
+from fastapi.param_functions import Body, Depends
 from fastapi.routing import APIRouter
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import db
+from orchestrator.core.db import get_async_session
 from orchestrator.core.db.models import WorkflowTable
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas.workflow import WorkflowPatchSchema, WorkflowSchema
@@ -33,30 +34,35 @@ router = APIRouter()
     operation_id="get_workflow_by_id",
     openapi_extra=READONLY_TOOL,
 )
-def get_workflow_description(workflow_id: UUID) -> str:
+async def get_workflow_description(
+    workflow_id: UUID, session: AsyncSession = Depends(get_async_session)
+) -> WorkflowTable:
     """Get a single workflow definition by id (name, target, description, steps)."""
-    workflow = db.session.get(WorkflowTable, workflow_id)
+    workflow = await session.get(WorkflowTable, workflow_id)
     if workflow is None:
         raise_status(HTTPStatus.NOT_FOUND)
     return workflow
 
 
 @router.patch("/{workflow_id}", status_code=HTTPStatus.CREATED, response_model=WorkflowSchema)
-async def patch_workflow_by_id(workflow_id: UUID, data: WorkflowPatchSchema = Body(...)) -> WorkflowTable:
-    workflow = db.session.get(WorkflowTable, workflow_id)
+async def patch_workflow_by_id(
+    workflow_id: UUID, data: WorkflowPatchSchema = Body(...), session: AsyncSession = Depends(get_async_session)
+) -> WorkflowTable:
+    workflow = await session.get(WorkflowTable, workflow_id)
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, f"Workflow id {workflow_id} not found")
 
-    return await _patch_workflow_description(data, workflow)
+    return await _patch_workflow_description(data, workflow, session)
 
 
 async def _patch_workflow_description(
     data: WorkflowPatchSchema,
     workflow: WorkflowTable,
+    session: AsyncSession,
 ) -> WorkflowTable:
 
     updated_properties = data.model_dump(exclude_unset=True)
     description = updated_properties.get("description", workflow.description)
     workflow.description = description
-    db.session.commit()
+    await session.commit()
     return workflow

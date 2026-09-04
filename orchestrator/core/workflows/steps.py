@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
 from copy import deepcopy
 
 import structlog
@@ -17,7 +18,6 @@ from pydantic import ValidationError
 
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.services.process_subscription import store_process_subscription_relation
-from orchestrator.core.services.settings import reset_search_index
 from orchestrator.core.services.subscriptions import get_subscription
 from orchestrator.core.targets import Target
 from orchestrator.core.types import SubscriptionLifecycle
@@ -110,16 +110,11 @@ def unsync_unchecked(subscription_id: UUIDstr) -> State:
 
 def store_process_subscription(workflow_target: Target | None = None) -> Step:
     if workflow_target:
-        target_deprecation_warning = (
+        deprecation_warning = (
             "Providing a workflow target to function store_process_subscription() is deprecated. "
             "This information is already stored in the workflow table."
         )
-        logger.warning(target_deprecation_warning)
-
-    deprecation_warning = (
-        "Calling store_process_subscription directly is deprecated. This is already taken care of by orchestrator-core."
-    )
-    logger.warning(deprecation_warning)
+        logger.warning(deprecation_warning)
 
     @step("Create Process Subscription relation")
     def _store_process_subscription(process_id: UUIDstr, subscription_id: UUIDstr) -> None:
@@ -139,49 +134,43 @@ def set_status(status: SubscriptionLifecycle) -> Step:
     return _set_status
 
 
-@step("Refresh subscription search index")
-def refresh_subscription_search_index(subscription: SubscriptionModel | None) -> State:
-    """Refresh subscription search index.
+def _warn_refresh_search_index_deprecated(step_name: str) -> None:
+    """Warn that a legacy search-index workflow step no longer performs indexing.
 
     Args:
-        subscription: Subscription to refresh search index.
+        step_name: Name of the deprecated workflow step being called.
+    """
+    message = (
+        f"The '{step_name}' workflow step is deprecated and is now a no-op because search indexing "
+        "now happens automatically when the process exits. Remove this step from custom workflow step lists."
+    )
+    warnings.warn(message, DeprecationWarning, stacklevel=3)
+    logger.warning("Search-index workflow step is deprecated", step=step_name, hint="Remove it from the step list")
+
+
+@step("Refresh subscription search index")
+def refresh_subscription_search_index(subscription: SubscriptionModel | None) -> State:
+    """Deprecated no-op retained for compatibility with existing custom workflow step lists.
+
+    Args:
+        subscription: Unused legacy argument.
 
     Returns:
-        State of the workflow.
-
+        An empty state update. Indexing is performed automatically on process exit.
     """
-    try:
-        reset_search_index()
-        if subscription:
-            from orchestrator.core.search.core.types import EntityType
-            from orchestrator.core.search.indexing import run_indexing_for_entity
-
-            run_indexing_for_entity(EntityType.SUBSCRIPTION, str(subscription.subscription_id))
-    except Exception:
-        # Don't fail workflow in case of unexpected error
-        logger.warning("Error updated the subscriptions search index")
+    _warn_refresh_search_index_deprecated("refresh_subscription_search_index")
     return {}
 
 
 @step("Refresh process search index")
 def refresh_process_search_index(process_id: UUIDstr | None) -> State:
-    """Refresh process search index.
+    """Deprecated no-op retained for compatibility with existing custom workflow step lists.
 
     Args:
-        process_id: Process to refresh search index.
+        process_id: Unused legacy argument.
 
     Returns:
-        State of the workflow.
-
+        An empty state update. Indexing is performed automatically on process exit.
     """
-    try:
-        reset_search_index()
-        if process_id:
-            from orchestrator.core.search.core.types import EntityType
-            from orchestrator.core.search.indexing import run_indexing_for_entity
-
-            run_indexing_for_entity(EntityType.PROCESS, process_id)
-    except Exception:
-        # Don't fail workflow in case of unexpected error
-        logger.warning("Error updating the processes search index")
+    _warn_refresh_search_index_deprecated("refresh_process_search_index")
     return {}

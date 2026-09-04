@@ -28,13 +28,13 @@ router = APIRouter()
 
 
 @router.post("/error", response_model=dict)
-def log_error(data: dict[Any, Any] = Body(...)) -> dict:
+async def log_error(data: dict[Any, Any] = Body(...)) -> dict:
     logger.error("Client reported an error", data=data, frontend_error=True)
     return {}
 
 
 @router.post("/log/{user_name}", response_model=dict)
-def log_user_info(user_name: str, message: dict = Body(...)) -> dict:
+async def log_user_info(user_name: str, message: dict = Body(...)) -> dict:
     """Log frontend messages that are related to user actions.
 
     When the frontend finalizes the setup of a login session it will do a HTTP POST to this endpoint. The frontend
