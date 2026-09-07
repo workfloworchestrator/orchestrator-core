@@ -58,7 +58,7 @@ class SearchResult(BaseModel):
     score: float
     perfect_match: int = 0
     matching_fields: list[MatchingField] = Field(default_factory=list)
-    response_columns: dict[str, str | None] | None = None
+    response_columns: dict[str, str | bool | int | float | None] | None = None
     order_value: str | None = None
 
 
@@ -260,7 +260,7 @@ def format_search_response(
     total_items: int | None,
     start_cursor: int | None,
     end_cursor: int | None,
-    column_data: dict[str, dict[str, str | None]] | None = None,
+    column_data: dict[str, dict[str, str | bool | int | float | None]] | None = None,
 ) -> SearchResponse:
     """Format database query results into a `SearchResponse`.
 

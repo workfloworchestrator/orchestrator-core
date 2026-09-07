@@ -336,7 +336,11 @@ def build_response_columns_query(
     Returns:
         Select statement with entity_id + one column per requested path.
     """
-    pivot_columns = [AiSearchIndex.entity_id.label("entity_id")] + _build_pivot_columns(response_columns)
+    pivot_columns = (
+        [AiSearchIndex.entity_id.label("entity_id")]
+        + _build_pivot_columns(response_columns)
+        + _build_pivot_type_columns(response_columns)
+    )
 
     return (
         select(*pivot_columns)
@@ -349,30 +353,61 @@ def build_response_columns_query(
     )
 
 
+def _type_alias(field_path: str) -> str:
+    """Alias of the pivot column that carries the value_type for a field path."""
+    return f"{BaseAggregation.field_to_alias(field_path)}__type"
+
+
+def _build_pivot_type_columns(field_paths: list[str]) -> list:
+    """Build MAX(CASE ...) pivot columns carrying the indexed value_type per field path."""
+    return [
+        func.max(
+            case((AiSearchIndex.path == Ltree(field_path), cast(AiSearchIndex.value_type, String)), else_=None)
+        ).label(_type_alias(field_path))
+        for field_path in field_paths
+    ]
+
+
+ResponseColumnValue = str | bool | int | float | None
+
+
+def _restore_value_type(value: str | None, value_type: str | None) -> ResponseColumnValue:
+    """Convert the TEXT stored in the index back to the Python type recorded in value_type."""
+    if value is None:
+        return None
+    match FieldType(value_type) if value_type else FieldType.STRING:
+        case FieldType.BOOLEAN:
+            return value.lower() == "true"
+        case FieldType.INTEGER:
+            return int(value)
+        case FieldType.FLOAT:
+            return float(value)
+        case _:
+            return value
+
+
 def process_response_columns(
     rows: Sequence[Row],
     response_columns: list[str],
-) -> dict[str, dict[str, str | None]]:
+) -> dict[str, dict[str, ResponseColumnValue]]:
     """Convert pivot query rows into a mapping of entity_id -> {path: value}.
+
+    Values are restored to the Python type recorded in the index's value_type column
+    (bool, int, float); every other type is returned as the stored string.
 
     Args:
         rows: Result rows from build_response_columns_query.
         response_columns: The original field paths requested.
 
     Returns:
-        Dict mapping entity_id to a dict of path -> value (or None).
+        Dict mapping entity_id to a dict of path -> typed value (or None).
     """
 
-    def convert_value_to_str_or_none(row: Row, alias: str) -> str | None:
-        value = getattr(row, alias, None)
-        return str(value) if value is not None else None
+    def convert(row: Row, path: str) -> ResponseColumnValue:
+        value = getattr(row, BaseAggregation.field_to_alias(path), None)
+        return _restore_value_type(None if value is None else str(value), getattr(row, _type_alias(path), None))
 
-    alias_to_path = {BaseAggregation.field_to_alias(path): path for path in response_columns}
-
-    return {
-        str(row.entity_id): {path: convert_value_to_str_or_none(row, alias) for alias, path in alias_to_path.items()}
-        for row in rows
-    }
+    return {str(row.entity_id): {path: convert(row, path) for path in response_columns} for row in rows}
 
 
 def build_simple_count_query(base_query: Select) -> Select:
