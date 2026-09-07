@@ -110,7 +110,7 @@ async def _execute_search(
             final_stmt, db_session, cursor, query, query_embedding, candidate_query, row_count
         )
 
-    column_data: dict[str, dict[str, str | None]] | None = None
+    column_data: dict[str, dict[str, str | bool | int | float | None]] | None = None
     if query.response_columns and result_rows:
         entity_ids = [str(row.entity_id) for row in result_rows]
         col_stmt = build_response_columns_query(entity_ids, query.entity_type, query.response_columns)
