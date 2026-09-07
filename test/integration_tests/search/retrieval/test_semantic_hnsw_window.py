@@ -170,6 +170,7 @@ def test_grouped_candidate_query_uses_exhaustive_plan():
     assert "semantic_candidates" not in str(retriever.apply(candidate_query))
 
 
+@pytest.mark.benchmark
 async def test_search_applies_the_iterative_scan_setting(indexed_vectors, async_session):
     """Without it the index scan stops at roughly ef_search rows, short of the window size."""
     response = await engine.execute_search(_semantic_query(), async_session, query_embedding=_basis_vector(0))
