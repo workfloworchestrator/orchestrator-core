@@ -25,6 +25,7 @@ from orchestrator.core.search.query.results import (
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers import Retriever
 from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
+from orchestrator.core.search.retrieval.session import apply_session_settings
 
 from .builder import (
     build_aggregation_query,
@@ -93,6 +94,8 @@ async def _execute_search(
 
     retriever = Retriever.route(query, cursor, query_embedding)
     logger.debug("Using retriever", retriever_type=retriever.__class__.__name__)
+
+    await apply_session_settings(db_session, retriever.session_settings)
 
     final_stmt = retriever.apply(candidate_query)
     final_stmt_with_limit = final_stmt.limit(limit)

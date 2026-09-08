@@ -29,8 +29,6 @@ class FuzzyRetriever(Retriever):
         self.cursor = cursor
 
     def apply(self, candidate_query: Select) -> Select:
-        cand = candidate_query.subquery()
-
         similarity_expr = func.word_similarity(self.fuzzy_term, AiSearchIndex.value)
 
         raw_max = func.max(similarity_expr).over(partition_by=AiSearchIndex.entity_id)
@@ -38,7 +36,7 @@ class FuzzyRetriever(Retriever):
             func.round(cast(raw_max, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
         ).label(self.SCORE_LABEL)
 
-        combined_query = (
+        gated = (
             select(
                 AiSearchIndex.entity_id,
                 AiSearchIndex.entity_title,
@@ -51,14 +49,17 @@ class FuzzyRetriever(Retriever):
                 .label(self.HIGHLIGHT_PATH_LABEL),
             )
             .select_from(AiSearchIndex)
-            .join(cand, cand.c.entity_id == AiSearchIndex.entity_id)
             .where(
                 and_(
                     AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
                     literal(self.fuzzy_term).op("<%")(AiSearchIndex.value),
                 )
             )
-            .distinct(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
+        )
+        # Trigram hits are few: probing candidate membership per hit keeps the trigram index driving the
+        # plan even under a broad structured filter, where joining the candidate set does not.
+        combined_query = self._restrict_to_candidates(gated, candidate_query, probe=True).distinct(
+            AiSearchIndex.entity_id, AiSearchIndex.entity_title
         )
         final_query = combined_query.subquery("ranked_fuzzy")
 
