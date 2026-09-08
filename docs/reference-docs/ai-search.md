@@ -350,6 +350,8 @@ The migration that creates these also creates the `uuid-ossp`, `ltree`, `unaccen
 
 **Fuzzy**: matches rows where `'<term>' <% value`, restricted to the string-like field types;
 an entity's score is the highest `word_similarity(term, value)` among its matched fields.
+Candidate membership is checked per trigram hit with a correlated probe on `entity_id` rather than by
+joining the candidate set, so `ix_flat_value_trgm` drives the plan even under a broad structured filter.
 
 **Semantic**: considers rows with an embedding; an entity's score is
 `1 / (1 + min(embedding <-> query_vector))`, so a smaller distance gives a higher score, bounded

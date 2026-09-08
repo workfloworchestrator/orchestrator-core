@@ -50,7 +50,7 @@ class SemanticRetriever(Retriever):
         return (HNSW_ITERATIVE_SCAN,) if self.is_bounded else ()
 
     def apply(self, candidate_query: Select) -> Select:
-        use_bounded_plan = self.is_bounded and self._supports_bounded_plan(candidate_query)
+        use_bounded_plan = self.is_bounded and self._can_inline_candidate_filters(candidate_query)
 
         if use_bounded_plan:
             source = self._candidate_window(candidate_query).cte("semantic_candidates")
@@ -112,40 +112,16 @@ class SemanticRetriever(Retriever):
 
         return stmt.order_by(final_query.c.score.desc().nulls_last(), final_query.c.entity_id.asc())
 
-    @staticmethod
-    def _supports_bounded_plan(candidate_query: Select) -> bool:
-        """Only allow query shapes whose semantics survive copying their filters into the HNSW window."""
-        columns = list(candidate_query.selected_columns)
-        if (
-            candidate_query.get_final_froms() != [AiSearchIndex.__table__]
-            or len(columns) != 2
-            or not columns[0].shares_lineage(AiSearchIndex.entity_id)
-            or not columns[1].shares_lineage(AiSearchIndex.entity_title)
-        ):
-            return False
-
-        expected = select(*columns).where(*candidate_query._where_criteria).distinct()
-
-        return candidate_query.compare(expected)
-
     def _candidate_window(self, candidate_query: Select) -> Select:
         """Index fields closest to the query embedding, capped at `candidates_limit`.
 
-        The candidate conditions are applied *inside* the index scan rather than through a join, so
-        the iterative HNSW scan keeps walking until it has `candidates_limit` matching rows. Joining
-        the candidate subquery instead would make the planner fall back to a hash join over a
-        sequential scan. The entity type is rendered as a literal so the planner can prove the
-        predicate of that type's partial HNSW index whatever plan cache is in use.
+        The candidate conditions are applied *inside* the index scan (see `_restrict_to_candidates`),
+        so the iterative HNSW scan keeps walking until it has `candidates_limit` matching rows. The
+        entity type is rendered as a literal so the planner can prove the predicate of that type's
+        partial HNSW index whatever plan cache is in use.
         """
         distance = AiSearchIndex.embedding.l2_distance(self.vector_query)
-        conditions: list[ColumnElement[bool]] = [
-            AiSearchIndex.embedding.isnot(None),
-            AiSearchIndex.entity_type == literal(self.entity_type.value, literal_execute=True),  # type: ignore[union-attr]
-        ]
-        if candidate_query.whereclause is not None:
-            conditions.append(candidate_query.whereclause)
-
-        return (
+        stmt = (
             select(
                 AiSearchIndex.entity_id,
                 AiSearchIndex.entity_title,
@@ -154,10 +130,14 @@ class SemanticRetriever(Retriever):
                 distance.label("semantic_distance"),
             )
             .select_from(AiSearchIndex)
-            .where(and_(*conditions))
-            .order_by(distance.asc())
-            .limit(self.candidates_limit)
+            .where(
+                and_(
+                    AiSearchIndex.embedding.isnot(None),
+                    AiSearchIndex.entity_type == literal(self.entity_type.value, literal_execute=True),  # type: ignore[union-attr]
+                )
+            )
         )
+        return self._restrict_to_candidates(stmt, candidate_query).order_by(distance.asc()).limit(self.candidates_limit)
 
     @property
     def metadata(self) -> SearchMetadata:

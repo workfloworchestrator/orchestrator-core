@@ -16,8 +16,9 @@ from collections.abc import Sequence
 from decimal import Decimal
 
 import structlog
-from sqlalchemy import BindParameter, Numeric, Select, literal
+from sqlalchemy import BindParameter, Numeric, Select, literal, select
 
+from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import EntityType, FieldType, RetrieverType, SearchMetadata
 from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
 from orchestrator.core.search.retrieval.session import SessionSetting
@@ -205,6 +206,52 @@ class Retriever(ABC):
             Select: A new `Select` statement with ranking expressions applied.
         """
         ...
+
+    @staticmethod
+    def _can_inline_candidate_filters(candidate_query: Select) -> bool:
+        """Whether the candidate query's WHERE clause can be copied into another scan of the index table.
+
+        `build_candidate_query` yields ``SELECT DISTINCT entity_id, entity_title FROM ai_search_index
+        WHERE <per-entity predicates>``. Those predicates depend on ``entity_id`` only, so a source that
+        scans the index table itself (the HNSW window, the trigram gate) can apply them inline and keep
+        its own index as the driving scan. Any other shape (joins, GROUP BY, LIMIT, ...) has semantics a
+        copied WHERE clause would not preserve and must be joined instead.
+        """
+        columns = list(candidate_query.selected_columns)
+        if (
+            candidate_query.get_final_froms() != [AiSearchIndex.__table__]
+            or len(columns) != 2
+            or not columns[0].shares_lineage(AiSearchIndex.entity_id)
+            or not columns[1].shares_lineage(AiSearchIndex.entity_title)
+        ):
+            return False
+
+        expected = select(*columns).where(*candidate_query._where_criteria).distinct()
+
+        return candidate_query.compare(expected)
+
+    @classmethod
+    def _restrict_to_candidates(cls, stmt: Select, candidate_query: Select, *, probe: bool = False) -> Select:
+        """Restrict a scan of the index table to the candidate entities.
+
+        When the candidate query has the shape `build_candidate_query` produces, its filters are applied
+        inside the scan so the scan's own index (HNSW, trigram) can stay the driving plan. Copied into the
+        WHERE clause (the default), the planner is free to drive from the structured filter instead when
+        that is cheaper. With ``probe=True`` membership is checked per row through a correlated scalar
+        subquery on ``entity_id``, which the planner cannot pull up into a join, so the scan always drives:
+        the right choice when its hits are few, as trigram matches are. Any other candidate shape is
+        joined: always correct, but a hash join over a sequential scan.
+        """
+        if not cls._can_inline_candidate_filters(candidate_query):
+            cand = candidate_query.subquery()
+            return stmt.join(cand, cand.c.entity_id == AiSearchIndex.entity_id)
+        if candidate_query.whereclause is None:
+            return stmt
+        if not probe:
+            return stmt.where(candidate_query.whereclause)
+        members = select(AiSearchIndex.entity_id).where(candidate_query.whereclause).subquery("candidate_members")
+        hit = select(literal(1)).where(members.c.entity_id == AiSearchIndex.entity_id).limit(1).scalar_subquery()
+        return stmt.where(hit.isnot(None))
 
     def _quantize_score_for_pagination(self, score_value: float) -> BindParameter[Decimal]:
         """Convert score value to properly quantized Decimal parameter for pagination."""
