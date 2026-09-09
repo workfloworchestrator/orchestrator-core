@@ -20,7 +20,13 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.engine.row import RowMapping
 
-from orchestrator.core.search.core.types import EntityType, FilterOp, SearchMetadata
+from orchestrator.core.search.core.types import (
+    EntityType,
+    FilterOp,
+    ResponseColumnData,
+    ResponseColumns,
+    SearchMetadata,
+)
 from orchestrator.core.search.filters import FilterTree
 
 from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
@@ -58,7 +64,7 @@ class SearchResult(BaseModel):
     score: float
     perfect_match: int = 0
     matching_fields: list[MatchingField] = Field(default_factory=list)
-    response_columns: dict[str, str | bool | int | float | None] | None = None
+    response_columns: ResponseColumns | None = None
     order_value: str | None = None
 
 
@@ -260,7 +266,7 @@ def format_search_response(
     total_items: int | None,
     start_cursor: int | None,
     end_cursor: int | None,
-    column_data: dict[str, dict[str, str | bool | int | float | None]] | None = None,
+    column_data: ResponseColumnData | None = None,
 ) -> SearchResponse:
     """Format database query results into a `SearchResponse`.
 
