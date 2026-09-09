@@ -60,7 +60,14 @@ from sqlalchemy.orm import joinedload, raiseload
 from starlette.concurrency import run_in_threadpool
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, get_async_session
+from orchestrator.core.db import (
+    ProcessSubscriptionTable,
+    ProcessTable,
+    ProductTable,
+    SubscriptionTable,
+    WorkflowTable,
+    get_async_session,
+)
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas.mcp_search import (
     AggregateToolRequest,
@@ -217,7 +224,15 @@ async def get_process_status_endpoint(params: ProcessIdRequest, session: AsyncSe
     If the process is SUSPENDED, the response includes the form schema for the
     input needed to resume it.
     """
-    process = await get_process_async(UUID(params.process_id), session)
+    process = await get_process_async(
+        UUID(params.process_id),
+        session,
+        options=[
+            joinedload(ProcessTable.process_subscriptions)
+            .joinedload(ProcessSubscriptionTable.subscription)
+            .joinedload(SubscriptionTable.product),
+        ],
+    )
     pstat = load_process(process)
     enriched = enrich_process(process, pstat)
     return ProcessStatusResponse(

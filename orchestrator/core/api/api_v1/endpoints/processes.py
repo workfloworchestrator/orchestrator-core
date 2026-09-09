@@ -30,7 +30,7 @@ from more_itertools import chunked, first, last
 from sentry_sdk.tracing import trace
 from sqlalchemy import CompoundSelect, Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql.functions import count
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
@@ -427,7 +427,18 @@ async def update_process(
     data: ProcessPatchSchema = Body(...),
     session: AsyncSession = Depends(get_async_session)
 ) -> ProcessTable:
-    process = await get_process_async(process_id, session)
+    process = await get_process_async(
+        process_id,
+        session,
+        options=[
+            joinedload(ProcessTable.process_subscriptions)
+            .joinedload(ProcessSubscriptionTable.subscription)
+            .options(
+                joinedload(SubscriptionTable.product),
+                selectinload(SubscriptionTable.customer_descriptions),
+            ),
+        ],
+    )
     if not process:
         raise_status(HTTPStatus.NOT_FOUND, f"Process id {process_id} not found")
 
