@@ -23,7 +23,14 @@ from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.core.db.models import AiSearchIndex, AiSearchPaths
 from orchestrator.core.search.aggregations import AggregationType, BaseAggregation, CountAggregation
-from orchestrator.core.search.core.types import EntityType, FieldType, FilterOp, UIType
+from orchestrator.core.search.core.types import (
+    EntityType,
+    FieldType,
+    FilterOp,
+    ResponseColumnData,
+    ResponseColumnValue,
+    UIType,
+)
 from orchestrator.core.search.filters import LtreeFilter
 from orchestrator.core.search.query.mixins import OrderDirection
 from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, Query
@@ -368,9 +375,6 @@ def _build_pivot_type_columns(field_paths: list[str]) -> list:
     ]
 
 
-ResponseColumnValue = str | bool | int | float | None
-
-
 def _restore_value_type(value: str | None, value_type: str | None) -> ResponseColumnValue:
     """Convert the TEXT stored in the index back to the Python type recorded in value_type."""
     if value is None:
@@ -389,7 +393,7 @@ def _restore_value_type(value: str | None, value_type: str | None) -> ResponseCo
 def process_response_columns(
     rows: Sequence[Row],
     response_columns: list[str],
-) -> dict[str, dict[str, ResponseColumnValue]]:
+) -> ResponseColumnData:
     """Convert pivot query rows into a mapping of entity_id -> {path: value}.
 
     Values are restored to the Python type recorded in the index's value_type column
