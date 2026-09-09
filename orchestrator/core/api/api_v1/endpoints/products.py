@@ -88,7 +88,7 @@ async def _product_by_id(product_id: UUID, session: AsyncSession) -> ProductTabl
         select(ProductTable)
         .options(
             joinedload(ProductTable.fixed_inputs),
-            joinedload(ProductTable.product_blocks),
+            joinedload(ProductTable.product_blocks).joinedload(ProductBlockTable.resource_types),
             joinedload(ProductTable.workflows),
         )
         .filter(ProductTable.product_id == product_id)

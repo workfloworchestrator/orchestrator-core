@@ -53,7 +53,9 @@ async def patch_product_block_by_id(
     data: ProductBlockPatchSchema = Body(...),
     session: AsyncSession = Depends(get_async_session),
 ) -> ProductBlockTable:
-    product_block = await session.get(ProductBlockTable, product_block_id)
+    product_block = await session.get(
+        ProductBlockTable, product_block_id, options=[selectinload(ProductBlockTable.resource_types)]
+    )
     if not product_block:
         raise_status(HTTPStatus.NOT_FOUND, f"Product_block id {product_block_id} not found")
 

@@ -31,7 +31,14 @@ from sqlalchemy.orm import joinedload
 from nwastdlib.ex import show_ex
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.core.db import (
+    EngineSettingsTable,
+    ProcessStepTable,
+    ProcessSubscriptionTable,
+    ProcessTable,
+    SubscriptionTable,
+    db,
+)
 from orchestrator.core.db.database import transactional
 from orchestrator.core.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.core.distlock import distlock_manager
@@ -452,8 +459,9 @@ async def get_process_async(process_id: UUID, session: AsyncSession) -> ProcessT
         select(ProcessTable)
         .where(ProcessTable.process_id == process_id)
         .options(
+            joinedload(ProcessTable.workflow),
             joinedload(ProcessTable.steps),
-            joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
+            joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription).joinedload(SubscriptionTable.product),
         )
     )
     result = await session.execute(stmt)
