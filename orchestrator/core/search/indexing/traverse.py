@@ -29,7 +29,7 @@ from orchestrator.core.domain.base import ProductBlockModel, ProductModel
 from orchestrator.core.domain.lifecycle import (
     lookup_specialized_type,
 )
-from orchestrator.core.schemas.process import ProcessBaseSchema
+from orchestrator.core.schemas.process import ProcessIndexSchema
 from orchestrator.core.schemas.workflow import WorkflowSchema
 from orchestrator.core.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
 from orchestrator.core.search.core.types import LTREE_SEPARATOR, ExtractedField, FieldType
@@ -298,25 +298,25 @@ class ProductTraverser(BaseTraverser):
 
 
 class ProcessTraverser(BaseTraverser):
-    """Traverser for process entities using ProcessBaseSchema.
+    """Traverser for process entities using ProcessIndexSchema.
 
-    Only indexes top-level process fields (no subscriptions or steps)
+    Indexes top-level process fields plus a lightweight summary of linked
+    subscriptions (id, description, product and, where available, customer
+    info). Steps and full subscription/product-block detail are excluded
     to keep the index size manageable.
     """
 
     EXCLUDED_FIELDS = {"traceback", "failed_reason"}
 
     @classmethod
-    def _load_model(cls, entity: ProcessTable) -> ProcessBaseSchema | None:
-        return cls._load_model_with_schema(entity, ProcessBaseSchema, "process_id")
+    def _load_model(cls, entity: ProcessTable) -> ProcessIndexSchema:
+        return cls._load_model_with_schema(entity, ProcessIndexSchema, "process_id")
 
     @classmethod
     def get_fields(cls, entity: ProcessTable, pk_name: str, root_name: str) -> list[ExtractedField]:  # type: ignore[override]
         """Extract fields from process, excluding fields in EXCLUDED_FIELDS."""
         try:
             model = cls._load_model(entity)
-            if model is None:
-                return []
 
             return sorted(
                 (

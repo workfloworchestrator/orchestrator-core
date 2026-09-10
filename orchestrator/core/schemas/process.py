@@ -15,10 +15,10 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from orchestrator.core.config.assignee import Assignee
-from orchestrator.core.db.models import NOTE_LENGTH
+from orchestrator.core.db.models import NOTE_LENGTH, SubscriptionTable
 from orchestrator.core.schemas.base import OrchestratorBaseModel
 from orchestrator.core.schemas.subscription import SubscriptionSchema
 from orchestrator.core.targets import Target
@@ -69,6 +69,50 @@ class ProcessSchema(ProcessBaseSchema):
     steps: list[ProcessStepSchema] | None = None
     form: dict[str, Any] | None = None
     note: str | None = None
+
+
+class ProcessSubscriptionIndexSchema(OrchestratorBaseModel):
+    """Minimal subscription summary embedded in a process's search index entry."""
+
+    subscription_id: UUID
+    description: str
+    customer_id: str
+    product_name: str | None = None
+    product_tag: str | None = None
+    # Only populated when the registered SubscriptionTable exposes these (e.g. via OrchestratorCore.register_table).
+    customer_name: str | None = None
+    customer_abbreviation: str | None = None
+
+    @classmethod
+    def from_subscription(cls, subscription: SubscriptionTable) -> "ProcessSubscriptionIndexSchema":
+        """Build a summary from a (possibly app-specific) SubscriptionTable instance."""
+        product = subscription.product
+        return cls(
+            subscription_id=subscription.subscription_id,
+            description=subscription.description,
+            customer_id=subscription.customer_id,
+            product_name=product.name,
+            product_tag=product.tag,
+            customer_name=getattr(subscription, "customer_name", None),
+            customer_abbreviation=getattr(subscription, "customer_abbreviation", None),
+        )
+
+
+class ProcessIndexSchema(ProcessBaseSchema):
+    """Extends ProcessBaseSchema with additional fields only needed for search indexing."""
+
+    workflow_target: Target | None = None
+    note: str | None = None
+    subscriptions: list[ProcessSubscriptionIndexSchema] = []
+
+    @field_validator("subscriptions", mode="before")
+    @classmethod
+    def _build_subscriptions(cls, value: Any) -> Any:
+        """Map raw ORM subscription instances (e.g. from an association proxy) to summaries."""
+        return [
+            item if isinstance(item, ProcessSubscriptionIndexSchema) else ProcessSubscriptionIndexSchema.from_subscription(item)
+            for item in value
+        ]
 
 
 class ProcessResumeAllSchema(OrchestratorBaseModel):
