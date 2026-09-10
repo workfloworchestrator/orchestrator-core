@@ -177,7 +177,9 @@ def test_process_config_applies_selectinload_on_workflow():
     with patch("sqlalchemy.orm.selectinload") as mock_selectinload:
         result = config.get_all_query()
 
-    mock_selectinload.assert_called_once_with(ProcessTable.workflow)
+    called_with = [call.args[0] for call in mock_selectinload.call_args_list]
+    assert any(arg is ProcessTable.workflow for arg in called_with)
+    assert any(arg is ProcessTable.process_subscriptions for arg in called_with)
     base_query.options.assert_called_once()
     assert result is options_query
 
