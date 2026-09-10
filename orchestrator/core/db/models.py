@@ -170,6 +170,10 @@ class ProcessTable(BaseModel):
     def workflow_name(self) -> Column:
         return self.workflow.name
 
+    @property
+    def workflow_target(self) -> str:
+        return self.workflow.target
+
 
 class ProcessStepTable(BaseModel):
     __tablename__ = "process_steps"
