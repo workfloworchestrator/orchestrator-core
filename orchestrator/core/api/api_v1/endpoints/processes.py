@@ -30,7 +30,7 @@ from more_itertools import chunked, first, last
 from sentry_sdk.tracing import trace
 from sqlalchemy import CompoundSelect, Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import defer, joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql.functions import count
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
@@ -413,7 +413,7 @@ async def abort_process_endpoint(
 
 async def _index_processes(process_id: UUID) -> AsyncGenerator[None, Any]:
     yield
-    run_indexing_for_entity(EntityType.PROCESS, str(process_id))
+    await run_in_threadpool(run_indexing_for_entity, EntityType.PROCESS, str(process_id))
 
 
 @router.patch(
@@ -427,7 +427,18 @@ async def update_process(
     data: ProcessPatchSchema = Body(...),
     session: AsyncSession = Depends(get_async_session)
 ) -> ProcessTable:
-    process = await get_process_async(process_id, session)
+    process = await get_process_async(
+        process_id,
+        session,
+        options=[
+            joinedload(ProcessTable.process_subscriptions)
+            .joinedload(ProcessSubscriptionTable.subscription)
+            .options(
+                joinedload(SubscriptionTable.product),
+                selectinload(SubscriptionTable.customer_descriptions),
+            ),
+        ],
+    )
     if not process:
         raise_status(HTTPStatus.NOT_FOUND, f"Process id {process_id} not found")
 
@@ -472,7 +483,7 @@ async def status_counts(session: AsyncSession = Depends(get_async_session)) -> P
 
 @router.get("/{process_id}", response_model=ProcessSchema)
 async def show(process_id: UUID) -> dict[str, Any]:
-    process =await run_in_threadpool(_get_process, process_id)
+    process = await run_in_threadpool(_get_process, process_id)
     p = load_process(process)
 
     return enrich_process(process, p)
@@ -508,13 +519,12 @@ async def processes_filterable(  # noqa: C901
     _filter: list[str] | None = filter.split(",") if filter else None
 
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
-    # tracebacks are not presented in the list of processes and can be really large.
     processes: Select | CompoundSelect
     processes = select(ProcessTable).options(
+        joinedload(ProcessTable.workflow),
         joinedload(ProcessTable.process_subscriptions)
         .joinedload(ProcessSubscriptionTable.subscription)
         .joinedload(SubscriptionTable.product),
-        defer(ProcessTable.traceback),
     )
 
     if _filter is not None:
