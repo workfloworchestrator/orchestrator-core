@@ -166,12 +166,20 @@ def process_path_rows(rows: Sequence[Row]) -> tuple[list[LeafInfo], list[Compone
     return leaves, components
 
 
+def _build_pivot_column(field_path: str, value_expression: Any, alias: str) -> Label:
+    """Select a field's matching row value into a grouped result column.
+
+    1. For every row in the group, CASE returns value_expression only if the row matches field_path.
+    2. For all non-matching rows, it returns NULL.
+    3. MAX(...) collapses those per-row results into one value.
+    """
+    return func.max(case((AiSearchIndex.path == Ltree(field_path), value_expression), else_=None)).label(alias)
+
+
 def _build_pivot_columns(field_paths: list[str]) -> list:
     """Build MAX(CASE ...) pivot column expressions for the given field paths."""
     return [
-        func.max(case((AiSearchIndex.path == Ltree(field_path), AiSearchIndex.value), else_=None)).label(
-            BaseAggregation.field_to_alias(field_path)
-        )
+        _build_pivot_column(field_path, AiSearchIndex.value, BaseAggregation.field_to_alias(field_path))
         for field_path in field_paths
     ]
 
@@ -368,9 +376,7 @@ def _type_alias(field_path: str) -> str:
 def _build_pivot_type_columns(field_paths: list[str]) -> list:
     """Build MAX(CASE ...) pivot columns carrying the indexed value_type per field path."""
     return [
-        func.max(
-            case((AiSearchIndex.path == Ltree(field_path), cast(AiSearchIndex.value_type, String)), else_=None)
-        ).label(_type_alias(field_path))
+        _build_pivot_column(field_path, cast(AiSearchIndex.value_type, String), _type_alias(field_path))
         for field_path in field_paths
     ]
 
