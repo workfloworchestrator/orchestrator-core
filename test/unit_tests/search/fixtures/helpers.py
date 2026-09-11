@@ -15,7 +15,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from orchestrator.core.search.aggregations import BaseAggregation
-from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
+from orchestrator.core.search.core.types import BooleanOperator, FieldType, FilterOp, UIType
 from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter
 
 SIMPLE_SUBSCRIPTION_FILTER = FilterTree(
@@ -51,3 +51,20 @@ def make_column_row(entity_id: str, columns: dict[str, str | None]) -> SimpleNam
         alias = BaseAggregation.field_to_alias(path)
         attrs[alias] = value  # type: ignore[assignment]
     return SimpleNamespace(**attrs)
+
+
+def make_list_rows(entity_id: str, prefix: str, items: list[dict[str, str | None]]) -> list[SimpleNamespace]:
+    """Create fake raw DB rows matching what the list-columns query returns.
+
+    Each item in the list becomes one raw (entity_id, path, value, value_type) row per field, with
+    the path built as `<prefix>.<index>.<field>` -- the same positionally-indexed EAV shape that
+    process_response_list_columns parses. Values are indexed as FieldType.STRING, matching how
+    make_column_row's callers typically pass already-stringified test data.
+    """
+    return [
+        SimpleNamespace(
+            entity_id=entity_id, path=f"{prefix}.{index}.{field}", value=value, value_type=FieldType.STRING.value
+        )
+        for index, item in enumerate(items)
+        for field, value in item.items()
+    ]

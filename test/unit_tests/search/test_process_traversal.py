@@ -109,7 +109,7 @@ def test_traverse_process_with_subscription():
 
 
 def test_traverse_process_with_subscription_missing_customer_fields():
-    """Subscription objects from a generic (non-SURF) SubscriptionTable have no customer_name/abbreviation."""
+    """Subscription objects from a generic SubscriptionTable have no customer_name/abbreviation."""
     process = _build_process()
 
     mock_product = MagicMock()

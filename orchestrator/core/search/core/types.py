@@ -31,8 +31,9 @@ SQLAColumn: TypeAlias = ColumnElement[Any] | InstrumentedAttribute[Any]
 LTREE_SEPARATOR = "."
 
 ResponseColumnValue: TypeAlias = str | bool | int | float | None
-ResponseColumns: TypeAlias = dict[str, ResponseColumnValue]
+ResponseColumns: TypeAlias = dict[str, ResponseColumnValue | list[dict[str, ResponseColumnValue]]]
 ResponseColumnData: TypeAlias = dict[str, ResponseColumns]
+
 
 @dataclass
 class SearchMetadata:
