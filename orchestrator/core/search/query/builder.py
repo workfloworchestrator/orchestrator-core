@@ -15,7 +15,7 @@ from collections import defaultdict
 from typing import Any, Sequence
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import Select, String, case, cast, func, select
+from sqlalchemy import Select, String, bindparam, case, cast, func, or_, select
 from sqlalchemy.engine import Row
 from sqlalchemy.sql.elements import Label
 from sqlalchemy.sql.selectable import CTE
@@ -32,8 +32,12 @@ from orchestrator.core.search.core.types import (
     UIType,
 )
 from orchestrator.core.search.filters import LtreeFilter
+from orchestrator.core.search.filters.ltree_filters import _LQuery
+from orchestrator.core.search.indexing.field_types import is_list_path
 from orchestrator.core.search.query.mixins import OrderDirection
 from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, Query
+
+LIST_COLUMN_WILDCARD_MARKER = ".*."
 
 
 class LeafInfo(BaseModel):
@@ -412,6 +416,119 @@ def process_response_columns(
         return _restore_value_type(None if value is None else str(value), getattr(row, _type_alias(path), None))
 
     return {str(row.entity_id): {path: convert(row, path) for path in response_columns} for row in rows}
+
+
+def _list_prefix(entity_type: EntityType, path: str) -> str | None:
+    """Return the leading segment of `path` that names a list field, if any."""
+    segments = path.split(".")
+    prefixes = (".".join(segments[:i]) for i in range(1, len(segments)))
+    return next((prefix for prefix in prefixes if is_list_path(entity_type, prefix)), None)
+
+
+def _as_list_path(entity_type: EntityType, column: str) -> str | None:
+    """Return `column` normalized to wildcard form if it is a list path, else None."""
+    if LIST_COLUMN_WILDCARD_MARKER in column:
+        return column
+
+    list_prefix = _list_prefix(entity_type, column)
+    if list_prefix is None:
+        return None
+
+    suffix = column[len(list_prefix) + 1 :]
+    if suffix.partition(".")[0].isdigit():
+        return None
+
+    return f"{list_prefix}{LIST_COLUMN_WILDCARD_MARKER}{suffix}"
+
+
+def split_response_columns(response_columns: list[str], entity_type: EntityType) -> tuple[list[str], list[str]]:
+    """Split response columns into flat (scalar) paths and wildcard list paths.
+
+    A plain path through a schema-known list field is auto-detected and normalized to wildcard form.
+    A path pinning a concrete numeric index stays flat.
+    """
+    resolved = [(column, _as_list_path(entity_type, column)) for column in response_columns]
+    flat_paths = [column for column, list_path in resolved if list_path is None]
+    list_paths = [list_path for _, list_path in resolved if list_path is not None]
+    return flat_paths, list_paths
+
+
+def build_response_list_rows_query(
+    entity_ids: list[str],
+    entity_type: EntityType,
+    list_paths: list[str],
+) -> Select:
+    """Build a query returning the raw EAV rows for one or more wildcard list paths in a single round-trip.
+
+    Unlike build_response_columns_query, this does not pivot in SQL: it fetches one row per
+    (entity_id, path) match and leaves grouping/merging by list index to process_response_list_columns.
+    """
+    prefixes = {path.partition(LIST_COLUMN_WILDCARD_MARKER)[0] for path in list_paths}
+    lquery_matches = [
+        AiSearchIndex.path.op("~")(bindparam(None, f"{prefix}.*.*", type_=_LQuery())) for prefix in prefixes
+    ]
+
+    return select(AiSearchIndex.entity_id, AiSearchIndex.path, AiSearchIndex.value, AiSearchIndex.value_type).where(
+        AiSearchIndex.entity_id.in_(entity_ids),
+        AiSearchIndex.entity_type == entity_type.value,
+        or_(*lquery_matches),
+    )
+
+
+def _group_suffixes_by_prefix(list_paths: list[str]) -> dict[str, set[str]]:
+    """Group wildcard list paths into a prefix -> requested suffixes mapping."""
+    requested_suffixes: dict[str, set[str]] = defaultdict(set)
+    for path in list_paths:
+        prefix, _, suffix = path.partition(LIST_COLUMN_WILDCARD_MARKER)
+        requested_suffixes[prefix].add(suffix)
+    return requested_suffixes
+
+
+def _match_list_row(path_str: str, requested_suffixes: dict[str, set[str]]) -> tuple[str, int, str] | None:
+    """Return the (prefix, index, suffix) a row's path matches, or None if it matches no requested path."""
+    matching_prefixes = [prefix for prefix in requested_suffixes if path_str.startswith(f"{prefix}.")]
+    if not matching_prefixes:
+        return None
+
+    prefix = max(matching_prefixes, key=len)
+    tail = path_str[len(prefix) + 1 :]
+    index_str, _, suffix = tail.partition(".")
+    if suffix not in requested_suffixes[prefix]:
+        return None
+
+    return prefix, int(index_str), suffix
+
+
+def process_response_list_columns(
+    rows: Sequence[Row],
+    list_paths: list[str],
+) -> dict[str, dict[str, list[dict[str, ResponseColumnValue]]]]:
+    """Group raw EAV rows for wildcard list paths into prefix -> entity_id -> ordered items.
+
+    Values are restored to their indexed Python type.
+    Every prefix in list_paths is included in the result, even with zero matching rows.
+    """
+    requested_suffixes = _group_suffixes_by_prefix(list_paths)
+    items_by_group: dict[str, dict[str, dict[int, dict[str, ResponseColumnValue]]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(dict))
+    )
+
+    for row in rows:
+        match = _match_list_row(str(row.path), requested_suffixes)
+        if match is not None:
+            prefix, index, suffix = match
+            value = row.value
+            items_by_group[prefix][str(row.entity_id)][index][suffix] = _restore_value_type(
+                None if value is None else str(value), row.value_type
+            )
+
+    return {
+        prefix: {
+            entity_id: [item for _, item in sorted(items.items())]
+            for entity_id, items in items_by_group.get(prefix, {}).items()
+        }
+        for prefix in requested_suffixes
+    }
 
 
 def build_simple_count_query(base_query: Select) -> Select:

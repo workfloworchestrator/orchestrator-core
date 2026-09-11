@@ -58,7 +58,7 @@ def test_process_traverser_model_load_error():
     mock_process = MagicMock(spec=ProcessTable)
     mock_process.process_id = "invalid-uuid"
 
-    with pytest.raises(ModelLoadError, match="Failed to load ProcessBaseSchema for process_id"):
+    with pytest.raises(ModelLoadError, match="Failed to load ProcessIndexSchema for process_id"):
         ProcessTraverser._load_model(mock_process)
 
 
