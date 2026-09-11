@@ -18,7 +18,7 @@ from uuid import UUID
 from pydantic import ConfigDict, Field, field_validator
 
 from orchestrator.core.config.assignee import Assignee
-from orchestrator.core.db.models import NOTE_LENGTH, SubscriptionTable
+from orchestrator.core.db.models import NOTE_LENGTH
 from orchestrator.core.schemas.base import OrchestratorBaseModel
 from orchestrator.core.schemas.subscription import SubscriptionSchema
 from orchestrator.core.targets import Target
@@ -71,6 +71,22 @@ class ProcessSchema(ProcessBaseSchema):
     note: str | None = None
 
 
+class ProcessResumeAllSchema(OrchestratorBaseModel):
+    count: int
+
+
+class ProcessStatusCounts(OrchestratorBaseModel):
+    process_counts: dict[ProcessStatus, int]
+    task_counts: dict[ProcessStatus, int]
+
+
+class ProcessPatchSchema(OrchestratorBaseModel):
+    note: Annotated[str, Field(max_length=NOTE_LENGTH)] | None = None
+
+
+Reporter = Annotated[str, Field(max_length=100)]
+
+
 class ProcessSubscriptionIndexSchema(OrchestratorBaseModel):
     """Minimal subscription summary embedded in a process's search index entry."""
 
@@ -84,7 +100,7 @@ class ProcessSubscriptionIndexSchema(OrchestratorBaseModel):
     customer_abbreviation: str | None = None
 
     @classmethod
-    def from_subscription(cls, subscription: SubscriptionTable) -> "ProcessSubscriptionIndexSchema":
+    def from_subscription(cls, subscription: Any) -> "ProcessSubscriptionIndexSchema":
         """Build a summary from a (possibly app-specific) SubscriptionTable instance."""
         product = subscription.product
         return cls(
@@ -110,22 +126,10 @@ class ProcessIndexSchema(ProcessBaseSchema):
     def _build_subscriptions(cls, value: Any) -> Any:
         """Map raw ORM subscription instances (e.g. from an association proxy) to summaries."""
         return [
-            item if isinstance(item, ProcessSubscriptionIndexSchema) else ProcessSubscriptionIndexSchema.from_subscription(item)
+            (
+                item
+                if isinstance(item, ProcessSubscriptionIndexSchema)
+                else ProcessSubscriptionIndexSchema.from_subscription(item)
+            )
             for item in value
         ]
-
-
-class ProcessResumeAllSchema(OrchestratorBaseModel):
-    count: int
-
-
-class ProcessStatusCounts(OrchestratorBaseModel):
-    process_counts: dict[ProcessStatus, int]
-    task_counts: dict[ProcessStatus, int]
-
-
-class ProcessPatchSchema(OrchestratorBaseModel):
-    note: Annotated[str, Field(max_length=NOTE_LENGTH)] | None = None
-
-
-Reporter = Annotated[str, Field(max_length=100)]

@@ -17,7 +17,7 @@ Covers title resolution from fields, query construction with/without entity_id,
 and registry completeness.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -159,39 +159,37 @@ def test_entity_config_get_all_query_with_entity_id():
 
 
 def test_process_config_applies_selectinload_on_workflow():
-    mock_table = MagicMock(spec=ProcessTable)
-    base_query = MagicMock()
-    options_query = MagicMock()
-    mock_table.query = base_query
-    base_query.options.return_value = options_query
-
     config = ProcessConfig(
         entity_kind=EntityType.PROCESS,
-        table=mock_table,
+        table=ProcessTable,
         traverser=MagicMock(),
         pk_name="process_id",
         root_name="process",
         title_paths=[],
     )
 
-    with patch("sqlalchemy.orm.selectinload") as mock_selectinload:
+    select_result = MagicMock()
+    options_result = MagicMock()
+    select_result.options.return_value = options_result
+
+    with (
+        patch("sqlalchemy.select", return_value=select_result) as mock_select,
+        patch("sqlalchemy.orm.selectinload") as mock_selectinload,
+    ):
         result = config.get_all_query()
 
-    called_with = [call.args[0] for call in mock_selectinload.call_args_list]
-    assert any(arg is ProcessTable.workflow for arg in called_with)
-    assert any(arg is ProcessTable.process_subscriptions for arg in called_with)
-    base_query.options.assert_called_once()
-    assert result is options_query
+    mock_select.assert_called_once_with(ProcessTable)
+    mock_selectinload.assert_has_calls(
+        [call(ProcessTable.workflow), call(ProcessTable.process_subscriptions)], any_order=True
+    )
+    select_result.options.assert_called_once()
+    assert result is options_result
 
 
 def test_process_config_with_entity_id_applies_filter():
     mock_table = MagicMock(spec=ProcessTable)
-    base_query = MagicMock()
-    options_query = MagicMock()
-    filtered_query = MagicMock()
-    mock_table.query = base_query
-    base_query.options.return_value = options_query
-    options_query.filter.return_value = filtered_query
+    pk_column = MagicMock()
+    mock_table.process_id = pk_column
 
     config = ProcessConfig(
         entity_kind=EntityType.PROCESS,
@@ -202,11 +200,17 @@ def test_process_config_with_entity_id_applies_filter():
         title_paths=[],
     )
 
-    with patch("sqlalchemy.orm.selectinload"):
+    select_result = MagicMock()
+    options_result = MagicMock()
+    where_result = MagicMock()
+    select_result.options.return_value = options_result
+    options_result.where.return_value = where_result
+
+    with patch("sqlalchemy.select", return_value=select_result), patch("sqlalchemy.orm.selectinload"):
         result = config.get_all_query(entity_id=VALID_UUID)
 
-    options_query.filter.assert_called_once()
-    assert result is filtered_query
+    options_result.where.assert_called_once()
+    assert result is where_result
 
 
 # ---------------------------------------------------------------------------
