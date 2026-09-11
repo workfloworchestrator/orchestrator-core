@@ -11,11 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import defaultdict
+
 import structlog
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.core.search.core.types import ResponseColumnData, SearchMetadata
+from orchestrator.core.search.core.types import EntityType, ResponseColumnData, ResponseColumns, SearchMetadata
 from orchestrator.core.search.query.results import (
     QueryResultsResponse,
     SearchResponse,
@@ -31,13 +33,43 @@ from .builder import (
     build_aggregation_query,
     build_candidate_query,
     build_response_columns_query,
+    build_response_list_rows_query,
     build_simple_count_query,
     process_response_columns,
+    process_response_list_columns,
+    split_response_columns,
 )
 from .export import fetch_export_data
 from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
 
 logger = structlog.get_logger(__name__)
+
+
+async def _fetch_response_column_data(
+    entity_ids: list[str],
+    entity_type: EntityType,
+    response_columns: list[str],
+    db_session: AsyncSession,
+) -> ResponseColumnData | None:
+    """Fetch requested response columns for a set of entities, flat and list-valued alike."""
+    flat_paths, list_paths = split_response_columns(response_columns, entity_type)
+    merged: dict[str, ResponseColumns] = defaultdict(dict)
+
+    if flat_paths:
+        col_stmt = build_response_columns_query(entity_ids, entity_type, flat_paths)
+        col_rows = (await db_session.execute(col_stmt)).all()
+        for entity_id, columns in process_response_columns(col_rows, flat_paths).items():
+            merged[entity_id].update(columns)
+
+    if list_paths:
+        list_stmt = build_response_list_rows_query(entity_ids, entity_type, list_paths)
+        list_rows = (await db_session.execute(list_stmt)).all()
+        list_column_data = process_response_list_columns(list_rows, list_paths)
+        for prefix, entities_for_prefix in list_column_data.items():
+            for entity_id in entity_ids:
+                merged[entity_id][prefix] = entities_for_prefix.get(entity_id, [])
+
+    return dict(merged) if merged else None
 
 
 async def _create_cursor_info(
@@ -117,10 +149,9 @@ async def _execute_search(
     column_data: ResponseColumnData | None = None
     if query.response_columns and result_rows:
         entity_ids = [str(row.entity_id) for row in result_rows]
-        col_stmt = build_response_columns_query(entity_ids, query.entity_type, query.response_columns)
-        col_execute_result = await db_session.execute(col_stmt)
-        col_rows = col_execute_result.all()
-        column_data = process_response_columns(col_rows, query.response_columns)
+        column_data = await _fetch_response_column_data(
+            entity_ids, query.entity_type, query.response_columns, db_session
+        )
 
     return format_search_response(
         result_rows, query, retriever.metadata, query_embedding, total_items, start_cursor, end_cursor, column_data

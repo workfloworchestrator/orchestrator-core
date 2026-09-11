@@ -70,22 +70,23 @@ class EntityConfig(Generic[ModelT]):
 class ProcessConfig(EntityConfig[ProcessTable]):
     """Processes need to eager load workflow (for workflow_name/workflow_target) and linked subscriptions."""
 
-    def get_all_query(self, entity_id: str | None = None) -> Query | Select:
+    def get_all_query(self, entity_id: str | None = None) -> Select:
+        from sqlalchemy import select
         from sqlalchemy.orm import selectinload
 
         from orchestrator.core.db import ProcessSubscriptionTable, SubscriptionTable
 
         # Loads workflow, subscriptions and product, and skips steps and product blocks
         # to keep the index lightweight.
-        query = self.table.query.options(
-            selectinload(ProcessTable.workflow),
-            selectinload(ProcessTable.process_subscriptions)
+        query = select(self.table).options(
+            selectinload(self.table.workflow),
+            selectinload(self.table.process_subscriptions)
             .selectinload(ProcessSubscriptionTable.subscription)
             .selectinload(SubscriptionTable.product),
         )
         if entity_id:
             pk_column = getattr(self.table, self.pk_name)
-            query = query.filter(pk_column == UUID(entity_id))
+            query = query.where(pk_column == UUID(entity_id))
         return query
 
 
