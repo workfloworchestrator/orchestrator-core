@@ -49,7 +49,6 @@ def get_test_workflow_path(config: dict, workflow_type: str) -> Path:
     folder = file_name
 
     workflow_folder = settings.TEST_WORKFLOWS_PATH / Path(folder)
-    Path(workflow_folder).mkdir(parents=True, exist_ok=True)
 
     return workflow_folder / Path(f"test_{workflow_type}_{file_name}").with_suffix(".py")
 
