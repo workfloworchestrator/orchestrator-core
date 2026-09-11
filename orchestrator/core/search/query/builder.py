@@ -23,7 +23,14 @@ from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.core.db.models import AiSearchIndex, AiSearchPaths
 from orchestrator.core.search.aggregations import AggregationType, BaseAggregation, CountAggregation
-from orchestrator.core.search.core.types import EntityType, FieldType, FilterOp, UIType
+from orchestrator.core.search.core.types import (
+    EntityType,
+    FieldType,
+    FilterOp,
+    ResponseColumnData,
+    ResponseColumnValue,
+    UIType,
+)
 from orchestrator.core.search.filters import LtreeFilter
 from orchestrator.core.search.query.mixins import OrderDirection
 from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, Query
@@ -159,12 +166,20 @@ def process_path_rows(rows: Sequence[Row]) -> tuple[list[LeafInfo], list[Compone
     return leaves, components
 
 
+def _build_pivot_column(field_path: str, value_expression: Any, alias: str) -> Label:
+    """Select a field's matching row value into a grouped result column.
+
+    1. For every row in the group, CASE returns value_expression only if the row matches field_path.
+    2. For all non-matching rows, it returns NULL.
+    3. MAX(...) collapses those per-row results into one value.
+    """
+    return func.max(case((AiSearchIndex.path == Ltree(field_path), value_expression), else_=None)).label(alias)
+
+
 def _build_pivot_columns(field_paths: list[str]) -> list:
     """Build MAX(CASE ...) pivot column expressions for the given field paths."""
     return [
-        func.max(case((AiSearchIndex.path == Ltree(field_path), AiSearchIndex.value), else_=None)).label(
-            BaseAggregation.field_to_alias(field_path)
-        )
+        _build_pivot_column(field_path, AiSearchIndex.value, BaseAggregation.field_to_alias(field_path))
         for field_path in field_paths
     ]
 
@@ -336,7 +351,11 @@ def build_response_columns_query(
     Returns:
         Select statement with entity_id + one column per requested path.
     """
-    pivot_columns = [AiSearchIndex.entity_id.label("entity_id")] + _build_pivot_columns(response_columns)
+    pivot_columns = (
+        [AiSearchIndex.entity_id.label("entity_id")]
+        + _build_pivot_columns(response_columns)
+        + _build_pivot_type_columns(response_columns)
+    )
 
     return (
         select(*pivot_columns)
@@ -349,30 +368,56 @@ def build_response_columns_query(
     )
 
 
+def _type_alias(field_path: str) -> str:
+    """Alias of the pivot column that carries the value_type for a field path."""
+    return f"{BaseAggregation.field_to_alias(field_path)}__type"
+
+
+def _build_pivot_type_columns(field_paths: list[str]) -> list:
+    """Build MAX(CASE ...) pivot columns carrying the indexed value_type per field path."""
+    return [
+        _build_pivot_column(field_path, cast(AiSearchIndex.value_type, String), _type_alias(field_path))
+        for field_path in field_paths
+    ]
+
+
+def _restore_value_type(value: str | None, value_type: str | None) -> ResponseColumnValue:
+    """Convert the TEXT stored in the index back to the Python type recorded in value_type."""
+    if value is None:
+        return None
+    match FieldType(value_type) if value_type else FieldType.STRING:
+        case FieldType.BOOLEAN:
+            return value.lower() == "true"
+        case FieldType.INTEGER:
+            return int(value)
+        case FieldType.FLOAT:
+            return float(value)
+        case _:
+            return value
+
+
 def process_response_columns(
     rows: Sequence[Row],
     response_columns: list[str],
-) -> dict[str, dict[str, str | None]]:
+) -> ResponseColumnData:
     """Convert pivot query rows into a mapping of entity_id -> {path: value}.
+
+    Values are restored to the Python type recorded in the index's value_type column
+    (bool, int, float); every other type is returned as the stored string.
 
     Args:
         rows: Result rows from build_response_columns_query.
         response_columns: The original field paths requested.
 
     Returns:
-        Dict mapping entity_id to a dict of path -> value (or None).
+        Dict mapping entity_id to a dict of path -> typed value (or None).
     """
 
-    def convert_value_to_str_or_none(row: Row, alias: str) -> str | None:
-        value = getattr(row, alias, None)
-        return str(value) if value is not None else None
+    def convert(row: Row, path: str) -> ResponseColumnValue:
+        value = getattr(row, BaseAggregation.field_to_alias(path), None)
+        return _restore_value_type(None if value is None else str(value), getattr(row, _type_alias(path), None))
 
-    alias_to_path = {BaseAggregation.field_to_alias(path): path for path in response_columns}
-
-    return {
-        str(row.entity_id): {path: convert_value_to_str_or_none(row, alias) for alias, path in alias_to_path.items()}
-        for row in rows
-    }
+    return {str(row.entity_id): {path: convert(row, path) for path in response_columns} for row in rows}
 
 
 def build_simple_count_query(base_query: Select) -> Select:
