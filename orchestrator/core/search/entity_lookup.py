@@ -109,11 +109,7 @@ async def resolve_entity_id_prefix(
     text; on large tables this is a sequential scan, bounded by the limit.
     """
     spec = _ENTITY_LOOKUP[entity_type]
-    stmt = (
-        select(spec.id_col, spec.title_expr)
-        .filter(cast(spec.id_col, Text).ilike(f"{prefix}%"))
-        .limit(limit + 1)
-    )
+    stmt = select(spec.id_col, spec.title_expr).filter(cast(spec.id_col, Text).ilike(f"{prefix}%")).limit(limit + 1)
     result = await session.execute(stmt)
     rows = result.all()
     return [ResolvedEntity(entity_id=str(row[0]), title=str(row[1])) for row in rows]
