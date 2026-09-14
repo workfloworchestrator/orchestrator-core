@@ -14,9 +14,9 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P3D"
 
 [options.exclude-newer-package]
+pydantic-forms = false
 nwa-stdlib = false
 oauth2-lib = false
-pydantic-forms = false
 
 [manifest]
 overrides = [{ name = "grpcio", specifier = "==1.76.0" }]
@@ -2805,7 +2805,7 @@ wheels = [
 
 [[package]]
 name = "orchestrator-core"
-version = "5.4.0a4"
+version = "5.4.0a5"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
