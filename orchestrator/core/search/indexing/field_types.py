@@ -24,9 +24,9 @@ from pydantic import BaseModel
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.core.domain.base import DomainModel
 from orchestrator.core.domain.lifecycle import lookup_specialized_type
-from orchestrator.core.schemas.process import ProcessIndexSchema
 from orchestrator.core.search.core.types import EntityType, FieldType, UIType
 from orchestrator.core.search.indexing.schema import iter_model_field_annotations
+from orchestrator.core.search.schemas.process import ProcessIndexSchema
 from orchestrator.core.types import SubscriptionLifecycle, is_list_type
 
 # Entity types indexed from a single static Pydantic schema rather than SUBSCRIPTION_MODEL_REGISTRY.
