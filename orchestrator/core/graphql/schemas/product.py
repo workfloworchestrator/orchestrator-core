@@ -47,10 +47,14 @@ class ProductType:
     Backed by `ProductSchema`. Returned by the `products` query, `ProcessType.product` and
     `Workflow.products`.
 
-    The relation fields (`productBlocks`, `fixedInputs`, `workflows`, `subscriptions`,
-    `allProductBlockNames`) are resolver-backed and load from the `ProductTable` on access, so
-    callers resolving them over a list should ensure those relations are eagerly loaded - see
-    `get_query_loaders_for_gql_fields` as used in `resolvers/product.py`.
+    The relation fields (`productBlocks`, `fixedInputs`, `workflows`, `allProductBlockNames`) are
+    resolver-backed and load from the `ProductTable` on access, so callers resolving them over a
+    list should ensure those relations are eagerly loaded - see `get_query_loaders_for_gql_fields`
+    as used in `resolvers/product.py`.
+
+    `subscriptions` is not a `ProductTable` relation and cannot be eager loaded that way; it
+    delegates to `resolve_subscriptions` with a `productId` filter, and is paginated and
+    filterable in its own right.
     """
 
     product_id: strawberry.auto
