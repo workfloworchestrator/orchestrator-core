@@ -58,7 +58,7 @@ dependencies = [
     "pydantic-settings~=2.15.0",
     "pydantic[email]~=2.13.0",
     "python-dateutil==2.9.0.post0",
-    "python-rapidjson>=1.23,<1.24",
+    "python-rapidjson>=1.25,<1.26",
     "pytz>=2025",
     "redis==8.1.0",
     "semver==3.0.4",
