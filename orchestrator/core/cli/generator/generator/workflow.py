@@ -90,7 +90,7 @@ def generate_workflows(context: ProdGenContext) -> None:
     environment = context["environment"]
     writer = context["writer"]
 
-    create_product_workflow_paths(config)
+    create_product_workflow_paths(config, dryrun=context["dryrun"])
 
     # TODO: Remove from core and extend config from client specific code
     config = add_optional_nso_config(config)
@@ -116,7 +116,9 @@ def shared_product_workflow_folder(config: dict) -> Path:
     return product_workflow_folder(config) / Path("shared")
 
 
-def create_product_workflow_paths(config: dict) -> None:
+def create_product_workflow_paths(config: dict, dryrun: bool) -> None:
+    if dryrun:
+        return
     path = product_workflow_folder(config) / Path("shared")
     path.mkdir(parents=True, exist_ok=True)
     create_dunder_init_files(path)
