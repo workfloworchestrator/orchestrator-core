@@ -89,12 +89,8 @@ class BaseTraverser(ABC):
             yield from cls.traverse(value, path)
             return
 
-        ftype = FieldType.from_type_hint(annotation)
-
-        if isinstance(value, Enum):
-            yield ExtractedField(path, str(value.value), ftype)
-        else:
-            yield ExtractedField(path, str(value), ftype)
+        text = str(value.value if isinstance(value, Enum) else value)
+        yield ExtractedField(path, text, FieldType.reconcile(FieldType.from_type_hint(annotation), text))
 
     @classmethod
     def _traverse_list(cls, items: list[Any], path: str, element_annotation: Any) -> Iterable[ExtractedField]:

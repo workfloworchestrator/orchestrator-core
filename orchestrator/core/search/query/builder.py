@@ -382,12 +382,26 @@ def _build_pivot_type_columns(field_paths: list[str]) -> list:
 
 
 def _restore_value_type(value: str | None, value_type: str | None) -> ResponseColumnValue:
-    """Convert the TEXT stored in the index back to the Python type recorded in value_type."""
+    """Convert the TEXT stored in the index back to the Python type recorded in value_type.
+
+    Rows indexed before value_type was reconciled (see FieldType.reconcile) can still
+    contradict it. Falls back to the stored text rather than raising, which would fail
+    the whole response instead of the one inconsistent column.
+    """
     if value is None:
         return None
-    match FieldType(value_type) if value_type else FieldType.STRING:
+
+    try:
+        field_type = FieldType(value_type) if value_type else FieldType.STRING
+    except ValueError:
+        return value
+
+    if not field_type.matches(value):
+        return value
+
+    match field_type:
         case FieldType.BOOLEAN:
-            return value.lower() == "true"
+            return value.strip().lower() == "true"
         case FieldType.INTEGER:
             return int(value)
         case FieldType.FLOAT:
