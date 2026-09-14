@@ -17,6 +17,7 @@ from collections.abc import AsyncIterator
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from orchestrator.core.db import db
+from test.integration_tests import _lazy_load_guard
 
 
 @contextlib.asynccontextmanager
@@ -34,4 +35,5 @@ async def session_joined_async() -> AsyncIterator[AsyncSession]:
         expire_on_commit=False,
         join_transaction_mode="create_savepoint",
     ) as session:
+        _lazy_load_guard.install(session)
         yield session
