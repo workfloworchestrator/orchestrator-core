@@ -29,11 +29,11 @@ from orchestrator.core.domain.base import ProductBlockModel, ProductModel
 from orchestrator.core.domain.lifecycle import (
     lookup_specialized_type,
 )
-from orchestrator.core.schemas.process import ProcessIndexSchema
 from orchestrator.core.schemas.workflow import WorkflowSchema
 from orchestrator.core.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
 from orchestrator.core.search.core.types import LTREE_SEPARATOR, ExtractedField, FieldType
 from orchestrator.core.search.indexing.schema import iter_model_field_annotations
+from orchestrator.core.search.schemas.process import ProcessIndexSchema
 from orchestrator.core.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)
