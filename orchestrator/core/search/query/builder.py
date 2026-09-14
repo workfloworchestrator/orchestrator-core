@@ -349,13 +349,17 @@ def build_response_columns_query(
         response_columns: Field paths to pivot into columns.
 
     Returns:
-        Select statement with entity_id + one column per requested path.
+        Select statement with entity_id and a value/type column pair per requested path.
     """
-    pivot_columns = (
-        [AiSearchIndex.entity_id.label("entity_id")]
-        + _build_pivot_columns(response_columns)
-        + _build_pivot_type_columns(response_columns)
-    )
+    # Positional aliases prevent field names from colliding with type metadata or each other.
+    pivot_columns = [AiSearchIndex.entity_id.label("entity_id")]
+    for index, path in enumerate(response_columns):
+        pivot_columns.extend(
+            [
+                _build_pivot_column(path, AiSearchIndex.value, f"response_value_{index}"),
+                _build_pivot_column(path, cast(AiSearchIndex.value_type, String), f"response_type_{index}"),
+            ]
+        )
 
     return (
         select(*pivot_columns)
@@ -366,19 +370,6 @@ def build_response_columns_query(
         )
         .group_by(AiSearchIndex.entity_id)
     )
-
-
-def _type_alias(field_path: str) -> str:
-    """Alias of the pivot column that carries the value_type for a field path."""
-    return f"{BaseAggregation.field_to_alias(field_path)}__type"
-
-
-def _build_pivot_type_columns(field_paths: list[str]) -> list:
-    """Build MAX(CASE ...) pivot columns carrying the indexed value_type per field path."""
-    return [
-        _build_pivot_column(field_path, cast(AiSearchIndex.value_type, String), _type_alias(field_path))
-        for field_path in field_paths
-    ]
 
 
 def _restore_value_type(value: str | None, value_type: str | None) -> ResponseColumnValue:
@@ -427,11 +418,13 @@ def process_response_columns(
         Dict mapping entity_id to a dict of path -> typed value (or None).
     """
 
-    def convert(row: Row, path: str) -> ResponseColumnValue:
-        value = getattr(row, BaseAggregation.field_to_alias(path), None)
-        return _restore_value_type(None if value is None else str(value), getattr(row, _type_alias(path), None))
+    def convert(row: Row, index: int) -> ResponseColumnValue:
+        value = getattr(row, f"response_value_{index}", None)
+        return _restore_value_type(None if value is None else str(value), getattr(row, f"response_type_{index}", None))
 
-    return {str(row.entity_id): {path: convert(row, path) for path in response_columns} for row in rows}
+    return {
+        str(row.entity_id): {path: convert(row, index) for index, path in enumerate(response_columns)} for row in rows
+    }
 
 
 def build_simple_count_query(base_query: Select) -> Select:
