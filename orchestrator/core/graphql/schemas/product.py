@@ -36,8 +36,23 @@ if TYPE_CHECKING:
 federation_key_directives = [Key(fields=FieldSet("productId"), resolvable=UNSET)]
 
 
-@strawberry.experimental.pydantic.type(model=ProductSchema, directives=federation_key_directives)
+@strawberry.experimental.pydantic.type(
+    model=ProductSchema,
+    directives=federation_key_directives,
+    description="A product with its related product blocks, fixed inputs, workflows and subscriptions.",
+)
 class ProductType:
+    """Product type exposing the product's relations.
+
+    Backed by `ProductSchema`. Returned by the `products` query, `ProcessType.product` and
+    `Workflow.products`.
+
+    The relation fields (`productBlocks`, `fixedInputs`, `workflows`, `subscriptions`,
+    `allProductBlockNames`) are resolver-backed and load from the `ProductTable` on access, so
+    callers resolving them over a list should ensure those relations are eagerly loaded - see
+    `get_query_loaders_for_gql_fields` as used in `resolvers/product.py`.
+    """
+
     product_id: strawberry.auto
     name: strawberry.auto
     description: strawberry.auto
@@ -108,8 +123,29 @@ class ProductType:
         return [Workflow.from_pydantic(i) for i in model.workflows]
 
 
-@strawberry.experimental.pydantic.type(model=ProductModel, all_fields=True)
+@strawberry.experimental.pydantic.type(
+    model=ProductModel,
+    all_fields=True,
+    description=(
+        "Scalar product fields only. Does not expose product blocks, fixed inputs or workflows; "
+        "query the `products` root field with this `productId` to retrieve those."
+    ),
+)
 class ProductModelGraphql:
+    """Scalar-only product type, reachable via `SubscriptionInterface.product`.
+
+    Backed by the domain model `ProductModel`, which carries no relations, so this type
+    deliberately exposes no `productBlocks`, `fixedInputs` or `workflows`, and is not a federation
+    entity.
+
+    `createdAt` is nullable here because `ProductModel.created_at` is optional, but the underlying
+    column is `nullable=False` - it is never actually null.
+
+    Before adding relation fields here or to `ProductModel`, read issue #335: `ProductModel` is
+    embedded in every `SubscriptionModel` and so flows into subscription payloads, workflow state,
+    etags and the search index.
+    """
+
     @strawberry.field(description="Returns the product type")  # type: ignore
     async def type(self) -> str:
         return self.product_type  # type: ignore
