@@ -31,7 +31,13 @@ from sqlalchemy.orm import joinedload
 from nwastdlib.ex import show_ex
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.core.db import (
+    EngineSettingsTable,
+    ProcessStepTable,
+    ProcessSubscriptionTable,
+    ProcessTable,
+    db,
+)
 from orchestrator.core.db.database import transactional
 from orchestrator.core.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.core.distlock import distlock_manager
@@ -447,13 +453,28 @@ def _get_process(process_id: UUID) -> ProcessTable:
     return process
 
 
-async def get_process_async(process_id: UUID, session: AsyncSession) -> ProcessTable:
+async def get_process_async(
+    process_id: UUID, session: AsyncSession, options: Sequence[Any] | None = None
+) -> ProcessTable:
+    """Async counterpart to :func:`_get_process` for use in async endpoints.
+
+    Args:
+        process_id: The process_id
+        session: Async database session
+        options: Additional SQLAlchemy loader options, e.g. to eagerly load relationships that
+            would otherwise trigger an implicit (unsupported) lazy load on an async session.
+            The workflow and steps of the process are always loaded.
+
+    Returns: A process object
+
+    """
     stmt = (
         select(ProcessTable)
         .where(ProcessTable.process_id == process_id)
         .options(
+            joinedload(ProcessTable.workflow),
             joinedload(ProcessTable.steps),
-            joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
+            *(options or []),
         )
     )
     result = await session.execute(stmt)

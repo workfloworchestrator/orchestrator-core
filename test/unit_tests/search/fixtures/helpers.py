@@ -14,7 +14,6 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from orchestrator.core.search.aggregations import BaseAggregation
 from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
 from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter
 
@@ -43,11 +42,10 @@ def make_search_row(entity_id: str, entity_title: str, score: float = 0.92) -> M
 def make_column_row(entity_id: str, columns: dict[str, str | None]) -> SimpleNamespace:
     """Create a fake DB row matching what the column pivot query returns.
 
-    Converts field paths to aliases (e.g. 'subscription.status' -> 'subscription_status')
-    just like the real SQL query does via BaseAggregation.field_to_alias.
+    Column insertion order must match the requested response-column order.
+    Uses positional value aliases just like the real SQL query.
     """
     attrs = {"entity_id": entity_id}
-    for path, value in columns.items():
-        alias = BaseAggregation.field_to_alias(path)
-        attrs[alias] = value  # type: ignore[assignment]
+    for index, value in enumerate(columns.values()):
+        attrs[f"response_value_{index}"] = value  # type: ignore[assignment]
     return SimpleNamespace(**attrs)

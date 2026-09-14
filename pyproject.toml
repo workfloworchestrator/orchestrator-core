@@ -1,7 +1,7 @@
 [project]
 name = "orchestrator-core"
 description = "This is the orchestrator workflow engine."
-version = "5.4.0a3"
+version = "5.4.0a5"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -36,11 +36,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "alembic==1.19.1",
+    "alembic==1.19.2",
     "anyio>=3.7.0",
     "apscheduler>=3.11.0",
     "click==8.*",
-    "deepmerge==3.0",
+    "deepmerge==3.0.1",
     "deprecated>=1.2.18",
     "fastapi~=0.141.1",
     "fastapi-etag==0.4.0",
@@ -58,7 +58,7 @@ dependencies = [
     "pydantic-settings~=2.15.0",
     "pydantic[email]~=2.13.0",
     "python-dateutil==2.9.0.post0",
-    "python-rapidjson>=1.23,<1.24",
+    "python-rapidjson>=1.25,<1.26",
     "pytz>=2025",
     "redis==8.1.0",
     "semver==3.0.4",

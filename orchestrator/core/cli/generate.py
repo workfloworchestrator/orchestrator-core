@@ -119,6 +119,7 @@ def create_context(
         "tdd": tdd,
         "writer": create_writer(dryrun=dryrun, force=force),
         "skip_existing_blocks": skip_existing_blocks,
+        "dryrun": dryrun,
     }
 
 

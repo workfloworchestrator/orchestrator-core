@@ -20,7 +20,13 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.engine.row import RowMapping
 
-from orchestrator.core.search.core.types import EntityType, FilterOp, SearchMetadata
+from orchestrator.core.search.core.types import (
+    EntityType,
+    FilterOp,
+    ResponseColumnData,
+    ResponseColumns,
+    SearchMetadata,
+)
 from orchestrator.core.search.filters import FilterTree
 
 from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
@@ -58,7 +64,7 @@ class SearchResult(BaseModel):
     score: float
     perfect_match: int = 0
     matching_fields: list[MatchingField] = Field(default_factory=list)
-    response_columns: dict[str, str | None] | None = None
+    response_columns: ResponseColumns | None = None
     order_value: str | None = None
 
 
@@ -196,15 +202,24 @@ def truncate_text_with_highlights(
     return truncated_text, adjusted_indices if adjusted_indices else None
 
 
-def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
-    """Finds all occurrences of individual words from the term, including both word boundary and substring matches."""
-    import re
+# Trims punctuation that wraps or terminates a word in prose (quotes of any flavour, brackets, commas)
+# from both ends of a query word. ``+``, ``#`` and ``@`` are kept because they carry meaning at a word
+# edge (``C++``, ``#1234``, ``@user``) and trimming them would highlight the bare remainder everywhere.
+EDGE_PUNCTUATION_RE = re.compile(r"^[^\w+#@]+|[^\w+#@]+$")
 
+
+def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
+    """Finds all occurrences of individual words from the term, including both word boundary and substring matches.
+
+    Wrapping punctuation is stripped from the edges of each word, so a quoted query highlights the words
+    it wraps (``"Node`` highlights ``Node``). Identifiers keep their inner punctuation and are matched
+    whole, so ``asd066d-jnp-02`` is one word rather than three.
+    """
     if not text or not term:
         return []
 
     all_matches = []
-    words = [w.strip() for w in term.split() if w.strip()]
+    words = [w for w in (EDGE_PUNCTUATION_RE.sub("", w) for w in term.split()) if w]
 
     for word in words:
         # First find word boundary matches
@@ -251,7 +266,7 @@ def format_search_response(
     total_items: int | None,
     start_cursor: int | None,
     end_cursor: int | None,
-    column_data: dict[str, dict[str, str | None]] | None = None,
+    column_data: ResponseColumnData | None = None,
 ) -> SearchResponse:
     """Format database query results into a `SearchResponse`.
 
