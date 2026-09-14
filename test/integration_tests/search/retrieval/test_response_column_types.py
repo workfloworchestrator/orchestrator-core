@@ -16,6 +16,7 @@
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db import db
@@ -27,6 +28,8 @@ from orchestrator.core.search.query.queries import SelectQuery
 
 TYPED_FIELDS: dict[str, tuple[str, FieldType]] = {
     "subscription.status": ("active", FieldType.STRING),
+    "subscription.status__type": ("False", FieldType.BOOLEAN),
+    "subscription.port_speed": ("slow", FieldType.STRING),
     "subscription.insync": ("False", FieldType.BOOLEAN),
     "subscription.port.speed": ("1000", FieldType.INTEGER),
     "subscription.port.ratio": ("0.5", FieldType.FLOAT),
@@ -83,3 +86,45 @@ async def test_response_columns_restore_indexed_types(indexed_subscription, path
     (result,) = [r for r in response.results if r.entity_id == str(indexed_subscription)]
     assert result.response_columns == {path: expected}
     assert type(result.response_columns[path]) is type(expected)
+
+
+@pytest.mark.parametrize(
+    "paths,expected",
+    [
+        pytest.param(
+            ["subscription.status", "subscription.status__type"],
+            {"subscription.status": "active", "subscription.status__type": False},
+            id="value-and-type-alias-collision",
+        ),
+        pytest.param(
+            ["subscription.port.speed", "subscription.port_speed"],
+            {"subscription.port.speed": 1000, "subscription.port_speed": "slow"},
+            id="normalized-path-alias-collision",
+        ),
+    ],
+)
+async def test_response_columns_with_colliding_paths(
+    indexed_subscription: UUID,
+    paths: list[str],
+    expected: dict[str, str | bool | int],
+    async_session: AsyncSession,
+) -> None:
+    filters = FilterTree(
+        op=BooleanOperator.AND,
+        children=[
+            PathFilter(
+                path="subscription.status",
+                condition=EqualityFilter(op=FilterOp.EQ, value="active"),
+                value_kind=UIType.STRING,
+            )
+        ],
+    )
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, filters=filters, response_columns=paths)
+
+    response = await engine.execute_search(query, async_session)
+
+    (result,) = [r for r in response.results if r.entity_id == str(indexed_subscription)]
+    assert result.response_columns == expected
+    assert result.response_columns is not None
+    for path, value in expected.items():
+        assert type(result.response_columns[path]) is type(value)
