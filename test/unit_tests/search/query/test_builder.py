@@ -25,6 +25,7 @@ from orchestrator.core.search.query.builder import (
     ComponentInfo,
     LeafInfo,
     _apply_ordering,
+    _restore_value_type,
     build_paths_query,
     process_path_rows,
 )
@@ -325,3 +326,62 @@ def test_apply_ordering_temporal_alias_lookup():
 
     _apply_ordering(stmt, query, [alias])
     stmt.order_by.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Tests: _restore_value_type
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value,value_type,expected",
+    [
+        pytest.param("1000", FieldType.INTEGER, 1000, id="integer"),
+        pytest.param("-5", FieldType.INTEGER, -5, id="negative-integer"),
+        pytest.param("0.5", FieldType.FLOAT, 0.5, id="float"),
+        pytest.param("true", FieldType.BOOLEAN, True, id="boolean-true"),
+        pytest.param("False", FieldType.BOOLEAN, False, id="boolean-false"),
+        pytest.param("active", FieldType.STRING, "active", id="string"),
+        pytest.param("2026-08-28 13:20:14+00:00", FieldType.DATETIME, "2026-08-28 13:20:14+00:00", id="datetime"),
+    ],
+)
+def test_restore_value_type_converts_well_typed_values(value: str, value_type: FieldType, expected: Any):
+    """A value consistent with its recorded type is converted to that Python type."""
+    assert _restore_value_type(value, value_type.value) == expected
+
+
+@pytest.mark.parametrize(
+    "value,value_type",
+    [
+        pytest.param("untagged", FieldType.INTEGER, id="non-numeric-as-integer"),
+        pytest.param("unmetered", FieldType.FLOAT, id="non-numeric-as-float"),
+        pytest.param("", FieldType.INTEGER, id="empty-as-integer"),
+    ],
+)
+def test_restore_value_type_falls_back_to_stored_string(value: str, value_type: FieldType):
+    """A value its recorded type cannot parse is returned as the stored text, not raised.
+
+    Rows indexed before value_type was reconciled against the value still carry a type the
+    value contradicts. Converting eagerly would raise inside the per-row comprehension in
+    process_response_columns and fail the whole search response.
+    """
+    assert _restore_value_type(value, value_type.value) == value
+
+
+def test_restore_value_type_non_boolean_text_is_not_silently_false():
+    """A non-boolean value recorded as boolean keeps its text instead of becoming False.
+
+    `value.lower() == "true"` would answer False for "untagged" -- a wrong answer is worse
+    than an unconverted one, because nothing downstream can tell it was wrong.
+    """
+    assert _restore_value_type("untagged", FieldType.BOOLEAN.value) == "untagged"
+
+
+def test_restore_value_type_none_value_returns_none():
+    """A missing value stays None regardless of the recorded type."""
+    assert _restore_value_type(None, FieldType.INTEGER.value) is None
+
+
+def test_restore_value_type_unknown_type_returns_stored_string():
+    """A value_type not in the FieldType enum falls back to the stored text."""
+    assert _restore_value_type("42", "not_a_real_type") == "42"
