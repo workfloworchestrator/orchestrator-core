@@ -28,8 +28,7 @@ from orchestrator.core.search.core.types import (
     SearchMetadata,
 )
 from orchestrator.core.search.filters import FilterTree
-
-from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
+from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
 
 
 class VisualizationType(BaseModel):

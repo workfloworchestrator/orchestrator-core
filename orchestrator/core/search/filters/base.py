@@ -24,10 +24,9 @@ from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import BooleanOperator, FieldType, FilterOp, SQLAColumn, UIType
-
-from .date_filters import DateFilter
-from .ltree_filters import LtreeFilter
-from .numeric_filter import NumericFilter
+from orchestrator.core.search.filters.date_filters import DateFilter
+from orchestrator.core.search.filters.ltree_filters import LtreeFilter
+from orchestrator.core.search.filters.numeric_filter import NumericFilter
 
 
 class EqualityFilter(BaseModel):

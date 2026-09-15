@@ -16,9 +16,8 @@ from sqlalchemy.sql.expression import ColumnElement
 
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import SearchMetadata
-
-from ..pagination import PageCursor
-from .base import Retriever
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers.base import Retriever
 
 
 class FuzzyRetriever(Retriever):

@@ -16,6 +16,15 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.search.core.types import ResponseColumnData, SearchMetadata
+from orchestrator.core.search.query.builder import (
+    build_aggregation_query,
+    build_candidate_query,
+    build_response_columns_query,
+    build_simple_count_query,
+    process_response_columns,
+)
+from orchestrator.core.search.query.export import fetch_export_data
+from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
 from orchestrator.core.search.query.results import (
     QueryResultsResponse,
     SearchResponse,
@@ -26,16 +35,6 @@ from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers import Retriever
 from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 from orchestrator.core.search.retrieval.session import apply_session_settings
-
-from .builder import (
-    build_aggregation_query,
-    build_candidate_query,
-    build_response_columns_query,
-    build_simple_count_query,
-    process_response_columns,
-)
-from .export import fetch_export_data
-from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
 
 logger = structlog.get_logger(__name__)
 

@@ -19,12 +19,11 @@ from sqlalchemy.sql.expression import CTE, ColumnElement, Label, Subquery
 from sqlalchemy.types import TypeEngine
 
 from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers.base import Retriever
+from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
+from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
 from orchestrator.core.search.retrieval.session import SessionSetting
-
-from ..pagination import PageCursor
-from .base import Retriever
-from .fuzzy import FuzzyRetriever
-from .semantic import SemanticRetriever
 
 # Among perfect matches the text decides: the semantic term is scaled down until it cannot overturn a
 # fuzzy-rank difference for this many rank levels, so it only orders entities that tie on fuzzy rank.

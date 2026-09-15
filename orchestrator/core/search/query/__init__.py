@@ -14,9 +14,8 @@
 """Query building and execution module."""
 
 from orchestrator.core.search.aggregations import TemporalGrouping
-
-from . import engine
-from .builder import (
+from orchestrator.core.search.query import engine
+from orchestrator.core.search.query.builder import (
     ComponentInfo,
     LeafInfo,
     build_aggregation_query,
@@ -26,7 +25,7 @@ from .builder import (
     process_path_rows,
     process_response_columns,
 )
-from .exceptions import (
+from orchestrator.core.search.query.exceptions import (
     EmptyFilterPathError,
     IncompatibleAggregationTypeError,
     IncompatibleFilterTypeError,
@@ -36,8 +35,8 @@ from .exceptions import (
     PathNotFoundError,
     QueryValidationError,
 )
-from .queries import AggregateQuery, CountQuery, ExportQuery, Query, SelectQuery
-from .results import (
+from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, Query, SelectQuery
+from orchestrator.core.search.query.results import (
     MatchingField,
     QueryResultsResponse,
     ResultRow,
@@ -48,7 +47,7 @@ from .results import (
     format_search_response,
     generate_highlight_indices,
 )
-from .state import QueryState
+from orchestrator.core.search.query.state import QueryState
 
 __all__ = [
     # Builder functions

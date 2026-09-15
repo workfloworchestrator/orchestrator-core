@@ -11,12 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import Retriever
-from .fuzzy import FuzzyRetriever
-from .hybrid import RrfHybridRetriever
-from .process import ProcessHybridRetriever
-from .semantic import SemanticRetriever
-from .structured import StructuredRetriever
+from orchestrator.core.search.retrieval.retrievers.base import Retriever
+from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
+from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
+from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
+from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
+from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 
 __all__ = [
     "Retriever",
