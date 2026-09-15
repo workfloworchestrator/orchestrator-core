@@ -20,9 +20,8 @@ from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import SearchMetadata
 from orchestrator.core.search.filters import FilterTree, PathFilter
 from orchestrator.core.search.query.mixins import OrderDirection, StructuredOrderBy
-
-from ..pagination import PageCursor
-from .base import Retriever
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers.base import Retriever
 
 ORDER_VALUE_LABEL = "order_value"
 

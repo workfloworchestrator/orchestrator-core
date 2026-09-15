@@ -17,8 +17,7 @@ from pydantic import BaseModel, ConfigDict, Discriminator, Field, TypeAdapter, m
 
 from orchestrator.core.search.core.types import EntityType, QueryOperation
 from orchestrator.core.search.filters import FilterTree
-
-from .mixins import (
+from orchestrator.core.search.query.mixins import (
     AggregationMixin,
     GroupingMixin,
     SearchMixin,

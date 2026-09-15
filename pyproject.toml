@@ -190,7 +190,7 @@ ignore = [
     "N815",
     "N802",
 ]
-select = ["ASYNC", "B", "C", "D", "E", "F", "I", "N", "RET", "S", "T", "W"]
+select = ["ASYNC", "B", "C", "D", "E", "F", "I", "N", "RET", "S", "T", "TID", "W"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
