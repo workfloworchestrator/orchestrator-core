@@ -80,8 +80,8 @@ async def _execute_search(
     Returns:
         SearchResponse with results and embedding (for internal use).
     """
-    if not query.vector_query and not query.filters and not query.fuzzy_term:
-        logger.warning("No search criteria provided (vector_query, fuzzy_term, or filters).")
+    if not query.query_text and not query.filters:
+        logger.warning("No search criteria provided (query_text or filters).")
         return SearchResponse(results=[], metadata=SearchMetadata.empty())
 
     candidate_query = build_candidate_query(query)

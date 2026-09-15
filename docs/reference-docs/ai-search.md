@@ -125,28 +125,28 @@ flowchart TD
 ```
 
 A request becomes a typed query object. Filters narrow the candidate entities; the free-text part
-decides *how* those candidates are ranked. The engine picks the retriever automatically:
+decides *how* those candidates are ranked. The engine picks the retriever automatically unless the
+request names one:
 
 | Available signals                      | Retriever      | Ranking                                             |
 |----------------------------------------|----------------|------------------------------------------------------|
-| Embedding **and** a single-word term    | **Hybrid**     | semantic and fuzzy rankings fused (see [RRF](#ranking-formulas)) |
-| Embedding only                          | **Semantic**   | closest embedding wins                               |
-| Single-word term only                   | **Fuzzy**      | highest trigram similarity wins                      |
+| Text **and** an embedding               | **Hybrid**     | trigram and semantic rankings fused (see [RRF](#ranking-formulas)) |
+| Text that is a UUID                     | **Fuzzy**      | highest trigram similarity wins                      |
 | Filters only                            | **Structured** | no relevance ranking; ordered by a chosen field      |
+| Explicit `retriever: semantic`          | **Semantic**   | closest embedding wins; never chosen automatically   |
 
-Two rules explain most surprising routing decisions:
+Any free text, single-word or a whole phrase, is fuzzy-matched on the full text *and* ranked
+semantically. In a domain where most searches are identifiers, names and descriptions, the
+trigram signal is the strongest one, so it is always included; the semantic source keeps
+plain-language queries working when no field contains the words. The only text that is not
+embedded is a UUID, which has no meaning to embed and routes to fuzzy matching.
 
-- **Fuzzy matching only applies to single-word text.** Trigram matching on a multi-word phrase
-  filters out nearly everything, so multi-word text is routed to semantic search. To force
-  trigram matching on a phrase, pass an explicit `retriever` of `hybrid` or `fuzzy`.
-- **Text that is a UUID is never embedded.** A UUID has no meaning to embed, so such queries route
-  to fuzzy matching.
+Callers can override the retriever explicitly with `retriever: fuzzy`, `semantic` or `hybrid`.
+If an override needs an embedding and none can be produced, the request fails with a clear error
+rather than silently returning different results; under automatic routing the same situation
+falls back to fuzzy on the full text.
 
-Callers can override the retriever explicitly. If an override needs an embedding and none can be
-produced, the request fails with a clear error rather than silently returning different results;
-under automatic routing the same situation falls back to fuzzy.
-
-Process searches use a variant of the fuzzy and hybrid retrievers that also searches the `state`
+Process searches use a variant of the hybrid retriever that also searches the `state`
 JSONB of the process's most recent step. Process steps are deliberately left out of the index to
 keep its size manageable, so that column is read and matched at query time instead: candidates
 are found with a substring `ILIKE`, then scored with the same trigram similarity used for indexed
@@ -234,8 +234,8 @@ Each command accepts:
 
 `python main.py search` runs individual search strategies from a shell (`structured`, `semantic`,
 `fuzzy`, `hierarchical`, `hybrid`, plus `generate-schema` and `nested-demo`), and
-`python main.py speedtest quick` measures query performance. These are exploration aids and do
-not map one-to-one onto the retrievers described above.
+`python main.py speedtest quick` measures query performance. These are exploration aids; the
+`semantic`, `fuzzy` and `hybrid` commands force the retriever of the same name.
 
 ### Running a local embedding server
 
@@ -371,21 +371,47 @@ and a window of 2000 fields can never yield that many.
 **Hybrid** uses **Reciprocal Rank Fusion (RRF)**: rather than trying to make a distance and a
 similarity score comparable, it ranks results separately by each signal and combines the *ranks*.
 
-Note the candidate set: hybrid starts from the fields that trigram-match the term (capped at 100
-field rows), then computes, per entity, the mean semantic distance and mean fuzzy similarity over
-those fields. Semantic similarity therefore re-ranks fuzzy matches; it does not add entities that
-the term missed entirely. Fields with no embedding count as distance `1.0`.
+It runs the fuzzy and the semantic retriever on the same candidates, each producing one row per
+entity with its score and the field to highlight, and fuses the two rankings:
+
+- the **fuzzy retriever** ranks every entity with a trigram match on the full query text by its best
+  `word_similarity`;
+- the **semantic retriever** ranks the entities in its bounded window (the
+  `SEARCH_SEMANTIC_CANDIDATE_LIMIT` fields closest to the query embedding, read from that entity
+  type's HNSW index), or every embedded entity when the query is an export or asks for more entities
+  than the window holds, exactly as it does on its own.
+
+Each side is dense-ranked on its own (equal scores share a rank). Equal fuzzy scores are ordered by
+the depth of the matching path, so an entity whose own description matches ranks above entities that
+carry the same text in a nested block. The two rankings are joined with a full outer join, so an
+entity found by only one retriever still gets a score and the missing side contributes `0`.
+Plain-language queries that no field trigram-matches therefore come out in the semantic order, while
+identifiers and names that trigram-match are lifted. Note that `word_similarity` compares the whole
+query text with a field, so an identifier surrounded by words that the field does not contain can
+fall below the gate and rank on its embedding only. The reported matching field is the fuzzy
+retriever's when there is one, otherwise the semantic retriever's.
 
 ```text
-rrf     = 1/(k + sem_rank) + 1/(k + fuzzy_rank)   # k = 60
+perfect = 1 if best_fuzzy_score >= 0.9 else 0
+w_sem   = (k+1)/((k+R)(k+R+1)) if perfect else 1  # R = 1000: semantics only break ties between perfect matches
+rrf     = w_sem/(k + sem_rank) + 1/(k + fuzzy_rank)   # k = 60; a NULL rank contributes 0
 rrf_max = n_sources / (k + 1)                     # n_sources = 2
 beta    = rrf_max * 1.05
-perfect = 1 if avg_fuzzy_score >= 0.9 else 0
 score   = (rrf + beta * perfect) / (beta + rrf_max)   # normalized to [0, 1]
 ```
 
-Because `beta` exceeds the largest possible `rrf`, any near-exact text match (average fuzzy
-similarity ≥ 0.9) always outranks every non-exact result. Ties break on `entity_id`.
+Because `beta` exceeds the largest possible `rrf`, any near-exact text match (best fuzzy
+similarity ≥ 0.9) always outranks every non-perfect result, including entities that only semantic
+ranking would have put on top. Among perfect matches the text decides: the semantic term is scaled
+down so far that it cannot overturn a fuzzy-rank difference for the first `R = 1000` rank levels
+(identical similarities share a rank, so real queries stay far below that), and only orders entities
+with the same fuzzy score and matching depth. Ties break on `entity_id`.
+
+Because the semantic retriever always contributes its window, a lookup query is followed by its
+semantic neighbours: `has_next_page` stays true after the last text match, and an export includes
+the neighbours up to its limit. Without an embedding (a UUID, or an embedder that produced none) the
+process hybrid runs its fuzzy side alone and normalises with one source, so a perfect match then
+scores `1.0` instead of about `0.76`.
 
 ### Filters
 
@@ -500,7 +526,7 @@ All embedding settings live in `LLMSettings` (`orchestrator/core/settings.py`).
 | `EMBEDDING_MAX_BATCH_SIZE`              | `None`                           | maximum items per embedding batch (`None` = unlimited)      |
 | `LLM_MAX_RETRIES` / `LLM_TIMEOUT`       | `3` / `30`                       | LiteLLM retry and timeout, used during indexing             |
 | `LLM_FORCE_EXTENSION_MIGRATION`         | `False`                          | force `CREATE EXTENSION` in the search migration            |
-| `SEARCH_SEMANTIC_CANDIDATE_LIMIT`       | `2000`                           | fields the semantic retriever reads from the HNSW index per search; bounds how deep its pagination reaches |
+| `SEARCH_SEMANTIC_CANDIDATE_LIMIT`       | `2000`                           | fields the semantic retriever, and the hybrid retriever's semantic source, read from the HNSW index per search; bounds how deep pagination reaches |
 
 Live queries do not use `LLM_MAX_RETRIES`/`LLM_TIMEOUT`: they embed with a 5-second timeout and no
 retries, because a slow search is worse than one without semantic ranking.

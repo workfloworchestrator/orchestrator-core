@@ -177,9 +177,9 @@ class LLMSettings(BaseSettings):
         2000,
         gt=0,
         description=(
-            "How many index fields the semantic retriever pulls from the HNSW index per search. "
-            "Higher reaches further down the result list at the cost of a slower scan; exports are "
-            "not capped."
+            "How many index fields the semantic retriever, and the semantic source of the hybrid retriever, "
+            "pull from the HNSW index per search. Higher reaches further down the result list at the cost "
+            "of a slower scan; semantic exports are not capped."
         ),
     )
 
