@@ -28,7 +28,7 @@ from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db import db
 from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.search.core.types import EntityType, FieldType, FilterOp, SearchMetadata, UIType
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FieldType, FilterOp, SearchMetadata, UIType
 from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter
 from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.builder import build_candidate_query
@@ -110,14 +110,15 @@ def seeded() -> type[Seeded]:
 
 
 def _active_filter() -> FilterTree:
-    return FilterTree.from_flat_and(
-        [
+    return FilterTree(
+        op=BooleanOperator.AND,
+        children=[
             PathFilter(
                 path="subscription.status",
                 condition=EqualityFilter(op=FilterOp.EQ, value="active"),
                 value_kind=UIType.STRING,
             )
-        ]
+        ],
     )
 
 
