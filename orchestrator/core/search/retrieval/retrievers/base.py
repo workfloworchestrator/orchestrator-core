@@ -50,9 +50,9 @@ class Retriever(ABC):
         """Pick the retriever class that will handle this query.
 
         Internal helper consumed by `needs_embedding()` and `route()`;
-        Honors explicit `query.retriever` overrides first,
-        then falls back to auto-routing based on which search criteria are
-        present. Process-entity queries that would use Fuzzy or RrfHybrid are
+        Honors explicit `query.retriever` overrides first, then auto-routes:
+        embeddable text -> Hybrid, UUID text -> Fuzzy, no text -> Structured.
+        Process-entity queries that would use Fuzzy or RrfHybrid are
         promoted to ProcessHybridRetriever (which adds JSONB last_step search).
         """
         from .fuzzy import FuzzyRetriever
@@ -67,11 +67,11 @@ class Retriever(ABC):
             retriever_cls = SemanticRetriever
         elif query.retriever == RetrieverType.HYBRID:
             retriever_cls = RrfHybridRetriever
-        elif query.vector_query and query.fuzzy_term:
-            retriever_cls = RrfHybridRetriever
         elif query.vector_query:
-            retriever_cls = SemanticRetriever
-        elif query.fuzzy_term:
+            # Any embeddable text: trigram matching on the full text fused with semantic ranking.
+            retriever_cls = RrfHybridRetriever
+        elif query.query_text:
+            # Text that is never embedded (a UUID): trigram matching only.
             retriever_cls = FuzzyRetriever
         else:
             retriever_cls = StructuredRetriever
@@ -118,10 +118,10 @@ class Retriever(ABC):
         Selects the retriever class via `_plan()`, then constructs it. The
         rules in short:
 
-        - Hybrid:    embedding + fuzzy term available
-        - Semantic:  embedding available, no fuzzy term
-        - Fuzzy:    fuzzy term available (or fallback when embedding generation fails)
+        - Hybrid:     query text + embedding available
+        - Fuzzy:      query text is a UUID (never embedded), or fallback when embedding generation fails
         - Structured: only filters available
+        - Semantic:   explicit override only
         - Process entities use ProcessHybridRetriever in place of Fuzzy/Hybrid.
 
         For explicit `query.retriever` overrides, raises ValueError when
@@ -154,37 +154,42 @@ class Retriever(ABC):
                     f"{override.value.capitalize()} retriever requested but query embedding is not available. "
                     "Embedding generation may have failed."
                 )
-            # Auto-routing fallback: degrade to fuzzy on full query text when the
-            # embedder couldn't produce a vector. needs_embedding=True for auto-route
-            # implies query.query_text is set.
-            return (
-                ProcessHybridRetriever(None, query.query_text, cursor)
-                if is_process
-                else FuzzyRetriever(query.query_text, cursor)  # type: ignore[arg-type]
-            )
+            # Auto-routing fallback: degrade to fuzzy on the full query text when the
+            # embedder couldn't produce a vector.
+            if query.query_text is not None:
+                return (
+                    ProcessHybridRetriever(None, query.query_text, cursor, entity_type=query.entity_type)
+                    if is_process
+                    else FuzzyRetriever(query.query_text, cursor)
+                )
 
-        # Explicit overrides honor the full query_text; auto-routed fuzzy/hybrid use
-        # the (single-word) fuzzy_term from the search mixin.
-        fuzzy_text = query.query_text if override is not None else query.fuzzy_term
+        # Semantic ranking reads a bounded window from the HNSW index, unless the query wants more
+        # entities than the window holds: exports, and limits above the window, rank the whole corpus.
+        candidates_limit = llm_settings.SEARCH_SEMANTIC_CANDIDATE_LIMIT
+        window = None if isinstance(query, ExportQuery) or query.limit > candidates_limit else candidates_limit
 
         if retriever_cls is StructuredRetriever:
             return StructuredRetriever(cursor, query.order_by, query.filters)
-        if retriever_cls is FuzzyRetriever and fuzzy_text is not None:
-            return FuzzyRetriever(fuzzy_text, cursor)
+        if retriever_cls is FuzzyRetriever and query.query_text is not None:
+            return FuzzyRetriever(query.query_text, cursor)
         if retriever_cls is SemanticRetriever and query_embedding is not None:
-            candidates_limit = llm_settings.SEARCH_SEMANTIC_CANDIDATE_LIMIT
-            return SemanticRetriever(
+            return SemanticRetriever(query_embedding, cursor, entity_type=query.entity_type, candidates_limit=window)
+        if retriever_cls is RrfHybridRetriever and query_embedding is not None and query.query_text is not None:
+            return RrfHybridRetriever(
                 query_embedding,
+                query.query_text,
                 cursor,
                 entity_type=query.entity_type,
-                candidates_limit=None
-                if isinstance(query, ExportQuery) or query.limit > candidates_limit
-                else candidates_limit,
+                semantic_candidates_limit=window,
             )
-        if retriever_cls is RrfHybridRetriever and query_embedding is not None and fuzzy_text is not None:
-            return RrfHybridRetriever(query_embedding, fuzzy_text, cursor)
-        if retriever_cls is ProcessHybridRetriever and fuzzy_text is not None:
-            return ProcessHybridRetriever(query_embedding, fuzzy_text, cursor)
+        if retriever_cls is ProcessHybridRetriever and query.query_text is not None:
+            return ProcessHybridRetriever(
+                query_embedding,
+                query.query_text,
+                cursor,
+                entity_type=query.entity_type,
+                semantic_candidates_limit=window,
+            )
         raise RuntimeError(f"Unreachable: _plan() returned {retriever_cls.__name__} but required inputs are missing")
 
     @property

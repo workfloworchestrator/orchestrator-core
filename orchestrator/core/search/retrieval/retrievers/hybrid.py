@@ -11,17 +11,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
 from typing import TypedDict
 
-from sqlalchemy import BindParameter, Select, and_, bindparam, case, cast, func, literal, or_, select
-from sqlalchemy.sql.expression import ColumnElement, Label
+from sqlalchemy import Integer, Select, and_, case, cast, func, literal, null, or_, select
+from sqlalchemy.sql.expression import CTE, ColumnElement, Label, Subquery
 from sqlalchemy.types import TypeEngine
 
-from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.search.core.types import SearchMetadata
+from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.retrieval.session import SessionSetting
 
 from ..pagination import PageCursor
 from .base import Retriever
+from .fuzzy import FuzzyRetriever
+from .semantic import SemanticRetriever
+
+# Among perfect matches the text decides: the semantic term is scaled down until it cannot overturn a
+# fuzzy-rank difference for this many rank levels, so it only orders entities that tie on fuzzy rank.
+# Identical similarities share a dense rank, so real queries stay far below this.
+PERFECT_TEXT_DECIDES_RANKS = 1000
+
+
+def semantic_tiebreak_weight(k: int, ranks: int = PERFECT_TEXT_DECIDES_RANKS) -> float:
+    """Largest weight for the semantic term of perfect matches that keeps `ranks` fuzzy-rank gaps decisive.
+
+    The weighted semantic term is at most ``w / (k + 1)``; adjacent fuzzy ranks ``r`` and ``r + 1``
+    differ by ``1 / ((k + r) * (k + r + 1))``, which shrinks as ``r`` grows. Equating the two at
+    ``r = ranks`` gives the bound.
+    """
+    return (k + 1) / ((k + ranks) * (k + ranks + 1))
 
 
 class RrfScoreSqlComponents(TypedDict):
@@ -38,12 +56,13 @@ class RrfScoreSqlComponents(TypedDict):
 def compute_rrf_hybrid_score_sql(
     sem_rank_col: ColumnElement,
     fuzzy_rank_col: ColumnElement,
-    avg_fuzzy_score_col: ColumnElement,
+    best_fuzzy_score_col: ColumnElement,
     k: int,
     perfect_threshold: float,
     n_sources: int = 2,
     margin_factor: float = 0.05,
     score_numeric_type: TypeEngine | None = None,
+    perfect_semantic_weight: float | None = None,
 ) -> RrfScoreSqlComponents:
     """Compute RRF (Reciprocal Rank Fusion) hybrid score as SQL expressions for database execution.
 
@@ -55,19 +74,26 @@ def compute_rrf_hybrid_score_sql(
     4. Normalized final score in [0, 1] range
 
     Args:
-        sem_rank_col: SQLAlchemy column expression for semantic rank
-        fuzzy_rank_col: SQLAlchemy column expression for fuzzy rank
-        avg_fuzzy_score_col: SQLAlchemy column expression for average fuzzy score
+        sem_rank_col: SQLAlchemy column expression for semantic rank (NULL when the entity was not
+            found by the semantic retriever)
+        fuzzy_rank_col: SQLAlchemy column expression for fuzzy rank (NULL when the entity was not
+            found by the fuzzy retriever)
+        best_fuzzy_score_col: SQLAlchemy column expression for the entity's fuzzy score, its best
+            field's word similarity (NULL when the entity was not found by the fuzzy retriever)
         k: RRF constant controlling rank influence (typically 60)
         perfect_threshold: Threshold for perfect match boost (typically 0.9)
         n_sources: Number of ranking sources being fused (default: 2 for semantic + fuzzy)
         margin_factor: Margin above rrf_max as fraction (default: 0.05 = 5%)
         score_numeric_type: SQLAlchemy numeric type for casting scores
+        perfect_semantic_weight: Factor applied to the semantic term of perfect matches. Among perfect
+            matches the text decides: the semantic rank only breaks exact fuzzy-rank ties. Defaults to
+            :func:`semantic_tiebreak_weight` for ``k``, which keeps the semantic term below the gap between
+            any two adjacent fuzzy ranks up to ``PERFECT_TEXT_DECIDES_RANKS``.
 
     Returns:
         RrfScoreSqlComponents: Dictionary of SQL expressions for score components
             - rrf_num: Raw RRF score (cast to numeric type if provided)
-            - perfect: Perfect match flag (1 if avg_fuzzy_score >= threshold, else 0)
+            - perfect: Perfect match flag (1 if best_fuzzy_score >= threshold, else 0)
             - beta: Boost amount for perfect matches
             - rrf_max: Maximum possible RRF score
             - fused_num: RRF + perfect boost
@@ -80,16 +106,21 @@ def compute_rrf_hybrid_score_sql(
             RRF score (`rrf_max`). This guarantees that any item flagged as a "perfect" match
             will always rank above any non-perfect match.
 
-        -   This function assumes that rank columns do not
-            contain `NULL` values. A `NULL` in any rank column will result in a `NULL` final score
-            for that item.
+        -   A `NULL` rank means the entity was not returned by that source and contributes
+            `0` to the RRF sum; a `NULL` best fuzzy score never counts as a perfect match.
     """
-    # RRF (rank-based): sum of 1/(k + rank_i) for each ranking source
-    rrf_raw = (1.0 / (k + sem_rank_col)) + (1.0 / (k + fuzzy_rank_col))
-    rrf_num = cast(rrf_raw, score_numeric_type) if score_numeric_type else rrf_raw
+    # Perfect flag to boost near perfect fuzzy matches (NULL score -> else branch -> 0)
+    is_perfect = best_fuzzy_score_col >= perfect_threshold
+    perfect = case((is_perfect, 1), else_=0).label("perfect_match")
 
-    # Perfect flag to boost near perfect fuzzy matches
-    perfect = case((avg_fuzzy_score_col >= perfect_threshold, 1), else_=0).label("perfect_match")
+    # RRF (rank-based): sum of 1/(k + rank_i) for each ranking source; a missing source contributes 0.
+    # For perfect matches the semantic term is reduced to a tiebreaker (see perfect_semantic_weight).
+    weight = semantic_tiebreak_weight(k) if perfect_semantic_weight is None else perfect_semantic_weight
+    sem_weight = case((is_perfect, weight), else_=1.0)
+    rrf_raw = func.coalesce(sem_weight * (1.0 / (k + sem_rank_col)), 0.0) + func.coalesce(
+        1.0 / (k + fuzzy_rank_col), 0.0
+    )
+    rrf_num = cast(rrf_raw, score_numeric_type) if score_numeric_type else rrf_raw
 
     # Dynamic beta based on k and number of sources
     # rrf_max = n_sources / (k + 1)
@@ -121,115 +152,108 @@ def compute_rrf_hybrid_score_sql(
 
 
 class RrfHybridRetriever(Retriever):
-    """Reciprocal Rank Fusion of semantic and fuzzy ranking with parent-child retrieval."""
+    """Reciprocal Rank Fusion of the fuzzy and the semantic retriever.
+
+    Both retrievers rank the same candidates, each yielding one row per entity with its score and the
+    field to highlight. The two rankings are joined with a full outer join and fused with RRF, so an
+    entity found by only one retriever still gets a score and the missing side contributes nothing.
+    Entities whose fuzzy score reaches ``PERFECT_THRESHOLD`` are boosted above every non-perfect
+    result. Without an embedding only the fuzzy retriever runs.
+    """
+
+    PERFECT_THRESHOLD = 0.9
 
     def __init__(
         self,
-        q_vec: list[float],
+        q_vec: list[float] | None,
         fuzzy_term: str,
         cursor: PageCursor | None,
         k: int = 60,
-        field_candidates_limit: int = 100,
+        entity_type: EntityType | None = None,
+        semantic_candidates_limit: int | None = None,
     ) -> None:
         self.q_vec = q_vec
         self.fuzzy_term = fuzzy_term
         self.cursor = cursor
         self.k = k
-        self.field_candidates_limit = field_candidates_limit
+        self.entity_type = entity_type
+        self.semantic_candidates_limit = semantic_candidates_limit
+        # The sources paginate nothing themselves: the fused score is what pages.
+        self.fuzzy = FuzzyRetriever(fuzzy_term, cursor=None)
+        self.semantic = (
+            SemanticRetriever(q_vec, cursor=None, entity_type=entity_type, candidates_limit=semantic_candidates_limit)
+            if q_vec is not None
+            else None
+        )
+
+    @property
+    def session_settings(self) -> Sequence[SessionSetting]:
+        return self.semantic.session_settings if self.semantic is not None else ()
 
     def apply(self, candidate_query: Select) -> Select:
-        cand = candidate_query.subquery()
-        q_param: BindParameter[list[float]] = bindparam("q_vec", self.q_vec, type_=AiSearchIndex.embedding.type)
+        fuzzy_results = self._fuzzy_results(candidate_query)
+        semantic_results = self._semantic_results(candidate_query)
+        ranked = self._ranked_results(fuzzy_results, semantic_results)
+        return self._fused(ranked, n_sources=1 if semantic_results is None else 2)
 
-        best_similarity = func.word_similarity(self.fuzzy_term, AiSearchIndex.value)
-        sem_expr = case(
-            (AiSearchIndex.embedding.is_(None), None),
-            else_=AiSearchIndex.embedding.op("<->")(q_param),
+    def _fuzzy_results(self, candidate_query: Select) -> Subquery:
+        """One row per entity from the fuzzy retriever: its best trigram score and the field to highlight."""
+        return self.fuzzy.apply(candidate_query).order_by(None).subquery("fuzzy_results")
+
+    def _semantic_results(self, candidate_query: Select) -> Subquery | None:
+        """One row per entity from the semantic retriever, or None when there is no embedding."""
+        if self.semantic is None:
+            return None
+        return self.semantic.apply(candidate_query).order_by(None).subquery("semantic_results")
+
+    def _ranked_results(self, fuzzy_results: Subquery, semantic_results: Subquery | None) -> CTE:
+        """Both sources joined per entity with a dense rank per source (NULL when the source missed it)."""
+        f = fuzzy_results.c
+        # Equal fuzzy scores are broken by the depth of the matching field: an entity whose own
+        # description/title matches ranks above entities that carry the same text in a nested block.
+        fuzzy_rank = func.dense_rank().over(
+            order_by=[f.score.desc().nulls_last(), func.nlevel(f.highlight_path).asc().nulls_last()]
         )
-        sem_val = func.coalesce(sem_expr, literal(1.0)).label("semantic_distance")
 
-        filter_condition = literal(self.fuzzy_term).op("<%")(AiSearchIndex.value)
+        if semantic_results is None:
+            # A typed NULL: an untyped NULL column in a CTE defaults to text, which breaks `k + sem_rank`.
+            return (
+                select(
+                    f.entity_id,
+                    f.entity_title,
+                    f.score.label("fuzzy_score"),
+                    f.highlight_text,
+                    f.highlight_path,
+                    cast(null(), Integer).label("sem_rank"),
+                    fuzzy_rank.label("fuzzy_rank"),
+                ).select_from(fuzzy_results)
+            ).cte("ranked_results")
 
-        field_candidates = (
+        s = semantic_results.c
+        return (
             select(
-                AiSearchIndex.entity_id,
-                AiSearchIndex.entity_title,
-                AiSearchIndex.path,
-                AiSearchIndex.value,
-                sem_val,
-                best_similarity.label("fuzzy_score"),
-            )
-            .select_from(AiSearchIndex)
-            .join(cand, cand.c.entity_id == AiSearchIndex.entity_id)
-            .where(
-                and_(
-                    AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
-                    filter_condition,
-                )
-            )
-            .order_by(
-                best_similarity.desc().nulls_last(),
-                sem_expr.asc().nulls_last(),
-                AiSearchIndex.entity_id.asc(),
-            )
-            .limit(self.field_candidates_limit)
-        ).cte("field_candidates")
-
-        entity_scores = (
-            select(
-                field_candidates.c.entity_id,
-                field_candidates.c.entity_title,
-                func.avg(field_candidates.c.semantic_distance).label("avg_semantic_distance"),
-                func.avg(field_candidates.c.fuzzy_score).label("avg_fuzzy_score"),
-            ).group_by(field_candidates.c.entity_id, field_candidates.c.entity_title)
-        ).cte("entity_scores")
-
-        entity_highlights = (
-            select(
-                field_candidates.c.entity_id,
-                func.first_value(field_candidates.c.value)
-                .over(
-                    partition_by=field_candidates.c.entity_id,
-                    order_by=[field_candidates.c.fuzzy_score.desc(), field_candidates.c.path.asc()],
-                )
-                .label(self.HIGHLIGHT_TEXT_LABEL),
-                func.first_value(field_candidates.c.path)
-                .over(
-                    partition_by=field_candidates.c.entity_id,
-                    order_by=[field_candidates.c.fuzzy_score.desc(), field_candidates.c.path.asc()],
-                )
-                .label(self.HIGHLIGHT_PATH_LABEL),
-            ).distinct(field_candidates.c.entity_id)
-        ).cte("entity_highlights")
-
-        ranked = (
-            select(
-                entity_scores.c.entity_id,
-                entity_scores.c.entity_title,
-                entity_scores.c.avg_semantic_distance,
-                entity_scores.c.avg_fuzzy_score,
-                entity_highlights.c.highlight_text,
-                entity_highlights.c.highlight_path,
-                func.dense_rank()
-                .over(
-                    order_by=[entity_scores.c.avg_semantic_distance.asc().nulls_last(), entity_scores.c.entity_id.asc()]
-                )
-                .label("sem_rank"),
-                func.dense_rank()
-                .over(order_by=[entity_scores.c.avg_fuzzy_score.desc().nulls_last(), entity_scores.c.entity_id.asc()])
-                .label("fuzzy_rank"),
-            ).select_from(
-                entity_scores.join(entity_highlights, entity_scores.c.entity_id == entity_highlights.c.entity_id)
-            )
+                func.coalesce(f.entity_id, s.entity_id).label("entity_id"),
+                func.coalesce(f.entity_title, s.entity_title).label("entity_title"),
+                f.score.label("fuzzy_score"),
+                func.coalesce(f.highlight_text, s.highlight_text).label(self.HIGHLIGHT_TEXT_LABEL),
+                func.coalesce(f.highlight_path, s.highlight_path).label(self.HIGHLIGHT_PATH_LABEL),
+                case(
+                    (s.entity_id.is_(None), null()),
+                    else_=func.dense_rank().over(order_by=s.score.desc().nulls_last()),
+                ).label("sem_rank"),
+                case((f.entity_id.is_(None), null()), else_=fuzzy_rank).label("fuzzy_rank"),
+            ).select_from(fuzzy_results.outerjoin(semantic_results, f.entity_id == s.entity_id, full=True))
         ).cte("ranked_results")
 
-        # Compute RRF hybrid score
+    def _fused(self, ranked: CTE, n_sources: int) -> Select:
+        """RRF over the per-source ranks, the perfect-match boost, keyset pagination and ordering."""
         score_components = compute_rrf_hybrid_score_sql(
             sem_rank_col=ranked.c.sem_rank,
             fuzzy_rank_col=ranked.c.fuzzy_rank,
-            avg_fuzzy_score_col=ranked.c.avg_fuzzy_score,
+            best_fuzzy_score_col=ranked.c.fuzzy_score,
             k=self.k,
-            perfect_threshold=0.9,
+            perfect_threshold=self.PERFECT_THRESHOLD,
+            n_sources=n_sources,
             score_numeric_type=self.SCORE_NUMERIC_TYPE,
         )
 
@@ -256,7 +280,7 @@ class RrfHybridRetriever(Retriever):
         return stmt.order_by(
             score.desc().nulls_last(),
             ranked.c.entity_id.asc(),
-        ).params(q_vec=self.q_vec)
+        )
 
     def _apply_fused_pagination(
         self,

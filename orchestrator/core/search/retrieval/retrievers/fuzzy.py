@@ -30,6 +30,9 @@ class FuzzyRetriever(Retriever):
 
     def apply(self, candidate_query: Select) -> Select:
         similarity_expr = func.word_similarity(self.fuzzy_term, AiSearchIndex.value)
+        # The highlighted field is the best match, and among equally good ones the shallowest: an entity's
+        # own description over the same text inside a nested block.
+        highlight_order = [similarity_expr.desc(), func.nlevel(AiSearchIndex.path).asc(), AiSearchIndex.path.asc()]
 
         raw_max = func.max(similarity_expr).over(partition_by=AiSearchIndex.entity_id)
         score = cast(
@@ -42,10 +45,10 @@ class FuzzyRetriever(Retriever):
                 AiSearchIndex.entity_title,
                 score,
                 func.first_value(AiSearchIndex.value)
-                .over(partition_by=AiSearchIndex.entity_id, order_by=[similarity_expr.desc(), AiSearchIndex.path.asc()])
+                .over(partition_by=AiSearchIndex.entity_id, order_by=highlight_order)
                 .label(self.HIGHLIGHT_TEXT_LABEL),
                 func.first_value(AiSearchIndex.path)
-                .over(partition_by=AiSearchIndex.entity_id, order_by=[similarity_expr.desc(), AiSearchIndex.path.asc()])
+                .over(partition_by=AiSearchIndex.entity_id, order_by=highlight_order)
                 .label(self.HIGHLIGHT_PATH_LABEL),
             )
             .select_from(AiSearchIndex)

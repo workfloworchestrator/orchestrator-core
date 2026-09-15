@@ -13,22 +13,26 @@
 
 """Tests for ProcessHybridRetriever SQL query generation.
 
-Covers semantic distance expression, indexed candidates, JSONB candidates,
-the apply() method (CTEs, UNION ALL, RRF scoring, pagination), and metadata.
+Covers the last-step (JSONB) fuzzy source, how it is united with the fuzzy retriever's rows,
+the optional semantic side, the apply() method (CTEs, RRF scoring, pagination), and metadata.
 """
 
 import uuid
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
 from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.search.core.types import SearchMetadata
+from orchestrator.core.search.core.types import EntityType, SearchMetadata
 from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
 from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
+from orchestrator.core.search.retrieval.session import HNSW_ITERATIVE_SCAN
 
 pytestmark = pytest.mark.search
+
+RESULT_COLUMNS = ["entity_id", "entity_title", "score", "highlight_text", "highlight_path"]
 
 
 def compile_sql(stmt) -> str:
@@ -51,15 +55,6 @@ def query_id() -> uuid.UUID:
     return uuid.uuid4()
 
 
-def _build_indexed_stmt(retriever, candidate_query):
-    """Build the indexed-candidates statement with standard args."""
-    cand = candidate_query.subquery()
-    sem_val = retriever._get_semantic_distance_expr()
-    best_similarity = func.word_similarity(retriever.fuzzy_term, AiSearchIndex.value)
-    filter_condition = AiSearchIndex.value_type.in_(retriever.SEARCHABLE_FIELD_TYPES)
-    return retriever._build_indexed_candidates(cand, sem_val, best_similarity, filter_condition)
-
-
 # ---------------------------------------------------------------------------
 # Init
 # ---------------------------------------------------------------------------
@@ -79,82 +74,41 @@ def test_init_stores_q_vec_as_given(q_vec):
     assert retriever.q_vec == q_vec
 
 
-def test_init_parent_attributes_set():
-    """Parent attributes are correctly initialised."""
+def test_init_builds_the_two_retrievers():
+    """The fuzzy retriever always exists; the semantic one carries the window and entity type."""
     retriever = ProcessHybridRetriever(
-        q_vec=[0.1, 0.2], fuzzy_term="world", cursor=None, k=30, field_candidates_limit=50
+        q_vec=[0.1, 0.2],
+        fuzzy_term="world",
+        cursor=None,
+        k=30,
+        entity_type=EntityType.PROCESS,
+        semantic_candidates_limit=7,
     )
-    assert retriever.fuzzy_term == "world"
     assert retriever.k == 30
-    assert retriever.field_candidates_limit == 50
-
-
-# ---------------------------------------------------------------------------
-# Semantic distance expression
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "q_vec,expect_literal_only",
-    [
-        pytest.param(None, True, id="none_q_vec_literal_only"),
-        pytest.param([0.1, 0.9], False, id="q_vec_uses_embedding"),
-    ],
-)
-def test_semantic_distance_expr(q_vec, expect_literal_only):
-    """None -> literal 1.0 only (no <-> or coalesce); list -> embedding distance with coalesce."""
-    retriever = ProcessHybridRetriever(q_vec=q_vec, fuzzy_term="term", cursor=None)
-    expr = retriever._get_semantic_distance_expr()
-    sql = compile_sql(select(expr))
-
-    assert "semantic_distance" in sql
-    if expect_literal_only:
-        assert "<->" not in sql
-        assert "coalesce" not in sql.lower()
-    else:
-        assert "<->" in sql
-        assert "coalesce" in sql.lower()
-
-
-# ---------------------------------------------------------------------------
-# Indexed candidates
-# ---------------------------------------------------------------------------
+    assert retriever.fuzzy.fuzzy_term == "world"
+    assert retriever.semantic is not None
+    assert retriever.semantic.vector_query == [0.1, 0.2]
+    assert retriever.semantic.entity_type == EntityType.PROCESS
+    assert retriever.semantic.candidates_limit == 7
 
 
 @pytest.mark.parametrize(
-    "assertion_key,assertion_check",
+    "q_vec,entity_type,expected",
     [
-        pytest.param("ai_search_index", lambda sql: "ai_search_index" in sql.lower(), id="selects_ai_search_index"),
-        pytest.param("entity_id", lambda sql: "entity_id" in sql, id="has_entity_id"),
-        pytest.param("entity_title", lambda sql: "entity_title" in sql, id="has_entity_title"),
-        pytest.param("semantic_distance", lambda sql: "semantic_distance" in sql, id="has_semantic_distance"),
-        pytest.param("fuzzy_score", lambda sql: "fuzzy_score" in sql, id="has_fuzzy_score"),
-        pytest.param("value_type_in", lambda sql: "value_type" in sql and "IN" in sql, id="filters_by_value_type"),
+        pytest.param(None, EntityType.PROCESS, (), id="fuzzy_only_needs_nothing"),
+        pytest.param([0.1, 0.2], None, (), id="unbounded_semantic_needs_nothing"),
+        pytest.param([0.1, 0.2], EntityType.PROCESS, (HNSW_ITERATIVE_SCAN,), id="bounded_semantic_scans_iteratively"),
     ],
 )
-def test_indexed_candidates_sql_structure(candidate_query, assertion_key, assertion_check):
-    """The indexed-candidates query contains expected SQL elements."""
-    retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="foo", cursor=None)
-    sql = compile_sql(_build_indexed_stmt(retriever, candidate_query))
-    assert assertion_check(sql)
-
-
-def test_indexed_candidates_joins_candidates_cte(candidate_query):
-    """The indexed-candidates query joins on the candidates CTE entity_id."""
-    retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="foo", cursor=None)
-    sql = compile_sql(_build_indexed_stmt(retriever, candidate_query))
-    assert "entity_id" in sql
-
-
-def test_indexed_candidates_applies_limit(candidate_query):
-    """The indexed-candidates query has a LIMIT clause."""
-    retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="foo", cursor=None, field_candidates_limit=42)
-    sql = compile_sql(_build_indexed_stmt(retriever, candidate_query))
-    assert "LIMIT" in sql
+def test_session_settings_follow_the_semantic_side(q_vec, entity_type, expected):
+    retriever = ProcessHybridRetriever(
+        q_vec=q_vec, fuzzy_term="term", cursor=None, entity_type=entity_type, semantic_candidates_limit=10
+    )
+    assert tuple(retriever.session_settings) == expected
 
 
 # ---------------------------------------------------------------------------
-# JSONB candidates
+# Last-step (JSONB) source
 # ---------------------------------------------------------------------------
 
 
@@ -163,57 +117,38 @@ def test_indexed_candidates_applies_limit(candidate_query):
     [
         pytest.param("process_steps", id="references_process_step_table"),
         pytest.param("LATERAL", id="uses_lateral_subquery"),
-        pytest.param("word_similarity", id="uses_word_similarity"),
-        pytest.param("semantic_distance", id="has_semantic_distance_label"),
+        pytest.param("completed_at DESC", id="picks_the_last_step"),
+        pytest.param("word_similarity", id="scores_with_word_similarity"),
+        pytest.param("ILIKE", id="filters_with_ilike"),
+        pytest.param("AS LTREE", id="labels_the_path_as_ltree"),
     ],
 )
-def test_jsonb_candidates_sql_contains(candidate_query, sql_fragment):
-    """The JSONB-candidates query contains expected SQL fragments."""
+def test_last_step_results_sql_contains(candidate_query, sql_fragment):
     retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="foo", cursor=None)
-    cand = candidate_query.subquery()
-    sql = compile_sql(retriever._build_jsonb_candidates(cand))
-    assert sql_fragment.lower() in sql.lower()
+    sql = compile_sql(retriever._last_step_results(candidate_query))
+    assert sql_fragment in sql
 
 
-def test_jsonb_candidates_casts_state_to_text(candidate_query):
-    """The JSONB state column is cast to TEXT for substring search."""
+def test_last_step_results_match_the_fuzzy_retriever_shape(candidate_query):
+    """Both sources are unioned, so the last-step rows must carry the same columns in the same order."""
     retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="foo", cursor=None)
-    cand = candidate_query.subquery()
-    sql = compile_sql(retriever._build_jsonb_candidates(cand))
-    assert "TEXT" in sql or "text" in sql.lower() or "CAST" in sql
+    assert list(retriever._last_step_results(candidate_query).selected_columns.keys()) == RESULT_COLUMNS
+    assert list(FuzzyRetriever("foo", cursor=None).apply(candidate_query).selected_columns.keys()) == RESULT_COLUMNS
 
 
-def test_jsonb_candidates_uses_ilike_filter(candidate_query):
-    """The JSONB-candidates query uses ILIKE for filtering by fuzzy term."""
-    retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="testterm", cursor=None)
-    cand = candidate_query.subquery()
-    sql = compile_sql(retriever._build_jsonb_candidates(cand))
-    assert "ilike" in sql.lower()
-
-
-def test_jsonb_candidates_has_ltree_path_label(candidate_query):
-    """The JSONB candidates include a path column cast to LTREE."""
+def test_fuzzy_results_keep_the_best_score_per_process(candidate_query):
+    """Indexed and last-step rows are united and reduced to one row per process, best score first, ties by path."""
     retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="foo", cursor=None)
-    cand = candidate_query.subquery()
-    sql = compile_sql(retriever._build_jsonb_candidates(cand))
-    assert "ltree" in sql.lower()
-    assert "path" in sql
+    sql = compile_sql(select(retriever._fuzzy_results(candidate_query)))
+    assert "UNION ALL" in sql
+    assert "DISTINCT ON (fuzzy_sources.entity_id)" in sql
+    assert "ORDER BY fuzzy_sources.entity_id, fuzzy_sources.score DESC, fuzzy_sources.highlight_path" in sql
 
 
-def test_jsonb_candidates_orders_by_completed_at_desc(candidate_query):
-    """The lateral subquery orders by completed_at DESC to pick the last step."""
+def test_last_step_results_are_capped(candidate_query):
+    """The lateral last-step lookup stops once enough matching processes are found, as it did before."""
     retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="foo", cursor=None)
-    cand = candidate_query.subquery()
-    sql = compile_sql(retriever._build_jsonb_candidates(cand))
-    assert "completed_at" in sql
-    assert "DESC" in sql
-
-
-def test_jsonb_candidates_applies_limit(candidate_query):
-    """The JSONB-candidates query has a LIMIT clause."""
-    retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="foo", cursor=None, field_candidates_limit=77)
-    cand = candidate_query.subquery()
-    sql = compile_sql(retriever._build_jsonb_candidates(cand))
+    sql = compile_sql(retriever._last_step_results(candidate_query))
     assert "LIMIT" in sql
 
 
@@ -225,51 +160,30 @@ def test_jsonb_candidates_applies_limit(candidate_query):
 @pytest.mark.parametrize(
     "expected_fragment",
     [
-        pytest.param("field_candidates", id="has_field_candidates_cte"),
-        pytest.param("entity_scores", id="has_entity_scores_cte"),
-        pytest.param("ranked_results", id="has_ranked_results_cte"),
-        pytest.param("UNION ALL", id="unions_indexed_and_jsonb"),
-        pytest.param("dense_rank", id="has_rrf_dense_rank"),
-        pytest.param("word_similarity", id="has_rrf_word_similarity"),
-        pytest.param("highlight_text", id="has_highlight_text"),
-        pytest.param("highlight_path", id="has_highlight_path"),
-        pytest.param("perfect_match", id="has_perfect_match"),
-        pytest.param("DESC", id="orders_by_score_desc"),
+        pytest.param("process_steps", id="searches_last_steps"),
+        pytest.param("UNION ALL", id="unites_indexed_and_last_step_rows"),
     ],
 )
 def test_apply_sql_contains(candidate_query, expected_fragment):
-    """apply() produces SQL referencing expected fragments."""
+    """apply() carries the process-specific fuzzy side into the fused statement."""
     retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="test", cursor=None)
     sql = compile_sql(retriever.apply(candidate_query))
     assert expected_fragment.lower() in sql.lower()
 
 
-def test_apply_process_steps_in_union(candidate_query):
-    """The query UNION ALLs indexed and JSONB candidates (process_steps appears)."""
-    retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="test", cursor=None)
-    sql = compile_sql(retriever.apply(candidate_query))
-    assert "process_steps" in sql.lower()
-
-
 @pytest.mark.parametrize(
-    "q_vec,expect_q_vec_param",
+    "q_vec,expect_semantic_side",
     [
-        pytest.param(None, False, id="none_q_vec_no_param"),
-        pytest.param([0.1, 0.2, 0.3], True, id="q_vec_with_param"),
+        pytest.param(None, False, id="none_q_vec_fuzzy_only"),
+        pytest.param([0.1, 0.2, 0.3], True, id="q_vec_adds_semantic_side"),
     ],
 )
-def test_apply_q_vec_param(candidate_query, q_vec, expect_q_vec_param):
-    """q_vec presence determines whether :q_vec bind-param and <-> operator appear."""
+@pytest.mark.parametrize("fragment", ["<->", "semantic_results", "FULL OUTER JOIN"])
+def test_apply_semantic_side_only_with_q_vec(candidate_query, q_vec, expect_semantic_side, fragment):
+    """Without q_vec the statement is fuzzy-only: no vector operator, semantic subquery or outer join."""
     retriever = ProcessHybridRetriever(q_vec=q_vec, fuzzy_term="term", cursor=None)
-    stmt = retriever.apply(candidate_query)
-    sql = str(stmt.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": False}))
-
-    if expect_q_vec_param:
-        assert "q_vec" in sql
-        assert "<->" in sql
-    else:
-        assert "q_vec" not in sql
-        assert "<->" not in sql
+    sql = compile_sql(retriever.apply(candidate_query))
+    assert (fragment in sql) is expect_semantic_side
 
 
 def test_apply_with_cursor_adds_pagination_where_clause(candidate_query, query_id):
@@ -278,6 +192,7 @@ def test_apply_with_cursor_adds_pagination_where_clause(candidate_query, query_i
     retriever = ProcessHybridRetriever(q_vec=None, fuzzy_term="test", cursor=cursor)
     sql = compile_sql(retriever.apply(candidate_query))
     assert "WHERE" in sql
+    assert "ranked_results.entity_id >" in sql
 
 
 # ---------------------------------------------------------------------------
