@@ -21,10 +21,9 @@ from sqlalchemy import BindParameter, Numeric, Select, literal, select
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import EntityType, FieldType, RetrieverType, SearchMetadata
 from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
+from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.session import SessionSetting
 from orchestrator.core.settings import llm_settings
-
-from ..pagination import PageCursor
 
 logger = structlog.get_logger(__name__)
 
@@ -55,11 +54,11 @@ class Retriever(ABC):
         present. Process-entity queries that would use Fuzzy or RrfHybrid are
         promoted to ProcessHybridRetriever (which adds JSONB last_step search).
         """
-        from .fuzzy import FuzzyRetriever
-        from .hybrid import RrfHybridRetriever
-        from .process import ProcessHybridRetriever
-        from .semantic import SemanticRetriever
-        from .structured import StructuredRetriever
+        from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
+        from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
+        from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
+        from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
+        from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 
         if query.retriever == RetrieverType.FUZZY:
             retriever_cls: type[Retriever] = FuzzyRetriever
@@ -88,9 +87,9 @@ class Retriever(ABC):
         before invoking the embedder, without needing to know which class will
         be picked.
         """
-        from .hybrid import RrfHybridRetriever
-        from .process import ProcessHybridRetriever
-        from .semantic import SemanticRetriever
+        from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
+        from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
+        from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
 
         retriever_cls = cls._plan(query)
 
@@ -138,11 +137,11 @@ class Retriever(ABC):
         Returns:
             A concrete retriever instance.
         """
-        from .fuzzy import FuzzyRetriever
-        from .hybrid import RrfHybridRetriever
-        from .process import ProcessHybridRetriever
-        from .semantic import SemanticRetriever
-        from .structured import StructuredRetriever
+        from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
+        from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
+        from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
+        from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
+        from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 
         is_process = query.entity_type == EntityType.PROCESS
         override = query.retriever

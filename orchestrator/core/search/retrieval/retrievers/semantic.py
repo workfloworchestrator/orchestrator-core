@@ -18,10 +18,9 @@ from sqlalchemy.sql.expression import ColumnElement
 
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers.base import Retriever
 from orchestrator.core.search.retrieval.session import HNSW_ITERATIVE_SCAN, SessionSetting
-
-from ..pagination import PageCursor
-from .base import Retriever
 
 
 class SemanticRetriever(Retriever):

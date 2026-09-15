@@ -19,8 +19,7 @@ from sqlalchemy_utils import LtreeType
 
 from orchestrator.core.db.models import AiSearchIndex, ProcessStepTable
 from orchestrator.core.search.core.types import SearchMetadata
-
-from .hybrid import RrfHybridRetriever, compute_rrf_hybrid_score_sql
+from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever, compute_rrf_hybrid_score_sql
 
 
 class ProcessHybridRetriever(RrfHybridRetriever):
