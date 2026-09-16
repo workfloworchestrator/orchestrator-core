@@ -33,7 +33,7 @@ should use AI / Hybrid Search.
 ### One row per field
 
 A traditional search index stores one document per record. This subsystem stores one row per
-**field**, in a table called `ai_search_index`. A subscription with 40 fields contributes 40 rows.
+**field**, in a table called `ai_search_index`. A subscription with 40 fields contributes 40 rows. Besides the fields of the domain model of a subscription all "depends-on" products fields will be included.
 
 Each row records where the value came from as a dotted path like `subscription.node.name`,
 stored in a PostgreSQL [`ltree`](https://www.postgresql.org/docs/current/ltree.html) column.
