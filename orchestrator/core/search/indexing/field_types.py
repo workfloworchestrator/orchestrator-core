@@ -29,6 +29,8 @@ from orchestrator.core.search.indexing.schema import iter_model_field_annotation
 from orchestrator.core.search.schemas.process import ProcessIndexSchema
 from orchestrator.core.types import SubscriptionLifecycle, is_list_type
 
+LIST_COLUMN_WILDCARD_MARKER = ".*."
+
 # Entity types indexed from a single static Pydantic schema rather than SUBSCRIPTION_MODEL_REGISTRY.
 _STATIC_ENTITY_SCHEMAS: dict[EntityType, tuple[type[BaseModel], str]] = {
     EntityType.PROCESS: (ProcessIndexSchema, "process"),
@@ -142,6 +144,7 @@ def clear_field_type_cache() -> None:
     _subscription_field_types.cache_clear()
     _subscription_field_suffix_types.cache_clear()
     _static_entity_field_types.cache_clear()
+    _list_path_prefixes.cache_clear()
 
 
 def _normalize_schema_path(path: str) -> str:
@@ -158,13 +161,28 @@ def _field_types_for_entity(entity_type: EntityType) -> dict[str, frozenset[Fiel
     return None
 
 
-def is_list_path(entity_type: EntityType, path: str) -> bool:
-    """Return True if the schema-normalized path (numeric segments as '*') is a list field."""
+@lru_cache(maxsize=None)
+def _list_path_prefixes(entity_type: EntityType) -> frozenset[str]:
+    """Return the exact paths that name a list field (i.e. precede a '.*.' segment) for this entity type."""
     field_types = _field_types_for_entity(entity_type)
     if field_types is None:
-        return False
-    wildcard_path = f"{path}.*"
-    return any(candidate.startswith(wildcard_path + ".") for candidate in field_types)
+        return frozenset()
+    return frozenset(
+        candidate.partition(LIST_COLUMN_WILDCARD_MARKER)[0]
+        for candidate in field_types
+        if LIST_COLUMN_WILDCARD_MARKER in candidate
+    )
+
+
+def list_path_prefix(entity_type: EntityType, path: str) -> str | None:
+    """Return the innermost ancestor of `path` that names a list field, if any.
+
+    We want the innermost list path because list paths can nest (`a.b` and `a.b.c` can both
+    be lists), and only the longest match gives an indexed path: an outer one yields
+    `a.*.b.c`, matching no row.
+    """
+    matches = (prefix for prefix in _list_path_prefixes(entity_type) if path.startswith(f"{prefix}."))
+    return max(matches, default=None, key=len)
 
 
 def resolve_field_types(entity_type: EntityType, path: str) -> frozenset[FieldType]:

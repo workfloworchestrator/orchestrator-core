@@ -15,12 +15,16 @@
 
 from collections import namedtuple
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import ConfigDict
 from sqlalchemy import Row
 
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.search.core.types import EntityType, FieldType, UIType
+from orchestrator.core.search.indexing.field_types import clear_field_type_cache
 from orchestrator.core.search.query.builder import (
     ComponentInfo,
     LeafInfo,
@@ -34,6 +38,7 @@ from orchestrator.core.search.query.builder import (
 )
 from orchestrator.core.search.query.mixins import OrderBy, OrderDirection
 from orchestrator.core.search.query.queries import CountQuery
+from test.unit_tests.search.fixtures.blocks import BasicBlock, NestedBlock
 
 pytestmark = pytest.mark.search
 
@@ -466,6 +471,60 @@ def test_split_response_columns_explicit_numeric_index_stays_flat():
     flat, list_paths = split_response_columns(["process.subscriptions.0.description"], EntityType.PROCESS)
     assert flat == ["process.subscriptions.0.description"]
     assert list_paths == []
+
+
+@pytest.fixture
+def nested_list_registry() -> dict[str, type[SubscriptionModel]]:
+    """Two products whose list paths nest: `container` and `container.list_blocks` are both lists."""
+
+    class ShallowListSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        container: list[BasicBlock]
+
+    class DeepListSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        container: NestedBlock
+
+    return {"SHALLOW": ShallowListSubscription, "DEEP": DeepListSubscription}
+
+
+@pytest.mark.parametrize(
+    "column, expected_flat, expected_list",
+    [
+        pytest.param(
+            "subscription.container.list_blocks.name",
+            [],
+            ["subscription.container.list_blocks.*.name"],
+            id="wildcards-at-innermost-list",
+        ),
+        pytest.param(
+            "subscription.container.list_blocks.0.name",
+            ["subscription.container.list_blocks.0.name"],
+            [],
+            id="pinned-index-on-innermost-list-stays-flat",
+        ),
+    ],
+)
+def test_split_response_columns_nested_lists_resolve_against_innermost(
+    nested_list_registry: dict[str, type[SubscriptionModel]],
+    column: str,
+    expected_flat: list[str],
+    expected_list: list[str],
+) -> None:
+    """A column under nested list fields resolves at the innermost one, so it normalizes to a real indexed path.
+
+    The pinned-index case depends on the same choice: the digit only sits directly after the prefix
+    when that prefix is the innermost list.
+    """
+    clear_field_type_cache()
+    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, nested_list_registry, clear=True):
+        flat, list_paths = split_response_columns([column], EntityType.SUBSCRIPTION)
+    clear_field_type_cache()
+
+    assert flat == expected_flat
+    assert list_paths == expected_list
 
 
 # ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-# Copyright 2019-2026 SURF, GÉANT.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,6 +17,7 @@ from uuid import UUID
 from pydantic import ConfigDict, field_validator
 
 from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.db.models import SubscriptionTable
 from orchestrator.core.schemas.base import OrchestratorBaseModel
 from orchestrator.core.targets import Target
 from orchestrator.core.workflow import ProcessStatus
@@ -30,12 +31,9 @@ class ProcessSubscriptionIndexSchema(OrchestratorBaseModel):
     customer_id: str
     product_name: str | None = None
     product_tag: str | None = None
-    # Only populated when the registered SubscriptionTable exposes these (e.g. via OrchestratorCore.register_table).
-    customer_name: str | None = None
-    customer_abbreviation: str | None = None
 
     @classmethod
-    def from_subscription(cls, subscription: Any) -> "ProcessSubscriptionIndexSchema":
+    def from_subscription(cls, subscription: SubscriptionTable) -> "ProcessSubscriptionIndexSchema":
         """Build a summary from a (possibly app-specific) SubscriptionTable instance."""
         product = subscription.product
         return cls(
@@ -44,8 +42,6 @@ class ProcessSubscriptionIndexSchema(OrchestratorBaseModel):
             customer_id=subscription.customer_id,
             product_name=product.name,
             product_tag=product.tag,
-            customer_name=getattr(subscription, "customer_name", None),
-            customer_abbreviation=getattr(subscription, "customer_abbreviation", None),
         )
 
 
