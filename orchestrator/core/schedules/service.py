@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+from collections.abc import Sequence
+from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
@@ -31,7 +33,7 @@ from orchestrator.core.schemas.schedules import (
     build_trigger,
 )
 from orchestrator.core.services.processes import start_process
-from orchestrator.core.services.workflows import get_workflow_by_workflow_id
+from orchestrator.core.services.workflows import get_workflow_by_name, get_workflow_by_workflow_id
 from orchestrator.core.utils.errors import StartPredicateError
 from orchestrator.core.utils.redis_client import create_redis_asyncio_client, create_redis_client
 from pydantic_forms.exceptions import FormValidationError
@@ -134,6 +136,38 @@ def add_unique_scheduled_task_to_queue(payload: APSchedulerJobCreate, *, recreat
         )
     add_scheduled_task_to_queue(payload)
     return True
+
+
+def load_schedules(schedules: Sequence[dict[str, Any]], *, recreate: bool = False) -> list[str]:
+    """Register schedules declared in code, resolving each workflow by name.
+
+    This is the entry point core's own ``scheduler load-initial-schedule`` uses, and the supported
+    way for a project to register its schedules at deploy time, where the REST API is not reachable.
+    See :func:`add_unique_scheduled_task_to_queue` for the idempotency caveat.
+
+    Args:
+        schedules: Dicts of :class:`APSchedulerJobCreate` fields minus ``workflow_id``, which is
+            resolved from ``workflow_name``.
+        recreate: Whether to delete existing schedule(s) for each workflow first.
+
+    Returns:
+        The ``workflow_name`` of each schedule that was skipped because no such workflow is
+        registered. Raise on a non-empty list to fail a deploy on an unmigrated workflow.
+    """
+
+    def load(schedule: dict[str, Any]) -> str | None:
+        """Queue one schedule, returning its workflow name when the workflow is unknown."""
+        workflow_name = schedule["workflow_name"]
+        workflow = get_workflow_by_name(workflow_name)
+        if not workflow:
+            logger.warning("Skipping schedule for unknown workflow", workflow_name=workflow_name)
+            return workflow_name
+        payload = APSchedulerJobCreate(**{**schedule, "workflow_id": workflow.workflow_id})
+        logger.info("Loading schedule", payload=payload)
+        add_unique_scheduled_task_to_queue(payload, recreate=recreate)
+        return None
+
+    return [name for name in map(load, schedules) if name]
 
 
 def get_linker_entries_by_schedule_ids(schedule_ids: list[str]) -> list[WorkflowApschedulerJob]:

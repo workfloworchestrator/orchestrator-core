@@ -13,7 +13,6 @@
 import json
 import time
 from collections.abc import Iterator
-from typing import cast
 
 import typer
 from apscheduler.job import Job
@@ -27,15 +26,46 @@ from orchestrator.core.schedules.scheduler import (
 )
 from orchestrator.core.schedules.service import (
     SCHEDULER_QUEUE,
-    add_unique_scheduled_task_to_queue,
+    load_schedules,
     workflow_scheduler_queue,
 )
-from orchestrator.core.schemas.schedules import APSchedulerJobCreate
-from orchestrator.core.services.workflows import get_workflow_by_name
 from orchestrator.core.settings import app_settings
 from orchestrator.core.utils.redis_client import create_redis_client
 
 app: typer.Typer = typer.Typer()
+
+INITIAL_SCHEDULES: list[dict] = [
+    {
+        "name": "Task Resume Workflows",
+        "workflow_name": "task_resume_workflows",
+        "trigger": "interval",
+        "trigger_kwargs": {"hours": 1},
+    },
+    {
+        "name": "Task Clean Up Tasks",
+        "workflow_name": "task_clean_up_tasks",
+        "trigger": "interval",
+        "trigger_kwargs": {"hours": 6},
+    },
+    {
+        "name": "Task Validate Subscriptions",
+        "workflow_name": "task_validate_subscriptions",
+        "trigger": "cron",
+        "trigger_kwargs": {"hour": 0, "minute": 10},
+    },
+    {
+        "name": "Task Validate Products",
+        "workflow_name": "task_validate_products",
+        "trigger": "cron",
+        "trigger_kwargs": {"hour": 2, "minute": 30},
+    },
+    {
+        "name": "Task Validate Awaiting Callbacks",
+        "workflow_name": "task_validate_awaiting_callbacks",
+        "trigger": "interval",
+        "trigger_kwargs": {"seconds": 30},
+    },
+]
 
 
 @app.command()
@@ -166,55 +196,5 @@ def load_initial_schedule(
     The schedules are only created when they do not already exist in the database.
     This behavior can be altered through the --recreate option.
     """
-    initial_schedules = [
-        {
-            "name": "Task Resume Workflows",
-            "workflow_name": "task_resume_workflows",
-            "workflow_id": "",
-            "trigger": "interval",
-            "trigger_kwargs": {"hours": 1},
-        },
-        {
-            "name": "Task Clean Up Tasks",
-            "workflow_name": "task_clean_up_tasks",
-            "workflow_id": "",
-            "trigger": "interval",
-            "trigger_kwargs": {"hours": 6},
-        },
-        {
-            "name": "Task Validate Subscriptions",
-            "workflow_name": "task_validate_subscriptions",
-            "workflow_id": "",
-            "trigger": "cron",
-            "trigger_kwargs": {"hour": 0, "minute": 10},
-        },
-        {
-            "name": "Task Validate Products",
-            "workflow_name": "task_validate_products",
-            "workflow_id": "",
-            "trigger": "cron",
-            "trigger_kwargs": {"hour": 2, "minute": 30},
-        },
-        {
-            "name": "Task Validate Awaiting Callbacks",
-            "workflow_name": "task_validate_awaiting_callbacks",
-            "workflow_id": "",
-            "trigger": "interval",
-            "trigger_kwargs": {"seconds": 30},
-        },
-    ]
-
-    for schedule in initial_schedules:
-        # enrich with workflow id
-        workflow_name = cast(str, schedule.get("workflow_name"))
-        workflow = get_workflow_by_name(workflow_name)
-
-        if not workflow:
-            typer.echo(f"Workflow '{schedule['workflow_name']}' not found. Skipping schedule.")
-            continue
-
-        schedule["workflow_id"] = workflow.workflow_id
-
-        typer.echo(f"Initial Schedule: {schedule}")
-        payload = APSchedulerJobCreate.model_validate(schedule)
-        add_unique_scheduled_task_to_queue(payload, recreate=recreate)
+    for workflow_name in load_schedules(INITIAL_SCHEDULES, recreate=recreate):
+        typer.echo(f"Workflow '{workflow_name}' not found. Skipping schedule.")
