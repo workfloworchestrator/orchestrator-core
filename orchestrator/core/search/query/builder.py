@@ -29,6 +29,7 @@ from orchestrator.core.search.core.types import (
     FieldType,
     FilterOp,
     ResponseColumnData,
+    ResponseColumns,
     ResponseColumnValue,
     UIType,
 )
@@ -337,44 +338,6 @@ def _apply_ordering(
     return stmt
 
 
-def build_response_columns_query(
-    entity_ids: list[str],
-    entity_type: EntityType,
-    response_columns: list[str],
-) -> Select:
-    """Build a pivot query that returns requested field paths as columns for the given entities.
-
-    Uses the same MAX(CASE ...) pivot pattern as _build_pivot_cte().
-
-    Args:
-        entity_ids: List of entity IDs to fetch columns for.
-        entity_type: The entity type being searched.
-        response_columns: Field paths to pivot into columns.
-
-    Returns:
-        Select statement with entity_id and a value/type column pair per requested path.
-    """
-    # Positional aliases prevent field names from colliding with type metadata or each other.
-    pivot_columns = [AiSearchIndex.entity_id.label("entity_id")]
-    for index, path in enumerate(response_columns):
-        pivot_columns.extend(
-            [
-                _build_pivot_column(path, AiSearchIndex.value, f"response_value_{index}"),
-                _build_pivot_column(path, cast(AiSearchIndex.value_type, String), f"response_type_{index}"),
-            ]
-        )
-
-    return (
-        select(*pivot_columns)
-        .where(
-            AiSearchIndex.entity_id.in_(entity_ids),
-            AiSearchIndex.entity_type == entity_type.value,
-            AiSearchIndex.path.in_([Ltree(p) for p in response_columns]),
-        )
-        .group_by(AiSearchIndex.entity_id)
-    )
-
-
 def _restore_value_type(value: str | None, value_type: str | None) -> ResponseColumnValue:
     """Convert the TEXT stored in the index back to the Python type recorded in value_type.
 
@@ -404,30 +367,36 @@ def _restore_value_type(value: str | None, value_type: str | None) -> ResponseCo
             return value
 
 
-def process_response_columns(
+def process_response_flat_columns(
     rows: Sequence[Row],
-    response_columns: list[str],
+    flat_paths: list[str],
 ) -> ResponseColumnData:
-    """Convert pivot query rows into a mapping of entity_id -> {path: value}.
+    """Convert raw EAV rows for flat (scalar) response columns into entity_id -> {path: value}.
 
-    Values are restored to the Python type recorded in the index's value_type column
-    (bool, int, float); every other type is returned as the stored string.
+    The (entity_id, path) primary key guarantees at most one row per requested flat path, so
+    no per-index grouping is needed. Values are restored to the Python type recorded in the
+    index's value_type column (bool, int, float); every other type is returned as the stored
+    string.
 
     Args:
-        rows: Result rows from build_response_columns_query.
-        response_columns: The original field paths requested.
+        rows: Raw EAV rows matching flat_paths (e.g. the flat-path subset of
+            build_response_column_rows_query's result).
+        flat_paths: The original flat field paths requested.
 
     Returns:
         Dict mapping entity_id to a dict of path -> typed value (or None).
     """
+    flat_path_set = set(flat_paths)
+    values_by_entity: dict[str, ResponseColumns] = defaultdict(dict)
+    for row in rows:
+        path_str = str(row.path)
+        if path_str in flat_path_set:
+            value = row.value
+            values_by_entity[str(row.entity_id)][path_str] = _restore_value_type(
+                None if value is None else str(value), row.value_type
+            )
 
-    def convert(row: Row, index: int) -> ResponseColumnValue:
-        value = getattr(row, f"response_value_{index}", None)
-        return _restore_value_type(None if value is None else str(value), getattr(row, f"response_type_{index}", None))
-
-    return {
-        str(row.entity_id): {path: convert(row, index) for index, path in enumerate(response_columns)} for row in rows
-    }
+    return dict(values_by_entity)
 
 
 def _as_list_path(entity_type: EntityType, column: str) -> str | None:
@@ -457,25 +426,32 @@ def split_response_columns(response_columns: list[str], entity_type: EntityType)
     return list(flat_paths), list(list_paths)
 
 
-def build_response_list_rows_query(
+def build_response_column_rows_query(
     entity_ids: list[str],
     entity_type: EntityType,
+    flat_paths: list[str],
     list_paths: list[str],
 ) -> Select:
-    """Build a query returning the raw EAV rows for one or more wildcard list paths in a single round-trip.
+    """Build a single query returning raw EAV rows for flat and wildcard list response columns together.
 
-    Fetches one row per (entity_id, path) match with no SQL-side pivot; grouping/merging by list
-    index is left to process_response_list_columns.
+    Matches flat_paths by exact path equality and list_paths by lquery wildcard, OR'd into one
+    WHERE clause, so both column kinds are fetched in a single round-trip. No SQL-side pivot is
+    applied -- the (entity_id, path) primary key guarantees at most one row per flat path, and
+    grouping the raw rows into a response is left to the caller.
     """
-    prefixes = {path.partition(LIST_COLUMN_WILDCARD_MARKER)[0] for path in list_paths}
-    lquery_matches = [
-        AiSearchIndex.path.op("~")(bindparam(None, f"{prefix}.*.*", type_=_LQuery())) for prefix in prefixes
-    ]
+    conditions = []
+    if flat_paths:
+        conditions.append(AiSearchIndex.path.in_([Ltree(p) for p in flat_paths]))
+    if list_paths:
+        prefixes = {path.partition(LIST_COLUMN_WILDCARD_MARKER)[0] for path in list_paths}
+        conditions.extend(
+            AiSearchIndex.path.op("~")(bindparam(None, f"{prefix}.*.*", type_=_LQuery())) for prefix in prefixes
+        )
 
     return select(AiSearchIndex.entity_id, AiSearchIndex.path, AiSearchIndex.value, AiSearchIndex.value_type).where(
         AiSearchIndex.entity_id.in_(entity_ids),
         AiSearchIndex.entity_type == entity_type.value,
-        or_(*lquery_matches),
+        or_(*conditions),
     )
 
 

@@ -31,8 +31,9 @@ from orchestrator.core.search.query.builder import (
     _apply_ordering,
     _restore_value_type,
     build_paths_query,
-    build_response_list_rows_query,
+    build_response_column_rows_query,
     process_path_rows,
+    process_response_flat_columns,
     process_response_list_columns,
     split_response_columns,
 )
@@ -371,7 +372,7 @@ def test_restore_value_type_falls_back_to_stored_string(value: str, value_type: 
 
     Rows indexed before value_type was reconciled against the value still carry a type the
     value contradicts. Converting eagerly would raise inside the per-row comprehension in
-    process_response_columns and fail the whole search response.
+    process_response_flat_columns/process_response_list_columns and fail the whole search response.
     """
     assert _restore_value_type(value, value_type.value) == value
 
@@ -528,51 +529,136 @@ def test_split_response_columns_nested_lists_resolve_against_innermost(
 
 
 # ---------------------------------------------------------------------------
-# Tests: build_response_list_rows_query
+# Tests: build_response_column_rows_query
 # ---------------------------------------------------------------------------
 
 
-def test_build_response_list_rows_query_no_group_by():
-    """The list-rows query fetches raw rows; no pivot/GROUP BY is used."""
-    stmt = build_response_list_rows_query(["e1", "e2"], EntityType.PROCESS, ["process.subscriptions.*.description"])
+def test_build_response_column_rows_query_no_group_by():
+    """The combined query fetches raw rows for flat and list paths alike; no pivot/GROUP BY."""
+    stmt = build_response_column_rows_query(
+        ["e1"], EntityType.PROCESS, ["process.workflow_name"], ["process.subscriptions.*.description"]
+    )
     sql = str(stmt.compile()).lower()
     assert "group by" not in sql
     assert "max(" not in sql
     assert "case" not in sql
 
 
-def test_build_response_list_rows_query_uses_lquery_operator():
-    """The list-rows query filters on path using the ~ (lquery) operator."""
-    stmt = build_response_list_rows_query(["e1"], EntityType.PROCESS, ["process.subscriptions.*.description"])
-    sql = str(stmt.compile())
-    assert "~" in sql
-    assert "lquery" in sql.lower()
+def test_build_response_column_rows_query_selects_raw_columns():
+    """Query selects entity_id, path, value, value_type directly -- no pivoted aliases."""
+    stmt = build_response_column_rows_query(
+        ["e1"], EntityType.PROCESS, ["process.workflow_name"], ["process.subscriptions.*.description"]
+    )
+    column_names = {col.key for col in stmt.selected_columns}
+    assert column_names == {"entity_id", "path", "value", "value_type"}
 
 
-def test_build_response_list_rows_query_filters_entity_type_and_ids():
+def test_build_response_column_rows_query_combines_exact_and_lquery_matches():
+    """Flat paths are matched exactly and list paths via lquery, OR'd into one WHERE clause."""
+    stmt = build_response_column_rows_query(
+        ["e1"], EntityType.PROCESS, ["process.workflow_name"], ["process.subscriptions.*.description"]
+    )
+    sql = str(stmt.compile()).lower()
+    assert " or " in sql
+    assert "lquery" in sql
+
+
+def test_build_response_column_rows_query_flat_only_has_no_lquery():
+    """With only flat paths requested, no lquery matching is built."""
+    stmt = build_response_column_rows_query(["e1"], EntityType.PROCESS, ["process.workflow_name"], [])
+    sql = str(stmt.compile()).lower()
+    assert "lquery" not in sql
+
+
+def test_build_response_column_rows_query_list_only_has_no_exact_in_clause():
+    """With only list paths requested, path filtering is lquery-only."""
+    stmt = build_response_column_rows_query(["e1"], EntityType.PROCESS, [], ["process.subscriptions.*.description"])
+    sql = str(stmt.compile()).lower()
+    assert "lquery" in sql
+
+
+def test_build_response_column_rows_query_filters_entity_type_and_ids():
     """entity_type and entity_id filters are applied."""
-    stmt = build_response_list_rows_query(["e1"], EntityType.PROCESS, ["process.subscriptions.*.description"])
+    stmt = build_response_column_rows_query(["e1"], EntityType.PROCESS, ["process.workflow_name"], [])
     sql = str(stmt.compile())
     assert "entity_type" in sql.lower()
     assert "entity_id" in sql.lower()
     assert stmt.compile().params["entity_type_1"] == EntityType.PROCESS.value
 
 
-def test_build_response_list_rows_query_selects_raw_columns():
-    """Query selects entity_id, path, value, value_type directly -- no pivoted aliases."""
-    stmt = build_response_list_rows_query(["e1"], EntityType.PROCESS, ["process.subscriptions.*.description"])
-    column_names = {col.key for col in stmt.selected_columns}
-    assert column_names == {"entity_id", "path", "value", "value_type"}
+# ---------------------------------------------------------------------------
+# Tests: process_response_flat_columns
+# ---------------------------------------------------------------------------
 
 
-def test_build_response_list_rows_query_multiple_prefixes_uses_or():
-    """Wildcard paths with distinct prefixes are combined into a single query with an OR across lquery patterns."""
-    stmt = build_response_list_rows_query(
-        ["e1"], EntityType.PROCESS, ["process.subscriptions.*.description", "process.products.*.name"]
-    )
-    sql = str(stmt.compile()).lower()
-    assert sql.count("lquery") == 2
-    assert " or " in sql
+FlatRow = namedtuple("FlatRow", ["entity_id", "path", "value", "value_type"], defaults=[FieldType.STRING.value])
+
+
+def test_process_response_flat_columns_maps_path_to_value():
+    """Raw rows for requested flat paths are converted to entity_id -> {path: value}."""
+    rows = [
+        FlatRow("e1", "process.workflow_name", "create_service"),
+        FlatRow("e1", "process.last_step", "notify"),
+    ]
+    flat_paths = ["process.workflow_name", "process.last_step"]
+
+    result = process_response_flat_columns(rows, flat_paths)
+
+    assert result == {"e1": {"process.workflow_name": "create_service", "process.last_step": "notify"}}
+
+
+def test_process_response_flat_columns_multiple_entities():
+    """Rows for different entities are grouped independently."""
+    rows = [
+        FlatRow("e1", "process.workflow_name", "create_service"),
+        FlatRow("e2", "process.workflow_name", "modify_service"),
+    ]
+
+    result = process_response_flat_columns(rows, ["process.workflow_name"])
+
+    assert result == {
+        "e1": {"process.workflow_name": "create_service"},
+        "e2": {"process.workflow_name": "modify_service"},
+    }
+
+
+def test_process_response_flat_columns_unrequested_path_dropped():
+    """A row whose path was not requested (e.g. a list row sharing the query) is excluded."""
+    rows = [
+        FlatRow("e1", "process.workflow_name", "create_service"),
+        FlatRow("e1", "process.subscriptions.0.subscription_id", "uuid1"),
+    ]
+
+    result = process_response_flat_columns(rows, ["process.workflow_name"])
+
+    assert result == {"e1": {"process.workflow_name": "create_service"}}
+
+
+def test_process_response_flat_columns_null_value():
+    """A None value is preserved as None, not stringified."""
+    rows = [FlatRow("e1", "process.last_step", None)]
+
+    result = process_response_flat_columns(rows, ["process.last_step"])
+
+    assert result == {"e1": {"process.last_step": None}}
+
+
+def test_process_response_flat_columns_empty_rows_returns_empty_dict():
+    """No matching rows -> an empty dict, unlike process_response_list_columns which keys by prefix."""
+    assert process_response_flat_columns([], ["process.workflow_name"]) == {}
+
+
+def test_process_response_flat_columns_restores_value_type():
+    """Values are restored to their indexed Python type, not left as strings."""
+    rows = [
+        FlatRow("e1", "process.is_task", "True", FieldType.BOOLEAN.value),
+        FlatRow("e1", "process.retry_count", "3", FieldType.INTEGER.value),
+    ]
+    flat_paths = ["process.is_task", "process.retry_count"]
+
+    result = process_response_flat_columns(rows, flat_paths)
+
+    assert result == {"e1": {"process.is_task": True, "process.retry_count": 3}}
 
 
 # ---------------------------------------------------------------------------

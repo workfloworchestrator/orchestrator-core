@@ -21,10 +21,9 @@ from orchestrator.core.search.core.types import EntityType, ResponseColumnData, 
 from orchestrator.core.search.query.builder import (
     build_aggregation_query,
     build_candidate_query,
-    build_response_columns_query,
-    build_response_list_rows_query,
+    build_response_column_rows_query,
     build_simple_count_query,
-    process_response_columns,
+    process_response_flat_columns,
     process_response_list_columns,
     split_response_columns,
 )
@@ -50,20 +49,27 @@ async def _fetch_response_column_data(
     response_columns: list[str],
     db_session: AsyncSession,
 ) -> ResponseColumnData | None:
-    """Fetch requested response columns for a set of entities, flat and list-valued alike."""
+    """Fetch requested response columns for a set of entities, flat and list-valued alike.
+
+    Flat and list paths differ in path-matching (exact vs. lquery wildcard) and once mattered for
+    row shape too (pivoted columns vs. raw rows), but both now read raw EAV rows, so one query
+    covers both in a single round-trip.
+    """
     flat_paths, list_paths = split_response_columns(response_columns, entity_type)
+    if not flat_paths and not list_paths:
+        return None
+
     merged: dict[str, ResponseColumns] = defaultdict(dict)
 
+    stmt = build_response_column_rows_query(entity_ids, entity_type, flat_paths, list_paths)
+    rows = (await db_session.execute(stmt)).all()
+
     if flat_paths:
-        col_stmt = build_response_columns_query(entity_ids, entity_type, flat_paths)
-        col_rows = (await db_session.execute(col_stmt)).all()
-        for entity_id, columns in process_response_columns(col_rows, flat_paths).items():
+        for entity_id, columns in process_response_flat_columns(rows, flat_paths).items():
             merged[entity_id].update(columns)
 
     if list_paths:
-        list_stmt = build_response_list_rows_query(entity_ids, entity_type, list_paths)
-        list_rows = (await db_session.execute(list_stmt)).all()
-        list_column_data = process_response_list_columns(list_rows, list_paths)
+        list_column_data = process_response_list_columns(rows, list_paths)
         for prefix, entities_for_prefix in list_column_data.items():
             for entity_id in entity_ids:
                 merged[entity_id][prefix] = entities_for_prefix.get(entity_id, [])

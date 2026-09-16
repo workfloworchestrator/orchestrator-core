@@ -39,16 +39,16 @@ def make_search_row(entity_id: str, entity_title: str, score: float = 0.92) -> M
     return row
 
 
-def make_column_row(entity_id: str, columns: dict[str, str | None]) -> SimpleNamespace:
-    """Create a fake DB row matching what the column pivot query returns.
+def make_column_rows(entity_id: str, columns: dict[str, str | None]) -> list[SimpleNamespace]:
+    """Create fake raw DB rows matching what the flat response-columns query returns.
 
-    Column insertion order must match the requested response-column order.
-    Uses positional value aliases just like the real SQL query.
+    One raw (entity_id, path, value, value_type) row per requested column, the same shape
+    build_response_column_rows_query returns for flat paths.
     """
-    attrs = {"entity_id": entity_id}
-    for index, value in enumerate(columns.values()):
-        attrs[f"response_value_{index}"] = value  # type: ignore[assignment]
-    return SimpleNamespace(**attrs)
+    return [
+        SimpleNamespace(entity_id=entity_id, path=path, value=value, value_type=FieldType.STRING.value)
+        for path, value in columns.items()
+    ]
 
 
 def make_list_rows(entity_id: str, prefix: str, items: list[dict[str, str | None]]) -> list[SimpleNamespace]:

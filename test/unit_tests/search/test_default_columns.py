@@ -24,7 +24,7 @@ from orchestrator.core.search.query.engine import execute_search
 from orchestrator.core.search.query.queries import SelectQuery
 from test.unit_tests.search.fixtures.helpers import (
     SIMPLE_SUBSCRIPTION_FILTER,
-    make_column_row,
+    make_column_rows,
     make_list_rows,
     make_search_row,
 )
@@ -89,10 +89,10 @@ async def test_custom_response_columns_returns_only_requested(mock_db_session):
     col_values = {"subscription.status": "active", "subscription.product.name": "IP Transit"}
 
     search_row = make_search_row("id-1", "my-service")
-    column_row = make_column_row("id-1", col_values)
+    column_rows = make_column_rows("id-1", col_values)
 
     mock_db_session.execute.return_value.mappings.return_value.all.return_value = [search_row]
-    mock_db_session.execute.return_value.all.return_value = [column_row]
+    mock_db_session.execute.return_value.all.return_value = column_rows
 
     query = SelectQuery(
         entity_type=EntityType.SUBSCRIPTION,
@@ -166,16 +166,14 @@ async def test_mixed_flat_and_wildcard_response_columns(mock_db_session):
     items = [{"subscription_id": "uuid1"}]
 
     search_row = make_search_row("id-1", "my-process")
-    column_row = make_column_row("id-1", {"process.workflow_name": "create_service"})
+    column_rows = make_column_rows("id-1", {"process.workflow_name": "create_service"})
     list_rows = make_list_rows("id-1", "process.subscriptions", items)
 
     mock_db_session.execute.return_value.mappings.return_value.all.return_value = [search_row]
-    # Both the flat pivot query and the list-rows query go through `.execute(...).all()`;
-    # the flat query runs first, so its rows are returned on the first `.execute()` call.
+    # Flat and list columns are fetched with a single combined query via `.execute(...).all()`.
     mock_db_session.execute.side_effect = [
         mock_db_session.execute.return_value,  # initial candidate/search query (uses .mappings())
-        MagicMock(all=MagicMock(return_value=[column_row])),
-        MagicMock(all=MagicMock(return_value=list_rows)),
+        MagicMock(all=MagicMock(return_value=[*column_rows, *list_rows])),
     ]
 
     query = SelectQuery(

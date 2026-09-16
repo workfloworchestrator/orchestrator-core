@@ -21,9 +21,9 @@ from orchestrator.core.search.query.builder import (
     build_aggregation_query,
     build_candidate_query,
     build_paths_query,
-    build_response_columns_query,
+    build_response_column_rows_query,
     process_path_rows,
-    process_response_columns,
+    process_response_flat_columns,
 )
 from orchestrator.core.search.query.exceptions import (
     EmptyFilterPathError,
@@ -54,9 +54,9 @@ __all__ = [
     "build_aggregation_query",
     "build_candidate_query",
     "build_paths_query",
-    "build_response_columns_query",
+    "build_response_column_rows_query",
     "process_path_rows",
-    "process_response_columns",
+    "process_response_flat_columns",
     # Builder metadata
     "ComponentInfo",
     "LeafInfo",

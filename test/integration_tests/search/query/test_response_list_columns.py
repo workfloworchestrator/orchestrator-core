@@ -28,7 +28,7 @@ from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.search.core.types import EntityType, FieldType
 from orchestrator.core.search.indexing.field_types import clear_field_type_cache
 from orchestrator.core.search.query.builder import (
-    build_response_list_rows_query,
+    build_response_column_rows_query,
     process_response_list_columns,
     split_response_columns,
 )
@@ -70,7 +70,7 @@ def test_list_rows_query_returns_grouped_subscriptions_in_order():
     _add_index_row("process.subscriptions.1.description", entity_id=process_id, value="desc2")
 
     list_paths = ["process.subscriptions.*.subscription_id", "process.subscriptions.*.description"]
-    stmt = build_response_list_rows_query([str(process_id)], EntityType.PROCESS, list_paths)
+    stmt = build_response_column_rows_query([str(process_id)], EntityType.PROCESS, [], list_paths)
     rows = db.session.execute(stmt).all()
 
     result = process_response_list_columns(rows, list_paths)
@@ -96,7 +96,7 @@ def test_list_rows_query_excludes_other_entities_and_entity_types():
     )
 
     list_paths = ["process.subscriptions.*.subscription_id"]
-    stmt = build_response_list_rows_query([str(process_id)], EntityType.PROCESS, list_paths)
+    stmt = build_response_column_rows_query([str(process_id)], EntityType.PROCESS, [], list_paths)
     rows = db.session.execute(stmt).all()
 
     result = process_response_list_columns(rows, list_paths)
@@ -109,7 +109,7 @@ def test_list_rows_query_returns_empty_when_no_subscriptions_indexed():
     _add_index_row("process.workflow_name", entity_id=process_id, value="create_service")
 
     list_paths = ["process.subscriptions.*.subscription_id"]
-    stmt = build_response_list_rows_query([str(process_id)], EntityType.PROCESS, list_paths)
+    stmt = build_response_column_rows_query([str(process_id)], EntityType.PROCESS, [], list_paths)
     rows = db.session.execute(stmt).all()
 
     result = process_response_list_columns(rows, list_paths)
@@ -124,7 +124,7 @@ def test_list_rows_query_multiple_prefixes_in_one_round_trip():
     _add_index_row("process.products.0.name", entity_id=process_id, value="product1")
 
     list_paths = ["process.subscriptions.*.subscription_id", "process.products.*.name"]
-    stmt = build_response_list_rows_query([str(process_id)], EntityType.PROCESS, list_paths)
+    stmt = build_response_column_rows_query([str(process_id)], EntityType.PROCESS, [], list_paths)
     rows = db.session.execute(stmt).all()
 
     result = process_response_list_columns(rows, list_paths)
@@ -174,7 +174,7 @@ def test_wildcard_free_column_under_nested_lists_fetches_real_rows():
             flat, list_paths = split_response_columns(
                 ["subscription.container.list_blocks.name"], EntityType.SUBSCRIPTION
             )
-            stmt = build_response_list_rows_query([str(subscription_id)], EntityType.SUBSCRIPTION, list_paths)
+            stmt = build_response_column_rows_query([str(subscription_id)], EntityType.SUBSCRIPTION, [], list_paths)
             rows = db.session.execute(stmt).all()
     finally:
         clear_field_type_cache()
@@ -191,8 +191,21 @@ def test_wildcard_free_column_under_nested_lists_fetches_real_rows():
 _BENCHMARK_ENTITY_COUNT = 100
 _BENCHMARK_SUBSCRIPTIONS_PER_PROCESS = 5
 
-_BENCHMARK_FLAT_COLUMNS = ["process.workflow_name", "process.last_step"]
-_BENCHMARK_LIST_COLUMNS = ["process.subscriptions.subscription_id", "process.subscriptions.description"]
+_BENCHMARK_FLAT_COLUMNS = [
+    "process.process_id",
+    "process.workflow_id",
+    "process.workflow_name",
+    "process.last_step",
+    "process.last_status",
+    "process.assignee",
+]
+_BENCHMARK_LIST_COLUMNS = [
+    "process.subscriptions.subscription_id",
+    "process.subscriptions.customer_id",
+    "process.subscriptions.description",
+    "process.subscriptions.product_name",
+    "process.subscriptions.product_tag",
+]
 
 
 def _benchmark_flat_rows(process_id: UUID) -> list[AiSearchIndex]:
@@ -209,6 +222,9 @@ def _benchmark_flat_rows(process_id: UUID) -> list[AiSearchIndex]:
     ]
 
 
+_BENCHMARK_LIST_FIELDS = [path.rsplit(".", 1)[-1] for path in _BENCHMARK_LIST_COLUMNS]
+
+
 def _benchmark_list_rows(process_id: UUID) -> list[AiSearchIndex]:
     return [
         AiSearchIndex(
@@ -220,7 +236,7 @@ def _benchmark_list_rows(process_id: UUID) -> list[AiSearchIndex]:
             content_hash=uuid4().hex,
         )
         for index in range(_BENCHMARK_SUBSCRIPTIONS_PER_PROCESS)
-        for suffix in ("subscription_id", "description")
+        for suffix in _BENCHMARK_LIST_FIELDS
     ]
 
 
@@ -269,7 +285,7 @@ async def test_fetch_response_column_data_list_paths_benchmark(
     assert all(
         columns["process.subscriptions"]
         == [
-            {"description": f"description-{i}", "subscription_id": f"subscription_id-{i}"}
+            {field: f"{field}-{i}" for field in _BENCHMARK_LIST_FIELDS}
             for i in range(_BENCHMARK_SUBSCRIPTIONS_PER_PROCESS)
         ]
         for columns in result.values()
