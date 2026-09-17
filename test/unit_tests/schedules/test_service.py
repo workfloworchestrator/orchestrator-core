@@ -43,12 +43,23 @@ def test_load_schedules_returns_unknown_workflow_names(mock_schedule_queue):
     assert mock_add.call_count == 1
 
 
-@pytest.mark.parametrize("workflow_name", [pytest.param("", id="empty"), pytest.param(None, id="none")])
-def test_load_schedules_rejects_falsy_workflow_name(mock_schedule_queue, workflow_name):
-    """A missing name is a malformed schedule, so it fails loudly rather than being reported as skipped."""
+@pytest.mark.parametrize(
+    "workflow_name",
+    [
+        pytest.param("", id="empty"),
+        pytest.param(None, id="none"),
+        pytest.param(123, id="int"),
+        pytest.param(["task_a"], id="list"),
+    ],
+)
+def test_load_schedules_rejects_invalid_workflow_name(mock_schedule_queue, workflow_name):
+    """A name that is missing or not a string is a malformed schedule, so it fails loudly.
+
+    Reporting it as skipped would both hide the error and break the `list[str]` return type.
+    """
     mock_add = mock_schedule_queue()
     schedule = {"name": "Bad", "workflow_name": workflow_name, "trigger": "interval", "trigger_kwargs": {"hours": 1}}
 
-    with pytest.raises(ValueError, match="has no workflow_name"):
+    with pytest.raises(ValueError, match="has no valid workflow_name"):
         load_schedules([schedule])
     assert mock_add.call_count == 0

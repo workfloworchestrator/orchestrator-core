@@ -155,8 +155,9 @@ def load_schedules(schedules: Sequence[dict[str, Any]], *, recreate: bool = Fals
         registered. Raise on a non-empty list to fail a deploy on an unmigrated workflow.
 
     Raises:
-        ValueError: A schedule has no ``workflow_name``, which is a malformed declaration rather
-            than an unknown workflow. Uncaught, this exits the CLI non-zero with a traceback.
+        ValueError: A schedule's ``workflow_name`` is missing or not a string, which is a malformed
+            declaration rather than an unknown workflow. Uncaught, this exits the CLI non-zero with
+            a traceback.
         ValidationError: A schedule's remaining fields do not build an :class:`APSchedulerJobCreate`,
             for example ``trigger_kwargs`` the trigger rejects.
     """
@@ -164,8 +165,10 @@ def load_schedules(schedules: Sequence[dict[str, Any]], *, recreate: bool = Fals
     def load(schedule: dict[str, Any]) -> str | None:
         """Queue one schedule, returning its workflow name when the workflow is unknown."""
         workflow_name = schedule["workflow_name"]
-        if not workflow_name:
-            raise ValueError(f"Schedule {schedule.get('name', schedule)!r} has no workflow_name")
+        if not isinstance(workflow_name, str) or not workflow_name:
+            raise ValueError(
+                f"Schedule {schedule.get('name', schedule)!r} has no valid workflow_name: {workflow_name!r}"
+            )
         workflow = get_workflow_by_name(workflow_name)
         if not workflow:
             logger.warning("Skipping schedule for unknown workflow", workflow_name=workflow_name)
