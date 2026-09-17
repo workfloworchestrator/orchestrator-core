@@ -23,7 +23,7 @@ import structlog
 
 from orchestrator.core.db import ProcessTable, WorkflowTable, db
 from orchestrator.core.services.input_state import store_input_state
-from orchestrator.core.services.processes import StateMerger, create_process
+from orchestrator.core.services.processes import create_process, merge_state
 from orchestrator.core.targets import Target
 from orchestrator.core.utils.json import json_dumps, json_loads
 from orchestrator.core.workflow import Process as WFProcess
@@ -258,7 +258,7 @@ def resume_workflow(
         current_state = Success({})
 
     user_input = post_form(remaining_steps[0].form, current_state.unwrap(), user_data)
-    state = current_state.map(lambda state: StateMerger.merge(deepcopy(state), user_input))
+    state = current_state.map(lambda state: merge_state(state, user_input))
     store_input_state(process.process_id, user_input, "user_input")
 
     updated_process = process.update(log=remaining_steps, state=state)
