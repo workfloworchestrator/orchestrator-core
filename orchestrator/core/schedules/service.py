@@ -158,16 +158,16 @@ def load_schedules(schedules: Sequence[dict[str, Any]], *, recreate: bool = Fals
     def load(schedule: dict[str, Any]) -> str | None:
         """Queue one schedule, returning its workflow name when the workflow is unknown."""
         workflow_name = schedule["workflow_name"]
-        workflow = get_workflow_by_name(workflow_name)
+        workflow = get_workflow_by_name(workflow_name) if workflow_name else None
         if not workflow:
             logger.warning("Skipping schedule for unknown workflow", workflow_name=workflow_name)
-            return workflow_name
+            return str(workflow_name)
         payload = APSchedulerJobCreate(**{**schedule, "workflow_id": workflow.workflow_id})
         logger.info("Loading schedule", payload=payload)
         add_unique_scheduled_task_to_queue(payload, recreate=recreate)
         return None
 
-    return [name for name in map(load, schedules) if name]
+    return [name for name in map(load, schedules) if name is not None]
 
 
 def get_linker_entries_by_schedule_ids(schedule_ids: list[str]) -> list[WorkflowApschedulerJob]:

@@ -13,6 +13,7 @@
 
 """Tests for load_schedules, the entry point for registering schedules from code."""
 
+from unittest.mock import Mock
 from uuid import NAMESPACE_DNS, uuid5
 
 import pytest
@@ -21,7 +22,7 @@ from orchestrator.core.schedules.service import load_schedules
 
 
 @pytest.mark.parametrize("mock_add_schedule", [["my_task"]], indirect=True)
-def test_load_schedules_enriches_workflow_id_and_passes_recreate(mock_add_schedule):
+def test_load_schedules_enriches_workflow_id_and_passes_recreate(mock_add_schedule: Mock) -> None:
     schedule = {"name": "My Task", "workflow_name": "my_task", "trigger": "interval", "trigger_kwargs": {"hours": 2}}
 
     assert load_schedules([schedule], recreate=True) == []
@@ -33,7 +34,7 @@ def test_load_schedules_enriches_workflow_id_and_passes_recreate(mock_add_schedu
 
 
 @pytest.mark.parametrize("mock_add_schedule", [["known_task"]], indirect=True)
-def test_load_schedules_returns_unknown_workflow_names(mock_add_schedule):
+def test_load_schedules_returns_unknown_workflow_names(mock_add_schedule: Mock) -> None:
     schedules = [
         {"name": "Known", "workflow_name": "known_task", "trigger": "interval", "trigger_kwargs": {"hours": 1}},
         {"name": "Unknown", "workflow_name": "missing_task", "trigger": "interval", "trigger_kwargs": {"hours": 1}},
@@ -41,3 +42,13 @@ def test_load_schedules_returns_unknown_workflow_names(mock_add_schedule):
 
     assert load_schedules(schedules) == ["missing_task"]
     assert mock_add_schedule.call_count == 1
+
+
+@pytest.mark.parametrize("mock_add_schedule", [[]], indirect=True)
+@pytest.mark.parametrize("workflow_name", [pytest.param("", id="empty"), pytest.param(None, id="none")])
+def test_load_schedules_reports_falsy_workflow_names(mock_add_schedule: Mock, workflow_name: str | None) -> None:
+    """A name that is empty or None registers nothing, so it must still be reported as skipped."""
+    schedule = {"name": "Bad", "workflow_name": workflow_name, "trigger": "interval", "trigger_kwargs": {"hours": 1}}
+
+    assert load_schedules([schedule]) == [str(workflow_name)]
+    assert mock_add_schedule.call_count == 0

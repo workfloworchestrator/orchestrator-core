@@ -11,15 +11,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Iterator
 from types import SimpleNamespace
 from unittest import mock
+from unittest.mock import Mock
 from uuid import NAMESPACE_DNS, uuid5
 
 import pytest
 
 
 @pytest.fixture
-def mock_add_schedule(request):
+def mock_add_schedule(request: pytest.FixtureRequest) -> Iterator[Mock]:
     """Patch the schedule queue, resolving only the workflow names passed as the indirect param."""
     workflow_map = {name: SimpleNamespace(workflow_id=uuid5(NAMESPACE_DNS, name)) for name in request.param}
     with (
