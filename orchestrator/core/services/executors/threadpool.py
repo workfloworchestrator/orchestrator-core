@@ -26,10 +26,10 @@ from orchestrator.core.services.processes import (
     RESUME_WORKFLOW_REMOVED_ERROR_MSG,
     START_WORKFLOW_REMOVED_ERROR_MSG,
     SYSTEM_USER,
-    StateMerger,
     _run_process_async,
     create_process,
     load_process,
+    merge_state,
     safe_logstep,
 )
 from orchestrator.core.types import BroadcastFunc
@@ -94,7 +94,7 @@ def thread_start_process(
         input_data = retrieve_input_state(pstat.process_id, "initial_state", False)
 
     # Trigger the task in the current thread or threadpool (depends on executor mode).
-    pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
+    pstat.state = pstat.state.map(lambda state: merge_state(state, input_data.input_state))
 
     # When using celery, the current_user prop is set to SYSTEM, because there is no actual user involved.
     # The `user` property is supplied via the task and is the name of the user that triggered this task.
@@ -133,7 +133,7 @@ def thread_resume_process(
         # restore the `current_user` prop to provide an answer to the question:
         # "who retried this workflow step?"
         pstat.current_user = user
-    pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
+    pstat.state = pstat.state.map(lambda state: merge_state(state, input_data.input_state))
 
     # Final write action to the process: ensure the SessionTransaction is committed.
     # When using threadpool executor, this closes the SessionTransaction on the API, so that the threadpool worker can

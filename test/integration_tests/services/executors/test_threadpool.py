@@ -12,12 +12,11 @@
 # limitations under the License.
 
 from unittest import mock
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 
-from orchestrator.core.db import ProcessTable
 from orchestrator.core.services.executors.threadpool import (
     _set_process_status_running,
     thread_resume_process,
@@ -28,39 +27,8 @@ from orchestrator.core.services.processes import (
     START_WORKFLOW_REMOVED_ERROR_MSG,
     SYSTEM_USER,
 )
-from orchestrator.core.targets import Target
-from orchestrator.core.workflow import (
-    ProcessStat,
-    ProcessStatus,
-    Success,
-    make_workflow,
-    step,
-)
+from orchestrator.core.workflow import ProcessStat, ProcessStatus
 from orchestrator.core.workflows.removed_workflow import removed_workflow
-
-
-def mock_process_data():
-    @step("test step")
-    def test_step():
-        pass
-
-    wf = make_workflow(lambda: None, "description", None, Target.SYSTEM, [test_step])
-    wf.name = "name"
-
-    process_id = uuid4()
-    initial_state_dict = {
-        "process_id": process_id,
-        "reporter": mock.sentinel.user,
-        "workflow_name": mock.sentinel.wf_name,
-        "workflow_target": Target.SYSTEM,
-    }
-    initial_state = Success(dict(initial_state_dict))
-    mock_update_pstat = MagicMock()
-    pstat = ProcessStat(process_id, wf, initial_state, wf.steps, current_user=mock.sentinel.user)
-    pstat.update = mock_update_pstat
-
-    process = MagicMock(spec=ProcessTable)
-    return pstat, process, wf, mock_update_pstat, initial_state_dict
 
 
 @mock.patch("orchestrator.core.services.executors.threadpool.db")
@@ -128,7 +96,7 @@ def test_thread_start_process(
 
     mock_set_process_status_running.assert_called_once_with(process_id)
     mock_retrieve_input_state.assert_called_once_with(process_id, "initial_state", False)
-    assert pstat.update.call_args_list == [call(state={"state": "test"})]
+    assert pstat.state == {"state": "test"}
     mock_run_process_async.assert_called_once()
     assert result == process_id
     assert pstat.current_user == username
@@ -157,7 +125,7 @@ def test_thread_start_process_without_user(
 
     mock_set_process_status_running.assert_called_once_with(process_id)
     mock_retrieve_input_state.assert_called_once_with(process_id, "initial_state", False)
-    assert pstat.update.call_args_list == [call(state={"state": "test"})]
+    assert pstat.state == {"state": "test"}
     mock_run_process_async.assert_called_once()
     assert result == process_id
     # No user supplied, so it should default to "SYSTEM"
@@ -199,7 +167,7 @@ def test_thread_resume_process_resumed(
 
     mock_set_process_status_running.assert_called_once()
     mock_retrieve_input_state.assert_called_once_with(pstat.process_id, "user_input", False)
-    assert pstat.update.call_args_list == [call(state={"state": "test"})]
+    assert pstat.state == {"state": "test"}
     mock_run_process_async.assert_called_once()
     assert result == process_id
     assert pstat.current_user == expected_user
@@ -230,7 +198,7 @@ def test_thread_resume_process_resumed_without_user(
 
     mock_set_process_status_running.assert_called_once()
     mock_retrieve_input_state.assert_called_once_with(pstat.process_id, "user_input", False)
-    assert pstat.update.call_args_list == [call(state={"state": "test"})]
+    assert pstat.state == {"state": "test"}
     mock_run_process_async.assert_called_once()
     assert result == process_id
     # Resumed without supplied username.
