@@ -13,6 +13,7 @@
 import json
 import time
 from collections.abc import Iterator
+from typing import Any
 
 import typer
 from apscheduler.job import Job
@@ -34,7 +35,7 @@ from orchestrator.core.utils.redis_client import create_redis_client
 
 app: typer.Typer = typer.Typer()
 
-INITIAL_SCHEDULES: list[dict] = [
+INITIAL_SCHEDULES: list[dict[str, Any]] = [
     {
         "name": "Task Resume Workflows",
         "workflow_name": "task_resume_workflows",
