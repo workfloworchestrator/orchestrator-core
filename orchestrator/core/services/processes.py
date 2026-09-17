@@ -20,7 +20,6 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
-from deepmerge.merger import Merger
 from pytz import utc
 from requests.adapters import MaxRetryError
 from sqlalchemy import delete, select
@@ -83,7 +82,18 @@ from pydantic_forms.types import State, UUIDstr
 
 logger = structlog.get_logger(__name__)
 
-StateMerger = Merger([(dict, ["merge"])], ["override"], ["override"])
+def merge_state(base: State, nxt: State) -> State:
+    """Recursively merge `nxt` into `base`.
+
+    Dict values under a shared key are merged recursively; any other type mismatch or
+    scalar/list value in `nxt` overrides the value in `base`.
+    """
+    return base | {
+        k: merge_state(base[k], v) if isinstance(base.get(k), dict) and isinstance(v, dict) else v
+        for k, v in nxt.items()
+    }
+
+
 ProcessHandlerFunc = Callable[[ProcessTable, WFProcess], ProcessTable]
 
 SYSTEM_USER = "SYSTEM"
@@ -913,7 +923,7 @@ async def _async_resume_processes(
 def abort_process(process: ProcessTable, user: str, broadcast_func: Callable | None = None) -> WFProcess:
     pstat = load_process(process)
 
-    pstat.update(current_user=user)
+    pstat.current_user = user
     result = abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
     # `abort_wf` has committed by now, so a fresh scope sees the final state. Indexing on its own
     # session keeps a failed indexing query from leaving the caller's session needing a rollback.
