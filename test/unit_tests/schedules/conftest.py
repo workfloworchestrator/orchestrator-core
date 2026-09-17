@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from types import SimpleNamespace
 from unittest import mock
 from unittest.mock import Mock
@@ -21,13 +21,22 @@ import pytest
 
 
 @pytest.fixture
-def mock_add_schedule(request: pytest.FixtureRequest) -> Iterator[Mock]:
-    """Patch the schedule queue, resolving only the workflow names passed as the indirect param."""
-    workflow_map = {name: SimpleNamespace(workflow_id=uuid5(NAMESPACE_DNS, name)) for name in request.param}
+def mock_schedule_queue() -> Iterator[Callable[..., Mock]]:
+    """Patch the schedule queue, yielding a callable that declares which workflow names resolve.
+
+    Call it with the known workflow names; it returns the patched
+    `add_unique_scheduled_task_to_queue` mock. Any other name resolves to None.
+    """
+    workflow_map: dict[str, SimpleNamespace] = {}
     with (
         mock.patch(
             "orchestrator.core.schedules.service.get_workflow_by_name", side_effect=lambda name: workflow_map.get(name)
         ),
         mock.patch("orchestrator.core.schedules.service.add_unique_scheduled_task_to_queue") as mock_add,
     ):
-        yield mock_add
+
+        def known_workflows(*names: str) -> Mock:
+            workflow_map.update({name: SimpleNamespace(workflow_id=uuid5(NAMESPACE_DNS, name)) for name in names})
+            return mock_add
+
+        yield known_workflows

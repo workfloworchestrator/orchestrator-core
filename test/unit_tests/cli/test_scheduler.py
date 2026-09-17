@@ -100,7 +100,7 @@ def test_force_task_no_args_kwargs_uses_defaults():
 # --- load_initial_schedule ---
 
 
-def _mock_known_workflows(names: list[str]) -> mock._patch:
+def _mock_known_workflows(names):
     """Resolve only the named workflows; any other name resolves to None."""
     workflow_map = {name: SimpleNamespace(workflow_id=uuid5(NAMESPACE_DNS, name)) for name in names}
     return mock.patch(
@@ -116,7 +116,7 @@ def _mock_known_workflows(names: list[str]) -> mock._patch:
         pytest.param([], 0, id="none-found"),
     ],
 )
-def test_load_initial_schedule(known_workflows: list[str], expected_added: int) -> None:
+def test_load_initial_schedule(known_workflows, expected_added):
     with (
         _mock_known_workflows(known_workflows),
         mock.patch("orchestrator.core.schedules.service.add_unique_scheduled_task_to_queue") as mock_add,

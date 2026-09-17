@@ -363,6 +363,12 @@ Core's CLI prints the skipped names and carries on; a project deploy is usually 
 them, since a missing workflow means the task was never registered in `workflows/__init__.py` or its
 migration has not run.
 
+A schedule that is malformed rather than unmigrated — no `workflow_name`, or `trigger_kwargs` the
+trigger rejects — raises instead of being reported as skipped, so it cannot be mistaken for a
+workflow that is merely missing. Uncaught, that exits the command non-zero with a traceback, which
+fails the init container running it. Do not wrap the command in a retry loop that treats any non-zero
+exit as "not ready yet": a malformed schedule will never become valid, and the retry hides it.
+
 Expose it as a CLI command next to the core scheduler commands, so `main.py` keeps a single entry
 point:
 
