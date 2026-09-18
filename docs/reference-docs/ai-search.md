@@ -33,7 +33,7 @@ should use AI / Hybrid Search.
 ### One row per field
 
 A traditional search index stores one document per record. This subsystem stores one row per
-**field**, in a table called `ai_search_index`. A subscription with 40 fields contributes 40 rows.
+**field**, in a table called `ai_search_index`. A subscription with 40 fields contributes 40 rows. This includes, besides the fields of the domain model of a subscription, all "depends-on" products fields.
 
 Each row records where the value came from as a dotted path like `subscription.node.name`,
 stored in a PostgreSQL [`ltree`](https://www.postgresql.org/docs/current/ltree.html) column.
@@ -49,14 +49,13 @@ Two things follow from this layout:
   your schema. A UI that needs "which fields can I filter on?" reads the much smaller
   [`ai_search_paths`](#the-distinct-paths-table) table instead.
 
-### Four ways to match
+### Three ways to match
 
 | Match type          | Answers                                    | Built on                                                        |
 |---------------------|--------------------------------------------|-----------------------------------------------------------------|
 | **Semantic**        | "which values *mean* something similar?"    | vector embeddings, compared with [pgvector](https://github.com/pgvector/pgvector) |
 | **Fuzzy**           | "which values are *spelled* similarly?"     | trigrams, via the `pg_trgm` extension                            |
 | **Structured**      | "which entities have a field under this path?" | `ltree` path operators                                        |
-| **Exact / typed**   | "which entities have status = active?"      | typed casts and comparisons on the value column                  |
 
 **Trigrams** are three-character slices of a word: `node` becomes `nod`, `ode`. Two strings that
 share many trigrams are similar, so `nod` still matches `node` and typos still find their target.
