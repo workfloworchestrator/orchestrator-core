@@ -22,10 +22,11 @@ from orchestrator.core.domain.base import ProductBlockModel, SubscriptionModel
 from orchestrator.core.search.core.types import EntityType, FieldType, UIType
 from orchestrator.core.search.indexing.field_types import (
     clear_field_type_cache,
+    list_path_prefix,
     resolve_field_types,
     resolve_field_value_kind,
 )
-from test.unit_tests.search.fixtures.blocks import BasicBlock, ComputedBlock, ListBlock
+from test.unit_tests.search.fixtures.blocks import BasicBlock, ComputedBlock, ListBlock, NestedBlock
 
 
 def test_resolve_field_types_handles_recursive_subscription_model() -> None:
@@ -98,6 +99,53 @@ def test_resolve_field_types_indexes_annotated_list_fields_with_wildcard_path() 
     clear_field_type_cache()
 
     assert types == frozenset({FieldType.INTEGER})
+
+
+def test_list_path_prefix_finds_list_of_models_ancestor_but_not_scalar_list() -> None:
+    """A list of models is a traversable list path; a list of scalars has nothing after its wildcard to traverse."""
+
+    class ListSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        list_block: ListBlock
+        nested_block: NestedBlock
+
+    clear_field_type_cache()
+    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"LIST": ListSubscription}, clear=True):
+        scalar_list = list_path_prefix(EntityType.SUBSCRIPTION, "subscription.list_block.required_ids.0")
+        model_list = list_path_prefix(EntityType.SUBSCRIPTION, "subscription.nested_block.list_blocks.0.name")
+        not_a_list = list_path_prefix(EntityType.SUBSCRIPTION, "subscription.list_block")
+        unknown_path = list_path_prefix(EntityType.SUBSCRIPTION, "subscription.does_not_exist")
+    clear_field_type_cache()
+
+    assert scalar_list is None
+    assert model_list == "subscription.nested_block.list_blocks"
+    assert not_a_list is None
+    assert unknown_path is None
+
+
+def test_list_path_prefix_picks_innermost_of_nested_list_paths() -> None:
+    class ShallowListSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        container: list[BasicBlock]
+
+    class DeepListSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        container: NestedBlock
+
+    clear_field_type_cache()
+    registry = {"SHALLOW": ShallowListSubscription, "DEEP": DeepListSubscription}
+    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, registry, clear=True):
+        inner_prefix = list_path_prefix(EntityType.SUBSCRIPTION, "subscription.container.list_blocks.name")
+        outer_prefix = list_path_prefix(EntityType.SUBSCRIPTION, "subscription.container.name")
+        inner_is_indexed = resolve_field_types(EntityType.SUBSCRIPTION, "subscription.container.list_blocks.0.name")
+    clear_field_type_cache()
+
+    assert inner_prefix == "subscription.container.list_blocks"
+    assert outer_prefix == "subscription.container"
+    assert inner_is_indexed == frozenset({FieldType.STRING})
 
 
 def test_resolve_field_types_uses_domain_field_registries() -> None:

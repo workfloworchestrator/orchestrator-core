@@ -14,8 +14,9 @@
 from collections import defaultdict
 from typing import Any, Sequence
 
+from more_itertools import partition
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import Select, String, case, cast, func, select
+from sqlalchemy import Select, String, bindparam, case, cast, func, or_, select
 from sqlalchemy.engine import Row
 from sqlalchemy.sql.elements import Label
 from sqlalchemy.sql.selectable import CTE
@@ -28,10 +29,13 @@ from orchestrator.core.search.core.types import (
     FieldType,
     FilterOp,
     ResponseColumnData,
+    ResponseColumns,
     ResponseColumnValue,
     UIType,
 )
 from orchestrator.core.search.filters import LtreeFilter
+from orchestrator.core.search.filters.ltree_filters import _LQuery
+from orchestrator.core.search.indexing.field_types import LIST_COLUMN_WILDCARD_MARKER, list_path_prefix
 from orchestrator.core.search.query.mixins import OrderDirection
 from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, Query
 
@@ -334,44 +338,6 @@ def _apply_ordering(
     return stmt
 
 
-def build_response_columns_query(
-    entity_ids: list[str],
-    entity_type: EntityType,
-    response_columns: list[str],
-) -> Select:
-    """Build a pivot query that returns requested field paths as columns for the given entities.
-
-    Uses the same MAX(CASE ...) pivot pattern as _build_pivot_cte().
-
-    Args:
-        entity_ids: List of entity IDs to fetch columns for.
-        entity_type: The entity type being searched.
-        response_columns: Field paths to pivot into columns.
-
-    Returns:
-        Select statement with entity_id and a value/type column pair per requested path.
-    """
-    # Positional aliases prevent field names from colliding with type metadata or each other.
-    pivot_columns = [AiSearchIndex.entity_id.label("entity_id")]
-    for index, path in enumerate(response_columns):
-        pivot_columns.extend(
-            [
-                _build_pivot_column(path, AiSearchIndex.value, f"response_value_{index}"),
-                _build_pivot_column(path, cast(AiSearchIndex.value_type, String), f"response_type_{index}"),
-            ]
-        )
-
-    return (
-        select(*pivot_columns)
-        .where(
-            AiSearchIndex.entity_id.in_(entity_ids),
-            AiSearchIndex.entity_type == entity_type.value,
-            AiSearchIndex.path.in_([Ltree(p) for p in response_columns]),
-        )
-        .group_by(AiSearchIndex.entity_id)
-    )
-
-
 def _restore_value_type(value: str | None, value_type: str | None) -> ResponseColumnValue:
     """Convert the TEXT stored in the index back to the Python type recorded in value_type.
 
@@ -401,29 +367,147 @@ def _restore_value_type(value: str | None, value_type: str | None) -> ResponseCo
             return value
 
 
-def process_response_columns(
+def process_response_flat_columns(
     rows: Sequence[Row],
-    response_columns: list[str],
+    flat_paths: list[str],
 ) -> ResponseColumnData:
-    """Convert pivot query rows into a mapping of entity_id -> {path: value}.
+    """Convert raw EAV rows for flat (scalar) response columns into entity_id -> {path: value}.
 
-    Values are restored to the Python type recorded in the index's value_type column
-    (bool, int, float); every other type is returned as the stored string.
+    The (entity_id, path) primary key guarantees at most one row per requested flat path, so
+    no per-index grouping is needed. Values are restored to the Python type recorded in the
+    index's value_type column (bool, int, float); every other type is returned as the stored
+    string.
 
     Args:
-        rows: Result rows from build_response_columns_query.
-        response_columns: The original field paths requested.
+        rows: Raw EAV rows matching flat_paths (e.g. the flat-path subset of
+            build_response_column_rows_query's result).
+        flat_paths: The original flat field paths requested.
 
     Returns:
         Dict mapping entity_id to a dict of path -> typed value (or None).
     """
+    flat_path_set = set(flat_paths)
+    values_by_entity: dict[str, ResponseColumns] = defaultdict(dict)
+    for row in rows:
+        path_str = str(row.path)
+        if path_str in flat_path_set:
+            value = row.value
+            values_by_entity[str(row.entity_id)][path_str] = _restore_value_type(
+                None if value is None else str(value), row.value_type
+            )
 
-    def convert(row: Row, index: int) -> ResponseColumnValue:
-        value = getattr(row, f"response_value_{index}", None)
-        return _restore_value_type(None if value is None else str(value), getattr(row, f"response_type_{index}", None))
+    return dict(values_by_entity)
+
+
+def _as_list_path(entity_type: EntityType, column: str) -> str | None:
+    """Return `column` normalized to wildcard form if it is a list path, else None."""
+    if LIST_COLUMN_WILDCARD_MARKER in column:
+        return column
+
+    list_prefix = list_path_prefix(entity_type, column)
+    if list_prefix is None:
+        return None
+
+    suffix = column[len(list_prefix) + 1 :]
+    if suffix.partition(".")[0].isdigit():
+        return None
+
+    return f"{list_prefix}{LIST_COLUMN_WILDCARD_MARKER}{suffix}"
+
+
+def split_response_columns(response_columns: list[str], entity_type: EntityType) -> tuple[list[str], list[str]]:
+    """Split response columns into flat (scalar) paths and wildcard list paths.
+
+    A plain path through a schema-known list field is auto-detected and normalized to wildcard form.
+    A path pinning a concrete numeric index stays flat.
+    """
+    resolved = (_as_list_path(entity_type, column) or column for column in response_columns)
+    flat_paths, list_paths = partition(lambda column: LIST_COLUMN_WILDCARD_MARKER in column, resolved)
+    return list(flat_paths), list(list_paths)
+
+
+def build_response_column_rows_query(
+    entity_ids: list[str],
+    entity_type: EntityType,
+    flat_paths: list[str],
+    list_paths: list[str],
+) -> Select:
+    """Build a single query returning raw EAV rows for flat and wildcard list response columns together.
+
+    Matches flat_paths by exact path equality and list_paths by lquery wildcard, OR'd into one
+    WHERE clause, so both column kinds are fetched in a single round-trip. No SQL-side pivot is
+    applied -- the (entity_id, path) primary key guarantees at most one row per flat path, and
+    grouping the raw rows into a response is left to the caller.
+    """
+    conditions = []
+    if flat_paths:
+        conditions.append(AiSearchIndex.path.in_([Ltree(p) for p in flat_paths]))
+    if list_paths:
+        prefixes = {path.partition(LIST_COLUMN_WILDCARD_MARKER)[0] for path in list_paths}
+        conditions.extend(
+            AiSearchIndex.path.op("~")(bindparam(None, f"{prefix}.*.*", type_=_LQuery())) for prefix in prefixes
+        )
+
+    return select(AiSearchIndex.entity_id, AiSearchIndex.path, AiSearchIndex.value, AiSearchIndex.value_type).where(
+        AiSearchIndex.entity_id.in_(entity_ids),
+        AiSearchIndex.entity_type == entity_type.value,
+        or_(*conditions),
+    )
+
+
+def _group_suffixes_by_prefix(list_paths: list[str]) -> dict[str, set[str]]:
+    """Group wildcard list paths into a prefix -> requested suffixes mapping."""
+    suffixes_by_prefix: dict[str, set[str]] = {}
+    for path in list_paths:
+        prefix, _, suffix = path.partition(LIST_COLUMN_WILDCARD_MARKER)
+        suffixes_by_prefix.setdefault(prefix, set()).add(suffix)
+    return suffixes_by_prefix
+
+
+def _match_list_row(path_str: str, suffixes_by_prefix: dict[str, set[str]]) -> tuple[str, int, str] | None:
+    """Return the (prefix, index, suffix) a row's path matches, or None if it matches no requested path."""
+    matching_prefixes = [prefix for prefix in suffixes_by_prefix if path_str.startswith(f"{prefix}.")]
+    if not matching_prefixes:
+        return None
+
+    prefix = max(matching_prefixes, key=len)
+    tail = path_str[len(prefix) + 1 :]
+    index_str, _, suffix = tail.partition(".")
+    if suffix not in suffixes_by_prefix[prefix]:
+        return None
+
+    return prefix, int(index_str), suffix
+
+
+def process_response_list_columns(
+    rows: Sequence[Row],
+    list_paths: list[str],
+) -> dict[str, dict[str, list[dict[str, ResponseColumnValue]]]]:
+    """Group raw EAV rows for wildcard list paths into prefix -> entity_id -> ordered items.
+
+    Values are restored to their indexed Python type.
+    Every prefix in list_paths is included in the result, even with zero matching rows.
+    """
+    suffixes_by_prefix = _group_suffixes_by_prefix(list_paths)
+    items_by_group: dict[str, dict[str, dict[int, dict[str, ResponseColumnValue]]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(dict))
+    )
+
+    for row in rows:
+        match = _match_list_row(str(row.path), suffixes_by_prefix)
+        if match is not None:
+            prefix, index, suffix = match
+            value = row.value
+            items_by_group[prefix][str(row.entity_id)][index][suffix] = _restore_value_type(
+                None if value is None else str(value), row.value_type
+            )
 
     return {
-        str(row.entity_id): {path: convert(row, index) for index, path in enumerate(response_columns)} for row in rows
+        prefix: {
+            entity_id: [item for _, item in sorted(items.items())]
+            for entity_id, items in items_by_group.get(prefix, {}).items()
+        }
+        for prefix in suffixes_by_prefix
     }
 
 

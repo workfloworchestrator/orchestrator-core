@@ -15,22 +15,31 @@
 
 from collections import namedtuple
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import ConfigDict
 from sqlalchemy import Row
 
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.search.core.types import EntityType, FieldType, UIType
+from orchestrator.core.search.indexing.field_types import clear_field_type_cache
 from orchestrator.core.search.query.builder import (
     ComponentInfo,
     LeafInfo,
     _apply_ordering,
     _restore_value_type,
     build_paths_query,
+    build_response_column_rows_query,
     process_path_rows,
+    process_response_flat_columns,
+    process_response_list_columns,
+    split_response_columns,
 )
 from orchestrator.core.search.query.mixins import OrderBy, OrderDirection
 from orchestrator.core.search.query.queries import CountQuery
+from test.unit_tests.search.fixtures.blocks import BasicBlock, NestedBlock
 
 pytestmark = pytest.mark.search
 
@@ -363,7 +372,7 @@ def test_restore_value_type_falls_back_to_stored_string(value: str, value_type: 
 
     Rows indexed before value_type was reconciled against the value still carry a type the
     value contradicts. Converting eagerly would raise inside the per-row comprehension in
-    process_response_columns and fail the whole search response.
+    process_response_flat_columns/process_response_list_columns and fail the whole search response.
     """
     assert _restore_value_type(value, value_type.value) == value
 
@@ -385,3 +394,398 @@ def test_restore_value_type_none_value_returns_none():
 def test_restore_value_type_unknown_type_returns_stored_string():
     """A value_type not in the FieldType enum falls back to the stored text."""
     assert _restore_value_type("42", "not_a_real_type") == "42"
+
+
+# ---------------------------------------------------------------------------
+# Tests: split_response_columns
+# ---------------------------------------------------------------------------
+
+
+def test_split_response_columns_all_flat():
+    """No wildcard paths -> everything is a flat path, no list paths."""
+    flat, list_paths = split_response_columns(
+        ["subscription.status", "subscription.product.name"], EntityType.SUBSCRIPTION
+    )
+    assert flat == ["subscription.status", "subscription.product.name"]
+    assert list_paths == []
+
+
+def test_split_response_columns_all_wildcard():
+    """Wildcard paths are returned flat, not grouped by prefix."""
+    flat, list_paths = split_response_columns(
+        ["process.subscriptions.*.subscription_id", "process.subscriptions.*.description"], EntityType.PROCESS
+    )
+    assert flat == []
+    assert list_paths == ["process.subscriptions.*.subscription_id", "process.subscriptions.*.description"]
+
+
+def test_split_response_columns_mixed():
+    """Flat and wildcard paths coexist and are separated correctly."""
+    flat, list_paths = split_response_columns(
+        ["subscription.status", "process.subscriptions.*.subscription_id"], EntityType.PROCESS
+    )
+    assert flat == ["subscription.status"]
+    assert list_paths == ["process.subscriptions.*.subscription_id"]
+
+
+def test_split_response_columns_distinct_prefixes():
+    """Wildcard paths with different prefixes are all returned in the list-paths list."""
+    flat, list_paths = split_response_columns(
+        ["process.subscriptions.*.subscription_id", "process.workflow_steps.*.name"], EntityType.PROCESS
+    )
+    assert flat == []
+    assert set(list_paths) == {"process.subscriptions.*.subscription_id", "process.workflow_steps.*.name"}
+
+
+def test_split_response_columns_empty_input():
+    """Empty input -> empty flat and list-paths lists."""
+    flat, list_paths = split_response_columns([], EntityType.PROCESS)
+    assert flat == []
+    assert list_paths == []
+
+
+def test_split_response_columns_auto_detects_list_field_without_wildcard_marker():
+    """A plain path reaching through a schema-known list field is normalized to wildcard form."""
+    flat, list_paths = split_response_columns(["process.subscriptions.subscription_id"], EntityType.PROCESS)
+    assert flat == []
+    assert list_paths == ["process.subscriptions.*.subscription_id"]
+
+
+def test_split_response_columns_auto_detect_mixes_with_explicit_wildcard():
+    """Auto-detected and explicitly-wildcarded paths for the same list are both normalized to wildcard form."""
+    flat, list_paths = split_response_columns(
+        ["process.subscriptions.subscription_id", "process.subscriptions.*.description"], EntityType.PROCESS
+    )
+    assert flat == []
+    assert list_paths == ["process.subscriptions.*.subscription_id", "process.subscriptions.*.description"]
+
+
+def test_split_response_columns_plain_scalar_path_not_treated_as_list():
+    """A plain path that isn't a schema-known list field stays a flat path."""
+    flat, list_paths = split_response_columns(["process.workflow_name"], EntityType.PROCESS)
+    assert flat == ["process.workflow_name"]
+    assert list_paths == []
+
+
+def test_split_response_columns_explicit_numeric_index_stays_flat():
+    """A path pinning a concrete list index (e.g. subscriptions.0.description) stays a flat, exact-match path."""
+    flat, list_paths = split_response_columns(["process.subscriptions.0.description"], EntityType.PROCESS)
+    assert flat == ["process.subscriptions.0.description"]
+    assert list_paths == []
+
+
+@pytest.fixture
+def nested_list_registry() -> dict[str, type[SubscriptionModel]]:
+    """Two products whose list paths nest: `container` and `container.list_blocks` are both lists."""
+
+    class ShallowListSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        container: list[BasicBlock]
+
+    class DeepListSubscription(SubscriptionModel, is_base=True):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        container: NestedBlock
+
+    return {"SHALLOW": ShallowListSubscription, "DEEP": DeepListSubscription}
+
+
+@pytest.mark.parametrize(
+    "column, expected_flat, expected_list",
+    [
+        pytest.param(
+            "subscription.container.list_blocks.name",
+            [],
+            ["subscription.container.list_blocks.*.name"],
+            id="wildcards-at-innermost-list",
+        ),
+        pytest.param(
+            "subscription.container.list_blocks.0.name",
+            ["subscription.container.list_blocks.0.name"],
+            [],
+            id="pinned-index-on-innermost-list-stays-flat",
+        ),
+    ],
+)
+def test_split_response_columns_nested_lists_resolve_against_innermost(
+    nested_list_registry: dict[str, type[SubscriptionModel]],
+    column: str,
+    expected_flat: list[str],
+    expected_list: list[str],
+) -> None:
+    """A column under nested list fields resolves at the innermost one, so it normalizes to a real indexed path.
+
+    The pinned-index case depends on the same choice: the digit only sits directly after the prefix
+    when that prefix is the innermost list.
+    """
+    clear_field_type_cache()
+    with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, nested_list_registry, clear=True):
+        flat, list_paths = split_response_columns([column], EntityType.SUBSCRIPTION)
+    clear_field_type_cache()
+
+    assert flat == expected_flat
+    assert list_paths == expected_list
+
+
+# ---------------------------------------------------------------------------
+# Tests: build_response_column_rows_query
+# ---------------------------------------------------------------------------
+
+
+def test_build_response_column_rows_query_no_group_by():
+    """The combined query fetches raw rows for flat and list paths alike; no pivot/GROUP BY."""
+    stmt = build_response_column_rows_query(
+        ["e1"], EntityType.PROCESS, ["process.workflow_name"], ["process.subscriptions.*.description"]
+    )
+    sql = str(stmt.compile()).lower()
+    assert "group by" not in sql
+    assert "max(" not in sql
+    assert "case" not in sql
+
+
+def test_build_response_column_rows_query_selects_raw_columns():
+    """Query selects entity_id, path, value, value_type directly -- no pivoted aliases."""
+    stmt = build_response_column_rows_query(
+        ["e1"], EntityType.PROCESS, ["process.workflow_name"], ["process.subscriptions.*.description"]
+    )
+    column_names = {col.key for col in stmt.selected_columns}
+    assert column_names == {"entity_id", "path", "value", "value_type"}
+
+
+def test_build_response_column_rows_query_combines_exact_and_lquery_matches():
+    """Flat paths are matched exactly and list paths via lquery, OR'd into one WHERE clause."""
+    stmt = build_response_column_rows_query(
+        ["e1"], EntityType.PROCESS, ["process.workflow_name"], ["process.subscriptions.*.description"]
+    )
+    sql = str(stmt.compile()).lower()
+    assert " or " in sql
+    assert "lquery" in sql
+
+
+def test_build_response_column_rows_query_flat_only_has_no_lquery():
+    """With only flat paths requested, no lquery matching is built."""
+    stmt = build_response_column_rows_query(["e1"], EntityType.PROCESS, ["process.workflow_name"], [])
+    sql = str(stmt.compile()).lower()
+    assert "lquery" not in sql
+
+
+def test_build_response_column_rows_query_list_only_has_no_exact_in_clause():
+    """With only list paths requested, path filtering is lquery-only."""
+    stmt = build_response_column_rows_query(["e1"], EntityType.PROCESS, [], ["process.subscriptions.*.description"])
+    sql = str(stmt.compile()).lower()
+    assert "lquery" in sql
+
+
+def test_build_response_column_rows_query_filters_entity_type_and_ids():
+    """entity_type and entity_id filters are applied."""
+    stmt = build_response_column_rows_query(["e1"], EntityType.PROCESS, ["process.workflow_name"], [])
+    sql = str(stmt.compile())
+    assert "entity_type" in sql.lower()
+    assert "entity_id" in sql.lower()
+    assert stmt.compile().params["entity_type_1"] == EntityType.PROCESS.value
+
+
+# ---------------------------------------------------------------------------
+# Tests: process_response_flat_columns
+# ---------------------------------------------------------------------------
+
+
+FlatRow = namedtuple("FlatRow", ["entity_id", "path", "value", "value_type"], defaults=[FieldType.STRING.value])
+
+
+def test_process_response_flat_columns_maps_path_to_value():
+    """Raw rows for requested flat paths are converted to entity_id -> {path: value}."""
+    rows = [
+        FlatRow("e1", "process.workflow_name", "create_service"),
+        FlatRow("e1", "process.last_step", "notify"),
+    ]
+    flat_paths = ["process.workflow_name", "process.last_step"]
+
+    result = process_response_flat_columns(rows, flat_paths)
+
+    assert result == {"e1": {"process.workflow_name": "create_service", "process.last_step": "notify"}}
+
+
+def test_process_response_flat_columns_multiple_entities():
+    """Rows for different entities are grouped independently."""
+    rows = [
+        FlatRow("e1", "process.workflow_name", "create_service"),
+        FlatRow("e2", "process.workflow_name", "modify_service"),
+    ]
+
+    result = process_response_flat_columns(rows, ["process.workflow_name"])
+
+    assert result == {
+        "e1": {"process.workflow_name": "create_service"},
+        "e2": {"process.workflow_name": "modify_service"},
+    }
+
+
+def test_process_response_flat_columns_unrequested_path_dropped():
+    """A row whose path was not requested (e.g. a list row sharing the query) is excluded."""
+    rows = [
+        FlatRow("e1", "process.workflow_name", "create_service"),
+        FlatRow("e1", "process.subscriptions.0.subscription_id", "uuid1"),
+    ]
+
+    result = process_response_flat_columns(rows, ["process.workflow_name"])
+
+    assert result == {"e1": {"process.workflow_name": "create_service"}}
+
+
+def test_process_response_flat_columns_null_value():
+    """A None value is preserved as None, not stringified."""
+    rows = [FlatRow("e1", "process.last_step", None)]
+
+    result = process_response_flat_columns(rows, ["process.last_step"])
+
+    assert result == {"e1": {"process.last_step": None}}
+
+
+def test_process_response_flat_columns_empty_rows_returns_empty_dict():
+    """No matching rows -> an empty dict, unlike process_response_list_columns which keys by prefix."""
+    assert process_response_flat_columns([], ["process.workflow_name"]) == {}
+
+
+def test_process_response_flat_columns_restores_value_type():
+    """Values are restored to their indexed Python type, not left as strings."""
+    rows = [
+        FlatRow("e1", "process.is_task", "True", FieldType.BOOLEAN.value),
+        FlatRow("e1", "process.retry_count", "3", FieldType.INTEGER.value),
+    ]
+    flat_paths = ["process.is_task", "process.retry_count"]
+
+    result = process_response_flat_columns(rows, flat_paths)
+
+    assert result == {"e1": {"process.is_task": True, "process.retry_count": 3}}
+
+
+# ---------------------------------------------------------------------------
+# Tests: process_response_list_columns
+# ---------------------------------------------------------------------------
+
+
+ListRow = namedtuple("ListRow", ["entity_id", "path", "value", "value_type"], defaults=[FieldType.STRING.value])
+
+
+def test_process_response_list_columns_groups_by_index():
+    """Rows for the same entity/index are merged into one dict, ordered by index."""
+    rows = [
+        ListRow("e1", "process.subscriptions.0.subscription_id", "uuid1"),
+        ListRow("e1", "process.subscriptions.0.description", "desc1"),
+        ListRow("e1", "process.subscriptions.1.subscription_id", "uuid2"),
+        ListRow("e1", "process.subscriptions.1.description", "desc2"),
+    ]
+    list_paths = ["process.subscriptions.*.subscription_id", "process.subscriptions.*.description"]
+
+    result = process_response_list_columns(rows, list_paths)
+
+    assert result == {
+        "process.subscriptions": {
+            "e1": [
+                {"subscription_id": "uuid1", "description": "desc1"},
+                {"subscription_id": "uuid2", "description": "desc2"},
+            ]
+        }
+    }
+
+
+def test_process_response_list_columns_multiple_entities():
+    """Rows for different entities are grouped independently."""
+    rows = [
+        ListRow("e1", "process.subscriptions.0.subscription_id", "uuid1"),
+        ListRow("e2", "process.subscriptions.0.subscription_id", "uuid2"),
+    ]
+    list_paths = ["process.subscriptions.*.subscription_id"]
+
+    result = process_response_list_columns(rows, list_paths)
+
+    assert result == {
+        "process.subscriptions": {"e1": [{"subscription_id": "uuid1"}], "e2": [{"subscription_id": "uuid2"}]}
+    }
+
+
+def test_process_response_list_columns_unrequested_suffix_dropped():
+    """A field present in the data but not requested is excluded from the output."""
+    rows = [
+        ListRow("e1", "process.subscriptions.0.subscription_id", "uuid1"),
+        ListRow("e1", "process.subscriptions.0.status", "active"),
+    ]
+    list_paths = ["process.subscriptions.*.subscription_id"]
+
+    result = process_response_list_columns(rows, list_paths)
+
+    assert result == {"process.subscriptions": {"e1": [{"subscription_id": "uuid1"}]}}
+
+
+def test_process_response_list_columns_numeric_ordering_beyond_nine():
+    """Index 10 sorts after index 9, not lexicographically between 1 and 2."""
+    rows = [ListRow("e1", f"process.subscriptions.{i}.subscription_id", f"uuid{i}") for i in [0, 2, 1, 10, 9]]
+    list_paths = ["process.subscriptions.*.subscription_id"]
+
+    result = process_response_list_columns(rows, list_paths)
+
+    assert [item["subscription_id"] for item in result["process.subscriptions"]["e1"]] == [
+        "uuid0",
+        "uuid1",
+        "uuid2",
+        "uuid9",
+        "uuid10",
+    ]
+
+
+def test_process_response_list_columns_null_value():
+    """A None value is preserved as None, not stringified."""
+    rows = [ListRow("e1", "process.subscriptions.0.description", None)]
+    list_paths = ["process.subscriptions.*.description"]
+
+    result = process_response_list_columns(rows, list_paths)
+
+    assert result == {"process.subscriptions": {"e1": [{"description": None}]}}
+
+
+def test_process_response_list_columns_empty_rows_returns_empty_dict():
+    """No rows -> the requested prefix is still present, mapped to an empty dict."""
+    result = process_response_list_columns([], ["process.subscriptions.*.subscription_id"])
+    assert result == {"process.subscriptions": {}}
+
+
+def test_process_response_list_columns_restores_value_type():
+    """Item values are restored to their indexed Python type, not left as strings."""
+    rows = [
+        ListRow("e1", "process.subscriptions.0.subscription_id", "uuid1", FieldType.STRING.value),
+        ListRow("e1", "process.subscriptions.0.is_active", "True", FieldType.BOOLEAN.value),
+        ListRow("e1", "process.subscriptions.0.port_count", "3", FieldType.INTEGER.value),
+        ListRow("e1", "process.subscriptions.0.ratio", "0.5", FieldType.FLOAT.value),
+    ]
+    list_paths = [
+        "process.subscriptions.*.subscription_id",
+        "process.subscriptions.*.is_active",
+        "process.subscriptions.*.port_count",
+        "process.subscriptions.*.ratio",
+    ]
+
+    result = process_response_list_columns(rows, list_paths)
+
+    assert result == {
+        "process.subscriptions": {
+            "e1": [{"subscription_id": "uuid1", "is_active": True, "port_count": 3, "ratio": 0.5}],
+        }
+    }
+
+
+def test_process_response_list_columns_multiple_prefixes_split_correctly():
+    """Rows for two distinct list paths are routed to their own prefix bucket."""
+    rows = [
+        ListRow("e1", "process.subscriptions.0.subscription_id", "uuid1"),
+        ListRow("e1", "process.products.0.name", "product1"),
+    ]
+    list_paths = ["process.subscriptions.*.subscription_id", "process.products.*.name"]
+
+    result = process_response_list_columns(rows, list_paths)
+
+    assert result == {
+        "process.subscriptions": {"e1": [{"subscription_id": "uuid1"}]},
+        "process.products": {"e1": [{"name": "product1"}]},
+    }
