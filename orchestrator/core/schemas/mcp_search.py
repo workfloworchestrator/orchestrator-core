@@ -27,7 +27,6 @@ from orchestrator.core.schemas.base import OrchestratorBaseModel
 from orchestrator.core.search.aggregations import Aggregation, TemporalGrouping
 from orchestrator.core.search.core.types import EntityType, RetrieverType
 from orchestrator.core.search.entity_lookup import ResolvedEntity
-from orchestrator.core.search.fallback import SearchEffort
 from orchestrator.core.search.filters import FilterTree
 from orchestrator.core.search.query.mixins import OrderBy
 from orchestrator.core.search.query.queries import BaseQuery
@@ -56,11 +55,10 @@ class SearchToolRequest(OrchestratorBaseModel):
         default=None,
         description="Force a ranking strategy (FUZZY/SEMANTIC/HYBRID). Requires query_text. Omit to auto-route.",
     )
-    effort: SearchEffort = Field(
-        default=SearchEffort.MEDIUM,
-        description="How hard to broaden when a filtered search returns nothing: 'high'=2 fallback passes, "
-        "'medium'=1, 'low'=0 (report no matches instead of broadening). Each pass drops the filters and "
-        "re-ranks by similarity to surface the closest matches.",
+    allow_fallback: bool = Field(
+        default=True,
+        description="Broaden when a filtered search returns nothing: retry with looser filters to surface the "
+        "closest matches. Set false to report no matches instead.",
     )
 
     @model_validator(mode="after")
@@ -142,7 +140,8 @@ class SearchToolResponse(OrchestratorBaseModel):
     fallback_used: bool = Field(
         default=False,
         description="True when the exact filtered search was empty and these are the closest matches "
-        "(filters dropped, ranked by similarity) rather than exact matches — tell the user they are approximate.",
+        "(filters relaxed or dropped, ranked by similarity) rather than exact matches — tell the user they are "
+        "approximate.",
     )
     results: list[SearchToolResultItem]
 
