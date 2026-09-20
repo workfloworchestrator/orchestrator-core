@@ -706,7 +706,7 @@ def test_resolve_multiple_matches_per_leaf():
 
 
 @pytest.mark.parametrize("rows", [[], [_structured_row()]], ids=["no_rows", "with_rows"])
-def test_format_search_response_keeps_query_embedding(rows: list[_StubRow]):
+def test_format_search_response_keeps_query_embedding(rows):
     """The query embedding is returned even without rows, so an empty-result retry can reuse it."""
     tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"))
 
