@@ -404,7 +404,7 @@ async def search_endpoint(
     ``list_subscriptions``) to enumerate entities instead. To filter: first call
     discover_filter_paths for the fields you need, check operators with get_valid_operators, then build
     the filter_tree from ONLY those exact paths. If a filtered search returns nothing, it automatically
-    broadens (drops filters, re-ranks by similarity) up to ``effort`` passes and sets
+    broadens (relaxes, then drops the filters) unless ``allow_fallback`` is false, and sets
     ``fallback_used=true`` — those are approximate, closest matches.
 
     Building good filters:
@@ -431,7 +431,7 @@ async def search_endpoint(
             filters=params.filters,
             limit=params.limit,
             retriever=params.retriever,
-            effort=params.effort,
+            allow_fallback=params.allow_fallback,
             db_session=session,
         )
     except (ValidationError, ValueError) as exc:
