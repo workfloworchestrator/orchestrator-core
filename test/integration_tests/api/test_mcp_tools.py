@@ -12,6 +12,10 @@
 # limitations under the License.
 
 from http import HTTPStatus
+from unittest import mock
+from uuid import uuid4
+
+from orchestrator.core.utils.errors import DBInternalError
 
 
 def test_list_subscriptions(product_type_1_subscription_factory, product_type_1_subscriptions_factory, test_client):
@@ -36,3 +40,25 @@ def test_list_subscriptions_truncates_at_limit(product_type_1_subscriptions_fact
     body = response.json()
     assert len(body["subscriptions"]) == 1
     assert body["has_more"] is True
+
+
+@mock.patch("orchestrator.core.api.api_v1.endpoints.mcp_tools.get_subscription_async")
+def test_get_subscription_available_workflows_db_error(mock_get_subscription_async, test_client):
+    mock_get_subscription_async.side_effect = DBInternalError("Database error while looking up subscription abc-123")
+
+    response = test_client.post(
+        "/api/agent/get_subscription_available_workflows", json={"subscription_id": str(uuid4())}
+    )
+
+    assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+    assert "abc-123" not in response.text
+
+
+@mock.patch("orchestrator.core.api.api_v1.endpoints.mcp_tools.get_subscription_async")
+def test_get_subscription_details_db_error(mock_get_subscription_async, test_client):
+    mock_get_subscription_async.side_effect = DBInternalError("Database error while looking up subscription abc-123")
+
+    response = test_client.post("/api/agent/get_subscription_details", json={"subscription_id": str(uuid4())})
+
+    assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+    assert "abc-123" not in response.text
