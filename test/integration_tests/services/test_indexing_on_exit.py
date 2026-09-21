@@ -28,7 +28,7 @@ from sqlalchemy.exc import ProgrammingError
 
 from nwastdlib import const
 from orchestrator.core.config.assignee import Assignee
-from orchestrator.core.db import ProcessTable, db
+from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.indexing import tasks as indexing_tasks
 from orchestrator.core.services.processes import abort_process, fail_awaiting_process, start_process
@@ -186,6 +186,28 @@ def test_aborted_process_is_indexed():
         # The suspended index row was overwritten with the abort, so this proves the abort exit
         # was indexed rather than merely observing the earlier suspension.
         assert _indexed_values(process_id)["process.last_status"] == ProcessStatus.ABORTED
+
+
+def test_aborted_process_step_is_attributed_to_the_aborting_user():
+    """`abort_process` must attribute the abort step to its caller, not to SYSTEM.
+
+    `load_process` always rebuilds the `ProcessStat` with `current_user=SYSTEM_USER`; `abort_process`
+    then has to override it with the passed-in `user` before calling `abort_wf`;
+    """
+    with WorkflowInstanceForTests(indexing_abort_wf, "indexing_abort_wf"):
+        process_id = start_process("indexing_abort_wf", [{}])
+        process = db.session.get(ProcessTable, process_id)
+
+        abort_process(process, user="tester")
+
+        abort_step = db.session.scalars(
+            select(ProcessStepTable)
+            .where(ProcessStepTable.process_id == process_id)
+            .order_by(ProcessStepTable.completed_at.desc())
+            .limit(1)
+        ).one()
+        assert abort_step.name == "User Aborted"
+        assert abort_step.created_by == "tester"
 
 
 def test_timed_out_awaiting_process_is_indexed(generic_subscription_1):
