@@ -43,6 +43,32 @@ def test_load_schedules_returns_unknown_workflow_names(mock_schedule_queue):
     assert mock_add.call_count == 1
 
 
+def test_load_schedules_rejects_duplicate_workflows(mock_schedule_queue):
+    """add_unique_scheduled_task_to_queue keeps one schedule per workflow, so two is a config error."""
+    mock_add = mock_schedule_queue("known_task")
+    schedules = [
+        {"name": "Weekdays", "workflow_name": "known_task", "trigger": "cron", "trigger_kwargs": {"hour": 1}},
+        {"name": "Weekends", "workflow_name": "known_task", "trigger": "cron", "trigger_kwargs": {"hour": 23}},
+    ]
+
+    with pytest.raises(ValueError, match="Multiple schedules declared for workflow"):
+        load_schedules(schedules)
+    assert mock_add.call_count == 0
+
+
+def test_load_schedules_queues_nothing_when_a_later_schedule_is_malformed(mock_schedule_queue):
+    """Validation runs over the whole list first, so a bad entry cannot partially apply."""
+    mock_add = mock_schedule_queue("known_task")
+    schedules = [
+        {"name": "Good", "workflow_name": "known_task", "trigger": "interval", "trigger_kwargs": {"hours": 1}},
+        {"name": "Bad", "workflow_name": None, "trigger": "interval", "trigger_kwargs": {"hours": 1}},
+    ]
+
+    with pytest.raises(ValueError, match="has no valid workflow_name"):
+        load_schedules(schedules)
+    assert mock_add.call_count == 0
+
+
 @pytest.mark.parametrize(
     "workflow_name",
     [

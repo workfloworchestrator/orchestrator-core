@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+from collections import Counter
 from collections.abc import Sequence
 from typing import Any
 from uuid import UUID, uuid4
@@ -155,30 +156,45 @@ def load_schedules(schedules: Sequence[dict[str, Any]], *, recreate: bool = Fals
         registered. Raise on a non-empty list to fail a deploy on an unmigrated workflow.
 
     Raises:
-        ValueError: A schedule's ``workflow_name`` is missing or not a string, which is a malformed
-            declaration rather than an unknown workflow. Uncaught, this exits the CLI non-zero with
-            a traceback.
+        ValueError: A schedule's ``workflow_name`` is missing or not a string, or two schedules name
+            the same workflow — malformed declarations rather than unknown workflows. Uncaught, this
+            exits the CLI non-zero with a traceback.
         ValidationError: A schedule's remaining fields do not build an :class:`APSchedulerJobCreate`,
             for example ``trigger_kwargs`` the trigger rejects.
+
+    Every schedule is validated before any of them is queued, so malformed input registers nothing.
     """
 
-    def load(schedule: dict[str, Any]) -> str | None:
-        """Queue one schedule, returning its workflow name when the workflow is unknown."""
+    def workflow_name_of(schedule: dict[str, Any]) -> str:
+        """Return the schedule's workflow name, rejecting one that is missing or not a string."""
         workflow_name = schedule["workflow_name"]
         if not isinstance(workflow_name, str) or not workflow_name:
             raise ValueError(
                 f"Schedule {schedule.get('name', schedule)!r} has no valid workflow_name: {workflow_name!r}"
             )
+        return workflow_name
+
+    def to_payload(schedule: dict[str, Any], workflow_name: str) -> APSchedulerJobCreate | None:
+        """Build the payload for one schedule, or None when its workflow is unknown."""
         workflow = get_workflow_by_name(workflow_name)
         if not workflow:
             logger.warning("Skipping schedule for unknown workflow", workflow_name=workflow_name)
-            return workflow_name
-        payload = APSchedulerJobCreate(**(schedule | {"workflow_id": workflow.workflow_id}))
+            return None
+        return APSchedulerJobCreate(**(schedule | {"workflow_id": workflow.workflow_id}))
+
+    workflow_names = [workflow_name_of(schedule) for schedule in schedules]
+    if duplicates := [name for name, count in Counter(workflow_names).items() if count > 1]:
+        raise ValueError(
+            f"Multiple schedules declared for workflow(s): {duplicates}. "
+            "load_schedules registers at most one schedule per workflow; use the API for more."
+        )
+
+    payloads = [to_payload(schedule, name) for schedule, name in zip(schedules, workflow_names)]
+    for payload in filter(None, payloads):
         logger.info("Loading schedule", payload=payload)
         add_unique_scheduled_task_to_queue(payload, recreate=recreate)
-        return None
 
-    return [name for schedule in schedules if (name := load(schedule)) is not None]
+    return [name for name, payload in zip(workflow_names, payloads) if payload is None]
 
 
 def get_linker_entries_by_schedule_ids(schedule_ids: list[str]) -> list[WorkflowApschedulerJob]:

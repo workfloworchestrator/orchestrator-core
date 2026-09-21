@@ -366,8 +366,7 @@ migration has not run.
 A schedule that is malformed rather than unmigrated — no `workflow_name`, or `trigger_kwargs` the
 trigger rejects — raises instead of being reported as skipped, so it cannot be mistaken for a
 workflow that is merely missing. Uncaught, that exits the command non-zero with a traceback, which
-fails the init container running it. Do not wrap the command in a retry loop that treats any non-zero
-exit as "not ready yet": a malformed schedule will never become valid, and the retry hides it.
+fails the init container running it rather than resolving on a retry.
 
 Expose it as a CLI command next to the core scheduler commands, so `main.py` keeps a single entry
 point:
@@ -398,6 +397,10 @@ Schedules registered this way are ordinary API-managed schedules: they show as `
 `show-schedule` and stay editable through the API and the UI. That also makes the code a starting
 point rather than a source of truth — an existing schedule for the workflow is left alone unless
 `recreate=True`, so a later edit through the UI survives the next deploy.
+
+Removing an entry from the list does not remove its schedule: `load_schedules` only adds, and nothing
+reconciles the database against the declaration. Delete the schedule through the API or the UI, or
+leave the entry in place until you do.
 
 ## The scheduler
 
