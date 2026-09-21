@@ -498,6 +498,17 @@ async def test_broadcast_disconnect_all(broadcast_mgr):
     ws.send_text.assert_awaited()
 
 
+@pytest.mark.parametrize("count", [pytest.param(2, id="two"), pytest.param(3, id="three")])
+@pytest.mark.asyncio
+async def test_broadcast_disconnect_all_closes_every_client(broadcast_mgr, count: int):
+    """disconnect() removes from the list it iterates, which skipped every other socket."""
+    sockets = [_make_broadcast_ws() for _ in range(count)]
+    broadcast_mgr.connected = list(sockets)
+    await broadcast_mgr.disconnect_all()
+    assert all(ws.close.await_count == 1 for ws in sockets)
+    assert broadcast_mgr.connected == []
+
+
 # --- BroadcastWebsocketManager receiver ---
 
 
