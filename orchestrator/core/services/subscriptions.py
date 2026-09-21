@@ -23,6 +23,7 @@ from uuid import UUID
 
 import structlog
 from more_itertools import first
+from psycopg import InterfaceError
 from sqlalchemy import Text, cast, not_, select
 from sqlalchemy.exc import InvalidRequestError, OperationalError, SQLAlchemyError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
@@ -61,7 +62,7 @@ logger = structlog.get_logger(__name__)
 
 T = TypeVar("T", bound=SubscriptionTable)
 
-_SUBSCRIPTION_LOOKUP_INFRA_ERRORS = (OperationalError, InvalidRequestError, SQLAlchemyTimeoutError)
+_SUBSCRIPTION_LOOKUP_INFRA_ERRORS = (OperationalError, InvalidRequestError, SQLAlchemyTimeoutError, InterfaceError)
 
 
 @overload
