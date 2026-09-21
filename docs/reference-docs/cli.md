@@ -708,3 +708,19 @@ Commands to interact with the scheduler and scheduled jobs.
       - "force"
       - "show_schedule"
       - "load_initial_schedule"
+
+To register your own project's schedules from code, see
+[Registering your own schedules from code](../guides/tasks.md#registering-your-own-schedules-from-code).
+
+::: orchestrator.core.schedules.service
+    options:
+      docstring_style: google
+      separate_signature: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+      members:
+      - "load_schedules"
