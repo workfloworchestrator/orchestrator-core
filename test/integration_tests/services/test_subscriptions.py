@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
+from psycopg import InterfaceError
 from sqlalchemy import select
 from sqlalchemy.exc import InvalidRequestError, MultipleResultsFound, OperationalError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
@@ -83,6 +84,7 @@ def test_get_subscription_by_id_invalid_id(generic_product_3):
         OperationalError("SELECT 1", {}, Exception()),
         InvalidRequestError("boom"),
         SQLAlchemyTimeoutError("pool exhausted"),
+        InterfaceError("connection already closed"),
     ],
 )
 def test_get_subscription_by_id_raises_db_internal_error(error):
@@ -96,6 +98,7 @@ def test_get_subscription_by_id_raises_db_internal_error(error):
         OperationalError("SELECT 1", {}, Exception()),
         InvalidRequestError("boom"),
         SQLAlchemyTimeoutError("pool exhausted"),
+        InterfaceError("connection already closed"),
     ],
 )
 async def test_get_subscription_async_raises_db_internal_error(error):
