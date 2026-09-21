@@ -43,6 +43,7 @@ from orchestrator.core.services.subscriptions import (
     unsync,
 )
 from orchestrator.core.targets import Target
+from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.workflow import ProcessStatus, done, init, workflow
 from test.integration_tests.config import (
     IMS_CIRCUIT_ID,
@@ -921,3 +922,12 @@ def test_subscription_set_in_sync_already_in_sync(seed, test_client):
     # IP_PREFIX_SUBSCRIPTION_ID is created with insync=True in the seed fixture
     response = test_client.put(f"/api/subscriptions/{IP_PREFIX_SUBSCRIPTION_ID}/set_in_sync")
     assert response.status_code == HTTPStatus.OK
+
+
+@mock.patch("orchestrator.core.api.api_v1.endpoints.subscriptions.get_subscription_async")
+def test_subscription_set_in_sync_db_error(mock_get_subscription_async, seed, test_client):
+    mock_get_subscription_async.side_effect = DBInternalError("Database error while looking up subscription abc-123")
+
+    response = test_client.put(f"/api/subscriptions/{IP_PREFIX_SUBSCRIPTION_ID}/set_in_sync")
+    assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+    assert "abc-123" not in response.text
