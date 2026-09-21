@@ -13,14 +13,13 @@
 
 
 from collections.abc import Iterable
-from contextlib import suppress
 from itertools import chain
 
 from fastapi import WebSocket, WebSocketDisconnect, status
-from starlette.websockets import WebSocketState
 from structlog import get_logger
 
 from orchestrator.core.utils.json import json_dumps
+from orchestrator.core.websocket.close import close_websocket
 
 logger = get_logger(__name__)
 
@@ -48,9 +47,7 @@ class MemoryWebsocketManager:
     async def disconnect(
         self, websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: dict | str | None = None
     ) -> None:
-        if reason:
-            await websocket.send_text(json_dumps(reason))
-        await websocket.close(code=code)
+        await close_websocket(websocket, code=code, reason=reason)
 
     def _connections(self, channels: Iterable[str]) -> list[tuple[str, WebSocket]]:
         """Snapshot of (channel, websocket) pairs, safe to iterate while remove_ws mutates the registry."""
@@ -86,13 +83,8 @@ class MemoryWebsocketManager:
             await self.remove_ws(websocket, channel)
 
     async def remove_ws(self, websocket: WebSocket, channel: str) -> None:
-        # Guard on application_state, which is what starlette's send() checks. It goes DISCONNECTED
-        # while client_state stays CONNECTED when a send fails rather than the client disconnecting,
-        # and closing then raises. Suppress as well: the close itself races with the peer going away,
-        # and the registry must be cleaned up either way.
-        if websocket.application_state != WebSocketState.DISCONNECTED:
-            with suppress(RuntimeError, WebSocketDisconnect):
-                await self.disconnect(websocket)
+        # close_websocket never raises, so the registry is cleaned up whether or not the close lands.
+        await self.disconnect(websocket)
         if channel in self.connections_by_pid and websocket in self.connections_by_pid[channel]:
             self.connections_by_pid[channel].remove(websocket)
             if not len(self.connections_by_pid[channel]):
