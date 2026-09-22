@@ -202,6 +202,7 @@ nav:
           - Workflow Steps: reference-docs/workflows/workflow-steps.md
           - Conditional Steps: reference-docs/workflows/conditional-steps.md
           - Callback step: reference-docs/workflows/callbacks.md
+          - Loop Steps: reference-docs/workflows/loop-steps.md
           - Run Predicates: reference-docs/workflows/run-predicates.md
       - Websockets: reference-docs/websockets.md
       - Search: reference-docs/search.md

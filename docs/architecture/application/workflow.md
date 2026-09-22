@@ -121,6 +121,9 @@ The orchestrator supports several kinds of steps to cover different use cases:
 - **`callback_step`** [functional docs for callback_step]
   Pauses workflow execution while waiting for a external event to complete.
 
+- **`loop`** [functional docs for loop]
+  Repeats a group of steps until an exit condition is met or an iteration limit is reached.
+
 For a practical example of how to define reusable workflow steps—and how to leverage single dispatch for type-specific logic—see:
 👉 [Reusable step functions and single dispatch usage]
 
@@ -245,6 +248,7 @@ Now this particular modify workflow can be run on subscriptions that are not in 
 [functional docs for inputstep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.core.workflow.inputstep
 [functional docs for conditional]: ../../reference-docs/workflows/conditional-steps.md
 [functional docs for callback_step]: ../../reference-docs/workflows/callbacks.md
+[functional docs for loop]: ../../reference-docs/workflows/loop-steps.md
 [Reusable step functions and single dispatch usage]: ../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps
 [registering-workflows]: ../../getting-started/workflows.md#register-workflows
 [tasks-and-scheduling]: ../../guides/tasks.md
