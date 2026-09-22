@@ -60,7 +60,7 @@ dependencies = [
     "python-rapidjson>=1.25,<1.26",
     "pytz>=2025",
     "redis==8.1.0",
-    "semver==3.0.4",
+    "semver==3.1.0",
     "sentry-sdk[fastapi]>=2.29.1",
     "sqlalchemy[asyncio]==2.0.52",
     "sqlalchemy-utils==0.42.1",
