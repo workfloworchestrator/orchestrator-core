@@ -19,10 +19,10 @@ from starlette.websockets import WebSocketState
 from orchestrator.core.utils.json import json_dumps
 
 
-async def close_websocket(
+async def close_websocket_safely(
     websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: dict | str | None = None
 ) -> None:
-    """Close a websocket, tolerating a peer that is already gone.
+    """Close a websocket, tolerating a peer that is already gone. Never raises.
 
     Guards on ``application_state``, which is what starlette's ``send()`` checks; it goes
     DISCONNECTED while ``client_state`` stays CONNECTED when a send fails rather than the client

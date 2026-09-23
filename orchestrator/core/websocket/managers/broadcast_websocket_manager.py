@@ -19,7 +19,7 @@ from structlog.stdlib import BoundLogger, get_logger
 
 from orchestrator.core.utils.json import json_dumps
 from orchestrator.core.utils.redis import RedisBroadcast
-from orchestrator.core.websocket.close import close_websocket
+from orchestrator.core.websocket.close import close_websocket_safely
 
 logger = get_logger(__name__)
 
@@ -61,7 +61,7 @@ class BroadcastWebsocketManager:
     async def disconnect(
         self, websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: dict | str | None = None
     ) -> None:
-        await close_websocket(websocket, code=code, reason=reason)
+        await close_websocket_safely(websocket, code=code, reason=reason)
         self.remove_ws_from_connected_list(websocket)
 
     async def disconnect_all(self) -> None:

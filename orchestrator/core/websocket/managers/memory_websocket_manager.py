@@ -19,7 +19,7 @@ from fastapi import WebSocket, WebSocketDisconnect, status
 from structlog import get_logger
 
 from orchestrator.core.utils.json import json_dumps
-from orchestrator.core.websocket.close import close_websocket
+from orchestrator.core.websocket.close import close_websocket_safely
 
 logger = get_logger(__name__)
 
@@ -47,7 +47,7 @@ class MemoryWebsocketManager:
     async def disconnect(
         self, websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: dict | str | None = None
     ) -> None:
-        await close_websocket(websocket, code=code, reason=reason)
+        await close_websocket_safely(websocket, code=code, reason=reason)
 
     def _connections(self, channels: Iterable[str]) -> list[tuple[str, WebSocket]]:
         """Snapshot of (channel, websocket) pairs, safe to iterate while remove_ws mutates the registry."""
@@ -83,7 +83,6 @@ class MemoryWebsocketManager:
             await self.remove_ws(websocket, channel)
 
     async def remove_ws(self, websocket: WebSocket, channel: str) -> None:
-        # close_websocket never raises, so the registry is cleaned up whether or not the close lands.
         await self.disconnect(websocket)
         if channel in self.connections_by_pid and websocket in self.connections_by_pid[channel]:
             self.connections_by_pid[channel].remove(websocket)
