@@ -20,7 +20,9 @@ from sqlalchemy.sql import Select
 
 from orchestrator.core.db import (
     ProcessTable,
+    ProductBlockTable,
     ProductTable,
+    ResourceTypeTable,
     SubscriptionTable,
     WorkflowTable,
 )
@@ -29,7 +31,9 @@ from orchestrator.core.search.core.types import EntityType, ExtractedField
 from orchestrator.core.search.indexing.traverse import (
     BaseTraverser,
     ProcessTraverser,
+    ProductBlockTraverser,
     ProductTraverser,
+    ResourceTypeTraverser,
     SubscriptionTraverser,
     WorkflowTraverser,
 )
@@ -101,6 +105,43 @@ class WorkflowConfig(EntityConfig[WorkflowTable]):
         return query
 
 
+@dataclass(frozen=True)
+class ProductBlockConfig(EntityConfig[ProductBlockTable]):
+    """Product blocks need to eager load resource_types and in_use_by product_blocks."""
+
+    def get_all_query(self, entity_id: str | None = None) -> Select:
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        from orchestrator.core.db.models import ProductBlockRelationTable
+
+        query = select(self.table).options(
+            selectinload(self.table.resource_types),
+            selectinload(self.table.in_use_by_block_relations).selectinload(ProductBlockRelationTable.in_use_by),
+            selectinload(self.table.depends_on_block_relations).selectinload(ProductBlockRelationTable.depends_on),
+        )
+        if entity_id:
+            pk_column = getattr(self.table, self.pk_name)
+            query = query.where(pk_column == UUID(entity_id))
+        return query
+
+
+@dataclass(frozen=True)
+class ResourceTypeConfig(EntityConfig[ResourceTypeTable]):
+    """Resource types need to eager load the product blocks that use them."""
+
+    def get_all_query(self, entity_id: str | None = None) -> Select:
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        # noload to prevent lazyloading of product_blocks relations
+        query = select(self.table).options(selectinload(self.table.product_blocks).noload("*"))
+        if entity_id:
+            pk_column = getattr(self.table, self.pk_name)
+            query = query.where(pk_column == UUID(entity_id))
+        return query
+
+
 ENTITY_CONFIG_REGISTRY: dict[EntityType, EntityConfig] = {
     EntityType.SUBSCRIPTION: EntityConfig(
         entity_kind=EntityType.SUBSCRIPTION,
@@ -133,5 +174,21 @@ ENTITY_CONFIG_REGISTRY: dict[EntityType, EntityConfig] = {
         pk_name="workflow_id",
         root_name="workflow",
         title_paths=["workflow.description", "workflow.name"],
+    ),
+    EntityType.METADATA_PRODUCT_BLOCK: ProductBlockConfig(
+        entity_kind=EntityType.METADATA_PRODUCT_BLOCK,
+        table=ProductBlockTable,
+        traverser=ProductBlockTraverser,
+        pk_name="product_block_id",
+        root_name="product_block",
+        title_paths=["product_block.description", "product_block.name"],
+    ),
+    EntityType.METADATA_RESOURCE_TYPE: ResourceTypeConfig(
+        entity_kind=EntityType.METADATA_RESOURCE_TYPE,
+        table=ResourceTypeTable,
+        traverser=ResourceTypeTraverser,
+        pk_name="resource_type_id",
+        root_name="resource_type",
+        title_paths=["resource_type.description", "resource_type.resource_type"],
     ),
 }

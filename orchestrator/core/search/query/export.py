@@ -18,11 +18,14 @@ from sqlalchemy.orm import selectinload
 
 from orchestrator.core.db import (
     ProcessTable,
+    ProductBlockTable,
     ProductTable,
+    ResourceTypeTable,
     SubscriptionTable,
     WorkflowTable,
     db,
 )
+from orchestrator.core.db.models import ProductBlockRelationTable
 from orchestrator.core.search.core.types import EntityType
 
 
@@ -173,6 +176,73 @@ def fetch_process_export_data(entity_ids: list[str]) -> list[dict]:
     ]
 
 
+def fetch_product_block_export_data(entity_ids: list[str]) -> list[dict]:
+    """Fetch product block definition data for export.
+
+    Args:
+        entity_ids: List of product block IDs as strings
+
+    Returns:
+        List of flattened product block dictionaries with fields:
+        product_block_id, name, description, tag, status, created_at, end_date,
+        resource_types (comma-separated), in_use_by (comma-separated)
+    """
+    stmt = (
+        select(ProductBlockTable)
+        .options(
+            selectinload(ProductBlockTable.resource_types),
+            selectinload(ProductBlockTable.in_use_by_block_relations).selectinload(
+                ProductBlockRelationTable.in_use_by
+            ),
+        )
+        .filter(ProductBlockTable.product_block_id.in_([UUID(pbid) for pbid in entity_ids]))
+    )
+    product_blocks = db.session.scalars(stmt).all()
+
+    return [
+        {
+            "product_block_id": str(pb.product_block_id),
+            "name": pb.name,
+            "description": pb.description,
+            "tag": pb.tag,
+            "status": pb.status,
+            "created_at": pb.created_at.isoformat() if pb.created_at else None,
+            "end_date": pb.end_date.isoformat() if pb.end_date else None,
+            "resource_types": ", ".join(rt.resource_type for rt in pb.resource_types),
+            "in_use_by": ", ".join(b.name for b in pb.in_use_by),
+        }
+        for pb in product_blocks
+    ]
+
+
+def fetch_resource_type_export_data(entity_ids: list[str]) -> list[dict]:
+    """Fetch resource type definition data for export.
+
+    Args:
+        entity_ids: List of resource type IDs as strings
+
+    Returns:
+        List of flattened resource type dictionaries with fields:
+        resource_type_id, resource_type, description, product_blocks (comma-separated)
+    """
+    stmt = (
+        select(ResourceTypeTable)
+        .options(selectinload(ResourceTypeTable.product_blocks))
+        .filter(ResourceTypeTable.resource_type_id.in_([UUID(rtid) for rtid in entity_ids]))
+    )
+    resource_types = db.session.scalars(stmt).all()
+
+    return [
+        {
+            "resource_type_id": str(rt.resource_type_id),
+            "resource_type": rt.resource_type,
+            "description": rt.description,
+            "product_blocks": ", ".join(pb.name for pb in rt.product_blocks),
+        }
+        for rt in resource_types
+    ]
+
+
 def fetch_export_data(entity_type: EntityType, entity_ids: list[str]) -> list[dict]:
     """Fetch export data for any entity type.
 
@@ -195,5 +265,9 @@ def fetch_export_data(entity_type: EntityType, entity_ids: list[str]) -> list[di
             return fetch_product_export_data(entity_ids)
         case EntityType.PROCESS:
             return fetch_process_export_data(entity_ids)
+        case EntityType.METADATA_PRODUCT_BLOCK:
+            return fetch_product_block_export_data(entity_ids)
+        case EntityType.METADATA_RESOURCE_TYPE:
+            return fetch_resource_type_export_data(entity_ids)
         case _:
             raise ValueError(f"Unsupported entity type: {entity_type}")
