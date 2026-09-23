@@ -15,6 +15,7 @@ import base64
 from uuid import UUID
 
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.search.core.exceptions import InvalidCursorError
 from orchestrator.core.search.query.queries import SelectQuery
@@ -42,10 +43,11 @@ class PageCursor(BaseModel):
             raise InvalidCursorError("Invalid pagination cursor") from e
 
 
-def encode_next_page_cursor(
+async def encode_next_page_cursor(
     search_response: SearchResponse,
     cursor: PageCursor | None,
     query: SelectQuery,
+    session: AsyncSession,
 ) -> str | None:
     """Create next page cursor if there are more results.
 
@@ -56,6 +58,7 @@ def encode_next_page_cursor(
         search_response: SearchResponse containing results and query_embedding
         cursor: Current page cursor (None for first page, PageCursor for subsequent pages)
         query: SelectQuery for search operation to save for pagination consistency
+        session: Async database session
 
     Returns:
         Encoded cursor for next page, or None if no more results
@@ -67,7 +70,7 @@ def encode_next_page_cursor(
 
     # If this is the first page, save query state to database
     if cursor is None:
-        query_id = QueryState(query=query, query_embedding=search_response.query_embedding).save()
+        query_id = await QueryState(query=query, query_embedding=search_response.query_embedding).save(session)
     else:
         query_id = cursor.query_id
 

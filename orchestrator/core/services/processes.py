@@ -22,30 +22,40 @@ from uuid import UUID, uuid4
 import structlog
 from deepmerge.merger import Merger
 from pytz import utc
+from requests.adapters import MaxRetryError
 from sqlalchemy import delete, select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import NoResultFound, SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from nwastdlib.ex import show_ex
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.config.assignee import Assignee
-from orchestrator.core.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.core.db import (
+    EngineSettingsTable,
+    ProcessStepTable,
+    ProcessSubscriptionTable,
+    ProcessTable,
+    db,
+)
 from orchestrator.core.db.database import transactional
 from orchestrator.core.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.core.distlock import distlock_manager
 from orchestrator.core.schemas.engine_settings import WorkerStatus
+from orchestrator.core.search.indexing.hooks import index_process_and_subscriptions
 from orchestrator.core.services.executors.types import ExecutorFunction
 from orchestrator.core.services.input_state import store_input_state
+from orchestrator.core.services.process_subscription import store_process_subscription_relation
 from orchestrator.core.services.workflows import get_workflow_by_name
 from orchestrator.core.settings import ExecutorType, app_settings
 from orchestrator.core.types import BroadcastFunc
 from orchestrator.core.utils.datetime import nowtz
-from orchestrator.core.utils.errors import StartPredicateError, error_state_to_dict
+from orchestrator.core.utils.errors import ApiException, InconsistentDataError, StartPredicateError, error_state_to_dict
 from orchestrator.core.utils.json import json_dumps, json_loads
 from orchestrator.core.websocket import (
     broadcast_invalidate_status_counts,
     broadcast_process_update_to_websocket,
+    broadcast_process_update_to_websocket_async,
 )
 from orchestrator.core.workflow import (
     CALLBACK_TOKEN_KEY,
@@ -69,11 +79,12 @@ from orchestrator.core.workflows import get_workflow
 from orchestrator.core.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core import post_form
 from pydantic_forms.exceptions import FormValidationError
-from pydantic_forms.types import State
+from pydantic_forms.types import State, UUIDstr
 
 logger = structlog.get_logger(__name__)
 
 StateMerger = Merger([(dict, ["merge"])], ["override"], ["override"])
+ProcessHandlerFunc = Callable[[ProcessTable, WFProcess], ProcessTable]
 
 SYSTEM_USER = "SYSTEM"
 
@@ -188,14 +199,38 @@ def delete_process(process_id: UUID) -> None:
     broadcast_invalidate_status_counts()
 
 
+def _default_process_func(p: ProcessTable, process_state: WFProcess) -> ProcessTable:
+    """Default behaviour for setting the `last_status` and Assignee of a process."""
+    step_state: State = process_state.unwrap()
+    if process_state.isfailed() and p.is_task:
+        # Check if we need a special failed status:
+        match step_state.get("class"):
+            case InconsistentDataError.__name__:
+                p.last_status = ProcessStatus.INCONSISTENT_DATA
+            case MaxRetryError.__name__ | ApiException.__name__:
+                p.last_status = ProcessStatus.API_UNAVAILABLE
+            case _:
+                p.last_status = ProcessStatus.FAILED
+
+    return p
+
+
+#: The Process Step handler function is called before each step is to be stored in the database.
+#: By default, it will set the last status of the process.
+#: This function can be replaced by a custom `ProcessHandlerFunc` if the user needs custom behavior.
+PROCESS_STEP_HANDLER: ProcessHandlerFunc = _default_process_func
+
+
 def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> ProcessTable:
-    p = db.session.get(ProcessTable, process_id)
-    if p is None:
-        raise ValueError(f"Failed to write failure step to process: process with PID {process_id} not found")
+    try:
+        p = db.session.get_one(ProcessTable, process_id)
+    except NoResultFound as e:
+        raise ValueError(f"Failed to write step to process: process with PID {process_id} not found") from e
 
     p.last_step = step.name
     p.last_status = process_state.overall_status
     p.assignee = step.assignee
+
     step_state: State = process_state.unwrap()
     if process_state.isfailed() or process_state.iswaiting():
         failed_reason = step_state.get("error")
@@ -205,33 +240,11 @@ def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> P
         # Truncate failed_reason (from end) and traceback (from start) to fit database constraints
         p.failed_reason = failed_reason[:FAILED_REASON_LENGTH] if failed_reason else failed_reason
         p.traceback = traceback[-TRACEBACK_LENGTH:] if traceback else traceback
-
-        if process_state.isfailed() and p.is_task:
-            # Check if we need a special failed status:
-            # If it is an AssertionError:
-            if step_state.get("class") == "AssertionError" or step_state.get("class") == "InconsistentData":
-                p.assignee = Assignee.NOC
-                p.last_status = ProcessStatus.INCONSISTENT_DATA
-            # If we encounter a connectivity issue with an underlying api:
-            elif step_state.get("class") == "MaxRetryError" or (
-                step_state.get("class") == "ApiException"
-                and step_state.get("status_code")
-                in (
-                    HTTPStatus.BAD_GATEWAY,
-                    HTTPStatus.SERVICE_UNAVAILABLE,
-                    HTTPStatus.GATEWAY_TIMEOUT,
-                )
-            ):
-                p.assignee = Assignee.SYSTEM
-                p.last_status = ProcessStatus.API_UNAVAILABLE
-            else:
-                p.assignee = Assignee.SYSTEM
-
     else:
         p.failed_reason = None
         p.traceback = None
 
-    return p
+    return PROCESS_STEP_HANDLER(p, process_state)
 
 
 def ensure_correct_process_status(process_id: UUID, last_status: str) -> None:
@@ -425,14 +438,47 @@ def _db_log_process_ex(process_id: UUID, ex: Exception) -> None:
 
 
 def _get_process(process_id: UUID) -> ProcessTable:
-    process = db.session.get(
-        ProcessTable,
-        process_id,
-        options=[
+    stmt = (
+        select(ProcessTable)
+        .where(ProcessTable.process_id == process_id)
+        .options(
             joinedload(ProcessTable.steps),
             joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
-        ],
+        )
     )
+    process = db.session.execute(stmt).unique().scalar_one_or_none()
+    if not process:
+        raise_status(HTTPStatus.NOT_FOUND, f"Process with process_id {process_id} not found")
+
+    return process
+
+
+async def get_process_async(
+    process_id: UUID, session: AsyncSession, options: Sequence[Any] | None = None
+) -> ProcessTable:
+    """Async counterpart to :func:`_get_process` for use in async endpoints.
+
+    Args:
+        process_id: The process_id
+        session: Async database session
+        options: Additional SQLAlchemy loader options, e.g. to eagerly load relationships that
+            would otherwise trigger an implicit (unsupported) lazy load on an async session.
+            The workflow and steps of the process are always loaded.
+
+    Returns: A process object
+
+    """
+    stmt = (
+        select(ProcessTable)
+        .where(ProcessTable.process_id == process_id)
+        .options(
+            joinedload(ProcessTable.workflow),
+            joinedload(ProcessTable.steps),
+            *(options or []),
+        )
+    )
+    result = await session.execute(stmt)
+    process = result.unique().scalar_one_or_none()
 
     if not process:
         raise_status(HTTPStatus.NOT_FOUND, f"Process with process_id {process_id} not found")
@@ -452,7 +498,7 @@ def _run_process_async(process_id: UUID, f: Callable, broadcast_func: BroadcastF
                     except Exception as ex:
                         # We still have access to the database, so we can log at least something
                         _db_log_process_ex(process_id, ex)
-                        raise
+                        result = Failed(ex)
                     finally:
                         db.session.commit()
                     _safe_broadcast_process_update(process_id, broadcast_func)
@@ -460,6 +506,12 @@ def _run_process_async(process_id: UUID, f: Callable, broadcast_func: BroadcastF
                 # We lost access to database here, so we can only log
                 logger.exception("Unknown workflow failure", process_id=process_id)
                 result = Failed(ex)
+            else:
+                # A fresh scope: the workflow's own scope just closed above. Deliberately outside
+                # the except above so a strict-mode indexing failure propagates on its own terms,
+                # instead of being logged as "Unknown workflow failure" and masked as Failed(ex).
+                with db.database_scope():
+                    index_process_and_subscriptions(process_id, result)
 
             return result
 
@@ -525,8 +577,22 @@ def create_process(
         user_model=user_model,
     )
 
+    def _sid_in_initial_user_input(user_inputs: list[State] | None) -> UUIDstr | None:
+        return user_inputs[0].get("subscription_id") if user_inputs else None
+
+    def _is_proper_workflow(workflow_name: str) -> bool:
+        """Returns true if the workflow exists in the database and is NOT a task."""
+        workflow_table = get_workflow_by_name(workflow_name)
+        return not workflow_table.is_task if workflow_table else True
+
     with transactional(db, logger):
         _db_create_process(pstat)
+        # Only store the Process Subscription relation in workflows where a subscription ID is present.
+        # For creation workflows where this is not the case, this is handled in
+        # `SubscriptionModel.from_product_id()`.
+        # For tasks, this is never stored.
+        if (subscription_id := _sid_in_initial_user_input(user_inputs)) and _is_proper_workflow(workflow.name):
+            store_process_subscription_relation(process_id=process_id, subscription_id=subscription_id)
         store_input_state(process_id, state | initial_state, "initial_state")
 
     return pstat
@@ -665,6 +731,20 @@ def replace_current_step_state(process: ProcessTable, *, new_state: State) -> No
     db.session.add(current_step)
 
 
+def replace_current_step_state_async(process: ProcessTable, *, new_state: State, session: AsyncSession) -> None:
+    """Replace the state of the current step in a process.
+
+    Args:
+        process: Process from database, loaded through ``session``
+        new_state: The new state
+        session: Async database session
+
+    """
+    current_step = process.steps[-1]
+    current_step.state = new_state
+    session.add(current_step)
+
+
 def continue_awaiting_process(
     process: ProcessTable,
     *,
@@ -742,6 +822,46 @@ def update_awaiting_process_progress(
     return process.process_id
 
 
+async def update_awaiting_process_progress_async(
+    process: ProcessTable,
+    *,
+    token: str,
+    data: str | State,
+    session: AsyncSession,
+) -> UUID:
+    """Update progress for a process awaiting data from a callback.
+
+    Args:
+        process: Process from database, loaded through ``session``
+        token: The token which was generated for the process. This must match.
+        data: Progress data posted to the callback
+        session: Async database session that loaded ``process``
+
+    Returns:
+        process id
+
+    Raises:
+        AssertionError: if the supplied token does not match the generated process token.
+
+    """
+    pstat = load_process(process)
+
+    ensure_correct_callback_token(pstat, token=token)
+
+    state = pstat.state.unwrap()
+    progress_key = DEFAULT_CALLBACK_PROGRESS_KEY
+    state = {**state, progress_key: data} | {"__remove_keys": [progress_key]}
+
+    # Commit the transaction before the "output" of this function: a websocket event
+    replace_current_step_state_async(process, new_state=state, session=session)
+    await session.commit()
+
+    # Emit the websocket event
+    await broadcast_process_update_to_websocket_async(process.process_id)
+
+    return process.process_id
+
+
 async def _async_resume_processes(
     processes: Sequence[ProcessTable],
     user_name: str,
@@ -771,12 +891,11 @@ async def _async_resume_processes(
                     if process.last_status == ProcessStatus.RUNNING:
                         # Process has been started by something else in the meantime
                         logger.info("Cannot resume a running process", process_id=_proc.process_id)
-                        continue
-                    elif process.last_status == ProcessStatus.RESUMED:  # noqa: RET507
+                    elif process.last_status == ProcessStatus.RESUMED:
                         # Process has been resumed by something else in the meantime
                         logger.info("Cannot resume a resumed process", process_id=_proc.process_id)
-                        continue
-                    resume_process(process, user=user_name, broadcast_func=broadcast_func)
+                    else:
+                        resume_process(process, user=user_name, broadcast_func=broadcast_func)
                 except Exception:
                     logger.exception("Failed to resume process", process_id=_proc.process_id)
             logger.info("Completed resuming processes")
@@ -795,13 +914,23 @@ def abort_process(process: ProcessTable, user: str, broadcast_func: Callable | N
     pstat = load_process(process)
 
     pstat.update(current_user=user)
-    return abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+    result = abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+    # `abort_wf` has committed by now, so a fresh scope sees the final state. Indexing on its own
+    # session keeps a failed indexing query from leaving the caller's session needing a rollback.
+    with db.database_scope():
+        index_process_and_subscriptions(pstat.process_id, result)
+    return result
 
 
-def fail_awaiting_process(process: ProcessTable, broadcast_func: Callable | None = None) -> WFProcess:
+def fail_awaiting_process(process: ProcessTable, broadcast_func: BroadcastFunc | None = None) -> WFProcess:
     """Fail a process that has been stuck awaiting a callback past its timeout."""
     pstat = load_process(process)
-    return fail_awaiting_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+    result = fail_awaiting_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
+    # Own scope, as in `abort_process`: the sweep workflow calls this from inside a step and keeps
+    # using its session for the remaining steps, so indexing must not be able to poison it.
+    with db.database_scope():
+        index_process_and_subscriptions(pstat.process_id, result)
+    return result
 
 
 def _recoverwf(wf: Workflow, log: list[WFProcess]) -> tuple[WFProcess, StepList]:
@@ -879,7 +1008,7 @@ def set_process_status(process: ProcessTable, status: ProcessStatus) -> None:
 def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bool) -> EngineSettingsTable | None:
     """Manage processes depending on the engine status.
 
-    This function only has to act when in the transitioning fases, i.e Pausing and Starting
+    This function only has to act when in the transitioning phases, i.e Pausing and Starting
 
     Args:
         engine_settings: Engine status containing the lock and status fields

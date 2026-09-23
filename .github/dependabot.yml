@@ -1,0 +1,18 @@
+# Dependabot handles SECURITY updates only; routine version bumps are done by
+# Renovate (see renovate.json), whose own vulnerability alerts are disabled so
+# the two bots don't open duplicate security PRs.
+#
+# `open-pull-requests-limit: 0` disables Dependabot *version* updates for the
+# ecosystem while leaving *security* updates active (those have a separate
+# internal limit and are unaffected by this setting). The `labels` below are
+# therefore applied to the security PRs.
+# https://docs.github.com/en/code-security/dependabot/dependabot-security-updates/customizing-dependabot-security-prs
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 0
+    labels:
+      - "kind/security"

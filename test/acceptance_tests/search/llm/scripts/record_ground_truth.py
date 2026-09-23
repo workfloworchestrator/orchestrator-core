@@ -67,7 +67,7 @@ async def record_ground_truth_queries(embeddings_cache: dict[str, list[float]]) 
             # Execute search
             search_query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text, limit=10)
 
-            with db.session as session:
+            async with db.async_session() as session:
                 response = await engine.execute_search(
                     query=search_query, db_session=session, cursor=None, query_embedding=query_embedding
                 )
@@ -102,12 +102,9 @@ async def record_ground_truth():
     # Step 1: Set up test data
     console.print("[bold]Step 1/4:[/bold] Setting up test data...")
     product = ProductTable(**TEST_PRODUCT)
-    db.session.add(product)
-    db.session.flush()
 
-    subscriptions = []
-    for sub_data in TEST_SUBSCRIPTIONS:
-        subscription = SubscriptionTable(
+    subscriptions = [
+        SubscriptionTable(
             subscription_id=sub_data["subscription_id"],
             description=sub_data["description"],
             product_id=product.product_id,
@@ -115,10 +112,15 @@ async def record_ground_truth():
             insync=sub_data["insync"],
             status=sub_data["status"],
         )
-        subscriptions.append(subscription)
-        db.session.add(subscription)
+        for sub_data in TEST_SUBSCRIPTIONS
+    ]
 
-    db.session.commit()
+    async with db.async_session() as session:
+        session.add(product)
+        await session.flush()
+        session.add_all(subscriptions)
+        await session.commit()
+
     console.print(f"[green]✓[/green] Created {len(subscriptions)} test subscriptions")
 
     # Step 2: Generate entity embeddings
@@ -127,10 +129,11 @@ async def record_ground_truth():
 
     # Step 3: Index subscriptions with embeddings
     console.print("[bold]Step 3/4:[/bold] Indexing subscriptions...")
-    for sub in subscriptions:
-        embedding = entity_embeddings[sub.description.lower()]
-        index_subscription(sub, embedding, db.session)
-    db.session.commit()
+    async with db.async_session() as session:
+        for sub in subscriptions:
+            embedding = entity_embeddings[sub.description.lower()]
+            index_subscription(sub, embedding, session)
+        await session.commit()
     console.print(f"[green]✓[/green] Indexed {len(subscriptions)} subscriptions")
 
     # Prepare entity data

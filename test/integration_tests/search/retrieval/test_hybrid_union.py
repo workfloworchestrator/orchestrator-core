@@ -1,0 +1,291 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""The hybrid retriever as a union of a fuzzy and a semantic candidate source.
+
+Seeds a small index with deterministic embeddings (unit vectors on distinct axes) so vector
+distances are controllable, and checks ranking, the perfect-match flag, highlights, filters and
+pagination through both the retriever and the engine.
+"""
+
+from unittest.mock import patch
+from uuid import UUID, uuid4
+
+import pytest
+from sqlalchemy import select
+from sqlalchemy.orm import aliased
+from sqlalchemy_utils import Ltree
+
+from orchestrator.core.db import db
+from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FieldType, FilterOp, SearchMetadata, UIType
+from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter
+from orchestrator.core.search.query import engine
+from orchestrator.core.search.query.builder import build_candidate_query
+from orchestrator.core.search.query.queries import SelectQuery
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
+from orchestrator.core.settings import llm_settings
+
+EXACT_DESCRIPTION = "Coffee grinder CG-2000-XL"
+SIBLING_DESCRIPTION = "Coffee grinder CG-2000-XS"  # word_similarity 0.92 against EXACT_DESCRIPTION: also >= 0.9
+SEMANTIC_DESCRIPTION = "Espresso machine EM-500"
+TERMINATED_DESCRIPTION = "Grinder CG-2000-XS spare"  # word_similarity 0.68 against EXACT_DESCRIPTION
+NO_TRIGRAM_QUERY = "quarterly warehouse inventory audit"  # trigram-matches none of the seeded values
+TYPO_QUERY = "Coffee grinder CG-3000-XS"  # sibling 0.79, exact 0.71, nothing else passes the 0.6 gate
+EMBEDDER = "orchestrator.core.search.core.embedding.QueryEmbedder.generate_for_text_async"
+
+
+def _vec(axis: int) -> list[float]:
+    vector = [0.0] * llm_settings.EMBEDDING_DIMENSION
+    vector[axis] = 1.0
+    return vector
+
+
+def _index_row(
+    entity_id: UUID, path: str, value: str, title: str, embedding: list[float] | None = None
+) -> AiSearchIndex:
+    return AiSearchIndex(
+        entity_type=EntityType.SUBSCRIPTION,
+        entity_id=entity_id,
+        entity_title=title,
+        path=Ltree(path),
+        value=value,
+        value_type=FieldType.STRING,
+        content_hash=uuid4().hex,
+        embedding=embedding,
+    )
+
+
+class Seeded:
+    """Ids of the seeded subscriptions and the embedding axis of each description."""
+
+    exact = uuid4()
+    sibling = uuid4()
+    semantic_only = uuid4()
+    terminated = uuid4()
+    referrer = uuid4()  # carries EXACT_DESCRIPTION in a nested block field, not in its own description
+    axes = {exact: 1, sibling: 2, semantic_only: 0, terminated: 3, referrer: 4}
+
+
+@pytest.fixture
+def seeded() -> type[Seeded]:
+    rows = [
+        _index_row(Seeded.exact, "subscription.description", EXACT_DESCRIPTION, "exact", _vec(1)),
+        # a weaker sibling field that also passes the trigram gate (0.76) and would drag an average down
+        _index_row(Seeded.exact, "subscription.grinder.model", "Grinder CG-2000-XL", "exact"),
+        # the same text again in a nested block whose path sorts before "description": the highlight and
+        # the depth tiebreak must still use the entity's own description
+        _index_row(Seeded.exact, "subscription.bundle.items.0.title", EXACT_DESCRIPTION, "exact"),
+        _index_row(Seeded.exact, "subscription.status", "active", "exact"),
+        _index_row(Seeded.sibling, "subscription.description", SIBLING_DESCRIPTION, "sibling", _vec(2)),
+        _index_row(Seeded.sibling, "subscription.status", "active", "sibling"),
+        _index_row(Seeded.semantic_only, "subscription.description", SEMANTIC_DESCRIPTION, "semantic", _vec(0)),
+        _index_row(Seeded.semantic_only, "subscription.status", "active", "semantic"),
+        _index_row(Seeded.terminated, "subscription.description", TERMINATED_DESCRIPTION, "terminated", _vec(3)),
+        _index_row(Seeded.terminated, "subscription.status", "terminated", "terminated"),
+        _index_row(Seeded.referrer, "subscription.description", "Kitchen bundle referrer", "referrer", _vec(4)),
+        _index_row(
+            Seeded.referrer,
+            "subscription.kitchen_bundle.items.0.grinder.title",
+            EXACT_DESCRIPTION,
+            "referrer",
+            _vec(4),
+        ),
+        _index_row(Seeded.referrer, "subscription.status", "active", "referrer"),
+    ]
+    db.session.add_all(rows)
+    db.session.commit()
+    return Seeded
+
+
+def _active_filter() -> FilterTree:
+    return FilterTree(
+        op=BooleanOperator.AND,
+        children=[
+            PathFilter(
+                path="subscription.status",
+                condition=EqualityFilter(op=FilterOp.EQ, value="active"),
+                value_kind=UIType.STRING,
+            )
+        ],
+    )
+
+
+def _run_retriever(query_text: str, q_vec: list[float], filters: FilterTree | None = None, limit: int = 10) -> list:
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text, filters=filters, limit=limit)
+    retriever = RrfHybridRetriever(
+        q_vec, query_text, cursor=None, entity_type=EntityType.SUBSCRIPTION, semantic_candidates_limit=100
+    )
+    stmt = retriever.apply(build_candidate_query(query)).limit(limit)
+    return list(db.session.execute(stmt).mappings().all())
+
+
+# ---------------------------------------------------------------------------
+# Retriever-level ranking
+# ---------------------------------------------------------------------------
+
+
+def test_exact_match_ranks_first_and_is_perfect_despite_weaker_sibling_field(seeded):
+    """The flag uses the best field: the 0.76 model field does not drag the 1.0 description below 0.9.
+
+    The highlight is the shallowest of the entity's 1.0 fields, its own description, not the nested copy.
+    """
+    rows = _run_retriever(EXACT_DESCRIPTION, _vec(seeded.axes[seeded.exact]))
+
+    assert [r["entity_id"] for r in rows[:3]] == [seeded.exact, seeded.referrer, seeded.sibling]
+    assert [r["perfect_match"] for r in rows[:3]] == [1, 1, 1]
+    assert rows[0]["highlight_path"] == "subscription.description"
+    assert rows[0]["highlight_text"] == EXACT_DESCRIPTION
+
+
+def test_entity_itself_outranks_entity_referencing_the_same_text(seeded):
+    """Equal fuzzy scores: the shallower matching path wins, and a semantic edge cannot flip a perfect match.
+
+    The referrer carries the exact text in a nested field and gets the closest embedding here; the
+    subscription whose own description matches must still come first.
+    """
+    rows = _run_retriever(EXACT_DESCRIPTION, _vec(seeded.axes[seeded.referrer]))
+
+    assert [r["entity_id"] for r in rows[:2]] == [seeded.exact, seeded.referrer]
+    assert rows[1]["highlight_path"] == "subscription.kitchen_bundle.items.0.grinder.title"
+
+
+def test_entity_without_trigram_hit_is_still_ranked_semantically(seeded):
+    """No field trigram-matches the phrase, so results come from the semantic source alone."""
+    rows = _run_retriever(NO_TRIGRAM_QUERY, _vec(seeded.axes[seeded.semantic_only]))
+
+    assert rows[0]["entity_id"] == seeded.semantic_only
+    assert rows[0]["highlight_path"] == "subscription.description"
+    assert rows[0]["highlight_text"] == SEMANTIC_DESCRIPTION
+    assert {r["perfect_match"] for r in rows} == {0}
+    # Every embedded entity is present (every seeded description carries an embedding)
+    assert {r["entity_id"] for r in rows} == set(seeded.axes)
+
+
+def test_fuzzy_only_hits_appear_below_perfect_matches(seeded):
+    """The terminated subscription trigram-matches (0.68) but is not perfect; it still shows up."""
+    rows = _run_retriever(EXACT_DESCRIPTION, _vec(seeded.axes[seeded.exact]))
+
+    by_id = {r["entity_id"]: r for r in rows}
+    assert by_id[seeded.terminated]["perfect_match"] == 0
+    assert float(by_id[seeded.terminated]["score"]) < float(by_id[seeded.sibling]["score"])
+
+
+def test_entity_in_both_sources_outranks_single_source_entities(seeded):
+    """Typo query: sibling wins on fuzzy rank 1 + semantic rank 1.
+
+    Exact (fuzzy rank 2 + semantic rank 2) still ranks above entities present in only one source.
+    """
+    rows = _run_retriever(TYPO_QUERY, _vec(seeded.axes[seeded.sibling]))
+
+    order = [r["entity_id"] for r in rows]
+    assert order[:2] == [seeded.sibling, seeded.exact]
+    assert {r["perfect_match"] for r in rows} == {0}
+    by_id = {r["entity_id"]: r for r in rows}
+    assert float(by_id[seeded.semantic_only]["score"]) < float(by_id[seeded.exact]["score"])
+
+
+def test_structured_filter_removes_entity_from_both_sources(seeded):
+    """A filtered-out entity is absent even though it trigram-matches and has an embedding."""
+    rows = _run_retriever(EXACT_DESCRIPTION, _vec(seeded.axes[seeded.terminated]), filters=_active_filter())
+
+    assert seeded.terminated not in {r["entity_id"] for r in rows}
+    assert rows[0]["entity_id"] == seeded.exact
+
+
+def test_joined_candidate_query_falls_back_to_joining_both_sources(seeded):
+    """A candidate shape the guard rejects is joined rather than inlined; results stay correct."""
+    filter_row = aliased(AiSearchIndex)
+    candidate_query = (
+        select(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
+        .join(filter_row, filter_row.entity_id == AiSearchIndex.entity_id)
+        .where(filter_row.value == "active")
+        .distinct()
+    )
+    retriever = RrfHybridRetriever(
+        _vec(seeded.axes[seeded.terminated]),
+        EXACT_DESCRIPTION,
+        cursor=None,
+        entity_type=EntityType.SUBSCRIPTION,
+        semantic_candidates_limit=100,
+    )
+
+    stmt = retriever.apply(candidate_query)
+    rows = db.session.execute(stmt).mappings().all()
+
+    assert str(stmt).count("JOIN (SELECT DISTINCT") == 2, "both sources join the candidate subquery"
+    assert seeded.terminated not in {r["entity_id"] for r in rows}
+    assert rows[0]["entity_id"] == seeded.exact
+
+
+# ---------------------------------------------------------------------------
+# Engine-level behaviour
+# ---------------------------------------------------------------------------
+
+
+async def test_engine_routes_multi_word_text_to_hybrid(seeded, async_session):
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=EXACT_DESCRIPTION, limit=10)
+
+    with patch(EMBEDDER, return_value=_vec(seeded.axes[seeded.exact])):
+        response = await engine.execute_search(query, async_session)
+
+    assert response.metadata == SearchMetadata.hybrid()
+    first = response.results[0]
+    assert first.entity_id == str(seeded.exact)
+    assert first.perfect_match == 1
+    assert first.matching_fields[0].path == "subscription.description"
+    assert first.matching_fields[0].highlight_indices == [(0, 6), (7, 14), (15, 25)]
+
+
+async def test_engine_plain_language_returns_semantic_results(seeded, async_session):
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=NO_TRIGRAM_QUERY, limit=10)
+
+    with patch(EMBEDDER, return_value=_vec(seeded.axes[seeded.semantic_only])):
+        response = await engine.execute_search(query, async_session)
+
+    assert response.metadata == SearchMetadata.hybrid()
+    assert response.results[0].entity_id == str(seeded.semantic_only)
+    assert not response.results[0].matching_fields[0].highlight_indices
+
+
+async def test_engine_falls_back_to_fuzzy_without_embedding(seeded, async_session):
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=EXACT_DESCRIPTION, limit=10)
+
+    with patch(EMBEDDER, return_value=None):
+        response = await engine.execute_search(query, async_session)
+
+    assert response.metadata == SearchMetadata.fuzzy()
+    # The fuzzy retriever has no depth tiebreak: the entity itself and the referrer both score 1.0
+    top_two = response.results[:2]
+    assert {r.entity_id for r in top_two} == {str(seeded.exact), str(seeded.referrer)}
+    assert all(r.score == pytest.approx(1.0) for r in top_two)
+
+
+async def test_engine_pagination_continues_after_cursor(seeded, async_session):
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=EXACT_DESCRIPTION, limit=2)
+    q_vec = _vec(seeded.axes[seeded.exact])
+
+    with patch(EMBEDDER, return_value=q_vec):
+        first_page = await engine.execute_search(query, async_session)
+        last = first_page.results[-1]
+        cursor = PageCursor(score=last.score, id=last.entity_id, query_id=uuid4())
+        second_page = await engine.execute_search(query, async_session, cursor=cursor, query_embedding=q_vec)
+
+    assert first_page.has_more is True
+    assert len(first_page.results) == 2
+    first_ids = {r.entity_id for r in first_page.results}
+    assert first_ids == {str(seeded.exact), str(seeded.referrer)}
+    assert all(r.entity_id not in first_ids for r in second_page.results)
+    assert all(r.score <= last.score for r in second_page.results)
+    assert len(second_page.results) == 2

@@ -36,6 +36,7 @@ class ProdGenContext(TypedDict):
     tdd: bool | None
     writer: Callable
     skip_existing_blocks: bool
+    dryrun: bool
 
 
 def get_workflow(config: dict, workflow_name: str) -> dict:

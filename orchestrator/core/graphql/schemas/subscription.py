@@ -93,7 +93,12 @@ class SubscriptionInterface:
     note: str | None
     version: int
 
-    @strawberry.field(description="Product information")  # type: ignore
+    @strawberry.field(
+        description=(
+            "Product information. Scalar fields only - query the `products` root field with this "
+            "`productId` for product blocks, fixed inputs and workflows."
+        )
+    )  # type: ignore
     async def product(self) -> ProductModelGraphql:
         model = get_original_model(self, SubscriptionTable)
 

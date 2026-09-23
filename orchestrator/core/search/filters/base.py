@@ -24,10 +24,9 @@ from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import BooleanOperator, FieldType, FilterOp, SQLAColumn, UIType
-
-from .date_filters import DateFilter
-from .ltree_filters import LtreeFilter
-from .numeric_filter import NumericFilter
+from orchestrator.core.search.filters.date_filters import DateFilter
+from orchestrator.core.search.filters.ltree_filters import LtreeFilter
+from orchestrator.core.search.filters.numeric_filter import NumericFilter
 
 
 class EqualityFilter(BaseModel):
@@ -259,6 +258,23 @@ class FilterTree(BaseModel):
             else:
                 leaves.extend(child.get_all_leaves())
         return leaves
+
+    def get_highlightable_leaves(self) -> list[PathFilter]:
+        """Collect the leaves that produce a matching field in search results.
+
+        Component-existence filters are excluded: `not_has_component` matches entities
+        without a corresponding index row, and `has_component` is satisfied by every
+        result by definition, so neither carries information worth reporting.
+
+        The retriever and the result resolver both index matches by position in this
+        list, so they must use this same method to stay aligned.
+        """
+        existence_ops = {FilterOp.HAS_COMPONENT, FilterOp.NOT_HAS_COMPONENT}
+        return [
+            leaf
+            for leaf in self.get_all_leaves()
+            if not (isinstance(leaf.condition, LtreeFilter) and leaf.condition.op in existence_ops)
+        ]
 
     @staticmethod
     def _build_correlates(

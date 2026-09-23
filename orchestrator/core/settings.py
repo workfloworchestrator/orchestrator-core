@@ -16,12 +16,13 @@ import string
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, Secret, SecretStr
+from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, Secret, SecretStr, field_validator
 from pydantic.main import BaseModel
 from pydantic_settings import BaseSettings
 
 from oauth2_lib.settings import oauth2lib_settings
 from orchestrator.core.services.settings_env_variables import expose_settings
+from orchestrator.core.targets import Target
 from orchestrator.core.utils.auth import AuthContext, Authorizer
 from pydantic_forms.types import strEnum
 
@@ -121,6 +122,23 @@ class AppSettings(BaseSettings):
     EXPOSE_OAUTH_SETTINGS: bool = False
     LIFECYCLE_VALIDATION_MODE: LifecycleValidationMode = LifecycleValidationMode.LOOSE
     MCP_ENABLED: bool = False
+    CELERY_TARGET_QUEUES: dict[Target, str] = Field(
+        default_factory=dict,
+        description=(
+            "Optional mapping of workflow Target to a dedicated Celery queue. "
+            "Workflows whose target appears in this mapping are routed to the given queue for both new "
+            "starts and resumes, instead of the default new_*/resume_* queues. Targets not listed keep "
+            "the default routing. Only used when EXECUTOR is 'celery'. "
+            'Example (env var, JSON): CELERY_TARGET_QUEUES=\'{"RECONCILE": "reconcile"}\''
+        ),
+    )
+
+    @field_validator("CELERY_TARGET_QUEUES")
+    @classmethod
+    def validate_celery_target_queues(cls, value: dict[Target, str]) -> dict[Target, str]:
+        if any(not queue.strip() for queue in value.values()):
+            raise ValueError("CELERY_TARGET_QUEUES queue names must be non-empty")
+        return value
 
 
 app_settings = AppSettings()
@@ -153,6 +171,20 @@ class LLMSettings(BaseSettings):
 
     # Toggle creation of extensions
     LLM_FORCE_EXTENSION_MIGRATION: bool = False
+
+    # Retrieval behaviour
+    SEARCH_SEMANTIC_CANDIDATE_LIMIT: int = Field(
+        2000,
+        gt=0,
+        description=(
+            "How many index fields the semantic retriever, and the semantic source of the hybrid retriever, "
+            "pull from the HNSW index per search. Higher reaches further down the result list at the cost "
+            "of a slower scan; semantic exports are not capped."
+        ),
+    )
+
+    # Indexing behaviour
+    SEARCH_INDEXING_STRICT: bool = False  # Raise on indexing errors (dev/test); log and continue by default
 
 
 llm_settings = LLMSettings()

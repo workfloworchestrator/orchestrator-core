@@ -12,11 +12,12 @@
 # limitations under the License.
 
 
-import requests
+import anyio
+import httpx
 import structlog
-from requests.exceptions import RequestException
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.db import EngineSettingsTable, db
 from orchestrator.core.schemas.engine_settings import EngineSettingsSchema, GlobalStatusEnum
@@ -29,6 +30,12 @@ logger = structlog.get_logger(__name__)
 def get_engine_settings_table() -> EngineSettingsTable:
     """Returns the EngineSettingsTable object. Raises an exception if the query does not return exactly one row."""
     return db.session.execute(select(EngineSettingsTable)).scalar_one()
+
+
+async def get_engine_settings_table_async(session: AsyncSession) -> EngineSettingsTable:
+    """Async counterpart of ``get_engine_settings_table``, for endpoints using an ``AsyncSession``."""
+    result = await session.execute(select(EngineSettingsTable))
+    return result.scalar_one()
 
 
 def get_engine_settings_table_for_update() -> EngineSettingsTable:
@@ -53,6 +60,16 @@ def generate_engine_global_status(engine_settings: EngineSettingsTable, running_
     return GlobalStatusEnum.RUNNING
 
 
+def _engine_status_slack_message(engine_status: EngineSettingsSchema, user: str) -> dict[str, str]:
+    """Build the Slack message body announcing an engine settings update."""
+    if engine_status.global_lock is True:
+        action = f"stopped the `{app_settings.ENVIRONMENT}` workflow engine. The orchestrator will pause all running processes."
+    else:
+        action = f"started the `{app_settings.ENVIRONMENT}` workflow engine. The orchestrator will pick up all pending processes."
+
+    return {"text": f"User `{user}` {action}"}
+
+
 def post_update_to_slack(engine_status: EngineSettingsSchema, user: str) -> None:
     """Post engine settings update to slack.
 
@@ -64,17 +81,27 @@ def post_update_to_slack(engine_status: EngineSettingsSchema, user: str) -> None
         None
 
     """
-    try:
-        if engine_status.global_lock is True:
-            action = f"stopped the `{app_settings.ENVIRONMENT}` workflow engine. The orchestrator will pause all running processes."
-        else:
-            action = f"started the `{app_settings.ENVIRONMENT}` workflow engine. The orchestrator will pick up all pending processes."
+    anyio.run(post_update_to_slack_async, engine_status, user)
 
-        message = {"text": f"User `{user}` {action}"}
-        requests.post(app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL, json=message, timeout=5)
+
+async def post_update_to_slack_async(engine_status: EngineSettingsSchema, user: str) -> None:
+    """Async Post engine settings update to slack.
+
+    Args:
+        engine_status: EngineStatus
+        user: The user who executed the change
+
+    Returns:
+        None
+
+    """
+    try:
+        message = _engine_status_slack_message(engine_status, user)
+        async with httpx.AsyncClient() as client:
+            await client.post(app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL, json=message, timeout=5)
 
     # Catch all Request exceptions and log. Then pass
-    except RequestException:
+    except httpx.RequestError:
         logger.exception("Post to slack failed.")
         pass
 
@@ -88,6 +115,19 @@ def reset_search_index(*, tx_commit: bool = False) -> None:
     finally:
         if tx_commit:
             db.session.commit()
+    return
+
+
+async def reset_search_index_async(session: AsyncSession, *, tx_commit: bool = False) -> None:
+    """Async counterpart of ``reset_search_index``, for endpoints using an ``AsyncSession``."""
+    try:
+        await session.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY subscriptions_search;"))
+    except SQLAlchemyError as e:
+        logger.error("Something went wrong while refreshing materialized view", msg=str(e))
+        raise e
+    finally:
+        if tx_commit:
+            await session.commit()
     return
 
 

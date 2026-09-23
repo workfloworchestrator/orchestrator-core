@@ -13,10 +13,9 @@
 
 from sqlalchemy import select, text
 from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_utils import Ltree
 
-from orchestrator.core.db import db
-from orchestrator.core.db.database import WrappedSession
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.schemas.search_requests import SearchRequest
 from orchestrator.core.search.aggregations import AggregationType
@@ -55,53 +54,73 @@ def is_filter_compatible_with_field_type(filter_condition: FilterCondition, fiel
     return filter_condition.op in valid_operators
 
 
-def is_lquery_syntactically_valid(pattern: str, db_session: WrappedSession) -> bool:
+async def is_lquery_syntactically_valid(pattern: str, db_session: AsyncSession) -> bool:
     """Validate whether a string is a syntactically correct `lquery` pattern.
 
     Args:
         pattern (str): The LTree lquery pattern string to validate.
-        db_session (WrappedSession): The database session used to test casting.
+        db_session (AsyncSession): The database session used to test casting.
 
     Returns:
         bool: True if the pattern is valid, False if it fails to cast in PostgreSQL.
     """
 
     try:
-        with db_session.begin_nested():
-            db_session.execute(text("SELECT CAST(:pattern AS lquery)"), {"pattern": pattern})
+        async with db_session.begin_nested():
+            await db_session.execute(text("SELECT CAST(:pattern AS lquery)"), {"pattern": pattern})
         return True
     except ProgrammingError:
         return False
 
 
-def get_structured_filter_schema() -> dict[str, str]:
+async def get_structured_filter_schema(session: AsyncSession) -> dict[str, str]:
     """Retrieve all distinct filterable paths and their field types from the index.
+
+    Args:
+        session: Async database session
 
     Returns:
         Dict[str, str]: Mapping of path strings to their corresponding field type values.
     """
 
     stmt = select(AiSearchIndex.path, AiSearchIndex.value_type).distinct().order_by(AiSearchIndex.path)
-    result = db.session.execute(stmt)
+    result = await session.execute(stmt)
     return {str(path): value_type.value for path, value_type in result}
 
 
-def validate_filter_path(path: str) -> str | None:
+async def get_existing_paths(paths: list[str], session: AsyncSession) -> set[str]:
+    """Return the subset of the given paths that exist in the index.
+
+    Args:
+        paths: LTree path strings to check.
+        session: Async database session.
+
+    Returns:
+        set[str]: The paths from `paths` that exist in the index.
+    """
+    stmt = select(AiSearchIndex.path).where(AiSearchIndex.path.in_([Ltree(path) for path in paths])).distinct()
+    result = await session.execute(stmt)
+    return {str(path) for path in result.scalars()}
+
+
+async def validate_filter_path(path: str, session: AsyncSession) -> str | None:
     """Check if a given path exists in the index and return its field type.
 
     Args:
         path (str): The fully qualified LTree path.
+        session: Async database session
 
     Returns:
         Optional[str]: The value type of the field if found, otherwise None.
     """
 
     stmt = select(AiSearchIndex.value_type).where(AiSearchIndex.path == Ltree(path)).limit(1)
-    result = db.session.execute(stmt).scalar_one_or_none()
-    return result.value if result else None
+    result = await session.execute(stmt)
+    scalar = result.scalar_one_or_none()
+    return scalar.value if scalar else None
 
 
-async def complete_filter_validation(filter: PathFilter, entity_type: EntityType) -> None:
+async def complete_filter_validation(filter: PathFilter, entity_type: EntityType, session: AsyncSession) -> None:
     """Validate a PathFilter against the database schema and entity type.
 
     Checks performed:
@@ -114,6 +133,7 @@ async def complete_filter_validation(filter: PathFilter, entity_type: EntityType
     Args:
         filter (PathFilter): The filter to validate.
         entity_type (EntityType): The entity type being searched.
+        session: Async database session
 
     Raises:
         ValueError: If any of the validation checks fail.
@@ -122,7 +142,7 @@ async def complete_filter_validation(filter: PathFilter, entity_type: EntityType
     # Ltree is a special case
     if isinstance(filter.condition, LtreeFilter):
         lquery_pattern = filter.condition.value
-        if not is_lquery_syntactically_valid(lquery_pattern, db.session):
+        if not await is_lquery_syntactically_valid(lquery_pattern, session):
             raise InvalidLtreePatternError(lquery_pattern)
         return
 
@@ -130,7 +150,7 @@ async def complete_filter_validation(filter: PathFilter, entity_type: EntityType
         raise EmptyFilterPathError()
 
     # 1. Check if path exists in database
-    db_field_type_str = validate_filter_path(filter.path)
+    db_field_type_str = await validate_filter_path(filter.path, session)
     if db_field_type_str is None:
         raise PathNotFoundError(filter.path)
 
@@ -149,15 +169,15 @@ async def complete_filter_validation(filter: PathFilter, entity_type: EntityType
         raise InvalidEntityPrefixError(filter.path, expected_prefix, entity_type.value)
 
 
-async def validate_filter_tree(filters: FilterTree | None, entity_type: EntityType) -> None:
+async def validate_filter_tree(filters: FilterTree | None, entity_type: EntityType, session: AsyncSession) -> None:
     """Validate all PathFilter leaves in a FilterTree."""
     if filters is None:
         return
     for leaf in filters.get_all_leaves():
-        await complete_filter_validation(leaf, entity_type)
+        await complete_filter_validation(leaf, entity_type, session)
 
 
-def validate_aggregation_field(agg_type: AggregationType, field_path: str) -> None:
+async def validate_aggregation_field(agg_type: AggregationType, field_path: str, session: AsyncSession) -> None:
     """Validate that an aggregation field exists and is compatible with the aggregation type.
 
     Note: Only for FieldAggregations (SUM, AVG, MIN, MAX). COUNT does not require field validation.
@@ -165,13 +185,14 @@ def validate_aggregation_field(agg_type: AggregationType, field_path: str) -> No
     Args:
         agg_type: The aggregation type enum
         field_path: The field path to validate
+        session: Async database session
 
     Raises:
         PathNotFoundError: If the field doesn't exist in the database.
         IncompatibleAggregationTypeError: If the field type is incompatible with the aggregation type.
     """
     # Check if field exists in database
-    field_type_str = validate_filter_path(field_path)
+    field_type_str = await validate_filter_path(field_path, session)
     if field_type_str is None:
         raise PathNotFoundError(field_path)
 
@@ -191,18 +212,19 @@ def validate_aggregation_field(agg_type: AggregationType, field_path: str) -> No
             )
 
 
-def validate_temporal_grouping_field(field_path: str) -> None:
+async def validate_temporal_grouping_field(field_path: str, session: AsyncSession) -> None:
     """Validate that a field exists and is a datetime type for temporal grouping.
 
     Args:
         field_path: The field path to validate
+        session: Async database session
 
     Raises:
         PathNotFoundError: If the field doesn't exist in the database
         IncompatibleTemporalGroupingTypeError: If the field is not a datetime type
     """
     # Check if field exists in database
-    field_type_str = validate_filter_path(field_path)
+    field_type_str = await validate_filter_path(field_path, session)
     if field_type_str is None:
         raise PathNotFoundError(field_path)
 
@@ -211,26 +233,32 @@ def validate_temporal_grouping_field(field_path: str) -> None:
         raise IncompatibleTemporalGroupingTypeError(field_path, field_type_str)
 
 
-def validate_grouping_fields(group_by_paths: list[str]) -> None:
+async def validate_grouping_fields(group_by_paths: list[str], session: AsyncSession) -> None:
     """Validate that all grouping field paths exist in the database.
 
     Args:
         group_by_paths: List of field paths to group by
+        session: Async database session
 
     Raises:
         PathNotFoundError: If any path doesn't exist in the database
     """
+    if not group_by_paths:
+        return
+
+    existing_paths = await get_existing_paths(group_by_paths, session)
+
     for path in group_by_paths:
-        field_type = validate_filter_path(path)
-        if field_type is None:
+        if path not in existing_paths:
             raise PathNotFoundError(path)
 
 
-def validate_order_by_fields(order_by: list[OrderBy] | None) -> None:
+async def validate_order_by_fields(order_by: list[OrderBy] | None, session: AsyncSession) -> None:
     """Validate that order_by field paths exist in the database.
 
     Args:
         order_by: List of ordering instructions, or None
+        session: Async database session
 
     Raises:
         PathNotFoundError: If a field path doesn't exist in the database
@@ -243,28 +271,35 @@ def validate_order_by_fields(order_by: list[OrderBy] | None) -> None:
     if order_by is None:
         return
 
-    for order_instr in order_by:
-        # Skip aggregation aliases (no dots, e.g., 'count', 'revenue')
-        if "." not in order_instr.field:
-            continue
+    # Skip aggregation aliases (no dots, e.g., 'count', 'revenue')
+    path_fields = [instr.field for instr in order_by if "." in instr.field]
+    if not path_fields:
+        return
 
-        field_type = validate_filter_path(order_instr.field)
-        if field_type is None:
-            raise PathNotFoundError(order_instr.field)
+    existing_paths = await get_existing_paths(path_fields, session)
+
+    for field in path_fields:
+        if field not in existing_paths:
+            raise PathNotFoundError(field)
 
 
-def get_ai_search_index_by_entity_type_and_path(entity_type: EntityType, path: str) -> AiSearchIndex | None:
+async def get_ai_search_index_by_entity_type_and_path(
+    entity_type: EntityType, path: str, session: AsyncSession
+) -> AiSearchIndex | None:
     stmt = (
         select(AiSearchIndex)
         .where(AiSearchIndex.path == Ltree(path), AiSearchIndex.entity_type == entity_type.value)
         .limit(1)
     )
-    return db.session.execute(stmt).scalar_one_or_none()
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
 
 
-def validate_structured_order_by_element(entity_type: EntityType | None, request: SearchRequest | None) -> None:
+async def validate_structured_order_by_element(
+    entity_type: EntityType | None, request: SearchRequest | None, session: AsyncSession
+) -> None:
     if request and request.order_by and entity_type:
         element = request.order_by.element
-        exists = get_ai_search_index_by_entity_type_and_path(entity_type, element)
+        exists = await get_ai_search_index_by_entity_type_and_path(entity_type, element, session)
         if not exists:
             raise ValueError(f"Element {element} is not a valid path")

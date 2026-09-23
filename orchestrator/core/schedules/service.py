@@ -11,12 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+from collections import Counter
+from collections.abc import Sequence
+from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
 from apscheduler.schedulers.base import BaseScheduler
 from apscheduler.triggers.base import BaseTrigger
 from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core import app_settings
 from orchestrator.core.db import db
@@ -30,13 +34,14 @@ from orchestrator.core.schemas.schedules import (
     build_trigger,
 )
 from orchestrator.core.services.processes import start_process
-from orchestrator.core.services.workflows import get_workflow_by_workflow_id
+from orchestrator.core.services.workflows import get_workflow_by_name, get_workflow_by_workflow_id
 from orchestrator.core.utils.errors import StartPredicateError
-from orchestrator.core.utils.redis_client import create_redis_client
+from orchestrator.core.utils.redis_client import create_redis_asyncio_client, create_redis_client
 from pydantic_forms.exceptions import FormValidationError
 from pydantic_forms.types import State
 
 redis_connection = create_redis_client(app_settings.CACHE_URI.get_secret_value())
+redis_connection_async = create_redis_asyncio_client(app_settings.CACHE_URI.get_secret_value())
 
 SCHEDULER_QUEUE = "scheduler:queue:"
 
@@ -78,6 +83,17 @@ def add_scheduled_task_to_queue(payload: APSchedulerJobs) -> None:
     """
     bytes_dump = serialize_payload(payload)
     redis_connection.lpush(SCHEDULER_QUEUE, bytes_dump)
+    logger.info("Added scheduled task to queue")
+
+
+async def add_scheduled_task_to_queue_async(payload: APSchedulerJobs) -> None:
+    """Async counterpart to :func:`add_scheduled_task_to_queue` for use in async endpoints.
+
+    Args:
+        payload: APSchedulerJobs The scheduled task to create, update or delete
+    """
+    bytes_dump = serialize_payload(payload)
+    await redis_connection_async.lpush(SCHEDULER_QUEUE, bytes_dump)
     logger.info("Added scheduled task to queue")
 
 
@@ -123,6 +139,64 @@ def add_unique_scheduled_task_to_queue(payload: APSchedulerJobCreate, *, recreat
     return True
 
 
+def load_schedules(schedules: Sequence[dict[str, Any]], *, recreate: bool = False) -> list[str]:
+    """Register schedules declared in code, resolving each workflow by name.
+
+    This is the entry point core's own ``scheduler load-initial-schedule`` uses, and the supported
+    way for a project to register its schedules at deploy time, where the REST API is not reachable.
+    See :func:`add_unique_scheduled_task_to_queue` for the idempotency caveat.
+
+    Args:
+        schedules: Dicts of :class:`APSchedulerJobCreate` fields minus ``workflow_id``, which is
+            resolved from ``workflow_name``.
+        recreate: Whether to delete existing schedule(s) for each workflow first.
+
+    Returns:
+        The ``workflow_name`` of each schedule that was skipped because no such workflow is
+        registered. Raise on a non-empty list to fail a deploy on an unmigrated workflow.
+
+    Raises:
+        ValueError: A schedule's ``workflow_name`` is missing or not a string, or two schedules name
+            the same workflow — malformed declarations rather than unknown workflows. Uncaught, this
+            exits the CLI non-zero with a traceback.
+        ValidationError: A schedule's remaining fields do not build an :class:`APSchedulerJobCreate`,
+            for example ``trigger_kwargs`` the trigger rejects.
+
+    Every schedule is validated before any of them is queued, so malformed input registers nothing.
+    """
+
+    def workflow_name_of(schedule: dict[str, Any]) -> str:
+        """Return the schedule's workflow name, rejecting one that is missing or not a string."""
+        workflow_name = schedule["workflow_name"]
+        if not isinstance(workflow_name, str) or not workflow_name:
+            raise ValueError(
+                f"Schedule {schedule.get('name', schedule)!r} has no valid workflow_name: {workflow_name!r}"
+            )
+        return workflow_name
+
+    def to_payload(schedule: dict[str, Any], workflow_name: str) -> APSchedulerJobCreate | None:
+        """Build the payload for one schedule, or None when its workflow is unknown."""
+        workflow = get_workflow_by_name(workflow_name)
+        if not workflow:
+            logger.warning("Skipping schedule for unknown workflow", workflow_name=workflow_name)
+            return None
+        return APSchedulerJobCreate(**(schedule | {"workflow_id": workflow.workflow_id}))
+
+    workflow_names = [workflow_name_of(schedule) for schedule in schedules]
+    if duplicates := [name for name, count in Counter(workflow_names).items() if count > 1]:
+        raise ValueError(
+            f"Multiple schedules declared for workflow(s): {duplicates}. "
+            "load_schedules registers at most one schedule per workflow; use the API for more."
+        )
+
+    payloads = [to_payload(schedule, name) for schedule, name in zip(schedules, workflow_names)]
+    for payload in filter(None, payloads):
+        logger.info("Loading schedule", payload=payload)
+        add_unique_scheduled_task_to_queue(payload, recreate=recreate)
+
+    return [name for name, payload in zip(workflow_names, payloads) if payload is None]
+
+
 def get_linker_entries_by_schedule_ids(schedule_ids: list[str]) -> list[WorkflowApschedulerJob]:
     """Get linker table entries for multiple schedule IDs in a single query.
 
@@ -135,7 +209,19 @@ def get_linker_entries_by_schedule_ids(schedule_ids: list[str]) -> list[Workflow
     if not schedule_ids:
         return []
 
-    return db.session.query(WorkflowApschedulerJob).filter(WorkflowApschedulerJob.schedule_id.in_(schedule_ids)).all()
+    stmt = select(WorkflowApschedulerJob).where(WorkflowApschedulerJob.schedule_id.in_(schedule_ids))
+    return list(db.session.scalars(stmt))
+
+
+async def get_linker_entries_by_schedule_ids_async(
+    schedule_ids: list[str], session: AsyncSession
+) -> list[WorkflowApschedulerJob]:
+    """Async counterpart to :func:`get_linker_entries_by_schedule_ids` for use in async endpoints."""
+    if not schedule_ids:
+        return []
+
+    stmt = select(WorkflowApschedulerJob).where(WorkflowApschedulerJob.schedule_id.in_(schedule_ids))
+    return list(await session.scalars(stmt))
 
 
 def _add_linker_entry(workflow_id: UUID, schedule_id: str) -> None:

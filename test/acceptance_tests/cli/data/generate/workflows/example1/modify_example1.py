@@ -15,6 +15,7 @@ from typing import Annotated
 import structlog
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.summary_form import base_summary
 from orchestrator.core.forms.validators import CustomerId, Divider
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
@@ -27,7 +28,6 @@ from pydantic_forms.validators import read_only_field
 from products.product_blocks.example1 import ExampleStrEnum1
 from products.product_types.example1 import Example1, Example1Provisioning
 from workflows.example1.shared.forms import must_be_unused_to_change_mode_validator
-from workflows.shared import modify_summary_form
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:
@@ -60,16 +60,10 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
         always_optional_str: str | None = example1.always_optional_str
 
     user_input = yield ModifyExample1Form
-    user_input_dict = user_input.dict()
+    user_input_dict = user_input.model_dump()
 
-    summary_fields = [
-        "example_str_enum_1",
-        "unmodifiable_str",
-        "modifiable_boolean",
-        "annotated_int",
-        "always_optional_str",
-    ]
-    yield from modify_summary_form(user_input_dict, subscription.example1, summary_fields)
+    old_modify_form_data = ModifyExample1Form.model_construct().model_dump()
+    yield from base_summary(subscription.product.name, user_input_dict, old_modify_form_data)
 
     return user_input_dict | {"subscription": subscription}
 

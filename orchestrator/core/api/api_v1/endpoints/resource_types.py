@@ -14,11 +14,12 @@
 from http import HTTPStatus
 from uuid import UUID
 
-from fastapi.param_functions import Body
+from fastapi.param_functions import Body, Depends
 from fastapi.routing import APIRouter
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.api.error_handling import raise_status
-from orchestrator.core.db import db
+from orchestrator.core.db import get_async_session
 from orchestrator.core.db.models import ResourceTypeTable
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas.resource_type import ResourceTypePatchSchema, ResourceTypeSchema
@@ -33,9 +34,11 @@ router = APIRouter()
     operation_id="get_resource_type",
     openapi_extra=READONLY_TOOL,
 )
-def get_resource_type_description(resource_type_id: UUID) -> str:
+async def get_resource_type_description(
+    resource_type_id: UUID, session: AsyncSession = Depends(get_async_session)
+) -> ResourceTypeTable:
     """Get a single resource type definition by id."""
-    resource_type = db.session.get(ResourceTypeTable, resource_type_id)
+    resource_type = await session.get(ResourceTypeTable, resource_type_id)
     if resource_type is None:
         raise_status(HTTPStatus.NOT_FOUND)
     return resource_type
@@ -43,22 +46,25 @@ def get_resource_type_description(resource_type_id: UUID) -> str:
 
 @router.patch("/{resource_type_id}", status_code=HTTPStatus.CREATED, response_model=ResourceTypeSchema)
 async def patch_resource_type_by_id(
-    resource_type_id: UUID, data: ResourceTypePatchSchema = Body(...)
+    resource_type_id: UUID,
+    data: ResourceTypePatchSchema = Body(...),
+    session: AsyncSession = Depends(get_async_session),
 ) -> ResourceTypeTable:
-    resource_type = db.session.get(ResourceTypeTable, resource_type_id)
+    resource_type = await session.get(ResourceTypeTable, resource_type_id)
     if not resource_type:
         raise_status(HTTPStatus.NOT_FOUND, f"ResourceType id {resource_type_id} not found")
 
-    return await _patch_resource_type_description(data, resource_type)
+    return await _patch_resource_type_description(data, resource_type, session)
 
 
 async def _patch_resource_type_description(
     data: ResourceTypePatchSchema,
     resource_type: ResourceTypeTable,
+    session: AsyncSession,
 ) -> ResourceTypeTable:
 
     updated_properties = data.model_dump(exclude_unset=True)
     description = updated_properties.get("description", resource_type.description)
     resource_type.description = description
-    db.session.commit()
+    await session.commit()
     return resource_type

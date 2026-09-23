@@ -21,7 +21,7 @@ self-contained MCP tools so any agent can drive search/aggregation over MCP.
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from orchestrator.core.schemas.base import OrchestratorBaseModel
 from orchestrator.core.search.aggregations import Aggregation, TemporalGrouping
@@ -62,6 +62,22 @@ class SearchToolRequest(OrchestratorBaseModel):
         "'medium'=1, 'low'=0 (report no matches instead of broadening). Each pass drops the filters and "
         "re-ranks by similarity to surface the closest matches.",
     )
+
+    @model_validator(mode="after")
+    def require_search_criteria(self) -> "SearchToolRequest":
+        """Reject a criteria-less search instead of silently returning zero results.
+
+        Without this, a bare call ranks nothing (the engine returns an empty
+        response) and LLM callers report "no data" as fact. Failing loudly here
+        steers them to the enumeration tools instead.
+        """
+        if not self.query_text and self.filters is None:
+            raise ValueError(
+                "search requires query_text and/or filters; it does not enumerate entities. "
+                "To list entities without search criteria use the list tools instead: "
+                "list_subscriptions, list_products, list_workflows or list_recent_processes."
+            )
+        return self
 
 
 class AggregateToolRequest(OrchestratorBaseModel):

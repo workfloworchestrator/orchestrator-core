@@ -16,9 +16,8 @@ from sqlalchemy.sql.expression import ColumnElement
 
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import SearchMetadata
-
-from ..pagination import PageCursor
-from .base import Retriever
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.retrievers.base import Retriever
 
 
 class FuzzyRetriever(Retriever):
@@ -29,36 +28,40 @@ class FuzzyRetriever(Retriever):
         self.cursor = cursor
 
     def apply(self, candidate_query: Select) -> Select:
-        cand = candidate_query.subquery()
-
         similarity_expr = func.word_similarity(self.fuzzy_term, AiSearchIndex.value)
+        # The highlighted field is the best match, and among equally good ones the shallowest: an entity's
+        # own description over the same text inside a nested block.
+        highlight_order = [similarity_expr.desc(), func.nlevel(AiSearchIndex.path).asc(), AiSearchIndex.path.asc()]
 
         raw_max = func.max(similarity_expr).over(partition_by=AiSearchIndex.entity_id)
         score = cast(
             func.round(cast(raw_max, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
         ).label(self.SCORE_LABEL)
 
-        combined_query = (
+        gated = (
             select(
                 AiSearchIndex.entity_id,
                 AiSearchIndex.entity_title,
                 score,
                 func.first_value(AiSearchIndex.value)
-                .over(partition_by=AiSearchIndex.entity_id, order_by=[similarity_expr.desc(), AiSearchIndex.path.asc()])
+                .over(partition_by=AiSearchIndex.entity_id, order_by=highlight_order)
                 .label(self.HIGHLIGHT_TEXT_LABEL),
                 func.first_value(AiSearchIndex.path)
-                .over(partition_by=AiSearchIndex.entity_id, order_by=[similarity_expr.desc(), AiSearchIndex.path.asc()])
+                .over(partition_by=AiSearchIndex.entity_id, order_by=highlight_order)
                 .label(self.HIGHLIGHT_PATH_LABEL),
             )
             .select_from(AiSearchIndex)
-            .join(cand, cand.c.entity_id == AiSearchIndex.entity_id)
             .where(
                 and_(
                     AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
                     literal(self.fuzzy_term).op("<%")(AiSearchIndex.value),
                 )
             )
-            .distinct(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
+        )
+        # Trigram hits are few: probing candidate membership per hit keeps the trigram index driving the
+        # plan even under a broad structured filter, where joining the candidate set does not.
+        combined_query = self._restrict_to_candidates(gated, candidate_query, probe=True).distinct(
+            AiSearchIndex.entity_id, AiSearchIndex.entity_title
         )
         final_query = combined_query.subquery("ranked_fuzzy")
 

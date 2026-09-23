@@ -20,10 +20,15 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.engine.row import RowMapping
 
-from orchestrator.core.search.core.types import EntityType, FilterOp, SearchMetadata
+from orchestrator.core.search.core.types import (
+    EntityType,
+    FilterOp,
+    ResponseColumnData,
+    ResponseColumns,
+    SearchMetadata,
+)
 from orchestrator.core.search.filters import FilterTree
-
-from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
+from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
 
 
 class VisualizationType(BaseModel):
@@ -58,7 +63,7 @@ class SearchResult(BaseModel):
     score: float
     perfect_match: int = 0
     matching_fields: list[MatchingField] = Field(default_factory=list)
-    response_columns: dict[str, str | None] | None = None
+    response_columns: ResponseColumns | None = None
     order_value: str | None = None
 
 
@@ -196,15 +201,24 @@ def truncate_text_with_highlights(
     return truncated_text, adjusted_indices if adjusted_indices else None
 
 
-def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
-    """Finds all occurrences of individual words from the term, including both word boundary and substring matches."""
-    import re
+# Trims punctuation that wraps or terminates a word in prose (quotes of any flavour, brackets, commas)
+# from both ends of a query word. ``+``, ``#`` and ``@`` are kept because they carry meaning at a word
+# edge (``C++``, ``#1234``, ``@user``) and trimming them would highlight the bare remainder everywhere.
+EDGE_PUNCTUATION_RE = re.compile(r"^[^\w+#@]+|[^\w+#@]+$")
 
+
+def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
+    """Finds all occurrences of individual words from the term, including both word boundary and substring matches.
+
+    Wrapping punctuation is stripped from the edges of each word, so a quoted query highlights the words
+    it wraps (``"Node`` highlights ``Node``). Identifiers keep their inner punctuation and are matched
+    whole, so ``asd066d-jnp-02`` is one word rather than three.
+    """
     if not text or not term:
         return []
 
     all_matches = []
-    words = [w.strip() for w in term.split() if w.strip()]
+    words = [w for w in (EDGE_PUNCTUATION_RE.sub("", w) for w in term.split()) if w]
 
     for word in words:
         # First find word boundary matches
@@ -232,8 +246,8 @@ def generate_regex_highlight_indices(text: str, pattern: str) -> list[tuple[int,
     if not text or not pattern:
         return []
 
-    core = re.sub(r"^(?:\.[*+])+", "", pattern) # removes leading greedy wildcard
-    core = re.sub(r"(?:\.[*+])+$", "", core) # removes trailing greedy wildcard
+    core = re.sub(r"^(?:\.[*+])+", "", pattern)  # removes leading greedy wildcard
+    core = re.sub(r"(?:\.[*+])+$", "", core)  # removes trailing greedy wildcard
     if not core:
         return []
     try:
@@ -251,7 +265,7 @@ def format_search_response(
     total_items: int | None,
     start_cursor: int | None,
     end_cursor: int | None,
-    column_data: dict[str, dict[str, str | None]] | None = None,
+    column_data: ResponseColumnData | None = None,
 ) -> SearchResponse:
     """Format database query results into a `SearchResponse`.
 
@@ -335,7 +349,7 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
     """Resolve matching fields from the retriever's aggregated JSON highlight column.
 
     The retriever emits a ``highlight_matches`` JSON column shaped as an array of arrays:
-    one inner array per positive filter leaf, each containing all index rows that matched
+    one inner array per highlightable filter leaf, containing all index rows that matched
     that leaf (``{"value", "path", "idx"}``). Flattening gives every (value, path) pair
     that satisfied any filter, deduplicated across leaves.
     """
@@ -346,11 +360,7 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
     if not leaf_arrays:
         return []
 
-    positive_leaves = [
-        leaf
-        for leaf in filters.get_all_leaves()
-        if not (isinstance(leaf.condition, LtreeFilter) and leaf.condition.op == FilterOp.NOT_HAS_COMPONENT)
-    ]
+    positive_leaves = filters.get_highlightable_leaves()
 
     flat_matches = [m for inner in leaf_arrays if inner for m in inner]
     unique_matches = {(str(m["value"]), str(m["path"])): m for m in flat_matches}
@@ -365,6 +375,10 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
             return MatchingField(text=text, path=path, highlight_indices=None)
         term = str(getattr(leaf.condition, "value", "") or "") if leaf else ""
         match leaf.condition if leaf else None:
+            case LtreeFilter():
+                # Path-predicate leaves (ends_with, matches_lquery, ...) match on the row's
+                # path, not its value text, so there is no substring to highlight.
+                return MatchingField(text=text, path=path, highlight_indices=None)
             case ContainsFilter():
                 indices = generate_regex_highlight_indices(text, term)
             case StringFilter():

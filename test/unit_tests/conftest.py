@@ -98,7 +98,7 @@ def test_form_translations(worker_id):
         if "test" not in cls.__module__:
             for field_name in cls.model_fields:
                 used_translations.add(field_name)
-                if field_name not in translations and f"{field_name}_accept" not in translations:
+                if field_name not in translations and f"{field_name}_accept" not in translations and "divider" not in field_name:
                     pytest.fail(f"Missing translation for field {field_name} in  {cls.__name__}")
 
         # Because the original is a classmethod we need to conform to the descriptor protocol

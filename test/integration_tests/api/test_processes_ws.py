@@ -121,11 +121,11 @@ def completed_process(test_workflow, generic_subscription_1):
 
 
 # long-running workflow test only works locally and with memory type
-def test_websocket_process_detail_workflow(test_client, long_running_workflow):
+def test_websocket_process_detail_workflow(test_client, long_running_workflow, monkeypatch):
     if websocket_manager.broadcaster_type != "memory" or app_settings.ENVIRONMENT != "local":
         pytest.skip("test does not work with redis")
 
-    app_settings.TESTING = False
+    monkeypatch.setattr(app_settings, "TESTING", False)
 
     # Start the workflow
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{}])
@@ -185,12 +185,10 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
             test_condition.notify_all()
         with test_condition:
             test_condition.notify_all()
-        app_settings.TESTING = True
         raise e
 
     with test_condition:
         test_condition.notify_all()
-    app_settings.TESTING = True
 
 
 def test_websocket_process_detail_with_suspend(test_client, test_workflow):

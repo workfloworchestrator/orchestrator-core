@@ -76,7 +76,7 @@ def test_migrate_domain_models_new_product_block(
             db.session.execute(text(stmt))
         db.session.commit()
 
-    # Note that this check is done after patch.dict() restored the registries to their original state.
+    # Note that this check is done after patch.model_dump() restored the registries to their original state.
     # The subscription should now be the same as it was before.
     assert_subscription_has_initial_values()
 
@@ -142,7 +142,7 @@ def test_migrate_domain_models_new_product_block_on_product_block(
             db.session.execute(text(stmt))
         db.session.commit()
 
-    # Note that this check is done after patch.dict() restored the registries to their original state.
+    # Note that this check is done after patch.model_dump() restored the registries to their original state.
     # The subscription should now be the same as it was before.
     assert_subscription_has_initial_values()
 
@@ -204,7 +204,7 @@ def test_migrate_domain_models_new_resource_type(
             db.session.execute(text(stmt))
         db.session.commit()
 
-    # Note that this check is done after patch.dict() restored the registries to their original state.
+    # Note that this check is done after patch.model_dump() restored the registries to their original state.
     # The subscription should now be the same as it was before.
     assert_subscription_has_initial_values()
 
@@ -262,7 +262,7 @@ def test_migrate_domain_models_new_product_block_and_resource_type(
             db.session.execute(text(stmt))
         db.session.commit()
 
-    # Note that this check is done after patch.dict() restored the registries to their original state.
+    # Note that this check is done after patch.model_dump() restored the registries to their original state.
     # The subscription should now be the same as it was before.
     assert_subscription_has_initial_values()
 
@@ -323,7 +323,7 @@ def test_migrate_domain_models_update_resource_type(
             db.session.execute(text(stmt))
         db.session.commit()
 
-    # Note that this check is done after patch.dict() restored the registries to their original state.
+    # Note that this check is done after patch.model_dump() restored the registries to their original state.
     # The subscription should now be the same as it was before.
     assert_subscription_has_initial_values()
 
@@ -391,7 +391,7 @@ def test_migrate_domain_models_create_and_rename_resource_type(test_product_type
             db.session.execute(text(stmt))
         db.session.commit()
 
-    # Note that this check is done after patch.dict() restored the registries to their original state.
+    # Note that this check is done after patch.model_dump() restored the registries to their original state.
     # The subscription should now be the same as it was before.
     assert_subscription_has_initial_values()
 
@@ -474,7 +474,7 @@ def test_migrate_domain_models_create_and_rename_and_delete_resource_type(
             db.session.execute(text(stmt))
         db.session.commit()
 
-    # Note that this check is done after patch.dict() restored the registries to their original state.
+    # Note that this check is done after patch.model_dump() restored the registries to their original state.
     # The subscription should now be the same as it was before.
     assert_subscription_has_initial_values()
 
@@ -696,7 +696,7 @@ def test_migrate_domain_models_update_block_resource_type(
             db.session.execute(text(stmt))
         db.session.commit()
 
-    # Note that this check is done after patch.dict() restored the registries to their original state.
+    # Note that this check is done after patch.model_dump() restored the registries to their original state.
     # The subscription should now be the same as it was before.
     assert_subscription_has_initial_values()
 
@@ -765,6 +765,6 @@ def test_migrate_domain_models_rename_and_update_block_resource_type(test_produc
             db.session.execute(text(stmt))
         db.session.commit()
 
-    # Note that this check is done after patch.dict() restored the registries to their original state.
+    # Note that this check is done after patch.model_dump() restored the registries to their original state.
     # The subscription should now be the same as it was before.
     assert_subscription_has_initial_values()

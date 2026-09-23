@@ -17,6 +17,7 @@ from uuid import UUID
 
 import structlog
 from sqlalchemy import Select, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.db import (
     SubscriptionTable,
@@ -51,16 +52,29 @@ def _to_workflow_schema(workflow: WorkflowTable, include_steps: bool = False) ->
     )
 
 
+def _add_filter(stmt: Select, filters: dict | None) -> Select:
+    for k, v in (filters or {}).items():
+        stmt = stmt.where(WorkflowTable.__dict__[k] == v)
+    return stmt
+
+
 def get_workflows(
     filters: dict | None = None, include_steps: bool = False, include_deleted: bool = False
 ) -> Iterable[WorkflowSchema]:
-    def _add_filter(stmt: Select) -> Select:
-        for k, v in (filters or {}).items():
-            stmt = stmt.where(WorkflowTable.__dict__[k] == v)
-        return stmt
-
     stmt = select(WorkflowTable) if include_deleted else WorkflowTable.select()
-    workflows = db.session.scalars(_add_filter(stmt)).all()
+    workflows = db.session.scalars(_add_filter(stmt, filters)).all()
+
+    return [_to_workflow_schema(wf, include_steps=include_steps) for wf in workflows]
+
+
+async def get_workflows_async(
+    session: AsyncSession,
+    filters: dict | None = None,
+    include_steps: bool = False,
+    include_deleted: bool = False,
+) -> list[WorkflowSchema]:
+    stmt = select(WorkflowTable) if include_deleted else WorkflowTable.select()
+    workflows = await session.scalars(_add_filter(stmt, filters))
 
     return [_to_workflow_schema(wf, include_steps=include_steps) for wf in workflows]
 
@@ -71,6 +85,12 @@ def get_workflow_by_name(workflow_name: str) -> WorkflowTable | None:
 
 def get_workflow_by_workflow_id(workflow_id: str) -> WorkflowTable | None:
     return db.session.scalar(select(WorkflowTable).where(WorkflowTable.workflow_id == workflow_id))
+
+
+async def get_workflow_by_workflow_id_async(workflow_id: str, session: AsyncSession) -> WorkflowTable | None:
+    """Async counterpart to `get_workflow_by_workflow_id` for use in async endpoints."""
+    stmt = select(WorkflowTable).where(WorkflowTable.workflow_id == workflow_id)
+    return await session.scalar(stmt)
 
 
 def get_validation_product_workflows_for_subscription(

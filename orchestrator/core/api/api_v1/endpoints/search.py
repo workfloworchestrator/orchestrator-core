@@ -14,9 +14,11 @@
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.core.db import SearchQueryTable, db
+from orchestrator.core.db import SearchQueryTable, get_async_session
 from orchestrator.core.schemas.search import (
     CursorInfoSchema,
     ExportResponse,
@@ -43,6 +45,7 @@ logger = structlog.get_logger(__name__)
 
 
 async def _perform_search_and_fetch(
+    session: AsyncSession,
     entity_type: EntityType | None = None,
     request: SearchRequest | None = None,
     cursor: str | None = None,
@@ -52,6 +55,7 @@ async def _perform_search_and_fetch(
     """Execute search with optional pagination.
 
     Args:
+        session: Async database session
         entity_type: Entity type to search
         request: Search request for new search
         cursor: Pagination cursor (loads saved query state)
@@ -62,18 +66,18 @@ async def _perform_search_and_fetch(
         Search results with entity_id, score, and matching_field.
     """
     try:
-        validate_structured_order_by_element(entity_type, request)
+        await validate_structured_order_by_element(entity_type, request, session)
 
         page_cursor: PageCursor | None = None
         query: SelectQuery
 
         if cursor:
             page_cursor = PageCursor.decode(cursor)
-            query_state = QueryState.load_from_id(page_cursor.query_id, SelectQuery)
+            query_state = await QueryState.load_from_id(page_cursor.query_id, SelectQuery, session)
             query = query_state.query
 
         elif query_id:
-            query_state = QueryState.load_from_id(query_id, SelectQuery)
+            query_state = await QueryState.load_from_id(query_id, SelectQuery, session)
             query = query_state.query
 
         elif request and entity_type:
@@ -88,11 +92,11 @@ async def _perform_search_and_fetch(
         if not include_columns:
             query = query.model_copy(update={"response_columns": []})
 
-        search_response = await engine.execute_search(query, db.session, page_cursor, query_state.query_embedding)
+        search_response = await engine.execute_search(query, session, page_cursor, query_state.query_embedding)
         if not search_response.results:
             return SearchResultsSchema(search_metadata=search_response.metadata)
 
-        next_page_cursor = encode_next_page_cursor(search_response, page_cursor, query)
+        next_page_cursor = await encode_next_page_cursor(search_response, page_cursor, query, session)
         has_next_page = next_page_cursor is not None
         page_info = PageInfoSchema(
             has_next_page=has_next_page,
@@ -129,8 +133,11 @@ async def search_subscriptions(
     request: SearchRequest,
     cursor: str | None = None,
     include_columns: bool = True,
+    session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(EntityType.SUBSCRIPTION, request, cursor, include_columns=include_columns)
+    return await _perform_search_and_fetch(
+        session, EntityType.SUBSCRIPTION, request, cursor, include_columns=include_columns
+    )
 
 
 @router.post("/workflows", response_model=SearchResultsSchema[SearchResult])
@@ -138,8 +145,9 @@ async def search_workflows(
     request: SearchRequest,
     cursor: str | None = None,
     include_columns: bool = True,
+    session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(EntityType.WORKFLOW, request, cursor, include_columns=include_columns)
+    return await _perform_search_and_fetch(session, EntityType.WORKFLOW, request, cursor, include_columns=include_columns)
 
 
 @router.post("/products", response_model=SearchResultsSchema[SearchResult])
@@ -147,8 +155,9 @@ async def search_products(
     request: SearchRequest,
     cursor: str | None = None,
     include_columns: bool = True,
+    session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(EntityType.PRODUCT, request, cursor, include_columns=include_columns)
+    return await _perform_search_and_fetch(session, EntityType.PRODUCT, request, cursor, include_columns=include_columns)
 
 
 @router.post("/processes", response_model=SearchResultsSchema[SearchResult])
@@ -156,8 +165,9 @@ async def search_processes(
     request: SearchRequest,
     cursor: str | None = None,
     include_columns: bool = True,
+    session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(EntityType.PROCESS, request, cursor, include_columns=include_columns)
+    return await _perform_search_and_fetch(session, EntityType.PROCESS, request, cursor, include_columns=include_columns)
 
 
 @router.get(
@@ -170,19 +180,21 @@ async def list_paths(
     q: str | None = Query(None, description="Query for path suggestions"),
     entity_type: EntityType = Query(EntityType.SUBSCRIPTION),
     limit: int = Query(10, ge=1, le=10),
+    session: AsyncSession = Depends(get_async_session),
 ) -> PathsResponse:
 
     if prefix:
         lquery_pattern = create_path_autocomplete_lquery(prefix)
 
-        if not is_lquery_syntactically_valid(lquery_pattern, db.session):
+        if not await is_lquery_syntactically_valid(lquery_pattern, session):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Prefix '{prefix}' creates an invalid search pattern.",
             )
     stmt = build_paths_query(entity_type=entity_type, prefix=prefix, q=q)
     stmt = stmt.limit(limit)
-    rows = db.session.execute(stmt).all()
+    execute_result = await session.execute(stmt)
+    rows = execute_result.all()
 
     leaves, components = process_path_rows(rows)
     return PathsResponse(leaves=leaves, components=components)
@@ -203,14 +215,18 @@ async def get_definitions() -> dict[UIType, TypeDefinition]:
     response_model=QueryResultsResponse,
     summary="Fetch full query results by query_id",
 )
-async def get_query_results(query_id: UUID) -> QueryResultsResponse:
+async def get_query_results(
+    query_id: UUID, session: AsyncSession = Depends(get_async_session)
+) -> QueryResultsResponse:
     """Fetch full results for any query type (select, count, aggregate).
 
     Detects query type from stored parameters and executes accordingly,
     always returning QueryResultsResponse for consistent client rendering.
     """
     try:
-        row = db.session.query(SearchQueryTable).filter_by(query_id=query_id).first()
+        stmt = select(SearchQueryTable).filter_by(query_id=query_id)
+        result = await session.execute(stmt)
+        row = result.scalar_one_or_none()
         if not row:
             raise QueryStateNotFoundError(f"Query {query_id} not found")
 
@@ -218,7 +234,7 @@ async def get_query_results(query_id: UUID) -> QueryResultsResponse:
 
         if isinstance(query, SelectQuery):
             embedding = list(row.query_embedding) if row.query_embedding is not None else None
-            search_response = await engine.execute_search(query, db.session, query_embedding=embedding)
+            search_response = await engine.execute_search(query, session, query_embedding=embedding)
             result_rows = [
                 ResultRow(
                     group_values={
@@ -238,7 +254,7 @@ async def get_query_results(query_id: UUID) -> QueryResultsResponse:
             )
 
         if isinstance(query, (CountQuery, AggregateQuery)):
-            return await engine.execute_aggregation(query, db.session)
+            return await engine.execute_aggregation(query, session)
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -264,9 +280,10 @@ async def get_query_results(query_id: UUID) -> QueryResultsResponse:
 async def get_by_query_id(
     query_id: str,
     cursor: str | None = None,
+    session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
     """Retrieve and execute a saved search by query_id."""
-    return await _perform_search_and_fetch(query_id=query_id, cursor=cursor)
+    return await _perform_search_and_fetch(session, query_id=query_id, cursor=cursor)
 
 
 @router.get(
@@ -274,7 +291,9 @@ async def get_by_query_id(
     summary="Export query results by query_id",
     response_model=ExportResponse,
 )
-async def export_by_query_id(query_id: str) -> ExportResponse:
+async def export_by_query_id(
+    query_id: str, session: AsyncSession = Depends(get_async_session)
+) -> ExportResponse:
     """Export search results using query_id.
 
     The query is retrieved from the database, re-executed, and results are returned
@@ -282,6 +301,7 @@ async def export_by_query_id(query_id: str) -> ExportResponse:
 
     Args:
         query_id: QueryTypes UUID
+        session: Async database session
 
     Returns:
         ExportResponse containing 'page' with an array of flattened entity records.
@@ -291,7 +311,7 @@ async def export_by_query_id(query_id: str) -> ExportResponse:
     """
     try:
         # Load SelectQuery from the database (what gets saved during search)
-        query_state = QueryState.load_from_id(query_id, SelectQuery)
+        query_state = await QueryState.load_from_id(query_id, SelectQuery, session)
 
         # Convert to ExportQuery with export-appropriate limit
         export_query = ExportQuery(
@@ -300,7 +320,7 @@ async def export_by_query_id(query_id: str) -> ExportResponse:
             query_text=query_state.query.query_text,
         )
 
-        export_records = await engine.execute_export(export_query, db.session, query_state.query_embedding)
+        export_records = await engine.execute_export(export_query, session, query_state.query_embedding)
         return ExportResponse(page=export_records)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))

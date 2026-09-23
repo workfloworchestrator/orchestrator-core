@@ -1,0 +1,63 @@
+# Configuration for GitHub's auto-generated release notes.
+# https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+#
+# Labels are namespaced (kind/*, area/*) so this dedicated release-notes set
+# does not collide with the existing project-filter labels (bug, documentation).
+# Run .github/labels.sh to create/update these labels in the repo.
+#
+# Each PR is placed in the FIRST category whose labels it matches, so order
+# matters: more specific buckets (Search / LLM, Security) come before the
+# broader ones (Bug Fixes, Dependency Updates).
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+  categories:
+    # Breaking Changes is deliberately first. A breaking change is often also a
+    # feature or a bug fix, and since a PR lands in only the FIRST matching
+    # category it is listed here instead of there — that is the section readers
+    # of a major release need to see, and it keeps it from being buried.
+    #
+    # There is no way to make a category depend on the version being released:
+    # .github/release.yml is static config. The section is self-gating instead —
+    # it only appears when a PR in the release range carries kind/breaking.
+    - title: ⚠️ Breaking Changes
+      labels:
+        - kind/breaking
+    - title: 🚀 Features
+      labels:
+        - kind/feature
+    - title: 🔍 Search / LLM
+      labels:
+        - area/search
+        - area/llm
+    - title: 🐛 Bug Fixes
+      labels:
+        - kind/bug
+    - title: ♻️ Refactors & Internal Changes
+      labels:
+        - kind/refactor
+        - kind/chore
+    - title: 🧪 Tests
+      labels:
+        - kind/test
+    - title: 📚 Documentation
+      labels:
+        - kind/documentation
+    - title: 🔒 Security Updates
+      labels:
+        - kind/security
+    # Dependency Updates sits above CI / Build on purpose: a dependency PR often
+    # touches pyproject.toml / uv.lock and so also gets the path-based kind/build
+    # label. Since a PR lands in the FIRST matching category, listing
+    # dependencies first keeps those bumps in the right section.
+    - title: 📦 Dependency Updates
+      labels:
+        - kind/dependencies
+    - title: 🔧 CI / Build / Tooling
+      labels:
+        - kind/ci
+        - kind/build
+    - title: 🔀 Other Changes
+      labels:
+        - "*"

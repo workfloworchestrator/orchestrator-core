@@ -13,7 +13,12 @@
 
 
 from http import HTTPStatus
+from typing import cast
 from uuid import UUID
+
+from sqlalchemy import delete as sa_delete
+from sqlalchemy.engine import CursorResult
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.db import db
@@ -26,5 +31,15 @@ def delete(cls: type[DbBaseModel], primary_key: UUID) -> None:
     row_count = cls.query.filter(cls.__dict__[pk] == primary_key).delete()
     db.session.commit()
     if row_count > 0:
+        return
+    raise_status(HTTPStatus.NOT_FOUND)
+
+
+async def delete_async(cls: type[DbBaseModel], primary_key: UUID, session: AsyncSession) -> None:
+    table = cls.__table__  # type: ignore[attr-defined]
+    pk = list({k: v for k, v, *_ in table.columns._collection if v.primary_key}.keys())[0]
+    result = cast(CursorResult, await session.execute(sa_delete(cls).where(cls.__dict__[pk] == primary_key)))
+    await session.commit()
+    if result.rowcount > 0:
         return
     raise_status(HTTPStatus.NOT_FOUND)

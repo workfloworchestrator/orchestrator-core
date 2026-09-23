@@ -286,6 +286,11 @@ There are multiple triggers that can be used ([trigger docs]):
 - [AndTrigger]: use when you want to combine multiple triggers so the task only runs when **all** of them would fire at the same time.
 - [OrTrigger]: use when you want to combine multiple triggers so the task runs when **any one** of them would fire.
 
+!!! Warning
+    Only `interval`, `cron` and `date` are accepted by the schedule API: the `trigger` field of
+    `APSchedulerJobCreate` is limited to those three, so the calendar-interval and combining triggers
+    return a `422`. They remain available to the (deprecated) decorator described above.
+
 For detailed configuration options, see the [APScheduler scheduling docs].
 
 The scheduler automatically loads any schedules that are imported before the scheduler starts.
@@ -294,6 +299,108 @@ The scheduler automatically loads any schedules that are imported before the sch
     In previous versions, schedules needed to be explicitly added in the `ALL_SCHEDULERS` variable.
     This is no longer required; `ALL_SCHEDULERS` is deprecated as of orchestrator-core v4.7.0 and will be removed in v5.0.0.
     Follow-up ticket to remove deprecated code: [#1276](https://github.com/workfloworchestrator/orchestrator-core/issues/1276)
+
+## Registering your own schedules from code
+
+The API is the right tool for schedules that change at runtime. It is the wrong tool at deploy time,
+where there is usually no reachable API and no token — a Helm init container, for instance, that has
+just run the database migrations. For that, register your schedules with `load_schedules`, the same
+function core's own `load-initial-schedule` uses.
+
+### Declaring the schedules
+
+Declare them in a `schedules.py` alongside your `main.py`:
+
+```python
+# schedules.py
+MY_SCHEDULES: list[dict] = [
+    {
+        "name": "Nightly Sync",
+        "workflow_name": "task_nightly_sync",
+        "trigger": "cron",
+        "trigger_kwargs": {"hour": 1, "minute": 50},
+    },
+]
+```
+
+Each entry holds the fields of `APSchedulerJobCreate` — the same model the REST API validates —
+*minus* `workflow_id`, which `load_schedules` resolves from `workflow_name` for you. Every entry is
+validated as it is loaded, so a typo in `trigger_kwargs` raises a `ValidationError` rather than
+producing a job that silently never fires:
+
+| Field | Required | Description |
+|---|---|---|
+| `workflow_name` | yes | Name of the task to run, as registered in `workflows/__init__.py` and created by a migration. |
+| `trigger` | yes | One of `"interval"`, `"cron"` or `"date"`. |
+| `trigger_kwargs` | no (default `{}`) | Keyword arguments for that trigger, passed straight to APScheduler. |
+| `name` | no | Human readable name, shown in `show-schedule` and the UI. Defaults to the workflow description. |
+| `user_inputs` | no (default `[{}]`) | Input form data for the task, one `dict` per form page. |
+
+The same three trigger types as [the schedule API](#the-schedule-api) are available, with the same
+`trigger_kwargs`. A task that takes input needs `user_inputs`, one `dict` per form page:
+
+```python
+{"workflow_name": "task_prune", "trigger": "interval", "trigger_kwargs": {"days": 1}, "user_inputs": [{"older_than_days": 30}]}
+```
+
+### Loading them
+
+```python
+# schedules.py (continued)
+import typer
+from orchestrator.core.schedules.service import load_schedules
+
+
+def load_project_schedules(
+    recreate: bool = typer.Option(False, help="Whether to delete any existing schedules before creating"),
+) -> None:
+    """Register this project's schedules, on top of core's `load-initial-schedule`."""
+    if skipped := load_schedules(MY_SCHEDULES, recreate=recreate):
+        raise RuntimeError(f"Cannot schedule unknown workflow(s): {skipped}")
+```
+
+Core's CLI prints the skipped names and carries on; a project deploy is usually better off failing on
+them, since a missing workflow means the task was never registered in `workflows/__init__.py` or its
+migration has not run.
+
+A schedule that is malformed rather than unmigrated — no `workflow_name`, or `trigger_kwargs` the
+trigger rejects — raises instead of being reported as skipped, so it cannot be mistaken for a
+workflow that is merely missing. Uncaught, that exits the command non-zero with a traceback, which
+fails the init container running it rather than resolving on a retry.
+
+Expose it as a CLI command next to the core scheduler commands, so `main.py` keeps a single entry
+point:
+
+```python
+# main.py
+from orchestrator.core.cli import scheduler as core_scheduler
+
+from schedules import load_project_schedules
+
+core_scheduler.app.command("load-project-schedule")(load_project_schedules)
+```
+
+Your schedules then load next to core's own, and both commands run in the same place:
+
+```shell
+python main.py scheduler load-initial-schedule   # core's five schedules
+python main.py scheduler load-project-schedule   # your schedules
+python main.py scheduler show-schedule           # verify
+```
+
+!!! Warning
+    Like `load-initial-schedule`, this is only idempotent once a scheduler has run. The deduplication
+    reads the `workflows_apscheduler_jobs` linker table, which the scheduler writes while draining the
+    queue. Against a database whose scheduler has never run, each invocation queues the job again.
+
+Schedules registered this way are ordinary API-managed schedules: they show as `source: API` in
+`show-schedule` and stay editable through the API and the UI. That also makes the code a starting
+point rather than a source of truth — an existing schedule for the workflow is left alone unless
+`recreate=True`, so a later edit through the UI survives the next deploy.
+
+Removing an entry from the list does not remove its schedule: `load_schedules` only adds, and nothing
+reconciles the database against the declaration. Delete the schedule through the API or the UI, or
+leave the entry in place until you do.
 
 ## The scheduler
 

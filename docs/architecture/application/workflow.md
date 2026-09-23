@@ -204,7 +204,7 @@ With this configuration, both terminate and modify will not run on subscriptions
 
 3. `WF_USABLE_WHILE_OUT_OF_SYNC`: Allow specific workflows on out of sync subscriptions
 
-By default, only system workflows (tasks) are allowed to run on subscriptions that are not in sync.
+By default, only system workflows (tasks) and reconcile workflows (TARGET RECONCILE) are allowed to run on subscriptions that are not in sync.
 This behaviour can be changed with the `WF_USABLE_WHILE_OUT_OF_SYNC` data structure:
 
 === "`orchestrator-core` ≥ 5.0"

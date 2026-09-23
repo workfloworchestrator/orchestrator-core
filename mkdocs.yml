@@ -131,6 +131,7 @@ extra_javascript:
   - "js/custom.js"
 
 nav:
+  - Introduction: index.md
   - Getting Started:
       - Prerequisites: getting-started/versions.md
       - Application:
@@ -139,6 +140,23 @@ nav:
       - Workflows: getting-started/workflows.md
       - Docker: getting-started/docker.md
       - Orchestrator UI: getting-started/orchestration-ui.md
+      - Orchestrator Shell: getting-started/orchestrator-shell.md
+  - Guides:
+      - Product Modeling:
+          - Importing Existing Products: guides/product-modeling/imports.md
+          - Backfilling Existing Subscriptions: guides/product-modeling/backfilling.md
+      - Creating Tasks and Schedules: guides/tasks.md
+      - Testing: guides/testing.md
+      - Scaling the Orchestrator: guides/scaling.md
+      - Pausing the Orchestrator: guides/pause-and-resume.md
+      - Generating a Config File: guides/generate-config-file.md
+      - Upgrade Guides:
+          - v2.x: guides/upgrading/2.0.md
+          - v3.x: guides/upgrading/3.0.md
+          - v4.x: guides/upgrading/4.0.md
+          - v4.7: guides/upgrading/4.7.md
+          - v4.8: guides/upgrading/4.8.md
+          - v5.0: guides/upgrading/5.0.md
   - Architecture:
       - Architecture; TL;DR: architecture/tldr.md
       - Orchestration Philosophy: architecture/orchestration/philosophy.md
@@ -160,22 +178,6 @@ nav:
       - Extensibility:
           - Packaging: architecture/extensibility/packaging.md
           - Optional Modules: architecture/extensibility/modules.md
-  - Guides:
-      - Product Modeling:
-          - Importing Existing Products: guides/product-modeling/imports.md
-          - Backfilling Existing Subscriptions: guides/product-modeling/backfilling.md
-      - Creating Tasks and Schedules: guides/tasks.md
-      - Testing: guides/testing.md
-      - Scaling the Orchestrator: guides/scaling.md
-      - Pausing the Orchestrator: guides/pause-and-resume.md
-      - Generating a Config File: guides/generate-config-file.md
-      - Upgrade Guides:
-          - v2.x: guides/upgrading/2.0.md
-          - v3.x: guides/upgrading/3.0.md
-          - v4.x: guides/upgrading/4.0.md
-          - v4.7: guides/upgrading/4.7.md
-          - v4.8: guides/upgrading/4.8.md
-          - v5.0: guides/upgrading/5.0.md
   - Reference Documentation:
       - TL;DR: reference-docs/tldr.md
       - API docs:
@@ -204,6 +206,8 @@ nav:
           - Callback step: reference-docs/workflows/callbacks.md
           - Loop Steps: reference-docs/workflows/loop-steps.md
           - Run Predicates: reference-docs/workflows/run-predicates.md
+          - Summary Forms: reference-docs/workflows/summary-form.md
+          - Process Step Handler: reference-docs/workflows/process-step-handler.md
       - Websockets: reference-docs/websockets.md
       - Search: reference-docs/search.md
       - AI / Hybrid Search: reference-docs/ai-search.md

@@ -49,7 +49,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
         num_val: read_only_field(example4.num_val)
 
     user_input = yield ModifyExample4Form
-    user_input_dict = user_input.dict()
+    user_input_dict = user_input.model_dump()
 
     return user_input_dict | {"subscription": subscription}
 

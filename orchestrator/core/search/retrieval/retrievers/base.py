@@ -12,15 +12,18 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from decimal import Decimal
 
 import structlog
-from sqlalchemy import BindParameter, Numeric, Select, literal
+from sqlalchemy import BindParameter, Numeric, Select, literal, select
 
+from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import EntityType, FieldType, RetrieverType, SearchMetadata
 from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
-
-from ..pagination import PageCursor
+from orchestrator.core.search.retrieval.pagination import PageCursor
+from orchestrator.core.search.retrieval.session import SessionSetting
+from orchestrator.core.settings import llm_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -46,16 +49,16 @@ class Retriever(ABC):
         """Pick the retriever class that will handle this query.
 
         Internal helper consumed by `needs_embedding()` and `route()`;
-        Honors explicit `query.retriever` overrides first,
-        then falls back to auto-routing based on which search criteria are
-        present. Process-entity queries that would use Fuzzy or RrfHybrid are
+        Honors explicit `query.retriever` overrides first, then auto-routes:
+        embeddable text -> Hybrid, UUID text -> Fuzzy, no text -> Structured.
+        Process-entity queries that would use Fuzzy or RrfHybrid are
         promoted to ProcessHybridRetriever (which adds JSONB last_step search).
         """
-        from .fuzzy import FuzzyRetriever
-        from .hybrid import RrfHybridRetriever
-        from .process import ProcessHybridRetriever
-        from .semantic import SemanticRetriever
-        from .structured import StructuredRetriever
+        from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
+        from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
+        from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
+        from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
+        from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 
         if query.retriever == RetrieverType.FUZZY:
             retriever_cls: type[Retriever] = FuzzyRetriever
@@ -63,11 +66,11 @@ class Retriever(ABC):
             retriever_cls = SemanticRetriever
         elif query.retriever == RetrieverType.HYBRID:
             retriever_cls = RrfHybridRetriever
-        elif query.vector_query and query.fuzzy_term:
-            retriever_cls = RrfHybridRetriever
         elif query.vector_query:
-            retriever_cls = SemanticRetriever
-        elif query.fuzzy_term:
+            # Any embeddable text: trigram matching on the full text fused with semantic ranking.
+            retriever_cls = RrfHybridRetriever
+        elif query.query_text:
+            # Text that is never embedded (a UUID): trigram matching only.
             retriever_cls = FuzzyRetriever
         else:
             retriever_cls = StructuredRetriever
@@ -84,9 +87,9 @@ class Retriever(ABC):
         before invoking the embedder, without needing to know which class will
         be picked.
         """
-        from .hybrid import RrfHybridRetriever
-        from .process import ProcessHybridRetriever
-        from .semantic import SemanticRetriever
+        from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
+        from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
+        from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
 
         retriever_cls = cls._plan(query)
 
@@ -114,10 +117,10 @@ class Retriever(ABC):
         Selects the retriever class via `_plan()`, then constructs it. The
         rules in short:
 
-        - Hybrid:    embedding + fuzzy term available
-        - Semantic:  embedding available, no fuzzy term
-        - Fuzzy:    fuzzy term available (or fallback when embedding generation fails)
+        - Hybrid:     query text + embedding available
+        - Fuzzy:      query text is a UUID (never embedded), or fallback when embedding generation fails
         - Structured: only filters available
+        - Semantic:   explicit override only
         - Process entities use ProcessHybridRetriever in place of Fuzzy/Hybrid.
 
         For explicit `query.retriever` overrides, raises ValueError when
@@ -134,11 +137,11 @@ class Retriever(ABC):
         Returns:
             A concrete retriever instance.
         """
-        from .fuzzy import FuzzyRetriever
-        from .hybrid import RrfHybridRetriever
-        from .process import ProcessHybridRetriever
-        from .semantic import SemanticRetriever
-        from .structured import StructuredRetriever
+        from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
+        from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
+        from orchestrator.core.search.retrieval.retrievers.process import ProcessHybridRetriever
+        from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
+        from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 
         is_process = query.entity_type == EntityType.PROCESS
         override = query.retriever
@@ -150,30 +153,51 @@ class Retriever(ABC):
                     f"{override.value.capitalize()} retriever requested but query embedding is not available. "
                     "Embedding generation may have failed."
                 )
-            # Auto-routing fallback: degrade to fuzzy on full query text when the
-            # embedder couldn't produce a vector. needs_embedding=True for auto-route
-            # implies query.query_text is set.
-            return (
-                ProcessHybridRetriever(None, query.query_text, cursor)
-                if is_process
-                else FuzzyRetriever(query.query_text, cursor)  # type: ignore[arg-type]
-            )
+            # Auto-routing fallback: degrade to fuzzy on the full query text when the
+            # embedder couldn't produce a vector.
+            if query.query_text is not None:
+                return (
+                    ProcessHybridRetriever(None, query.query_text, cursor, entity_type=query.entity_type)
+                    if is_process
+                    else FuzzyRetriever(query.query_text, cursor)
+                )
 
-        # Explicit overrides honor the full query_text; auto-routed fuzzy/hybrid use
-        # the (single-word) fuzzy_term from the search mixin.
-        fuzzy_text = query.query_text if override is not None else query.fuzzy_term
+        # Semantic ranking reads a bounded window from the HNSW index, unless the query wants more
+        # entities than the window holds: exports, and limits above the window, rank the whole corpus.
+        candidates_limit = llm_settings.SEARCH_SEMANTIC_CANDIDATE_LIMIT
+        window = None if isinstance(query, ExportQuery) or query.limit > candidates_limit else candidates_limit
 
         if retriever_cls is StructuredRetriever:
             return StructuredRetriever(cursor, query.order_by, query.filters)
-        if retriever_cls is FuzzyRetriever and fuzzy_text is not None:
-            return FuzzyRetriever(fuzzy_text, cursor)
+        if retriever_cls is FuzzyRetriever and query.query_text is not None:
+            return FuzzyRetriever(query.query_text, cursor)
         if retriever_cls is SemanticRetriever and query_embedding is not None:
-            return SemanticRetriever(query_embedding, cursor)
-        if retriever_cls is RrfHybridRetriever and query_embedding is not None and fuzzy_text is not None:
-            return RrfHybridRetriever(query_embedding, fuzzy_text, cursor)
-        if retriever_cls is ProcessHybridRetriever and fuzzy_text is not None:
-            return ProcessHybridRetriever(query_embedding, fuzzy_text, cursor)
+            return SemanticRetriever(query_embedding, cursor, entity_type=query.entity_type, candidates_limit=window)
+        if retriever_cls is RrfHybridRetriever and query_embedding is not None and query.query_text is not None:
+            return RrfHybridRetriever(
+                query_embedding,
+                query.query_text,
+                cursor,
+                entity_type=query.entity_type,
+                semantic_candidates_limit=window,
+            )
+        if retriever_cls is ProcessHybridRetriever and query.query_text is not None:
+            return ProcessHybridRetriever(
+                query_embedding,
+                query.query_text,
+                cursor,
+                entity_type=query.entity_type,
+                semantic_candidates_limit=window,
+            )
         raise RuntimeError(f"Unreachable: _plan() returned {retriever_cls.__name__} but required inputs are missing")
+
+    @property
+    def session_settings(self) -> Sequence[SessionSetting]:
+        """Postgres settings this retriever's statement needs, applied by the engine before executing it.
+
+        See :func:`orchestrator.core.search.retrieval.session.apply_session_settings` for their lifetime.
+        """
+        return ()
 
     @abstractmethod
     def apply(self, candidate_query: Select) -> Select:
@@ -186,6 +210,52 @@ class Retriever(ABC):
             Select: A new `Select` statement with ranking expressions applied.
         """
         ...
+
+    @staticmethod
+    def _can_inline_candidate_filters(candidate_query: Select) -> bool:
+        """Whether the candidate query's WHERE clause can be copied into another scan of the index table.
+
+        `build_candidate_query` yields ``SELECT DISTINCT entity_id, entity_title FROM ai_search_index
+        WHERE <per-entity predicates>``. Those predicates depend on ``entity_id`` only, so a source that
+        scans the index table itself (the HNSW window, the trigram gate) can apply them inline and keep
+        its own index as the driving scan. Any other shape (joins, GROUP BY, LIMIT, ...) has semantics a
+        copied WHERE clause would not preserve and must be joined instead.
+        """
+        columns = list(candidate_query.selected_columns)
+        if (
+            candidate_query.get_final_froms() != [AiSearchIndex.__table__]
+            or len(columns) != 2
+            or not columns[0].shares_lineage(AiSearchIndex.entity_id)
+            or not columns[1].shares_lineage(AiSearchIndex.entity_title)
+        ):
+            return False
+
+        expected = select(*columns).where(*candidate_query._where_criteria).distinct()
+
+        return candidate_query.compare(expected)
+
+    @classmethod
+    def _restrict_to_candidates(cls, stmt: Select, candidate_query: Select, *, probe: bool = False) -> Select:
+        """Restrict a scan of the index table to the candidate entities.
+
+        When the candidate query has the shape `build_candidate_query` produces, its filters are applied
+        inside the scan so the scan's own index (HNSW, trigram) can stay the driving plan. Copied into the
+        WHERE clause (the default), the planner is free to drive from the structured filter instead when
+        that is cheaper. With ``probe=True`` membership is checked per row through a correlated scalar
+        subquery on ``entity_id``, which the planner cannot pull up into a join, so the scan always drives:
+        the right choice when its hits are few, as trigram matches are. Any other candidate shape is
+        joined: always correct, but a hash join over a sequential scan.
+        """
+        if not cls._can_inline_candidate_filters(candidate_query):
+            cand = candidate_query.subquery()
+            return stmt.join(cand, cand.c.entity_id == AiSearchIndex.entity_id)
+        if candidate_query.whereclause is None:
+            return stmt
+        if not probe:
+            return stmt.where(candidate_query.whereclause)
+        members = select(AiSearchIndex.entity_id).where(candidate_query.whereclause).subquery("candidate_members")
+        hit = select(literal(1)).where(members.c.entity_id == AiSearchIndex.entity_id).limit(1).scalar_subquery()
+        return stmt.where(hit.isnot(None))
 
     def _quantize_score_for_pagination(self, score_value: float) -> BindParameter[Decimal]:
         """Convert score value to properly quantized Decimal parameter for pagination."""

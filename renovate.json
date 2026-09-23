@@ -1,18 +1,36 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
   ],
+  "labels": ["kind/dependencies"],
   "packageRules": [
     {
       "matchManagers": ["uv"]
     },
     {
+      "description": "Label GitHub Actions bumps so they land in the CI/Build release-notes section",
+      "matchManagers": ["github-actions"],
+      "labels": ["kind/ci"]
+    },
+    {
       "matchPackageNames": ["python"],
       "rangeStrategy": "widen",
       "enabled": false
+    },
+    {
+      "description": "Skip the release-age cooldown for our own libraries",
+      "matchPackageNames": ["pydantic-forms", "nwa-stdlib", "oauth2-lib"],
+      "minimumReleaseAge": "0 days"
     }
   ],
+  "minimumReleaseAge": "3 days",
+  "vulnerabilityAlerts": {
+    "enabled": false
+  },
+  "osvVulnerabilityAlerts": false,
+  "internalChecksFilter": "strict",
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 3am on Wednesday"]

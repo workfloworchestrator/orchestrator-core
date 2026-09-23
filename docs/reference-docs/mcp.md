@@ -42,7 +42,7 @@ The default toolset covers the typical agent flow:
 | `abort_workflow_process`                  | Abort a running process (irreversible)               |
 | `get_process_status`                      | Inspect a running/suspended process                  |
 | `list_recent_processes`                   | List recent processes (with typed filters)           |
-| `search_subscriptions`                    | Search subscriptions with typed filters              |
+| `list_subscriptions`                      | List subscriptions, newest first                     |
 | `get_subscription_details`                | Get a flat header for a subscription                 |
 | `list_products`                           | List products                                        |
 | `get_product`                             | Get one product definition by id                     |
@@ -51,6 +51,8 @@ The default toolset covers the typical agent flow:
 | `get_workflow_by_id`                      | Get one workflow definition by id                    |
 | `get_subscription_domain_model`           | Get a subscription's full product-block tree (large) |
 | `get_process_status_counts`               | Aggregate process/task counts grouped by status      |
+
+On top of these, [AI / Hybrid Search](ai-search.md#what-you-can-search-and-where) contributes the `search`, `aggregate`, `discover_filter_paths`, `get_valid_operators`, `resolve_entity` and `export_query` tools.
 
 Tool names map 1:1 to the route's `operation_id`; tool descriptions come from the route's docstring; parameter schemas come from the route's Pydantic request model.
 

@@ -19,7 +19,6 @@ import strawberry
 import structlog
 from fastapi.routing import APIRouter
 from graphql import GraphQLError
-from httpx import HTTPStatusError
 from strawberry.extensions import SchemaExtension
 from strawberry.fastapi import GraphQLRouter
 from strawberry.schema.config import StrawberryConfig
@@ -33,6 +32,7 @@ from oauth2_lib.fastapi import AuthManager
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.graphql.autoregistration import create_subscription_strawberry_type, register_domain_models
+from orchestrator.core.graphql.extensions.db_session import DbSessionExtension
 from orchestrator.core.graphql.extensions.model_cache import ModelCacheExtension
 from orchestrator.core.graphql.extensions.stats import StatsExtension
 from orchestrator.core.graphql.mutations.customer_description import CustomerSubscriptionDescriptionMutation
@@ -168,6 +168,12 @@ Mutation: type = merge_types("Mutation", (SettingsMutation, CustomerSubscription
 OrchestratorGraphqlRouter = GraphQLRouter
 
 
+def _is_not_found(error: BaseException | None) -> bool:
+    """Whether a resolver failed on a 404, whichever HTTP client it happened to use."""
+    response = getattr(error, "response", None)
+    return getattr(response, "status_code", None) == HTTPStatus.NOT_FOUND
+
+
 class OrchestratorSchema(strawberry.federation.Schema):
     def process_errors(
         self,
@@ -180,10 +186,7 @@ class OrchestratorSchema(strawberry.federation.Schema):
         """
         for error in errors:
             error_type = error.extensions.get("error_type") if error.extensions else None
-            if (
-                isinstance(error.original_error, HTTPStatusError)
-                and error.original_error.response.status_code == HTTPStatus.NOT_FOUND
-            ):
+            if _is_not_found(error.original_error):
                 message = str(error.original_error).splitlines()[0]  # Strip "For more info"
                 StrawberryLogger.logger.debug(message)
             elif error_type in (ErrorType.NOT_AUTHORIZED, ErrorType.NOT_AUTHENTICATED):
@@ -215,6 +218,7 @@ def default_context_getter(
 
 
 def get_extensions(mutation: Any, query: Any) -> Iterable[type[SchemaExtension]]:
+    yield DbSessionExtension
     yield ModelCacheExtension
     yield ErrorHandlerExtension
     if app_settings.ENABLE_GRAPHQL_DEPRECATION_CHECKER:
@@ -264,6 +268,6 @@ def create_graphql_router(
     context_getter_factory = custom_context_getter or default_context_getter
     return OrchestratorGraphqlRouter(
         schema,
-        context_getter=context_getter_factory(auth_manager, models, broadcast_thread),  # type: ignore
+        context_getter=context_getter_factory(auth_manager, models, broadcast_thread),
         graphql_ide=app_settings.SERVE_GRAPHQL_UI if app_settings.SERVE_GRAPHQL_UI else None,  # type: ignore
     )

@@ -51,15 +51,13 @@ def test_select_query_minimal(select_query_minimal: SelectQuery):
 def test_select_query_with_text_search():
     """SelectQuery with single word text search."""
     query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text="test")
-    assert query.vector_query is not None
-    assert query.fuzzy_term is not None
+    assert query.vector_query == "test"
 
 
 def test_select_query_with_multi_word_text():
-    """SelectQuery with multi-word text (no fuzzy search)."""
+    """SelectQuery with multi-word text embeds the full text."""
     query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text="multiple word search")
-    assert query.vector_query is not None
-    assert query.fuzzy_term is None
+    assert query.vector_query == "multiple word search"
 
 
 def test_select_query_with_uuid_text():
@@ -67,7 +65,6 @@ def test_select_query_with_uuid_text():
     uuid_str = "12345678-1234-1234-1234-123456789abc"
     query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=uuid_str)
     assert query.vector_query is None
-    assert query.fuzzy_term is not None
 
 
 def test_select_query_with_filters(select_query_with_filters: SelectQuery):

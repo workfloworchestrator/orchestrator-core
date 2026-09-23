@@ -17,12 +17,16 @@ import re
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest import mock
+from uuid import NAMESPACE_DNS, uuid5
 
+import pytest
 from typer.testing import CliRunner
 
-from orchestrator.core.cli.scheduler import app
+from orchestrator.core.cli.scheduler import INITIAL_SCHEDULES, app
 
 runner = CliRunner()
+
+INITIAL_SCHEDULE_NAMES = [schedule["workflow_name"] for schedule in INITIAL_SCHEDULES]
 
 _BASE_RUN_TIME = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
@@ -96,66 +100,32 @@ def test_force_task_no_args_kwargs_uses_defaults():
 # --- load_initial_schedule ---
 
 
-def _mock_schedule_deps(workflow_map: dict):
-    """workflow_map: workflow_name -> workflow object or None."""
-
-    def _get_workflow(name):
-        return workflow_map.get(name)
-
-    return mock.patch("orchestrator.core.cli.scheduler.get_workflow_by_name", side_effect=_get_workflow)
-
-
-def _make_workflow(name: str):
-    import uuid
-
-    return SimpleNamespace(workflow_id=str(uuid.uuid5(uuid.NAMESPACE_DNS, name)))
+def _mock_known_workflows(names):
+    """Resolve only the named workflows; any other name resolves to None."""
+    workflow_map = {name: SimpleNamespace(workflow_id=uuid5(NAMESPACE_DNS, name)) for name in names}
+    return mock.patch(
+        "orchestrator.core.schedules.service.get_workflow_by_name", side_effect=lambda name: workflow_map.get(name)
+    )
 
 
-def test_load_initial_schedule_all_workflows_found():
-    wf_names = [
-        "task_resume_workflows",
-        "task_clean_up_tasks",
-        "task_validate_subscriptions",
-        "task_validate_products",
-        "task_validate_awaiting_callbacks",
-    ]
-    workflow_map = {name: _make_workflow(name) for name in wf_names}
+@pytest.mark.parametrize(
+    "known_workflows, expected_added",
+    [
+        pytest.param(INITIAL_SCHEDULE_NAMES, len(INITIAL_SCHEDULES), id="all-found"),
+        pytest.param(INITIAL_SCHEDULE_NAMES[:3], 3, id="some-found"),
+        pytest.param([], 0, id="none-found"),
+    ],
+)
+def test_load_initial_schedule(known_workflows, expected_added):
     with (
-        _mock_schedule_deps(workflow_map),
-        mock.patch("orchestrator.core.cli.scheduler.add_unique_scheduled_task_to_queue") as mock_add,
+        _mock_known_workflows(known_workflows),
+        mock.patch("orchestrator.core.schedules.service.add_unique_scheduled_task_to_queue") as mock_add,
     ):
         result = runner.invoke(app, ["load-initial-schedule"])
     assert result.exit_code == 0
-    assert mock_add.call_count == 5
-    assert "Skipping" not in result.output
-
-
-def test_load_initial_schedule_one_missing_skips():
-    wf_names = [
-        "task_resume_workflows",
-        "task_clean_up_tasks",
-        "task_validate_subscriptions",
-    ]
-    workflow_map = {name: _make_workflow(name) for name in wf_names}
-    with (
-        _mock_schedule_deps(workflow_map),
-        mock.patch("orchestrator.core.cli.scheduler.add_unique_scheduled_task_to_queue") as mock_add,
-    ):
-        result = runner.invoke(app, ["load-initial-schedule"])
-    assert result.exit_code == 0
-    assert mock_add.call_count == 3
-    assert "Skipping" in result.output
-
-
-def test_load_initial_schedule_all_missing():
-    with (
-        _mock_schedule_deps({}),
-        mock.patch("orchestrator.core.cli.scheduler.add_unique_scheduled_task_to_queue") as mock_add,
-    ):
-        result = runner.invoke(app, ["load-initial-schedule"])
-    assert result.exit_code == 0
-    assert mock_add.call_count == 0
-    assert result.output.count("Skipping") == 5
+    assert mock_add.call_count == expected_added
+    expected_skipped = len(INITIAL_SCHEDULES) - expected_added
+    assert result.output.count("not found. Skipping schedule.") == expected_skipped
 
 
 # --- show_schedule ---

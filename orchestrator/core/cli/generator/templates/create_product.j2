@@ -25,7 +25,6 @@ from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import Divider, Label, CustomerId, MigrationSummary
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 
 {%- for namespace, type in types_to_import %}
@@ -36,7 +35,7 @@ from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
 from {{workflows_module}}.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
 {%-endif %}
 {% if product.config.summary_forms -%}
-from {{workflows_module}}.shared import create_summary_form
+from orchestrator.core.forms.summary_form import base_summary
 {%- endif %}
 {% if product_block_types -%}
 from {{ product_blocks_module }}.{{ product_block.variable }} import {{ product_block_types | map(attribute='type') | join(", ") }}
@@ -60,7 +59,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         customer_id: CustomerId
 {% include "additional_create_input_fields.j2" ignore missing %}
 
-        {{ product.variable }}_settings: Label
+        label_{{ product.variable }}_settings: Label
         divider_1: Divider
 
         {% for field in fields if field.type not in existing_product_blocks -%}
@@ -83,10 +82,9 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         {%- endfor %}
 
     user_input = yield Create{{ product.type }}Form
-    user_input_dict = user_input.dict()
+    user_input_dict = user_input.model_dump()
     {% if product.config.summary_forms %}
-    summary_fields = [{% for field in fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
-    yield from create_summary_form(user_input_dict, product_name, summary_fields)
+    yield from base_summary(product_name, user_input_dict)
     {%- endif %}
 
     return user_input_dict
@@ -130,6 +128,5 @@ def create_{{ product.variable }}() -> StepList:
     return (
         begin
         >> construct_{{ product.variable }}_model
-        >> store_process_subscription()
         # TODO add provision step(s)
     )

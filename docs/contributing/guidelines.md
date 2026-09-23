@@ -94,8 +94,10 @@ Creating a new release is done by the developers of the project and the procedur
 ### Release candidates
 
 When creating new features they can be released in so-called `pre-releases` on github.
-Depending on the feature type the developer will need to run `bumpversion (major|minor|patch)` and then `bumpversion build --allow-dirty` to create a new release candidate.
-This command will update the `.bumpversion.cfg` and the `pyproject.toml` files.
+Depending on the feature type the developer will need to run `uv version --bump (major|minor|patch) --bump rc` to create
+a new release candidate, for example `uv version --bump minor --bump rc` turns `5.2.0` into `5.3.0rc1`.
+Subsequent release candidates on the same version are created with `uv version --bump rc` (`5.3.0rc1` -> `5.3.0rc2`).
+These commands update the version in `pyproject.toml` and `uv.lock`.
 
 The next step would be to "Create a new release" -> "Fill in the tag and check the box, create tag upon release" and
 use the checkbox "pre-release."
@@ -104,5 +106,7 @@ The code will be pushed to pypi.
 
 ### Stable releases
 
-Stable releases follow the same procedure as described above and can be either created from a release candidate by removing the `-rc` string from the `.bumpversion.cfg` and the `orchestrator/__init__.py` files.
+Stable releases follow the same procedure as described above and can be either created from a release candidate by
+running `uv version --bump stable`, which drops the `rc` suffix (`5.3.0rc2` -> `5.3.0`), or directly from a stable
+version with `uv version --bump (major|minor|patch)`.
 After that a new release can be created and the `Autogenerate changelog` option may be used.

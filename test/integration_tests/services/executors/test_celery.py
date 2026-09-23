@@ -26,6 +26,7 @@ from orchestrator.core.services.executors.celery import (
 )
 from orchestrator.core.services.processes import RESUMABLE_STATUSES
 from orchestrator.core.services.tasks import NEW_TASK, RESUME_WORKFLOW
+from orchestrator.core.targets import Target
 from orchestrator.core.workflow import ProcessStatus
 
 
@@ -34,16 +35,17 @@ from orchestrator.core.workflow import ProcessStatus
 @mock.patch("orchestrator.core.services.executors.celery.delete_process")
 def test_celery_start_process(mock_delete_process, mock_get_workflow_by_name, mock_get_celery_task):
     pstat = MagicMock()
+    mock_get_workflow_by_name.return_value.target = Target.SYSTEM
 
     trigger_task = MagicMock()
-    trigger_task.delay.get.return_value = uuid4()
+    trigger_task.apply_async.get.return_value = uuid4()
     mock_get_celery_task.return_value = trigger_task
 
     process_id = _celery_start_process(pstat)
 
     assert process_id == pstat.process_id
     mock_get_celery_task.assert_called_once_with(NEW_TASK)
-    trigger_task.delay.assert_called_once()
+    trigger_task.apply_async.assert_called_once()
     mock_get_workflow_by_name.assert_called_once()
     mock_delete_process.assert_not_called()
 
@@ -55,12 +57,13 @@ def test_celery_start_process_connection_error_should_delete_process(
     mock_delete_process, mock_get_workflow_by_name, mock_get_celery_task
 ):
     pstat = MagicMock()
+    mock_get_workflow_by_name.return_value.target = Target.SYSTEM
     trigger_task = MagicMock()
 
-    def raise_connection_error(x, y):
+    def raise_connection_error(args, **options):
         raise ConnectionError()
 
-    trigger_task.delay = raise_connection_error
+    trigger_task.apply_async = raise_connection_error
     mock_get_celery_task.return_value = trigger_task
 
     with pytest.raises(ConnectionError):
@@ -76,20 +79,21 @@ def test_celery_resume_process(mock_db, mock_get_celery_task):
     process = MagicMock(spec=ProcessTable)
     process.last_status = ProcessStatus.FAILED
     process.workflow.is_task = False
+    process.workflow.target = Target.MODIFY
 
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = process
     mock_db.session.execute.return_value = mock_result
 
     trigger_task = MagicMock()
-    trigger_task.delay.get.return_value = uuid4()
+    trigger_task.apply_async.get.return_value = uuid4()
     mock_get_celery_task.return_value = trigger_task
 
     process_id = _celery_resume_process(process)
 
     assert process_id == process.process_id
     mock_get_celery_task.assert_called_once_with(RESUME_WORKFLOW)
-    trigger_task.delay.assert_called_once()
+    trigger_task.apply_async.assert_called_once()
     assert process.last_status == ProcessStatus.RESUMED
 
 
@@ -102,13 +106,14 @@ def test_celery_resume_process_connection_error_should_revert_process_status(
     process = MagicMock(spec=ProcessTable)
     process.last_status = ProcessStatus.FAILED
     process.workflow.is_task = False
+    process.workflow.target = Target.MODIFY
 
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = process
     mock_db.session.execute.return_value = mock_result
 
     trigger_task = MagicMock()
-    trigger_task.delay.side_effect = ConnectionError("network down")
+    trigger_task.apply_async.side_effect = ConnectionError("network down")
     mock_get_celery_task.return_value = trigger_task
 
     with pytest.raises(ConnectionError):

@@ -20,17 +20,27 @@ query building, pagination, metadata, and the compute_rrf_hybrid_score_sql funct
 import uuid
 
 import pytest
-from sqlalchemy import literal, select
+from sqlalchemy import Float, Integer, literal, select
 from sqlalchemy.dialects import postgresql
 
 from orchestrator.core.db import db
 from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.search.core.types import BooleanOperator, EntityType, FilterOp, UIType
+from orchestrator.core.search.filters import FilterTree, PathFilter
+from orchestrator.core.search.filters.base import EqualityFilter
+from orchestrator.core.search.filters.ltree_filters import LtreeFilter
 from orchestrator.core.search.query.mixins import OrderDirection, StructuredOrderBy
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
-from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever, compute_rrf_hybrid_score_sql
+from orchestrator.core.search.retrieval.retrievers.hybrid import (
+    PERFECT_TEXT_DECIDES_RANKS,
+    RrfHybridRetriever,
+    compute_rrf_hybrid_score_sql,
+    semantic_tiebreak_weight,
+)
 from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
 from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
+from orchestrator.core.settings import llm_settings
 from test.integration_tests.search.retrieval.retrievers.snapshot_helper import assert_sql_matches_snapshot
 
 
@@ -96,6 +106,36 @@ def test_structured_retriever_pagination_with_order_by(candidate_query, query_id
 
 
 @pytest.mark.parametrize(
+    "leaf",
+    [
+        pytest.param(
+            PathFilter(
+                path="*",
+                condition=LtreeFilter(op=FilterOp.HAS_COMPONENT, value="port"),
+                value_kind=UIType.COMPONENT,
+            ),
+            id="has-component",
+        ),
+        pytest.param(
+            PathFilter(
+                path="subscription.status",
+                condition=EqualityFilter(op=FilterOp.EQ, value="active"),
+                value_kind=UIType.STRING,
+            ),
+            id="equality",
+        ),
+    ],
+)
+def test_structured_retriever_highlight_matches_executes(candidate_query, leaf):
+    """The highlight-matches subqueries (json_agg and single-representative-row) are valid PostgreSQL."""
+    filters = FilterTree(op=BooleanOperator.AND, children=[leaf])
+    retriever = StructuredRetriever(cursor=None, filters=filters)
+    query = retriever.apply(candidate_query)
+    rows = db.session.execute(query).mappings().all()
+    assert isinstance(rows, list)
+
+
+@pytest.mark.parametrize(
     "retriever_factory,expected_search_type",
     [
         pytest.param(lambda: StructuredRetriever(cursor=None), "structured", id="structured"),
@@ -154,6 +194,22 @@ def test_semantic_retriever_pagination_structure(candidate_query, query_id, requ
     assert_sql_matches_snapshot("SemanticRetriever.test_pagination_structure", sql, request)
 
 
+def test_semantic_retriever_bounded_query_structure(candidate_query, query_id, request):
+    """Bounded plan pins the shape that makes the partial HNSW index usable.
+
+    The entity type is a literal so the index predicate matches, candidate filters sit inside the
+    window, and the cursor and ordering sit outside it.
+    """
+    cursor = PageCursor(score=0.92, id="entity-456", query_id=query_id)
+    filtered = candidate_query.where(AiSearchIndex.value == "active")
+    retriever = SemanticRetriever(
+        [0.1, 0.2, 0.3], cursor=cursor, entity_type=EntityType.SUBSCRIPTION, candidates_limit=400
+    )
+    query = retriever.apply(filtered)
+    sql = compile_query_to_sql(query)
+    assert_sql_matches_snapshot("SemanticRetriever.test_bounded_query_structure", sql, request)
+
+
 # ---------------------------------------------------------------------------
 # RrfHybridRetriever
 # ---------------------------------------------------------------------------
@@ -182,24 +238,92 @@ def test_rrf_hybrid_retriever_pagination_structure(candidate_query, query_id, re
 
 
 @pytest.mark.parametrize(
-    "avg_fuzzy_score,expected_flag",
+    "best_fuzzy_score,expected_flag",
     [
         pytest.param(0.89, 0, id="below_threshold"),
         pytest.param(0.90, 1, id="at_threshold"),
         pytest.param(0.95, 1, id="above_threshold"),
     ],
 )
-def test_rrf_perfect_match_detection(avg_fuzzy_score, expected_flag):
+def test_rrf_perfect_match_detection(best_fuzzy_score, expected_flag):
     """Test perfect match flag evaluates correctly based on the threshold."""
     components = compute_rrf_hybrid_score_sql(
         sem_rank_col=literal(1),
         fuzzy_rank_col=literal(1),
-        avg_fuzzy_score_col=literal(avg_fuzzy_score),
+        best_fuzzy_score_col=literal(best_fuzzy_score),
         k=60,
         perfect_threshold=0.9,
     )
     result_flag = db.session.execute(select(components["perfect"])).scalar()
     assert result_flag is not None and result_flag == expected_flag
+
+
+@pytest.mark.parametrize(
+    "sem_rank,fuzzy_rank,expected_rrf",
+    [
+        pytest.param(None, 3, 1 / 63, id="no_semantic_source"),
+        pytest.param(2, None, 1 / 62, id="no_fuzzy_source"),
+        pytest.param(None, None, 0.0, id="no_sources"),
+    ],
+)
+def test_rrf_missing_source_contributes_zero(sem_rank, fuzzy_rank, expected_rrf):
+    """An entity absent from a source (NULL rank) gets no contribution from it, not a NULL score."""
+    result = compute_rrf_hybrid_score_sql(
+        sem_rank_col=literal(sem_rank, type_=Integer),
+        fuzzy_rank_col=literal(fuzzy_rank, type_=Integer),
+        best_fuzzy_score_col=literal(0.5),
+        k=60,
+        perfect_threshold=0.9,
+    )
+    rrf_val = db.session.execute(select(result["rrf_num"])).scalar()
+    assert rrf_val is not None and float(rrf_val) == pytest.approx(expected_rrf, abs=0.0001)
+
+
+@pytest.mark.parametrize(
+    "best_fuzzy_score,sem_rank,fuzzy_rank,expected_rrf",
+    [
+        pytest.param(0.5, 1, 2, 1 / 61 + 1 / 62, id="non_perfect_full_semantic_term"),
+        pytest.param(0.95, 1, 2, semantic_tiebreak_weight(60) / 61 + 1 / 62, id="perfect_semantic_is_a_tiebreaker"),
+        pytest.param(0.95, 50, 1, semantic_tiebreak_weight(60) / 110 + 1 / 61, id="perfect_deep_semantic_rank"),
+    ],
+)
+def test_rrf_semantic_term_is_scaled_down_for_perfect_matches(best_fuzzy_score, sem_rank, fuzzy_rank, expected_rrf):
+    """Among perfect matches the fuzzy rank decides; the semantic rank only breaks exact ties."""
+    result = compute_rrf_hybrid_score_sql(
+        sem_rank_col=literal(sem_rank),
+        fuzzy_rank_col=literal(fuzzy_rank),
+        best_fuzzy_score_col=literal(best_fuzzy_score),
+        k=60,
+        perfect_threshold=0.9,
+    )
+    rrf_val = db.session.execute(select(result["rrf_num"])).scalar()
+    assert rrf_val is not None and float(rrf_val) == pytest.approx(expected_rrf, abs=1e-9)
+
+
+def test_semantic_tiebreak_weight_is_within_its_bounds():
+    """The weighted semantic term never outweighs a guaranteed fuzzy-rank gap, yet still separates semantic ranks.
+
+    Ceiling: for every fuzzy rank up to the guarantee, the largest semantic term stays below the gap to the
+    next rank. Floor: at the far end of the semantic window, adjacent semantic ranks still differ by more
+    than the score precision, so the tiebreak is not rounded away.
+    """
+    k, weight = 60, semantic_tiebreak_weight(60)
+    window = llm_settings.SEARCH_SEMANTIC_CANDIDATE_LIMIT
+
+    assert all(weight / (k + 1) <= 1 / ((k + r) * (k + r + 1)) for r in range(1, PERFECT_TEXT_DECIDES_RANKS + 1))
+    assert weight / ((k + window) * (k + window + 1)) > 10 ** -RrfHybridRetriever.SCORE_PRECISION
+
+
+def test_rrf_perfect_match_requires_fuzzy_score():
+    """An entity without a fuzzy score (NULL) is never a perfect match."""
+    components = compute_rrf_hybrid_score_sql(
+        sem_rank_col=literal(1),
+        fuzzy_rank_col=literal(None, type_=Integer),
+        best_fuzzy_score_col=literal(None, type_=Float),
+        k=60,
+        perfect_threshold=0.9,
+    )
+    assert db.session.execute(select(components["perfect"])).scalar() == 0
 
 
 @pytest.mark.parametrize(
@@ -215,7 +339,7 @@ def test_rrf_base_score_component(k, sem_rank, fuzzy_rank, expected_rrf):
     result = compute_rrf_hybrid_score_sql(
         sem_rank_col=literal(sem_rank),
         fuzzy_rank_col=literal(fuzzy_rank),
-        avg_fuzzy_score_col=literal(0.5),
+        best_fuzzy_score_col=literal(0.5),
         k=k,
         perfect_threshold=0.9,
     )
@@ -238,7 +362,7 @@ def test_rrf_normalized_score_is_always_in_range(sem_rank, fuzzy_rank, fuzzy_sco
     components = compute_rrf_hybrid_score_sql(
         sem_rank_col=literal(sem_rank),
         fuzzy_rank_col=literal(fuzzy_rank),
-        avg_fuzzy_score_col=literal(fuzzy_score),
+        best_fuzzy_score_col=literal(fuzzy_score),
         k=60,
         perfect_threshold=0.9,
     )
@@ -260,7 +384,7 @@ def test_rrf_n_sources_affects_rrf_max(n_sources, expected_numerator):
     components = compute_rrf_hybrid_score_sql(
         sem_rank_col=literal(1),
         fuzzy_rank_col=literal(1),
-        avg_fuzzy_score_col=literal(0.5),
+        best_fuzzy_score_col=literal(0.5),
         k=k,
         perfect_threshold=0.9,
         n_sources=n_sources,
@@ -285,7 +409,7 @@ def test_rrf_margin_factor_affects_beta(margin_factor, expected_multiplier):
     components = compute_rrf_hybrid_score_sql(
         sem_rank_col=literal(1),
         fuzzy_rank_col=literal(1),
-        avg_fuzzy_score_col=literal(0.5),
+        best_fuzzy_score_col=literal(0.5),
         k=k,
         perfect_threshold=0.9,
         n_sources=n_sources,

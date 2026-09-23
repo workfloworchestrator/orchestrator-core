@@ -25,7 +25,7 @@ pytestmark = pytest.mark.search
 
 @pytest.mark.asyncio
 @patch("orchestrator.core.search.query.validation.is_lquery_syntactically_valid")
-async def test_complete_filter_ltree_valid_syntax_passes(mock_is_valid: MagicMock):
+async def test_complete_filter_ltree_valid_syntax_passes(mock_is_valid: MagicMock, async_session):
     """LtreeFilter with valid syntax should not raise."""
     mock_is_valid.return_value = True
     pf = PathFilter(
@@ -33,12 +33,12 @@ async def test_complete_filter_ltree_valid_syntax_passes(mock_is_valid: MagicMoc
         condition=LtreeFilter(op=FilterOp.MATCHES_LQUERY, value="*.valid.*"),
         value_kind=UIType.COMPONENT,
     )
-    await complete_filter_validation(pf, EntityType.SUBSCRIPTION)
+    await complete_filter_validation(pf, EntityType.SUBSCRIPTION, async_session)
 
 
 @pytest.mark.asyncio
 @patch("orchestrator.core.search.query.validation.is_lquery_syntactically_valid")
-async def test_complete_filter_ltree_invalid_syntax_raises(mock_is_valid: MagicMock):
+async def test_complete_filter_ltree_invalid_syntax_raises(mock_is_valid: MagicMock, async_session):
     """LtreeFilter with invalid syntax raises InvalidLtreePatternError."""
     mock_is_valid.return_value = False
     pf = PathFilter(
@@ -47,4 +47,4 @@ async def test_complete_filter_ltree_invalid_syntax_raises(mock_is_valid: MagicM
         value_kind=UIType.COMPONENT,
     )
     with pytest.raises(InvalidLtreePatternError):
-        await complete_filter_validation(pf, EntityType.SUBSCRIPTION)
+        await complete_filter_validation(pf, EntityType.SUBSCRIPTION, async_session)

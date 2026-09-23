@@ -1,5 +1,5 @@
 {% if lists_to_generate %}
 {% for list_type in lists_to_generate %}
-ListOf{{ list_type.name | capitalize }} = Annotated[list[SI], Len(min_length={{ list_type.min_items }}{% if list_type.max_items -%}, max_length={{ list_type.max_items }}{% endif %})]
+ListOf{{ list_type.name | capitalize }} = Annotated[list[SI], Len(min_length={{ list_type.min_items or 0 }}{% if list_type.max_items -%}, max_length={{ list_type.max_items }}{% endif %})]
 {% endfor %}
 {% endif -%}

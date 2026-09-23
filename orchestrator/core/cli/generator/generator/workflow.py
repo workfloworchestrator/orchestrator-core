@@ -23,6 +23,7 @@ from jinja2 import Environment
 from orchestrator.core.cli.generator.generator.enums import get_int_enums, get_str_enums
 from orchestrator.core.cli.generator.generator.helpers import (
     ProdGenContext,
+    create_dunder_init_files,
     get_constrained_ints,
     get_existing_product_blocks,
     get_input_fields,
@@ -89,13 +90,13 @@ def generate_workflows(context: ProdGenContext) -> None:
     environment = context["environment"]
     writer = context["writer"]
 
-    create_product_workflow_paths(config)
+    create_product_workflow_paths(config, dryrun=context["dryrun"])
 
     # TODO: Remove from core and extend config from client specific code
     config = add_optional_nso_config(config)
     config = add_optional_ims_config(config)
 
-    generate_shared_workflow_files(environment, config, writer)
+    generate_shared_forms_file(environment, config, writer)
     generate_create_workflow(environment, config, writer)
     generate_modify_workflow(environment, config, writer)
     generate_validate_workflow(environment, config, writer)
@@ -115,9 +116,12 @@ def shared_product_workflow_folder(config: dict) -> Path:
     return product_workflow_folder(config) / Path("shared")
 
 
-def create_product_workflow_paths(config: dict) -> None:
+def create_product_workflow_paths(config: dict, dryrun: bool) -> None:
+    if dryrun:
+        return
     path = product_workflow_folder(config) / Path("shared")
     path.mkdir(parents=True, exist_ok=True)
+    create_dunder_init_files(path)
 
 
 def get_product_workflow_path(config: dict, workflow_type: str) -> Path:
@@ -168,14 +172,9 @@ def render_template(environment: Environment, config: dict, template: str, workf
     )
 
 
-def generate_shared_workflow_files(environment: Environment, config: dict, writer: Callable) -> None:
+def generate_shared_forms_file(environment: Environment, config: dict, writer: Callable) -> None:
     content = render_template(environment, config, "shared_forms.j2")
     path = shared_product_workflow_folder(config) / Path("forms.py")
-    writer(path, content)
-
-    template = environment.get_template("shared_workflows.j2")
-    content = template.render()
-    path = get_workflows_folder() / Path("shared.py")
     writer(path, content)
 
 

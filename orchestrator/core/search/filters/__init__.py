@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import (
+from orchestrator.core.search.filters.base import (
     ContainsFilter,
     EqualityFilter,
     FilterCondition,
@@ -19,11 +19,11 @@ from .base import (
     PathFilter,
     StringFilter,
 )
-from .date_filters import DateFilter, DateRangeFilter, DateValueFilter
-from .definitions import TypeDefinition, ValueSchema
-from .elastic_dsl import ElasticQuery, elastic_to_filter_tree
-from .ltree_filters import LtreeFilter
-from .numeric_filter import NumericFilter, NumericRangeFilter, NumericValueFilter
+from orchestrator.core.search.filters.date_filters import DateFilter, DateRangeFilter, DateValueFilter
+from orchestrator.core.search.filters.definitions import TypeDefinition, ValueSchema
+from orchestrator.core.search.filters.elastic_dsl import ElasticQuery, elastic_to_filter_tree
+from orchestrator.core.search.filters.ltree_filters import LtreeFilter
+from orchestrator.core.search.filters.numeric_filter import NumericFilter, NumericRangeFilter, NumericValueFilter
 
 __all__ = [
     # Base filter classes

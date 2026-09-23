@@ -26,8 +26,7 @@ from orchestrator.core.db import (
 )
 from orchestrator.core.db.database import BaseModel
 from orchestrator.core.search.core.types import EntityType, ExtractedField
-
-from .traverse import (
+from orchestrator.core.search.indexing.traverse import (
     BaseTraverser,
     ProcessTraverser,
     ProductTraverser,

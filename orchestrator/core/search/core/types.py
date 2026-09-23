@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum, IntEnum
@@ -21,13 +22,26 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy_utils.types.ltree import Ltree
 
+from orchestrator.core.search.core.validators import is_bool_string, is_iso_date, is_uuid
 from orchestrator.core.types import filter_nonetype, get_origin_and_args, is_optional_type, is_union_type
-
-from .validators import is_bool_string, is_iso_date, is_uuid
 
 SQLAColumn: TypeAlias = ColumnElement[Any] | InstrumentedAttribute[Any]
 
 LTREE_SEPARATOR = "."
+
+
+ResponseColumnValue: TypeAlias = str | bool | int | float | None
+ResponseColumns: TypeAlias = dict[str, ResponseColumnValue]
+ResponseColumnData: TypeAlias = dict[str, ResponseColumns]
+
+
+def _parses_as(value: str, parse: "Callable[[str], Any]") -> bool:
+    """Whether `value` survives a round trip through `parse`."""
+    try:
+        parse(value)
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 @dataclass
@@ -195,6 +209,36 @@ class FieldType(str, Enum):
             return cls.DATETIME
         return cls.STRING
 
+    def matches(self, value: str) -> bool:
+        """Whether the stored text can be read back as this type.
+
+        Only ever a veto: types with no textual constraint accept anything.
+        """
+        match self:
+            case FieldType.BOOLEAN:
+                return is_bool_string(value)
+            case FieldType.INTEGER:
+                return _parses_as(value, int)
+            case FieldType.FLOAT:
+                return _parses_as(value, float)
+            case FieldType.DATETIME:
+                return is_iso_date(value)
+            case FieldType.UUID:
+                return is_uuid(value)
+            case _:
+                return True
+
+    @classmethod
+    def reconcile(cls, declared: "FieldType", value: str) -> "FieldType":
+        """Return the type to index `value` under, given the type its annotation declared.
+
+        The annotation wins unless the value contradicts it: `str` holding "12345" stays
+        a string, `int | str` holding "untagged" becomes one.
+        """
+        if declared.matches(value):
+            return declared
+        return cls._infer_from_str(value)
+
     @classmethod
     def from_type_hint(cls, type_hint: object) -> "FieldType":
         """Convert type hint to FieldType."""
@@ -216,7 +260,7 @@ class FieldType(str, Enum):
 
         origin, args = get_origin_and_args(type_hint)
 
-        if origin is list:
+        if origin is list or origin is Sequence:
             return cls._handle_list_type(args)
 
         if origin is Literal:

@@ -19,6 +19,9 @@ product_blocks:
       - name: list_val
         type: list
         list_type: str
+      - name: existing_block_list
+        type: list
+        list_type: MyExistingProductBlock
 workflows:
   - name: modify
     flows:

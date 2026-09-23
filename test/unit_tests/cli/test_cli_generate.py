@@ -11,10 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pathlib
 from pathlib import Path
 from unittest import mock
 
+import pytest
 from typer.testing import CliRunner
 
 from orchestrator.core.cli.generate import app
@@ -34,6 +34,17 @@ class MyExistingProductBlockProvisioning(
 
 class MyExistingProductBlock(MyExistingProductBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     pass
+
+
+@pytest.fixture(autouse=True)
+def _isolated_cwd(tmp_path, monkeypatch):
+    """Run every test in this module inside an empty directory.
+
+    The generator writes paths relative to the current working directory, so any
+    filesystem side effect that escapes the `--dryrun` guard would otherwise land
+    wherever pytest happens to be invoked from.
+    """
+    monkeypatch.chdir(tmp_path)
 
 
 def read_file(path: str) -> str:
@@ -63,6 +74,18 @@ def test_generate_product_blocks(existing_product_blocks_mock):
     assert result.exit_code == 0
 
 
+@mock.patch("orchestrator.core.cli.generator.generator.product_block.get_existing_product_blocks")
+def test_generate_product_blocks_list_field_without_min_items(existing_product_blocks_mock):
+    existing_product_blocks_mock.return_value = {
+        "MyExistingProductBlock": "products.product_blocks.my_existing_product_block"
+    }
+    runner = CliRunner()
+    result = runner.invoke(app, ["product-blocks", "--config-file", read_file("product_config3.yaml"), "--dryrun"])
+    assert "Len(min_length=0)" in result.stdout
+    assert "Len(min_length=)" not in result.stdout
+    assert result.exit_code == 0
+
+
 def test_generate_workflows():
     runner = CliRunner()
     result = runner.invoke(app, ["workflows", "--config-file", read_file("product_config3.yaml"), "--dryrun"])
@@ -73,9 +96,23 @@ def test_generate_workflows():
     assert result.exit_code == 0
 
 
-@mock.patch.object(pathlib.Path, "mkdir")
-def test_generate_unit_tests(mkdir_mock):
+def test_generate_unit_tests():
     runner = CliRunner()
     result = runner.invoke(app, ["unit-tests", "--config-file", read_file("product_config3.yaml"), "--dryrun"])
     assert "def test_" in result.stdout
     assert result.exit_code == 0
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["product", "product-blocks", "workflows", "unit-tests"],
+)
+def test_dryrun_does_not_write_to_disk(command, tmp_path):
+    runner = CliRunner()
+    with mock.patch(
+        "orchestrator.core.cli.generator.generator.product_block.get_existing_product_blocks", return_value={}
+    ):
+        result = runner.invoke(app, [command, "--config-file", read_file("product_config3.yaml"), "--dryrun"])
+
+    assert result.exit_code == 0
+    assert list(tmp_path.iterdir()) == []

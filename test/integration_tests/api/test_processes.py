@@ -13,6 +13,7 @@
 import time
 import uuid
 from http import HTTPStatus
+from queue import Queue
 from threading import Condition, Event
 from unittest import mock
 from uuid import uuid4
@@ -63,14 +64,24 @@ from test.helpers import URL_STR_TYPE
 from test.integration_tests.workflows import WorkflowInstanceForTests
 
 test_condition = Condition()
+# Signalled by long_running_step right before it starts waiting on test_condition, so tests can
+# block until the background worker is actually waiting instead of guessing with time.sleep().
+# A notify_all() sent before the worker reaches wait() is silently lost, which strands that
+# worker in wait() forever and permanently eats one of the thread pool's workers.
+step_waiting: Queue = Queue()
 callback_key = "lgjyjNvu-C6vMbaUmjPZPxoJ1t8yS_41ottoe64qP5A"
 
 
 @pytest.fixture
 def long_running_workflow():
+    # Drop any stale signal left behind by a previous (e.g. failed) use of this fixture.
+    while not step_waiting.empty():
+        step_waiting.get_nowait()
+
     @step("Long Running Step")
     def long_running_step():
         with test_condition:
+            step_waiting.put(None)
             test_condition.wait()
         return {"done": True}
 
@@ -162,8 +173,9 @@ def test_delete_process_404(test_client, started_process):
     assert HTTPStatus.NOT_FOUND == response.status_code
 
 
-def test_long_running_pause(test_client, long_running_workflow):
-    app_settings.TESTING = False
+@pytest.mark.timeout(30)
+def test_long_running_pause(test_client, long_running_workflow, monkeypatch):
+    monkeypatch.setattr(app_settings, "TESTING", False)
     # Start the workflow
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{}])
     assert HTTPStatus.CREATED == response.status_code, (
@@ -176,7 +188,7 @@ def test_long_running_pause(test_client, long_running_workflow):
     assert HTTPStatus.OK == response.status_code
 
     # Let it run until the first lock step is started
-    time.sleep(1)
+    step_waiting.get(timeout=10)
 
     response = test_client.put("/api/settings/status", json={"global_lock": True})
     assert response.json()["global_lock"] is True
@@ -209,8 +221,8 @@ def test_long_running_pause(test_client, long_running_workflow):
     assert response.json()["running_processes"] in [0, 1]
     assert response.json()["global_status"] == "RUNNING"
 
-    # Let it continue executing
-    time.sleep(1)
+    # Let it continue executing until the second lock step is started
+    step_waiting.get(timeout=10)
 
     # Let it finish after second lock step
     with test_condition:
@@ -221,8 +233,6 @@ def test_long_running_pause(test_client, long_running_workflow):
     assert HTTPStatus.OK == response.status_code
     # assume ordered steplist
     assert response.json()["steps"][3]["status"] == "complete"
-
-    app_settings.TESTING = True
 
 
 def test_service_unavailable_engine_locked(test_client, test_workflow):
@@ -508,7 +518,7 @@ def test_resume_all_processes(test_client, mocked_processes_resumeall):
     assert response.json()["count"] == 3
 
 
-def test_resume_all_processes_multiple_calls(test_client, mocked_processes_resumeall):
+def test_resume_all_processes_multiple_calls(test_client, mocked_processes_resumeall, monkeypatch):
     """Test only 1 of multiple resume-all calls is successful.
 
     This uses the "MemoryDistlockManager" reference implementation.
@@ -519,14 +529,12 @@ def test_resume_all_processes_multiple_calls(test_client, mocked_processes_resum
         event.wait(2)  # To keep the lock open for a while
 
     # Disable Testing setting since we want to run async
-    app_settings.TESTING = False
+    monkeypatch.setattr(app_settings, "TESTING", False)
 
     with mock.patch("orchestrator.core.services.processes.resume_process", new=resume_noop):
         responses = [test_client.put("/api/processes/resume-all") for _ in range(5)]
         responses.sort(key=lambda r: r.status_code)
         event.set()
-
-    app_settings.TESTING = True
 
     assert responses[0].status_code == HTTPStatus.OK
     assert responses[0].json()["count"] == 3

@@ -273,6 +273,12 @@ workflows.
 
 Below is an example illustrating how to override the default configurations:
 
+!!! note "Which `AsyncClient` to import"
+
+    The client passed to `userinfo()` comes from oauth2-lib, so import it from the library oauth2-lib
+    uses: `httpx` on oauth2-lib 2.x, `httpx2` on 3.x. Values you pass back into that client
+    (`BasicAuth`, `Timeout`, `Limits`) must come from the same one.
+
 === "`orchestrator-core` ≥ 5.0"
 
     ```python

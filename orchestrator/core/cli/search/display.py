@@ -70,7 +70,9 @@ def display_results(
 
         # If we have matching fields from fuzzy/structured search, display only those
         if result.matching_fields:
-            logger.info(f"Entity ID: {entity_id}")
+            logger.info(
+                f"Entity: {result.entity_title} ({entity_id}) score={score:.4f} perfect_match={result.perfect_match}"
+            )
             for mf in result.matching_fields:
                 logger.info(f"Matched field ({mf.path}): {mf.text}")
             logger.info(f"{score_label}: {score:.4f}\n" + "-" * 20)

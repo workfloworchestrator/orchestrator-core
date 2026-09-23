@@ -158,13 +158,25 @@ def _convert_to_uuid(v: Any) -> UUID:
     return v if isinstance(v, UUID) else UUID(v)
 
 
-def _apply_type_conversion(value: Any, annotation: Any, param_name: str) -> Any:
-    """Apply UUID conversion based on annotation type.
+def _apply_wrapped_type_conversion(value: Any, annotation: Any) -> Any:
+    """Apply conversion from primitive types to a wrapped type."""
+    def convert(value: Any) -> Any:
+        return annotation(value) if _can_unwrap(annotation) else value
+
+    if is_list_type(annotation, Any):
+        return [convert(item) for item in value]
+
+    # Note: if there is a use-case for optional wrapped types, this needs to be added here
+
+    return convert(value)
+
+
+def _apply_type_conversion(value: Any, annotation: Any) -> Any:
+    """Apply type conversion based on annotation.
 
     Args:
         value: The value to convert
         annotation: The parameter annotation
-        param_name: Parameter name for error messages
 
     Returns:
         Converted value (UUID, list[UUID], Optional[UUID], or unchanged)
@@ -178,7 +190,8 @@ def _apply_type_conversion(value: Any, annotation: Any, param_name: str) -> Any:
         return [_convert_to_uuid(item) for item in value]
     if is_optional_type(annotation, UUID):
         return None if value is None else _convert_to_uuid(value)
-    return value
+
+    return _apply_wrapped_type_conversion(value, annotation)
 
 
 def _handle_subscription_model_param(param_name: str, annotation: Any, state: State) -> SubscriptionModel:
@@ -330,7 +343,7 @@ def _handle_value_param(param: inspect.Parameter, state: State, func: StepFunc |
         # Only apply conversion if value came from state (not the default itself)
         if value != param.default:
             try:
-                return _apply_type_conversion(value, param.annotation, param_name)
+                return _apply_type_conversion(value, param.annotation)
             except ValueError as value_error:
                 logger.error("Could not convert value to expected type.", key=param_name, state=state, value=value)
                 raise ValueError(f"Could not convert value '{value}' to {param.annotation}") from value_error
@@ -340,7 +353,7 @@ def _handle_value_param(param: inspect.Parameter, state: State, func: StepFunc |
         # Required parameter: must be in state
         try:
             value = state[param_name]
-            return _apply_type_conversion(value, param.annotation, param_name)
+            return _apply_type_conversion(value, param.annotation)
         except KeyError as key_error:
             logger.error("Could not find key in state.", key=param_name, state=state)
             raise KeyError(
@@ -404,6 +417,25 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:
             arguments.append(_handle_value_param(param, state, func))
 
     return arguments
+
+
+def _can_unwrap(obj: Any) -> bool:
+    """Check if an object wraps a primitive type."""
+    return hasattr(obj, "unwrap") and callable(obj.unwrap)
+
+
+def _unwrap_state(state: State) -> State:
+    """Convert wrapped values in the State back to their primitive types."""
+    def _unwrap(value: Any) -> Any:
+        if _can_unwrap(value):
+            return value.unwrap()
+        if isinstance(value, list):
+            return [_unwrap(item) for item in value]
+        if isinstance(value, dict):
+            return _unwrap_state(value)
+        return value
+
+    return {key: _unwrap(value) for key, value in state.items()}
 
 
 def inject_args(func: StepFunc) -> Callable[[State], State]:
@@ -491,6 +523,8 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
         # Support step functions that don't return anything
         if new_state is None:
             new_state = {}
+
+        new_state = _unwrap_state(new_state)
 
         _save_models(new_state)
 

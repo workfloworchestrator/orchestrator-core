@@ -15,7 +15,7 @@
 
 from datetime import datetime
 from enum import Enum, IntEnum
-from typing import Annotated, List, Literal, Union
+from typing import Annotated, List, Literal, Sequence, Union
 from uuid import UUID
 
 import pytest
@@ -37,6 +37,7 @@ from test.unit_tests.search.fixtures.blocks import MTU, MTUChoice, PriorityIntEn
         pytest.param(PriorityIntEnum, FieldType.INTEGER, id="int-enum"),
         pytest.param(List[int], FieldType.INTEGER, id="List-int"),
         pytest.param(list[int], FieldType.INTEGER, id="list-int"),
+        pytest.param(Sequence[int], FieldType.INTEGER, id="sequence-int"),
         pytest.param(list[float], FieldType.FLOAT, id="list-float"),
         pytest.param(list[bool], FieldType.BOOLEAN, id="list-bool"),
         pytest.param(list[StatusEnum], FieldType.STRING, id="list-str-enum"),
@@ -60,6 +61,7 @@ from test.unit_tests.search.fixtures.blocks import MTU, MTUChoice, PriorityIntEn
         pytest.param(Annotated[datetime, "timezone"], FieldType.DATETIME, id="annotated-datetime"),
         pytest.param(Annotated[UUID, "version"], FieldType.UUID, id="annotated-uuid"),
         pytest.param(Annotated[list[str], "min_length"], FieldType.STRING, id="annotated-list-str"),
+        pytest.param(Annotated[Sequence[int], "min_length"], FieldType.INTEGER, id="annotated-sequence-int"),
         pytest.param(Annotated[Union[int, None], "optional"], FieldType.INTEGER, id="annotated-optional-int"),
         pytest.param(list[MTU], FieldType.INTEGER, id="list-annotated-mtu"),
         pytest.param(Union[MTU, None], FieldType.INTEGER, id="optional-annotated-mtu"),

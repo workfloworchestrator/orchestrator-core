@@ -260,10 +260,28 @@ requests confirmation before proceeding:
 Finally, we wire this all up in our StepList. Instead of including the step
 directly, provide the step as a parameter to the interaction function:
 
-=== "`orchestrator-core` ≥ 5.0"
+=== "`orchestrator-core` ≥ 5.4"
 
     ```python
     from orchestrator.core.types import SubscriptionLifecycle
+    from orchestrator.core.workflows.utils import create_workflow
+
+
+    @create_workflow("Example workflow", initial_input_form=initial_input_form_generator)
+    def create_l2vpn() -> StepList:
+        return (
+            begin
+            >> construct_model
+            >> callback_interaction(call_ansible_playbook)
+            >> set_status(SubscriptionLifecycle.ACTIVE)
+        )
+    ```
+
+=== "`orchestrator-core` == 5.0"
+
+    ```python
+    from orchestrator.core.types import SubscriptionLifecycle
+    from orchestrator.core.workflows.steps import store_process_subscription
     from orchestrator.core.workflows.utils import create_workflow
 
 
@@ -282,6 +300,7 @@ directly, provide the step as a parameter to the interaction function:
 
     ```python
     from orchestrator.types import SubscriptionLifecycle
+    from orchestrator.workflows.steps import store_process_subscription
     from orchestrator.workflows.utils import create_workflow
 
 
