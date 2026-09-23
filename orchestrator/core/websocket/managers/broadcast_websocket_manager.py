@@ -65,9 +65,8 @@ class BroadcastWebsocketManager:
         self.remove_ws_from_connected_list(websocket)
 
     async def disconnect_all(self) -> None:
-        # Snapshot: disconnect() removes from self.connected as we iterate.
-        for websocket in list(self.connected):
-            await self.disconnect(websocket, code=status.WS_1001_GOING_AWAY, reason="Shutting down")
+        while self.connected:
+            await self.disconnect(self.connected.pop(), code=status.WS_1001_GOING_AWAY, reason="Shutting down")
 
     async def receiver(self, websocket: WebSocket, channel: str) -> None:
         """Read messages from websocket client."""
