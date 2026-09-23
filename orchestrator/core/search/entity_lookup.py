@@ -31,7 +31,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.db.models import (
     ProcessTable,
+    ProductBlockTable,
     ProductTable,
+    ResourceTypeTable,
     SubscriptionTable,
     WorkflowTable,
 )
@@ -65,6 +67,8 @@ _ENTITY_LOOKUP: dict[EntityType, _LookupSpec] = {
         ProcessTable.process_id,
         func.concat(cast(ProcessTable.workflow_id, Text), " (", ProcessTable.last_status, ")"),
     ),
+    EntityType.METADATA_PRODUCT_BLOCK: _LookupSpec(ProductBlockTable.product_block_id, ProductBlockTable.name),
+    EntityType.METADATA_RESOURCE_TYPE: _LookupSpec(ResourceTypeTable.resource_type_id, ResourceTypeTable.resource_type),
 }
 
 
