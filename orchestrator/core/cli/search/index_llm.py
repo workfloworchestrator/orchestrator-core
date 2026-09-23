@@ -90,6 +90,40 @@ def workflows_command(
     )
 
 
+@app.command("product-blocks")
+def product_blocks_command(
+    product_block_id: str | None = typer.Option(None, help="UUID (default = all)"),
+    dry_run: bool = typer.Option(False, help="No DB writes"),
+    force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
+    show_progress: bool = typer.Option(False, help="Show per-entity progress"),
+) -> None:
+    """Index product_block_search_index."""
+    run_indexing_for_entity(
+        entity_kind=EntityType.METADATA_PRODUCT_BLOCK,
+        entity_id=product_block_id,
+        dry_run=dry_run,
+        force_index=force_index,
+        show_progress=show_progress,
+    )
+
+
+@app.command("resource-types")
+def resource_types_command(
+    resource_type_id: str | None = typer.Option(None, help="UUID (default = all)"),
+    dry_run: bool = typer.Option(False, help="No DB writes"),
+    force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
+    show_progress: bool = typer.Option(False, help="Show per-entity progress"),
+) -> None:
+    """Index resource_type_search_index."""
+    run_indexing_for_entity(
+        entity_kind=EntityType.METADATA_RESOURCE_TYPE,
+        entity_id=resource_type_id,
+        dry_run=dry_run,
+        force_index=force_index,
+        show_progress=show_progress,
+    )
+
+
 @app.command("rebuild-paths")
 def rebuild_paths_command() -> None:
     """Recompute the ai_search_paths distinct-paths table from ai_search_index."""

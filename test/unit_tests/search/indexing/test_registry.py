@@ -21,16 +21,20 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from orchestrator.core.db import ProcessTable, SubscriptionTable
+from orchestrator.core.db import ProcessTable, ProductBlockTable, ResourceTypeTable, SubscriptionTable
 from orchestrator.core.search.core.types import EntityType, ExtractedField, FieldType
 from orchestrator.core.search.indexing.registry import (
     ENTITY_CONFIG_REGISTRY,
     EntityConfig,
     ProcessConfig,
+    ProductBlockConfig,
+    ResourceTypeConfig,
     WorkflowConfig,
 )
 from orchestrator.core.search.indexing.traverse import (
     ProcessTraverser,
+    ProductBlockTraverser,
+    ResourceTypeTraverser,
     SubscriptionTraverser,
     WorkflowTraverser,
 )
@@ -186,17 +190,29 @@ def test_process_config_applies_selectinload_on_workflow():
     assert result is options_result
 
 
-def test_process_config_with_entity_id_applies_filter():
-    mock_table = MagicMock(spec=ProcessTable)
-    pk_column = MagicMock()
-    mock_table.process_id = pk_column
+# ---------------------------------------------------------------------------
+# ProcessConfig, ProductBlockConfig, ResourceTypeConfig: get_all_query(entity_id=...)
+# ---------------------------------------------------------------------------
 
-    config = ProcessConfig(
+
+@pytest.mark.parametrize(
+    ("config_cls", "table", "pk_name", "root_name"),
+    [
+        pytest.param(ProcessConfig, ProcessTable, "process_id", "process", id="process"),
+        pytest.param(ProductBlockConfig, ProductBlockTable, "product_block_id", "product_block", id="product_block"),
+        pytest.param(ResourceTypeConfig, ResourceTypeTable, "resource_type_id", "resource_type", id="resource_type"),
+    ],
+)
+def test_select_options_where_config_with_entity_id_applies_where(config_cls, table, pk_name, root_name):
+    mock_table = MagicMock(spec=table)
+    setattr(mock_table, pk_name, MagicMock())
+
+    config = config_cls(
         entity_kind=EntityType.PROCESS,
         table=mock_table,
         traverser=MagicMock(),
-        pk_name="process_id",
-        root_name="process",
+        pk_name=pk_name,
+        root_name=root_name,
         title_paths=[],
     )
 
@@ -289,3 +305,86 @@ def test_registry_workflow_config_fields():
     assert config.pk_name == "workflow_id"
     assert config.root_name == "workflow"
     assert config.traverser is WorkflowTraverser
+
+
+def test_registry_product_block_config_fields():
+    config = ENTITY_CONFIG_REGISTRY[EntityType.METADATA_PRODUCT_BLOCK]
+    assert config.pk_name == "product_block_id"
+    assert config.root_name == "product_block"
+    assert config.table is ProductBlockTable
+    assert config.traverser is ProductBlockTraverser
+
+
+def test_registry_resource_type_config_fields():
+    config = ENTITY_CONFIG_REGISTRY[EntityType.METADATA_RESOURCE_TYPE]
+    assert config.pk_name == "resource_type_id"
+    assert config.root_name == "resource_type"
+    assert config.table is ResourceTypeTable
+    assert config.traverser is ResourceTypeTraverser
+
+
+# ---------------------------------------------------------------------------
+# ProductBlockConfig.get_all_query
+# ---------------------------------------------------------------------------
+
+
+def test_product_block_config_applies_selectinload_on_resource_types_and_in_use_by():
+    config = ProductBlockConfig(
+        entity_kind=EntityType.METADATA_PRODUCT_BLOCK,
+        table=ProductBlockTable,
+        traverser=MagicMock(),
+        pk_name="product_block_id",
+        root_name="product_block",
+        title_paths=[],
+    )
+
+    select_result = MagicMock()
+    options_result = MagicMock()
+    select_result.options.return_value = options_result
+
+    with (
+        patch("sqlalchemy.select", return_value=select_result) as mock_select,
+        patch("sqlalchemy.orm.selectinload") as mock_selectinload,
+    ):
+        result = config.get_all_query()
+
+    mock_select.assert_called_once_with(ProductBlockTable)
+    mock_selectinload.assert_has_calls(
+        [call(ProductBlockTable.resource_types), call(ProductBlockTable.in_use_by_block_relations)],
+        any_order=True,
+    )
+    select_result.options.assert_called_once()
+    assert result is options_result
+
+
+# ---------------------------------------------------------------------------
+# ResourceTypeConfig.get_all_query
+# ---------------------------------------------------------------------------
+
+
+def test_resource_type_config_applies_selectinload_on_product_blocks():
+    config = ResourceTypeConfig(
+        entity_kind=EntityType.METADATA_RESOURCE_TYPE,
+        table=ResourceTypeTable,
+        traverser=MagicMock(),
+        pk_name="resource_type_id",
+        root_name="resource_type",
+        title_paths=[],
+    )
+
+    select_result = MagicMock()
+    options_result = MagicMock()
+    selectinload_result = MagicMock()
+    select_result.options.return_value = options_result
+
+    with (
+        patch("sqlalchemy.select", return_value=select_result) as mock_select,
+        patch("sqlalchemy.orm.selectinload", return_value=selectinload_result) as mock_selectinload,
+    ):
+        result = config.get_all_query()
+
+    mock_select.assert_called_once_with(ResourceTypeTable)
+    mock_selectinload.assert_called_once_with(ResourceTypeTable.product_blocks)
+    selectinload_result.noload.assert_called_once_with("*")
+    select_result.options.assert_called_once_with(selectinload_result.noload.return_value)
+    assert result is options_result

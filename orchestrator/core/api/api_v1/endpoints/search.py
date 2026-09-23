@@ -170,6 +170,30 @@ async def search_processes(
     return await _perform_search_and_fetch(session, EntityType.PROCESS, request, cursor, include_columns=include_columns)
 
 
+@router.post("/product_blocks", response_model=SearchResultsSchema[SearchResult])
+async def search_product_blocks(
+    request: SearchRequest,
+    cursor: str | None = None,
+    include_columns: bool = True,
+    session: AsyncSession = Depends(get_async_session),
+) -> SearchResultsSchema[SearchResult]:
+    return await _perform_search_and_fetch(
+        session, EntityType.METADATA_PRODUCT_BLOCK, request, cursor, include_columns=include_columns
+    )
+
+
+@router.post("/resource_types", response_model=SearchResultsSchema[SearchResult])
+async def search_resource_types(
+    request: SearchRequest,
+    cursor: str | None = None,
+    include_columns: bool = True,
+    session: AsyncSession = Depends(get_async_session),
+) -> SearchResultsSchema[SearchResult]:
+    return await _perform_search_and_fetch(
+        session, EntityType.METADATA_RESOURCE_TYPE, request, cursor, include_columns=include_columns
+    )
+
+
 @router.get(
     "/paths",
     response_model=PathsResponse,
