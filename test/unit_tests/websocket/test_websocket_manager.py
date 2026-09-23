@@ -204,6 +204,70 @@ async def test_memory_disconnect(memory_mgr, reason, expect_send: bool):
     ws.close.assert_awaited_once_with(code=status.WS_1000_NORMAL_CLOSURE)
 
 
+# --- disconnect() on a socket whose peer is already gone ---
+#
+# The endpoints call disconnect() directly to reject a client (bad subprotocol, failed authorization),
+# bypassing remove_ws. That close races the peer going away like any other.
+
+
+@pytest.mark.parametrize(
+    "mgr_name",
+    [pytest.param("memory_mgr", id="memory"), pytest.param("broadcast_mgr", id="broadcast")],
+)
+@pytest.mark.asyncio
+async def test_disconnect_skips_close_when_application_state_disconnected(request, mgr_name: str):
+    mgr = request.getfixturevalue(mgr_name)
+    ws = _make_mock_ws(WebSocketState.CONNECTED, WebSocketState.DISCONNECTED)
+    ws.client, ws.headers = ("127.0.0.1", 1234), {}
+    await mgr.disconnect(ws, reason={"error": "denied"})
+    ws.send_text.assert_not_awaited()
+    ws.close.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "mgr_name",
+    [pytest.param("memory_mgr", id="memory"), pytest.param("broadcast_mgr", id="broadcast")],
+)
+@pytest.mark.parametrize(
+    "exc",
+    [
+        pytest.param(RuntimeError('Cannot call "send" once a close message has been sent.'), id="already-closed"),
+        pytest.param(WebSocketDisconnect(1006), id="disconnect-mid-close"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_disconnect_suppresses_close_race(request, mgr_name: str, exc):
+    mgr = request.getfixturevalue(mgr_name)
+    ws = _make_mock_ws()
+    ws.client, ws.headers = ("127.0.0.1", 1234), {}
+    ws.close.side_effect = exc
+    await mgr.disconnect(ws)
+
+
+@pytest.mark.parametrize(
+    "mgr_name",
+    [pytest.param("memory_mgr", id="memory"), pytest.param("broadcast_mgr", id="broadcast")],
+)
+@pytest.mark.asyncio
+async def test_disconnect_suppresses_reason_send_race(request, mgr_name: str):
+    """The reason write races the peer too, and fails before the close is even attempted."""
+    mgr = request.getfixturevalue(mgr_name)
+    ws = _make_mock_ws()
+    ws.client, ws.headers = ("127.0.0.1", 1234), {}
+    ws.send_text.side_effect = WebSocketDisconnect(1006)
+    await mgr.disconnect(ws, reason={"error": "denied"})
+
+
+@pytest.mark.asyncio
+async def test_broadcast_disconnect_unregisters_when_close_raises(broadcast_mgr):
+    """A suppressed close must still drop the client from the connected list."""
+    ws = _make_broadcast_ws()
+    ws.close.side_effect = RuntimeError('Cannot call "send" once a close message has been sent.')
+    broadcast_mgr.connected = [ws]
+    await broadcast_mgr.disconnect(ws)
+    assert ws not in broadcast_mgr.connected
+
+
 @pytest.mark.asyncio
 async def test_memory_disconnect_all(memory_mgr):
     ws1 = _make_mock_ws(WebSocketState.DISCONNECTED)
@@ -432,6 +496,17 @@ async def test_broadcast_disconnect_all(broadcast_mgr):
     await broadcast_mgr.disconnect_all()
     ws.close.assert_awaited()
     ws.send_text.assert_awaited()
+
+
+@pytest.mark.parametrize("count", [pytest.param(2, id="two"), pytest.param(3, id="three")])
+@pytest.mark.asyncio
+async def test_broadcast_disconnect_all_closes_every_client(broadcast_mgr, count: int):
+    """disconnect() removes from the list it iterates, which skipped every other socket."""
+    sockets = [_make_broadcast_ws() for _ in range(count)]
+    broadcast_mgr.connected = list(sockets)
+    await broadcast_mgr.disconnect_all()
+    assert all(ws.close.await_count == 1 for ws in sockets)
+    assert broadcast_mgr.connected == []
 
 
 # --- BroadcastWebsocketManager receiver ---
