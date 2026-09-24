@@ -323,6 +323,26 @@ Progress updates should be delivered to `{callback_route}/progress`, where `"/pr
 
 The remote service should send a JSON or plain string payload with each progress callback, this replaces the previous progress update and refreshes the UI. Once the final callback is triggered and the job completes, progress updates are removed, leaving only the callback result. Therefore, all troubleshooting or diagnostic information must be included in the final callback payload, as progress updates are not retained for debugging.
 
+## Callbacks that arrive too early
+
+The callback URL accepts a result only while the process is in `AWAITING_CALLBACK`. A process
+enters that state after the action step has returned and been saved, not when the action step
+sends its request. Until then the callback endpoint answers `409 Conflict` with "This process is
+not in an awaiting state." The window covers whatever the action step still does after the remote
+service receives the request, so make the external request the last thing the action step does.
+
+If a remote service can finish its work and call back within a few hundred milliseconds of
+receiving the request, its callback can arrive in that window. For example, it may fail
+immediately or find that there is nothing to do. The orchestrator does not store an early
+callback, so the process stays in `AWAITING_CALLBACK` until someone intervenes or the callback
+step's timeout fails it.
+
+A remote service that can respond this quickly should treat `409` as "not ready yet": wait a
+short while (about a second) and retry the callback until it is accepted. Allow a few seconds
+before giving up. The window is usually well under a second, and the same `409` is returned when
+the process is no longer waiting at all, for example after it was aborted. Retrying is safe,
+because a callback URL accepts only one result.
+
 ## Timeouts
 
 By default a callback step waits **indefinitely** for the remote service to call back. If that
