@@ -24,6 +24,7 @@ from orchestrator.core.db import db
 from orchestrator.core.db.database import transactional
 from orchestrator.core.schemas.engine_settings import WorkerStatus
 from orchestrator.core.services.executors.threadpool import thread_resume_process, thread_start_process
+from orchestrator.core.services.flower import get_flower_worker_status
 from orchestrator.core.services.processes import _get_process, ensure_correct_process_status, load_process
 from orchestrator.core.types import BroadcastFunc
 from orchestrator.core.utils.json import json_dumps, json_loads
@@ -127,6 +128,12 @@ class CeleryJobWorkerStatus(WorkerStatus):
         super().__init__(executor_type="celery")
         if not _celery:
             logger.error("Can't create CeleryJobStatistics. Celery is not initialised.")
+            return
+
+        if flower_status := get_flower_worker_status():
+            self.number_of_workers_online = flower_status.number_of_workers_online
+            self.number_of_queued_jobs = flower_status.number_of_queued_jobs
+            self.number_of_running_jobs = flower_status.number_of_running_jobs
             return
 
         inspection: Inspect = _celery.control.inspect()
