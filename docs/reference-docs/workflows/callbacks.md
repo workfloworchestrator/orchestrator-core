@@ -328,7 +328,8 @@ The remote service should send a JSON or plain string payload with each progress
 The callback URL accepts a result only while the process is in `AWAITING_CALLBACK`. A process
 enters that state after the action step has returned and been saved, not when the action step
 sends its request. Until then the callback endpoint answers `409 Conflict` with "This process is
-not in an awaiting state."
+not in an awaiting state." The window covers whatever the action step still does after the remote
+service receives the request, so make the external request the last thing the action step does.
 
 If a remote service can finish its work and call back within a few hundred milliseconds of
 receiving the request, its callback can arrive in that window. For example, it may fail
