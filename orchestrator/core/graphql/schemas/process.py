@@ -111,8 +111,8 @@ class ProcessType:
         retry_context = AuthContext(user=oidc_user, workflow=pstat.workflow, step=steps[-1], action="retry_workflow")
 
         return FormUserPermissionsType(
-            retryAllowed=bool(auth_retry and await auth_retry(resume_context)),
-            resumeAllowed=bool(auth_resume and await auth_resume(retry_context)),
+            retryAllowed=bool(auth_retry and await auth_retry(retry_context)),
+            resumeAllowed=bool(auth_resume and await auth_resume(resume_context)),
         )
 
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore
