@@ -14,6 +14,7 @@ Workflows are what actually takes a product definition and populates your domain
         - stepgroup
         - callbackstep
         - conditional
+        - loop
 
 ## Database Implications
 

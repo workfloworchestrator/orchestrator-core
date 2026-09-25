@@ -20,11 +20,12 @@ import inspect
 import secrets
 import warnings
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from itertools import dropwhile
 from typing import (
     Any,
     Generic,
+    Literal,
     NoReturn,
     Protocol,
     TypeVar,
@@ -77,6 +78,12 @@ DEFAULT_CALLBACK_ROUTE_KEY = "callback_route"
 CALLBACK_TOKEN_KEY = "__callback_token"  # noqa: S105
 DEFAULT_CALLBACK_PROGRESS_KEY = "callback_progress"  # noqa: S105
 CALLBACK_TIMEOUT_KEY = "__callback_timeout"
+
+LOOP_SUB_STEP_KEY = "__sub_step"
+LOOP_STEP_GROUP_KEY = "__step_group"
+LOOP_STEPS_KEY = "loop_steps"
+LOOP_STEPS_BRANCHES_KEY = "loop_steps_branches"
+LOOP_STEPS_BODIES_KEY = "loop_steps_bodies"
 
 
 @runtime_checkable
@@ -211,6 +218,10 @@ class StepList(list[Step]):
 
     def __repr__(self) -> str:
         return f"StepList [{', '.join(repr(x) for x in self)}]"
+
+
+OnErrorHandler = Callable[[ErrorDict, State], StepList | None]
+LoopBody = StepList | Callable[[State, int], StepList]
 
 
 def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputFormGenerator:
@@ -1679,6 +1690,517 @@ def fail_awaiting_wf(pstat: ProcessStat, logstep: StepLogFunc, reason: str = "Ca
 
     with transactional(db, logger):
         return logstep(pstat, fail_func, state)
+
+
+# The synthetic status of a `loop_steps` entry that has been queued but not yet executed. Not a
+# `StepStatus` member: no `Process` variant is ever "pending", this is `loop`'s own bookkeeping.
+LOOP_STEP_PENDING: Literal["pending"] = "pending"
+LoopStepStatus = StepStatus | Literal["pending"]
+
+
+class LoopLimitReached(Exception):  # noqa: N818
+    """Raised by :func:`loop` when its iteration cap is reached without the exit predicate firing."""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(f"Loop iteration limit of {limit} reached without completing")
+        self.limit = limit
+
+
+@dataclass(frozen=True)
+class LoopStepEntry:
+    """A single row in `loop_steps`, mirroring the shape of a process's own step log."""
+
+    name: str
+    status: LoopStepStatus
+    state: dict[str, Any] | None = None
+    started: str | None = None
+    completed: str | None = None
+    was_suspended: bool = False
+    _suspend_baseline: dict[str, Any] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {k: v for k, v in asdict(self).items() if not (k == "_suspend_baseline" and v is None)}
+
+    @staticmethod
+    def from_dict(d: dict[str, Any]) -> LoopStepEntry:
+        return LoopStepEntry(**d)
+
+
+@dataclass(frozen=True)
+class LoopStepsBodyDescriptor:
+    """Body-descriptor variant recording that a stretch of `step_<iteration>_*` positions came from `steps`."""
+
+    iteration: int
+    source: Literal["steps"] = "steps"
+
+
+@dataclass(frozen=True)
+class LoopOnErrorBodyDescriptor:
+    """Body-descriptor variant: a stretch of positions produced by an `on_error` handler."""
+
+    error: ErrorDict
+    iteration_start_state: dict[str, Any]
+    source: Literal["on_error"] = "on_error"
+
+
+LoopBodyDescriptor = LoopStepsBodyDescriptor | LoopOnErrorBodyDescriptor
+
+
+def _loop_body_descriptor_from_dict(d: dict[str, Any]) -> LoopBodyDescriptor:
+    if d["source"] == "on_error":
+        return LoopOnErrorBodyDescriptor(error=d["error"], iteration_start_state=d["iteration_start_state"])
+    return LoopStepsBodyDescriptor(iteration=d["iteration"])
+
+
+def _loop_next_position(loop_steps: list[dict[str, Any]], iteration: int) -> int:
+    """First free position index within `iteration`."""
+    prefix = f"step_{iteration}_"
+    return sum(1 for entry in loop_steps if entry.get("name", "").startswith(prefix))
+
+
+def _loop_seed_pending_entries(
+    s: State,
+    raw_steps: StepList,
+    iteration: int,
+    body_descriptor: LoopBodyDescriptor,
+) -> tuple[State, int]:
+    """Append pending `loop_steps` entries for `raw_steps`; returns the new state and base position."""
+    existing = list(s.get(LOOP_STEPS_KEY, []))
+    # Continue numbering after this iteration's existing entries, so an on_error recovery doesn't
+    # collide with the trunk it's replacing the tail of.
+    base = _loop_next_position(existing, iteration)
+    pending = [
+        LoopStepEntry(name=f"step_{iteration}_{base + position}", status=LOOP_STEP_PENDING).to_dict()
+        for position in range(len(raw_steps))
+    ]
+    bodies = dict(s.get(LOOP_STEPS_BODIES_KEY, {}))
+    bodies[f"{iteration}:{base}"] = asdict(body_descriptor)
+    new_state = s | {LOOP_STEPS_KEY: existing + pending, LOOP_STEPS_BODIES_KEY: bodies}
+    return new_state, base
+
+
+def _loop_flip_resumed_entry(s: State, resumed_name: str, ambient: State) -> State:
+    """Flip the resumed sub-step's `loop_steps` entry from `suspend` to `success`."""
+    entries = list(s.get(LOOP_STEPS_KEY, []))
+
+    stored_baseline: dict[str, Any] | None = None
+    for raw_entry in entries:
+        if raw_entry.get("name") == resumed_name and raw_entry.get("status") == StepStatus.SUSPEND:
+            stored_baseline = raw_entry.get("_suspend_baseline")
+            break
+
+    if stored_baseline is not None:
+        baseline = stored_baseline
+    else:
+        # No snapshot on the entry (shouldn't normally happen): fall back to ambient state plus
+        # every prior entry's own delta, replaying what the baseline would have accumulated to.
+        baseline = dict(ambient)
+        for raw_entry in entries:
+            baseline = {**baseline, **(raw_entry.get("state") or {})}
+            if raw_entry.get("name") == resumed_name:
+                break
+
+    # The user's form input was merged into `s` between suspend and resume; diff against the
+    # baseline to capture just the keys this submission added or changed.
+    form_delta = _loop_entry_state_delta(baseline, s)
+
+    for index, raw_entry in enumerate(entries):
+        if raw_entry.get("name") == resumed_name and raw_entry.get("status") == StepStatus.SUSPEND:
+            entry = LoopStepEntry.from_dict(raw_entry)
+            merged_state = {**(entry.state or {}), **form_delta}
+            new_entry = replace(
+                entry,
+                status=StepStatus.SUCCESS,
+                state=merged_state,
+                completed=nowtz().isoformat(),
+                _suspend_baseline=None,
+            )
+            entries[index] = new_entry.to_dict()
+            break
+    return s | {LOOP_STEPS_KEY: entries}
+
+
+def _loop_record_entry(s: State, step_name: str, status: StepStatus, before: State, error: ErrorDict | None) -> State:
+    """Update (or seed) `step_name`'s `loop_steps` entry with the outcome of executing it."""
+    delta = _loop_entry_state_delta(before, s)
+    entries = list(s.get(LOOP_STEPS_KEY, []))
+    for index, raw_entry in enumerate(entries):
+        if raw_entry.get("name") != step_name:
+            continue
+        entry = LoopStepEntry.from_dict(raw_entry)
+        merged_state = {**(entry.state or {}), **delta}
+        new_entry = replace(
+            entry,
+            status=status,
+            state=merged_state,
+            started=entry.started or nowtz().isoformat(),
+            completed=nowtz().isoformat(),
+        )
+        if status == StepStatus.SUSPEND:
+            # Permanent structural fact about this entry's history, so it must live as a sibling of
+            # `state` rather than inside it: `state` is reserved for what the step itself returned,
+            # mirroring how the top-level process log keeps bookkeeping (started/completed/status)
+            # separate from step output.
+            new_entry = replace(new_entry, was_suspended=True, _suspend_baseline=_loop_strip_for_snapshot(before))
+        if error is not None:
+            new_entry = replace(new_entry, state={**merged_state, "error": error})
+        entries[index] = new_entry.to_dict()
+        break
+    return s | {LOOP_STEPS_KEY: entries}
+
+
+def _loop_run_steps(
+    step_log_fn: StepLogFuncInternal,
+    group_name: str,
+    in_state: State,
+    raw_steps: StepList,
+    iteration: int,
+    position_base: int,
+    resume_cursor: str | None,
+    continuation: bool,
+) -> tuple[Process, State]:
+    """Namespace, wrap, and execute `raw_steps` as (the rest of) an iteration.
+
+    Returns the final `Process` together with the latest successfully-logged merged state, even
+    when the `Process` itself is `Failed` (which carries an error dict, not state). The caller
+    needs that merged state to recover `loop_steps` with the failing entry marked.
+    """
+    # Names of the iteration's own steps, as distinct from the Enter/Exit plumbing steps
+    # `_extend_step_group_steps` adds below: those never get a `loop_steps` entry.
+    iteration_step_names = {f"step_{iteration}_{position_base + position}" for position in range(len(raw_steps))}
+
+    prefixed: StepList = StepList([])
+    for position, raw_step in enumerate(raw_steps):
+        renamed = make_step_function(
+            raw_step, f"step_{iteration}_{position_base + position}", raw_step.form, raw_step.assignee
+        )
+        prefixed = prefixed >> renamed
+
+    body = _extend_step_group_steps(f"{group_name}_{iteration}", prefixed)
+
+    if resume_cursor is not None:
+        # Resuming past a suspend: drop everything up to and including the step that suspended.
+        step_list = StepList(dropwhile(lambda s: s.name != resume_cursor, body))[1:]
+    else:
+        step_list = body
+
+    # `continuation` is True for steps that aren't the first ever executed for this `loop` step
+    # invocation (a later iteration, or steps returned by an `on_error` handler); like resuming,
+    # their first step must replace the prior terminal row rather than append a new one.
+    force_replace = resume_cursor is not None or continuation
+    committed_state: dict[str, State] = {"value": in_state}
+
+    def dblogstep(step_: Step, p: Process) -> Process:
+        p = p.map(lambda s: s | {"__sub_step": step_.name, "__step_name_override": group_name})
+        if step_list[0] != step_ or force_replace:
+            p = p.map(lambda s: s | {"__replace_last_state": True})
+
+        if step_.name not in iteration_step_names:
+            if p.issuccess() or p.isskipped():
+                committed_state["value"] = p.unwrap()
+            return step_log_fn(step_, p)
+
+        status = p.status
+        before = committed_state["value"]
+
+        if p.issuccess() or p.isskipped() or p.issuspend():
+            p = p.map(lambda s: _loop_record_entry(s, step_.name, status, before, None))
+            committed_state["value"] = p.unwrap()
+        else:
+            committed_state["value"] = _loop_record_entry(
+                committed_state["value"], step_.name, status, before, error_state_to_dict(p.unwrap())
+            )
+
+        return step_log_fn(step_, p)
+
+    process: Process = Success(in_state)
+    process = _exec_steps(step_list, process, dblogstep)
+    return process, committed_state["value"]
+
+
+def _loop_strip_for_snapshot(state: State) -> State:
+    """Strip internal and array-bookkeeping keys before stashing a state snapshot inline."""
+    return {
+        k: v for k, v in state.items() if not k.startswith("__") and k not in (LOOP_STEPS_KEY, LOOP_STEPS_BRANCHES_KEY)
+    }
+
+
+def _loop_entry_state_delta(before: State, after: State) -> State:
+    """The per-step delta to embed in a loop_steps entry's `state` field."""
+    # Only keys the step actually changed or added, excluding internal `__`-prefixed keys and the
+    # loop_steps/loop_steps_branches arrays themselves (embedding those would nest the whole
+    # history inside every entry).
+    return {
+        k: v
+        for k, v in after.items()
+        if not k.startswith("__") and k not in (LOOP_STEPS_KEY, LOOP_STEPS_BRANCHES_KEY) and before.get(k) != v
+    }
+
+
+def _loop_derive_iteration(state: State, loop_name: str) -> int:
+    """Derive the current iteration index from observable state.
+
+    Sources, in priority order:
+
+    1. `__step_group` (`<loop_name>_<iteration>`). Set while mid-step-group at suspend/resume time.
+    2. The highest iteration seen in `loop_steps` entry names (`step_<iteration>_<position>`).
+    3. 0. First iteration of a fresh run.
+    """
+    step_group_name = state.get(LOOP_STEP_GROUP_KEY, "") or ""
+    prefix = f"{loop_name}_"
+    if step_group_name.startswith(prefix):
+        try:
+            return int(step_group_name[len(prefix) :])
+        except ValueError:
+            pass
+
+    max_iteration = -1
+    for entry in state.get(LOOP_STEPS_KEY, []):
+        name = entry.get("name", "")
+        if name.startswith("step_"):
+            parts = name.split("_")
+            if len(parts) >= 3:
+                try:
+                    max_iteration = max(max_iteration, int(parts[1]))
+                except ValueError:
+                    pass
+    return max_iteration if max_iteration >= 0 else 0
+
+
+def _loop_build_steps(steps: LoopBody, state: State, iteration: int) -> StepList:
+    if callable(steps) and not isinstance(steps, StepList):
+        return steps(state, iteration)
+    return steps
+
+
+def _loop_resolve_body(
+    steps: LoopBody, on_error: OnErrorHandler | None, descriptor: LoopBodyDescriptor, state: State
+) -> StepList:
+    if isinstance(descriptor, LoopStepsBodyDescriptor):
+        return _loop_build_steps(steps, state, descriptor.iteration)
+    if on_error is not None:
+        replacement = on_error(descriptor.error, descriptor.iteration_start_state)
+        return replacement if replacement is not None else StepList([])
+    return StepList([])
+
+
+def _loop_resolve_sub_step(steps: LoopBody, on_error: OnErrorHandler | None, name: str, state: State) -> Step | None:
+    """Find the raw step function responsible for the currently suspended sub-step."""
+    # Looks up the body-descriptor recorded when this stretch of positions was seeded (in
+    # loop_steps_bodies) rather than rebuilding the whole iteration and counting positions, since an
+    # on_error handler may have spliced a differently shaped set of steps into the middle of it.
+    sub_step_name = state.get(LOOP_SUB_STEP_KEY)
+    if not sub_step_name:
+        return None
+    iteration = _loop_derive_iteration(state, name)
+
+    prefix = f"step_{iteration}_"
+    if not sub_step_name.startswith(prefix):
+        return None
+    try:
+        target_position = int(sub_step_name[len(prefix) :])
+    except ValueError:
+        return None
+
+    bodies: dict[str, dict[str, Any]] = state.get(LOOP_STEPS_BODIES_KEY, {})
+    candidates = [
+        (int(key.split(":", 1)[1]), raw_descriptor)
+        for key, raw_descriptor in bodies.items()
+        if key.startswith(f"{iteration}:") and int(key.split(":", 1)[1]) <= target_position
+    ]
+    if not candidates:
+        return None
+    base, raw_descriptor = max(candidates, key=lambda candidate: candidate[0])
+    descriptor = _loop_body_descriptor_from_dict(raw_descriptor)
+
+    raw_steps = _loop_resolve_body(steps, on_error, descriptor, state)
+    position = target_position - base
+    if 0 <= position < len(raw_steps):
+        return raw_steps[position]
+    return None
+
+
+def _loop_start_iteration(
+    steps: LoopBody, name: str, state: State, initial_state: State, iteration: int
+) -> tuple[State, StepList, int, str | None]:
+    """Prepare the current iteration's steps, seeding or locating its `loop_steps` entries.
+
+    Returns the (possibly updated) state, the iteration's raw step list, the position base for
+    naming its sub-steps, and a resume cursor (the suspended sub-step's name) if we're resuming
+    mid-iteration rather than starting it fresh.
+    """
+    current_steps = _loop_build_steps(steps, state, iteration)
+
+    resuming_mid_iteration = LOOP_SUB_STEP_KEY in state and state.get(LOOP_STEP_GROUP_KEY, "").startswith(
+        f"{name}_{iteration}"
+    )
+    if not resuming_mid_iteration:
+        state, position_base = _loop_seed_pending_entries(
+            state, current_steps, iteration, body_descriptor=LoopStepsBodyDescriptor(iteration=iteration)
+        )
+        return state, current_steps, position_base, None
+
+    state = _loop_flip_resumed_entry(state, state[LOOP_SUB_STEP_KEY], initial_state)
+    resume_cursor = state[LOOP_SUB_STEP_KEY]
+    # Entries for `current_steps` already exist, one per step; their base position is the count of
+    # this iteration's existing entries minus the count of steps in `current_steps` itself.
+    existing = state.get(LOOP_STEPS_KEY, [])
+    prefix = f"step_{iteration}_"
+    position_base = sum(1 for entry in existing if entry.get("name", "").startswith(prefix)) - len(current_steps)
+    return state, current_steps, position_base, resume_cursor
+
+
+def _loop_recover_from_failure(
+    on_error: OnErrorHandler | None,
+    step_log_fn: StepLogFuncInternal,
+    name: str,
+    iteration: int,
+    iteration_start_state: State,
+    process: Process,
+    last_committed: State,
+) -> tuple[Process, State]:
+    """Run `on_error` handlers until one recovers the iteration or gives up.
+
+    Cuts the entries the failed attempt queued or executed out of `loop_steps` into
+    `loop_steps_branches`, then seeds and runs the handler's replacement steps in their place.
+    """
+    while process.isfailed() and on_error is not None:
+        try:
+            recovered_steps = on_error(cast(ErrorDict, process.unwrap()), iteration_start_state)
+        except Exception as ex:
+            # Mirror @step's own exception handling: a raising on_error is a bug in the handler, not
+            # a deliberate signal. Log it and propagate the original failure that on_error was asked
+            # to handle, rather than replacing it with the handler's own exception -- the same
+            # outcome as on_error returning None.
+            logger.warning("on_error handler failed", exc_info=ex)
+            break
+        if recovered_steps is None:
+            break
+
+        failed_loop_steps = [LoopStepEntry.from_dict(raw_entry) for raw_entry in last_committed.get(LOOP_STEPS_KEY, [])]
+        failed_index = next(
+            (index for index, entry in enumerate(failed_loop_steps) if entry.status == StepStatus.FAILED), None
+        )
+        if failed_index is None:
+            # Defensive fallback (every step gets an entry, so this shouldn't happen): cut at the
+            # first still-pending entry instead of the log's length, so unrun entries move to
+            # loop_steps_branches instead of staying dangling in the trunk.
+            failed_index = next(
+                (index for index, entry in enumerate(failed_loop_steps) if entry.status == LOOP_STEP_PENDING),
+                len(failed_loop_steps),
+            )
+
+        abandoned = failed_loop_steps[failed_index:]
+        trunk = failed_loop_steps[:failed_index]
+
+        recovery_state = iteration_start_state | {LOOP_STEPS_KEY: [entry.to_dict() for entry in trunk]}
+        if abandoned:
+            branches = dict(last_committed.get(LOOP_STEPS_BRANCHES_KEY, {}))
+            branches[str(failed_index)] = [entry.to_dict() for entry in abandoned]
+            recovery_state = recovery_state | {LOOP_STEPS_BRANCHES_KEY: branches}
+
+        recovery_state, recovery_position_base = _loop_seed_pending_entries(
+            recovery_state,
+            recovered_steps,
+            iteration,
+            body_descriptor=LoopOnErrorBodyDescriptor(
+                error=cast(ErrorDict, process.unwrap()),
+                iteration_start_state=_loop_strip_for_snapshot(iteration_start_state),
+            ),
+        )
+        process, last_committed = _loop_run_steps(
+            step_log_fn,
+            name,
+            recovery_state,
+            recovered_steps,
+            iteration,
+            recovery_position_base,
+            None,
+            continuation=True,
+        )
+    return process, last_committed
+
+
+def loop(
+    name: str,
+    steps: LoopBody,
+    *,
+    until: Callable[[State], bool],
+    limit: int = 100,
+    on_error: OnErrorHandler | None = None,
+) -> Step:
+    """Add a repeating group of steps to the workflow as a single step.
+
+    A loop is `step_group`'s repeating counterpart: the given steps run over and over, checking
+    `until` before each iteration, until it returns `True` or `limit` iterations are reached. It only
+    suspends when a step inside the current iteration suspends; it never suspends just to move from
+    one iteration to the next. `loop` writes its own progress to `loop_steps` (one entry per step,
+    mirroring a process's own step log) and `loop_steps_branches` (steps abandoned by an `on_error`
+    recovery); both are read-only for callers.
+
+    Args:
+        name: The name of the step.
+        steps: A static `StepList` used for every iteration, or a callable
+            `(state, iteration) -> StepList` that builds one iteration's steps. If callable, it must
+            be pure: `loop` calls it again on every resume instead of persisting the steps it built.
+        until: Exit predicate over state, checked before each iteration. When it returns `True`,
+            `loop` returns `Complete`.
+        limit: Maximum number of iterations. Reaching it without `until` becoming `True` raises
+            `LoopLimitReached`, which surfaces as `Failed`.
+        on_error: Optional handler invoked when a step in the current iteration raises. Receives the
+            error dict and the state as it was at the start of the failed iteration. May return a
+            `StepList` to run as the rest of that iteration (recovery, not a new iteration), or
+            `None` to propagate the original failure and end the loop. There is no other way to
+            reach a further iteration after a failure, so a handler that wants one to happen must
+            return steps that leave state in the shape `steps` expects for its next call.
+    """
+
+    def dispatching_form(state: State) -> FormGenerator:
+        sub_step = _loop_resolve_sub_step(steps, on_error, name, state)
+        form_generator = sub_step.form if sub_step is not None else None
+        if form_generator is None:
+            return {}
+        return (yield from form_generator(state))
+
+    def func(initial_state: State) -> Process:
+        step_log_fn = step_log_fn_var.get()
+        state: State = initial_state
+
+        is_first_body = True
+        iteration = _loop_derive_iteration(state, name)
+        while True:
+            if until(state):
+                return Complete(state)
+
+            if iteration >= limit:
+                return Failed(LoopLimitReached(limit))
+
+            iteration_start_state = state
+            state, current_steps, position_base, resume_cursor = _loop_start_iteration(
+                steps, name, state, initial_state, iteration
+            )
+
+            process, last_committed = _loop_run_steps(
+                step_log_fn, name, state, current_steps, iteration, position_base, resume_cursor, not is_first_body
+            )
+            is_first_body = False
+
+            process, last_committed = _loop_recover_from_failure(
+                on_error, step_log_fn, name, iteration, iteration_start_state, process, last_committed
+            )
+
+            if process.issuspend():
+                if until(process.unwrap()):
+                    return Complete(process.unwrap())
+                return process.map(lambda s: s | {"__replace_last_state": True})
+
+            if not (process.issuccess() or process.isskipped()):
+                return process
+
+            iteration += 1
+            state = {k: v for k, v in process.unwrap().items() if k not in (LOOP_SUB_STEP_KEY, LOOP_STEP_GROUP_KEY)}
+
+    return make_step_function(func, name, dispatching_form, assignee=Assignee.NOC)
 
 
 @_purestep("Start")
