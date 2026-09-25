@@ -51,6 +51,8 @@ class NoSessionError(RuntimeError):
 class BaseModelMeta(DeclarativeMeta):
     """Using this metaclass means that we can set and access query as a property at a class level."""
 
+    _query: SearchQuery | None = None
+
     def set_query(self, query: SearchQuery) -> None:
         self._query = query
 
@@ -58,7 +60,7 @@ class BaseModelMeta(DeclarativeMeta):
     def query(self) -> SearchQuery:
         if self._query is not None:
             return self._query
-        raise NoSessionError("Cant get session. Please, call BaseModel.set_query() first")
+        raise NoSessionError("Can't get session. Please, call init_database() first")
 
 
 @as_declarative(metaclass=BaseModelMeta)
