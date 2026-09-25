@@ -36,6 +36,7 @@ from uuid import UUID
 
 import strawberry
 import structlog
+from deprecated import deprecated
 from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
@@ -660,6 +661,12 @@ class ProcessStat:
     current_user: str
     user_model: OIDCUserModel | None = None
 
+    @deprecated(
+        reason=(
+            "Assign the field(s) directly instead, e.g. `pstat.current_user = user`. This method will be removed "
+            "in a future version. See https://github.com/workfloworchestrator/orchestrator-core/issues/1921"
+        )
+    )
     def update(self, **vs: Any) -> ProcessStat:
         """Update ProcessStat.
 
