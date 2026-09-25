@@ -67,15 +67,21 @@ def test_get_subscription_by_id_err(generic_product_3):
         get_subscription(INCORRECT_SUBSCRIPTION)
 
 
-def test_get_subscription_by_id_invalid_id(generic_product_3):
-    values = {"info.id": "0", "info2.id": "X"}
-    product = get_one_product("Product 3")
-    fixtures.create_subscription_for_mapping(
-        product, subscription_mapping, values, subscription_id=CORRECT_SUBSCRIPTION
-    )
-
-    with pytest.raises(ValueError):
+def test_get_subscription_by_id_invalid_id():
+    with patch.object(db.session, "get") as mock_get, pytest.raises(ValueError):
         get_subscription("abc")
+
+    mock_get.assert_not_called()
+
+
+async def test_get_subscription_async_invalid_id():
+    async with session_joined_async() as session:
+        session.get = AsyncMock()
+
+        with pytest.raises(ValueError):
+            await get_subscription_async("abc", session)
+
+        session.get.assert_not_called()
 
 
 @pytest.mark.parametrize(
