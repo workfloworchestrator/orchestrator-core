@@ -25,7 +25,7 @@ import structlog
 from more_itertools import first
 from psycopg import InterfaceError
 from sqlalchemy import Text, cast, not_, select
-from sqlalchemy.exc import InvalidRequestError, OperationalError, SQLAlchemyError
+from sqlalchemy.exc import InvalidRequestError, OperationalError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Query, aliased, joinedload
@@ -51,6 +51,7 @@ from orchestrator.core.db.queries.subscription import (
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.domain.context_cache import cache_subscription_models
 from orchestrator.core.schemas.workflow import SubscriptionRelationSchema
+from orchestrator.core.search.core.validators import is_uuid
 from orchestrator.core.targets import Target
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.utils.datetime import nowtz
@@ -94,13 +95,14 @@ def get_subscription(
 
     """
 
+    if not is_uuid(str(subscription_id)):
+        raise ValueError(f"Invalid subscription id: {subscription_id}")
+
     try:
         subscription = db.session.get(model, subscription_id, with_for_update=for_update)
     except _SUBSCRIPTION_LOOKUP_INFRA_ERRORS as e:
         logger.error("Database error while looking up subscription", subscription_id=str(subscription_id), error=str(e))
         raise DBInternalError(f"Database error while looking up subscription {subscription_id}") from e
-    except SQLAlchemyError as e:
-        raise ValueError(f"Invalid subscription id: {subscription_id}") from e
 
     if subscription:
         return subscription
@@ -133,13 +135,14 @@ async def get_subscription_async(
 
     """
 
+    if not is_uuid(str(subscription_id)):
+        raise ValueError(f"Invalid subscription id: {subscription_id}")
+
     try:
         subscription = await session.get(model, subscription_id, options=options, with_for_update=for_update)
     except _SUBSCRIPTION_LOOKUP_INFRA_ERRORS as e:
         logger.error("Database error while looking up subscription", subscription_id=str(subscription_id), error=str(e))
         raise DBInternalError(f"Database error while looking up subscription {subscription_id}") from e
-    except SQLAlchemyError as e:
-        raise ValueError(f"Invalid subscription id: {subscription_id}") from e
 
     if subscription:
         return subscription
