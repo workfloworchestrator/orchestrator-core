@@ -418,6 +418,36 @@ celery -A surf.tasks  worker --loglevel=info -Q new_tasks,resume_tasks,new_workf
 
 Notice that `-A surf.tasks` indicates the module that contains your `celery.Celery` instance.
 
+### Monitoring Celery with Flower
+
+[Flower][flower-intro] is an optional web-based tool for monitoring and administrating Celery clusters. It is not
+part of `orchestrator-core` itself and is not required to run the orchestrator with Celery — it's an additional
+service you may choose to run alongside your workers, pointed at the same broker.
+
+If you run a Flower instance, `orchestrator-core` can use it as the source of worker/queue status data for the
+`/api/settings/worker-status` endpoint and the Prometheus `wfo_active_process_count`/`wfo_engine_status` metrics
+(see [Metrics][metrics-doc]), instead of querying Celery's `inspect()` API directly. This avoids the runtime cost
+of broadcasting an inspect command to every worker on each request/poll. Configure it with:
+
+```shell
+FLOWER_URL="http://localhost:5555"
+```
+
+Leaving `FLOWER_URL` empty (the default) disables this integration entirely; worker status then falls back to
+Celery's `inspect()` API as before. If Flower is configured but a request to it fails, `orchestrator-core` also
+falls back to `inspect()` rather than failing the request.
+
+With `FLOWER_URL` configured, `orchestrator-core` also re-exposes a subset of Flower's own per-worker Prometheus
+metrics under `/api/metrics` — see [Flower worker metrics][metrics-doc-flower]. Unlike the worker-status data
+above, these metrics have no `inspect()` fallback: inspecting every worker on each scrape would be too costly to
+do by default, so they simply yield nothing if Flower is unset or unreachable.
+
+Start Flower pointed at the same broker as your workers, for example:
+
+```shell
+celery -A surf.tasks flower --port=5555
+```
+
 ### Celery workflow/task flow
 
 This diagram shows the current flow of how we execute a workflow or task with celery.
@@ -429,4 +459,7 @@ All step statuses are shown in UPPERCASE for clarity.
 [registering-workflows]: ../getting-started/workflows.md#register-workflows
 [use-a-scheduler]: tasks.md#the-scheduler
 [celery-intro]: https://docs.celeryq.dev/en/stable/getting-started/introduction.html
+[flower-intro]: https://flower.readthedocs.io/en/latest/
+[metrics-doc]: ../reference-docs/monitoring/metrics.md
+[metrics-doc-flower]: ../reference-docs/monitoring/metrics.md#flower-worker-metrics
 [celery-backends-and-brokers]: https://docs.celeryq.dev/en/stable/getting-started/backends-and-brokers/index.html

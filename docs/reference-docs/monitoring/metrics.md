@@ -37,6 +37,31 @@ wfo_active_process_count 5.0
 
 An example Grafana dashboard that uses these metrics is given in the code repository in `grafana-example.json`.
 
+`wfo_engine_status` and `wfo_active_process_count` are derived from the same worker/queue status data as the
+`/api/settings/worker-status` endpoint.
+
+### Flower worker metrics
+
+If you run [Flower](https://flower.readthedocs.io/en/latest/) alongside your Celery workers (see
+[Monitoring Celery with Flower](../../guides/scaling.md#monitoring-celery-with-flower)), `WorkerCollector`
+re-exposes a subset of Flower's own `/metrics` endpoint under `/api/metrics`, unchanged. It requires
+`FLOWER_URL` to be set and yields nothing if Flower is unset or unreachable — there is no fallback to Celery's
+`inspect()` API for these metrics, since inspecting every worker on each scrape would be too costly to do by
+default. Flower's per-task runtime histogram and event counter are excluded, since their cardinality grows
+with the number of distinct task names. With Flower configured, it adds this subset to the metrics:
+
+```shell
+# HELP flower_worker_online Worker online status.
+# TYPE flower_worker_online gauge
+flower_worker_online{worker="celery@worker1"} 1.0
+# HELP flower_worker_number_of_currently_executing_tasks Number of currently executing tasks.
+# TYPE flower_worker_number_of_currently_executing_tasks gauge
+flower_worker_number_of_currently_executing_tasks{worker="celery@worker1"} 2.0
+# HELP flower_worker_prefetched_tasks Number of prefetched tasks.
+# TYPE flower_worker_prefetched_tasks gauge
+flower_worker_prefetched_tasks{task="orchestrator.workflow.run_workflow",worker="celery@worker1"} 1.0
+```
+
 ## Adding custom metrics
 
 It's possible to add more metric collectors to your orchestrator, if there are organization-specific metrics you want
