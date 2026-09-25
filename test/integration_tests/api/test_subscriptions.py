@@ -888,6 +888,8 @@ def test_subscription_detail_with_in_use_by_ids_not_filtered_self(test_client, p
         (PORT_B_PRODUCT_ID, SSP_SUBSCRIPTION_ID, False, "subscription.insufficient_workflow_permissions"),
         (PORT_B_PRODUCT_ID, SSP_SUBSCRIPTION_ID, True, None),
     ],
+    # Explicit ids: the id constants are generated per process, so value-derived ids differ between xdist workers
+    ids=["invalid_status", "forbidden", "allowed"],
 )
 def test_subscription_detail_with_forbidden_workflow_without_override(
     seed, test_client, product_id, subscription_id, allowed, expected_reason
