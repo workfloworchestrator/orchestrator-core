@@ -88,6 +88,60 @@ def get_interval_kwargs(form_data: dict) -> dict:
     return {"start_date": form_data["start_date"]} | INTERVAL_MAPPING[form_data["interval"]]
 
 
+
+def _apscheduler_major() -> int:
+    """Return the installed APScheduler major version (3 today; 4 fixes weekday numbering)."""
+    try:
+        from importlib.metadata import version
+    except ImportError:  # pragma: no cover - py3.8 and older
+        from importlib_metadata import version  # type: ignore
+
+    return int(version("apscheduler").split(".", 1)[0])
+
+
+def _shift_crontab_weekday(n: int) -> int:
+    """Map crontab weekday numbers onto APScheduler 3.x numbering.
+
+    Crontab (and most cron UIs): 0 or 7 = Sunday, 1 = Monday, …, 6 = Saturday.
+    APScheduler 3.x: 0 = Monday, …, 6 = Sunday. Named weekdays are unchanged.
+    """
+    if n == 7:
+        return 6
+    if 0 <= n <= 6:
+        return (n + 6) % 7
+    return n
+
+
+def _convert_crontab_dow_token(token: str) -> str:
+    token = token.strip()
+    if not token or token == "*":
+        return token
+    # Named weekdays (mon, tue, mon-fri, …) mean the same in both schemes.
+    if any(c.isalpha() for c in token):
+        return token
+    if "/" in token:
+        base, step = token.split("/", 1)
+        return f"{_convert_crontab_dow_token(base)}/{step}"
+    if "-" in token:
+        start, end = token.split("-", 1)
+        if start.isdigit() and end.isdigit():
+            return f"{_shift_crontab_weekday(int(start))}-{_shift_crontab_weekday(int(end))}"
+        return token
+    if token.isdigit():
+        return str(_shift_crontab_weekday(int(token)))
+    return token
+
+
+def convert_crontab_day_of_week_for_apscheduler3(value: str) -> str:
+    """Rewrite numeric crontab day_of_week fields for APScheduler 3.x.
+
+    No-op on APScheduler 4+, which already uses crontab numbering.
+    """
+    if _apscheduler_major() >= 4:
+        return value
+    return ",".join(_convert_crontab_dow_token(part) for part in value.split(","))
+
+
 def _cron_fields(cron: str) -> dict[str, str]:
     """Map cron field strings to their CronTrigger keyword names.
 
@@ -128,7 +182,11 @@ def validate_cron(cron: str) -> str:
 
 
 def get_cron_kwargs(form_data: dict) -> dict:
-    return {"start_date": form_data["start_date"]} | _cron_fields(form_data["cron"])
+    """Build CronTrigger kwargs from the form, mapping crontab weekdays for APScheduler 3.x."""
+    fields = _cron_fields(form_data["cron"])
+    if "day_of_week" in fields:
+        fields["day_of_week"] = convert_crontab_day_of_week_for_apscheduler3(fields["day_of_week"])
+    return {"start_date": form_data["start_date"]} | fields
 
 
 async def _check_authorize(workflow: Workflow, user_model: OIDCUserModel | None) -> bool:
