@@ -13,11 +13,14 @@
 
 import datetime
 from copy import deepcopy
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
+from psycopg import InterfaceError
 from sqlalchemy import select
-from sqlalchemy.exc import MultipleResultsFound
+from sqlalchemy.exc import InvalidRequestError, MultipleResultsFound, OperationalError
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 
 from orchestrator.core.db import ProductTable, db
 from orchestrator.core.domain import SubscriptionModel
@@ -25,10 +28,13 @@ from orchestrator.core.services.subscriptions import (
     build_extended_domain_model,
     format_extended_domain_model,
     get_subscription,
+    get_subscription_async,
     retrieve_subscription_by_subscription_instance_value,
 )
+from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.utils.json import json_dumps, json_loads
 from test.integration_tests import fixtures
+from test.integration_tests._async_session import session_joined_async
 
 CORRECT_SUBSCRIPTION = str(uuid4())
 INCORRECT_SUBSCRIPTION = str(uuid4())
@@ -61,15 +67,52 @@ def test_get_subscription_by_id_err(generic_product_3):
         get_subscription(INCORRECT_SUBSCRIPTION)
 
 
-def test_get_subscription_by_id_invalid_id(generic_product_3):
-    values = {"info.id": "0", "info2.id": "X"}
-    product = get_one_product("Product 3")
-    fixtures.create_subscription_for_mapping(
-        product, subscription_mapping, values, subscription_id=CORRECT_SUBSCRIPTION
-    )
-
-    with pytest.raises(ValueError):
+def test_get_subscription_by_id_invalid_id():
+    with patch.object(db.session, "get") as mock_get, pytest.raises(ValueError):
         get_subscription("abc")
+
+    mock_get.assert_not_called()
+
+
+async def test_get_subscription_async_invalid_id():
+    async with session_joined_async() as session:
+        session.get = AsyncMock()
+
+        with pytest.raises(ValueError):
+            await get_subscription_async("abc", session)
+
+        session.get.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        OperationalError("SELECT 1", {}, Exception()),
+        InvalidRequestError("boom"),
+        SQLAlchemyTimeoutError("pool exhausted"),
+        InterfaceError("connection already closed"),
+    ],
+)
+def test_get_subscription_by_id_raises_db_internal_error(error):
+    with patch.object(db.session, "get", side_effect=error), pytest.raises(DBInternalError):
+        get_subscription(CORRECT_SUBSCRIPTION)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        OperationalError("SELECT 1", {}, Exception()),
+        InvalidRequestError("boom"),
+        SQLAlchemyTimeoutError("pool exhausted"),
+        InterfaceError("connection already closed"),
+    ],
+)
+async def test_get_subscription_async_raises_db_internal_error(error):
+    async with session_joined_async() as session:
+        session.get = AsyncMock(side_effect=error)
+
+        with pytest.raises(DBInternalError):
+            await get_subscription_async(CORRECT_SUBSCRIPTION, session)
 
 
 def test_retrieve_subscription_by_subscription_instance_value_none(generic_product_3):

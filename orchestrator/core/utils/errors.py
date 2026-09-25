@@ -92,6 +92,10 @@ class StartPredicateError(Exception):
         super().__init__(self.message)
 
 
+class DBInternalError(Exception):
+    """A database operation failed for infrastructure reasons: lost connection, exhausted pool, session misuse."""
+
+
 def is_api_exception(ex: Exception) -> bool:
     """Test for swagger-codegen / openapi-generator ApiException.
 

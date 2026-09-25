@@ -118,6 +118,7 @@ from orchestrator.core.services.processes import get_process_async, load_process
 from orchestrator.core.services.subscriptions import get_subscription_async, subscription_workflows
 from orchestrator.core.services.workflows import get_workflows_async
 from orchestrator.core.utils.enrich_process import enrich_process
+from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.workflows import get_workflow
 
 logger = structlog.get_logger(__name__)
@@ -191,7 +192,9 @@ async def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> Workflow
     operation_id="get_subscription_available_workflows",
     openapi_extra=READONLY_TOOL,
 )
-async def get_subscription_available_workflows_endpoint(params: SubscriptionIdRequest, session: AsyncSession = Depends(get_async_session)) -> SubscriptionWorkflowListsSchema:
+async def get_subscription_available_workflows_endpoint(
+    params: SubscriptionIdRequest, session: AsyncSession = Depends(get_async_session)
+) -> SubscriptionWorkflowListsSchema:
     """Get workflows available for a specific subscription.
 
     Shows which workflows can be run on this subscription and why some may be
@@ -207,6 +210,8 @@ async def get_subscription_available_workflows_endpoint(params: SubscriptionIdRe
         )
     except ValueError as exc:
         raise_status(HTTPStatus.NOT_FOUND, f"Subscription not found: {exc}")
+    except DBInternalError:
+        raise_status(HTTPStatus.INTERNAL_SERVER_ERROR)
     workflows = await run_in_threadpool(subscription_workflows, subscription)
     return SubscriptionWorkflowListsSchema.model_validate(workflows)
 
@@ -218,7 +223,9 @@ async def get_subscription_available_workflows_endpoint(params: SubscriptionIdRe
     operation_id="get_process_status",
     openapi_extra=READONLY_TOOL,
 )
-async def get_process_status_endpoint(params: ProcessIdRequest, session: AsyncSession = Depends(get_async_session)) -> ProcessStatusResponse:
+async def get_process_status_endpoint(
+    params: ProcessIdRequest, session: AsyncSession = Depends(get_async_session)
+) -> ProcessStatusResponse:
     """Get the current status and details of a workflow process.
 
     If the process is SUSPENDED, the response includes the form schema for the
@@ -302,7 +309,9 @@ async def list_recent_processes_endpoint(
     operation_id="list_subscriptions",
     openapi_extra=READONLY_TOOL,
 )
-async def list_subscriptions_endpoint(params: ListSubscriptionsRequest, session: AsyncSession = Depends(get_async_session)) -> ListSubscriptionsResponse:
+async def list_subscriptions_endpoint(
+    params: ListSubscriptionsRequest, session: AsyncSession = Depends(get_async_session)
+) -> ListSubscriptionsResponse:
     """List the newest subscriptions, at most 20.
 
     Returns flat summary rows without product blocks; use
@@ -345,7 +354,9 @@ async def list_subscriptions_endpoint(params: ListSubscriptionsRequest, session:
     operation_id="get_subscription_details",
     openapi_extra=READONLY_TOOL,
 )
-async def get_subscription_details_endpoint(params: SubscriptionIdRequest, session: AsyncSession = Depends(get_async_session)) -> SubscriptionDetailsResponse:
+async def get_subscription_details_endpoint(
+    params: SubscriptionIdRequest, session: AsyncSession = Depends(get_async_session)
+) -> SubscriptionDetailsResponse:
     """Get summary information about a subscription.
 
     Returns a flat header (status, product, customer, dates), no nested
@@ -357,6 +368,8 @@ async def get_subscription_details_endpoint(params: SubscriptionIdRequest, sessi
         )
     except ValueError as exc:
         raise_status(HTTPStatus.NOT_FOUND, f"Subscription not found: {exc}")
+    except DBInternalError:
+        raise_status(HTTPStatus.INTERNAL_SERVER_ERROR)
     return SubscriptionDetailsResponse(
         subscription_id=subscription.subscription_id,
         description=subscription.description,
@@ -538,7 +551,9 @@ async def aggregate_endpoint(
     operation_id="discover_filter_paths",
     openapi_extra=READONLY_TOOL,
 )
-async def discover_filter_paths_endpoint(params: DiscoverFilterPathsRequest, session: AsyncSession = Depends(get_async_session)) -> dict[str, FieldPathDiscovery]:
+async def discover_filter_paths_endpoint(
+    params: DiscoverFilterPathsRequest, session: AsyncSession = Depends(get_async_session)
+) -> dict[str, FieldPathDiscovery]:
     """Discover the valid, database-specific filter paths for field names — the MANDATORY first step before filtering.
 
     Filter and group-by paths cannot be guessed: ALWAYS call this before building a filter_tree for
@@ -613,7 +628,9 @@ async def get_valid_operators_endpoint() -> dict[str, list[FilterOp]]:
     operation_id="resolve_entity",
     openapi_extra=READONLY_TOOL,
 )
-async def resolve_entity_endpoint(params: ResolveEntityRequest, session: AsyncSession = Depends(get_async_session)) -> ResolveEntityResponse:
+async def resolve_entity_endpoint(
+    params: ResolveEntityRequest, session: AsyncSession = Depends(get_async_session)
+) -> ResolveEntityResponse:
     """Resolve a full UUID or partial id-prefix to one entity, or list candidates to disambiguate."""
     form, normalized = _classify_id(params.id_or_prefix)
     if form is IdForm.NON_HEX:
@@ -664,7 +681,9 @@ async def resolve_entity_endpoint(params: ResolveEntityRequest, session: AsyncSe
     operation_id="export_query",
     openapi_extra=READONLY_TOOL,
 )
-async def export_query_endpoint(params: ExportQueryRequest, session: AsyncSession = Depends(get_async_session)) -> ExportQueryResponse:
+async def export_query_endpoint(
+    params: ExportQueryRequest, session: AsyncSession = Depends(get_async_session)
+) -> ExportQueryResponse:
     """Prepare a CSV export download for a previously executed search ``query_id``."""
     try:
         await QueryState.load_from_id(str(params.query_id), SelectQuery, session)

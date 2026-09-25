@@ -52,6 +52,7 @@ from orchestrator.core.services.subscriptions import (
 from orchestrator.core.settings import app_settings
 from orchestrator.core.targets import Target
 from orchestrator.core.utils.auth import AuthContext
+from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.utils.get_subscription_dict import get_subscription_dict
 from orchestrator.core.websocket import invalidate_subscription_cache
 from orchestrator.core.workflows import get_workflow
@@ -172,7 +173,9 @@ async def subscriptions_search(
     response_model_exclude_none=True,
 )
 async def subscription_workflows_by_id(
-    subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate), session: AsyncSession = Depends(get_async_session)
+    subscription_id: UUID,
+    current_user: OIDCUserModel | None = Depends(authenticate),
+    session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, list[dict[str, list[Any] | str]]]:
     subscription = await session.get(
         SubscriptionTable,
@@ -186,6 +189,7 @@ async def subscription_workflows_by_id(
         raise_status(HTTPStatus.NOT_FOUND)
 
     return await run_in_threadpool(_authorized_subscription_workflows, subscription, current_user)
+
 
 async def _failed_processes(subscription_id: UUID, session: AsyncSession) -> list[str]:
     if app_settings.DISABLE_INSYNC_CHECK:
@@ -202,8 +206,13 @@ async def _failed_processes(subscription_id: UUID, session: AsyncSession) -> lis
     _failed_processes = await session.scalars(stmt)
     return [str(p.process_id) for p in _failed_processes]
 
+
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
-async def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate), session: AsyncSession = Depends(get_async_session)) -> None:
+async def subscription_set_in_sync(
+    subscription_id: UUID,
+    current_user: OIDCUserModel | None = Depends(authenticate),
+    session: AsyncSession = Depends(get_async_session),
+) -> None:
     try:
         subscription: SubscriptionTable = await get_subscription_async(subscription_id, session, for_update=True)
         if not subscription.insync:
@@ -225,3 +234,5 @@ async def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUser
             logger.info("Subscription already in sync")
     except ValueError as e:
         raise_status(HTTPStatus.NOT_FOUND, str(e))
+    except DBInternalError:
+        raise_status(HTTPStatus.INTERNAL_SERVER_ERROR)

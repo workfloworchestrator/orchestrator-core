@@ -23,8 +23,10 @@ from uuid import UUID
 
 import structlog
 from more_itertools import first
+from psycopg import InterfaceError
 from sqlalchemy import Text, cast, not_, select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import InvalidRequestError, OperationalError
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Query, aliased, joinedload
 from sqlalchemy.sql.expression import or_
@@ -49,15 +51,19 @@ from orchestrator.core.db.queries.subscription import (
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.domain.context_cache import cache_subscription_models
 from orchestrator.core.schemas.workflow import SubscriptionRelationSchema
+from orchestrator.core.search.core.validators import is_uuid
 from orchestrator.core.targets import Target
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.utils.datetime import nowtz
+from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.utils.helpers import is_ipaddress_type
 from pydantic_forms.types import UUIDstr
 
 logger = structlog.get_logger(__name__)
 
 T = TypeVar("T", bound=SubscriptionTable)
+
+_SUBSCRIPTION_LOOKUP_INFRA_ERRORS = (OperationalError, InvalidRequestError, SQLAlchemyTimeoutError, InterfaceError)
 
 
 @overload
@@ -82,14 +88,21 @@ def get_subscription(
 
     Returns: A subscription object
 
-    Raises: ValueError: if the requested Subscription does not exist in de database.
+    Raises:
+        ValueError: if the subscription_id is not a valid UUID or the Subscription does not exist.
+        DBInternalError: if the lookup failed for infrastructure reasons (lost connection, exhausted
+            pool, session misuse).
 
     """
 
+    if not is_uuid(str(subscription_id)):
+        raise ValueError(f"Invalid subscription id: {subscription_id}")
+
     try:
         subscription = db.session.get(model, subscription_id, with_for_update=for_update)
-    except SQLAlchemyError as e:
-        raise ValueError("Invalid subscription id") from e
+    except _SUBSCRIPTION_LOOKUP_INFRA_ERRORS as e:
+        logger.error("Database error while looking up subscription", subscription_id=str(subscription_id), error=str(e))
+        raise DBInternalError(f"Database error while looking up subscription {subscription_id}") from e
 
     if subscription:
         return subscription
@@ -115,14 +128,21 @@ async def get_subscription_async(
 
     Returns: A subscription object
 
-    Raises: ValueError: if the requested Subscription does not exist in de database.
+    Raises:
+        ValueError: if the subscription_id is not a valid UUID or the Subscription does not exist.
+        DBInternalError: if the lookup failed for infrastructure reasons (lost connection, exhausted
+            pool, session misuse).
 
     """
 
+    if not is_uuid(str(subscription_id)):
+        raise ValueError(f"Invalid subscription id: {subscription_id}")
+
     try:
         subscription = await session.get(model, subscription_id, options=options, with_for_update=for_update)
-    except SQLAlchemyError as e:
-        raise ValueError("Invalid subscription id") from e
+    except _SUBSCRIPTION_LOOKUP_INFRA_ERRORS as e:
+        logger.error("Database error while looking up subscription", subscription_id=str(subscription_id), error=str(e))
+        raise DBInternalError(f"Database error while looking up subscription {subscription_id}") from e
 
     if subscription:
         return subscription
