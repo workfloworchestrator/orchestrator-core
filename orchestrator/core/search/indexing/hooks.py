@@ -24,7 +24,9 @@ from uuid import UUID
 
 import structlog
 from more_itertools import partition
+from sqlalchemy import select
 
+from orchestrator.core.db import ProcessSubscriptionTable, db
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.core.validators import is_uuid
 from orchestrator.core.search.indexing.tasks import run_indexing_for_entity
@@ -70,6 +72,24 @@ def extract_subscription_ids(state: object) -> set[str]:
 
     values = (state.get(key) for key in SUBSCRIPTION_STATE_KEYS)
     return set(chain.from_iterable(map(_extract_ids, values)))
+
+
+def linked_subscription_ids(process_id: UUID) -> set[str]:
+    """Return the subscription ids linked to a process in the `processes_subscriptions` table.
+
+    The link is written by the `store_process_subscription` step, which runs before the lock step in
+    every standard step list. Unlike the final state it survives a step failure: a raising step
+    replaces the whole state with an error record, dropping every subscription the workflow had
+    already modified (e.g. set out of sync).
+
+    Args:
+        process_id: The process whose linked subscriptions to look up.
+
+    Returns:
+        Linked subscription ids as strings.
+    """
+    stmt = select(ProcessSubscriptionTable.subscription_id).where(ProcessSubscriptionTable.process_id == process_id)
+    return set(map(str, db.session.scalars(stmt)))
 
 
 def _indexable_subscription_ids(candidates: Iterable[str], process_id: UUID) -> Iterable[str]:
@@ -120,13 +140,16 @@ def _index_entity(entity_type: EntityType, entity_id: str, process_id: UUID) -> 
 
 
 def index_process_and_subscriptions(process_id: UUID, result: "WFProcess") -> None:
-    """Index a process and every subscription referenced by its final state.
+    """Index a process and every subscription referenced by its final state or linked to it.
 
     Called whenever a process exits: completed, failed, aborted, suspended or awaiting callback.
     Runs after the process' final status has been committed, so the indexed record carries the
-    real terminal status. The process and each subscription are indexed independently: a failure
-    indexing one entity never prevents indexing the others, and a state value that merely looks
-    like a subscription id (e.g. an opaque human-readable label) is skipped rather than raised on.
+    real terminal status. Subscription ids come from two sources, because neither alone suffices:
+    the final state is empty of subscriptions once a step has raised, while the
+    `processes_subscriptions` link table only knows the subscription a workflow was started for.
+    The process and each subscription are indexed independently: a failure indexing one entity
+    never prevents indexing the others, and a state value that merely looks like a subscription id
+    (e.g. an opaque human-readable label) is skipped rather than raised on.
 
     Args:
         process_id: The process to index.
@@ -138,6 +161,6 @@ def index_process_and_subscriptions(process_id: UUID, result: "WFProcess") -> No
     """
     _index_entity(EntityType.PROCESS, str(process_id), process_id)
 
-    subscription_ids = extract_subscription_ids(result.unwrap())
+    subscription_ids = extract_subscription_ids(result.unwrap()) | linked_subscription_ids(process_id)
     for subscription_id in _indexable_subscription_ids(subscription_ids, process_id):
         _index_entity(EntityType.SUBSCRIPTION, subscription_id, process_id)

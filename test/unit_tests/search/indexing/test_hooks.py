@@ -20,7 +20,10 @@ from uuid import uuid4
 import pytest
 
 from orchestrator.core.search.core.types import EntityType
-from orchestrator.core.search.indexing.hooks import extract_subscription_ids, index_process_and_subscriptions
+from orchestrator.core.search.indexing.hooks import (
+    extract_subscription_ids,
+    index_process_and_subscriptions,
+)
 from orchestrator.core.settings import llm_settings
 from orchestrator.core.workflow import (
     Failed,
@@ -31,6 +34,13 @@ pytestmark = pytest.mark.search
 
 SUB_ID_A = str(uuid4())
 SUB_ID_B = str(uuid4())
+
+
+@pytest.fixture(autouse=True)
+def linked_subscriptions_lookup():
+    """Stub the link table lookup, which needs a database. Defaults to nothing linked; tests override the return value."""
+    with patch("orchestrator.core.search.indexing.hooks.linked_subscription_ids", return_value=set()) as mock:
+        yield mock
 
 
 @pytest.mark.parametrize(
@@ -72,25 +82,39 @@ def test_extract_subscription_ids_accepts_uuid_objects():
 
 
 @pytest.mark.parametrize(
-    "result,expect_subscription",
+    "result,linked,expected_subscriptions",
     [
         # The state shape is what varies here, not the Process variant: `unwrap` is defined once on
         # the base class, and the process is indexed before it is ever called.
-        pytest.param(Success({}), False, id="state-without-subscription"),
-        pytest.param(Failed(RuntimeError("boom")), False, id="state-replaced-by-an-error"),
-        pytest.param(Success({"subscription_id": SUB_ID_A}), True, id="state-with-subscription"),
+        pytest.param(Success({}), set(), set(), id="state-without-subscription"),
+        pytest.param(Failed(RuntimeError("boom")), set(), set(), id="state-replaced-by-an-error-nothing-linked"),
+        pytest.param(Success({"subscription_id": SUB_ID_A}), set(), {SUB_ID_A}, id="state-with-subscription"),
+        # A raising step replaces the state with an error record; the link table must then supply the
+        # subscription the workflow had already locked (the reconcile out-of-sync scenario).
+        pytest.param(Failed(RuntimeError("boom")), {SUB_ID_A}, {SUB_ID_A}, id="state-replaced-by-an-error-linked"),
+        pytest.param(Success({}), {SUB_ID_A}, {SUB_ID_A}, id="state-without-subscription-linked"),
+        pytest.param(
+            Success({"subscription_id": SUB_ID_A}), {SUB_ID_B}, {SUB_ID_A, SUB_ID_B}, id="state-and-link-unioned"
+        ),
+        pytest.param(Success({"subscription_id": SUB_ID_A}), {SUB_ID_A}, {SUB_ID_A}, id="state-and-link-deduped"),
     ],
 )
 @patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
-def test_process_is_indexed_whatever_its_final_state_holds(mock_run_indexing, result, expect_subscription):
-    """A failed process carries an error record instead of a state, and must still be indexed."""
+def test_process_is_indexed_whatever_its_final_state_holds(
+    mock_run_indexing, linked_subscriptions_lookup, result, linked, expected_subscriptions
+):
+    """The process is always indexed; subscriptions come from the final state and the link table."""
+    linked_subscriptions_lookup.return_value = linked
     process_id = uuid4()
 
     index_process_and_subscriptions(process_id, result)
 
     indexed = mock_run_indexing.call_args_list
     assert call(EntityType.PROCESS, str(process_id)) in indexed
-    assert (call(EntityType.SUBSCRIPTION, SUB_ID_A) in indexed) is expect_subscription
+    linked_subscriptions_lookup.assert_called_once_with(process_id)
+    indexed_subscriptions = {args[1] for args, _ in indexed if args[0] == EntityType.SUBSCRIPTION}
+    assert indexed_subscriptions == expected_subscriptions
+    assert len(indexed) == 1 + len(expected_subscriptions), "each subscription must be indexed exactly once"
 
 
 @patch("orchestrator.core.search.indexing.hooks.logger")
