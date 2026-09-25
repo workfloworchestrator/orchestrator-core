@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import httpx
 
-from orchestrator.core.services.flower import get_flower_metrics, get_flower_worker_status
+from orchestrator.core.services.flower import get_flower_metrics, get_flower_metrics_subset, get_flower_worker_status
 from orchestrator.core.settings import app_settings
 
 FLOWER_URL = "http://flower.example:5555"
@@ -77,3 +77,13 @@ def test_get_flower_metrics_returns_none_on_http_error(httpx_mock):
 
     with patch.object(app_settings, "FLOWER_URL", FLOWER_URL):
         assert get_flower_metrics() is None
+
+
+def test_get_flower_worker_status_returns_none_on_malformed_metrics():
+    with patch("orchestrator.core.services.flower.get_flower_metrics", return_value="not valid metrics %% {{{"):
+        assert get_flower_worker_status() is None
+
+
+def test_get_flower_metrics_subset_returns_empty_on_malformed_metrics():
+    with patch("orchestrator.core.services.flower.get_flower_metrics", return_value="not valid metrics %% {{{"):
+        assert list(get_flower_metrics_subset({"flower_worker_online"})) == []
