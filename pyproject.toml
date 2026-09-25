@@ -36,7 +36,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "alembic==1.19.2",
+    "alembic==1.20.0",
     "anyio>=3.7.0",
     "apscheduler>=3.11.0",
     "click==8.*",
