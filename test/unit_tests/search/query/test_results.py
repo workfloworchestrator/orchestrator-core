@@ -703,3 +703,16 @@ def test_resolve_multiple_matches_per_leaf():
     assert paths == {"product.status", "product_block.test.status"}
     assert all(r.text == "active" for r in result)
     assert all(r.highlight_indices == [(0, len("active"))] for r in result)
+
+
+@pytest.mark.parametrize("rows", [[], [_structured_row()]], ids=["no_rows", "with_rows"])
+def test_format_search_response_keeps_query_embedding(rows):
+    """The query embedding is returned even without rows, so an empty-result retry can reuse it."""
+    tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"))
+
+    response = format_search_response(
+        rows, _structured_query(tree), SearchMetadata.structured(), [0.1, 0.2], None, None, None
+    )
+
+    assert response.query_embedding == [0.1, 0.2]
+    assert len(response.results) == len(rows)

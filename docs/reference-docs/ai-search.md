@@ -498,16 +498,18 @@ manual `TRUNCATE ai_search_index`, which (unlike `DELETE`) does not fire the tri
 
 The agent `search` tool runs a broadening waterfall rather than returning nothing. It first runs
 the query as asked; if that returns no rows and free text is present, it retries with
-progressively looser criteria:
+progressively looser filters:
 
 1. drop loose `like` filters, keep high-signal `eq`, range and component filters;
-2. drop all filters, rank with hybrid;
-3. drop all filters, rank with semantic.
+2. drop all filters.
 
-How far it goes is set by the request's `effort`: `low` = no retries, `medium` = one, `high` = all
-three. The first rung is skipped when it would be pointless (nothing loose to drop, or nothing
-high-signal to keep). With embeddings disabled, the hybrid and semantic rungs degrade to fuzzy.
-The response reports which retriever produced the results and whether broadening was used.
+Broadening is on by default; a request turns it off with `allow_fallback: false` to get an exact
+answer. The first rung is skipped when it would be pointless (nothing loose to drop, or nothing
+high-signal to keep), and an unfiltered search is never retried. The retriever never changes: the hybrid
+retriever fuses the fuzzy and the semantic ranking, so with an embedding an empty result can only
+mean the filters matched nothing, and a forced retriever stays forced. The query text is embedded
+once and reused by every rung. The response reports which retriever produced the results and
+whether broadening was used.
 
 ### Settings
 

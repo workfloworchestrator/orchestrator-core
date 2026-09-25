@@ -13,19 +13,17 @@
 
 """Empty-result broadening waterfall for the agent-facing ``search`` tool.
 
-When a structured search returns nothing, broaden progressively so the user still gets
-the closest matches instead of an empty result, without discarding the high-signal part
+When a filtered search returns nothing, broaden the filters progressively so the user still
+gets the closest matches instead of an empty result, without discarding the high-signal part
 of the query: first relax only the loose text filters while keeping the exact id/status/
-customer filters, then drop all filters and rank by HYBRID (keyword-matches identifiers)
-before SEMANTIC. Fallback passes degrade to FUZZY when embeddings are unavailable. The
-number of broadening passes is governed by ``effort`` (HIGH=3, MEDIUM=1, LOW=0).
+customer filters, then drop all filters. The ranking strategy never changes: the hybrid
+retriever fuses the fuzzy and the semantic ranking, so with an embedding an empty result can
+only mean the filters matched no candidates, and switching retrievers cannot help. A caller
+that wants an exact answer turns broadening off with ``allow_fallback=False``.
 """
 
 from __future__ import annotations
 
-from enum import Enum
-
-import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.search.core.types import EntityType, RetrieverType
@@ -33,38 +31,6 @@ from orchestrator.core.search.filters import FilterTree, PathFilter, StringFilte
 from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.queries import SelectQuery
 from orchestrator.core.search.query.results import SearchResponse
-from orchestrator.core.settings import llm_settings
-
-logger = structlog.get_logger(__name__)
-
-
-class SearchEffort(str, Enum):
-    """How persistently search broadens before giving up (controls fallback passes)."""
-
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-
-
-# How many broadening rungs each effort level may try when a filtered search is empty.
-# HIGH=3 so it can exhaust the full ladder (relaxed filters, then HYBRID, then SEMANTIC).
-_EFFORT_FALLBACK_PASSES: dict[SearchEffort, int] = {
-    SearchEffort.LOW: 0,
-    SearchEffort.MEDIUM: 1,
-    SearchEffort.HIGH: 3,
-}
-
-
-def _effective_retriever(requested: RetrieverType | None) -> RetrieverType | None:
-    """Resolve the retriever to actually use, accounting for embedding availability.
-
-    SEMANTIC and HYBRID need embeddings; when EMBEDDING_API_ENABLED is False they would
-    raise ValueError in the engine. Degrade those to FUZZY (which still keyword-matches
-    the identifier). FUZZY and None (auto-routing) pass through unchanged.
-    """
-    if requested in (RetrieverType.SEMANTIC, RetrieverType.HYBRID) and not llm_settings.EMBEDDING_API_ENABLED:
-        return RetrieverType.FUZZY
-    return requested
 
 
 def _is_relaxable(leaf: PathFilter) -> bool:
@@ -94,82 +60,34 @@ def _high_signal_filters(filters: FilterTree | None) -> FilterTree | None:
     return FilterTree.from_flat_and(high_signal)
 
 
-# An ordered broadening rung: the filters and retriever to try for one pass.
-_BroadeningStep = tuple[FilterTree | None, RetrieverType | None]
-
-
-def _broadening_ladder(filters: FilterTree | None) -> list[_BroadeningStep]:
-    """Build the ordered broadening rungs for an empty filtered search.
+def _broadening_ladder(filters: FilterTree | None) -> list[FilterTree | None]:
+    """Build the ordered broadening rungs (the filters to try per pass) for an empty filtered search.
 
     1. RELAXED — keep the high-signal exact filters, drop loose text filters (only if useful).
-    2. drop all filters, HYBRID — keyword-match identifiers before pure semantics.
-    3. drop all filters, SEMANTIC — pure semantic ranking as the last resort.
+    2. drop all filters.
+
+    An unfiltered search has nothing to broaden: its ladder is empty.
     """
+    if filters is None:
+        return []
     reduced = _high_signal_filters(filters)
-    relaxed_rung: list[_BroadeningStep] = [(reduced, None)] if reduced is not None else []
-    return relaxed_rung + [
-        (None, RetrieverType.HYBRID),
-        (None, RetrieverType.SEMANTIC),
-    ]
-
-
-async def _attempt_query(
-    filters: FilterTree | None,
-    retriever: RetrieverType | None,
-    *,
-    entity_type: EntityType,
-    query_text: str,
-    limit: int,
-    db_session: AsyncSession,
-) -> tuple[SearchResponse, SelectQuery] | None:
-    """Run one broadening pass with the given filters/retriever; return it (with its query) only if it produced rows.
-
-    ``retriever`` is resolved through ``_effective_retriever`` so embedding-based strategies
-    degrade to fuzzy when embeddings are unavailable. A ValueError means the embedding could
-    not be generated for an explicit override — treat it as "no help" so the caller advances
-    to the next rung.
-    """
-    query = SelectQuery(
-        entity_type=entity_type,
-        query_text=query_text,
-        filters=filters,
-        retriever=_effective_retriever(retriever),
-        limit=limit,
-    )
-    try:
-        response = await engine.execute_search(query, db_session)
-    except ValueError as exc:
-        logger.debug("Broadening attempt unavailable", retriever=retriever, error=str(exc))
-        return None
-    return (response, query) if response.results else None
+    relaxed_rung: list[FilterTree | None] = [reduced] if reduced is not None else []
+    return relaxed_rung + [None]
 
 
 async def _run_broadening_fallback(
-    *,
-    filters: FilterTree | None,
-    entity_type: EntityType,
-    query_text: str,
-    limit: int,
-    db_session: AsyncSession,
-    passes: int,
+    exact: SelectQuery, query_embedding: list[float] | None, db_session: AsyncSession
 ) -> tuple[SearchResponse, SelectQuery] | None:
-    """Try up to ``passes`` broadening rungs, returning the first that produced rows.
+    """Climb the broadening ladder, returning the first rung that produced rows (with its query).
 
-    Broadens progressively: first relax the loose text filters while keeping the high-signal
-    exact filters, then drop all filters and rank by HYBRID, then SEMANTIC. ``passes == 0``
-    disables broadening entirely.
+    A rung is the exact query with looser filters: the retriever is unchanged and the query
+    embedding of the exact pass is reused, so the query text is embedded once.
     """
-    for step_filters, step_retriever in _broadening_ladder(filters)[:passes]:
-        result = await _attempt_query(
-            step_filters,
-            step_retriever,
-            entity_type=entity_type,
-            query_text=query_text,
-            limit=limit,
-            db_session=db_session,
-        )
-        if result is not None:
-            return result
+    for step_filters in _broadening_ladder(exact.filters):
+        query = exact.model_copy(update={"filters": step_filters})
+        response = await engine.execute_search(query, db_session, query_embedding=query_embedding)
+        if response.results:
+            return response, query
     return None
 
 
@@ -180,40 +98,33 @@ async def execute_search_with_fallback(
     filters: FilterTree | None,
     limit: int,
     retriever: RetrieverType | None,
-    effort: SearchEffort,
+    allow_fallback: bool,
     db_session: AsyncSession,
 ) -> tuple[SearchResponse, SelectQuery, bool]:
-    """Run the structured pass, then broaden progressively when it returns zero rows.
+    """Run the exact pass, then broaden the filters progressively when it returns zero rows.
 
-    The number of broadening passes is governed by ``effort``: HIGH=3, MEDIUM=1, LOW=0.
     Broadening first relaxes the loose text filters while keeping the high-signal exact
-    filters, then drops all filters and ranks by HYBRID, then SEMANTIC. Returns
+    filters, then drops all filters; the retriever stays as requested and the query embedding
+    of the exact pass is reused. ``allow_fallback=False`` disables broadening. Returns
     ``(response, executed_query, fallback_used)`` where ``executed_query`` is the query that
     produced the returned rows (the broadened one when ``fallback_used``) so the caller can
     persist it for export/pagination.
     """
-    effective = _effective_retriever(retriever) if query_text else None
     query = SelectQuery(
         entity_type=entity_type,
         query_text=query_text,
         filters=filters,
         limit=limit,
-        retriever=effective,
+        # A retriever only ranks free text; without any there is nothing for it to override.
+        retriever=retriever if query_text else None,
     )
     response = await engine.execute_search(query, db_session)
 
-    # Results found, or nothing to broaden on (no free-text query) → return the exact pass.
-    if response.results or not query_text:
+    # Results found, broadening not wanted, or nothing to rank a broader set on (no free text).
+    if response.results or not allow_fallback or not query_text:
         return response, query, False
 
-    fallback = await _run_broadening_fallback(
-        filters=query.filters,
-        entity_type=entity_type,
-        query_text=query_text,
-        limit=limit,
-        db_session=db_session,
-        passes=_EFFORT_FALLBACK_PASSES[effort],
-    )
+    fallback = await _run_broadening_fallback(query, response.query_embedding, db_session)
     if fallback is None:
         return response, query, False
 
