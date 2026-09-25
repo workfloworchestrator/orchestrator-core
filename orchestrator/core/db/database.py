@@ -56,9 +56,12 @@ class BaseModelMeta(DeclarativeMeta):
 
     @property
     def query(self) -> SearchQuery:
-        if self._query is not None:
-            return self._query
-        raise NoSessionError("Cant get session. Please, call BaseModel.set_query() first")
+        # getattr: _query is only set after init_database() / Database() calls set_query().
+        # Accessing the bare attribute before that raises AttributeError instead of NoSessionError.
+        query = getattr(self, "_query", None)
+        if query is not None:
+            return query
+        raise NoSessionError("Can't get session. Please call init_database() first")
 
 
 @as_declarative(metaclass=BaseModelMeta)
