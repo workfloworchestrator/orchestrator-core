@@ -110,8 +110,23 @@ START_DATE = object()  # get_cron_kwargs passes start_date through unchanged
         ),
         pytest.param(
             "0 8 * * 1",
-            {"minute": "0", "hour": "8", "day": "*", "month": "*", "day_of_week": "1"},
+            {"minute": "0", "hour": "8", "day": "*", "month": "*", "day_of_week": "0"},
             id="specific",
+        ),
+        pytest.param(
+            "0 8 * * 2",
+            {"minute": "0", "hour": "8", "day": "*", "month": "*", "day_of_week": "1"},
+            id="crontab-tuesday-to-aps-monday-offset",
+        ),
+        pytest.param(
+            "0 9-17 * * 1-5",
+            {"minute": "0", "hour": "9-17", "day": "*", "month": "*", "day_of_week": "0-4"},
+            id="crontab-weekdays-mon-fri",
+        ),
+        pytest.param(
+            "0 8 * * sun",
+            {"minute": "0", "hour": "8", "day": "*", "month": "*", "day_of_week": "sun"},
+            id="named-weekday-unchanged",
         ),
         pytest.param(
             "*/15 * * * * *",
@@ -184,3 +199,20 @@ def test_validate_cron_error_names_all_bad_fields(cron, expected_fields):
         validate_cron(cron)
     message = str(exc_info.value)
     assert all(field in message for field in expected_fields)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("2", "1"),  # Tuesday crontab -> Tuesday APS3
+        ("0", "6"),  # Sunday crontab -> Sunday APS3
+        ("7", "6"),  # Sunday alt
+        ("1-5", "0-4"),
+        ("1,3,5", "0,2,4"),
+        ("*", "*"),
+        ("tue", "tue"),
+        ("mon-fri", "mon-fri"),
+    ],
+)
+def test_convert_crontab_day_of_week_for_apscheduler3(raw, expected):
+    assert convert_crontab_day_of_week_for_apscheduler3(raw) == expected
