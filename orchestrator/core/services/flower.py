@@ -42,12 +42,14 @@ def get_flower_metrics() -> str | None:
         return None
 
 
-def _sum_metric_family(metrics_text: str, name: str) -> float:
-    return sum(
-        sample.value
-        for family in text_string_to_metric_families(metrics_text)
-        if family.name == name
-        for sample in family.samples
+def _filter_metric_families(metrics_text: str, names: Iterable[str]) -> Iterable[Metric]:
+    """Raises ValueError if metrics_text is not valid Prometheus exposition text."""
+    return [family for family in text_string_to_metric_families(metrics_text) if family.name in names]
+
+
+def _sum_metric_family(metrics_text: str, name: str) -> int:
+    return int(
+        sum(sample.value for family in _filter_metric_families(metrics_text, {name}) for sample in family.samples)
     )
 
 
@@ -66,14 +68,18 @@ def get_flower_worker_status() -> WorkerStatus | None:
     if metrics_text is None:
         return None
 
-    return WorkerStatus(
-        executor_type="celery",
-        number_of_workers_online=int(_sum_metric_family(metrics_text, "flower_worker_online")),
-        number_of_queued_jobs=int(_sum_metric_family(metrics_text, "flower_worker_prefetched_tasks")),
-        number_of_running_jobs=int(
-            _sum_metric_family(metrics_text, "flower_worker_number_of_currently_executing_tasks")
-        ),
-    )
+    try:
+        return WorkerStatus(
+            executor_type="celery",
+            number_of_workers_online=_sum_metric_family(metrics_text, "flower_worker_online"),
+            number_of_queued_jobs=_sum_metric_family(metrics_text, "flower_worker_prefetched_tasks"),
+            number_of_running_jobs=_sum_metric_family(
+                metrics_text, "flower_worker_number_of_currently_executing_tasks"
+            ),
+        )
+    except ValueError:
+        logger.exception("Failed to parse metrics from Flower")
+        return None
 
 
 def get_flower_metrics_subset(flower_metrics_names: Iterable[str]) -> Iterable[Metric]:
@@ -81,8 +87,8 @@ def get_flower_metrics_subset(flower_metrics_names: Iterable[str]) -> Iterable[M
     if flower_metrics_text is None:
         return []
 
-    return [
-        family
-        for family in text_string_to_metric_families(flower_metrics_text)
-        if family.name in flower_metrics_names
-    ]
+    try:
+        return _filter_metric_families(flower_metrics_text, flower_metrics_names)
+    except ValueError:
+        logger.exception("Failed to parse metrics from Flower")
+        return []
