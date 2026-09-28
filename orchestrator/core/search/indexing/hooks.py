@@ -145,8 +145,11 @@ def index_process_and_subscriptions(process_id: UUID, result: "WFProcess") -> No
     Called whenever a process exits: completed, failed, aborted, suspended or awaiting callback.
     Runs after the process' final status has been committed, so the indexed record carries the
     real terminal status. Subscription ids come from two sources, because neither alone suffices:
-    the final state is empty of subscriptions once a step has raised, while the
-    `processes_subscriptions` link table only knows the subscription a workflow was started for.
+    - The result state.
+      - Empty when a step raises: the error record replaces the state.
+    - The `processes_subscriptions` link table.
+      - Only knows the subscription a workflow was started for.
+
     The process and each subscription are indexed independently: a failure indexing one entity
     never prevents indexing the others, and a state value that merely looks like a subscription id
     (e.g. an opaque human-readable label) is skipped rather than raised on.
