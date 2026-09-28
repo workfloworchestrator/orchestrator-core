@@ -16,6 +16,7 @@ from http import HTTPStatus
 from fastapi import Path
 from fastapi.exceptions import HTTPException
 from fastapi.routing import APIRouter
+from starlette.concurrency import run_in_threadpool
 
 from orchestrator.core.services.workflow_user_guides import get_workflow_guide
 
@@ -23,9 +24,9 @@ router = APIRouter()
 
 
 @router.get("/{workflow_name}", response_model=str)
-def get_workflow_guide_by_name(
+async def get_workflow_guide_by_name(
     workflow_name: str = Path(..., pattern=r"^[a-z][a-z0-9_]*$"),
 ) -> str:
-    if guide := get_workflow_guide(workflow_name):
+    if guide := await run_in_threadpool(get_workflow_guide, workflow_name):
         return guide
     raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=f"No workflow guide found for '{workflow_name}'")
