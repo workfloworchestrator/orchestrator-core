@@ -20,7 +20,7 @@ pre-commit run --all-files             # format, lint, type check.
 - Line length: **120**
 - **No relative imports** — all imports must be absolute (`ban-relative-imports = "all"`, enforced via `TID` in `ruff.lint.select`)
   - Do NOT use `ruff check --fix --unsafe-fixes` for TID252 in this repo — it strips the `orchestrator.` prefix and produces broken imports (e.g. `from core.search.x import y` instead of `from orchestrator.core.search.x import y`). Fix relative imports by hand and verify with `ruff check --select TID252`.
-- Type annotations required everywhere (mypy strict)
+- Type annotations required everywhere (mypy strict), except in tests
 - Docstring convention: Google style
 - Formatter: ruff
 
