@@ -14,11 +14,13 @@
 import json
 import os
 from shutil import copyfile
+from typing import Annotated
 
 import jinja2
 import typer
 from alembic import command
 from alembic.config import Config
+from sqlalchemy import inspect
 from structlog import get_logger
 
 from orchestrator.core.cli.domain_gen_helpers.types import ModelUpdates
@@ -29,12 +31,17 @@ from orchestrator.core.cli.migrate_domain_models import create_domain_models_mig
 from orchestrator.core.cli.migrate_tasks import create_tasks_migration_wizard
 from orchestrator.core.cli.migrate_workflows import create_workflows_migration_wizard
 from orchestrator.core.cli.migration_helpers import create_migration_file
-from orchestrator.core.db import init_database
+from orchestrator.core.cli.search.index_llm import ForceIndex
+from orchestrator.core.db import db, init_database
+from orchestrator.core.db.models import AiSearchIndex, AiSearchPaths
+from orchestrator.core.search.indexing import run_indexing_for_all_entities
 from orchestrator.core.settings import app_settings
 
 logger = get_logger(__name__)
 
 app: typer.Typer = typer.Typer()
+
+Index = Annotated[bool, typer.Option(help="Index the search tables after the migration")]
 
 orchestrator_module_location = os.path.join(os.path.dirname(__file__), os.pardir)
 migration_dir = "migrations"
@@ -53,6 +60,23 @@ def alembic_cfg() -> Config:
     )
     logger.info("Version Locations", locations=cfg.get_main_option("version_locations"))
     return cfg
+
+
+SEARCH_TABLES = (AiSearchIndex.__tablename__, AiSearchPaths.__tablename__)
+
+
+def _missing_search_tables() -> list[str]:
+    inspector = inspect(db.engine)
+    return [table for table in SEARCH_TABLES if not inspector.has_table(table)]
+
+
+def _index_search(force_index: bool) -> None:
+    # A downgrade can revert past the migrations that create the search tables.
+    if missing := _missing_search_tables():
+        logger.warning("Skipping search indexing, search tables are missing", missing_tables=missing)
+        return
+
+    run_indexing_for_all_entities(force_index=force_index)
 
 
 @app.command(
@@ -154,11 +178,17 @@ def merge(
 
 
 @app.command()
-def upgrade(revision: str = typer.Argument(help="Rev id to upgrade to")) -> None:
+def upgrade(
+    revision: str = typer.Argument(help="Rev id to upgrade to"),
+    index: Index = True,
+    force_index: ForceIndex = False,
+) -> None:
     """The `upgrade` command will upgrade the database to the specified revision.
 
     Args:
         revision: Optional argument to indicate where to upgrade to.
+        index: Whether to index the search tables after the migration.
+        force_index: Whether to re-index all fields regardless of the hash cache.
 
     Returns:
         None
@@ -169,19 +199,30 @@ def upgrade(revision: str = typer.Argument(help="Rev id to upgrade to")) -> None
             [REVISION]  Rev id to upgrade to
 
         Options:
-            --help  Show this message and exit.
+            --index / --no-index              Index the search tables after the migration  [default: index]
+            --force-index / --no-force-index  Force re-index (ignore hash cache)  [default: no-force-index]
+            --help                            Show this message and exit.
         ```
 
     """
     command.upgrade(alembic_cfg(), revision)
 
+    if index:
+        _index_search(force_index=force_index)
+
 
 @app.command()
-def downgrade(revision: str = typer.Argument("-1", help="Rev id to downgrade to")) -> None:
+def downgrade(
+    revision: str = typer.Argument("-1", help="Rev id to downgrade to"),
+    index: Index = True,
+    force_index: ForceIndex = False,
+) -> None:
     """The `downgrade` command will downgrade the database to the previous revision or to the optionally specified revision.
 
     Args:
         revision (str, optional): Optional argument to indicate where to downgrade to. [default: -1]
+        index: Whether to index the search tables after the migration.
+        force_index: Whether to re-index all fields regardless of the hash cache.
 
     Returns:
         None
@@ -189,11 +230,19 @@ def downgrade(revision: str = typer.Argument("-1", help="Rev id to downgrade to"
     CLI Options:
         ```shell
         Arguments:
-            [REVISION]  Rev id to upgrade to  [default: -1]
+            [REVISION]  Rev id to downgrade to  [default: -1]
+
+        Options:
+            --index / --no-index              Index the search tables after the migration  [default: index]
+            --force-index / --no-force-index  Force re-index (ignore hash cache)  [default: no-force-index]
+            --help                            Show this message and exit.
         ```
 
     """
     command.downgrade(alembic_cfg(), revision)
+
+    if index:
+        _index_search(force_index=force_index)
 
 
 @app.command()

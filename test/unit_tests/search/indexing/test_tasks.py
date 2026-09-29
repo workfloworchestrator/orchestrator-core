@@ -24,7 +24,12 @@ import pytest
 from sqlalchemy.orm import Query
 
 from orchestrator.core.search.core.types import EntityType
-from orchestrator.core.search.indexing.tasks import _get_entity_count, run_indexing_for_entity
+from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+from orchestrator.core.search.indexing.tasks import (
+    _get_entity_count,
+    run_indexing_for_all_entities,
+    run_indexing_for_entity,
+)
 
 pytestmark = pytest.mark.search
 
@@ -273,3 +278,26 @@ def test_run_indexing_select_type_does_not_access_statement():
 
     assert not hasattr(mock_select, "_statement_accessed")
     assert call.enable_eagerloads(False) not in mock_select.mock_calls
+
+
+# ---------------------------------------------------------------------------
+# run_indexing_for_all_entities
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("force_index", [pytest.param(False, id="hash_cache"), pytest.param(True, id="force")])
+def test_run_indexing_for_all_entities_indexes_each_entity_then_rebuilds_paths(force_index):
+    manager = MagicMock()
+    with (
+        patch("orchestrator.core.search.indexing.tasks.run_indexing_for_entity", manager.index_entity),
+        patch("orchestrator.core.search.indexing.tasks.rebuild_search_paths", manager.rebuild),
+    ):
+        run_indexing_for_all_entities(force_index=force_index)
+
+    assert manager.mock_calls == [
+        *(
+            call.index_entity(entity_kind=entity_kind, force_index=force_index)
+            for entity_kind in ENTITY_CONFIG_REGISTRY
+        ),
+        call.rebuild(),
+    ]
