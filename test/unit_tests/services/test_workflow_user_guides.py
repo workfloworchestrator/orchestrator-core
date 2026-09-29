@@ -39,12 +39,12 @@ def no_guide_dir():
     app_settings.WORKFLOW_USER_GUIDE_DIR = original
 
 
-def test_returns_none_when_guide_dir_not_configured(no_guide_dir):
-    assert get_workflow_guide("some_workflow") is None
+async def test_returns_none_when_guide_dir_not_configured(no_guide_dir):
+    assert await get_workflow_guide("some_workflow") is None
 
 
-def test_returns_none_when_guide_file_missing(guide_dir):
-    assert get_workflow_guide("nonexistent_workflow") is None
+async def test_returns_none_when_guide_file_missing(guide_dir):
+    assert await get_workflow_guide("nonexistent_workflow") is None
 
 
 @pytest.mark.parametrize(
@@ -54,17 +54,17 @@ def test_returns_none_when_guide_file_missing(guide_dir):
         pytest.param("empty_workflow", "", id="empty-file"),
     ],
 )
-def test_returns_guide_content_when_file_exists(guide_dir, workflow_name, content):
+async def test_returns_guide_content_when_file_exists(guide_dir, workflow_name, content):
     (guide_dir / f"{workflow_name}.md").write_text(content, encoding="utf-8")
-    assert get_workflow_guide(workflow_name) == content
+    assert await get_workflow_guide(workflow_name) == content
 
 
-def test_does_not_return_guide_for_different_workflow(guide_dir):
+async def test_does_not_return_guide_for_different_workflow(guide_dir):
     (guide_dir / "workflow_a.md").write_text("Guide A", encoding="utf-8")
-    assert get_workflow_guide("workflow_b") is None
+    assert await get_workflow_guide("workflow_b") is None
 
 
-def test_guide_content_is_read_as_utf8(guide_dir):
+async def test_guide_content_is_read_as_utf8(guide_dir):
     content = "# Gids\n\nStap één: configureer het netwerk."
     (guide_dir / "dutch_workflow.md").write_text(content, encoding="utf-8")
-    assert get_workflow_guide("dutch_workflow") == content
+    assert await get_workflow_guide("dutch_workflow") == content

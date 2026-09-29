@@ -11,16 +11,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from anyio import Path
+
 from orchestrator.core.settings import app_settings
 
 
-def get_workflow_guide(workflow_name: str) -> str | None:
-    """Return the Markdown guide for a workflow, or None if not found."""
+async def get_workflow_guide(workflow_name: str) -> str | None:
+    """Return the Markdown guide for a workflow, or None if not found.
+
+    File IO is performed via ``anyio.Path`` so the event loop is never blocked.
+    """
     if app_settings.WORKFLOW_USER_GUIDE_DIR is None:
         return None
 
-    guide_file = app_settings.WORKFLOW_USER_GUIDE_DIR / f"{workflow_name}.md"
-    if not guide_file.exists():
+    guide_file = Path(app_settings.WORKFLOW_USER_GUIDE_DIR) / f"{workflow_name}.md"
+    if not await guide_file.exists():
         return None
 
-    return guide_file.read_text(encoding="utf-8")
+    return await guide_file.read_text(encoding="utf-8")
