@@ -7,8 +7,8 @@ WFO partners conduct a code sprint every 4 weeks to work on backlog issues.
 This requires us to triage, prioritize and refine them.
 We then also plan issues per code sprint to match the expertise of the developers that will work on them.
 
-All of this costs time, so if you want to contribute, please make sure to align with us first.
-This means that:
+All of this costs time, so if you want to contribute, please make sure to align with us first. This means that:
+
 - You check for an existing issue or otherwise create one. If you are unsure whether to create the issue, feel free to reach out on Discord or [create a discussion](https://github.com/orgs/workfloworchestrator/discussions/new/choose). New contributors are encouraged to look at issues labeled `good first issue`.
 - In the issue, leave a message tagging `@workfloworchestrator/core-maintainers` to inquire if you can work on it. If the issue has been assigned to someone you can assume it's already being worked on.
 - When creating a PR for your issue, you can expect to receive review comments. These will need to be addressed either through code change or a constructive discussion.
