@@ -101,3 +101,5 @@ just pytest --last-failed                # re-run only failed tests
 ```
 
 For more details please read the [development docs](https://workfloworchestrator.org/orchestrator-core/contributing/development/).
+
+Also make sure to read the [Contribution guidelines](https://workfloworchestrator.org/orchestrator-core/contributing/guidelines/).
