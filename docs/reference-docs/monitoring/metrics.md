@@ -46,9 +46,7 @@ If you run [Flower](https://flower.readthedocs.io/en/latest/) alongside your Cel
 [Monitoring Celery with Flower](../../guides/scaling.md#monitoring-celery-with-flower)), `WorkerCollector`
 re-exposes a subset of Flower's own `/metrics` endpoint under `/api/metrics`, unchanged. It requires
 `FLOWER_URL` to be set and yields nothing if Flower is unset or unreachable — there is no fallback to Celery's
-`inspect()` API for these metrics, since inspecting every worker on each scrape would be too costly to do by
-default. Flower's per-task runtime histogram and event counter are excluded, since their cardinality grows
-with the number of distinct task names. With Flower configured, it adds this subset to the metrics:
+`inspect()` API for these metrics, since inspecting every worker on each scrape would be too costly:
 
 ```shell
 # HELP flower_worker_online Worker online status.
