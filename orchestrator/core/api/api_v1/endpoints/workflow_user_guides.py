@@ -27,6 +27,6 @@ router = APIRouter()
 async def get_workflow_guide_by_name(
     workflow_name: str = Path(..., pattern=r"^[a-z][a-z0-9_]*$"),
 ) -> str:
-    if guide := await run_in_threadpool(get_workflow_guide, workflow_name):
+    if (guide := await run_in_threadpool(get_workflow_guide, workflow_name)) is not None:
         return guide
     raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=f"No workflow guide found for '{workflow_name}'")
