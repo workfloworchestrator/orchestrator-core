@@ -96,6 +96,14 @@ class AppSettings(BaseSettings):
     LOG_LEVEL: str = "DEBUG"
     SLACK_ENGINE_SETTINGS_HOOK_ENABLED: bool = False
     SLACK_ENGINE_SETTINGS_HOOK_URL: str = ""
+    FLOWER_URL: str = Field(
+        "",
+        description=(
+            "Base URL of a Flower instance to fetch worker/queue status from instead of Celery's inspect() "
+            "API. Empty disables Flower."
+        ),
+    )
+    FLOWER_REQUEST_TIMEOUT: float = Field(2.0, description="Timeout in seconds for requests to the Flower API")
     TRACING_ENABLED: bool = False
     TRACE_HOST: str = "http://localhost:4317"
     TRANSLATIONS_DIR: Path | None = None
