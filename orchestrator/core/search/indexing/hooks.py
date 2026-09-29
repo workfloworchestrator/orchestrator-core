@@ -139,6 +139,31 @@ def _index_entity(entity_type: EntityType, entity_id: str, process_id: UUID) -> 
         )
 
 
+def _safe_linked_subscription_ids(process_id: UUID) -> set[str]:
+    """Look up the linked subscription ids, isolated so a failure cannot block the state-derived ones.
+
+    The query runs in a savepoint: a failed statement aborts the surrounding transaction, which
+    would otherwise make every indexing query after it fail too.
+
+    Args:
+        process_id: The process whose linked subscriptions to look up.
+
+    Returns:
+        Linked subscription ids as strings, or an empty set when the lookup fails.
+
+    Raises:
+        Exception: Only when `llm_settings.SEARCH_INDEXING_STRICT` is True.
+    """
+    try:
+        with db.session.begin_nested():
+            return linked_subscription_ids(process_id)
+    except Exception as ex:
+        if llm_settings.SEARCH_INDEXING_STRICT:
+            raise
+        logger.warning("Failed to look up linked subscriptions", process_id=str(process_id), error=str(ex))
+        return set()
+
+
 def index_process_and_subscriptions(process_id: UUID, result: "WFProcess") -> None:
     """Index a process and every subscription referenced by its final state or linked to it.
 
@@ -151,7 +176,8 @@ def index_process_and_subscriptions(process_id: UUID, result: "WFProcess") -> No
       - Only knows the subscription a workflow was started for.
 
     The process and each subscription are indexed independently: a failure indexing one entity
-    never prevents indexing the others, and a state value that merely looks like a subscription id
+    never prevents indexing the others, a failed link table lookup never prevents indexing the
+    subscriptions found in the state, and a state value that merely looks like a subscription id
     (e.g. an opaque human-readable label) is skipped rather than raised on.
 
     Args:
@@ -164,6 +190,6 @@ def index_process_and_subscriptions(process_id: UUID, result: "WFProcess") -> No
     """
     _index_entity(EntityType.PROCESS, str(process_id), process_id)
 
-    subscription_ids = extract_subscription_ids(result.unwrap()) | linked_subscription_ids(process_id)
+    subscription_ids = extract_subscription_ids(result.unwrap()) | _safe_linked_subscription_ids(process_id)
     for subscription_id in _indexable_subscription_ids(subscription_ids, process_id):
         _index_entity(EntityType.SUBSCRIPTION, subscription_id, process_id)

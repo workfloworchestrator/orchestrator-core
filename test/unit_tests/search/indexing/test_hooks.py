@@ -38,8 +38,14 @@ SUB_ID_B = str(uuid4())
 
 @pytest.fixture(autouse=True)
 def linked_subscriptions_lookup():
-    """Stub the link table lookup, which needs a database. Defaults to nothing linked; tests override the return value."""
-    with patch("orchestrator.core.search.indexing.hooks.linked_subscription_ids", return_value=set()) as mock:
+    """Stub the link table lookup, which needs a database. Defaults to nothing linked; tests override the return value.
+
+    The session is stubbed too, because the lookup runs inside a savepoint.
+    """
+    with (
+        patch("orchestrator.core.search.indexing.hooks.db"),
+        patch("orchestrator.core.search.indexing.hooks.linked_subscription_ids", return_value=set()) as mock,
+    ):
         yield mock
 
 
@@ -237,3 +243,34 @@ def test_indexing_error_is_raised_when_strict(mock_run_indexing, monkeypatch):
 
     with pytest.raises(RuntimeError, match="index error"):
         index_process_and_subscriptions(uuid4(), Success({}))
+
+
+@patch("orchestrator.core.search.indexing.hooks.logger")
+@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
+def test_failed_link_lookup_does_not_skip_state_subscriptions(
+    mock_run_indexing, mock_logger, linked_subscriptions_lookup, monkeypatch
+):
+    """A failing link table query must not cost the subscriptions the final state already names."""
+    monkeypatch.setattr(llm_settings, "SEARCH_INDEXING_STRICT", False)
+    linked_subscriptions_lookup.side_effect = RuntimeError("lookup error")
+    process_id = uuid4()
+
+    index_process_and_subscriptions(process_id, Success({"subscription_id": SUB_ID_A}))  # must not raise
+
+    assert mock_run_indexing.call_args_list == [
+        call(EntityType.PROCESS, str(process_id)),
+        call(EntityType.SUBSCRIPTION, SUB_ID_A),
+    ]
+    mock_logger.warning.assert_called_once()
+    _, kwargs = mock_logger.warning.call_args
+    assert kwargs["process_id"] == str(process_id)
+    assert "lookup error" in kwargs["error"]
+
+
+@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
+def test_failed_link_lookup_is_raised_when_strict(mock_run_indexing, linked_subscriptions_lookup, monkeypatch):
+    monkeypatch.setattr(llm_settings, "SEARCH_INDEXING_STRICT", True)
+    linked_subscriptions_lookup.side_effect = RuntimeError("lookup error")
+
+    with pytest.raises(RuntimeError, match="lookup error"):
+        index_process_and_subscriptions(uuid4(), Success({"subscription_id": SUB_ID_A}))
