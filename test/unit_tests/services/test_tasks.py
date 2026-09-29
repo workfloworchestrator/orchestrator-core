@@ -26,6 +26,7 @@ from uuid import uuid4
 import pytest
 
 import orchestrator.core.services.tasks as tasks_module
+from orchestrator.core.schemas.engine_settings import WorkerStatus
 from orchestrator.core.services.tasks import (
     NEW_TASK,
     NEW_WORKFLOW,
@@ -382,3 +383,36 @@ def test_celery_job_worker_status_without_celery_initialized():
 
             # Verify error was logged
             mock_logger.error.assert_called_once_with("Can't create CeleryJobStatistics. Celery is not initialised.")
+
+
+def test_celery_job_worker_status_uses_flower_when_available(mock_celery):
+    """When Flower returns data, CeleryJobWorkerStatus uses it and skips inspect() entirely."""
+    flower_status = WorkerStatus(
+        executor_type="celery", number_of_workers_online=5, number_of_queued_jobs=2, number_of_running_jobs=3
+    )
+
+    with patch("orchestrator.core.services.tasks._celery", mock_celery):
+        with patch("orchestrator.core.services.tasks.get_flower_worker_status", return_value=flower_status):
+            status = CeleryJobWorkerStatus()
+
+    assert status.number_of_workers_online == 5
+    assert status.number_of_queued_jobs == 2
+    assert status.number_of_running_jobs == 3
+    mock_celery.control.inspect.assert_not_called()
+
+
+def test_celery_job_worker_status_falls_back_to_inspect_when_flower_unavailable(mock_celery):
+    """When Flower returns None (disabled or unreachable), fall back to inspect()."""
+    mock_inspect = MagicMock()
+    mock_inspect.stats.return_value = {"worker1@host": {"total": {}}}
+    mock_inspect.scheduled.return_value = {}
+    mock_inspect.reserved.return_value = {}
+    mock_inspect.active.return_value = {}
+    mock_celery.control.inspect.return_value = mock_inspect
+
+    with patch("orchestrator.core.services.tasks._celery", mock_celery):
+        with patch("orchestrator.core.services.tasks.get_flower_worker_status", return_value=None):
+            status = CeleryJobWorkerStatus()
+
+    assert status.number_of_workers_online == 1
+    mock_celery.control.inspect.assert_called_once()
