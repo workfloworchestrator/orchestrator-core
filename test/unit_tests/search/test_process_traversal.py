@@ -30,10 +30,12 @@ _EXPECTED_FIELDS = {
     "process.created_by": ("admin", FieldType.STRING),
     "process.is_task": ("True", FieldType.BOOLEAN),
     "process.workflow_name": ("test_workflow", FieldType.STRING),
+    "process.workflow_target": ("CREATE", FieldType.STRING),
+    "process.note": ("Some note", FieldType.STRING),
 }
 
 
-def test_traverse_simple_process():
+def _build_process() -> ProcessTable:
     process = ProcessTable(
         process_id=UUID("550e8400-e29b-41d4-a716-446655440000"),
         workflow_id=UUID("880e8400-e29b-41d4-a716-446655440000"),
@@ -44,12 +46,19 @@ def test_traverse_simple_process():
         failed_reason=None,
         created_by="admin",
         is_task=True,
+        note="Some note",
     )
 
     mock_workflow = MagicMock()
     mock_workflow.name = "test_workflow"
+    mock_workflow.target = "CREATE"
     process.workflow = mock_workflow
     process.subscriptions = []
+    return process
+
+
+def test_traverse_simple_process():
+    process = _build_process()
 
     config = ENTITY_CONFIG_REGISTRY[EntityType.PROCESS]
     extracted_fields = config.traverser.get_fields(entity=process, pk_name=config.pk_name, root_name=config.root_name)
@@ -60,3 +69,36 @@ def test_traverse_simple_process():
         assert field_map[path].value_type == expected_type
         if expected_value is not None:
             assert field_map[path].value == expected_value
+
+
+def test_traverse_process_with_subscription():
+    process = _build_process()
+
+    mock_product = MagicMock()
+    mock_product.name = "Test Product"
+    mock_product.tag = "TP"
+
+    mock_subscription = MagicMock()
+    mock_subscription.subscription_id = UUID("660e8400-e29b-41d4-a716-446655440000")
+    mock_subscription.description = "Test subscription"
+    mock_subscription.customer_id = "cust-1"
+    mock_subscription.product = mock_product
+
+    mock_process_subscription = MagicMock()
+    mock_process_subscription.subscription = mock_subscription
+    process.process_subscriptions = [mock_process_subscription]
+
+    config = ENTITY_CONFIG_REGISTRY[EntityType.PROCESS]
+    extracted_fields = config.traverser.get_fields(entity=process, pk_name=config.pk_name, root_name=config.root_name)
+    field_map = {field.path: field for field in extracted_fields}
+
+    expected = {
+        "process.subscriptions.0.subscription_id": "660e8400-e29b-41d4-a716-446655440000",
+        "process.subscriptions.0.description": "Test subscription",
+        "process.subscriptions.0.customer_id": "cust-1",
+        "process.subscriptions.0.product_name": "Test Product",
+        "process.subscriptions.0.product_tag": "TP",
+    }
+    for path, expected_value in expected.items():
+        assert path in field_map, f"Missing field: {path}"
+        assert field_map[path].value == expected_value
