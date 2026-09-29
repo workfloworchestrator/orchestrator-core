@@ -11,9 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pathlib
-import tempfile
-
 import pytest
 
 from orchestrator.core.services.workflow_user_guides import get_workflow_guide
@@ -21,22 +18,16 @@ from orchestrator.core.settings import app_settings
 
 
 @pytest.fixture()
-def guide_dir():
-    """Temporary directory configured as WORKFLOW_USER_GUIDE_DIR, restored after the test."""
-    original = app_settings.WORKFLOW_USER_GUIDE_DIR
-    with tempfile.TemporaryDirectory() as tmp:
-        app_settings.WORKFLOW_USER_GUIDE_DIR = pathlib.Path(tmp)
-        yield pathlib.Path(tmp)
-    app_settings.WORKFLOW_USER_GUIDE_DIR = original
+def guide_dir(tmp_path, monkeypatch):
+    """Temporary directory configured as WORKFLOW_USER_GUIDE_DIR."""
+    monkeypatch.setattr(app_settings, "WORKFLOW_USER_GUIDE_DIR", tmp_path)
+    return tmp_path
 
 
 @pytest.fixture()
-def no_guide_dir():
+def no_guide_dir(monkeypatch):
     """Ensure WORKFLOW_USER_GUIDE_DIR is None for the duration of the test."""
-    original = app_settings.WORKFLOW_USER_GUIDE_DIR
-    app_settings.WORKFLOW_USER_GUIDE_DIR = None
-    yield
-    app_settings.WORKFLOW_USER_GUIDE_DIR = original
+    monkeypatch.setattr(app_settings, "WORKFLOW_USER_GUIDE_DIR", None)
 
 
 async def test_returns_none_when_guide_dir_not_configured(no_guide_dir):
