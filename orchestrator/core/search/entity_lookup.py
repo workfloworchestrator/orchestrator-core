@@ -67,8 +67,8 @@ _ENTITY_LOOKUP: dict[EntityType, _LookupSpec] = {
         ProcessTable.process_id,
         func.concat(cast(ProcessTable.workflow_id, Text), " (", ProcessTable.last_status, ")"),
     ),
-    EntityType.METADATA_PRODUCT_BLOCK: _LookupSpec(ProductBlockTable.product_block_id, ProductBlockTable.name),
-    EntityType.METADATA_RESOURCE_TYPE: _LookupSpec(ResourceTypeTable.resource_type_id, ResourceTypeTable.resource_type),
+    EntityType.PRODUCT_BLOCK: _LookupSpec(ProductBlockTable.product_block_id, ProductBlockTable.name),
+    EntityType.RESOURCE_TYPE: _LookupSpec(ResourceTypeTable.resource_type_id, ResourceTypeTable.resource_type),
 }
 
 

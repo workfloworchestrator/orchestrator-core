@@ -99,7 +99,7 @@ def product_blocks_command(
 ) -> None:
     """Index product_block_search_index."""
     run_indexing_for_entity(
-        entity_kind=EntityType.METADATA_PRODUCT_BLOCK,
+        entity_kind=EntityType.PRODUCT_BLOCK,
         entity_id=product_block_id,
         dry_run=dry_run,
         force_index=force_index,
@@ -116,7 +116,7 @@ def resource_types_command(
 ) -> None:
     """Index resource_type_search_index."""
     run_indexing_for_entity(
-        entity_kind=EntityType.METADATA_RESOURCE_TYPE,
+        entity_kind=EntityType.RESOURCE_TYPE,
         entity_id=resource_type_id,
         dry_run=dry_run,
         force_index=force_index,

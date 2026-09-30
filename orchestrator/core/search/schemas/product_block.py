@@ -36,7 +36,7 @@ class ProductBlockIndexSchema(OrchestratorBaseModel):
     product_block_id: UUID
     name: str
     description: str
-    status: ProductLifecycle
+    status: ProductLifecycle | None = None
     tag: str | None = None
     created_at: datetime
     end_date: datetime | None = None

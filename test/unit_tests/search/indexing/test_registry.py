@@ -308,7 +308,7 @@ def test_registry_workflow_config_fields():
 
 
 def test_registry_product_block_config_fields():
-    config = ENTITY_CONFIG_REGISTRY[EntityType.METADATA_PRODUCT_BLOCK]
+    config = ENTITY_CONFIG_REGISTRY[EntityType.PRODUCT_BLOCK]
     assert config.pk_name == "product_block_id"
     assert config.root_name == "product_block"
     assert config.table is ProductBlockTable
@@ -316,7 +316,7 @@ def test_registry_product_block_config_fields():
 
 
 def test_registry_resource_type_config_fields():
-    config = ENTITY_CONFIG_REGISTRY[EntityType.METADATA_RESOURCE_TYPE]
+    config = ENTITY_CONFIG_REGISTRY[EntityType.RESOURCE_TYPE]
     assert config.pk_name == "resource_type_id"
     assert config.root_name == "resource_type"
     assert config.table is ResourceTypeTable
@@ -330,7 +330,7 @@ def test_registry_resource_type_config_fields():
 
 def test_product_block_config_applies_selectinload_on_resource_types_and_in_use_by():
     config = ProductBlockConfig(
-        entity_kind=EntityType.METADATA_PRODUCT_BLOCK,
+        entity_kind=EntityType.PRODUCT_BLOCK,
         table=ProductBlockTable,
         traverser=MagicMock(),
         pk_name="product_block_id",
@@ -364,7 +364,7 @@ def test_product_block_config_applies_selectinload_on_resource_types_and_in_use_
 
 def test_resource_type_config_applies_selectinload_on_product_blocks():
     config = ResourceTypeConfig(
-        entity_kind=EntityType.METADATA_RESOURCE_TYPE,
+        entity_kind=EntityType.RESOURCE_TYPE,
         table=ResourceTypeTable,
         traverser=MagicMock(),
         pk_name="resource_type_id",

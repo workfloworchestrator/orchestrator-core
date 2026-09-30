@@ -70,7 +70,7 @@ _EXPECTED_FIELDS = {
 def test_traverse_product_block_definition():
     block = _build_product_block()
 
-    config = ENTITY_CONFIG_REGISTRY[EntityType.METADATA_PRODUCT_BLOCK]
+    config = ENTITY_CONFIG_REGISTRY[EntityType.PRODUCT_BLOCK]
     extracted_fields = config.traverser.get_fields(entity=block, pk_name=config.pk_name, root_name=config.root_name)
     field_map = {field.path: field for field in extracted_fields}
 
@@ -84,9 +84,22 @@ def test_traverse_product_block_definition_excludes_nested_in_use_by_relations()
     """`in_use_by` is summarized one layer deep only — no nested relation fields."""
     block = _build_product_block()
 
-    config = ENTITY_CONFIG_REGISTRY[EntityType.METADATA_PRODUCT_BLOCK]
+    config = ENTITY_CONFIG_REGISTRY[EntityType.PRODUCT_BLOCK]
     extracted_fields = config.traverser.get_fields(entity=block, pk_name=config.pk_name, root_name=config.root_name)
     paths = {field.path for field in extracted_fields}
 
     assert not any(path.startswith("product_block.in_use_by.0.in_use_by") for path in paths)
     assert not any("depends_on" in path for path in paths)
+
+
+def test_traverse_product_block_definition_without_status():
+    """``status`` is nullable in the DB; a block without one must still be indexed."""
+    block = _build_product_block()
+    block.status = None
+
+    config = ENTITY_CONFIG_REGISTRY[EntityType.PRODUCT_BLOCK]
+    extracted_fields = config.traverser.get_fields(entity=block, pk_name=config.pk_name, root_name=config.root_name)
+    field_map = {field.path: field.value for field in extracted_fields}
+
+    assert "product_block.status" not in field_map
+    assert field_map["product_block.name"] == "test_block"

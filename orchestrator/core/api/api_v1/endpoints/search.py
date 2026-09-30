@@ -178,7 +178,7 @@ async def search_product_blocks(
     session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
     return await _perform_search_and_fetch(
-        session, EntityType.METADATA_PRODUCT_BLOCK, request, cursor, include_columns=include_columns
+        session, EntityType.PRODUCT_BLOCK, request, cursor, include_columns=include_columns
     )
 
 
@@ -190,7 +190,7 @@ async def search_resource_types(
     session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
     return await _perform_search_and_fetch(
-        session, EntityType.METADATA_RESOURCE_TYPE, request, cursor, include_columns=include_columns
+        session, EntityType.RESOURCE_TYPE, request, cursor, include_columns=include_columns
     )
 
 

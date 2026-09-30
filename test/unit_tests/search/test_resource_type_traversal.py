@@ -35,7 +35,7 @@ def test_traverse_resource_type_definition():
         description="IPv4 address",
     )
 
-    config = ENTITY_CONFIG_REGISTRY[EntityType.METADATA_RESOURCE_TYPE]
+    config = ENTITY_CONFIG_REGISTRY[EntityType.RESOURCE_TYPE]
     extracted_fields = config.traverser.get_fields(
         entity=resource_type, pk_name=config.pk_name, root_name=config.root_name
     )

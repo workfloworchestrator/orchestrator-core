@@ -265,9 +265,9 @@ def fetch_export_data(entity_type: EntityType, entity_ids: list[str]) -> list[di
             return fetch_product_export_data(entity_ids)
         case EntityType.PROCESS:
             return fetch_process_export_data(entity_ids)
-        case EntityType.METADATA_PRODUCT_BLOCK:
+        case EntityType.PRODUCT_BLOCK:
             return fetch_product_block_export_data(entity_ids)
-        case EntityType.METADATA_RESOURCE_TYPE:
+        case EntityType.RESOURCE_TYPE:
             return fetch_resource_type_export_data(entity_ids)
         case _:
             raise ValueError(f"Unsupported entity type: {entity_type}")

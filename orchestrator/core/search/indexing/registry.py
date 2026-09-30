@@ -175,16 +175,16 @@ ENTITY_CONFIG_REGISTRY: dict[EntityType, EntityConfig] = {
         root_name="workflow",
         title_paths=["workflow.description", "workflow.name"],
     ),
-    EntityType.METADATA_PRODUCT_BLOCK: ProductBlockConfig(
-        entity_kind=EntityType.METADATA_PRODUCT_BLOCK,
+    EntityType.PRODUCT_BLOCK: ProductBlockConfig(
+        entity_kind=EntityType.PRODUCT_BLOCK,
         table=ProductBlockTable,
         traverser=ProductBlockTraverser,
         pk_name="product_block_id",
         root_name="product_block",
         title_paths=["product_block.description", "product_block.name"],
     ),
-    EntityType.METADATA_RESOURCE_TYPE: ResourceTypeConfig(
-        entity_kind=EntityType.METADATA_RESOURCE_TYPE,
+    EntityType.RESOURCE_TYPE: ResourceTypeConfig(
+        entity_kind=EntityType.RESOURCE_TYPE,
         table=ResourceTypeTable,
         traverser=ResourceTypeTraverser,
         pk_name="resource_type_id",
