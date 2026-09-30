@@ -12,19 +12,21 @@
 # limitations under the License.
 
 from http import HTTPStatus
+from typing import Annotated
 
 from fastapi import Path
 from fastapi.exceptions import HTTPException
 from fastapi.routing import APIRouter
 
 from orchestrator.core.services.workflow_user_guides import get_workflow_guide
+from orchestrator.core.types import WorkflowName
 
 router = APIRouter()
 
 
 @router.get("/{workflow_name}", response_model=str)
 async def get_workflow_guide_by_name(
-    workflow_name: str = Path(..., pattern=r"^[a-z][a-z0-9_]*$"),
+    workflow_name: Annotated[WorkflowName, Path()],
 ) -> str:
     if (guide := await get_workflow_guide(workflow_name)) is not None:
         return guide
