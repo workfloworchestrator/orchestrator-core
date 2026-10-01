@@ -20,7 +20,14 @@ from uuid import uuid4
 
 import structlog
 
-from orchestrator.core.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
+from orchestrator.core.db import (
+    ProcessTable,
+    ProductBlockTable,
+    ProductTable,
+    ResourceTypeTable,
+    SubscriptionTable,
+    WorkflowTable,
+)
 from orchestrator.core.domain import (
     SUBSCRIPTION_MODEL_REGISTRY,
     SubscriptionModel,
@@ -34,11 +41,15 @@ from orchestrator.core.search.core.exceptions import ModelLoadError, ProductNotI
 from orchestrator.core.search.core.types import LTREE_SEPARATOR, ExtractedField, FieldType
 from orchestrator.core.search.indexing.schema import iter_model_field_annotations
 from orchestrator.core.search.schemas.process import ProcessIndexSchema
+from orchestrator.core.search.schemas.product_block import ProductBlockIndexSchema
+from orchestrator.core.search.schemas.resource_type import ResourceTypeIndexSchema
 from orchestrator.core.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)
 
-DatabaseEntity = SubscriptionTable | ProductTable | ProcessTable | WorkflowTable
+DatabaseEntity = (
+    SubscriptionTable | ProductTable | ProcessTable | WorkflowTable | ProductBlockTable | ResourceTypeTable
+)
 
 
 class BaseTraverser(ABC):
@@ -339,3 +350,21 @@ class WorkflowTraverser(BaseTraverser):
     def _load_model(cls, workflow: WorkflowTable) -> WorkflowSchema:
         """Load workflow model using WorkflowSchema."""
         return cls._load_model_with_schema(workflow, WorkflowSchema, "workflow_id")
+
+
+class ProductBlockTraverser(BaseTraverser):
+    """Traverser for product block *definitions* (never instance data) using ProductBlockIndexSchema."""
+
+    @classmethod
+    def _load_model(cls, product_block: ProductBlockTable) -> ProductBlockIndexSchema:
+        """Load product block model using ProductBlockIndexSchema."""
+        return cls._load_model_with_schema(product_block, ProductBlockIndexSchema, "product_block_id")
+
+
+class ResourceTypeTraverser(BaseTraverser):
+    """Traverser for resource type definitions (never instance data) using ResourceTypeIndexSchema."""
+
+    @classmethod
+    def _load_model(cls, resource_type: ResourceTypeTable) -> ResourceTypeIndexSchema:
+        """Load resource type model using ResourceTypeIndexSchema."""
+        return cls._load_model_with_schema(resource_type, ResourceTypeIndexSchema, "resource_type_id")
