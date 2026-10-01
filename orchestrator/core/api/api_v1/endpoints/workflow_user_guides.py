@@ -12,22 +12,26 @@
 # limitations under the License.
 
 from http import HTTPStatus
-from typing import Annotated
 
-from fastapi import Path
 from fastapi.exceptions import HTTPException
 from fastapi.routing import APIRouter
 
+from nwastdlib.file_utils import PathOutsideRootError, SafeName
 from orchestrator.core.services.workflow_user_guides import get_workflow_guide
-from orchestrator.core.types import WorkflowName
 
 router = APIRouter()
 
 
 @router.get("/{workflow_name}", response_model=str)
 async def get_workflow_guide_by_name(
-    workflow_name: Annotated[WorkflowName, Path()],
+    workflow_name: SafeName,
 ) -> str:
-    if (guide := await get_workflow_guide(workflow_name)) is not None:
-        return guide
-    raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=f"No workflow guide found for '{workflow_name}'")
+    not_found = HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=f"No workflow guide found for '{workflow_name}'")
+    try:
+        guide = await get_workflow_guide(workflow_name)
+    except PathOutsideRootError:
+        # Deliberately indistinguishable from a missing guide: do not confirm that anything exists outside the root.
+        raise not_found from None
+    if guide is None:
+        raise not_found
+    return guide

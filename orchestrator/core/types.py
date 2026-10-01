@@ -11,13 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections.abc
-import re
 import types
 import typing
 from collections.abc import Callable, Iterable
 from enum import Enum  # noqa: F401 (doctest)
 from http import HTTPStatus
-from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Annotated,
@@ -34,22 +32,18 @@ from uuid import UUID
 import strawberry
 from annotated_types import Len, MaxLen, MinLen
 from more_itertools import first, last
-from pydantic import AfterValidator
 from pydantic.fields import FieldInfo
 
-from nwastdlib.file_utils import SafeName
 from pydantic_forms.types import InputForm, State, strEnum
 
 __all__ = [
     "SAFE_USED_BY_TRANSITIONS_FOR_STATUS",
-    "WORKFLOW_NAME_PATTERN",
     "BroadcastFunc",
     "ErrorDict",
     "ErrorState",
     "StateStepFunc",
     "StepFunc",
     "SubscriptionLifecycle",
-    "WorkflowName",
     "filter_nonetype",
     "get_origin_and_args",
     "get_possible_product_block_types",
@@ -80,30 +74,6 @@ ErrorDict = dict[str, Union[str, int, list[dict[str, Any]], InputForm, None]]
 StateStepFunc = Callable[[State], State]
 StepFunc = Callable[..., Optional[State]]
 BroadcastFunc = Callable[[UUID], None]
-
-#: Workflow names are snake_case by convention: a lowercase letter followed by lowercase letters, digits and
-#: underscores. This rules out path separators, dots and any other character that could escape a directory.
-WORKFLOW_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
-
-
-def _reject_non_snake_case_name(value: Path) -> Path:
-    """Reject a workflow name that does not match `WORKFLOW_NAME_PATTERN`.
-
-    Raises:
-        ValueError: If the name is not snake_case.
-    """
-    if not WORKFLOW_NAME_PATTERN.fullmatch(str(value)):
-        raise ValueError(f"Workflow name '{value}' must be snake_case.")
-    return value
-
-
-#: A workflow name supplied by the caller. `SafeName` from nwa-stdlib rejects characters outside its allowlist,
-#: after which the name is narrowed down to the snake_case convention. The stricter pattern is the one published
-#: in the OpenAPI schema. Containment within a directory is a separate check: use `resolve_within_root`.
-WorkflowName = Annotated[
-    SafeName,
-    AfterValidator(_reject_non_snake_case_name),
-]
 
 SI = TypeVar("SI")
 
