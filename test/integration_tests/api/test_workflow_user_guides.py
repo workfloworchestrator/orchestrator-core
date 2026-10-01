@@ -15,6 +15,7 @@ from http import HTTPStatus
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from orchestrator.core.settings import app_settings
 
@@ -26,16 +27,18 @@ def guide_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def test_get_workflow_guide_not_found(test_client, guide_dir: Path) -> None:
+def test_get_workflow_guide_not_found(test_client: TestClient, guide_dir: Path) -> None:
     response = test_client.get("/api/workflow_user_guides/some_workflow")
     assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.json() == {"detail": "Workflow guide not found"}
 
 
-def test_get_workflow_guide_found(test_client, guide_dir: Path) -> None:
-    (guide_dir / "some_workflow.md").write_text("# Some Workflow", encoding="utf-8")
+@pytest.mark.parametrize("content", ["# Some Workflow", "", "<script>alert('test')</script>"])
+def test_get_workflow_guide_found(test_client: TestClient, guide_dir: Path, content: str) -> None:
+    (guide_dir / "some_workflow.md").write_text(content, encoding="utf-8")
     response = test_client.get("/api/workflow_user_guides/some_workflow")
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == "# Some Workflow"
+    assert response.json() == content
 
 
 @pytest.mark.parametrize(
@@ -46,7 +49,7 @@ def test_get_workflow_guide_found(test_client, guide_dir: Path) -> None:
         pytest.param("some%20workflow", id="space"),
     ],
 )
-def test_get_workflow_guide_invalid_name(test_client, guide_dir: Path, workflow_name: str) -> None:
+def test_get_workflow_guide_invalid_name(test_client: TestClient, guide_dir: Path, workflow_name: str) -> None:
     (guide_dir.parent / "secret.md").write_text("secret", encoding="utf-8")
     response = test_client.get(f"/api/workflow_user_guides/{workflow_name}")
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -62,8 +65,26 @@ def test_get_workflow_guide_invalid_name(test_client, guide_dir: Path, workflow_
         pytest.param("/api/workflow_user_guides/nested/some_workflow", id="subdirectory"),
     ],
 )
-def test_get_workflow_guide_path_traversal_does_not_leak(test_client, guide_dir: Path, path: str) -> None:
+def test_get_workflow_guide_path_traversal_does_not_leak(test_client: TestClient, guide_dir: Path, path: str) -> None:
     (guide_dir.parent / "secret.md").write_text("secret", encoding="utf-8")
     response = test_client.get(path)
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert "secret" not in response.text
+
+
+@pytest.mark.parametrize("target_exists", [True, False], ids=["existing-target", "missing-target"])
+def test_get_workflow_guide_symlink_outside_directory_returns_not_found(
+    test_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target_exists: bool
+) -> None:
+    guide_dir = tmp_path / "guides"
+    guide_dir.mkdir()
+    target = tmp_path / "secret.md"
+    if target_exists:
+        target.write_text("Confidential guide content", encoding="utf-8")
+    (guide_dir / "some_workflow.md").symlink_to(target)
+    monkeypatch.setattr(app_settings, "WORKFLOW_USER_GUIDE_DIR", guide_dir)
+
+    response = test_client.get("/api/workflow_user_guides/some_workflow")
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.json() == {"detail": "Workflow guide not found"}

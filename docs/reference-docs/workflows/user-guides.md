@@ -21,6 +21,11 @@ app_settings.WORKFLOW_USER_GUIDE_DIR = Path("docs/workflow-guides")
 If `WORKFLOW_USER_GUIDE_DIR` is `None` (the default), the endpoint returns `404` for
 every workflow.
 
+Use a directory managed by trusted administrators, preferably mounted read-only for
+the application. Path containment checks reject traversal and external symlinks, but
+do not protect against an untrusted local writer replacing files between validation
+and opening them. Only put content intended for guide readers in this directory.
+
 ## Guide file layout
 
 Each guide is a single Markdown file, named after the workflow it documents:
@@ -45,18 +50,23 @@ GET /api/workflow_user_guides/{workflow_name}
 ```
 
 This endpoint requires authentication, unlike the public `/api/translations` endpoint,
-since guide content is considered more sensitive. It returns:
+since guide content is considered more sensitive. It uses the application's configured
+authentication and authorization; disabling authentication also makes guides accessible
+without credentials. It returns:
 
 - `200` with the guide's Markdown content, if the file exists
 - `404` if no guide is configured or found for that workflow name, or if the name resolves
-  to a file outside `WORKFLOW_USER_GUIDE_DIR` (deliberately indistinguishable from a missing
-  guide)
+  outside `WORKFLOW_USER_GUIDE_DIR` (including external symlinks). Missing and rejected
+  guides return the same response to avoid revealing which names are external symlinks.
 - `422` if `workflow_name` contains characters outside `SafeName`'s allowlist
   (`^[A-Za-z0-9._/-]+$`, from `nwastdlib.file_utils`)
 
 `workflow_name` must fulfil `SafeName` and is a single path segment: guides are looked up
 directly in `WORKFLOW_USER_GUIDE_DIR`, not in subdirectories. A request such as
 `/api/workflow_user_guides/nested/guide` does not match the route and returns `404`.
+
+The response contains a JSON string, not rendered HTML. Clients that render the Markdown
+must sanitize HTML and unsafe links before displaying it.
 
 ::: orchestrator.core.services.workflow_user_guides
     options:

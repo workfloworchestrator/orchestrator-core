@@ -13,7 +13,7 @@
 
 import os
 
-from anyio import Path
+import anyio
 
 from nwastdlib.file_utils import resolve_within_root
 from orchestrator.core.settings import app_settings
@@ -23,8 +23,8 @@ async def get_workflow_guide(workflow_name: str | os.PathLike[str]) -> str | Non
     """Return the Markdown guide for a workflow, or None if not found.
 
     The guide file is resolved inside ``WORKFLOW_USER_GUIDE_DIR``; this function does not assume that
-    ``workflow_name`` has already been validated. File IO is performed via ``anyio.Path`` so the event loop is
-    never blocked.
+    ``workflow_name`` has already been validated. Path resolution is synchronous; the file check and read
+    use the asynchronous wrappers provided by ``anyio.Path``.
 
     Raises:
         PathOutsideRootError: If ``workflow_name`` resolves to a path outside of ``WORKFLOW_USER_GUIDE_DIR``.
@@ -32,7 +32,7 @@ async def get_workflow_guide(workflow_name: str | os.PathLike[str]) -> str | Non
     if app_settings.WORKFLOW_USER_GUIDE_DIR is None:
         return None
 
-    guide_file = Path(resolve_within_root(app_settings.WORKFLOW_USER_GUIDE_DIR, f"{workflow_name}.md"))
+    guide_file = anyio.Path(resolve_within_root(app_settings.WORKFLOW_USER_GUIDE_DIR, f"{workflow_name}.md"))
     if not await guide_file.is_file():
         return None
 

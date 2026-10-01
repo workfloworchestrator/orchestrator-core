@@ -26,12 +26,11 @@ router = APIRouter()
 async def get_workflow_guide_by_name(
     workflow_name: SafeName,
 ) -> str:
-    not_found = HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=f"No workflow guide found for '{workflow_name}'")
     try:
         guide = await get_workflow_guide(workflow_name)
     except PathOutsideRootError:
-        # Deliberately indistinguishable from a missing guide: do not confirm that anything exists outside the root.
-        raise not_found from None
+        # Do not reveal whether a name resolves outside the guide directory or is simply missing.
+        guide = None
     if guide is None:
-        raise not_found
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Workflow guide not found")
     return guide
