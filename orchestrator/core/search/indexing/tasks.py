@@ -90,6 +90,18 @@ def run_indexing_for_entity(
         indexer.run(entities)
 
 
+def run_indexing_for_all_entities(force_index: bool = False) -> None:
+    """Index every registered entity type, then resynchronize the distinct-paths table.
+
+    Unchanged fields are skipped via the hash cache, so this is cheap to run after every
+    migration unless `force_index` is set.
+    """
+    for entity_kind in ENTITY_CONFIG_REGISTRY:
+        logger.info("Indexing entities", entity_kind=entity_kind.value)
+        run_indexing_for_entity(entity_kind=entity_kind, force_index=force_index)
+    rebuild_search_paths()
+
+
 def rebuild_search_paths() -> None:
     """Recompute the ai_search_paths distinct-paths table from ai_search_index.
 

@@ -31,6 +31,7 @@ from orchestrator.core.api.api_v1.endpoints import (
     subscriptions,
     translations,
     user,
+    workflow_user_guides,
     workflows,
     ws,
 )
@@ -87,6 +88,12 @@ api_router.include_router(
     translations.router,
     prefix="/translations",
     tags=["Core", "Translations"],
+)
+api_router.include_router(
+    workflow_user_guides.router,
+    prefix="/workflow_user_guides",
+    tags=["Core", "Workflow User Guides"],
+    dependencies=[Depends(authorize)],
 )
 api_router.include_router(
     ws.router, prefix="/ws", tags=["Core", "Events"]

@@ -10,19 +10,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Checks `merge_state` against `StateMerger`, the deepmerge-based merger it replaced."""
+"""Checks `merge_state` against `StateMerger`, the deprecated deepmerge-based merger it replaced."""
 
 from copy import deepcopy
 from typing import Any
 
 import pytest
-from deepmerge.merger import Merger
 
-from orchestrator.core.services.processes import merge_state
-
-# Exact configuration `StateMerger` used before its removal.
-StateMerger = Merger([(dict, ["merge"])], ["override"], ["override"])
-
+from orchestrator.core.services.processes import StateMerger, merge_state
 
 MERGE_CASES = [
     pytest.param({}, {}, {}, id="both-empty"),
@@ -68,6 +63,7 @@ MERGE_CASES = [
 ]
 
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 @pytest.mark.parametrize("base,nxt,expected", MERGE_CASES)
 def test_merge_state_matches_state_merger(base: dict[str, Any], nxt: dict[str, Any], expected: dict[str, Any]) -> None:
     """Direct head-to-head: `merge_state` and `StateMerger.merge` must agree on every case."""
@@ -76,6 +72,7 @@ def test_merge_state_matches_state_merger(base: dict[str, Any], nxt: dict[str, A
     assert new_result == old_result == expected
 
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 def test_state_merger_mutates_base_in_place() -> None:
     """Documents the old, surprising behaviour that callers used to `deepcopy(state)` to avoid."""
     base = {"a": {"x": 1}}
@@ -85,6 +82,12 @@ def test_state_merger_mutates_base_in_place() -> None:
 
     assert result is base
     assert base == {"a": {"x": 1, "y": 2}}
+
+
+def test_state_merger_is_deprecated() -> None:
+    """`StateMerger` was reinstated after being removed pre-release, but only as a deprecated shim."""
+    with pytest.warns(DeprecationWarning, match="StateMerger is deprecated"):
+        StateMerger.merge({"a": 1}, {"b": 2})
 
 
 def test_merge_state_does_not_mutate_base_or_nxt() -> None:

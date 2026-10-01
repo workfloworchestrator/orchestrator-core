@@ -11,23 +11,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Annotated
+
 import typer
 
 from orchestrator.core.search.core.types import EntityType
-from orchestrator.core.search.indexing import rebuild_search_paths, run_indexing_for_entity
+from orchestrator.core.search.indexing import (
+    rebuild_search_paths,
+    run_indexing_for_all_entities,
+    run_indexing_for_entity,
+)
 
 app = typer.Typer(
     name="index",
     help="Index search indexes",
 )
 
+EntityId = Annotated[str | None, typer.Option(help="UUID (default = all)")]
+DryRun = Annotated[bool, typer.Option(help="No DB writes")]
+ForceIndex = Annotated[bool, typer.Option(help="Force re-index (ignore hash cache)")]
+ShowProgress = Annotated[bool, typer.Option(help="Show per-entity progress")]
+
 
 @app.command("subscriptions")
 def subscriptions_command(
-    subscription_id: str | None = typer.Option(None, help="UUID (default = all)"),
-    dry_run: bool = typer.Option(False, help="No DB writes"),
-    force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
-    show_progress: bool = typer.Option(False, help="Show per-entity progress"),
+    subscription_id: EntityId = None,
+    dry_run: DryRun = False,
+    force_index: ForceIndex = False,
+    show_progress: ShowProgress = False,
 ) -> None:
     """Index subscription_search_index."""
     run_indexing_for_entity(
@@ -41,10 +52,10 @@ def subscriptions_command(
 
 @app.command("products")
 def products_command(
-    product_id: str | None = typer.Option(None, help="UUID (default = all)"),
-    dry_run: bool = typer.Option(False, help="No DB writes"),
-    force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
-    show_progress: bool = typer.Option(False, help="Show per-entity progress"),
+    product_id: EntityId = None,
+    dry_run: DryRun = False,
+    force_index: ForceIndex = False,
+    show_progress: ShowProgress = False,
 ) -> None:
     """Index product_search_index."""
     run_indexing_for_entity(
@@ -58,10 +69,10 @@ def products_command(
 
 @app.command("processes")
 def processes_command(
-    process_id: str | None = typer.Option(None, help="UUID (default = all)"),
-    dry_run: bool = typer.Option(False, help="No DB writes"),
-    force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
-    show_progress: bool = typer.Option(False, help="Show per-entity progress"),
+    process_id: EntityId = None,
+    dry_run: DryRun = False,
+    force_index: ForceIndex = False,
+    show_progress: ShowProgress = False,
 ) -> None:
     """Index process_search_index."""
     run_indexing_for_entity(
@@ -75,10 +86,10 @@ def processes_command(
 
 @app.command("workflows")
 def workflows_command(
-    workflow_id: str | None = typer.Option(None, help="UUID (default = all)"),
-    dry_run: bool = typer.Option(False, help="No DB writes"),
-    force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
-    show_progress: bool = typer.Option(False, help="Show per-entity progress"),
+    workflow_id: EntityId = None,
+    dry_run: DryRun = False,
+    force_index: ForceIndex = False,
+    show_progress: ShowProgress = False,
 ) -> None:
     """Index workflow_search_index."""
     run_indexing_for_entity(
@@ -88,6 +99,46 @@ def workflows_command(
         force_index=force_index,
         show_progress=show_progress,
     )
+
+
+@app.command("product-blocks")
+def product_blocks_command(
+    product_block_id: EntityId = None,
+    dry_run: DryRun = False,
+    force_index: ForceIndex = False,
+    show_progress: ShowProgress = False,
+) -> None:
+    """Index product_block_search_index."""
+    run_indexing_for_entity(
+        entity_kind=EntityType.PRODUCT_BLOCK,
+        entity_id=product_block_id,
+        dry_run=dry_run,
+        force_index=force_index,
+        show_progress=show_progress,
+    )
+
+
+@app.command("resource-types")
+def resource_types_command(
+    resource_type_id: EntityId = None,
+    dry_run: DryRun = False,
+    force_index: ForceIndex = False,
+    show_progress: ShowProgress = False,
+) -> None:
+    """Index resource_type_search_index."""
+    run_indexing_for_entity(
+        entity_kind=EntityType.RESOURCE_TYPE,
+        entity_id=resource_type_id,
+        dry_run=dry_run,
+        force_index=force_index,
+        show_progress=show_progress,
+    )
+
+
+@app.command("all")
+def all_command(force_index: ForceIndex = False) -> None:
+    """Index all entity types and rebuild the ai_search_paths table."""
+    run_indexing_for_all_entities(force_index=force_index)
 
 
 @app.command("rebuild-paths")
