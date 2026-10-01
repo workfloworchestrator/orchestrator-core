@@ -100,9 +100,6 @@ def indexing_subscription_wf():
     return init >> store_subscription_id_step >> done
 
 
-# The shape of a reconcile/validate workflow that fails: the subscription is linked and set out of
-# sync, then a later step raises. The raise replaces the state with an error record, so the only
-# trace of the subscription left for the hook is the `processes_subscriptions` row.
 @workflow(target=Target.SYSTEM, initial_input_form=const(SubscriptionForm))
 def indexing_unsync_then_fail_wf():
     return init >> store_process_subscription() >> unsync_unchecked >> failing_step >> done

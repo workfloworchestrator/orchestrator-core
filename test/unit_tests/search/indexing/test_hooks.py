@@ -44,7 +44,7 @@ def linked_subscriptions_lookup():
     """
     with (
         patch("orchestrator.core.search.indexing.hooks.db"),
-        patch("orchestrator.core.search.indexing.hooks.linked_subscription_ids", return_value=set()) as mock,
+        patch("orchestrator.core.search.indexing.hooks._linked_subscription_ids", return_value=set()) as mock,
     ):
         yield mock
 
