@@ -183,6 +183,7 @@ class ProcessStepTable(BaseModel):
         "pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True
     )
     name = mapped_column(String(), nullable=False)
+    importance = mapped_column(String(20), nullable=False, default="default")
     status = mapped_column(String(50), nullable=False)
     state = mapped_column(pg.JSONB(), nullable=False)
     created_by = mapped_column(String(255), nullable=True)

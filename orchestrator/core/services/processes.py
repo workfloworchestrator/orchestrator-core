@@ -335,6 +335,7 @@ def _get_current_step_to_update(
         current_step = ProcessStepTable(
             process_id=stat.process_id,
             name=step_name,
+            importance=step.importance,
             status=process_state.status,
             state=step_state,
             created_by=stat.current_user,
