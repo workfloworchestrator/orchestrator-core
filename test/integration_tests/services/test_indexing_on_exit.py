@@ -30,12 +30,18 @@ from nwastdlib import const
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing import tasks as indexing_tasks
 from orchestrator.core.services.processes import abort_process, fail_awaiting_process, start_process
 from orchestrator.core.targets import Target
 from orchestrator.core.utils.datetime import nowtz
 from orchestrator.core.workflow import ProcessStatus, callback_step, done, init, inputstep, step, workflow
-from orchestrator.core.workflows.steps import refresh_process_search_index, refresh_subscription_search_index
+from orchestrator.core.workflows.steps import (
+    refresh_process_search_index,
+    refresh_subscription_search_index,
+    store_process_subscription,
+    unsync_unchecked,
+)
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import UUIDstr
 from test.integration_tests.workflows import WorkflowInstanceForTests, assert_aborted
@@ -92,6 +98,11 @@ def indexing_abort_wf():
 @workflow(target=Target.SYSTEM, initial_input_form=const(SubscriptionForm))
 def indexing_subscription_wf():
     return init >> store_subscription_id_step >> done
+
+
+@workflow(target=Target.SYSTEM, initial_input_form=const(SubscriptionForm))
+def indexing_unsync_then_fail_wf():
+    return init >> store_process_subscription() >> unsync_unchecked >> failing_step >> done
 
 
 # Mimics a downstream workflow that has not yet dropped the deprecated refresh steps.
@@ -279,3 +290,17 @@ def test_subscription_in_state_is_indexed(generic_subscription_1):
 
         assert _indexed_values(process_id)["process.last_status"] == ProcessStatus.COMPLETED
         assert _indexed_values(generic_subscription_1), "subscription found in state must be indexed"
+
+
+def test_subscription_locked_by_a_failing_workflow_is_reindexed(generic_subscription_1):
+    """A failed reconcile must show the subscription out of sync on the (index-backed) list page too."""
+    with WorkflowInstanceForTests(indexing_unsync_then_fail_wf, "indexing_unsync_then_fail_wf"):
+        # Index the subscription as it was before the run, so a stale row is what a missed re-index leaves.
+        indexing_tasks.run_indexing_for_entity(EntityType.SUBSCRIPTION, generic_subscription_1)
+        assert _indexed_values(generic_subscription_1)["subscription.insync"] == "True"
+
+        process_id = start_process("indexing_unsync_then_fail_wf", [{"subscription_id": generic_subscription_1}])
+
+        assert db.session.get(ProcessTable, process_id).last_status == ProcessStatus.FAILED
+        assert _indexed_values(process_id)["process.last_status"] == ProcessStatus.FAILED
+        assert _indexed_values(generic_subscription_1)["subscription.insync"] == "False"
