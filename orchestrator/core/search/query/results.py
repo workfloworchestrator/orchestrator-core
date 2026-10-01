@@ -289,7 +289,7 @@ def format_search_response(
     from orchestrator.core.search.retrieval.retrievers import Retriever
 
     if not db_rows:
-        return SearchResponse(results=[], metadata=metadata)
+        return SearchResponse(results=[], metadata=metadata, query_embedding=query_embedding)
 
     user_query = query.query_text
 
