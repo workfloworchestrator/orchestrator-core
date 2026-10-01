@@ -77,10 +77,14 @@ def extract_subscription_ids(state: object) -> set[str]:
 def linked_subscription_ids(process_id: UUID) -> set[str]:
     """Return the subscription ids linked to a process in the `processes_subscriptions` table.
 
-    The link is written by the `store_process_subscription` step, which runs before the lock step in
-    every standard step list. Unlike the final state it survives a step failure: a raising step
-    replaces the whole state with an error record, dropping every subscription the workflow had
-    already modified (e.g. set out of sync).
+    For workflows started on an existing subscription (modify, validate, reconcile, terminate),
+    `create_process` writes the link before any step runs. Create workflows have no subscription id
+    at start; they are linked once `SubscriptionModel.from_product_id()` creates the subscription.
+    Tasks are never linked.
+
+    Unlike the final state, the link survives a step failure: a raising step replaces the whole state
+    with an error record, dropping every subscription the workflow had already modified (e.g. set out
+    of sync).
 
     Args:
         process_id: The process whose linked subscriptions to look up.
