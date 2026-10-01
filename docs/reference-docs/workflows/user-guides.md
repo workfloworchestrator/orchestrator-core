@@ -54,8 +54,9 @@ since guide content is considered more sensitive. It returns:
 - `422` if `workflow_name` contains characters outside `SafeName`'s allowlist
   (`^[A-Za-z0-9._/-]+$`, from `nwastdlib.file_utils`)
 
-The name is not required to be snake_case: any file name that `SafeName` accepts and that
-stays inside the guide directory is served.
+`workflow_name` must fulfil `SafeName` and is a single path segment: guides are looked up
+directly in `WORKFLOW_USER_GUIDE_DIR`, not in subdirectories. A request such as
+`/api/workflow_user_guides/nested/guide` does not match the route and returns `404`.
 
 ::: orchestrator.core.services.workflow_user_guides
     options:
