@@ -74,7 +74,7 @@ def extract_subscription_ids(state: object) -> set[str]:
     return set(chain.from_iterable(map(_extract_ids, values)))
 
 
-def linked_subscription_ids(process_id: UUID) -> set[str]:
+def _linked_subscription_ids(process_id: UUID) -> set[str]:
     """Return the subscription ids linked to a process in the `processes_subscriptions` table.
 
     For workflows started on an existing subscription (modify, validate, reconcile, terminate),
@@ -160,7 +160,7 @@ def _safe_linked_subscription_ids(process_id: UUID) -> set[str]:
     """
     try:
         with db.session.begin_nested():
-            return linked_subscription_ids(process_id)
+            return _linked_subscription_ids(process_id)
     except Exception as ex:
         if llm_settings.SEARCH_INDEXING_STRICT:
             raise
