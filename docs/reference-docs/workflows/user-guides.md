@@ -48,8 +48,14 @@ This endpoint requires authentication, unlike the public `/api/translations` end
 since guide content is considered more sensitive. It returns:
 
 - `200` with the guide's Markdown content, if the file exists
-- `404` if no guide is configured or found for that workflow name
-- `422` if `workflow_name` doesn't match the expected pattern (`^[a-z][a-z0-9_]*$`)
+- `404` if no guide is configured or found for that workflow name, or if the name resolves
+  to a file outside `WORKFLOW_USER_GUIDE_DIR` (deliberately indistinguishable from a missing
+  guide)
+- `422` if `workflow_name` contains characters outside `SafeName`'s allowlist
+  (`^[A-Za-z0-9._/-]+$`, from `nwastdlib.file_utils`)
+
+The name is not required to be snake_case: any file name that `SafeName` accepts and that
+stays inside the guide directory is served.
 
 ::: orchestrator.core.services.workflow_user_guides
     options:
