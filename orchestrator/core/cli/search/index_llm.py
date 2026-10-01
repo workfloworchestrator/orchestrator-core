@@ -16,7 +16,11 @@ from typing import Annotated
 import typer
 
 from orchestrator.core.search.core.types import EntityType
-from orchestrator.core.search.indexing import rebuild_search_paths, run_indexing_for_entity
+from orchestrator.core.search.indexing import (
+    rebuild_search_paths,
+    run_indexing_for_all_entities,
+    run_indexing_for_entity,
+)
 
 app = typer.Typer(
     name="index",
@@ -129,6 +133,12 @@ def resource_types_command(
         force_index=force_index,
         show_progress=show_progress,
     )
+
+
+@app.command("all")
+def all_command(force_index: ForceIndex = False) -> None:
+    """Index all entity types and rebuild the ai_search_paths table."""
+    run_indexing_for_all_entities(force_index=force_index)
 
 
 @app.command("rebuild-paths")
