@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Introduction
 
 Growing numbers of National Research and Education Networks (NREN) are interested in automating and orchestrating their

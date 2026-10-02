@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Scheduling tasks in the Orchestrator
 
 This document covers the moving parts needed to schedule jobs in the orchestrator.

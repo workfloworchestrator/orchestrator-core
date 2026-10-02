@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Testing strategy and writing tests
 
 This guide covers how to write tests for workflows and domain models using

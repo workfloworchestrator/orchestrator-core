@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Run Predicates
 
 Run predicates allow you to conditionally prevent a workflow from starting. A predicate is a callable attached to a workflow via its decorator. It is evaluated before the process is created in the database. If the predicate rejects the workflow, a `StartPredicateError` is raised and no database row is created.

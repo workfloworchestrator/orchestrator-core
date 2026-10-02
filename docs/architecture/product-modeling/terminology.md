@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Terminology
 
 The data and business rules of the products and product blocks are modeled in Workflow Orchestrator domain models. A

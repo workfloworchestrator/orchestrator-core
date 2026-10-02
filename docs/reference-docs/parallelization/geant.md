@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Parallelization in GÉANT
 
 In GÉANT, there are a few tasks and workflows that make use of parallel execution of workflows. These are mostly used

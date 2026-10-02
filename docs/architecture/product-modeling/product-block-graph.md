@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Product Block Instance Graph
 
 A subscription for a specific customer for a product that is deployed on the network is stored in the Workflow

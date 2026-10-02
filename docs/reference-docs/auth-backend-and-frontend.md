@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Authentication and authorization
 
 The `Orchestrator-Core` application incorporates a robust security framework, utilizing OpenID Connect (OIDC) for

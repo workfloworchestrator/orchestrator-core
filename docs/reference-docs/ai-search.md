@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # AI / Hybrid Search
 
 AI / Hybrid Search finds subscriptions, products, processes and workflows by combining several

@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Importing Existing Subscriptions
 When adding new products to Workflow Orchestrator, these products can rely on existing estate in the network that first
 needs to be added to the service database. This page describes a procedure that can be used to have a separate creation

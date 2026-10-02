@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Error tracking
 
 The ``orchestrator-core`` supports [Sentry](https://docs.sentry.io/product/) for

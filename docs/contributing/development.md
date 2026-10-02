@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Setting up a development environment
 
 To add features to the repository follow the following procedure to setup a working development environment.

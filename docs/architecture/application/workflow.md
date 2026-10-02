@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # What is a workflow and how does it work?
 
 The workflow engine is the core of the software, it has been created to execute a number of functions.

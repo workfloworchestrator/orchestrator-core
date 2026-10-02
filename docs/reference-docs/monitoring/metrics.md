@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Collecting Metrics
 
 The ``orchestrator-core`` is capable of exporting metrics on an API endpoint that is compatible with

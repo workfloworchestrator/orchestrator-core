@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # app.py
 
 The app.py module is used in `orchestrator-core` for actually running the entire WFO FastAPI backend and the CLI.

@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Workflows
 
 Workflows are what actually takes a product definition and populates your domain models.
