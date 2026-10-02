@@ -19,7 +19,6 @@ from uuid import uuid4
 import pytest
 
 from nwastdlib.url import URL
-from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.helpers import product_block_paths
 from orchestrator.core.db import (
     FixedInputTable,
@@ -43,6 +42,7 @@ from orchestrator.core.services.subscriptions import (
     unsync,
 )
 from orchestrator.core.targets import Target
+from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.workflow import ProcessStatus, done, init, workflow
 from test.integration_tests.config import (
@@ -882,19 +882,22 @@ def test_subscription_detail_with_in_use_by_ids_not_filtered_self(test_client, p
 
 
 @pytest.mark.parametrize(
-    "test_input",
+    "product_id, subscription_id, allowed, expected_reason",
     [
-        (PORT_A_PRODUCT_ID, PORT_A_SUBSCRIPTION_ID, "subscription.no_modify_invalid_status"),
-        (PORT_B_PRODUCT_ID, SSP_SUBSCRIPTION_ID, "subscription.insufficient_workflow_permissions"),
+        (PORT_A_PRODUCT_ID, PORT_A_SUBSCRIPTION_ID, False, "subscription.no_modify_invalid_status"),
+        (PORT_B_PRODUCT_ID, SSP_SUBSCRIPTION_ID, False, "subscription.insufficient_workflow_permissions"),
+        (PORT_B_PRODUCT_ID, SSP_SUBSCRIPTION_ID, True, None),
     ],
+    # Explicit ids: the id constants are generated per process, so value-derived ids differ between xdist workers
+    ids=["invalid_status", "forbidden", "allowed"],
 )
-def test_subscription_detail_with_forbidden_workflow_without_override(seed, test_client, test_input):
-    product_id, subscription_id, expected_error = test_input
+def test_subscription_detail_with_forbidden_workflow_without_override(
+    seed, test_client, product_id, subscription_id, allowed, expected_reason
+):
+    async def authorize(_: AuthContext) -> bool:
+        return allowed
 
-    def disallow(_: OIDCUserModel | None = None) -> bool:
-        return False
-
-    @workflow(target=Target.MODIFY, authorize_callback=disallow)
+    @workflow(target=Target.MODIFY, authorize_callback=authorize)
     def unauthorized_workflow():
         return init >> done
 
@@ -908,8 +911,8 @@ def test_subscription_detail_with_forbidden_workflow_without_override(seed, test
 
         subscription_workflows = response.json()
         assert len(subscription_workflows["modify"]) == 1
-        assert "reason" in subscription_workflows["modify"][0]
-        assert subscription_workflows["modify"][0]["reason"] == expected_error
+        # The reason key is absent when the workflow may be started (response_model_exclude_none)
+        assert subscription_workflows["modify"][0].get("reason") == expected_reason
 
 
 def test_subscription_set_in_sync_not_found(test_client):
