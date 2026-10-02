@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # The Orchestrator Shell
 
 For different reasons, it could be that incorrect information somehow ends up in the Orchestrator database. For the

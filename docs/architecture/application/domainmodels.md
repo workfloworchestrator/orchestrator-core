@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Domain Models - Why do we need them?
 
 Domain Models are designed to help the developer manage complex subscription models and interact with the objects in a

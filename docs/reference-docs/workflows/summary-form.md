@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Summary Forms
 
 !!! info "New in `orchestrator-core` 5.2.0"

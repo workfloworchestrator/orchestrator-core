@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Websockets
 
 Orchestrator provides a websocket interface through which the frontend can receive real-time updates. This includes:

@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Philosophy
 The Workflow Orchestrator is a framework of tools that help the developer create workflow to modify the lifecycle of
 subscribed products. It is un-opinionated in what it can orchestrate, but very opinionated in how. The Orchestrator is

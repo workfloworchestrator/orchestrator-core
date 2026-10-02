@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # IP static
 
 The modeling of the IP static service is slightly more difficult. Luckily, we

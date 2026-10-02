@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Context
 
 The models described further on assume an Ethernet network that consists of nodes where each node has physical ports.

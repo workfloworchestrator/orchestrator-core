@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Architecture; TLDR
 
 The architecture of how the orchestrator-core is setup can be split in two sections. The orchestration philosophy of how

@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Workflow User Guides
 
 Orchestrator can serve a Markdown guide alongside a workflow, for operators who need

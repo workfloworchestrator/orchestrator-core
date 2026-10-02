@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Backfilling Existing Subscriptions
 When updating a product block that already exists in your orchestrator, it could be the case that new attributes are
 added or removed. When removing resource types from a `ProductBlock`, the `migrate-domain-models` command is able to

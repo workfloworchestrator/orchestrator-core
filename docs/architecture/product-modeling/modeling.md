@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Modeling
 
 There are several ways in which network service products can be modeled and split up into logical parts (product

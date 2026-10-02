@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Parallelization in SURF
 
 At SURF, parallelization is implemented through a couple of workarounds rather than a dedicated framework. There are two

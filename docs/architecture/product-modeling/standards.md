@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Standards
 
 There are many standards describing how network service products and their attributes can be modeled. Most of these are

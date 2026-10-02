@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Docker Compose (example orchestrator)
 
 The [example-orchestrator](https://github.com/workfloworchestrator/example-orchestrator) repository

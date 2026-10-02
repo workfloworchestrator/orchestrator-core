@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # L2 VPN
 
 The Layer 2 VPN service is much like the Layer 2 point-to-point service, which

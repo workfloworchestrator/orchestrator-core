@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Packaging
 
 For the distribution of the `orchestrator-core`, from version `5.0.0` onward we make use of a namespace package.

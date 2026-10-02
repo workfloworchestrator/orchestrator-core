@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Parallelization
 
 For some workloads performed by the orchestrator, it can be beneficial to run workflows or workflow steps in parallel.

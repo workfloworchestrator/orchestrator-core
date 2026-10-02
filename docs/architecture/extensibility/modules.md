@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Optional modules
 
 For the development of optional modules of the Workflow Orchestrator, like `orchestrator-optical`, a submodule in the

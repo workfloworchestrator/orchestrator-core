@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # GraphQL documentation
 
 The `orchestrator-core` comes with a GraphQL interface that can to be registered after you create your OrchestratorApp.

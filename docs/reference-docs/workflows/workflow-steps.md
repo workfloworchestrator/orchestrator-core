@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Workflow Steps
 
 Workflows are what actually takes a product definition and populates your domain models. To read more about the architectural design of workflows check out [the architecture page on workflows.](../../architecture/application/workflow.md) To see more details about the types of steps that are available for use, read on to the next section.

@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Scaling the Orchestrator
 
 By default the Orchestrator is capable to handle a reasonable amount of workflows and tasks. For a larger and more

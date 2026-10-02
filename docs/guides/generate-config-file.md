@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Generating a Config File
 
 This guide describes the YAML product configuration file format used by the

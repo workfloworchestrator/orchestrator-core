@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Settings overview in Orchestrator
 
 You can use the `api/settings/overview` endpoint to get an overview of the settings that are used in the application.

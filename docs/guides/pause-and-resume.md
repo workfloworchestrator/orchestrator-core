@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Pausing the Orchestrator
 
 This document explains the different Orchestrator Engine states and outlines the various methods to

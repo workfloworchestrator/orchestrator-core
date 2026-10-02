@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Command Line Interface Commands
 
 This page documents CLI commands available in orchestrator-core.

@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Conditional Steps
 
 `conditional` lets you skip individual workflow steps at runtime based on the

@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # L2 Point-to-Point
 
 The Layer 2 point-to-point service is modeled using two product blocks. The `L2p2pVirtualCircuitBlock` root product block holds the

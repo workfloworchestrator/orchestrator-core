@@ -1,3 +1,9 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: 
+reviewed: false
+---
+
 # Base application
 
 By following these steps you can start a bare orchestrator application that can be used to run workflows. This
