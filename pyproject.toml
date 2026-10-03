@@ -42,7 +42,7 @@ dependencies = [
     "click==8.*",
     "deepmerge==3.0.1",
     "deprecated>=1.2.18",
-    "fastapi~=0.141.1",
+    "fastapi~=0.142.1",
     "fastapi-etag==0.4.0",
     "httpx>=0.28.0,<1.0",
     "itsdangerous>=2.2.0",
