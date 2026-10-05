@@ -57,5 +57,9 @@ def test_every_term_is_scored_and_gated(fuzzy_term, gates):
     sql = str(stmt.compile(dialect=postgresql.dialect()))
 
     assert sql.count("<%") == gates
-    assert sql.count("max(word_similarity(") == gates
-    assert "ranked_fuzzy.score >= %(score_1)s" in sql
+    # Each term's best score appears in the SELECT list and again in the HAVING threshold.
+    assert sql.count("max(word_similarity(") == 2 * gates
+    # The threshold is applied in HAVING, before any highlight is computed.
+    assert sql.count("HAVING") == 1
+    assert "OVER (" not in sql
+    assert "LATERAL" in sql

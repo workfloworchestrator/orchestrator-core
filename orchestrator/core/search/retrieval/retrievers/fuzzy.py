@@ -52,18 +52,11 @@ class FuzzyRetriever(Retriever):
         tokens = fuzzy_tokens(self.fuzzy_term)
         token_similarities = [func.word_similarity(token, AiSearchIndex.value) for token in tokens]
 
-        # Highlight the field with the highest average similarity; prefer shorter paths on ties.
-        field_similarity = reduce(add, token_similarities) / len(tokens)
-        highlight_order = [field_similarity.desc(), func.nlevel(AiSearchIndex.path).asc(), AiSearchIndex.path.asc()]
-
         # Take each term's best score across the entity's fields, then average those scores.
-        token_best = [
-            func.max(similarity).over(partition_by=AiSearchIndex.entity_id) for similarity in token_similarities
-        ]
-        raw_score = reduce(add, token_best) / len(tokens)
+        raw_score = reduce(add, (func.max(similarity) for similarity in token_similarities)) / len(tokens)
         score = cast(
             func.round(cast(raw_score, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
-        ).label(self.SCORE_LABEL)
+        )
 
         is_searchable = AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES)
         # Find entities with a field matching any term. The <% operator can use the trigram index.
@@ -75,42 +68,44 @@ class FuzzyRetriever(Retriever):
         # Check candidate membership per matching row so candidate filters do not drive the initial scan.
         hits = self._restrict_to_candidates(gated, candidate_query, probe=True).subquery("fuzzy_hits")
 
-        # Score all searchable fields of these entities so partial matches also contribute.
+        # Score all searchable fields of these entities so partial matches also contribute. A common term
+        # makes this set large, so it is reduced with a plain aggregate and HAVING: no window functions or
+        # per-partition sorts, and everything below MIN_SCORE is dropped before anything else is computed.
         scored = (
-            select(
-                AiSearchIndex.entity_id,
-                AiSearchIndex.entity_title,
-                score,
-                func.first_value(AiSearchIndex.value)
-                .over(partition_by=AiSearchIndex.entity_id, order_by=highlight_order)
-                .label(self.HIGHLIGHT_TEXT_LABEL),
-                func.first_value(AiSearchIndex.path)
-                .over(partition_by=AiSearchIndex.entity_id, order_by=highlight_order)
-                .label(self.HIGHLIGHT_PATH_LABEL),
-            )
+            select(AiSearchIndex.entity_id, AiSearchIndex.entity_title, score.label(self.SCORE_LABEL))
             .select_from(AiSearchIndex)
             .join(hits, hits.c.entity_id == AiSearchIndex.entity_id)
             .where(is_searchable)
-            .distinct(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
+            .group_by(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
+            .having(score >= self.MIN_SCORE)
+            .subquery("ranked_fuzzy")
         )
-        # An outer query is needed to filter the score calculated by the window functions above.
-        final_query = scored.subquery("ranked_fuzzy")
 
-        stmt = (
+        # Only the entities that passed the threshold get a highlight: the field with the highest average
+        # similarity, preferring shorter paths on ties. The lateral lookup runs per surviving entity.
+        field_similarity = reduce(add, token_similarities) / len(tokens)
+        highlight = (
             select(
-                final_query.c.entity_id,
-                final_query.c.entity_title,
-                final_query.c.score,
-                final_query.c.highlight_text,
-                final_query.c.highlight_path,
+                AiSearchIndex.value.label(self.HIGHLIGHT_TEXT_LABEL),
+                AiSearchIndex.path.label(self.HIGHLIGHT_PATH_LABEL),
             )
-            .select_from(final_query)
-            .where(final_query.c.score >= self.MIN_SCORE)
+            .where(and_(AiSearchIndex.entity_id == scored.c.entity_id, is_searchable))
+            .order_by(field_similarity.desc(), func.nlevel(AiSearchIndex.path).asc(), AiSearchIndex.path.asc())
+            .limit(1)
+            .lateral("fuzzy_highlight")
         )
 
-        stmt = self._apply_score_pagination(stmt, final_query.c.score, final_query.c.entity_id)
+        stmt = select(
+            scored.c.entity_id,
+            scored.c.entity_title,
+            scored.c.score,
+            highlight.c.highlight_text,
+            highlight.c.highlight_path,
+        ).select_from(scored.join(highlight, literal(True)))
 
-        return stmt.order_by(final_query.c.score.desc().nulls_last(), final_query.c.entity_id.asc())
+        stmt = self._apply_score_pagination(stmt, scored.c.score, scored.c.entity_id)
+
+        return stmt.order_by(scored.c.score.desc().nulls_last(), scored.c.entity_id.asc())
 
     @property
     def metadata(self) -> SearchMetadata:
