@@ -904,6 +904,28 @@ class APSchedulerJobStoreModel(BaseModel):
     job_state = mapped_column(LargeBinary, nullable=False)
 
 
+class WorkflowDesignerDefinitionTable(BaseModel):
+    """What a workflow designed in the GUI runs: its initial form fields and the steps it consists of.
+
+    The `workflows` row is what the engine needs to start and list the workflow; this table holds the definition the
+    workflow designer builds it from.
+    """
+
+    __tablename__ = "workflow_designer_definitions"
+
+    workflow_id = mapped_column(
+        UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), primary_key=True, nullable=False
+    )
+    definition = mapped_column(pg.JSONB(), nullable=False)
+    # Bumped on every update, so cached workflows built from an older definition are rebuilt.
+    version = mapped_column(Integer(), nullable=False, server_default=text("1"))
+    created_by = mapped_column(String(255), nullable=True)
+    created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+    updated_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), onupdate=nowtz, nullable=False)
+
+    workflow = relationship("WorkflowTable", lazy="joined")
+
+
 class WorkflowApschedulerJob(BaseModel):
     __tablename__ = "workflows_apscheduler_jobs"
 

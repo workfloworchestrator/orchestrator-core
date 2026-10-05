@@ -131,6 +131,24 @@ class AppSettings(BaseSettings):
     EXPOSE_OAUTH_SETTINGS: bool = False
     LIFECYCLE_VALIDATION_MODE: LifecycleValidationMode = LifecycleValidationMode.LOOSE
     MCP_ENABLED: bool = False
+    WORKFLOW_DESIGNER_ENABLED: bool = Field(
+        False,
+        description=(
+            "Mount the workflow designer API at /api/workflow-designer. Workflows that were designed earlier keep "
+            "running when it is disabled."
+        ),
+    )
+    WORKFLOW_DESIGNER_NAME_PREFIX: str = Field(
+        "designed_",
+        description=(
+            "Prefix of every workflow designed in the GUI, so they can never shadow a workflow defined in code. "
+            "Do not change it once designed workflows exist: they would no longer be found."
+        ),
+    )
+    WORKFLOW_DESIGNER_STEP_PACKAGES: list[str] = Field(
+        default_factory=lambda: ["orchestrator.core.workflows"],
+        description="Packages whose module level steps the workflow designer offers; add your own workflows package.",
+    )
     CELERY_TARGET_QUEUES: dict[Target, str] = Field(
         default_factory=dict,
         description=(

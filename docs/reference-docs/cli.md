@@ -871,3 +871,24 @@ To register your own project's schedules from code, see
       heading_level: 3
       members:
       - "load_schedules"
+
+## workflow-designer
+
+Inspect the steps a [designed workflow](workflows/workflow-designer.md) can use, and the designed workflows. Both
+commands only read.
+
+::: orchestrator.core.cli.workflow_designer
+    options:
+      docstring_style: google
+      separate_signature: false
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+      members:
+      - "scan_steps"
+      - "list_designed_workflows"

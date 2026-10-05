@@ -47,6 +47,7 @@ orchestrator/core/
   search/      LLM search subsystem
   services/    Business logic services
   workflows/   Workflow DSL & execution engine
+  workflow_designer/  Runtime-composed task workflows from existing steps (API + `workflow-designer` CLI)
   websocket/   Real-time WebSocket support
   app.py       Core FastAPI application
 test/

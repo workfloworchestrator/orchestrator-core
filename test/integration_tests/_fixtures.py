@@ -419,6 +419,7 @@ def make_orchestrator_app():
         patch.multiple(
             app_settings,
             ENABLE_PROMETHEUS_METRICS_ENDPOINT=True,
+            WORKFLOW_DESIGNER_ENABLED=True,
             ENVIRONMENT="TESTING",
         ),
     ):

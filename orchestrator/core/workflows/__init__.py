@@ -156,4 +156,9 @@ LazyWorkflowInstance(".tasks.validate_products", "task_validate_products")
 LazyWorkflowInstance(".tasks.validate_product_type", "task_validate_product_type")
 LazyWorkflowInstance(".tasks.validate_subscriptions", "task_validate_subscriptions")
 
+# Workflows designed in the GUI live in the database; registering their source here makes every process resolve them.
+from orchestrator.core.workflow_designer.source import designed_workflows  # noqa: E402
+
+register_workflow_source(designed_workflows)
+
 __doc__ = make_workflow_index_doc(ALL_WORKFLOWS)

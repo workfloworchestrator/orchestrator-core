@@ -218,6 +218,19 @@ class OrchestratorCore(FastAPI):
             metrics_app = make_asgi_app(registry=ORCHESTRATOR_METRICS_REGISTRY)
             self.mount("/api/metrics", metrics_app)
 
+        if base_settings.WORKFLOW_DESIGNER_ENABLED:
+            from fastapi import Depends
+
+            from orchestrator.core.security import authorize
+            from orchestrator.core.workflow_designer.api import router as workflow_designer_router
+
+            self.include_router(
+                workflow_designer_router,
+                prefix="/api/workflow-designer",
+                tags=["Core", "Workflow Designer"],
+                dependencies=[Depends(authorize)],
+            )
+
         if base_settings.MCP_ENABLED:
             from orchestrator.core.mcp.server import mount_mcp
 
