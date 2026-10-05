@@ -295,11 +295,25 @@ async def get_ai_search_index_by_entity_type_and_path(
     return result.scalar_one_or_none()
 
 
+async def has_ai_search_index_for_entity_type(entity_type: EntityType, session: AsyncSession) -> bool:
+    stmt = select(AiSearchIndex.entity_id).where(AiSearchIndex.entity_type == entity_type.value).limit(1)
+    result = await session.execute(stmt)
+    return result.first() is not None
+
+
 async def validate_structured_order_by_element(
     entity_type: EntityType | None, request: SearchRequest | None, session: AsyncSession
 ) -> None:
+    """Validate that the structured order_by element is an indexed path for the entity type.
+
+    Paths are only known from indexed values, so an entity type with nothing indexed cannot be
+    validated; the search then returns no results instead of rejecting a valid field.
+
+    Raises:
+        ValueError: If the entity type has indexed rows but none for the order_by element.
+    """
     if request and request.order_by and entity_type:
         element = request.order_by.element
         exists = await get_ai_search_index_by_entity_type_and_path(entity_type, element, session)
-        if not exists:
+        if not exists and await has_ai_search_index_for_entity_type(entity_type, session):
             raise ValueError(f"Element {element} is not a valid path")
