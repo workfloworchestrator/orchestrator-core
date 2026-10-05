@@ -11,6 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import reduce
+from operator import add
+
+from more_itertools import unique_everseen
 from sqlalchemy import Select, and_, cast, func, literal, or_, select
 from sqlalchemy.sql.expression import ColumnElement
 
@@ -20,25 +24,68 @@ from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
 
 
+def fuzzy_tokens(fuzzy_term: str) -> list[str]:
+    """The whitespace-separated terms of the query that are matched independently.
+
+    Terms are deduplicated case-insensitively (trigrams ignore case) and terms without an alphanumeric
+    character are dropped, as pg_trgm extracts no trigrams from them and they would only drag the score
+    down. A query without any such term is matched as a whole.
+    """
+    tokens = [token for token in fuzzy_term.split() if any(char.isalnum() for char in token)]
+    return list(unique_everseen(tokens, key=str.casefold)) or [fuzzy_term]
+
+
 class FuzzyRetriever(Retriever):
-    """Ranks results based on the max of fuzzy text similarity scores."""
+    """Ranks entities by how well each query term trigram-matches their fields.
+
+    Every term of the query is matched on its own, so terms need not be adjacent nor in the same field:
+    ``ACM LIR`` matches ``ACM prefix LIR``. A term's score is its best ``word_similarity`` over the
+    entity's fields and the entity's score is the mean over the terms, so an entity that matches all
+    terms ranks above one that matches some, while each term keeps its typo tolerance.
+
+    An entity is a hit when one of its fields passes the trigram gate for any term, so the trigram index
+    still drives the plan. Hits are then scored over all their searchable fields, including those that
+    did not pass the gate: a term that only partially matches a field still counts towards the mean. An
+    entity is kept when its score reaches ``MIN_SCORE``, the default word similarity threshold of the
+    gate: a single common term such as ``with`` matching does not make an entity a fuzzy hit.
+    """
+
+    MIN_SCORE = 0.6
 
     def __init__(self, fuzzy_term: str, cursor: PageCursor | None) -> None:
         self.fuzzy_term = fuzzy_term
         self.cursor = cursor
 
     def apply(self, candidate_query: Select) -> Select:
-        similarity_expr = func.word_similarity(self.fuzzy_term, AiSearchIndex.value)
-        # The highlighted field is the best match, and among equally good ones the shallowest: an entity's
-        # own description over the same text inside a nested block.
-        highlight_order = [similarity_expr.desc(), func.nlevel(AiSearchIndex.path).asc(), AiSearchIndex.path.asc()]
+        tokens = fuzzy_tokens(self.fuzzy_term)
+        token_similarities = [func.word_similarity(token, AiSearchIndex.value) for token in tokens]
 
-        raw_max = func.max(similarity_expr).over(partition_by=AiSearchIndex.entity_id)
+        # The highlighted field is the one matching the terms best, and among equally good ones the
+        # shallowest: an entity's own description over the same text inside a nested block.
+        field_similarity = reduce(add, token_similarities) / len(tokens)
+        highlight_order = [field_similarity.desc(), func.nlevel(AiSearchIndex.path).asc(), AiSearchIndex.path.asc()]
+
+        token_best = [
+            func.max(similarity).over(partition_by=AiSearchIndex.entity_id) for similarity in token_similarities
+        ]
+        raw_score = reduce(add, token_best) / len(tokens)
         score = cast(
-            func.round(cast(raw_max, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
+            func.round(cast(raw_score, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
         ).label(self.SCORE_LABEL)
 
+        is_searchable = AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES)
         gated = (
+            select(AiSearchIndex.entity_id)
+            .where(and_(is_searchable, or_(*(literal(token).op("<%")(AiSearchIndex.value) for token in tokens))))
+            .group_by(AiSearchIndex.entity_id)
+        )
+        # Trigram hits are few: probing candidate membership per hit keeps the trigram index driving the
+        # plan even under a broad structured filter, where joining the candidate set does not.
+        hits = self._restrict_to_candidates(gated, candidate_query, probe=True).subquery("fuzzy_hits")
+
+        # Every searchable field of a hit is scored, not only the gated ones, so each term's best match
+        # comes from all of the entity's fields.
+        scored = (
             select(
                 AiSearchIndex.entity_id,
                 AiSearchIndex.entity_title,
@@ -51,27 +98,23 @@ class FuzzyRetriever(Retriever):
                 .label(self.HIGHLIGHT_PATH_LABEL),
             )
             .select_from(AiSearchIndex)
-            .where(
-                and_(
-                    AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
-                    literal(self.fuzzy_term).op("<%")(AiSearchIndex.value),
-                )
-            )
+            .join(hits, hits.c.entity_id == AiSearchIndex.entity_id)
+            .where(is_searchable)
+            .distinct(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
         )
-        # Trigram hits are few: probing candidate membership per hit keeps the trigram index driving the
-        # plan even under a broad structured filter, where joining the candidate set does not.
-        combined_query = self._restrict_to_candidates(gated, candidate_query, probe=True).distinct(
-            AiSearchIndex.entity_id, AiSearchIndex.entity_title
-        )
-        final_query = combined_query.subquery("ranked_fuzzy")
+        final_query = scored.subquery("ranked_fuzzy")
 
-        stmt = select(
-            final_query.c.entity_id,
-            final_query.c.entity_title,
-            final_query.c.score,
-            final_query.c.highlight_text,
-            final_query.c.highlight_path,
-        ).select_from(final_query)
+        stmt = (
+            select(
+                final_query.c.entity_id,
+                final_query.c.entity_title,
+                final_query.c.score,
+                final_query.c.highlight_text,
+                final_query.c.highlight_path,
+            )
+            .select_from(final_query)
+            .where(final_query.c.score >= self.MIN_SCORE)
+        )
 
         stmt = self._apply_score_pagination(stmt, final_query.c.score, final_query.c.entity_id)
 
