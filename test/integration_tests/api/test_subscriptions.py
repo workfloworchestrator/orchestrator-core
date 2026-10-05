@@ -911,8 +911,12 @@ def test_subscription_detail_with_forbidden_workflow_without_override(
 
         subscription_workflows = response.json()
         assert len(subscription_workflows["modify"]) == 1
-        # The reason key is absent when the workflow may be started (response_model_exclude_none)
-        assert subscription_workflows["modify"][0].get("reason") == expected_reason
+        workflow_response = subscription_workflows["modify"][0]
+        if expected_reason is None:
+            # response_model_exclude_none drops the key when the workflow may be started
+            assert "reason" not in workflow_response
+        else:
+            assert workflow_response["reason"] == expected_reason
 
 
 def test_subscription_set_in_sync_not_found(test_client):
