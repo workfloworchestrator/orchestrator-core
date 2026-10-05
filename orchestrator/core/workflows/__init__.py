@@ -13,8 +13,10 @@
 
 
 from importlib import import_module
+from typing import Protocol, runtime_checkable
 
 import structlog
+from more_itertools import first
 
 from orchestrator.core.utils.docs import make_workflow_index_doc
 from orchestrator.core.workflow import Workflow
@@ -98,14 +100,49 @@ class LazyWorkflowInstance:
         return f"LazyWorkflowInstance('{self.package}','{self.function}')"
 
 
+@runtime_checkable
+class WorkflowSource(Protocol):
+    """Provides workflows that are not registered in code with a `LazyWorkflowInstance`, e.g. stored in the database.
+
+    A source is consulted for names that are not in `ALL_WORKFLOWS`, so a workflow defined in code always wins.
+    """
+
+    def get(self, name: str) -> Workflow | None:
+        """Return the workflow called `name`, or None when this source does not provide it."""
+        ...
+
+    def names(self) -> set[str]:
+        """Return the names of all workflows this source provides."""
+        ...
+
+
+WORKFLOW_SOURCES: list[WorkflowSource] = []
+
+
+def register_workflow_source(source: WorkflowSource) -> None:
+    """Make `get_workflow` fall back to `source` for names that are not registered in code."""
+    if source not in WORKFLOW_SOURCES:
+        WORKFLOW_SOURCES.append(source)
+
+
+def source_workflow_names() -> set[str]:
+    """Names of the workflows provided by registered sources rather than by code."""
+    return {name for source in WORKFLOW_SOURCES for name in source.names()}
+
+
+def all_workflow_names() -> set[str]:
+    """Names of every workflow that `get_workflow` can resolve."""
+    return set(ALL_WORKFLOWS) | source_workflow_names()
+
+
 def get_workflow(name: str) -> Workflow | None:
-    wi = ALL_WORKFLOWS.get(name)
+    if wi := ALL_WORKFLOWS.get(name):
+        return wi.instantiate()
 
-    if not wi:
-        logger.debug("LazyWorkflowInstance not found with this name", name=name)
-        return None
-
-    return wi.instantiate()
+    workflow = first((wf for source in WORKFLOW_SOURCES if (wf := source.get(name)) is not None), None)
+    if workflow is None:
+        logger.debug("Workflow not found with this name", name=name)
+    return workflow
 
 
 # Modify
