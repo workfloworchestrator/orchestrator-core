@@ -58,30 +58,26 @@ class FuzzyRetriever(Retriever):
             func.round(cast(raw_score, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
         )
 
-        is_searchable = AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES)
-        # Find entities with a field matching any term. The <% operator can use the trigram index.
+        # Fields matching any term; the <% operator uses the trigram index. A term's best score lives in
+        # these rows whenever it gated one (<% is exactly word_similarity >= 0.6), so scoring only the gated
+        # fields is a single index-driven pass. The only thing not counted is partial credit for a term in a
+        # field no term gated; that trades a join-back of every field of every hit, which a common term
+        # like "prefix" turns into a scan of most of the table.
+        is_gated = and_(
+            AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
+            or_(*(literal(token).op("<%")(AiSearchIndex.value) for token in tokens)),
+        )
         gated = (
-            select(AiSearchIndex.entity_id)
-            .where(and_(is_searchable, or_(*(literal(token).op("<%")(AiSearchIndex.value) for token in tokens))))
-            .group_by(AiSearchIndex.entity_id)
+            select(AiSearchIndex.entity_id, AiSearchIndex.entity_title, score.label(self.SCORE_LABEL))
+            .where(is_gated)
+            .group_by(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
+            # The threshold is applied inside the aggregation, before anything else is computed.
+            .having(score >= self.MIN_SCORE)
         )
         # Check candidate membership per matching row so candidate filters do not drive the initial scan.
-        hits = self._restrict_to_candidates(gated, candidate_query, probe=True).subquery("fuzzy_hits")
+        scored = self._restrict_to_candidates(gated, candidate_query, probe=True).subquery("ranked_fuzzy")
 
-        # Score all searchable fields of these entities so partial matches also contribute. A common term
-        # makes this set large, so it is reduced with a plain aggregate and HAVING: no window functions or
-        # per-partition sorts, and everything below MIN_SCORE is dropped before anything else is computed.
-        scored = (
-            select(AiSearchIndex.entity_id, AiSearchIndex.entity_title, score.label(self.SCORE_LABEL))
-            .select_from(AiSearchIndex)
-            .join(hits, hits.c.entity_id == AiSearchIndex.entity_id)
-            .where(is_searchable)
-            .group_by(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
-            .having(score >= self.MIN_SCORE)
-            .subquery("ranked_fuzzy")
-        )
-
-        # Only the entities that passed the threshold get a highlight: the field with the highest average
+        # Only entities that passed the threshold get a highlight: the gated field with the highest average
         # similarity, preferring shorter paths on ties. The lateral lookup runs per surviving entity.
         field_similarity = reduce(add, token_similarities) / len(tokens)
         highlight = (
@@ -89,7 +85,7 @@ class FuzzyRetriever(Retriever):
                 AiSearchIndex.value.label(self.HIGHLIGHT_TEXT_LABEL),
                 AiSearchIndex.path.label(self.HIGHLIGHT_PATH_LABEL),
             )
-            .where(and_(AiSearchIndex.entity_id == scored.c.entity_id, is_searchable))
+            .where(and_(AiSearchIndex.entity_id == scored.c.entity_id, is_gated))
             .order_by(field_similarity.desc(), func.nlevel(AiSearchIndex.path).asc(), AiSearchIndex.path.asc())
             .limit(1)
             .lateral("fuzzy_highlight")

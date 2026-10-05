@@ -50,13 +50,16 @@ def test_fuzzy_tokens(fuzzy_term, expected):
     ],
 )
 def test_every_term_is_scored_and_gated(fuzzy_term, gates):
-    """Each term gets its own trigram gate, OR-ed so a field matching any term is a hit."""
+    """Each term gets its own trigram gate, OR-ed so a field matching any term is a hit.
+
+    The same gate restricts the scoring scan and the lateral highlight lookup.
+    """
     candidates = select(AiSearchIndex.entity_id, AiSearchIndex.entity_title).distinct()
     stmt = FuzzyRetriever(fuzzy_term, cursor=None).apply(candidates)
 
     sql = str(stmt.compile(dialect=postgresql.dialect()))
 
-    assert sql.count("<%") == gates
+    assert sql.count("<%") == 2 * gates
     # Each term's best score appears in the SELECT list and again in the HAVING threshold.
     assert sql.count("max(word_similarity(") == 2 * gates
     # The threshold is applied in HAVING, before any highlight is computed.
