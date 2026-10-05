@@ -25,29 +25,21 @@ from orchestrator.core.search.retrieval.retrievers.base import Retriever
 
 
 def fuzzy_tokens(fuzzy_term: str) -> list[str]:
-    """The whitespace-separated terms of the query that are matched independently.
+    """Split the query on whitespace and remove case-insensitive duplicates.
 
-    Terms are deduplicated case-insensitively (trigrams ignore case) and terms without an alphanumeric
-    character are dropped, as pg_trgm extracts no trigrams from them and they would only drag the score
-    down. A query without any such term is matched as a whole.
+    Drop terms without letters or numbers because they have no trigrams to match.
+    If none remain, return the original query as a single term.
     """
     tokens = [token for token in fuzzy_term.split() if any(char.isalnum() for char in token)]
     return list(unique_everseen(tokens, key=str.casefold)) or [fuzzy_term]
 
 
 class FuzzyRetriever(Retriever):
-    """Ranks entities by how well each query term trigram-matches their fields.
+    """Rank entities by the average of each query term's best trigram similarity.
 
-    Every term of the query is matched on its own, so terms need not be adjacent nor in the same field:
-    ``ACM LIR`` matches ``ACM prefix LIR``. A term's score is its best ``word_similarity`` over the
-    entity's fields and the entity's score is the mean over the terms, so an entity that matches all
-    terms ranks above one that matches some, while each term keeps its typo tolerance.
-
-    An entity is a hit when one of its fields passes the trigram gate for any term, so the trigram index
-    still drives the plan. Hits are then scored over all their searchable fields, including those that
-    did not pass the gate: a term that only partially matches a field still counts towards the mean. An
-    entity is kept when its score reaches ``MIN_SCORE``, the default word similarity threshold of the
-    gate: a single common term such as ``with`` matching does not make an entity a fuzzy hit.
+    Terms can match different searchable fields of the same entity. Results must
+    match at least one term through the trigram filter and have an average score
+    of at least ``MIN_SCORE``.
     """
 
     MIN_SCORE = 0.6
@@ -60,11 +52,11 @@ class FuzzyRetriever(Retriever):
         tokens = fuzzy_tokens(self.fuzzy_term)
         token_similarities = [func.word_similarity(token, AiSearchIndex.value) for token in tokens]
 
-        # The highlighted field is the one matching the terms best, and among equally good ones the
-        # shallowest: an entity's own description over the same text inside a nested block.
+        # Highlight the field with the highest average similarity; prefer shorter paths on ties.
         field_similarity = reduce(add, token_similarities) / len(tokens)
         highlight_order = [field_similarity.desc(), func.nlevel(AiSearchIndex.path).asc(), AiSearchIndex.path.asc()]
 
+        # Take each term's best score across the entity's fields, then average those scores.
         token_best = [
             func.max(similarity).over(partition_by=AiSearchIndex.entity_id) for similarity in token_similarities
         ]
@@ -74,17 +66,16 @@ class FuzzyRetriever(Retriever):
         ).label(self.SCORE_LABEL)
 
         is_searchable = AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES)
+        # Find entities with a field matching any term. The <% operator can use the trigram index.
         gated = (
             select(AiSearchIndex.entity_id)
             .where(and_(is_searchable, or_(*(literal(token).op("<%")(AiSearchIndex.value) for token in tokens))))
             .group_by(AiSearchIndex.entity_id)
         )
-        # Trigram hits are few: probing candidate membership per hit keeps the trigram index driving the
-        # plan even under a broad structured filter, where joining the candidate set does not.
+        # Check candidate membership per matching row so candidate filters do not drive the initial scan.
         hits = self._restrict_to_candidates(gated, candidate_query, probe=True).subquery("fuzzy_hits")
 
-        # Every searchable field of a hit is scored, not only the gated ones, so each term's best match
-        # comes from all of the entity's fields.
+        # Score all searchable fields of these entities so partial matches also contribute.
         scored = (
             select(
                 AiSearchIndex.entity_id,
@@ -102,6 +93,7 @@ class FuzzyRetriever(Retriever):
             .where(is_searchable)
             .distinct(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
         )
+        # An outer query is needed to filter the score calculated by the window functions above.
         final_query = scored.subquery("ranked_fuzzy")
 
         stmt = (
