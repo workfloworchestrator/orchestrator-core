@@ -76,11 +76,18 @@ async def run_single_query(
     query_embedding = None
 
     if is_uuid(query_text):
-        logger.debug("Using fuzzy-only ranking for full UUID", query_text=query_text)
+        logger.debug(
+            "Full UUID query", query_text=query_text, retriever=retriever.value if retriever else "auto (fuzzy)"
+        )
 
     if Retriever.needs_embedding(query):
         # Fail loudly: a missing embedding would otherwise be generated inside the timed block.
-        query_embedding = embedding_lookup[query_text]
+        query_embedding = embedding_lookup.get(query_text)
+        if query_embedding is None:
+            raise ValueError(
+                f"Embedding unavailable for query {query_text!r}; "
+                f"the {retriever.value if retriever else 'auto-routed'} retriever requires one"
+            )
 
     start_time = time.perf_counter()
     async with db.async_session() as session:
