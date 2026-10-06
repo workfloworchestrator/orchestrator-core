@@ -13,6 +13,7 @@
 
 from functools import reduce
 from operator import add
+from typing import Sequence
 
 from more_itertools import unique_everseen
 from sqlalchemy import CTE, Select, and_, cast, exists, func, literal, or_, select
@@ -23,6 +24,7 @@ from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import SearchMetadata
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
+from orchestrator.core.search.retrieval.session import SessionSetting
 
 
 def fuzzy_tokens(fuzzy_term: str) -> list[str]:
@@ -43,18 +45,15 @@ class FuzzyRetriever(Retriever):
 
     MIN_SCORE = 0.6
     # Allow typos such as "LIIR" matching "LIR" (similarity 0.5).
-    # GATE_THRESHOLD = SessionSetting("pg_trgm.word_similarity_threshold", "0.4")
-    # # Prefer indexes for trigram matching.
-    # # This setting applies to the whole search transaction.
-    # NO_SEQ_SCAN = SessionSetting("enable_seqscan", "off")
+    GATE_THRESHOLD = SessionSetting("pg_trgm.word_similarity_threshold", "0.4")
 
     def __init__(self, fuzzy_term: str, cursor: PageCursor | None) -> None:
         self.fuzzy_term = fuzzy_term
         self.cursor = cursor
 
-    # @property
-    # def session_settings(self) -> Sequence[SessionSetting]:
-    #     return (self.GATE_THRESHOLD, self.NO_SEQ_SCAN)
+    @property
+    def session_settings(self) -> Sequence[SessionSetting]:
+        return (self.GATE_THRESHOLD,)
 
     def apply(self, candidate_query: Select) -> Select:
         tokens = fuzzy_tokens(self.fuzzy_term)
