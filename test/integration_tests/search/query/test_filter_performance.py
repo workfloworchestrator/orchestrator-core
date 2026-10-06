@@ -19,6 +19,7 @@ the plan is not. These tests run ``EXPLAIN ANALYZE`` and require that no plan no
 than there are entities.
 """
 
+import asyncio
 from contextlib import contextmanager
 from datetime import date, timedelta
 from uuid import UUID, uuid4
@@ -37,7 +38,7 @@ from orchestrator.core.search.query.queries import CountQuery, SelectQuery
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
 
-pytestmark = [pytest.mark.search, pytest.mark.benchmark]
+pytestmark = pytest.mark.search
 
 ENTITY_COUNT = 1000
 # Unfiltered paths per entity; with the four filterable ones they set the index-rows-per-entity ratio.
@@ -189,6 +190,13 @@ def _plan_nodes(node):
         yield from _plan_nodes(child)
 
 
+def _plan(stmt):
+    """The plan of `stmt`, from an execution of its own so it never adds to a benchmark."""
+    with _capturing_plans() as plans:
+        db.session.connection().execute(stmt).all()
+    return one(plans)
+
+
 def _assert_no_node_runs_per_index_row(plan):
     busiest = max(_plan_nodes(plan), key=lambda node: node["Actual Loops"])
     name = " ".join(filter(None, [busiest["Node Type"], busiest.get("Subplan Name"), busiest.get("Relation Name")]))
@@ -213,12 +221,14 @@ def _count_stmt(filters):
 
 
 @pytest.mark.parametrize("filters,matches", FILTER_SHAPES)
-def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, filters, matches):
+def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark, filters, matches):
     query = _select_query(filters)
     stmt = Retriever.route(query, cursor=None).apply(build_candidate_query(query)).limit(query.limit)
+    conn = db.session.connection()
 
-    with _capturing_plans() as plans:
-        rows = db.session.connection().execute(stmt).all()
+    @benchmark
+    def rows():
+        return conn.execute(stmt).all()
 
     # Two stable sorts: start_date descending, ties broken by entity_id ascending, as the retriever orders.
     by_id = sorted(_matching(matches), key=_entity_id)
@@ -226,39 +236,45 @@ def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, filter
     assert [(row.entity_id, row.order_value) for row in rows] == [
         (_entity_id(n), _start_date(n)) for n in expected_page
     ]
-    _assert_no_node_runs_per_index_row(one(plans))
+    _assert_no_node_runs_per_index_row(_plan(stmt))
 
 
 @pytest.mark.xfail(strict=True, reason="count(distinct) references the inner query, adding it as a second FROM")
-def test_count_runs_each_plan_node_at_most_once_per_entity(seeded_index):
+def test_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark):
     """The count query wraps the candidate query."""
     stmt = _count_stmt(STATUS_AND_SPEED_OR_CUSTOMER)
+    conn = db.session.connection()
 
-    with _capturing_plans() as plans:
-        rows = db.session.connection().execute(stmt).all()
+    @benchmark
+    def total_count():
+        return conn.execute(stmt).scalar_one()
 
-    assert one(rows).total_count == len(_matching(_matches_status_and_speed_or_customer))
+    assert total_count == len(_matching(_matches_status_and_speed_or_customer))
     # Counting a column of the inner query instead of its subquery would make SQLAlchemy emit both: a cartesian product.
     assert len(stmt.get_final_froms()) == 1
-    _assert_no_node_runs_per_index_row(one(plans))
+    _assert_no_node_runs_per_index_row(_plan(stmt))
 
 
 @pytest.mark.xfail(strict=True, reason="EXISTS under OR inside AND is re-run per index row")
 @pytest.mark.parametrize("page", [pytest.param(1, id="page_1"), pytest.param(2, id="page_2")])
-async def test_search_total_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, async_session, page):
-    """The search endpoint counts all matches, not the page, in statements of its own (two from page 2 on)."""
+def test_search_total_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, async_session, benchmark, page):
+    """The search endpoint counts all matches, and from page 2 on also the matches from the cursor on."""
     total = len(_matching(_matches_status_and_speed_or_customer))
     # With half of the matches per page, page 2 exists as long as the filter matches at least two entities.
     query = _select_query(STATUS_AND_SPEED_OR_CUSTOMER, limit=min(SelectQuery.MAX_LIMIT, max(1, total // 2)))
     cursor = None
     if page == 2:
-        last = (await execute_search(query, async_session)).results[-1]
+        last = asyncio.run(execute_search(query, async_session)).results[-1]
         cursor = PageCursor(score=last.score, id=last.entity_id, query_id=uuid4(), order_value=last.order_value)
 
-    with _capturing_plans() as plans:
-        response = await execute_search(query, async_session, cursor=cursor)
+    @benchmark
+    def response():
+        return asyncio.run(execute_search(query, async_session, cursor=cursor))
 
     assert response.total_items == total
     assert response.start_cursor == (page - 1) * query.limit
+
+    with _capturing_plans() as plans:
+        asyncio.run(execute_search(query, async_session, cursor=cursor))
     for plan in plans:
         _assert_no_node_runs_per_index_row(plan)
