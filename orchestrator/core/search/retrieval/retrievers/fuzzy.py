@@ -123,7 +123,8 @@ class FuzzyRetriever(Retriever):
                 .prefix_with("MATERIALIZED")
             )
 
-        # Map each term to a trigram condition that checks GATE_THRESHOLD.
+        # Map each term to a trigram condition that checks GATE_THRESHOLD
+        # <% reads pg_trgm.word_similarity_threshold, set by session_settings before execution.
         gate_of = {token: literal(token).op("<%")(AiSearchIndex.value) for token in tokens}
 
         # For each term, select up to RARITY_SAMPLE matching rows to count.
