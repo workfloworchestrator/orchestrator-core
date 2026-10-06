@@ -13,11 +13,25 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from itertools import count
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, TypeGuard
 
+from more_itertools import partition
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import BinaryExpression, and_, cast, exists, func, literal, or_, select
+from sqlalchemy import (
+    BinaryExpression,
+    CompoundSelect,
+    Select,
+    and_,
+    cast,
+    except_,
+    func,
+    intersect,
+    literal,
+    select,
+    union,
+)
 from sqlalchemy.dialects.postgresql import BOOLEAN
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy_utils.types.ltree import Ltree
@@ -276,30 +290,57 @@ class FilterTree(BaseModel):
             if not (isinstance(leaf.condition, LtreeFilter) and leaf.condition.op in existence_ops)
         ]
 
-    @staticmethod
-    def _build_correlates(
-        alias: Any, entity_id_col: SQLAColumn, entity_type_value: str | None
-    ) -> list[ColumnElement[bool]]:
-        """Build the correlation predicates that link the subquery to the outer query."""
-        correlates = [alias.entity_id == entity_id_col]
-        if entity_type_value is not None:
-            correlates.append(alias.entity_type == entity_type_value)
-        return correlates
+    def matching_entity_ids(self, *, entity_type_value: str | None = None) -> Select | CompoundSelect:
+        """The ids of the entities matching this tree, as one uncorrelated set expression.
 
-    @staticmethod
-    def _handle_ltree_filter(pf: PathFilter, alias: Any, correlates: list[ColumnElement[bool]]) -> ColumnElement[bool]:
-        """Handle path-only filters (has_component, not_has_component, ends_with)."""
-        # row-level predicate is always positive
-        subq = select(1).select_from(alias).where(and_(*correlates, pf.matched_row_predicate(alias)))
-        if pf.condition.op == FilterOp.NOT_HAS_COMPONENT:
-            return ~exists(subq)  # NOT at the entity level
-        return exists(subq)
+        Each leaf selects the ids of the entities owning a matching index row; AND intersects those
+        sets, OR unions them and `not_has_component` subtracts them. A `not_has_component` leaf in an
+        AND is subtracted from the other children of that AND, which avoids reading every entity of
+        the type. Every subquery is independent of the outer query, so Postgres evaluates each leaf
+        once, however deeply AND and OR nest.
 
-    @staticmethod
-    def _handle_value_filter(pf: PathFilter, alias: Any, correlates: list[ColumnElement[bool]]) -> ColumnElement[bool]:
-        """Handle value-based filters (equality, comparison, etc)."""
-        subq = select(1).select_from(alias).where(and_(*correlates, pf.matched_row_predicate(alias)))
-        return exists(subq)
+        Args:
+            entity_type_value (str, optional): If provided, every set is restricted to this entity type.
+
+        Returns:
+            Select | CompoundSelect: A single-column selection of entity ids.
+        """
+        from sqlalchemy.orm import aliased
+
+        alias_idx = count(1)
+
+        def entity_ids(pf: PathFilter | None = None) -> Select:
+            """Ids of the entities with an index row matching `pf`, or of all entities without one."""
+            alias = aliased(AiSearchIndex, name=f"flt_{next(alias_idx)}")
+            scope = [] if entity_type_value is None else [alias.entity_type == entity_type_value]
+            match = [] if pf is None else [pf.matched_row_predicate(alias)]
+            return select(alias.entity_id).where(*scope, *match)
+
+        def combine(
+            set_op: Callable[..., CompoundSelect], sets: Sequence[Select | CompoundSelect]
+        ) -> Select | CompoundSelect:
+            return sets[0] if len(sets) == 1 else set_op(*sets)
+
+        def is_negated(node: FilterTree | PathFilter) -> TypeGuard[PathFilter]:
+            return (
+                isinstance(node, PathFilter)
+                and isinstance(node.condition, LtreeFilter)
+                and node.condition.op == FilterOp.NOT_HAS_COMPONENT
+            )
+
+        def compile_node(node: FilterTree | PathFilter) -> Select | CompoundSelect:
+            if isinstance(node, PathFilter):
+                # matched_row_predicate is always positive; the negation is a set difference over entities.
+                return except_(entity_ids(), entity_ids(node)) if is_negated(node) else entity_ids(node)
+            if node.op == BooleanOperator.OR:
+                return combine(union, [compile_node(child) for child in node.children])
+            positive, negated = partition(is_negated, node.children)
+            excluded = [entity_ids(child) for child in negated]  # type: ignore[arg-type]
+            required = [compile_node(child) for child in positive] or [entity_ids()]
+            kept = combine(intersect, required)
+            return except_(kept, combine(union, excluded)) if excluded else kept
+
+        return compile_node(self)
 
     def to_expression(
         self,
@@ -309,6 +350,9 @@ class FilterTree(BaseModel):
     ) -> ColumnElement[bool]:
         """Compile this tree into a SQLAlchemy boolean expression.
 
+        The expression depends on `entity_id_col` alone, as a single top-level ``IN``, which Postgres
+        always plans as a hashed semi-join however deeply the tree nests AND and OR.
+
         Args:
             entity_id_col (SQLAColumn): Column in the outer query representing the entity ID.
             entity_type_value (str, optional): If provided, each subquery is additionally constrained to this entity type.
@@ -316,23 +360,4 @@ class FilterTree(BaseModel):
         Returns:
             ColumnElement[bool]: A SQLAlchemy expression suitable for use in a WHERE clause.
         """
-        from sqlalchemy.orm import aliased
-
-        alias_idx = count(1)
-
-        def leaf_exists(pf: PathFilter) -> ColumnElement[bool]:
-            """Convert a PathFilter into an EXISTS subquery."""
-            alias = aliased(AiSearchIndex, name=f"flt_{next(alias_idx)}")
-            correlates = self._build_correlates(alias, entity_id_col, entity_type_value)
-
-            if isinstance(pf.condition, LtreeFilter):
-                return self._handle_ltree_filter(pf, alias, correlates)
-            return self._handle_value_filter(pf, alias, correlates)
-
-        def compile_node(node: FilterTree | PathFilter) -> ColumnElement[bool]:
-            if isinstance(node, FilterTree):
-                compiled = [compile_node(ch) for ch in node.children]
-                return and_(*compiled) if node.op == BooleanOperator.AND else or_(*compiled)
-            return leaf_exists(node)
-
-        return compile_node(self)
+        return entity_id_col.in_(self.matching_entity_ids(entity_type_value=entity_type_value))
