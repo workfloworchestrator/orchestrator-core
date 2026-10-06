@@ -13,6 +13,8 @@
 
 from uuid import UUID
 
+from sqlalchemy import exists, select
+
 from orchestrator.core.db import ProcessSubscriptionTable, db
 from pydantic_forms.types import UUIDstr
 
@@ -23,14 +25,14 @@ def store_process_subscription_relation(process_id: UUID | UUIDstr, subscription
     This method can get simplified once the `store_process_subscription` step has been removed from the codebase.
     """
 
-    process_subscription_exists = db.session.query(
-        db.session.query(ProcessSubscriptionTable)
-        .where(
-            ProcessSubscriptionTable.process_id == process_id,
-            ProcessSubscriptionTable.subscription_id == subscription_id,
+    process_subscription_exists = db.session.scalar(
+        select(
+            exists().where(
+                ProcessSubscriptionTable.process_id == process_id,
+                ProcessSubscriptionTable.subscription_id == subscription_id,
+            )
         )
-        .exists()
-    ).scalar()
+    )
 
     if not process_subscription_exists:
         process_subscription = ProcessSubscriptionTable(process_id=process_id, subscription_id=subscription_id)

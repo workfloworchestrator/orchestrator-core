@@ -14,7 +14,7 @@
 import json
 
 import structlog
-from sqlalchemy import and_
+from sqlalchemy import and_, select
 from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.core.db.database import WrappedSession
@@ -41,11 +41,11 @@ def display_filtered_paths_only(results: list[SearchResult], query: BaseQuery, d
 
     for result in results:
         for path in searched_paths:
-            record: AiSearchIndex | None = (
-                db_session.query(AiSearchIndex)
-                .filter(and_(AiSearchIndex.entity_id == result.entity_id, AiSearchIndex.path == Ltree(path)))
-                .first()
-            )
+            record: AiSearchIndex | None = db_session.scalars(
+                select(AiSearchIndex).where(
+                    and_(AiSearchIndex.entity_id == result.entity_id, AiSearchIndex.path == Ltree(path))
+                )
+            ).first()
 
             if record:
                 logger.info(f"  {record.path}: {record.value}")
@@ -78,7 +78,7 @@ def display_results(
             logger.info(f"{score_label}: {score:.4f}\n" + "-" * 20)
             continue
 
-        index_records = db_session.query(AiSearchIndex).filter(AiSearchIndex.entity_id == entity_id).all()
+        index_records = db_session.scalars(select(AiSearchIndex).where(AiSearchIndex.entity_id == entity_id)).all()
         if not index_records:
             logger.warning(f"Could not find indexed records for entity_id={entity_id}")
             continue

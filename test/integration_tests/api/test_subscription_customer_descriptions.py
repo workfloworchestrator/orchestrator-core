@@ -15,6 +15,7 @@ from http import HTTPStatus
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import func, select
 
 from orchestrator.core.db import ProductTable, SubscriptionCustomerDescriptionTable, SubscriptionTable, db
 
@@ -75,7 +76,7 @@ def test_save(seed, test_client):
     response = test_client.post("/api/subscription_customer_descriptions/", json=body)
     assert HTTPStatus.NO_CONTENT == response.status_code
 
-    count = db.session.query(SubscriptionCustomerDescriptionTable).count()
+    count = db.session.scalar(select(func.count()).select_from(SubscriptionCustomerDescriptionTable))
     assert 2 == count
 
 
@@ -90,10 +91,10 @@ def test_update(seed, test_client):
     response = test_client.put("/api/subscription_customer_descriptions/", json=body)
     assert HTTPStatus.NO_CONTENT == response.status_code
 
-    count = db.session.query(SubscriptionCustomerDescriptionTable).count()
+    count = db.session.scalar(select(func.count()).select_from(SubscriptionCustomerDescriptionTable))
     assert 1 == count
 
-    customer_description = db.session.query(SubscriptionCustomerDescriptionTable).first()
+    customer_description = db.session.scalars(select(SubscriptionCustomerDescriptionTable)).first()
     assert new_desc == customer_description.description
     assert 2 == customer_description.version
 
@@ -111,10 +112,10 @@ def test_update_with_version(seed, test_client):
     response = test_client.put("/api/subscription_customer_descriptions/", json=body)
     assert HTTPStatus.NO_CONTENT == response.status_code
 
-    count = db.session.query(SubscriptionCustomerDescriptionTable).count()
+    count = db.session.scalar(select(func.count()).select_from(SubscriptionCustomerDescriptionTable))
     assert 1 == count
 
-    customer_description = db.session.query(SubscriptionCustomerDescriptionTable).first()
+    customer_description = db.session.scalars(select(SubscriptionCustomerDescriptionTable)).first()
     assert new_desc == customer_description.description
     assert version + 1 == customer_description.version
 
@@ -154,5 +155,5 @@ def test_update_with_higher_version_invalid(seed, test_client):
 def test_delete(seed, test_client):
     test_client.delete(f"/api/subscription_customer_descriptions/{SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID}")
 
-    count = db.session.query(SubscriptionCustomerDescriptionTable).count()
+    count = db.session.scalar(select(func.count()).select_from(SubscriptionCustomerDescriptionTable))
     assert 0 == count

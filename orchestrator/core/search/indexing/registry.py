@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Generic, TypeVar
 from uuid import UUID
 
-from sqlalchemy.orm import Query
+from sqlalchemy import select
 from sqlalchemy.sql import Select
 
 from orchestrator.core.db import (
@@ -53,11 +53,11 @@ class EntityConfig(Generic[ModelT]):
     root_name: str
     title_paths: list[str]  # List of field paths to check for title (with fallback)
 
-    def get_all_query(self, entity_id: str | None = None) -> Query | Select:
-        query = self.table.query
+    def get_all_query(self, entity_id: str | None = None) -> Select:
+        query = select(self.table)
         if entity_id:
             pk_column = getattr(self.table, self.pk_name)
-            query = query.filter(pk_column == UUID(entity_id))
+            query = query.where(pk_column == UUID(entity_id))
         return query
 
     def get_title_from_fields(self, fields: list[ExtractedField]) -> str:
@@ -74,7 +74,6 @@ class ProcessConfig(EntityConfig[ProcessTable]):
     """Processes need to eager load workflow (for workflow_name/workflow_target) and linked subscriptions."""
 
     def get_all_query(self, entity_id: str | None = None) -> Select:
-        from sqlalchemy import select
         from sqlalchemy.orm import selectinload
 
         from orchestrator.core.db import ProcessSubscriptionTable, SubscriptionTable
@@ -110,7 +109,6 @@ class ProductBlockConfig(EntityConfig[ProductBlockTable]):
     """Product blocks need to eager load resource_types and in_use_by product_blocks."""
 
     def get_all_query(self, entity_id: str | None = None) -> Select:
-        from sqlalchemy import select
         from sqlalchemy.orm import selectinload
 
         from orchestrator.core.db.models import ProductBlockRelationTable
@@ -131,7 +129,6 @@ class ResourceTypeConfig(EntityConfig[ResourceTypeTable]):
     """Resource types need to eager load the product blocks that use them."""
 
     def get_all_query(self, entity_id: str | None = None) -> Select:
-        from sqlalchemy import select
         from sqlalchemy.orm import selectinload
 
         # noload to prevent lazyloading of product_blocks relations

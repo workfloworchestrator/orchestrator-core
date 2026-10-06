@@ -20,6 +20,7 @@ from uuid import UUID
 
 import sqlalchemy
 import structlog
+from deprecated import deprecated
 from more_itertools import first_true
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -383,11 +384,15 @@ class ProductBlockTable(BaseModel):
 
     @staticmethod
     def find_by_name(name: str) -> ProductBlockTable:
-        return ProductBlockTable.query.filter(ProductBlockTable.name == name).one()
+        from orchestrator.core.db import db
+
+        return db.session.scalars(select(ProductBlockTable).where(ProductBlockTable.name == name)).one()
 
     @staticmethod
     def find_by_tag(tag: str) -> ProductBlockTable:
-        return ProductBlockTable.query.filter(ProductBlockTable.tag == tag).one()
+        from orchestrator.core.db import db
+
+        return db.session.scalars(select(ProductBlockTable).where(ProductBlockTable.tag == tag)).one()
 
     def find_resource_type_by_name(self, name: str) -> ResourceTypeTable:
         if session := object_session(self):
@@ -666,8 +671,19 @@ class SubscriptionTable(BaseModel):
     processes = relationship("ProcessSubscriptionTable", back_populates="subscription")
 
     @staticmethod
+    @deprecated(
+        reason=(
+            "SubscriptionTable.find_by_product_tag returns a legacy SQLAlchemy Query and will be removed in 6.0.0; "
+            "use SubscriptionTable.select_by_product_tag which returns a Select. "
+            "See https://workfloworchestrator.org/orchestrator-core/guides/upgrading/5.5/"
+        )
+    )
     def find_by_product_tag(tag: str) -> SearchQuery:
         return SubscriptionTable.query.join(ProductTable).filter(ProductTable.tag == tag)
+
+    @staticmethod
+    def select_by_product_tag(tag: str) -> Select[tuple["SubscriptionTable"]]:
+        return select(SubscriptionTable).join(ProductTable).where(ProductTable.tag == tag)
 
     def find_instance_by_block_name(self, name: str) -> list[SubscriptionInstanceTable]:
         return [instance for instance in self.instances if instance.product_block.name == name]
