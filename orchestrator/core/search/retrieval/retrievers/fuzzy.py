@@ -11,17 +11,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
 from functools import reduce
 from operator import add
 
 from more_itertools import unique_everseen
 from sqlalchemy import Select, and_, cast, func, literal, or_, select
+from sqlalchemy.orm import aliased
 from sqlalchemy.sql.expression import ColumnElement
 
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import SearchMetadata
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
+from orchestrator.core.search.retrieval.session import SessionSetting
 
 
 def fuzzy_tokens(fuzzy_term: str) -> list[str]:
@@ -37,16 +40,23 @@ def fuzzy_tokens(fuzzy_term: str) -> list[str]:
 class FuzzyRetriever(Retriever):
     """Rank entities by the average of each query term's best trigram similarity.
 
-    Terms can match different searchable fields of the same entity. Results must
-    match at least one term through the trigram filter and have an average score
-    of at least ``MIN_SCORE``.
+    Terms can match different searchable fields of the same entity. Every term must
+    pass the trigram gate (``GATE_THRESHOLD``) in some field of the entity, and the
+    average of the terms' best scores must reach ``MIN_SCORE``.
     """
 
     MIN_SCORE = 0.6
+    # What `<%` requires of a single term in a single field: low enough to let a typo through ("LIIR" is 0.5
+    # against "LIR"), while MIN_SCORE on the average keeps entities with only weak matches out.
+    GATE_THRESHOLD = SessionSetting("pg_trgm.word_similarity_threshold", "0.4")
 
     def __init__(self, fuzzy_term: str, cursor: PageCursor | None) -> None:
         self.fuzzy_term = fuzzy_term
         self.cursor = cursor
+
+    @property
+    def session_settings(self) -> Sequence[SessionSetting]:
+        return (self.GATE_THRESHOLD,)
 
     def apply(self, candidate_query: Select) -> Select:
         tokens = fuzzy_tokens(self.fuzzy_term)
@@ -58,20 +68,30 @@ class FuzzyRetriever(Retriever):
             func.round(cast(raw_score, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
         )
 
-        # Fields matching any term; the <% operator uses the trigram index. A term's best score lives in
-        # these rows whenever it gated one (<% is exactly word_similarity >= 0.6), so scoring only the gated
-        # fields is a single index-driven pass. The only thing not counted is partial credit for a term in a
-        # field no term gated; that trades a join-back of every field of every hit, which a common term
-        # like "prefix" turns into a scan of most of the table.
-        is_gated = and_(
-            AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
-            or_(*(literal(token).op("<%")(AiSearchIndex.value) for token in tokens)),
-        )
+        is_searchable = AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES)
+        # A field passes a term's gate at word_similarity >= GATE_THRESHOLD; <% uses the trigram index.
+        gates = [literal(token).op("<%")(AiSearchIndex.value) for token in tokens]
+
+        # Every term has to gate some field of the entity. Each term is its own semi-join, so the planner can
+        # start from the rarest term's few index hits and probe the other terms per entity through the
+        # entity_id index, instead of visiting every row a common term like "prefix" matches.
+        matches_every_term = [
+            AiSearchIndex.entity_id.in_(
+                select(gate_rows.entity_id).where(
+                    and_(
+                        gate_rows.value_type.in_(self.SEARCHABLE_FIELD_TYPES), literal(token).op("<%")(gate_rows.value)
+                    )
+                )
+            )
+            for token in tokens
+            for gate_rows in [aliased(AiSearchIndex)]
+        ]
+        # Score only the gated fields of those entities: a term's best score is always among them once it
+        # gated one, so nothing is lost by not scoring the entity's other fields.
         gated = (
             select(AiSearchIndex.entity_id, AiSearchIndex.entity_title, score.label(self.SCORE_LABEL))
-            .where(is_gated)
+            .where(and_(is_searchable, or_(*gates), *matches_every_term))
             .group_by(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
-            # The threshold is applied inside the aggregation, before anything else is computed.
             .having(score >= self.MIN_SCORE)
         )
         # Check candidate membership per matching row so candidate filters do not drive the initial scan.
@@ -85,7 +105,7 @@ class FuzzyRetriever(Retriever):
                 AiSearchIndex.value.label(self.HIGHLIGHT_TEXT_LABEL),
                 AiSearchIndex.path.label(self.HIGHLIGHT_PATH_LABEL),
             )
-            .where(and_(AiSearchIndex.entity_id == scored.c.entity_id, is_gated))
+            .where(and_(AiSearchIndex.entity_id == scored.c.entity_id, is_searchable, or_(*gates)))
             .order_by(field_similarity.desc(), func.nlevel(AiSearchIndex.path).asc(), AiSearchIndex.path.asc())
             .limit(1)
             .lateral("fuzzy_highlight")

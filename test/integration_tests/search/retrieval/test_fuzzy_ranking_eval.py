@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db import db
@@ -133,20 +134,28 @@ def corpus_ids() -> dict[str, UUID]:
     return ids
 
 
+def _fuzzy_rows(query_text: str, limit: int) -> list:
+    """Run the fuzzy retriever the way the engine does: its session settings first, then the statement."""
+    retriever = FuzzyRetriever(query_text, cursor=None)
+    for setting in retriever.session_settings:
+        db.session.execute(text(setting.statement))
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text, limit=limit)
+    return db.session.execute(retriever.apply(build_candidate_query(query))).mappings().all()
+
+
 def _ranking(query_text: str, ids: dict[str, UUID]) -> list[str]:
     """The CORPUS keys in the order the fuzzy retriever ranks them."""
     key_by_id = {entity_id: key for key, entity_id in ids.items()}
-    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text, limit=len(ids))
-    stmt = FuzzyRetriever(query_text, cursor=None).apply(build_candidate_query(query))
-    return [key_by_id[row.entity_id] for row in db.session.execute(stmt).mappings()]
+    return [key_by_id[row.entity_id] for row in _fuzzy_rows(query_text, limit=len(ids))]
 
 
 @pytest.mark.parametrize(
     "query_text,expected",
     [
         pytest.param("LIR", {"acm_lir", "bxt_lir", "zeo_lir"}, id="single-term"),
-        # ACM alone gives every ACM subscription 0.5; only a partial LIR match lifts one over the threshold
-        pytest.param("ACM LIR", {"acm_lir", "acm_lightpath", "acm_l2vpn"}, id="one-exact-term-is-not-enough"),
+        # ACM alone gives every ACM subscription 0.5; LIR must also pass the gate somewhere ("Lakeside" is 0.5,
+        # "L2VPN" is not) and the partial match then lifts the mean over the threshold
+        pytest.param("ACM LIR", {"acm_lir", "acm_lightpath"}, id="one-exact-term-is-not-enough"),
         pytest.param("Riverton with frobnicator", set(), id="one-of-three-terms-matching-is-not-enough"),
         pytest.param("with", set(), id="term-absent-from-corpus"),
         pytest.param("xyzzy plugh", set(), id="no-term-matches"),
@@ -160,23 +169,19 @@ def test_entities_matching_too_few_terms_are_not_hits(corpus_ids, query_text, ex
 @pytest.mark.parametrize(
     "fields,expected",
     [
-        pytest.param(
-            [("subscription.description", "ACM LIP")],
-            [0.75],
-            id="partial-match-in-a-gated-field-counts",
-        ),
+        pytest.param([("subscription.description", "ACM LIP")], [0.75], id="partial-match-in-the-same-field"),
         pytest.param(
             [("subscription.customer", "ACM"), ("subscription.description", "LIP")],
-            [],
-            id="partial-match-in-an-ungated-field-does-not-count",
+            [0.75],
+            id="partial-match-in-another-field",
         ),
+        pytest.param([("subscription.customer", "ACM"), ("subscription.description", "LOL")], [], id="no-match"),
     ],
 )
-def test_only_gated_fields_are_scored(fields, expected):
-    """Only ACM passes the gate; the 0.5 partial LIR match only counts when it is in a field ACM gated.
+def test_every_term_must_pass_the_gate(fields, expected):
+    """ACM matches exactly; LIR only counts, in whichever field, when its best match passes the gate (0.5 for LIP).
 
-    In a field no term gated it is never scored, so the entity stays at 0.5 and is dropped. That is the
-    price of scoring only the trigram hits instead of every field of every hit.
+    An entity where LIR matches nothing is dropped even though ACM alone would give it 0.5.
     """
     entity_id = uuid4()
     db.session.add_all(
@@ -193,9 +198,7 @@ def test_only_gated_fields_are_scored(fields, expected):
     )
     db.session.commit()
 
-    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text="ACM LIR", limit=10)
-    stmt = FuzzyRetriever("ACM LIR", cursor=None).apply(build_candidate_query(query))
-    rows = db.session.execute(stmt).mappings().all()
+    rows = _fuzzy_rows("ACM LIR", limit=10)
 
     assert [(row.entity_id, float(row.score)) for row in rows] == [(entity_id, score) for score in expected]
 
