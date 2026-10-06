@@ -16,8 +16,7 @@ from functools import reduce
 from operator import add
 
 from more_itertools import unique_everseen
-from sqlalchemy import Select, and_, cast, func, literal, or_, select
-from sqlalchemy.orm import aliased
+from sqlalchemy import Select, and_, cast, func, intersect, literal, or_, select
 from sqlalchemy.sql.expression import ColumnElement
 
 from orchestrator.core.db.models import AiSearchIndex
@@ -72,25 +71,24 @@ class FuzzyRetriever(Retriever):
         # A field passes a term's gate at word_similarity >= GATE_THRESHOLD; <% uses the trigram index.
         gates = [literal(token).op("<%")(AiSearchIndex.value) for token in tokens]
 
-        # Every term has to gate some field of the entity. Each term is its own semi-join, so the planner can
-        # start from the rarest term's few index hits and probe the other terms per entity through the
-        # entity_id index, instead of visiting every row a common term like "prefix" matches.
-        matches_every_term = [
-            AiSearchIndex.entity_id.in_(
-                select(gate_rows.entity_id).where(
-                    and_(
-                        gate_rows.value_type.in_(self.SEARCHABLE_FIELD_TYPES), literal(token).op("<%")(gate_rows.value)
-                    )
-                )
-            )
-            for token in tokens
-            for gate_rows in [aliased(AiSearchIndex)]
+        # Every term has to gate some field of the entity: the entity set is the intersection of one trigram
+        # index scan per term. Materialized, so the planner computes the small intersection first instead of
+        # flattening it into one scan that visits every row a common term like "prefix" matches. Trigram
+        # selectivity estimates are too unreliable to leave that choice to it.
+        entities_per_term = [
+            select(AiSearchIndex.entity_id).where(and_(is_searchable, gate)).distinct() for gate in gates
         ]
+        entities = (
+            (intersect(*entities_per_term) if len(entities_per_term) > 1 else entities_per_term[0])
+            .cte("fuzzy_entities")
+            .prefix_with("MATERIALIZED")
+        )
         # Score only the gated fields of those entities: a term's best score is always among them once it
         # gated one, so nothing is lost by not scoring the entity's other fields.
         gated = (
             select(AiSearchIndex.entity_id, AiSearchIndex.entity_title, score.label(self.SCORE_LABEL))
-            .where(and_(is_searchable, or_(*gates), *matches_every_term))
+            .join(entities, entities.c.entity_id == AiSearchIndex.entity_id)
+            .where(and_(is_searchable, or_(*gates)))
             .group_by(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
             .having(score >= self.MIN_SCORE)
         )
