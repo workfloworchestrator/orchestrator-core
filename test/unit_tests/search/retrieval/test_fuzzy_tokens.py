@@ -74,22 +74,28 @@ def test_single_term_uses_one_direct_gate(fuzzy_term: str) -> None:
     "fuzzy_term,gates",
     [
         pytest.param("ACM LIR", 2, id="two-terms"),
+        pytest.param("LIR ACM", 2, id="reversed-terms"),
+        pytest.param("ACM prefix LIR", 3, id="three-terms"),
         pytest.param("ACM acm LIR", 2, id="duplicate-term-gated-once"),
     ],
 )
 def test_every_term_is_scored_and_gated(fuzzy_term, gates):
-    """Multi-term queries sample each term and require all terms to match."""
+    """Multi-term queries start with the first term and require all terms to match, without sampling."""
     candidates = select(AiSearchIndex.entity_id, AiSearchIndex.entity_title).distinct()
     stmt = FuzzyRetriever(fuzzy_term, cursor=None).apply(candidates)
 
     sql = str(stmt.compile(dialect=postgresql.dialect()))
 
     assert "WITH fuzzy_entities AS MATERIALIZED" in sql
-    # One limit per sample, plus the starting-term selection and highlight lookup.
-    assert sql.count("LIMIT %(param_") == gates + 2
+    assert "rarity" not in sql
+    assert "count(" not in sql
+    assert "UNION ALL" not in sql
+    assert sql.count("LIMIT %(param_") == 1  # Only the highlight lookup needs a limit.
     assert sql.count("EXISTS (SELECT") == gates
-    # One filter per sample and per entity check, plus the starting term's filter.
-    assert sql.count("<%") == 2 * gates + 1
+    # One filter for the starting term, plus one per entity check.
+    assert sql.count("<%") == gates + 1
+    literal_sql = str(stmt.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    assert f"AND ('{fuzzy_tokens(fuzzy_term)[0]}' <%% ai_search_index.value)" in literal_sql
     # The score appears in both SELECT and HAVING.
     assert sql.count("max(word_similarity(") == 2 * gates
     assert sql.count("HAVING") == 1

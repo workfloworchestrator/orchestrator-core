@@ -11,12 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Sequence
 from functools import reduce
 from operator import add
 
 from more_itertools import unique_everseen
-from sqlalchemy import CTE, Select, and_, cast, exists, func, literal, or_, select, union_all
+from sqlalchemy import CTE, Select, and_, cast, exists, func, literal, or_, select
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.expression import ColumnElement
 
@@ -24,7 +23,6 @@ from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import SearchMetadata
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
-from orchestrator.core.search.retrieval.session import SessionSetting
 
 
 def fuzzy_tokens(fuzzy_term: str) -> list[str]:
@@ -45,20 +43,18 @@ class FuzzyRetriever(Retriever):
 
     MIN_SCORE = 0.6
     # Allow typos such as "LIIR" matching "LIR" (similarity 0.5).
-    GATE_THRESHOLD = SessionSetting("pg_trgm.word_similarity_threshold", "0.4")
-    # Maximum matching rows counted per term when choosing the starting term.
-    RARITY_SAMPLE = 2000
-    # Prefer indexes when sampling: a sequential scan may test many nonmatching rows.
-    # This setting applies to the whole search transaction.
-    NO_SEQ_SCAN = SessionSetting("enable_seqscan", "off")
+    # GATE_THRESHOLD = SessionSetting("pg_trgm.word_similarity_threshold", "0.4")
+    # # Prefer indexes for trigram matching.
+    # # This setting applies to the whole search transaction.
+    # NO_SEQ_SCAN = SessionSetting("enable_seqscan", "off")
 
     def __init__(self, fuzzy_term: str, cursor: PageCursor | None) -> None:
         self.fuzzy_term = fuzzy_term
         self.cursor = cursor
 
-    @property
-    def session_settings(self) -> Sequence[SessionSetting]:
-        return (self.GATE_THRESHOLD, self.NO_SEQ_SCAN)
+    # @property
+    # def session_settings(self) -> Sequence[SessionSetting]:
+    #     return (self.GATE_THRESHOLD, self.NO_SEQ_SCAN)
 
     def apply(self, candidate_query: Select) -> Select:
         tokens = fuzzy_tokens(self.fuzzy_term)
@@ -111,8 +107,8 @@ class FuzzyRetriever(Retriever):
     def _gated_entities(self, tokens: list[str], is_searchable: ColumnElement[bool]) -> CTE:
         """Find entities where every term matches at least one searchable field.
 
-        Start with the term with the fewest sampled matches, then check every term per entity.
-        Single terms skip sampling. Materialize the IDs to keep selection separate from scoring.
+        Start with the first term, then check every term per entity.
+        Materialize the IDs to keep selection separate from scoring.
         """
         if len(tokens) == 1:
             return (
@@ -123,27 +119,8 @@ class FuzzyRetriever(Retriever):
                 .prefix_with("MATERIALIZED")
             )
 
-        # Map each term to a trigram condition that checks GATE_THRESHOLD
-        # <% reads pg_trgm.word_similarity_threshold, set by session_settings before execution.
-        gate_of = {token: literal(token).op("<%")(AiSearchIndex.value) for token in tokens}
-
-        # For each term, select up to RARITY_SAMPLE matching rows to count.
-        sampled_matches = {
-            token: select(literal(1)).where(and_(is_searchable, gate)).limit(self.RARITY_SAMPLE).subquery()
-            for token, gate in gate_of.items()
-        }
-        # Combine the per-term counts into (term, matches) rows.
-        rarity = union_all(
-            *(
-                select(
-                    literal(token).label("term"),
-                    select(func.count()).select_from(sample).scalar_subquery().label("matches"),
-                )
-                for token, sample in sampled_matches.items()
-            )
-        ).subquery("rarity")
-        # Start the search with the term with the fewest counted matches.
-        driving_term = select(rarity.c.term).order_by(rarity.c.matches, rarity.c.term).limit(1).scalar_subquery()
+        # Start with the first term instead of estimating the rarest term.
+        driving_term = literal(tokens[0])
 
         rows = aliased(AiSearchIndex, name="gate_rows")
         # Require every term to match within the entity; different terms may match different fields.

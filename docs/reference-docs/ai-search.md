@@ -374,9 +374,9 @@ For example, `ACME LIIR` scores `0.75` against `ACME prefix LIR`: `ACME` matches
 Candidate selection depends on the number of unique terms:
 
 - **One term**: use its trigram filter directly, without sampling or additional term checks.
-- **Multiple terms**: count up to `RARITY_SAMPLE` (`2000`) matching rows per term, start with the
-  term with the fewest counted matches, and check every term within each matching entity.
-  The cap limits the count, not the total index work or the number of search results.
+- **Multiple terms**: start with the first query term and check every term within each matching entity.
+  No match counts are collected. Term order can affect performance: starting with a common term
+  may require checking more entities.
 
 The selected entity IDs are stored in a materialized CTE, then their searchable fields are scored.
 For standard queries, we check whether each entity matches the filters.

@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import RowMapping, text
 from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db import db
@@ -157,6 +157,38 @@ def _ranking(query_text: str, ids: dict[str, UUID]) -> list[str]:
 def test_entities_matching_too_few_terms_are_not_hits(corpus_ids, query_text, expected):
     """Each term must match a field, and the average score must reach MIN_SCORE."""
     assert set(_ranking(query_text, corpus_ids)) == expected
+
+
+@pytest.mark.parametrize("threshold", ["0.4", "0.6"])
+@pytest.mark.parametrize(
+    "query_text,expected_first",
+    [
+        ("ACM LIR", "acm_lir"),
+        ("ACM prefix LIR", "acm_lir"),
+        ("BXT InternetPlus", "bxt_ip"),
+        ("xyzzy plugh", None),
+    ],
+)
+def test_term_order_preserves_results(
+    corpus_ids: dict[str, UUID], threshold: str, query_text: str, expected_first: str | None
+) -> None:
+    """Changing the starting term preserves scores, highlights and result order at either threshold."""
+    db.session.execute(
+        text("SELECT set_config('pg_trgm.word_similarity_threshold', :threshold, true)"),
+        {"threshold": threshold},
+    )
+
+    def search(query_text: str) -> list[RowMapping]:
+        query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text)
+        stmt = FuzzyRetriever(query_text, cursor=None).apply(build_candidate_query(query))
+        return list(db.session.execute(stmt).mappings())
+
+    rows = search(query_text)
+    assert rows == search(" ".join(reversed(query_text.split())))
+    if expected_first is None:
+        assert rows == []
+    else:
+        assert rows[0].entity_id == corpus_ids[expected_first]
 
 
 @pytest.mark.parametrize(
