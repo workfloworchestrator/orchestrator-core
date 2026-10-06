@@ -167,6 +167,53 @@ def test_entities_matching_too_few_terms_are_not_hits(corpus_ids, query_text, ex
 
 
 @pytest.mark.parametrize(
+    "query_text,value,value_type,matches",
+    [
+        pytest.param("LIR", "LIR", FieldType.STRING, True, id="single-word"),
+        pytest.param("LIR lir", "LIR", FieldType.STRING, True, id="duplicate-term"),
+        pytest.param("LIR -", "LIR", FieldType.STRING, True, id="punctuation-dropped"),
+        pytest.param(
+            "123e4567-e89b-12d3-a456-426614174000",
+            "123e4567-e89b-12d3-a456-426614174000",
+            FieldType.UUID,
+            True,
+            id="uuid",
+        ),
+        pytest.param("12345", "12345", FieldType.INTEGER, False, id="non-searchable-field"),
+        pytest.param("LIR", "LIP", FieldType.STRING, False, id="passes-gate-but-below-min-score"),
+        pytest.param("xyzzy", "LIR", FieldType.STRING, False, id="no-match"),
+        pytest.param("- / *", "LIR", FieldType.STRING, False, id="punctuation-only"),
+    ],
+)
+def test_single_term_scores_and_highlights(query_text: str, value: str, value_type: FieldType, matches: bool) -> None:
+    """Multiple matching fields yield one entity with its best score and shallowest highlight."""
+    entity_id = uuid4()
+    db.session.add_all(
+        AiSearchIndex(
+            entity_type=EntityType.SUBSCRIPTION,
+            entity_id=entity_id,
+            entity_title="single term",
+            path=Ltree(path),
+            value=field_value,
+            value_type=field_type,
+            content_hash=uuid4().hex,
+        )
+        for path, field_value, field_type in [
+            ("subscription.description", value, value_type),
+            ("subscription.block.description", value, value_type),
+            ("subscription.status", "active", FieldType.STRING),
+        ]
+    )
+    db.session.commit()
+
+    rows = _fuzzy_rows(query_text, limit=10)
+
+    assert [(row.entity_id, float(row.score), row.highlight_text, row.highlight_path) for row in rows] == (
+        [(entity_id, 1.0, value, "subscription.description")] if matches else []
+    )
+
+
+@pytest.mark.parametrize(
     "fields,expected",
     [
         pytest.param([("subscription.description", "ACM LIP")], [0.75], id="partial-match-in-the-same-field"),

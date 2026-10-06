@@ -42,9 +42,37 @@ def test_fuzzy_tokens(fuzzy_term, expected):
 
 
 @pytest.mark.parametrize(
+    "fuzzy_term",
+    [
+        pytest.param("LIR", id="single-term"),
+        pytest.param("  LIR \t", id="surrounding-whitespace"),
+        pytest.param("LIR lir Lir", id="duplicates-collapse-to-one-term"),
+        pytest.param("LIR -", id="punctuation-dropped"),
+        pytest.param("123e4567-e89b-12d3-a456-426614174000", id="uuid"),
+        pytest.param("192.0.2.0/24", id="ip-prefix"),
+        pytest.param("- / *", id="punctuation-only"),
+        pytest.param("", id="empty"),
+    ],
+)
+def test_single_term_uses_one_direct_gate(fuzzy_term: str) -> None:
+    """Single effective terms need no rarity scan or repeated per-entity trigram checks."""
+    candidates = select(AiSearchIndex.entity_id, AiSearchIndex.entity_title).distinct()
+    stmt = FuzzyRetriever(fuzzy_term, cursor=None).apply(candidates)
+
+    sql = str(stmt.compile(dialect=postgresql.dialect()))
+
+    assert "WITH fuzzy_entities AS MATERIALIZED" in sql
+    assert sql.count("<%") == 1
+    assert "rarity" not in sql
+    assert "EXISTS" not in sql
+    assert sql.count("max(word_similarity(") == 2
+    assert "HAVING" in sql
+    assert "LATERAL" in sql
+
+
+@pytest.mark.parametrize(
     "fuzzy_term,gates",
     [
-        pytest.param("LIR", 1, id="single-term"),
         pytest.param("ACM LIR", 2, id="two-terms"),
         pytest.param("ACM acm LIR", 2, id="duplicate-term-gated-once"),
     ],

@@ -118,12 +118,22 @@ class FuzzyRetriever(Retriever):
     def _gated_entities(self, tokens: list[str], is_searchable: ColumnElement[bool]) -> CTE:
         """The entities in which every term gates some field, found from the rarest term outwards.
 
+        A single term can drive the trigram scan directly, without sampling or additional entity gates.
         The driving term's matches come from the trigram index; the other terms are then checked per entity
         through the entity_id index. The cost follows the rarest term instead of the most common one, which
         would otherwise mean fetching every row it matches. Which term is rarest is decided at run time by
         counting each term's matches, capped at ``RARITY_SAMPLE`` so a common term stops early: trigram
         selectivity estimates are unreliable and the planner has picked the common term on them.
         """
+        if len(tokens) == 1:
+            return (
+                select(AiSearchIndex.entity_id)
+                .where(and_(is_searchable, literal(tokens[0]).op("<%")(AiSearchIndex.value)))
+                .distinct()
+                .cte("fuzzy_entities")
+                .prefix_with("MATERIALIZED")
+            )
+
         gate_of = {token: literal(token).op("<%")(AiSearchIndex.value) for token in tokens}
         sampled_matches = {
             token: select(literal(1)).where(and_(is_searchable, gate)).limit(self.RARITY_SAMPLE).subquery()
