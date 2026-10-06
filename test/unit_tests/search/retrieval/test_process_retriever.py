@@ -98,19 +98,19 @@ def test_init_builds_the_two_retrievers():
         pytest.param(
             None,
             EntityType.PROCESS,
-            (FuzzyRetriever.GATE_THRESHOLD, FuzzyRetriever.NO_SEQ_SCAN),
+            (FuzzyRetriever.GATE_THRESHOLD,),
             id="fuzzy_only_sets_its_gate",
         ),
         pytest.param(
             [0.1, 0.2],
             None,
-            (FuzzyRetriever.GATE_THRESHOLD, FuzzyRetriever.NO_SEQ_SCAN),
+            (FuzzyRetriever.GATE_THRESHOLD,),
             id="unbounded_semantic_adds_nothing",
         ),
         pytest.param(
             [0.1, 0.2],
             EntityType.PROCESS,
-            (FuzzyRetriever.GATE_THRESHOLD, FuzzyRetriever.NO_SEQ_SCAN, HNSW_ITERATIVE_SCAN),
+            (FuzzyRetriever.GATE_THRESHOLD, HNSW_ITERATIVE_SCAN),
             id="bounded_semantic_scans_iteratively",
         ),
     ],

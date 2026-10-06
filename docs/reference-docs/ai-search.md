@@ -373,15 +373,14 @@ For example, `ACME LIIR` scores `0.75` against `ACME prefix LIR`: `ACME` matches
 
 Candidate selection depends on the number of unique terms:
 
-- **One term**: use its trigram filter directly, without sampling or additional term checks.
+- **One term**: use its trigram filter directly, without additional term checks.
 - **Multiple terms**: start with the first query term and check every term within each matching entity.
-  No match counts are collected. Term order can affect performance: starting with a common term
-  may require checking more entities.
+  Term order can affect performance: starting with a common term may require checking more entities.
 
 The selected entity IDs are stored in a materialized CTE, then their searchable fields are scored.
 For standard queries, we check whether each entity matches the filters.
-Other query shapes use a join. The engine also applies `SET LOCAL enable_seqscan = 'off'`
-to discourage sequential scans. Both settings last for the transaction and also apply during hybrid search.
+Other query shapes use a join. The gate threshold is applied with `SET LOCAL`, so it lasts for the
+search transaction only; it also applies during hybrid search.
 
 After score filtering, a lateral lookup chooses the field with the highest average term similarity
 as the highlight. Ties prefer fewer path levels, then the path itself. Fuzzy results are ordered by
