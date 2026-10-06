@@ -83,19 +83,20 @@ class FuzzyRetriever(Retriever):
             .cte("fuzzy_entities")
             .prefix_with("MATERIALIZED")
         )
-        # Score only the gated fields of those entities: a term's best score is always among them once it
-        # gated one, so nothing is lost by not scoring the entity's other fields.
+        # Score every searchable field of those entities, reached through the entity_id index. The gates are
+        # deliberately absent here: with them the planner can drive this scan from the trigram index again,
+        # which is the whole-table visit the CTE exists to avoid.
         gated = (
             select(AiSearchIndex.entity_id, AiSearchIndex.entity_title, score.label(self.SCORE_LABEL))
             .join(entities, entities.c.entity_id == AiSearchIndex.entity_id)
-            .where(and_(is_searchable, or_(*gates)))
+            .where(is_searchable)
             .group_by(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
             .having(score >= self.MIN_SCORE)
         )
         # Check candidate membership per matching row so candidate filters do not drive the initial scan.
         scored = self._restrict_to_candidates(gated, candidate_query, probe=True).subquery("ranked_fuzzy")
 
-        # Only entities that passed the threshold get a highlight: the gated field with the highest average
+        # Only entities that passed the threshold get a highlight: the field with the highest average
         # similarity, preferring shorter paths on ties. The lateral lookup runs per surviving entity.
         field_similarity = reduce(add, token_similarities) / len(tokens)
         highlight = (
@@ -103,7 +104,7 @@ class FuzzyRetriever(Retriever):
                 AiSearchIndex.value.label(self.HIGHLIGHT_TEXT_LABEL),
                 AiSearchIndex.path.label(self.HIGHLIGHT_PATH_LABEL),
             )
-            .where(and_(AiSearchIndex.entity_id == scored.c.entity_id, is_searchable, or_(*gates)))
+            .where(and_(AiSearchIndex.entity_id == scored.c.entity_id, is_searchable))
             .order_by(field_similarity.desc(), func.nlevel(AiSearchIndex.path).asc(), AiSearchIndex.path.asc())
             .limit(1)
             .lateral("fuzzy_highlight")

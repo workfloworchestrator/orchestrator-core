@@ -52,15 +52,14 @@ def test_fuzzy_tokens(fuzzy_term, expected):
 def test_every_term_is_scored_and_gated(fuzzy_term, gates):
     """The entity set is a materialized intersection of one trigram scan per term.
 
-    The OR of all gates then limits the scoring scan and the highlight lookup to the matching fields.
+    The scoring scan and the highlight lookup carry no gate, so only the entity_id index can drive them.
     """
     candidates = select(AiSearchIndex.entity_id, AiSearchIndex.entity_title).distinct()
     stmt = FuzzyRetriever(fuzzy_term, cursor=None).apply(candidates)
 
     sql = str(stmt.compile(dialect=postgresql.dialect()))
 
-    # one per-term scan, plus the OR in the scoring scan and again in the highlight lookup
-    assert sql.count("<%") == 3 * gates
+    assert sql.count("<%") == gates
     assert sql.count("INTERSECT") == gates - 1
     assert "WITH fuzzy_entities AS MATERIALIZED" in sql
     # Each term's best score appears in the SELECT list and again in the HAVING threshold.
