@@ -16,7 +16,8 @@ from functools import reduce
 from operator import add
 
 from more_itertools import unique_everseen
-from sqlalchemy import Select, and_, cast, func, intersect, literal, or_, select
+from sqlalchemy import CTE, Select, and_, cast, exists, func, literal, or_, select, union_all
+from sqlalchemy.orm import aliased
 from sqlalchemy.sql.expression import ColumnElement
 
 from orchestrator.core.db.models import AiSearchIndex
@@ -48,6 +49,8 @@ class FuzzyRetriever(Retriever):
     # What `<%` requires of a single term in a single field: low enough to let a typo through ("LIIR" is 0.5
     # against "LIR"), while MIN_SCORE on the average keeps entities with only weak matches out.
     GATE_THRESHOLD = SessionSetting("pg_trgm.word_similarity_threshold", "0.4")
+    # Matches counted per term to find the rarest one; a term that reaches it is common enough not to drive.
+    RARITY_SAMPLE = 2000
 
     def __init__(self, fuzzy_term: str, cursor: PageCursor | None) -> None:
         self.fuzzy_term = fuzzy_term
@@ -68,21 +71,7 @@ class FuzzyRetriever(Retriever):
         )
 
         is_searchable = AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES)
-        # A field passes a term's gate at word_similarity >= GATE_THRESHOLD; <% uses the trigram index.
-        gates = [literal(token).op("<%")(AiSearchIndex.value) for token in tokens]
-
-        # Every term has to gate some field of the entity: the entity set is the intersection of one trigram
-        # index scan per term. Materialized, so the planner computes the small intersection first instead of
-        # flattening it into one scan that visits every row a common term like "prefix" matches. Trigram
-        # selectivity estimates are too unreliable to leave that choice to it.
-        entities_per_term = [
-            select(AiSearchIndex.entity_id).where(and_(is_searchable, gate)).distinct() for gate in gates
-        ]
-        entities = (
-            (intersect(*entities_per_term) if len(entities_per_term) > 1 else entities_per_term[0])
-            .cte("fuzzy_entities")
-            .prefix_with("MATERIALIZED")
-        )
+        entities = self._gated_entities(tokens, is_searchable)
         # Score every searchable field of those entities, reached through the entity_id index. The gates are
         # deliberately absent here: with them the planner can drive this scan from the trigram index again,
         # which is the whole-table visit the CTE exists to avoid.
@@ -121,6 +110,50 @@ class FuzzyRetriever(Retriever):
         stmt = self._apply_score_pagination(stmt, scored.c.score, scored.c.entity_id)
 
         return stmt.order_by(scored.c.score.desc().nulls_last(), scored.c.entity_id.asc())
+
+    def _gated_entities(self, tokens: list[str], is_searchable: ColumnElement[bool]) -> CTE:
+        """The entities in which every term gates some field, found from the rarest term outwards.
+
+        The driving term's matches come from the trigram index; the other terms are then checked per entity
+        through the entity_id index. The cost follows the rarest term instead of the most common one, which
+        would otherwise mean fetching every row it matches. Which term is rarest is decided at run time by
+        counting each term's matches, capped at ``RARITY_SAMPLE`` so a common term stops early: trigram
+        selectivity estimates are unreliable and the planner has picked the common term on them.
+        """
+        gate_of = {token: literal(token).op("<%")(AiSearchIndex.value) for token in tokens}
+        sampled_matches = {
+            token: select(literal(1)).where(and_(is_searchable, gate)).limit(self.RARITY_SAMPLE).subquery()
+            for token, gate in gate_of.items()
+        }
+        rarity = union_all(
+            *(
+                select(
+                    literal(token).label("term"),
+                    select(func.count()).select_from(sample).scalar_subquery().label("matches"),
+                )
+                for token, sample in sampled_matches.items()
+            )
+        ).subquery("rarity")
+        driving_term = select(rarity.c.term).order_by(rarity.c.matches, rarity.c.term).limit(1).scalar_subquery()
+
+        rows = aliased(AiSearchIndex, name="gate_rows")
+        gated_elsewhere = [
+            exists().where(
+                and_(
+                    rows.entity_id == AiSearchIndex.entity_id,
+                    rows.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
+                    literal(token).op("<%")(rows.value),
+                )
+            )
+            for token in tokens
+        ]
+        return (
+            select(AiSearchIndex.entity_id)
+            .where(and_(is_searchable, driving_term.op("<%")(AiSearchIndex.value), *gated_elsewhere))
+            .distinct()
+            .cte("fuzzy_entities")
+            .prefix_with("MATERIALIZED")
+        )
 
     @property
     def metadata(self) -> SearchMetadata:

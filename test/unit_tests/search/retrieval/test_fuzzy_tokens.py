@@ -50,7 +50,7 @@ def test_fuzzy_tokens(fuzzy_term, expected):
     ],
 )
 def test_every_term_is_scored_and_gated(fuzzy_term, gates):
-    """The entity set is a materialized intersection of one trigram scan per term.
+    """The entity set is driven by the rarest term, with every term checked per entity.
 
     The scoring scan and the highlight lookup carry no gate, so only the entity_id index can drive them.
     """
@@ -59,9 +59,11 @@ def test_every_term_is_scored_and_gated(fuzzy_term, gates):
 
     sql = str(stmt.compile(dialect=postgresql.dialect()))
 
-    assert sql.count("<%") == gates
-    assert sql.count("INTERSECT") == gates - 1
     assert "WITH fuzzy_entities AS MATERIALIZED" in sql
+    # one capped sample per term to pick the driving term, then that term's gate and one EXISTS per term
+    assert sql.count("LIMIT %(param_") == gates + 2  # the samples, the driving term, the highlight
+    assert sql.count("EXISTS (SELECT") == gates
+    assert sql.count("<%") == 2 * gates + 1
     # Each term's best score appears in the SELECT list and again in the HAVING threshold.
     assert sql.count("max(word_similarity(") == 2 * gates
     # The threshold is applied in HAVING, before any highlight is computed.
