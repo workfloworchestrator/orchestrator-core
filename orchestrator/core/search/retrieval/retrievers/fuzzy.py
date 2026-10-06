@@ -51,6 +51,10 @@ class FuzzyRetriever(Retriever):
     GATE_THRESHOLD = SessionSetting("pg_trgm.word_similarity_threshold", "0.4")
     # Matches counted per term to find the rarest one; a term that reaches it is common enough not to drive.
     RARITY_SAMPLE = 2000
+    # Under that LIMIT the planner prefers a sequential scan, expecting to find the rows early, but <% is
+    # costly per row and a common term still means tens of thousands of rejects before the cap. Every scan
+    # of this statement has an index to use, so sequential scans are switched off for its transaction.
+    NO_SEQ_SCAN = SessionSetting("enable_seqscan", "off")
 
     def __init__(self, fuzzy_term: str, cursor: PageCursor | None) -> None:
         self.fuzzy_term = fuzzy_term
@@ -58,7 +62,7 @@ class FuzzyRetriever(Retriever):
 
     @property
     def session_settings(self) -> Sequence[SessionSetting]:
-        return (self.GATE_THRESHOLD,)
+        return (self.GATE_THRESHOLD, self.NO_SEQ_SCAN)
 
     def apply(self, candidate_query: Select) -> Select:
         tokens = fuzzy_tokens(self.fuzzy_term)
