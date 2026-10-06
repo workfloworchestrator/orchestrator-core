@@ -26,10 +26,7 @@ from orchestrator.core.search.core.embedding import QueryEmbedder
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.core.validators import is_uuid
 from orchestrator.core.search.query import engine
-from orchestrator.core.search.query.builder import build_candidate_query
 from orchestrator.core.search.query.queries import SelectQuery
-from orchestrator.core.search.retrieval.retrievers.base import Retriever
-from orchestrator.core.search.retrieval.session import apply_session_settings
 
 logger = structlog.get_logger(__name__)
 console = Console()
@@ -89,31 +86,6 @@ async def run_single_query(query_text: str, embedding_lookup: dict[str, list[flo
         "results": len(response.results),
         "search_type": response.metadata.search_type if hasattr(response, "metadata") else "unknown",
     }
-
-
-async def explain_query(query_text: str, limit: int) -> str:
-    """The execution plan of the search statement for `query_text`, built the way the engine builds it."""
-    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text, limit=limit)
-    embedding_lookup = {} if is_uuid(query_text) else await generate_embeddings_for_queries([query_text])
-    retriever = Retriever.route(query, cursor=None, query_embedding=embedding_lookup.get(query_text))
-    stmt = retriever.apply(build_candidate_query(query)).limit(limit)
-
-    async with db.async_session() as session:
-        await apply_session_settings(session, retriever.session_settings)
-        # The compiled string already carries the driver's escaping ("<%%"), so it goes to the driver as is.
-        compiled = str(stmt.compile(dialect=session.bind.dialect, compile_kwargs={"literal_binds": True}))
-        connection = await session.connection()
-        rows = await connection.exec_driver_sql(f"EXPLAIN (ANALYZE, BUFFERS) {compiled}")
-        return "\n".join(row[0] for row in rows)
-
-
-@app.command()
-def explain(
-    query: str = typer.Argument(..., help="Query text to explain"),
-    limit: int = typer.Option(30, help="Result limit, as the search API would apply it"),
-) -> None:
-    """Print the EXPLAIN (ANALYZE, BUFFERS) plan of the search statement for a query."""
-    console.print(asyncio.run(explain_query(query, limit)), highlight=False, markup=False)
 
 
 @app.command()
