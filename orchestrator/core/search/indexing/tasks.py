@@ -15,7 +15,6 @@ from typing import Any
 
 import structlog
 from sqlalchemy import func, select, text
-from sqlalchemy.orm import Query
 
 from orchestrator.core.db import db
 from orchestrator.core.domain.context_cache import cache_subscription_models
@@ -64,13 +63,7 @@ def run_indexing_for_entity(
     """
     config = ENTITY_CONFIG_REGISTRY[entity_kind]
 
-    q = config.get_all_query(entity_id)
-
-    if isinstance(q, Query):
-        q = q.enable_eagerloads(False)
-        stmt = q.statement
-    else:
-        stmt = q
+    stmt = config.get_all_query(entity_id)
 
     total_count = _get_entity_count(stmt) if show_progress else None
 

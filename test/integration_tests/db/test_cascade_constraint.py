@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pytest
+from sqlalchemy import func, select
 
 from orchestrator.core.db import db
 from orchestrator.core.db.models import InputStateTable, ProcessTable
@@ -42,14 +43,14 @@ def test_cascade_delete(mocked_processes, test_client, create_input_state):
     )
 
     # Verify both records exist
-    assert db.session.query(ProcessTable).count() == 9
-    assert db.session.query(InputStateTable).count() == 1
+    assert db.session.scalar(select(func.count()).select_from(ProcessTable)) == 9
+    assert db.session.scalar(select(func.count()).select_from(InputStateTable)) == 1
 
     # Delete one of the process so that the input state is deleted as well
-    process = db.session.query(ProcessTable).filter_by(process_id=processes[0]["process_id"]).one()
+    process = db.session.scalars(select(ProcessTable).filter_by(process_id=processes[0]["process_id"])).one()
     db.session.delete(process)
     db.session.commit()
 
     # Verify cascade delete
-    assert db.session.query(ProcessTable).count() == 8
-    assert db.session.query(InputStateTable).count() == 0
+    assert db.session.scalar(select(func.count()).select_from(ProcessTable)) == 8
+    assert db.session.scalar(select(func.count()).select_from(InputStateTable)) == 0

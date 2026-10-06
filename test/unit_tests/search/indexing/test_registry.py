@@ -18,6 +18,7 @@ and registry completeness.
 """
 
 from unittest.mock import MagicMock, call, patch
+from uuid import UUID
 
 import pytest
 
@@ -52,7 +53,6 @@ VALID_UUID = "12345678-1234-1234-1234-123456789abc"
 def _make_config(title_paths: list[str]) -> EntityConfig:
     """Return a minimal EntityConfig with the given title_paths using a MagicMock table."""
     mock_table = MagicMock()
-    mock_table.query = MagicMock()
     return EntityConfig(
         entity_kind=EntityType.SUBSCRIPTION,
         table=mock_table,
@@ -113,48 +113,27 @@ def test_get_title_from_fields(title_paths, fields, expected):
 # ---------------------------------------------------------------------------
 
 
-def test_entity_config_get_all_query_without_entity_id():
-    mock_table = MagicMock()
-    base_query = MagicMock()
-    mock_table.query = base_query
-
+@pytest.mark.parametrize(
+    ("entity_id", "expected_params"),
+    [
+        pytest.param(None, {}, id="without_entity_id"),
+        pytest.param(VALID_UUID, {"subscription_id_1": UUID(VALID_UUID)}, id="with_entity_id"),
+    ],
+)
+def test_entity_config_get_all_query(entity_id, expected_params):
     config = EntityConfig(
         entity_kind=EntityType.SUBSCRIPTION,
-        table=mock_table,
+        table=SubscriptionTable,
         traverser=MagicMock(),
         pk_name="subscription_id",
         root_name="subscription",
         title_paths=[],
     )
 
-    result = config.get_all_query()
+    stmt = config.get_all_query(entity_id=entity_id)
 
-    assert result is base_query
-    base_query.filter.assert_not_called()
-
-
-def test_entity_config_get_all_query_with_entity_id():
-    mock_table = MagicMock()
-    base_query = MagicMock()
-    filtered_query = MagicMock()
-    pk_column = MagicMock()
-    base_query.filter.return_value = filtered_query
-    mock_table.query = base_query
-    mock_table.subscription_id = pk_column
-
-    config = EntityConfig(
-        entity_kind=EntityType.SUBSCRIPTION,
-        table=mock_table,
-        traverser=MagicMock(),
-        pk_name="subscription_id",
-        root_name="subscription",
-        title_paths=[],
-    )
-
-    result = config.get_all_query(entity_id=VALID_UUID)
-
-    assert result is filtered_query
-    base_query.filter.assert_called_once()
+    assert stmt.column_descriptions[0]["entity"] is SubscriptionTable
+    assert stmt.compile().params == expected_params
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +156,7 @@ def test_process_config_applies_selectinload_on_workflow():
     select_result.options.return_value = options_result
 
     with (
-        patch("sqlalchemy.select", return_value=select_result) as mock_select,
+        patch("orchestrator.core.search.indexing.registry.select", return_value=select_result) as mock_select,
         patch("sqlalchemy.orm.selectinload") as mock_selectinload,
     ):
         result = config.get_all_query()
@@ -222,7 +201,7 @@ def test_select_options_where_config_with_entity_id_applies_where(config_cls, ta
     select_result.options.return_value = options_result
     options_result.where.return_value = where_result
 
-    with patch("sqlalchemy.select", return_value=select_result), patch("sqlalchemy.orm.selectinload"):
+    with patch("orchestrator.core.search.indexing.registry.select", return_value=select_result), patch("sqlalchemy.orm.selectinload"):
         result = config.get_all_query(entity_id=VALID_UUID)
 
     options_result.where.assert_called_once()
@@ -343,7 +322,7 @@ def test_product_block_config_applies_selectinload_on_resource_types_and_in_use_
     select_result.options.return_value = options_result
 
     with (
-        patch("sqlalchemy.select", return_value=select_result) as mock_select,
+        patch("orchestrator.core.search.indexing.registry.select", return_value=select_result) as mock_select,
         patch("sqlalchemy.orm.selectinload") as mock_selectinload,
     ):
         result = config.get_all_query()
@@ -378,7 +357,7 @@ def test_resource_type_config_applies_selectinload_on_product_blocks():
     select_result.options.return_value = options_result
 
     with (
-        patch("sqlalchemy.select", return_value=select_result) as mock_select,
+        patch("orchestrator.core.search.indexing.registry.select", return_value=select_result) as mock_select,
         patch("sqlalchemy.orm.selectinload", return_value=selectinload_result) as mock_selectinload,
     ):
         result = config.get_all_query()

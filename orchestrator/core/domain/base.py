@@ -771,7 +771,7 @@ class ProductBlockModel(DomainModel):
         This function is similar to `from_subscription()`
 
             >>> subscription_instance_id = KNOWN_UUID_IN_DB  # doctest:+SKIP
-            >>> si_from_db = db.SubscriptionInstanceTable.query.get(subscription_instance_id)  # doctest:+SKIP
+            >>> si_from_db = db.session.get(db.SubscriptionInstanceTable, subscription_instance_id)  # doctest:+SKIP
             >>> example3 = ProductBlockModel.from_db(subscription_instance=si_from_db)  # doctest:+SKIP
             >>> example4 = ProductBlockModel.from_db(subscription_instance_id=subscription_instance_id)  # doctest:+SKIP
         """

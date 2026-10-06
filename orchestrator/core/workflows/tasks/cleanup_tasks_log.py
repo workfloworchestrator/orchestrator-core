@@ -13,9 +13,11 @@
 
 
 from datetime import timedelta
+from typing import cast
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
 
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.db.models import AiSearchIndex
@@ -54,12 +56,13 @@ def remove_tasks() -> State:
 def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
     count = 0
     if deleted_process_id_list:
-        count = (
-            db.session.query(AiSearchIndex)
-            .filter(AiSearchIndex.entity_type == EntityType.PROCESS)
-            .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
-            .delete(synchronize_session=False)
+        result = db.session.execute(
+            delete(AiSearchIndex)
+            .where(AiSearchIndex.entity_type == EntityType.PROCESS)
+            .where(AiSearchIndex.entity_id.in_(deleted_process_id_list))
+            .execution_options(synchronize_session=False)
         )
+        count = cast(CursorResult, result).rowcount
 
     return {"ai_search_index_rows_deleted": count}
 

@@ -40,12 +40,12 @@ which `restart_created_workflows` reads to resume each process.
 
     @step("Create reconcile jobs")
     def create_reconcile_jobs(roles_created: list[dict]) -> State:
-        subscriptions = (
-            SurfSubscriptionTable.query.join(SurfSubscriptionTable.product)
+        subscriptions = db.session.scalars(
+            select(SurfSubscriptionTable)
+            .join(SurfSubscriptionTable.product)
             .join(SurfSubscriptionTable.customer)
-            .filter(...)
-            .all()
-        )
+            .where(...)
+        ).all()
 
         process_ids = [
             create_process(

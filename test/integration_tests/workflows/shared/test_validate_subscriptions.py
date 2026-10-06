@@ -59,7 +59,7 @@ def test_failed_validation(generic_subscription_1: str) -> None:
 
     with mock.patch.object(db.session, "rollback"):
         with WorkflowInstanceForTests(failing_validation_workflow, "failing_validation_workflow") as failing_wf:
-            product = SubscriptionTable.query.get(generic_subscription_1).product
+            product = db.session.get(SubscriptionTable, generic_subscription_1).product
             product.workflows.append(failing_wf)
             db.session.add(product)
             db.session.commit()
