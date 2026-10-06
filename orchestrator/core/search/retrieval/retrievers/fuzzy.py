@@ -28,32 +28,28 @@ from orchestrator.core.search.retrieval.session import SessionSetting
 
 
 def fuzzy_tokens(fuzzy_term: str) -> list[str]:
-    """Split the query on whitespace and remove case-insensitive duplicates.
+    """Split on whitespace and deduplicate terms case-insensitively.
 
-    Drop terms without letters or numbers because they have no trigrams to match.
-    If none remain, return the original query as a single term.
+    Ignore punctuation-only tokens. Keep the original query if no tokens remain.
     """
     tokens = [token for token in fuzzy_term.split() if any(char.isalnum() for char in token)]
     return list(unique_everseen(tokens, key=str.casefold)) or [fuzzy_term]
 
 
 class FuzzyRetriever(Retriever):
-    """Rank entities by the average of each query term's best trigram similarity.
+    """Rank entities by averaging each query term's best field similarity.
 
-    Terms can match different searchable fields of the same entity. Every term must
-    pass the trigram gate (``GATE_THRESHOLD``) in some field of the entity, and the
-    average of the terms' best scores must reach ``MIN_SCORE``.
+    Each term must pass ``GATE_THRESHOLD`` in at least one searchable field.
+    Terms may match different fields; their average must reach ``MIN_SCORE``.
     """
 
     MIN_SCORE = 0.6
-    # What `<%` requires of a single term in a single field: low enough to let a typo through ("LIIR" is 0.5
-    # against "LIR"), while MIN_SCORE on the average keeps entities with only weak matches out.
+    # Allow typos such as "LIIR" matching "LIR" (similarity 0.5).
     GATE_THRESHOLD = SessionSetting("pg_trgm.word_similarity_threshold", "0.4")
-    # Matches counted per term to find the rarest one; a term that reaches it is common enough not to drive.
+    # Maximum matching rows counted per term when choosing the starting term.
     RARITY_SAMPLE = 2000
-    # Under that LIMIT the planner prefers a sequential scan, expecting to find the rows early, but <% is
-    # costly per row and a common term still means tens of thousands of rejects before the cap. Every scan
-    # of this statement has an index to use, so sequential scans are switched off for its transaction.
+    # Prefer indexes when sampling: a sequential scan may test many nonmatching rows.
+    # This setting applies to the whole search transaction.
     NO_SEQ_SCAN = SessionSetting("enable_seqscan", "off")
 
     def __init__(self, fuzzy_term: str, cursor: PageCursor | None) -> None:
@@ -68,7 +64,7 @@ class FuzzyRetriever(Retriever):
         tokens = fuzzy_tokens(self.fuzzy_term)
         token_similarities = [func.word_similarity(token, AiSearchIndex.value) for token in tokens]
 
-        # Take each term's best score across the entity's fields, then average those scores.
+        # Terms may match different fields, so take each term's maximum before averaging.
         raw_score = reduce(add, (func.max(similarity) for similarity in token_similarities)) / len(tokens)
         score = cast(
             func.round(cast(raw_score, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
@@ -76,9 +72,7 @@ class FuzzyRetriever(Retriever):
 
         is_searchable = AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES)
         entities = self._gated_entities(tokens, is_searchable)
-        # Score every searchable field of those entities, reached through the entity_id index. The gates are
-        # deliberately absent here: with them the planner can drive this scan from the trigram index again,
-        # which is the whole-table visit the CTE exists to avoid.
+        # Keep trigram filters in the CTE so scoring can use entity_id lookups.
         gated = (
             select(AiSearchIndex.entity_id, AiSearchIndex.entity_title, score.label(self.SCORE_LABEL))
             .join(entities, entities.c.entity_id == AiSearchIndex.entity_id)
@@ -86,11 +80,10 @@ class FuzzyRetriever(Retriever):
             .group_by(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
             .having(score >= self.MIN_SCORE)
         )
-        # Check candidate membership per matching row so candidate filters do not drive the initial scan.
+        # Check filters per matching row to avoid scanning a broad candidate set.
         scored = self._restrict_to_candidates(gated, candidate_query, probe=True).subquery("ranked_fuzzy")
 
-        # Only entities that passed the threshold get a highlight: the field with the highest average
-        # similarity, preferring shorter paths on ties. The lateral lookup runs per surviving entity.
+        # Fetch highlights after score filtering; prefer shallower paths when field scores tie.
         field_similarity = reduce(add, token_similarities) / len(tokens)
         highlight = (
             select(
@@ -116,14 +109,10 @@ class FuzzyRetriever(Retriever):
         return stmt.order_by(scored.c.score.desc().nulls_last(), scored.c.entity_id.asc())
 
     def _gated_entities(self, tokens: list[str], is_searchable: ColumnElement[bool]) -> CTE:
-        """The entities in which every term gates some field, found from the rarest term outwards.
+        """Find entities where every term matches at least one searchable field.
 
-        A single term can drive the trigram scan directly, without sampling or additional entity gates.
-        The driving term's matches come from the trigram index; the other terms are then checked per entity
-        through the entity_id index. The cost follows the rarest term instead of the most common one, which
-        would otherwise mean fetching every row it matches. Which term is rarest is decided at run time by
-        counting each term's matches, capped at ``RARITY_SAMPLE`` so a common term stops early: trigram
-        selectivity estimates are unreliable and the planner has picked the common term on them.
+        Start with the term with the fewest sampled matches, then check every term per entity.
+        Single terms skip sampling. Materialize the IDs to keep selection separate from scoring.
         """
         if len(tokens) == 1:
             return (
@@ -134,11 +123,15 @@ class FuzzyRetriever(Retriever):
                 .prefix_with("MATERIALIZED")
             )
 
+        # Map each term to a trigram condition that checks GATE_THRESHOLD.
         gate_of = {token: literal(token).op("<%")(AiSearchIndex.value) for token in tokens}
+
+        # For each term, select up to RARITY_SAMPLE matching rows to count.
         sampled_matches = {
             token: select(literal(1)).where(and_(is_searchable, gate)).limit(self.RARITY_SAMPLE).subquery()
             for token, gate in gate_of.items()
         }
+        # Combine the per-term counts into (term, matches) rows.
         rarity = union_all(
             *(
                 select(
@@ -148,9 +141,11 @@ class FuzzyRetriever(Retriever):
                 for token, sample in sampled_matches.items()
             )
         ).subquery("rarity")
+        # Start the search with the term with the fewest counted matches.
         driving_term = select(rarity.c.term).order_by(rarity.c.matches, rarity.c.term).limit(1).scalar_subquery()
 
         rows = aliased(AiSearchIndex, name="gate_rows")
+        # Require every term to match within the entity; different terms may match different fields.
         gated_elsewhere = [
             exists().where(
                 and_(

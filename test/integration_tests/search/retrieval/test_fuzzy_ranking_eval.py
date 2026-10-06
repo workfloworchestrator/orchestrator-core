@@ -11,15 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Evaluation dataset for the fuzzy (trigram) retriever.
+"""Fuzzy-ranking regression tests using a small subscription corpus.
 
-A small corpus shaped like real subscriptions (customer abbreviation, product, resource in the
-description; product name and nested block values in other fields) and queries with the subscription
-that should rank first. Each case is a regression guard; the aggregate hit@1 and MRR give a baseline
-to compare ranking changes against instead of eyeballing single examples.
-
-Only the trigram side is evaluated: it is deterministic, and the hybrid retriever falls back to it
-when no embedding is available. Add real queries that misbehave in production as new cases.
+Queries cover non-adjacent terms, typos, and matches across fields.
 """
 
 from dataclasses import dataclass
@@ -89,7 +83,7 @@ class EvalCase:
 
 
 EVAL_CASES = [
-    # The issue: two terms that are both present but not adjacent
+    # Non-adjacent terms
     EvalCase("ACM LIR", "acm_lir"),
     EvalCase("LIR ACM", "acm_lir"),
     EvalCase("acm lir", "acm_lir"),
@@ -135,7 +129,7 @@ def corpus_ids() -> dict[str, UUID]:
 
 
 def _fuzzy_rows(query_text: str, limit: int) -> list:
-    """Run the fuzzy retriever the way the engine does: its session settings first, then the statement."""
+    """Apply the retriever's session settings before executing its query."""
     retriever = FuzzyRetriever(query_text, cursor=None)
     for setting in retriever.session_settings:
         db.session.execute(text(setting.statement))
@@ -144,7 +138,7 @@ def _fuzzy_rows(query_text: str, limit: int) -> list:
 
 
 def _ranking(query_text: str, ids: dict[str, UUID]) -> list[str]:
-    """The CORPUS keys in the order the fuzzy retriever ranks them."""
+    """Return corpus keys in result order."""
     key_by_id = {entity_id: key for key, entity_id in ids.items()}
     return [key_by_id[row.entity_id] for row in _fuzzy_rows(query_text, limit=len(ids))]
 
@@ -153,8 +147,7 @@ def _ranking(query_text: str, ids: dict[str, UUID]) -> list[str]:
     "query_text,expected",
     [
         pytest.param("LIR", {"acm_lir", "bxt_lir", "zeo_lir"}, id="single-term"),
-        # ACM alone gives every ACM subscription 0.5; LIR must also pass the gate somewhere ("Lakeside" is 0.5,
-        # "L2VPN" is not) and the partial match then lifts the mean over the threshold
+        # LIR partly matches Lakeside (0.5), so acm_lightpath also qualifies with an average of 0.75.
         pytest.param("ACM LIR", {"acm_lir", "acm_lightpath"}, id="one-exact-term-is-not-enough"),
         pytest.param("Riverton with frobnicator", set(), id="one-of-three-terms-matching-is-not-enough"),
         pytest.param("with", set(), id="term-absent-from-corpus"),
@@ -162,7 +155,7 @@ def _ranking(query_text: str, ids: dict[str, UUID]) -> list[str]:
     ],
 )
 def test_entities_matching_too_few_terms_are_not_hits(corpus_ids, query_text, expected):
-    """A field passes the gate on any term, but the entity is only kept when its mean over the terms is high."""
+    """Each term must match a field, and the average score must reach MIN_SCORE."""
     assert set(_ranking(query_text, corpus_ids)) == expected
 
 
@@ -186,7 +179,7 @@ def test_entities_matching_too_few_terms_are_not_hits(corpus_ids, query_text, ex
     ],
 )
 def test_single_term_scores_and_highlights(query_text: str, value: str, value_type: FieldType, matches: bool) -> None:
-    """Multiple matching fields yield one entity with its best score and shallowest highlight."""
+    """Return each match once, with its best score and shallowest matching field."""
     entity_id = uuid4()
     db.session.add_all(
         AiSearchIndex(
@@ -226,10 +219,7 @@ def test_single_term_scores_and_highlights(query_text: str, value: str, value_ty
     ],
 )
 def test_every_term_must_pass_the_gate(fields, expected):
-    """ACM matches exactly; LIR only counts, in whichever field, when its best match passes the gate (0.5 for LIP).
-
-    An entity where LIR matches nothing is dropped even though ACM alone would give it 0.5.
-    """
+    """LIR must pass the trigram threshold, whether it matches beside ACM or in another field."""
     entity_id = uuid4()
     db.session.add_all(
         AiSearchIndex(
@@ -262,7 +252,7 @@ def test_expected_subscription_ranks_first(corpus_ids, case):
 
 
 def test_aggregate_ranking_quality(corpus_ids):
-    """hit@1 and MRR over the whole dataset; raise the bar when ranking improves, never lower it."""
+    """Every expected subscription must rank first: hit@1 and MRR should both be 1."""
     rankings = [(_ranking(case.query, corpus_ids), case.expected) for case in EVAL_CASES]
 
     hit_at_1 = sum(ranking[:1] == [expected] for ranking, expected in rankings) / len(rankings)
