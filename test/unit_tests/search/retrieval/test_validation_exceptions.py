@@ -266,7 +266,7 @@ async def test_validate_structured_order_by_element_without_request(async_db_ses
     await validate_structured_order_by_element(EntityType.SUBSCRIPTION, None, async_db_session)
 
 
-@patch("orchestrator.core.search.query.validation.has_ai_search_index_for_entity_type", return_value=True)
+@patch("orchestrator.core.search.query.validation._has_ai_search_index_for_entity_type", return_value=True)
 @patch("orchestrator.core.search.query.validation.get_ai_search_index_by_entity_type_and_path", return_value=None)
 async def test_validate_structured_order_by_element_not_existing(mock_get_index, mock_has_index, async_db_session):
     """Non-existent order_by element raises ValueError when the entity type has indexed rows."""
@@ -277,7 +277,7 @@ async def test_validate_structured_order_by_element_not_existing(mock_get_index,
         await validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock, async_db_session)
 
 
-@patch("orchestrator.core.search.query.validation.has_ai_search_index_for_entity_type", return_value=False)
+@patch("orchestrator.core.search.query.validation._has_ai_search_index_for_entity_type", return_value=False)
 @patch("orchestrator.core.search.query.validation.get_ai_search_index_by_entity_type_and_path", return_value=None)
 async def test_validate_structured_order_by_element_empty_index(mock_get_index, mock_has_index, async_db_session):
     """Any order_by element passes when nothing is indexed for the entity type."""
