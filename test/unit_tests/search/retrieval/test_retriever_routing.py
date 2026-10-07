@@ -144,7 +144,7 @@ def test_hybrid_carries_full_query_text_embedding_and_window(entity_type: Entity
     assert retriever.q_vec == EMBEDDING
     assert retriever.entity_type == entity_type
     assert retriever.semantic_candidates_limit == 123
-    assert tuple(retriever.session_settings) == (HNSW_ITERATIVE_SCAN,)
+    assert tuple(retriever.session_settings) == (FuzzyRetriever.GATE_THRESHOLD, HNSW_ITERATIVE_SCAN)
 
 
 def test_semantic_override_carries_embedding() -> None:
@@ -159,7 +159,7 @@ def test_uuid_fuzzy_carries_query_text() -> None:
     retriever = Retriever.route(_query(UUID_TEXT), cursor=None, query_embedding=None)
     assert isinstance(retriever, FuzzyRetriever)
     assert retriever.fuzzy_term == UUID_TEXT
-    assert retriever.session_settings == ()
+    assert tuple(retriever.session_settings) == (FuzzyRetriever.GATE_THRESHOLD,)
 
 
 def test_structured_carries_order_by() -> None:
@@ -184,7 +184,7 @@ def test_process_fallback_is_fuzzy_only() -> None:
     assert retriever.q_vec is None
     assert retriever.fuzzy_term == MULTI_WORD
     assert retriever.entity_type == EntityType.PROCESS
-    assert retriever.session_settings == ()
+    assert tuple(retriever.session_settings) == (FuzzyRetriever.GATE_THRESHOLD,)
 
 
 @pytest.mark.parametrize(

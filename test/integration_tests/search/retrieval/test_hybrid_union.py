@@ -22,7 +22,7 @@ from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import aliased
 from sqlalchemy_utils import Ltree
 
@@ -127,6 +127,8 @@ def _run_retriever(query_text: str, q_vec: list[float], filters: FilterTree | No
     retriever = RrfHybridRetriever(
         q_vec, query_text, cursor=None, entity_type=EntityType.SUBSCRIPTION, semantic_candidates_limit=100
     )
+    for setting in retriever.session_settings:
+        db.session.execute(text(setting.statement))
     stmt = retriever.apply(build_candidate_query(query)).limit(limit)
     return list(db.session.execute(stmt).mappings().all())
 
