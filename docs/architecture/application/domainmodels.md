@@ -1,33 +1,39 @@
 ---
 # tutorial | how-to | reference | explanation | mixed
-diataxis: 
+diataxis: mixed
 reviewed: false
 ---
 
-# Domain Models - Why do we need them?
+# Domain Models
+<!-- diataxis: explanation -->
 
 Domain Models are designed to help the developer manage complex subscription models and interact with the objects in a
-user-friendly way. Domain models leverage the [Pydantic](https://pydantic-docs.helpmanual.io/) with some extra sauce to
-dynamically cast variables from the database where they are stored as a string to their correct type in Python at runtime.
+user-friendly way. They leverage [Pydantic models][pydantic-models] with some extra sauce to, among other things,
+dynamically cast string values from the database to their correct type in Python at runtime.
 
-**Domain Model benefits**
+## Why do we need them?
+<!-- diataxis: explanation -->
 
-- Strict MyPy typing and validation in models.
+Some Domain Model benefits are:
+
+- Strict MyPy typing and validation in models
 - Type Safe serialization to and from the database
 - Subscription lifecycle transition enforcement
-- Hierarchy enforcement with domain models
-- Customer Facing resources vs resource facing resources
+- Hierarchy enforcement
+- Customer Facing resources vs resource facing resources <!-- TODO document this -->
 
 When implementing domain models it is possible to link all resources together as they are nodes in a graph through the
 relations defined in the domain models.
 
 ### Type Safety during serialization
+<!-- diataxis: explanation -->
 
 Logic errors that depend on type evaluations/comparisons are prevented by using domain models to serialize
 database objects. This has a number of benefits as it saves the user the effort of casting the database result
 to the correct type and allows the developer to be more type safe whilst developing.
 
 #### Example
+<!-- diataxis: explanation -->
 
 !!! example
     The main reason for developing domain models was to make sure bugs like this occurred less.
@@ -39,11 +45,11 @@ to the correct type and allows the developer to be more type safe whilst develop
     >>> instance_value_from_db = some_subscription_instance_value.value
     >>> instance_value_from_db
     "False"
-    >>> if instance_value_from_db is True:
-    ...    print("True")
+    >>> if instance_value_from_db:
+    ...    print("true")
     ... else:
-    ...    print("False")
-    "True"
+    ...    print("false")
+    "true"
     ```
 
     ##### Post domain models
@@ -60,31 +66,36 @@ to the correct type and allows the developer to be more type safe whilst develop
     >>> subscription_model.product_block.instance_from_db
     False
     >>>
-    >>> if subscription_model.product_block.instance_from_db is True:
-    ...    print("True")
+    >>> if subscription_model.product_block.instance_from_db:
+    ...    print("true")
     ... else:
-    ...    print("False")
-    "False"
+    ...    print("false")
+    "false"
     ```
 
 ### Lifecycle transitions
+<!-- diataxis: explanation -->
 
 When transitioning from `Initial` -> `Provisioning` -> `Active` -> `Terminated` in the Subscription Lifecycle
-the domain model definitions make sure that all resource types and product blocks are assigned correctly. Typically
+the domain model definitions make sure that all resource types and product blocks are assigned correctly. Typically,
 the `Initial` status is less strict compared to the `Active` lifecycle. When assigning product blocks from other
-subscriptions as dependent on a product block from the subscription that is being modified, the domain-models respect
+subscriptions as dependent on a product block from the subscription that is being modified, the domain model respects
 Subscription boundaries and do not update variables and resources in the related Subscription product block.
 
+<!-- TODO explain what the 'domain model' is, link to reference-doc page of DomainModel class -->
+
 ### Enforcing Hierarchy
+<!-- diataxis: explanation -->
 
 When defining and modeling products it's often necessary to model resources that are in use by or dependent on other
 product blocks. A product block of a subscription can also be dependent on a product block from another subscription.
-This way a hierarchy of product blocks from all subscriptions can be build where the ownership of any product block is
+This way a hierarchy of product blocks from all subscriptions can be built where the ownership of any product block is
 determined by the subscription it belongs to.
 
-#### A couple of Examples of subscription hierarchies
+#### Example
+<!-- diataxis: explanation -->
 
-We will describe some practical examples to explain how you can deal with complex customers requirements, and how to
+We will describe some practical examples to explain how you can deal with complex customer requirements, and how to
 layer subscriptions to represent a complex portfolio of network services.
 
 1. Consider the relation between a Node and a Port: When you create Node and Port subscriptions. You should not be
@@ -96,8 +107,11 @@ layer subscriptions to represent a complex portfolio of network services.
    again in the circuit subscription, as a resource.
 
 ## Code examples
+<!-- diataxis: mixed -->
+<!-- TODO unmix: keep only the "strictness increases per lifecycle" point as one compact example under 'Lifecycle transitions'; link to reference-docs/domain-models/product-blocks.md and product-types.md for the class definitions; drop this heading -->
 
-#### Product Block Model
+### Product Block Model
+<!-- diataxis: explanation -->
 
 Product block models are reusable Pydantic classes that enable the user to reuse product blocks in multiple Products.
 They are defined in lifecycle state and can be setup to be very restrictive or less restrictive. The orchestrator
@@ -105,11 +119,13 @@ supports hierarchy in the way product block models reference each other. In othe
 a property that references one or more other product block models.
 
 !!! info
-    The Product block model should be modeled as though it is a resource that can be re-used in multiple products.
+    A Product Block should be modeled as though it is a resource that can be re-used in multiple products.
     In networking the analogy would be: A physical interface may be used in a Layer 2 service and Layer 3 service
     It is not necessary to define two different physical interface types.
 
-##### Product Block Model - Inactive
+#### Product Block Model - Inactive
+<!-- diataxis: mixed -->
+<!-- TODO unmix: merge Inactive/Provisioning/Active into one tabbed example that only shows Optional -> required; move the product_block_name / resource_type / ValidationError details to product-blocks.md and link there -->
 
 ```python hl_lines="1 4"
 class ServicePortBlockInactive(ProductBlockModel, product_block_name="Service Port"):
@@ -129,7 +145,9 @@ the database. In the second highlighted line you see a variable. This references
 annotates what type it should be at runtime. In the `Inactive` or `Initial` phase of the Subscription lifecycle we are
 least restrictive in annotating the properties; All fields/resource types are Optional.
 
-##### Product Block Model - Provisioning
+#### Product Block Model - Provisioning
+<!-- diataxis: mixed -->
+<!-- TODO unmix: see 'Product Block Model - Inactive' -->
 
 ```python hl_lines="1-3 6"
 class ServicePortBlockProvisioning(
@@ -149,7 +167,9 @@ In this stage we have changed the way a Subscription domain model should look li
 You also see that the `resource_type` now no-longer is Optional. It must exist in this instantiation of the class. The
 model will raise a `ValidationError` upon `.save()` if typing is not filled in correctly.
 
-##### Product Block Model - Active
+#### Product Block Model - Active
+<!-- diataxis: mixed -->
+<!-- TODO unmix: see 'Product Block Model - Inactive' -->
 
 ```python hl_lines="1 4-9"
 class ServicePortBlock(ServicePortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -170,14 +190,17 @@ this product block model must have all `resource_type`s filled in except for `au
     The stricter you are in defining your product block models the more you are able to leverage the built in validation
     of`Pydantic`.
 
-#### Product Model a.k.a SubscriptionModel
+### Product Model
+<!-- diataxis: explanation -->
 
-Product models are very similar to Product Block Models in that they adhere to the same principles as explained above. However
+Product models are very similar to Product Block Models in that they adhere to the same principles as explained above. However,
 the difference to Product Block models is that they create `Subscriptions` in the database. They must always have a reference
-to a customer and instead of containing other `ProductBlockModel` or `resource_types` they contain either `fixed_inputs`
-which basically describe fixed product attributes or other `ProductBlockModels.`
+to a customer and instead of containing dynamic `resource_types` they contain `fixed_inputs`
+which basically describe fixed product attributes.
+Similar to Product Block models, a Product model also contains a Product Block model, also known as the _root_ Product Block.
 
-##### Product Model - Inactive
+#### Product Model - Inactive
+<!-- diataxis: reference -->
 
 ```python hl_lines="2 5 7"
 class ServicePortInitial(
@@ -193,7 +216,8 @@ In the above example you can observe the lifecycle definition as per the `Produc
 These can be of any type, however if they are a `SubClass` of a `ProductBlockModel` the code will automatically create
 a database instance of that object.
 
-##### Product Model - Provisioning and Active
+#### Product Model - Provisioning and Active
+<!-- diataxis: reference -->
 
 ```python hl_lines="6 12"
 class ServicePortProvisioning(
@@ -215,8 +239,11 @@ Again you can observe how the Product definition changes depending on the lifecy
 to the `port` property in `SubscriptionLifecycle.ACTIVE` compared to `SubscriptionLifecycle.PROVISIONING`.
 
 ### Advanced Use Cases
+<!-- diataxis: mixed -->
+<!-- TODO unmix: move 'Crossing the subscription boundary' under 'Enforcing Hierarchy', move 'Union types' to product-types.md (e.g. "Supported field annotations"), then drop this heading -->
 
 #### Crossing the subscription boundary
+<!-- diataxis: explanation -->
 
 As mentioned before an advanced use case would be to use `ProductBlockModels` from other Subscriptions.
 
@@ -241,6 +268,7 @@ This is valid use of the domain models. The code will detect that `port` is part
 ownership. It basically will treat it as a read-only property.
 
 #### Union types
+<!-- diataxis: reference -->
 
 There may also be a case where a user would like to define two different types to a `ProductBlockModel` property.
 This can be achieved by using the `Union` type decorator.
@@ -251,3 +279,6 @@ class ServicePort(ServicePortProvisioning, lifecycle=[SubscriptionLifecycle.ACTI
     port_speed: PortSpeed
     port: Union[ServicePortBlock, DifferentServicePortBlock]
 ```
+
+<!-- link definitions -->
+[pydantic-models]: https://pydantic.dev/docs/validation/latest/concepts/models/
