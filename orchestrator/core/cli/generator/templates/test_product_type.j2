@@ -13,6 +13,8 @@
 
 from uuid import uuid4
 
+from sqlalchemy import select
+
 from orchestrator.core.db import ProductTable, db
 from orchestrator.core.types import SubscriptionLifecycle
 
@@ -20,7 +22,7 @@ from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
 
 
 def test_{{ product.variable }}_new():
-    product = ProductTable.query.filter(ProductTable.name == "{{ product.name }}").one()
+    product = db.session.scalars(select(ProductTable).where(ProductTable.name == "{{ product.name }}")).one()
 
     diff = {{ product.type }}.diff_product_in_database(product.product_id)
     assert diff == {}

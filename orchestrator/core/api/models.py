@@ -28,9 +28,9 @@ from orchestrator.core.db.database import BaseModel as DbBaseModel
 def delete(cls: type[DbBaseModel], primary_key: UUID) -> None:
     table = cls.__table__  # type: ignore[attr-defined]
     pk = list({k: v for k, v, *_ in table.columns._collection if v.primary_key}.keys())[0]
-    row_count = cls.query.filter(cls.__dict__[pk] == primary_key).delete()
+    result = cast(CursorResult, db.session.execute(sa_delete(cls).where(cls.__dict__[pk] == primary_key)))
     db.session.commit()
-    if row_count > 0:
+    if result.rowcount > 0:
         return
     raise_status(HTTPStatus.NOT_FOUND)
 

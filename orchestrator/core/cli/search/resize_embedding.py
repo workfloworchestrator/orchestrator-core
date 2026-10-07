@@ -11,9 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import cast
+
 import structlog
 import typer
-from sqlalchemy import text
+from sqlalchemy import delete, text
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.core.db import db
@@ -63,8 +66,8 @@ def drop_all_embeddings() -> tuple[int, int]:
         Tuple of (ai_search_index records deleted, search_queries records deleted)
     """
     try:
-        index_deleted = db.session.query(AiSearchIndex).delete()
-        query_deleted = db.session.query(SearchQueryTable).delete()
+        index_deleted = cast(CursorResult, db.session.execute(delete(AiSearchIndex))).rowcount
+        query_deleted = cast(CursorResult, db.session.execute(delete(SearchQueryTable))).rowcount
         db.session.commit()
         logger.info(
             f"Deleted {index_deleted} records from ai_search_index and {query_deleted} records from search_queries"
