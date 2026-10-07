@@ -46,7 +46,8 @@ jobs:
         run: |
           set -euo pipefail
           base="origin/${{ github.base_ref }}"
-          old="$(git show "$base:chart/Chart.yaml" 2>/dev/null | sed -n 's/^version: //p')"
+          # Empty when the base branch has no chart yet.
+          old="$( (git show "$base:chart/Chart.yaml" 2>/dev/null || true) | sed -n 's/^version: //p')"
           new="$(sed -n 's/^version: //p' chart/Chart.yaml)"
           if [ -n "$old" ] && [ "$old" = "$new" ] && ! git diff --quiet "$base"...HEAD -- chart; then
             echo "::error file=chart/Chart.yaml::the chart changed; bump version in chart/Chart.yaml"; exit 1
