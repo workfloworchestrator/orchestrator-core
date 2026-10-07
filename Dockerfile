@@ -39,7 +39,8 @@ ARG EXTRAS=""
 # Pre-create the project venv and install orchestrator-core into it.
 # When the example-orchestrator entrypoint runs `uv sync` from this WORKDIR it will find the
 # existing .venv and only add additional dependencies on top.
-RUN uv venv .venv \
+# --seed adds pip, so `pip install` and `python -m pip install` downstream go into this venv.
+RUN uv venv --seed .venv \
     && uv pip install --python .venv/bin/python "$(ls /tmp/*.whl)${EXTRAS}" --no-cache \
     && chown -R orchestrator:orchestrator .venv
 
