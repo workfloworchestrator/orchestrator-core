@@ -221,6 +221,29 @@ def pytest_addoption(parser):
     )
 
 
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(items):
+    """Give tests using the ``benchmark_walltime`` fixture or marker both ``benchmark_walltime`` and ``benchmark``.
+
+    CI sends ``-m benchmark_walltime`` to the walltime job; pytest-codspeed only collects ``benchmark``. Runs tryfirst
+    so the markers exist before ``-m`` deselects.
+    """
+    for item in items:
+        # A loop, not a comprehension: add_marker is a side effect.
+        if "benchmark_walltime" in getattr(item, "fixturenames", ()) and not item.get_closest_marker(
+            "benchmark_walltime"
+        ):
+            item.add_marker(pytest.mark.benchmark_walltime)
+        if item.get_closest_marker("benchmark_walltime") and not item.get_closest_marker("benchmark"):
+            item.add_marker(pytest.mark.benchmark)
+
+
+@pytest.fixture
+def benchmark_walltime(codspeed_benchmark):
+    """``benchmark``, but measured in CI's walltime job instead of simulation."""
+    return codspeed_benchmark
+
+
 def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001 — pytest hook signature
     """Tear down testcontainers (no-op in env-var mode) at session end."""
     _SERVICES_STACK.close()
