@@ -1,0 +1,6 @@
+# The smallest install: the API with migrations, against an external Postgres.
+image:
+  repository: ghcr.io/example/my-orchestrator
+  tag: "1.0.0"
+existingSecrets:
+  - my-orchestrator-database

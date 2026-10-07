@@ -1,23 +1,26 @@
-# Docker development
-As well as developing within a regular python environment it is also possible to develop with a docker environment.
-This method clones our [example-orchestrator](https://github.com/workfloworchestrator/example-orchestrator) repo and
-kickstarts the development from this mono-repo setup.
+# Docker Compose (example orchestrator)
+
+The [example-orchestrator](https://github.com/workfloworchestrator/example-orchestrator) repository
+contains a complete orchestrator with example products and workflows, and a `docker-compose.yml`
+that runs it with everything around it. It is the quickest way to see a working setup on your own
+machine.
 
 !!! note
-    This method of developing is meant for beginners who would like to have a very opinionated version of the
-    orchestrator that already has some pre-built integrations.
+    This setup is meant for exploring and for local development. It is opinionated and mounts the
+    repository into the containers. To run your own orchestrator, see
+    [Running your orchestrator](deployment.md), [Building an image](container-image.md) and
+    [Kubernetes](kubernetes.md).
 
+## What it runs
 
-## Shipped inside this repo
-This repo contains a `docker-compose` that builds the following applications:
+The `docker-compose.yml` starts:
 
-* Orchestrator-core
+* Orchestrator-core, with the example products and workflows
 * Orchestrator-ui
 * Postgres
 * Redis
 * NetBox
 * GraphQL Federation
 
-Furthermore the repository also contains a lot of example code for some of the example products that have been
-implemented. If you would like to quickly get to know the application please follow the [README.md](https://github.com/workfloworchestrator/example-orchestrator/blob/master/README.md)
-to find out how the docker setup works.
+Follow the [README.md](https://github.com/workfloworchestrator/example-orchestrator/blob/master/README.md)
+to start it.

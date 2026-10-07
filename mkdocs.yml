@@ -138,9 +138,13 @@ nav:
           - Preparing source folder: getting-started/prepare-source-folder.md
           - Base application: getting-started/base.md
       - Workflows: getting-started/workflows.md
-      - Docker: getting-started/docker.md
       - Orchestrator UI: getting-started/orchestration-ui.md
       - Orchestrator Shell: getting-started/orchestrator-shell.md
+      - Running your orchestrator:
+          - Overview: getting-started/deployment.md
+          - Building an image: getting-started/container-image.md
+          - Docker Compose: getting-started/docker.md
+          - Kubernetes: getting-started/kubernetes.md
   - Guides:
       - Product Modeling:
           - Importing Existing Products: guides/product-modeling/imports.md

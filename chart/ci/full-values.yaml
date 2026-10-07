@@ -1,0 +1,69 @@
+# Every component and option enabled, so CI renders all templates.
+image:
+  repository: ghcr.io/example/my-orchestrator
+  tag: "1.0.0"
+cli: ["python", "-m", "main"]
+env:
+  OAUTH2_ACTIVE: "false"
+secretEnv:
+  DATABASE_URI: "postgresql+psycopg://orchestrator:password@orchestrator-postgres/orchestrator"
+  CACHE_URI: "redis://orchestrator-valkey:6379/0"
+existingSecrets:
+  - extra-credentials
+extraEnv:
+  - name: LOG_LEVEL
+    value: DEBUG
+serviceAccount:
+  create: true
+volumes:
+  - name: tls
+    secret:
+      secretName: client-cert
+volumeMounts:
+  - name: tls
+    mountPath: /mnt/tls
+    readOnly: true
+api:
+  replicaCount: 2
+  extraInitContainers:
+    - name: index
+      image: ghcr.io/example/my-orchestrator:1.0.0
+      command: ["python", "-m", "main", "index", "subscriptions"]
+scheduler:
+  enabled: true
+  initCommands:
+    - ["scheduler", "load-initial-schedule"]
+    - ["scheduler", "load-project-schedule"]
+celery:
+  enabled: true
+  app: my_orchestrator.celery_worker
+  workers:
+    - name: tasks
+      queues: [new_tasks, resume_tasks]
+    - name: workflows
+      queues: [new_workflows, resume_workflows]
+      replicas: 2
+      concurrency: 4
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - orchestrator.example.net
+  tls:
+    - secretName: orchestrator-tls
+      hosts:
+        - orchestrator.example.net
+httpRoute:
+  enabled: true
+  hostnames:
+    - orchestrator.example.net
+certificate:
+  enabled: true
+secretProviderClass:
+  enabled: true
+  keyVaultName: example-kv
+  tenantId: "00000000-0000-0000-0000-000000000000"
+  nodePublishSecretRefName: kv-sp-secret
+  objects:
+    - key: DATABASE_URI
+      objectName: orchestrator-database-uri

@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "orchestrator-core.fullname" . }}
+  labels:
+    {{- include "orchestrator-core.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  serviceName: {{ include "orchestrator-core.fullname" . }}
+  # Pods start one at a time, so the migrations init container never runs concurrently.
+  podManagementPolicy: OrderedReady
+  selector:
+    matchLabels:
+      {{- include "orchestrator-core.selectorLabels" . | nindent 6 }}
+  template:
+    {{- $pod := include "orchestrator-core.podTemplate" (list . (include "orchestrator-core.selectorLabels" .) "api") | fromYaml }}
+    {{- if or .Values.migrations.enabled .Values.api.extraInitContainers }}
+    {{- $migrations := list }}
+    {{- if .Values.migrations.enabled }}
+    {{- $command := .Values.migrations.command | default (concat .Values.cli (list "db" "upgrade" "heads")) }}
+    {{- $migrations = include "orchestrator-core.container" (list . "migrations" $command) | fromYamlArray }}
+    {{- end }}
+    {{- $_ := set $pod.spec "initContainers" (concat $migrations .Values.api.extraInitContainers) }}
+    {{- end }}
+    {{- $api := include "orchestrator-core.container" (list . "api" .Values.api.command) | fromYamlArray | first }}
+    {{- $_ := set $api "ports" (list (dict "name" "http" "containerPort" 8080 "protocol" "TCP")) }}
+    {{- range $probe := list "startupProbe" "livenessProbe" "readinessProbe" }}
+    {{- with get $.Values.api $probe }}
+    {{- $_ := set $api $probe . }}
+    {{- end }}
+    {{- end }}
+    {{- with .Values.api.resources }}
+    {{- $_ := set $api "resources" . }}
+    {{- end }}
+    {{- $_ := set $pod.spec "containers" (list $api) }}
+    {{- toYaml $pod | nindent 4 }}

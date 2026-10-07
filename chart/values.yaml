@@ -1,0 +1,123 @@
+# Default values for orchestrator-core. See README.md for what each value does.
+
+# -- Your orchestrator image, built FROM the orchestrator-core image. Both are required.
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Your CLI entrypoint; the chart appends the subcommand, e.g. `db upgrade heads`.
+cli: ["python", "main.py"]
+
+# -- Environment of every orchestrator container. See README.md, Environment.
+env: {}
+secretEnv: {}
+existingSecrets: []
+extraEnv: []
+
+serviceAccount:
+  create: false
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext: {}
+securityContext: {}
+
+# -- Volumes on every orchestrator pod; mounts on every orchestrator container, init containers
+# included.
+volumes: []
+volumeMounts: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+api:
+  replicaCount: 1
+  # Listens on 8080, which the Service and probes use.
+  command: ["python", "-m", "uvicorn", "--host", "0.0.0.0", "--port", "8080", "wsgi:app"]
+  resources: {}
+  # Liveness does not query the database, so a database outage does not restart the API.
+  livenessProbe:
+    tcpSocket:
+      port: http
+    initialDelaySeconds: 15
+  readinessProbe:
+    httpGet:
+      path: /api/health/
+      port: http
+    periodSeconds: 5
+  extraInitContainers: []
+
+migrations:
+  enabled: true
+  # Defaults to `<cli> db upgrade heads`.
+  command: []
+
+scheduler:
+  enabled: false
+  # Subcommands run in order before the scheduler starts, each in its own init container and each
+  # appended to cli. A failing one is retried by Kubernetes, e.g. until the database is up.
+  initCommands:
+    - ["scheduler", "load-initial-schedule"]
+  resources: {}
+
+celery:
+  enabled: false
+  # The module that creates your Celery app, passed to `celery -A`.
+  app: ""
+  logLevel: info
+  # Worker processes per pod, unless a worker sets its own. Celery's default is one per node CPU,
+  # which ignores the pod's CPU limit.
+  concurrency: 2
+  workers:
+    - name: tasks
+      queues: [new_tasks, resume_tasks]
+    - name: workflows
+      queues: [new_workflows, resume_workflows]
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - chart-example.local
+  tls: []
+
+httpRoute:
+  enabled: false
+  parentRefs:
+    - name: gateway
+      sectionName: http
+  hostnames:
+    - chart-example.local
+
+certificate:
+  enabled: false
+  name: chart-example-tls
+  dnsName: chart-example.local
+  issuerRef:
+    name: letsencrypt
+    kind: Issuer
+  secretName: chart-example-tls
+  privateKey:
+    rotationPolicy: Always
+
+secretProviderClass:
+  enabled: false
+  provider: azure
+  keyVaultName: ""
+  tenantId: ""
+  nodePublishSecretRefName: ""
+  objects: []

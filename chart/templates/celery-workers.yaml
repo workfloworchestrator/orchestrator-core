@@ -1,0 +1,30 @@
+{{- if .Values.celery.enabled }}
+{{- $app := required "celery.app is required when celery.enabled: the module that creates your Celery app" .Values.celery.app }}
+{{- range $worker := .Values.celery.workers }}
+{{- $component := printf "worker-%s" $worker.name }}
+{{- $selector := include "orchestrator-core.componentSelectorLabels" (list $ $component) }}
+{{- $queues := required (printf "celery.workers[%s].queues is required" $worker.name) $worker.queues }}
+{{- $command := list "python" "-m" "celery" "-A" $app "worker" "-E" (printf "--loglevel=%s" $.Values.celery.logLevel) "-Q" (join "," $queues) (printf "--concurrency=%v" ($worker.concurrency | default $.Values.celery.concurrency)) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "orchestrator-core.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "orchestrator-core.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  replicas: {{ $worker.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- $selector | nindent 6 }}
+  template:
+    {{- $pod := include "orchestrator-core.podTemplate" (list $ $selector $component) | fromYaml }}
+    {{- $container := include "orchestrator-core.container" (list $ "worker" $command) | fromYamlArray | first }}
+    {{- with $worker.resources }}
+    {{- $_ := set $container "resources" . }}
+    {{- end }}
+    {{- $_ := set $pod.spec "containers" (list $container) }}
+    {{- toYaml $pod | nindent 4 }}
+{{- end }}
+{{- end }}

@@ -56,6 +56,8 @@ test/
 docs/
   reference-docs/  Reference documentation a bit outdated but still useful
   architecture     Application architecure
+chart/             Helm chart for downstream orchestrators (API, migrations, scheduler, Celery);
+                   version bumped by hand in Chart.yaml, published by .github/workflows/chart.yml
 ```
 
 ## Optional Extras

@@ -1,0 +1,82 @@
+name: Helm chart
+
+# Lints the chart on pull requests and requires a version bump when it changes. On main, publishes
+# Chart.yaml's version to oci://ghcr.io/<owner>/charts unless that version is already there.
+on:
+  pull_request:
+    paths: ["chart/**", ".github/workflows/chart.yml"]
+  push:
+    branches: [main]
+    paths: ["chart/**", ".github/workflows/chart.yml"]
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  HELM_VERSION: v4.3.0
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      # helm lint reports `required` failures only at INFO level, so helm template is what fails on them.
+      - name: Lint and render every ci/*-values.yaml
+        run: |
+          set -euo pipefail
+          for values in chart/ci/*-values.yaml; do
+            helm lint --strict chart -f "$values"
+            helm template ci chart -f "$values" > /dev/null
+          done
+          if helm template ci chart > /dev/null 2>&1; then
+            echo "::error::the chart rendered without image.repository/image.tag"; exit 1
+          fi
+
+      - name: Require a version bump
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          base="origin/${{ github.base_ref }}"
+          old="$(git show "$base:chart/Chart.yaml" 2>/dev/null | sed -n 's/^version: //p')"
+          new="$(sed -n 's/^version: //p' chart/Chart.yaml)"
+          if [ -n "$old" ] && [ "$old" = "$new" ] && ! git diff --quiet "$base"...HEAD -- chart; then
+            echo "::error file=chart/Chart.yaml::the chart changed; bump version in chart/Chart.yaml"; exit 1
+          fi
+
+  publish:
+    needs: lint
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Publish unless this version exists
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # OCI repository paths must be lowercase; the owner may not be.
+          oci="oci://ghcr.io/$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/charts"
+          version="$(sed -n 's/^version: //p' chart/Chart.yaml)"
+          printf '%s' "$TOKEN" | helm registry login ghcr.io -u '${{ github.actor }}' --password-stdin
+          if helm show chart "$oci/orchestrator-core" --version "$version" > /dev/null 2>&1; then
+            echo "orchestrator-core chart $version is already published"; exit 0
+          fi
+          helm package chart --destination dist
+          helm push dist/*.tgz "$oci"

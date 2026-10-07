@@ -1,0 +1,33 @@
+{{- if .Values.scheduler.enabled -}}
+{{- $selector := include "orchestrator-core.componentSelectorLabels" (list . "scheduler") -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "orchestrator-core.fullname" . }}-scheduler
+  labels:
+    {{- include "orchestrator-core.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scheduler
+spec:
+  # A singleton: two schedulers would run every task twice.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- $selector | nindent 6 }}
+  template:
+    {{- $pod := include "orchestrator-core.podTemplate" (list . $selector "scheduler") | fromYaml }}
+    {{- $init := list }}
+    {{- range $index, $args := .Values.scheduler.initCommands }}
+    {{- $init = concat $init (include "orchestrator-core.container" (list $ (printf "init-%d" $index) (concat $.Values.cli $args)) | fromYamlArray) }}
+    {{- end }}
+    {{- with $init }}
+    {{- $_ := set $pod.spec "initContainers" . }}
+    {{- end }}
+    {{- $scheduler := include "orchestrator-core.container" (list . "scheduler" (concat .Values.cli (list "scheduler" "run"))) | fromYamlArray | first }}
+    {{- with .Values.scheduler.resources }}
+    {{- $_ := set $scheduler "resources" . }}
+    {{- end }}
+    {{- $_ := set $pod.spec "containers" (list $scheduler) }}
+    {{- toYaml $pod | nindent 4 }}
+{{- end }}

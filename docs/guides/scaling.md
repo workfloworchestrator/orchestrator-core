@@ -418,6 +418,13 @@ celery -A surf.tasks  worker --loglevel=info -Q new_tasks,resume_tasks,new_workf
 
 Notice that `-A surf.tasks` indicates the module that contains your `celery.Celery` instance.
 
+### Running workers with the Helm chart
+
+The [Helm chart](../getting-started/kubernetes.md) runs one Deployment per entry in `celery.workers`,
+each consuming the queues you list; add an entry per
+[dedicated queue](#dedicated-queues-per-workflow-target). See the chart
+[README](https://github.com/workfloworchestrator/orchestrator-core/blob/main/chart/README.md#values).
+
 ### Monitoring Celery with Flower
 
 [Flower][flower-intro] is an optional web-based tool for monitoring and administrating Celery clusters. It is not

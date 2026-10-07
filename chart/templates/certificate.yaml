@@ -1,0 +1,22 @@
+{{- if .Values.certificate.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.certificate.name }}
+  labels:
+    {{- include "orchestrator-core.labels" . | nindent 4 }}
+spec:
+  dnsNames:
+    - {{ .Values.certificate.dnsName }}
+  issuerRef:
+    group: cert-manager.io
+    kind: {{ .Values.certificate.issuerRef.kind | default "Issuer" }}
+    name: {{ .Values.certificate.issuerRef.name }}
+  secretName: {{ .Values.certificate.secretName }}
+  privateKey:
+    rotationPolicy: {{ .Values.certificate.privateKey.rotationPolicy }}
+  usages:
+    - server auth
+    - client auth
+    - digital signature
+{{- end }}
