@@ -13,10 +13,10 @@
 
 """Query-plan performance of structured filters against a seeded search index.
 
-The index holds one row per (entity, path), so a filter evaluated per index row instead of per
-entity costs paths-per-entity times more than it should. Wall-clock time is too noisy to assert on;
-the plan is not. These tests run ``EXPLAIN ANALYZE`` and require that no plan node runs more often
-than there are entities.
+The index has one row per (entity, path), so a filter evaluated per index row instead of per entity
+costs paths-per-entity times too much. Wall-clock time is too noisy to assert on, so the tests assert via
+``EXPLAIN ANALYZE`` that no plan node runs more often than there are entities. They benchmark with
+walltime because the work runs inside Postgres, invisible to CodSpeed's simulation.
 """
 
 import asyncio
@@ -95,10 +95,10 @@ ACTIVE = {"path": "subscription.status", "condition": {"op": "eq", "value": "act
 CUST7 = {"path": "subscription.customer_id", "condition": {"op": "eq", "value": "cust7"}, "value_kind": "string"}
 # Dotless path: matched as `path ~ '*.speed'`, so one leaf uses an lquery instead of an exact path.
 FAST = {"path": "speed", "condition": {"op": "gt", "value": 3000}, "value_kind": "number"}
-# Matches the entities without a `node` segment in any path: every subscription not divisible by 3.
+# Entities with no `node` segment in any path: those not divisible by 3.
 NO_NODE = {"path": "node", "condition": {"op": "not_has_component"}, "value_kind": "component"}
 
-# Used by the tests that only need one filter shape.
+# For tests that need only one filter shape.
 STATUS_AND_SPEED_OR_CUSTOMER = {"op": "AND", "children": [ACTIVE, {"op": "OR", "children": [FAST, CUST7]}]}
 
 
@@ -221,12 +221,12 @@ def _count_stmt(filters):
 
 
 @pytest.mark.parametrize("filters,matches", FILTER_SHAPES)
-def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark, filters, matches):
+def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark_walltime, filters, matches):
     query = _select_query(filters)
     stmt = Retriever.route(query, cursor=None).apply(build_candidate_query(query)).limit(query.limit)
     conn = db.session.connection()
 
-    @benchmark
+    @benchmark_walltime
     def rows():
         return conn.execute(stmt).all()
 
@@ -240,12 +240,12 @@ def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchm
 
 
 @pytest.mark.xfail(strict=True, reason="count(distinct) references the inner query, adding it as a second FROM")
-def test_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark):
+def test_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark_walltime):
     """The count query wraps the candidate query."""
     stmt = _count_stmt(STATUS_AND_SPEED_OR_CUSTOMER)
     conn = db.session.connection()
 
-    @benchmark
+    @benchmark_walltime
     def total_count():
         return conn.execute(stmt).scalar_one()
 
@@ -257,7 +257,9 @@ def test_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchma
 
 @pytest.mark.xfail(strict=True, reason="EXISTS under OR inside AND is re-run per index row")
 @pytest.mark.parametrize("page", [pytest.param(1, id="page_1"), pytest.param(2, id="page_2")])
-def test_search_total_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, async_session, benchmark, page):
+def test_search_total_count_runs_each_plan_node_at_most_once_per_entity(
+    seeded_index, async_session, benchmark_walltime, page
+):
     """The search endpoint counts all matches, and from page 2 on also the matches from the cursor on."""
     total = len(_matching(_matches_status_and_speed_or_customer))
     # With half of the matches per page, page 2 exists as long as the filter matches at least two entities.
@@ -267,7 +269,7 @@ def test_search_total_count_runs_each_plan_node_at_most_once_per_entity(seeded_i
         last = asyncio.run(execute_search(query, async_session)).results[-1]
         cursor = PageCursor(score=last.score, id=last.entity_id, query_id=uuid4(), order_value=last.order_value)
 
-    @benchmark
+    @benchmark_walltime
     def response():
         return asyncio.run(execute_search(query, async_session, cursor=cursor))
 
