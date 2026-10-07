@@ -101,16 +101,9 @@ Usage: include "orchestrator-core.container" (list $ "name" (list "command" "arg
   {{- with index . 2 }}
   command: {{ toJson . }}
   {{- end }}
-  {{- /* $(CACHE_URI) only expands in env, not in envFrom. */}}
-  {{- if or (and $values.celery.enabled (not (hasKey $values.env "WEBSOCKET_BROADCASTER_URL"))) $values.extraEnv }}
+  {{- with $values.extraEnv }}
   env:
-    {{- if and $values.celery.enabled (not (hasKey $values.env "WEBSOCKET_BROADCASTER_URL")) }}
-    - name: WEBSOCKET_BROADCASTER_URL
-      value: $(CACHE_URI)
-    {{- end }}
-    {{- with $values.extraEnv }}
     {{- toYaml . | nindent 4 }}
-    {{- end }}
   {{- end }}
   envFrom:
     - configMapRef:

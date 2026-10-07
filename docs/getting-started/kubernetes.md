@@ -36,8 +36,9 @@ helm repo add valkey https://valkey.io/valkey-helm/
 helm install valkey valkey/valkey -f valkey.yaml
 ```
 
-This gives `CACHE_URI=redis://:change-me-valkey@valkey:6379/0`. Valkey keeps nothing the
-orchestrator cannot rebuild, so it does not need persistence.
+This gives `CACHE_URI=redis://:change-me-valkey@valkey:6379/0`. Without persistence, a Valkey
+restart loses what is still queued in it: schedule changes the scheduler has not yet applied, and
+Celery tasks no worker has picked up. If that matters, set `dataStorage.enabled: true`.
 
 ## 2. Postgres with pgvector
 
@@ -84,12 +85,14 @@ This gives
 
 ## 3. The orchestrator
 
-Put the connection strings and a session secret in a Secret:
+Put the connection strings and a session secret in a Secret. With Celery or more than one API
+replica, websocket updates go through Valkey too:
 
 ```shell
 kubectl create secret generic my-orchestrator-env \
   --from-literal=DATABASE_URI='postgresql+psycopg://orchestrator:change-me-postgres@postgres:5432/orchestrator' \
   --from-literal=CACHE_URI='redis://:change-me-valkey@valkey:6379/0' \
+  --from-literal=WEBSOCKET_BROADCASTER_URL='redis://:change-me-valkey@valkey:6379/0' \
   --from-literal=SESSION_SECRET="$(openssl rand -hex 32)"
 ```
 
@@ -116,8 +119,8 @@ helm install my-orchestrator oci://ghcr.io/workfloworchestrator/charts/orchestra
 ```
 
 This starts two API pods, which run the migrations first, the scheduler, and a `worker-tasks` and a
-`worker-workflows` Celery worker. The chart sets the [settings](deployment.md#settings) Celery needs;
-see the chart README's
+`worker-workflows` Celery worker. The chart sets `EXECUTOR` and `DISTLOCK_BACKEND` for Celery; see
+the chart README's
 [Environment](https://github.com/workfloworchestrator/orchestrator-core/blob/main/chart/README.md#environment).
 
 ## 4. Check it

@@ -32,8 +32,10 @@ helm install my-orchestrator oci://ghcr.io/workfloworchestrator/charts/orchestra
 | Scheduler | Deployment, 1 replica | `scheduler.enabled` | `<cli> scheduler run`, after `scheduler.initCommands` |
 | Celery workers | Deployment per `celery.workers[]` entry | `celery.enabled` | `celery -A <celery.app> worker -Q <queues>` |
 
-API pods start one at a time, so the migrations never run concurrently. Every orchestrator
-container, init containers included, gets the same environment, `volumes` and `volumeMounts`.
+On a rollout, API pods start one at a time, so their migrations run one after the other. Pods that
+restart together can still run them at the same time; the one that loses fails and is retried.
+Every orchestrator container, init containers included, gets the same environment, `volumes` and
+`volumeMounts`.
 
 ## Environment
 
@@ -49,7 +51,8 @@ earlier ones:
 5. `secretProviderClass`: a Secret synced from an Azure key vault by the Secrets Store CSI driver.
 6. `extraEnv`: Kubernetes `EnvVar` entries, e.g. with `valueFrom`.
 
-With `celery.enabled`, `WEBSOCKET_BROADCASTER_URL` is set to `$(CACHE_URI)` unless it is in `env`.
+With Celery or more than one API replica, also set `WEBSOCKET_BROADCASTER_URL` to your Redis/Valkey
+URL, next to `CACHE_URI`; otherwise each process only sees its own updates.
 
 Pods restart when `env` or `secretEnv` changes.
 

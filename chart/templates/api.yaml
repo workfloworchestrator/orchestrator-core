@@ -8,7 +8,7 @@ metadata:
 spec:
   replicas: {{ .Values.api.replicaCount }}
   serviceName: {{ include "orchestrator-core.fullname" . }}
-  # Pods start one at a time, so the migrations init container never runs concurrently.
+  # On a rollout, pods start one at a time, so the migrations init containers run one after the other.
   podManagementPolicy: OrderedReady
   selector:
     matchLabels:
