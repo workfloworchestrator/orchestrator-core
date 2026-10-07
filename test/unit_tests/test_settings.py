@@ -20,6 +20,24 @@ from orchestrator.core.settings import AppSettings
 from orchestrator.core.targets import Target
 
 
+@pytest.mark.parametrize(
+    ("env_value", "expected"),
+    [
+        pytest.param(None, False, id="unset-defaults-to-false"),
+        pytest.param("true", True, id="true-overrides"),
+        pytest.param("false", False, id="false"),
+    ],
+)
+def test_testing_setting(monkeypatch, env_value, expected):
+    # The root conftest sets TESTING=true for the suite, which would hide the default.
+    if env_value is None:
+        monkeypatch.delenv("TESTING", raising=False)
+    else:
+        monkeypatch.setenv("TESTING", env_value)
+
+    assert AppSettings().TESTING is expected
+
+
 def test_celery_target_queues_defaults_to_empty_mapping():
     assert AppSettings().CELERY_TARGET_QUEUES == {}
 
