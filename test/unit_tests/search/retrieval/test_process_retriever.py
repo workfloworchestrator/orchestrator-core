@@ -95,12 +95,27 @@ def test_init_builds_the_two_retrievers():
 @pytest.mark.parametrize(
     "q_vec,entity_type,expected",
     [
-        pytest.param(None, EntityType.PROCESS, (), id="fuzzy_only_needs_nothing"),
-        pytest.param([0.1, 0.2], None, (), id="unbounded_semantic_needs_nothing"),
-        pytest.param([0.1, 0.2], EntityType.PROCESS, (HNSW_ITERATIVE_SCAN,), id="bounded_semantic_scans_iteratively"),
+        pytest.param(
+            None,
+            EntityType.PROCESS,
+            (FuzzyRetriever.GATE_THRESHOLD,),
+            id="fuzzy_only_sets_its_gate",
+        ),
+        pytest.param(
+            [0.1, 0.2],
+            None,
+            (FuzzyRetriever.GATE_THRESHOLD,),
+            id="unbounded_semantic_adds_nothing",
+        ),
+        pytest.param(
+            [0.1, 0.2],
+            EntityType.PROCESS,
+            (FuzzyRetriever.GATE_THRESHOLD, HNSW_ITERATIVE_SCAN),
+            id="bounded_semantic_scans_iteratively",
+        ),
     ],
 )
-def test_session_settings_follow_the_semantic_side(q_vec, entity_type, expected):
+def test_session_settings_combine_both_sides(q_vec, entity_type, expected):
     retriever = ProcessHybridRetriever(
         q_vec=q_vec, fuzzy_term="term", cursor=None, entity_type=entity_type, semantic_candidates_limit=10
     )
