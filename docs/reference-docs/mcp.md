@@ -56,6 +56,14 @@ On top of these, [AI / Hybrid Search](ai-search.md#what-you-can-search-and-where
 
 Tool names map 1:1 to the route's `operation_id`; tool descriptions come from the route's docstring; parameter schemas come from the route's Pydantic request model.
 
+## Workflow form pages for agents
+
+`get_workflow_form` walks a workflow's form page by page. Each result describes one page as `fields`: data an agent can fill without undoing widget hints. The browser's JSON Schema of the same page is still sent as `schema`, but that field is deprecated and will be removed in the next major release; pass `include_schema: false` to leave it out. Per field: `name`, `title`, `kind` (`string`, `integer`, `number`, `boolean`, `list`, `object`, `any`), `required`, `default`, `nullable`, `options` (the `value` to submit and the `label` a person sees; `[]` when a choice has no option today), `item` and `min_items` / `max_items` / `unique_items` for a list, `fields` for a nested object, `format` (the form's marker: `accept`, `productId`, `customerId`, `subscription`, `summary`, ...), and `read_only` / `display_only` for fields that are shown and not submitted (`data` carries what a display field shows, such as a summary table).
+
+`status` says what to do next: `next` (fill the page and call again with it appended to `page_inputs`), `complete` (call `create_workflow` with the same `page_inputs`) or `rejected`. A page that does not validate is reported as a tool error by default; with `verdict: "result"` it comes back as a result with `status: "rejected"`, `errors` (`loc`, `msg`, `type`, as the UI shows them) and the page's `fields`, so the caller can correct the values named and resubmit that page. `create_workflow` validates the pages again, so nothing starts on an ignored verdict.
+
+The page data is built by `orchestrator.core.forms.spec.form_fields` from the page's model class; the walk is `orchestrator.core.forms.walk.walk_form`.
+
 ## Extending
 
 To expose a new tool, add a FastAPI route tagged with `AgentTag.EXPOSED`. The route is then picked up automatically on the next app start — no MCP-specific glue code required.
