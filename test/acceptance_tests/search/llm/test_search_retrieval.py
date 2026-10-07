@@ -40,6 +40,12 @@ from test.acceptance_tests.search.llm.fixtures import (
 )
 from test.acceptance_tests.search.llm.helpers import get_expected_ranking
 
+DESCRIPTIONS = {str(s["subscription_id"]): s["description"] for s in TEST_SUBSCRIPTIONS}
+
+
+def _label(entity_id: str) -> str:
+    return f"{entity_id[-2:]} {DESCRIPTIONS[entity_id]}"
+
 
 class TestMultiWordRetrieval:
     """Test retrieval for multi-word queries (auto-routed to HybridRetriever).
@@ -83,12 +89,13 @@ class TestMultiWordRetrieval:
             f"Expected hybrid retriever for multi-word query, got {response.metadata.search_type}"
         )
 
-        result_ids = [str(r.entity_id) for r in response.results]
-        expected_ranking = get_expected_ranking(query_text)
-
-        assert result_ids == expected_ranking, (
-            f"Ranking should match ground truth.\nExpected: {expected_ranking}\nGot: {result_ids}"
+        actual = [_label(r.entity_id) for r in response.results]
+        expected = [_label(entity_id) for entity_id in get_expected_ranking(query_text)]
+        scores = "\n".join(
+            f"{_label(r.entity_id)}  score={r.score:.4f} perfect={r.perfect_match}" for r in response.results
         )
+
+        assert actual == expected, f"Ranking differs from ground truth. Actual results:\n{scores}"
 
 
 class TestHybridRetrieval:
@@ -127,12 +134,13 @@ class TestHybridRetrieval:
             f"Expected hybrid retriever for single-word query, got {response.metadata}"
         )
 
-        result_ids = [str(r.entity_id) for r in response.results]
-        expected_ranking = get_expected_ranking(query_text)
-
-        assert result_ids == expected_ranking, (
-            f"Ranking should match ground truth.\nExpected: {expected_ranking}\nGot: {result_ids}"
+        actual = [_label(r.entity_id) for r in response.results]
+        expected = [_label(entity_id) for entity_id in get_expected_ranking(query_text)]
+        scores = "\n".join(
+            f"{_label(r.entity_id)}  score={r.score:.4f} perfect={r.perfect_match}" for r in response.results
         )
+
+        assert actual == expected, f"Ranking differs from ground truth. Actual results:\n{scores}"
 
 
 class TestFuzzyRetrieval:
