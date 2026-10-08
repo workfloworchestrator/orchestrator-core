@@ -16,7 +16,7 @@ from operator import add
 from typing import Sequence
 
 from more_itertools import unique_everseen
-from sqlalchemy import CTE, Select, and_, cast, exists, func, literal, or_, select
+from sqlalchemy import CTE, Select, and_, cast, exists, func, literal, or_, select, union
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.expression import ColumnElement
 
@@ -39,13 +39,19 @@ def fuzzy_tokens(fuzzy_term: str) -> list[str]:
 class FuzzyRetriever(Retriever):
     """Rank entities by averaging each query term's best field similarity.
 
-    Each term must pass ``GATE_THRESHOLD`` in at least one searchable field.
-    Terms may match different fields; their average must reach ``MIN_SCORE``.
+    Candidate selection requires either every term to pass ``GATE_THRESHOLD`` somewhere in the
+    entity, or the whole phrase to pass that gate and reach ``MIN_SCORE`` in one field.
+    Both routes require the average of the best term similarities to reach ``MIN_SCORE`` and,
+    for multi-term queries, every term to reach ``MIN_TERM_SCORE``. The whole-phrase score only
+    admits candidates; the average term score determines their rank.
     """
 
+    # Shared minimum for the final average term score and whole-phrase candidate admission.
     MIN_SCORE = 0.6
     # Allow typos such as "LIIR" matching "LIR" (similarity 0.5).
     GATE_THRESHOLD = SessionSetting("pg_trgm.word_similarity_threshold", "0.5")
+    # Per-term floor for entities that pass on a whole-phrase match; see `_term_floors`.
+    MIN_TERM_SCORE = 0.4
 
     def __init__(self, fuzzy_term: str, cursor: PageCursor | None) -> None:
         self.fuzzy_term = fuzzy_term
@@ -60,7 +66,8 @@ class FuzzyRetriever(Retriever):
         token_similarities = [func.word_similarity(token, AiSearchIndex.value) for token in tokens]
 
         # Terms may match different fields, so take each term's maximum before averaging.
-        raw_score = reduce(add, (func.max(similarity) for similarity in token_similarities)) / len(tokens)
+        term_scores = [func.max(similarity) for similarity in token_similarities]
+        raw_score = reduce(add, term_scores) / len(tokens)
         score = cast(
             func.round(cast(raw_score, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
         )
@@ -73,7 +80,7 @@ class FuzzyRetriever(Retriever):
             .join(entities, entities.c.entity_id == AiSearchIndex.entity_id)
             .where(is_searchable)
             .group_by(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
-            .having(score >= self.MIN_SCORE)
+            .having(and_(score >= self.MIN_SCORE, *self._term_floors(term_scores)))
         )
         # Check filters per matching row to avoid scanning a broad candidate set.
         scored = self._restrict_to_candidates(gated, candidate_query, probe=True).subquery("ranked_fuzzy")
@@ -103,8 +110,21 @@ class FuzzyRetriever(Retriever):
 
         return stmt.order_by(scored.c.score.desc().nulls_last(), scored.c.entity_id.asc())
 
+    def _term_floors(self, term_scores: Sequence[ColumnElement]) -> list[ColumnElement[bool]]:
+        """Require every term to reach ``MIN_TERM_SCORE`` somewhere in the entity.
+
+        This is a looser per-term minimum for entities that pass on a whole-phrase match: it forgives a
+        mistyped term ("CG-3000-XS" vs "CG-2000-XL", 0.43), but not one that is essentially absent
+        ("LIR" vs "ACM L2VPN ...", 0.25). Entities where every term passes ``GATE_THRESHOLD`` already
+        clear it, as long as ``MIN_TERM_SCORE`` does not exceed ``GATE_THRESHOLD``.
+        A single term needs no minimum: its score must reach ``MIN_SCORE`` anyway.
+        """
+        if len(term_scores) == 1:
+            return []
+        return [term_score >= self.MIN_TERM_SCORE for term_score in term_scores]
+
     def _gated_entities(self, tokens: list[str], is_searchable: ColumnElement[bool]) -> CTE:
-        """Find entities where every term matches at least one searchable field.
+        """Find entities where every term matches a searchable field, or the whole phrase matches one.
 
         Start with the first term, then check every term per entity.
         Materialize the IDs to keep selection separate from scoring.
@@ -133,13 +153,21 @@ class FuzzyRetriever(Retriever):
             )
             for token in tokens
         ]
-        return (
-            select(AiSearchIndex.entity_id)
-            .where(and_(is_searchable, driving_term.op("<%")(AiSearchIndex.value), *gated_elsewhere))
-            .distinct()
-            .cte("fuzzy_entities")
-            .prefix_with("MATERIALIZED")
+        every_term_matches = select(AiSearchIndex.entity_id).where(
+            and_(is_searchable, driving_term.op("<%")(AiSearchIndex.value), *gated_elsewhere)
         )
+        # A strong whole-phrase match may also pass, so one mistyped term among correct ones is not fatal.
+        # The `<%` filter uses the trigram index; the explicit check raises the bar to MIN_SCORE.
+        # Scoring then requires every term to reach MIN_TERM_SCORE (see `_term_floors`).
+        phrase = literal(self.fuzzy_term)
+        phrase_matches = select(AiSearchIndex.entity_id).where(
+            and_(
+                is_searchable,
+                phrase.op("<%")(AiSearchIndex.value),
+                func.word_similarity(phrase, AiSearchIndex.value) >= self.MIN_SCORE,
+            )
+        )
+        return union(every_term_matches, phrase_matches).cte("fuzzy_entities").prefix_with("MATERIALIZED")
 
     @property
     def metadata(self) -> SearchMetadata:
