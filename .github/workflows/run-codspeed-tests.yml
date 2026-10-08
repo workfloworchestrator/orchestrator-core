@@ -11,7 +11,7 @@ env:
 
 jobs:
   codspeed:
-    name: Run benchmarks (simulation)
+    name: Run benchmarks
     runs-on: ubuntu-26.04
     container:
       image: python:3.13-bookworm
@@ -75,67 +75,11 @@ jobs:
       - uses: CodSpeedHQ/action@c4fd08a3a159bd0cc208da1e0edf32b8c47d75e5 # v5
         with:
           mode: simulation
-          run: CACHE_URI=redis://redis DATABASE_URI=postgresql+psycopg://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB uv run pytest test/integration_tests --codspeed -m "not benchmark_walltime"
+          run: CACHE_URI=redis://redis DATABASE_URI=postgresql+psycopg://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB uv run pytest test/integration_tests --codspeed
           token: ${{ secrets.CODSPEED_TOKEN }}
         env:
           POSTGRES_DB: orchestrator-core-test
           POSTGRES_USER: nwa
           POSTGRES_PASSWORD: nwa
           POSTGRES_HOST: postgres
-          ENVIRONMENT: TESTING
-
-  codspeed-walltime:
-    # Simulation counts only the pytest process's instructions, so it misses time spent in Postgres.
-    # A shared runner is noisier than the macro runner CodSpeed advises for walltime, but needs no setup.
-    name: Run benchmarks (walltime)
-    runs-on: ubuntu-26.04
-    # No job container: walltime profiles on the host, so services publish their ports there.
-    services:
-      postgres:
-        image: pgvector/pgvector:pg15
-        env:
-          POSTGRES_PASSWORD: nwa
-          POSTGRES_USER: nwa
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Install uv and set the python version
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
-        with:
-          version: "0.12.23"
-          # Walltime profiling needs Python 3.12+; keep it equal to the simulation job's image.
-          python-version: "3.13"
-
-      - name: Install the project
-        run: uv sync --all-extras --dev
-
-      - uses: CodSpeedHQ/action@c4fd08a3a159bd0cc208da1e0edf32b8c47d75e5 # v5
-        with:
-          mode: walltime
-          # Shared runners are noisy and these benchmarks take up to ~800ms, so CodSpeed's defaults
-          # (~2-3 rounds before the 1s cap) give too few samples. Warm up, then measure for longer.
-          run: CACHE_URI=redis://localhost DATABASE_URI=postgresql+psycopg://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB uv run pytest test/integration_tests --codspeed --codspeed-warmup-time 2 --codspeed-max-time 10 --codspeed-max-rounds 100 -m benchmark_walltime
-          token: ${{ secrets.CODSPEED_TOKEN }}
-        env:
-          POSTGRES_DB: orchestrator-core-test
-          POSTGRES_USER: nwa
-          POSTGRES_PASSWORD: nwa
-          POSTGRES_HOST: localhost
           ENVIRONMENT: TESTING
