@@ -17,14 +17,17 @@ CodSpeed's simulation counts only this process's instructions, not the work insi
 too noisy to compare. The work Postgres does is deterministic, though: with the same data, statistics and settings,
 ``EXPLAIN (ANALYZE, BUFFERS)`` reports the same plan, blocks and rows on every run. A test module seeds the index with
 `seed_index`, captures the plans of its scenarios with `capturing_plans`, and compares their `plan_metrics`, rendered
-by `render_plan_metrics`, to its `plan_metrics_snapshot`: a markdown file under ``plan_metrics/`` per Postgres major
-version. Update those with ``pytest --inline-snapshot=fix``.
+by `render_plan_metrics`, to its snapshot with `assert_plan_metrics_unchanged`: a markdown file under ``plan_metrics/``
+per Postgres major version. Update those with ``pytest --inline-snapshot=fix``.
 """
 
+import difflib
 from contextlib import contextmanager
+from pathlib import Path
 
+import pytest
 from inline_snapshot import external_file
-from more_itertools import one
+from more_itertools import one, unique_everseen
 from sqlalchemy import event, text
 
 from orchestrator.core.db import db
@@ -217,6 +220,77 @@ Each row is one statement a scenario ran, `#` its position in execution order.
 """
 
 
-def plan_metrics_snapshot(name):
-    """The snapshot of `name`'s rendered plan metrics on this server; plans differ between Postgres major versions."""
-    return external_file(f"plan_metrics/{name}.pg{postgres_major()}.md", format=".txt")
+def _table_lines(page):
+    return [line for line in page.splitlines() if line.startswith("|")]
+
+
+def _statements(page):
+    """The cells of a rendered table per statement, keyed by its scenario and position."""
+    if not (lines := _table_lines(page)):
+        return {}
+    header, _separator, *rows = ([cell.strip() for cell in line.strip("|").split("|")] for line in lines)
+    return {(scenario, position): dict(zip(header[2:], cells)) for scenario, position, *cells in rows}
+
+
+MISSING = "—"
+
+
+def _relative_change(stored, measured):
+    if MISSING in (stored, measured):
+        return ""
+    old, new = (float(value.replace(",", "")) for value in (stored, measured))
+    if old == 0:
+        return "from 0"
+    change = (new - old) / old
+    # Costs move by fractions of a percent, which would round to a misleading 0.0%.
+    return f"{change:+.1%}" if round(change, 3) else f"{'+' if change > 0 else '-'}<0.1%"
+
+
+def _metric_changes(stored_page, measured_page):
+    """Each statement whose metrics differ, with the metrics that do; statements can be added or removed too."""
+    stored, measured = _statements(stored_page), _statements(measured_page)
+    for key in unique_everseen([*measured, *stored]):
+        old, new = stored.get(key, {}), measured.get(key, {})
+        changes = [
+            (name, old.get(name, MISSING), new.get(name, MISSING))
+            for name in unique_everseen([*new, *old])
+            if old.get(name) != new.get(name)
+        ]
+        if changes:
+            status = " (added)" if not old else " (removed)" if not new else ""
+            yield f"{key[0]} #{key[1]}{status}", changes
+
+
+def _render_changes(stored_page, measured_page):
+    statements = list(_metric_changes(stored_page, measured_page))
+    if not statements:
+        diff = difflib.unified_diff(stored_page.splitlines(), measured_page.splitlines(), lineterm="", n=0)
+        return "No metric changed, the text around the table did:\n\n" + "\n".join(list(diff)[2:])
+    cells = [change for _, changes in statements for change in changes]
+    widths = [max(map(len, column)) for column in zip(*cells)]
+
+    def line(name, old, new):
+        change = _relative_change(old, new)
+        return f"    {name:<{widths[0]}}  {old:>{widths[1]}} → {new:>{widths[2]}}  {change:>7}".rstrip()
+
+    return "\n".join(
+        f"  {statement}\n" + "\n".join(line(*change) for change in changes) for statement, changes in statements
+    )
+
+
+def assert_plan_metrics_unchanged(name, page):
+    """Compare `page` to `name`'s snapshot on this server; plans differ between Postgres major versions.
+
+    On a change, the failure shows the measured table and then only the metrics that moved, as pytest's diff of the
+    whole page does not show which cells differ.
+    """
+    path = Path(__file__).parent / "plan_metrics" / f"{name}.pg{postgres_major()}.md"
+    if page == external_file(path, format=".txt"):
+        return
+    stored = path.read_text() if path.exists() else ""
+    measured_table = "\n".join(_table_lines(page))
+    pytest.fail(
+        f"Plan metrics differ from {path.name}. Update it with `pytest --inline-snapshot=fix` if that is expected.\n\n"
+        f"Measured:\n\n{measured_table}\n\nChanged (stored → measured):\n\n{_render_changes(stored, page)}",
+        pytrace=False,
+    )

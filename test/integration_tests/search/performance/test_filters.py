@@ -48,9 +48,9 @@ from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
 from test.integration_tests.search.performance._plans import (
     assert_no_node_runs_more_often_than,
+    assert_plan_metrics_unchanged,
     capturing_plans,
     plan_metrics,
-    plan_metrics_snapshot,
     plan_of,
     render_plan_metrics,
     seed_index,
@@ -307,4 +307,4 @@ def test_plan_metrics_are_unchanged(seeded_index, async_session):
         "`search-page_*` the whole search endpoint, both with the `status_and_nested_speed_or_customer` filter.",
         scenarios,
     )
-    assert page == plan_metrics_snapshot("filters")
+    assert_plan_metrics_unchanged("filters", page)
