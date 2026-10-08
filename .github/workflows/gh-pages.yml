@@ -6,7 +6,7 @@ on:
 
 jobs:
   trigger-docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - name: Generate token
         id: app-token
