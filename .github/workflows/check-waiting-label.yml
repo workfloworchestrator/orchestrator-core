@@ -13,7 +13,7 @@ on:
 jobs:
   fail-if-waiting:
     if: contains(github.event.pull_request.labels.*.name, 'waiting')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - name: Fail if PR has 'waiting' label
         run: |

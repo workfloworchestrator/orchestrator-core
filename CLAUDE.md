@@ -71,3 +71,13 @@ docs/
 ## Commit Messages
 - Add descriptive messages
 - Don't add Co-Authored-By Claude
+
+## Pull Requests
+- Always use the repo's PR template (`.github/pull_request_template.md`). Keep its
+  section headings (`## Summary`, `## Related Issues`, `## Type of change`,
+  `## Checklist`) and fill them in — edit the prefilled body in place instead of
+  replacing it, so you don't drop required sections.
+- Set a `kind/*` or `area/*` label (or `skip-changelog`); the "Require a
+  release-notes label" check fails without one. Labels are applied automatically
+  for some paths, but general labels must be set by hand.
+- The first line of a commit message is the PR title by convention.
