@@ -14,17 +14,22 @@
 """Query-plan performance of structured filters against a seeded search index.
 
 The index has one row per (entity, path), so a filter evaluated per index row instead of per entity
-costs paths-per-entity times too much. Wall-clock time is too noisy to assert on, so the tests assert via
-``EXPLAIN ANALYZE`` that no plan node runs more often than there are entities. They benchmark with
-walltime because the work runs inside Postgres, invisible to CodSpeed's simulation.
+costs paths-per-entity times too much. CodSpeed's simulation counts only this process's instructions,
+not the work inside Postgres, and wall-clock time is too noisy to compare. The work Postgres does is
+deterministic, though: with the same data, statistics and settings, ``EXPLAIN (ANALYZE, BUFFERS)``
+reports the same plan, blocks and rows on every run. So the tests assert that no plan node runs more
+often than there are entities, and snapshot per scenario what each statement cost Postgres, so that a
+change in that cost shows up as a diff. Update the snapshots with ``pytest --inline-snapshot=fix``.
 """
 
 import asyncio
 from contextlib import contextmanager
 from datetime import date, timedelta
+from functools import partial
 from uuid import UUID, uuid4
 
 import pytest
+from inline_snapshot import snapshot
 from more_itertools import one
 from sqlalchemy import event, text
 
@@ -65,6 +70,10 @@ SEED_SQL = text(
     FROM generate_series(1, :entities) n WHERE n % 3 = 0
     """
 )
+
+# Settings the plans depend on that could differ per server or run: parallel workers split the work
+# unpredictably and JIT kicks in on cost thresholds. work_mem decides between in-memory and on-disk sorts.
+PLAN_SETTINGS = {"max_parallel_workers_per_gather": "0", "jit": "off", "work_mem": "4MB"}
 
 
 def _entity_id(n):
@@ -149,12 +158,22 @@ FILTER_SHAPES = [
 
 @pytest.fixture
 def seeded_index():
-    # The trigger maintains ai_search_paths, which these tests never read; bypassing it halves the seed
-    # time. ALTER TABLE is transactional, so the per-test rollback re-enables it.
+    # Rows of earlier tests are rolled back but stay on their pages until vacuumed, which would change the blocks
+    # read. TRUNCATE gives the seed fresh files, and like ALTER TABLE it is transactional: the per-test rollback
+    # restores the table and re-enables the trigger.
+    db.session.execute(text("TRUNCATE ai_search_index"))
+    # The trigger maintains ai_search_paths, which these tests never read; bypassing it halves the seed time.
     db.session.execute(text("ALTER TABLE ai_search_index DISABLE TRIGGER ai_search_paths_maintain_trg"))
     db.session.execute(SEED_SQL, {"entities": ENTITY_COUNT, "filler": FILLER_PATHS})
-    # Without fresh statistics the planner guesses at row counts and the plan shape is arbitrary.
+    # Filled by the seed's inserts, the GiST index differs in size between runs by tens of pages, which changes
+    # the planner's cost estimates. Rebuilt, it still differs by a few pages, but no longer enough to change them.
+    db.session.execute(text("REINDEX INDEX ix_flat_path_gist"))
+    # Without fresh statistics the planner guesses at row counts and the plan shape is arbitrary. ANALYZE samples
+    # 300 * default_statistics_target rows (30,000 by default); the seed stays below that, so it reads every row
+    # and the statistics are the same on every run.
     db.session.execute(text("ANALYZE ai_search_index"))
+    for name, value in PLAN_SETTINGS.items():
+        db.session.execute(text("SELECT set_config(:name, :value, true)"), {"name": name, "value": value})
 
 
 def _matching(matches):
@@ -174,7 +193,7 @@ def _capturing_plans():
     def explain(_conn, cursor, statement, parameters, _context, _executemany):
         # Session bookkeeping (SAVEPOINT, SET) cannot be explained and has no plan worth bounding.
         if statement.lstrip().upper().startswith("SELECT"):
-            cursor.execute(f"EXPLAIN (ANALYZE, FORMAT JSON) {statement}", parameters)
+            cursor.execute(f"EXPLAIN (ANALYZE, BUFFERS, TIMING OFF, FORMAT JSON) {statement}", parameters)
             plans.append(cursor.fetchone()[0][0]["Plan"])
 
     event.listen(conn, "before_cursor_execute", explain)
@@ -197,6 +216,42 @@ def _plan(stmt):
     return one(plans)
 
 
+def _blocks(node):
+    # Hits and reads together: which of the two a block is depends on the cache, their sum does not.
+    return node["Shared Hit Blocks"] + node["Shared Read Blocks"]
+
+
+def _own_blocks(node):
+    return _blocks(node) - sum(map(_blocks, node.get("Plans", [])))
+
+
+def _plan_metrics(plan):
+    """What one statement cost Postgres, as numbers that are the same on every run.
+
+    - ``cost``: the planner's estimated total cost of the statement, decided before it runs. Its unit is one
+      sequential page read; random page reads, rows and operator calls are weighted in by the ``*_cost`` settings.
+      It follows from the plan and the statistics only, so it changes with the plan, not with how the plan ran.
+    - ``blocks``: 8kB pages the statement read, from shared buffers or from disk. Measured. Leaves out those of the
+      GiST index: even rebuilt, how its pages split varies a little between runs.
+    - ``rows``: rows output by all nodes together, over all their loops. Measured. Counts the work between the nodes,
+      so a filter moved to a node that runs more often shows even when the result is the same.
+    - ``max_loops``: how often the busiest node ran. Measured. A node running once per index row instead of once per
+      entity shows here first.
+    """
+    nodes = list(_plan_nodes(plan))
+    gist_blocks = sum(_own_blocks(node) for node in nodes if node.get("Index Name") == "ix_flat_path_gist")
+    return {
+        "cost": plan["Total Cost"],
+        "blocks": _blocks(plan) - gist_blocks,
+        "rows": sum(node["Actual Rows"] * node["Actual Loops"] for node in nodes),
+        "max_loops": max(node["Actual Loops"] for node in nodes),
+    }
+
+
+def _postgres_major():
+    return db.session.connection().dialect.server_version_info[0]
+
+
 def _assert_no_node_runs_per_index_row(plan):
     busiest = max(_plan_nodes(plan), key=lambda node: node["Actual Loops"])
     name = " ".join(filter(None, [busiest["Node Type"], busiest.get("Subplan Name"), busiest.get("Relation Name")]))
@@ -215,18 +270,33 @@ def _select_query(filters, limit=SelectQuery.DEFAULT_LIMIT):
     )
 
 
+def _select_stmt(query):
+    return Retriever.route(query, cursor=None).apply(build_candidate_query(query)).limit(query.limit)
+
+
 def _count_stmt(filters):
     query = CountQuery(entity_type=EntityType.SUBSCRIPTION, filters=FilterTree.model_validate(filters))
     return build_simple_count_query(build_candidate_query(query))
 
 
+def _search_page(async_session, page):
+    """The query and cursor to search `page`, with half of the matches per page."""
+    total = len(_matching(_matches_status_and_speed_or_customer))
+    # Page 2 exists as long as the filter matches at least two entities.
+    query = _select_query(STATUS_AND_SPEED_OR_CUSTOMER, limit=min(SelectQuery.MAX_LIMIT, max(1, total // 2)))
+    if page == 1:
+        return query, None
+    last = asyncio.run(execute_search(query, async_session)).results[-1]
+    return query, PageCursor(score=last.score, id=last.entity_id, query_id=uuid4(), order_value=last.order_value)
+
+
 @pytest.mark.parametrize("filters,matches", FILTER_SHAPES)
-def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark_walltime, filters, matches):
+def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark, filters, matches):
     query = _select_query(filters)
-    stmt = Retriever.route(query, cursor=None).apply(build_candidate_query(query)).limit(query.limit)
+    stmt = _select_stmt(query)
     conn = db.session.connection()
 
-    @benchmark_walltime
+    @benchmark
     def rows():
         return conn.execute(stmt).all()
 
@@ -240,12 +310,12 @@ def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchm
 
 
 @pytest.mark.xfail(strict=True, reason="count(distinct) references the inner query, adding it as a second FROM")
-def test_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark_walltime):
+def test_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark):
     """The count query wraps the candidate query."""
     stmt = _count_stmt(STATUS_AND_SPEED_OR_CUSTOMER)
     conn = db.session.connection()
 
-    @benchmark_walltime
+    @benchmark
     def total_count():
         return conn.execute(stmt).scalar_one()
 
@@ -257,26 +327,111 @@ def test_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchma
 
 @pytest.mark.xfail(strict=True, reason="EXISTS under OR inside AND is re-run per index row")
 @pytest.mark.parametrize("page", [pytest.param(1, id="page_1"), pytest.param(2, id="page_2")])
-def test_search_total_count_runs_each_plan_node_at_most_once_per_entity(
-    seeded_index, async_session, benchmark_walltime, page
-):
+def test_search_total_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, async_session, benchmark, page):
     """The search endpoint counts all matches, and from page 2 on also the matches from the cursor on."""
-    total = len(_matching(_matches_status_and_speed_or_customer))
-    # With half of the matches per page, page 2 exists as long as the filter matches at least two entities.
-    query = _select_query(STATUS_AND_SPEED_OR_CUSTOMER, limit=min(SelectQuery.MAX_LIMIT, max(1, total // 2)))
-    cursor = None
-    if page == 2:
-        last = asyncio.run(execute_search(query, async_session)).results[-1]
-        cursor = PageCursor(score=last.score, id=last.entity_id, query_id=uuid4(), order_value=last.order_value)
+    query, cursor = _search_page(async_session, page)
 
-    @benchmark_walltime
+    @benchmark
     def response():
         return asyncio.run(execute_search(query, async_session, cursor=cursor))
 
-    assert response.total_items == total
+    assert response.total_items == len(_matching(_matches_status_and_speed_or_customer))
     assert response.start_cursor == (page - 1) * query.limit
 
     with _capturing_plans() as plans:
         asyncio.run(execute_search(query, async_session, cursor=cursor))
     for plan in plans:
         _assert_no_node_runs_per_index_row(plan)
+
+
+def _select_plans(filters, _async_session):
+    return [_plan(_select_stmt(_select_query(filters)))]
+
+
+def _count_plans(filters, _async_session):
+    return [_plan(_count_stmt(filters))]
+
+
+def _search_plans(page, async_session):
+    query, cursor = _search_page(async_session, page)
+    with _capturing_plans() as plans:
+        asyncio.run(execute_search(query, async_session, cursor=cursor))
+    return plans
+
+
+# Without the xfail marks of FILTER_SHAPES: inline-snapshot ignores snapshots in xfail tests.
+PLAN_SCENARIOS = [
+    *(pytest.param(partial(_select_plans, shape.values[0]), id=f"select-{shape.id}") for shape in FILTER_SHAPES),
+    pytest.param(partial(_count_plans, STATUS_AND_SPEED_OR_CUSTOMER), id="count"),
+    *(pytest.param(partial(_search_plans, page), id=f"search-page_{page}") for page in (1, 2)),
+]
+
+
+@pytest.mark.parametrize("plans", PLAN_SCENARIOS)
+def test_plan_cost_is_unchanged(seeded_index, async_session, plans, request):
+    """Each statement's cost, in execution order: a search runs its select, then one count per page boundary.
+
+    Plans differ between Postgres major versions, so each has its own snapshot.
+    """
+    metrics = [_plan_metrics(plan) for plan in plans(async_session)]
+    assert (
+        metrics
+        == snapshot(
+            {
+                "select-status_and_customer": {
+                    17: [{"cost": 686.68, "blocks": 3370, "rows": 3984, "max_loops": 900}],
+                    15: [{"cost": 686.69, "blocks": 3370, "rows": 3984, "max_loops": 900}],
+                },
+                "select-speed_or_customer": {
+                    17: [{"cost": 2283547.97, "blocks": 22412, "rows": 26006, "max_loops": 260}],
+                    15: [{"cost": 2282646.56, "blocks": 1459, "rows": 26006, "max_loops": 260}],
+                },
+                "select-status_and_nested_speed_or_customer": {
+                    17: [{"cost": 13982.29, "blocks": 69526, "rows": 33206, "max_loops": 15816}],
+                    15: [{"cost": 13983.2, "blocks": 69526, "rows": 33206, "max_loops": 15816}],
+                },
+                "select-nested_status_and_speed_or_customer": {
+                    17: [{"cost": 2485944.96, "blocks": 22523, "rows": 27926, "max_loops": 260}],
+                    15: [{"cost": 2484922.4, "blocks": 1570, "rows": 27926, "max_loops": 260}],
+                },
+                "select-no_node": {
+                    17: [{"cost": 22013.32, "blocks": 2472, "rows": 67361, "max_loops": 667}],
+                    15: [{"cost": 22113.64, "blocks": 2472, "rows": 43361, "max_loops": 667}],
+                },
+                "select-status_and_no_node": {
+                    17: [{"cost": 1882.17, "blocks": 535479, "rows": 97650, "max_loops": 21900}],
+                    15: [{"cost": 1882.98, "blocks": 535479, "rows": 97650, "max_loops": 21900}],
+                },
+                "select-customer_or_no_node": {
+                    17: [{"cost": 1090081.37, "blocks": 23558, "rows": 36114, "max_loops": 674}],
+                    15: [{"cost": 1089179.97, "blocks": 2605, "rows": 36114, "max_loops": 674}],
+                },
+                "count": {
+                    17: [{"cost": 24384.04, "blocks": 137312, "rows": 180193, "max_loops": 15816}],
+                    15: [{"cost": 24384.04, "blocks": 137312, "rows": 180193, "max_loops": 15816}],
+                },
+                "search-page_1": {
+                    17: [
+                        {"cost": 22856.47, "blocks": 70345, "rows": 127118, "max_loops": 15816},
+                        {"cost": 12890.11, "blocks": 69436, "rows": 23147, "max_loops": 15816},
+                    ],
+                    15: [
+                        {"cost": 22857.38, "blocks": 70345, "rows": 127118, "max_loops": 15816},
+                        {"cost": 12890.11, "blocks": 69436, "rows": 23147, "max_loops": 15816},
+                    ],
+                },
+                "search-page_2": {
+                    17: [
+                        {"cost": 17296.65, "blocks": 71125, "rows": 127278, "max_loops": 15816},
+                        {"cost": 12890.11, "blocks": 69436, "rows": 23147, "max_loops": 15816},
+                        {"cost": 13901.22, "blocks": 70216, "rows": 23207, "max_loops": 15816},
+                    ],
+                    15: [
+                        {"cost": 17296.65, "blocks": 71125, "rows": 127278, "max_loops": 15816},
+                        {"cost": 12890.11, "blocks": 69436, "rows": 23147, "max_loops": 15816},
+                        {"cost": 13901.22, "blocks": 70216, "rows": 23207, "max_loops": 15816},
+                    ],
+                },
+            }
+        )[request.node.callspec.id][_postgres_major()]
+    )

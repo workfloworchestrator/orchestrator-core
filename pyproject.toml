@@ -290,7 +290,6 @@ markers = [
     "search: Tests that require search/indexing functionality",
     "agent: Tests that require agentic functionality and the agent extra dependencies",
     "noresponses: Skip HTTP response mocking for this test (use with caution)",
-    "benchmark_walltime: CodSpeed benchmark dominated by database time; implies benchmark and runs in the walltime job instead of simulation",
 ]
 
 [tool.mypy]
