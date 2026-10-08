@@ -140,7 +140,7 @@ jobs:
       - celery-acceptance-tests
       - llm-acceptance-tests
       - linting-tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     if: always()
     steps:
       - name: Fail if any required check failed

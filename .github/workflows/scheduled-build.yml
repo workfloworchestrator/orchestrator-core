@@ -6,7 +6,7 @@ on:
 
 jobs:
   check_week:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     # Custom check as github does not support modulo syntax from gitlab ("0 7 * * MON%2")
     outputs:
       should_cancel: ${{ steps.week-modulo.outputs.should_cancel }}
