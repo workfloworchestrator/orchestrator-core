@@ -35,6 +35,9 @@ RUN uv pip install --python /home/orchestrator/.venv/bin/python --no-cache -r re
 CMD ["python", "-m", "uvicorn", "--host", "0.0.0.0", "--port", "8080", "wsgi:app"]
 ```
 
+- **The `FROM` line pins orchestrator-core.** Tag your image with your own version, e.g.
+  `my-orchestrator:1.0.0`. To upgrade orchestrator-core, change the `FROM` tag, rebuild and tag a
+  new version; deployments such as the [Helm chart](kubernetes.md) refer to your image's tag.
 - **Run tools with `python -m`.** The environment's `bin` directory is not on `PATH`, so a bare
   `uvicorn` or `celery` is not found. The [process commands](deployment.md#processes) use
   `python -m` for that reason.

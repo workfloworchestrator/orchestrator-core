@@ -1,6 +1,6 @@
 # orchestrator-core Helm chart
 
-![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 5.4.0](https://img.shields.io/badge/AppVersion-5.4.0-informational?style=flat-square)
+![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
 
 Runs an [orchestrator-core](https://github.com/workfloworchestrator/orchestrator-core) application
 on Kubernetes: the API, its database migrations, the scheduler and Celery workers. Postgres and
@@ -23,9 +23,12 @@ helm install my-orchestrator oci://ghcr.io/workfloworchestrator/charts/orchestra
   --set existingSecrets[0]=my-orchestrator-env
 ```
 
-`image` is your orchestrator, built `FROM` the orchestrator-core image; see
+`image` is your own orchestrator image, built `FROM` the orchestrator-core image; see
 [Building an image](https://workfloworchestrator.org/orchestrator-core/getting-started/container-image/).
-`my-orchestrator-env` is a Secret with at least `DATABASE_URI`.
+`image.tag` is a version of that image, `ghcr.io/example/my-orchestrator:1.0.0` here, not an
+orchestrator-core version. Which orchestrator-core version runs is decided by your image's `FROM`
+line, so you upgrade orchestrator-core by building and tagging a new image. The chart works with any
+version and does not pin one. `my-orchestrator-env` is a Secret with at least `DATABASE_URI`.
 
 ## What it runs
 
@@ -103,8 +106,8 @@ upgrade.
 | httpRoute.hostnames | list | `["chart-example.local"]` | Host names. |
 | httpRoute.parentRefs | list | `[{"name":"gateway","sectionName":"http"}]` | Gateways the route attaches to. |
 | image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
-| image.repository | string | `""` | Your orchestrator image, built FROM the orchestrator-core image. Required. |
-| image.tag | string | `""` | Image tag. Required; a digest-pinned tag (`1.0@sha256:...`) works. |
+| image.repository | string | `""` | Your own orchestrator image, built FROM the orchestrator-core image. Required. |
+| image.tag | string | `""` | Tag of your image, not an orchestrator-core version: your image's `FROM` line pins orchestrator-core. Required; a digest-pinned tag (`1.0@sha256:...`) works. |
 | imagePullSecrets | list | `[]` | Image pull secrets for private registries. |
 | ingress.annotations | object | `{}` | Ingress annotations, e.g. for cert-manager. |
 | ingress.className | string | `""` | Ingress class. |

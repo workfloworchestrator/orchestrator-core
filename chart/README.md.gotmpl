@@ -1,6 +1,6 @@
 # orchestrator-core Helm chart
 
-{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}
 
 Runs an [orchestrator-core](https://github.com/workfloworchestrator/orchestrator-core) application
 on Kubernetes: the API, its database migrations, the scheduler and Celery workers. Postgres and
@@ -23,9 +23,12 @@ helm install my-orchestrator oci://ghcr.io/workfloworchestrator/charts/orchestra
   --set existingSecrets[0]=my-orchestrator-env
 ```
 
-`image` is your orchestrator, built `FROM` the orchestrator-core image; see
+`image` is your own orchestrator image, built `FROM` the orchestrator-core image; see
 [Building an image](https://workfloworchestrator.org/orchestrator-core/getting-started/container-image/).
-`my-orchestrator-env` is a Secret with at least `DATABASE_URI`.
+`image.tag` is a version of that image, `ghcr.io/example/my-orchestrator:1.0.0` here, not an
+orchestrator-core version. Which orchestrator-core version runs is decided by your image's `FROM`
+line, so you upgrade orchestrator-core by building and tagging a new image. The chart works with any
+version and does not pin one. `my-orchestrator-env` is a Secret with at least `DATABASE_URI`.
 
 ## What it runs
 

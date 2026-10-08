@@ -1,9 +1,10 @@
 # Default values for orchestrator-core. README.md is generated from the `# --` comments with helm-docs.
 
 image:
-  # -- Your orchestrator image, built FROM the orchestrator-core image. Required.
+  # -- Your own orchestrator image, built FROM the orchestrator-core image. Required.
   repository: ""
-  # -- Image tag. Required; a digest-pinned tag (`1.0@sha256:...`) works.
+  # -- Tag of your image, not an orchestrator-core version: your image's `FROM` line pins
+  # orchestrator-core. Required; a digest-pinned tag (`1.0@sha256:...`) works.
   tag: ""
   # -- Image pull policy.
   pullPolicy: IfNotPresent

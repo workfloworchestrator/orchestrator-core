@@ -8,9 +8,8 @@ type: application
 # version only once.
 version: 0.1.0
 
-# The orchestrator-core release the chart is tested against. The chart always runs a downstream
-# image (image.repository / image.tag are required), so this is informational only.
-appVersion: "5.4.0"
+# No appVersion: the chart runs your own orchestrator image, which pins its orchestrator-core version
+# when it is built (image.repository / image.tag are required).
 
 home: https://workfloworchestrator.org/orchestrator-core/
 sources:

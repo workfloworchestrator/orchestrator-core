@@ -12,7 +12,9 @@ lists every value.
 
 - A Kubernetes cluster and Helm 3.8 or later.
 - Your orchestrator as an image; see [Building an image](container-image.md). This guide uses
-  `ghcr.io/example/my-orchestrator:1.0.0`, built on the `-celery` base image.
+  `ghcr.io/example/my-orchestrator:1.0.0`, built on the `-celery` base image. `1.0.0` is your
+  image's version, not orchestrator-core's: the `FROM` line of your Dockerfile pins orchestrator-core,
+  so you choose and upgrade it when you build your image.
 - For Celery workers, a module that creates your Celery app; see
   [Implementing the worker](../guides/scaling.md#implementing-the-worker). This guide calls it
   `celery_worker`.
@@ -99,7 +101,7 @@ kubectl create secret generic my-orchestrator-env \
 ```yaml title="orchestrator.yaml"
 image:
   repository: ghcr.io/example/my-orchestrator
-  tag: "1.0.0"
+  tag: "1.0.0"  # your image's version; its FROM line sets the orchestrator-core version
 existingSecrets:
   - my-orchestrator-env
 env:
