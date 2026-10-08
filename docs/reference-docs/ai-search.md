@@ -238,7 +238,8 @@ Each command accepts:
 
 `python main.py search` runs individual search strategies from a shell (`structured`, `semantic`,
 `fuzzy`, `hierarchical`, `hybrid`, plus `generate-schema` and `nested-demo`), and
-`python main.py speedtest quick` measures query performance. These are exploration aids; the
+`python main.py speedtest quick` measures query performance (use `--retriever fuzzy|semantic|hybrid` to
+force a retriever, default is automatic routing). These are exploration aids; the
 `semantic`, `fuzzy` and `hybrid` commands force the retriever of the same name.
 
 ### Running a local embedding server
