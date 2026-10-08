@@ -40,7 +40,24 @@ def subscriptions_command(
     force_index: ForceIndex = False,
     show_progress: ShowProgress = False,
 ) -> None:
-    """Index subscription_search_index."""
+    """Index the subscription search index.
+
+    Args:
+        subscription_id: UUID of a single subscription to index, `None` indexes all.
+        dry_run: Make no database writes and no embedding calls.
+        force_index: Re-index every field, ignoring the content hashes.
+        show_progress: Show per-entity progress.
+
+    CLI Options:
+        ```shell
+        Options:
+            --subscription-id <str>               UUID (default = all)
+            --dry-run / --no-dry-run              No DB writes  [default: no-dry-run]
+            --force-index / --no-force-index      Force re-index (ignore hash cache)  [default: no-force-index]
+            --show-progress / --no-show-progress  Show per-entity progress  [default: no-show-progress]
+            --help                                Show this message and exit.
+        ```
+    """
     run_indexing_for_entity(
         entity_kind=EntityType.SUBSCRIPTION,
         entity_id=subscription_id,
@@ -57,7 +74,24 @@ def products_command(
     force_index: ForceIndex = False,
     show_progress: ShowProgress = False,
 ) -> None:
-    """Index product_search_index."""
+    """Index the product search index.
+
+    Args:
+        product_id: UUID of a single product to index, `None` indexes all.
+        dry_run: Make no database writes and no embedding calls.
+        force_index: Re-index every field, ignoring the content hashes.
+        show_progress: Show per-entity progress.
+
+    CLI Options:
+        ```shell
+        Options:
+            --product-id <str>                    UUID (default = all)
+            --dry-run / --no-dry-run              No DB writes  [default: no-dry-run]
+            --force-index / --no-force-index      Force re-index (ignore hash cache)  [default: no-force-index]
+            --show-progress / --no-show-progress  Show per-entity progress  [default: no-show-progress]
+            --help                                Show this message and exit.
+        ```
+    """
     run_indexing_for_entity(
         entity_kind=EntityType.PRODUCT,
         entity_id=product_id,
@@ -74,7 +108,24 @@ def processes_command(
     force_index: ForceIndex = False,
     show_progress: ShowProgress = False,
 ) -> None:
-    """Index process_search_index."""
+    """Index the process search index.
+
+    Args:
+        process_id: UUID of a single process to index, `None` indexes all.
+        dry_run: Make no database writes and no embedding calls.
+        force_index: Re-index every field, ignoring the content hashes.
+        show_progress: Show per-entity progress.
+
+    CLI Options:
+        ```shell
+        Options:
+            --process-id <str>                    UUID (default = all)
+            --dry-run / --no-dry-run              No DB writes  [default: no-dry-run]
+            --force-index / --no-force-index      Force re-index (ignore hash cache)  [default: no-force-index]
+            --show-progress / --no-show-progress  Show per-entity progress  [default: no-show-progress]
+            --help                                Show this message and exit.
+        ```
+    """
     run_indexing_for_entity(
         entity_kind=EntityType.PROCESS,
         entity_id=process_id,
@@ -91,7 +142,24 @@ def workflows_command(
     force_index: ForceIndex = False,
     show_progress: ShowProgress = False,
 ) -> None:
-    """Index workflow_search_index."""
+    """Index the workflow search index.
+
+    Args:
+        workflow_id: UUID of a single workflow to index, `None` indexes all.
+        dry_run: Make no database writes and no embedding calls.
+        force_index: Re-index every field, ignoring the content hashes.
+        show_progress: Show per-entity progress.
+
+    CLI Options:
+        ```shell
+        Options:
+            --workflow-id <str>                   UUID (default = all)
+            --dry-run / --no-dry-run              No DB writes  [default: no-dry-run]
+            --force-index / --no-force-index      Force re-index (ignore hash cache)  [default: no-force-index]
+            --show-progress / --no-show-progress  Show per-entity progress  [default: no-show-progress]
+            --help                                Show this message and exit.
+        ```
+    """
     run_indexing_for_entity(
         entity_kind=EntityType.WORKFLOW,
         entity_id=workflow_id,
@@ -108,7 +176,24 @@ def product_blocks_command(
     force_index: ForceIndex = False,
     show_progress: ShowProgress = False,
 ) -> None:
-    """Index product_block_search_index."""
+    """Index the product block search index.
+
+    Args:
+        product_block_id: UUID of a single product block to index, `None` indexes all.
+        dry_run: Make no database writes and no embedding calls.
+        force_index: Re-index every field, ignoring the content hashes.
+        show_progress: Show per-entity progress.
+
+    CLI Options:
+        ```shell
+        Options:
+            --product-block-id <str>              UUID (default = all)
+            --dry-run / --no-dry-run              No DB writes  [default: no-dry-run]
+            --force-index / --no-force-index      Force re-index (ignore hash cache)  [default: no-force-index]
+            --show-progress / --no-show-progress  Show per-entity progress  [default: no-show-progress]
+            --help                                Show this message and exit.
+        ```
+    """
     run_indexing_for_entity(
         entity_kind=EntityType.PRODUCT_BLOCK,
         entity_id=product_block_id,
@@ -125,7 +210,24 @@ def resource_types_command(
     force_index: ForceIndex = False,
     show_progress: ShowProgress = False,
 ) -> None:
-    """Index resource_type_search_index."""
+    """Index the resource type search index.
+
+    Args:
+        resource_type_id: UUID of a single resource type to index, `None` indexes all.
+        dry_run: Make no database writes and no embedding calls.
+        force_index: Re-index every field, ignoring the content hashes.
+        show_progress: Show per-entity progress.
+
+    CLI Options:
+        ```shell
+        Options:
+            --resource-type-id <str>              UUID (default = all)
+            --dry-run / --no-dry-run              No DB writes  [default: no-dry-run]
+            --force-index / --no-force-index      Force re-index (ignore hash cache)  [default: no-force-index]
+            --show-progress / --no-show-progress  Show per-entity progress  [default: no-show-progress]
+            --help                                Show this message and exit.
+        ```
+    """
     run_indexing_for_entity(
         entity_kind=EntityType.RESOURCE_TYPE,
         entity_id=resource_type_id,
@@ -137,13 +239,31 @@ def resource_types_command(
 
 @app.command("all")
 def all_command(force_index: ForceIndex = False) -> None:
-    """Index all entity types and rebuild the ai_search_paths table."""
+    """Index all entity types and rebuild the ai_search_paths table.
+
+    Args:
+        force_index: Re-index every field, ignoring the content hashes.
+
+    CLI Options:
+        ```shell
+        Options:
+            --force-index / --no-force-index  Force re-index (ignore hash cache)  [default: no-force-index]
+            --help                            Show this message and exit.
+        ```
+    """
     run_indexing_for_all_entities(force_index=force_index)
 
 
 @app.command("rebuild-paths")
 def rebuild_paths_command() -> None:
-    """Recompute the ai_search_paths distinct-paths table from ai_search_index."""
+    """Recompute the ai_search_paths distinct-paths table from ai_search_index.
+
+    CLI Options:
+        ```shell
+        Options:
+            --help  Show this message and exit.
+        ```
+    """
     rebuild_search_paths()
 
 
