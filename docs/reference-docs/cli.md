@@ -687,6 +687,55 @@ None]
     The `workflows/__init__.py` will only be extended with the needed `LazyWorkflowInstance`
     declarations when `--force` is used.
 
+## index
+
+(Re-)index the search tables used by [AI / Hybrid Search](ai-search.md). Run the commands below for the initial
+build of the index and after bulk changes to subscriptions, products, processes, workflows, product blocks or
+resource types.
+
+!!! warning "Indexing can take a long time"
+    Indexing a large database can take a long time (up to hours on production deployments). The
+    `db upgrade` and `db downgrade` commands therefore do **not** update the search index by default. Run the
+    indexing commands below as a separate post-deployment step, or pass `--index` to the migration command to opt in.
+
+The syntax of an index command is:
+
+```shell
+python main.py index <sub_command>
+```
+
+Some examples:
+
+```shell
+python main.py index all
+
+python main.py index subscriptions --subscription-id <uuid>
+
+python main.py index rebuild-paths
+```
+
+::: orchestrator.core.cli.search.index_llm
+    options:
+      docstring_style: google
+      separate_signature: false
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+      members:
+        - subscriptions_command
+        - products_command
+        - processes_command
+        - workflows_command
+        - product_blocks_command
+        - resource_types_command
+        - all_command
+        - rebuild_paths_command
+
 ## scheduler
 
 Commands to interact with the scheduler and scheduled jobs.

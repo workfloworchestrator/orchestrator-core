@@ -219,6 +219,14 @@ python main.py index processes
 python main.py index workflows
 ```
 
+`python main.py index all` indexes every entity type in one go. Use it after a deployment if you
+want a single step that covers all entity types.
+
+!!! note "Indexing is not part of `db upgrade` by default"
+    `python main.py db upgrade` and `python main.py db downgrade` do **not** update the search index
+    unless you pass `--index`. Indexing a large database can take a long time, so it is better to run
+    the indexing commands above as a separate post-deployment step.
+
 Each command accepts:
 
 | Option                | Effect                                                     |
