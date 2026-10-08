@@ -157,6 +157,7 @@ nav:
           - v4.7: guides/upgrading/4.7.md
           - v4.8: guides/upgrading/4.8.md
           - v5.0: guides/upgrading/5.0.md
+          - v5.4: guides/upgrading/5.4.md
           - v5.5: guides/upgrading/5.5.md
   - Architecture:
       - Architecture; TL;DR: architecture/tldr.md
