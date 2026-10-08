@@ -6,7 +6,7 @@ on:
 
 jobs:
   check_week:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     # Custom check as github does not support modulo syntax from gitlab ("0 7 * * MON%2")
     outputs:
       should_cancel: ${{ steps.week-modulo.outputs.should_cancel }}
@@ -27,7 +27,7 @@ jobs:
 
   slack:
       needs: [check_week, run_tests]
-      runs-on: ubuntu-latest
+      runs-on: ubuntu-26.04
       if: ${{ needs.check_week.outputs.should_cancel != '1' }}
       steps:
         - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # v3
