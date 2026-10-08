@@ -107,15 +107,10 @@ def _select_stmt(query_text, retriever, filters):
 
 
 @pytest.mark.parametrize("query_text,retriever,filters", FUZZY_SCENARIOS)
-def test_fuzzy_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark, query_text, retriever, filters):
+def test_fuzzy_runs_each_plan_node_at_most_once_per_entity(seeded_index, query_text, retriever, filters):
     stmt = _select_stmt(query_text, retriever, filters)
-    conn = db.session.connection()
 
-    @benchmark
-    def rows():
-        return conn.execute(stmt).all()
-
-    assert rows
+    assert db.session.connection().execute(stmt).all()
     assert_no_node_runs_more_often_than(plan_of(stmt), ENTITY_COUNT, "entities")
 
 

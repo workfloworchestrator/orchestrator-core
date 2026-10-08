@@ -226,14 +226,11 @@ def _search_page(async_session, page):
 
 
 @pytest.mark.parametrize("filters,matches", FILTER_SHAPES)
-def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark, filters, matches):
+def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, filters, matches):
     query = _select_query(filters)
     stmt = _select_stmt(query)
-    conn = db.session.connection()
 
-    @benchmark
-    def rows():
-        return conn.execute(stmt).all()
+    rows = db.session.connection().execute(stmt).all()
 
     # Two stable sorts: start_date descending, ties broken by entity_id ascending, as the retriever orders.
     by_id = sorted(_matching(matches), key=_entity_id)
@@ -245,14 +242,11 @@ def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchm
 
 
 @pytest.mark.xfail(strict=True, reason=COUNT_OVER_SECOND_FROM)
-def test_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, benchmark):
+def test_count_runs_each_plan_node_at_most_once_per_entity(seeded_index):
     """The count query wraps the candidate query."""
     stmt = _count_stmt(STATUS_AND_SPEED_OR_CUSTOMER)
-    conn = db.session.connection()
 
-    @benchmark
-    def total_count():
-        return conn.execute(stmt).scalar_one()
+    total_count = db.session.connection().execute(stmt).scalar_one()
 
     assert total_count == len(_matching(_matches_status_and_speed_or_customer))
     # Counting a column of the inner query instead of its subquery would make SQLAlchemy emit both: a cartesian product.
