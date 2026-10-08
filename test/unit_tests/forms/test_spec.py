@@ -50,31 +50,38 @@ class Person(BaseModel):
     phone: str | None = None
 
 
-class Page(FormPage):
-    model_config = ConfigDict(title="Every kind of field")
+def page():  # untyped on purpose, like core's other form tests: mypy then leaves the call-made field types alone
+    """The page under test, with every kind of field a form can declare."""
 
-    heading: Label
-    recap: migration_summary(SUMMARY)
-    shown: DisplaySubscription = SUBSCRIPTION_ID
-    fixed: read_only_field("fixed")
-    consent: Accept
-    color: Color
-    colors: choice_list(Color, min_items=1, max_items=2, unique_items=True)
-    one_color: choice_list(Color, max_items=1)
-    no_color: NoColor
-    mode: Literal["a", "b"] = "a"
-    ratio: float | None = None
-    flag: bool = False
-    customer: CustomerId
-    note: Annotated[LongText, Field(max_length=5000)] = ""  # modify_note's own shape
-    ticket: constr(pattern=r"^T-\d+$", max_length=10)
-    vlan: Annotated[int, Field(ge=1, le=4094)]
-    fraction: Annotated[float, Field(gt=0, lt=1)] = 0.5
-    step: conint(ge=0, multiple_of=5) = 0
-    remark: Annotated[LongText, Field(max_length=50)] | None = None  # declared inside the Optional
-    product: product_id(PRODUCT_IDS)
-    people: list[Person] = Field(default_factory=list)
+    class Page(FormPage):
+        model_config = ConfigDict(title="Every kind of field")
 
+        heading: Label
+        recap: migration_summary(SUMMARY)
+        shown: DisplaySubscription = SUBSCRIPTION_ID
+        fixed: read_only_field("fixed")
+        consent: Accept
+        color: Color
+        colors: choice_list(Color, min_items=1, max_items=2, unique_items=True)
+        one_color: choice_list(Color, max_items=1)
+        no_color: NoColor
+        mode: Literal["a", "b"] = "a"
+        ratio: float | None = None
+        flag: bool = False
+        customer: CustomerId
+        note: Annotated[LongText, Field(max_length=5000)] = ""  # modify_note's own shape
+        ticket: constr(pattern=r"^T-\d+$", max_length=10)
+        vlan: Annotated[int, Field(ge=1, le=4094)]
+        fraction: Annotated[float, Field(gt=0, lt=1)] = 0.5
+        step: conint(ge=0, multiple_of=5) = 0
+        remark: Annotated[LongText, Field(max_length=50)] | None = None  # declared inside the Optional
+        product: product_id(PRODUCT_IDS)
+        people: list[Person] = Field(default_factory=list)
+
+    return Page
+
+
+Page = page()
 
 FIELDS = {field.name: field.model_dump() for field in form_fields(Page)}
 COLORS = [{"value": "red", "label": "Red"}, {"value": "blue", "label": "Blue"}]
