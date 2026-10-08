@@ -35,7 +35,7 @@ jobs:
   integration-tests:
     name: Integration tests (Python ${{ matrix.python-version }} / Postgres ${{ matrix.postgres-version }} / Redis ${{ matrix.redis-version }})
     needs: unit-tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       # Narrow matrix: oldest + newest supported Python × Postgres, with the
       # Redis version pinned per row. Wider matrices are a follow-up

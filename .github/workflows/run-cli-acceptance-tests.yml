@@ -14,7 +14,7 @@ env:
 jobs:
   container_job:
     name: Pytest CLI Acceptance Tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       matrix:
         python-version: ["3.14"]
