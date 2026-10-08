@@ -22,13 +22,15 @@ spec:
     - host: {{ . | quote }}
       http:
         paths:
-          # The API is served under /api; a UI takes / on the same host.
-          - path: /api
+          # The API is served under /api (and the MCP server under /mcp); a UI takes / on the same host.
+          {{- range $path := ternary (list "/api" "/mcp") (list "/api") $.Values.mcp.enabled }}
+          - path: {{ $path }}
             pathType: Prefix
             backend:
               service:
                 name: {{ include "orchestrator-core.fullname" $ }}
                 port:
                   number: {{ $.Values.service.port }}
+          {{- end }}
     {{- end }}
 {{- end }}

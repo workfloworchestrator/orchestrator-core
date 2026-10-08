@@ -12,12 +12,18 @@ spec:
   hostnames:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  # The API is served under /api; a UI attaches its own route for / on the same listener.
+  # The API is served under /api (and the MCP server under /mcp); a UI attaches its own route for /
+  # on the same listener.
   rules:
     - matches:
         - path:
             type: PathPrefix
             value: /api
+        {{- if .Values.mcp.enabled }}
+        - path:
+            type: PathPrefix
+            value: /mcp
+        {{- end }}
       backendRefs:
         - name: {{ include "orchestrator-core.fullname" . }}
           port: {{ .Values.service.port }}

@@ -1,0 +1,79 @@
+# orchestrator-core Helm chart
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+Runs an [orchestrator-core](https://github.com/workfloworchestrator/orchestrator-core) application
+on Kubernetes: the API, its database migrations, the scheduler and Celery workers. Postgres and
+Redis/Valkey are not part of it.
+
+The [Kubernetes guide](https://workfloworchestrator.org/orchestrator-core/getting-started/kubernetes/)
+walks through a complete install, and
+[Running your orchestrator](https://workfloworchestrator.org/orchestrator-core/getting-started/deployment/)
+lists what each process needs.
+
+<!-- Generated from README.md.gotmpl and values.yaml by helm-docs; edit those, not README.md. -->
+
+## Install
+
+```shell
+helm install my-orchestrator oci://ghcr.io/workfloworchestrator/charts/orchestrator-core \
+  --version <chart version> \
+  --set image.repository=ghcr.io/example/my-orchestrator \
+  --set image.tag=1.0.0 \
+  --set existingSecrets[0]=my-orchestrator-env
+```
+
+`image` is your orchestrator, built `FROM` the orchestrator-core image; see
+[Building an image](https://workfloworchestrator.org/orchestrator-core/getting-started/container-image/).
+`my-orchestrator-env` is a Secret with at least `DATABASE_URI`.
+
+## What it runs
+
+| Component | Kind | Enabled by | Command |
+|---|---|---|---|
+| API | StatefulSet + Service | always | `api.command` (uvicorn on port 8080) |
+| Migrations | init container of each API pod | `migrations.enabled` | `<cli> db upgrade heads` |
+| Scheduler | Deployment, 1 replica | `scheduler.enabled` | `<cli> scheduler run`, after `scheduler.initCommands` |
+| Celery workers | Deployment per `celery.workers[]` entry | `celery.enabled` | `celery -A <celery.app> worker -Q <queues>` |
+
+On a rollout, API pods start one at a time, so their migrations run one after the other. Pods that
+restart together can still run them at the same time; the one that loses fails and is retried.
+Every orchestrator container, init containers included, gets the same environment, `volumes` and
+`volumeMounts`.
+
+## Environment
+
+Configuration is orchestrator-core's settings, as environment variables. Later sources override
+earlier ones:
+
+1. Defaults set by the chart: `TESTING=false` (orchestrator-core defaults it to true, which makes
+   the API wait for each workflow); with `celery.enabled` also `EXECUTOR=celery` and
+   `DISTLOCK_BACKEND=redis`; with `mcp.enabled` also `MCP_ENABLED=true`.
+2. `env`: plain settings, rendered into a ConfigMap together with the defaults.
+3. `secretEnv`: a Secret owned by the chart.
+4. `existingSecrets`: Secrets you manage, each read whole.
+5. `extraEnv`: Kubernetes `EnvVar` entries, e.g. with `valueFrom`.
+
+With Celery or more than one API replica, also set `WEBSOCKET_BROADCASTER_URL` to your Redis/Valkey
+URL, next to `CACHE_URI`; otherwise each process only sees its own updates.
+
+Pods restart when `env` or `secretEnv` changes.
+
+## Secrets and certificates from other sources
+
+The chart does not create cluster-specific objects, but `extraObjects` renders any extra manifest,
+and `volumes`/`volumeMounts` reach every container. For example, to read secrets from a key vault
+with the Secrets Store CSI driver: put the SecretProviderClass in `extraObjects`, its CSI volume in
+`volumes`/`volumeMounts` (mounting it is what makes the driver sync its Secret), and the synced
+Secret in `existingSecrets`. A cert-manager Certificate the orchestrator presents as an mTLS client
+certificate works the same way: the Certificate in `extraObjects`, its Secret in
+`volumes`/`volumeMounts`. `chart/ci/full-values.yaml` shows both.
+
+## Selectors
+
+The API selects on `app.kubernetes.io/name: <name>`, the scheduler and workers on
+`<name>-scheduler` and `<name>-worker-<worker name>`, each with `app.kubernetes.io/instance`.
+Selectors are immutable: changing `nameOverride` or the release name of an install fails the
+upgrade.
+
+{{ template "chart.valuesSection" . }}

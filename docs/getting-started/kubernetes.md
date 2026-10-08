@@ -141,8 +141,9 @@ kubectl logs deploy/my-orchestrator-orchestrator-core-worker-tasks | grep succee
 ## Exposing it
 
 The API is served under `/api`. Enable `httpRoute` (Gateway API) or `ingress` with your host name;
-both route `/api` to the API. A [UI](orchestration-ui.md) is deployed separately and takes `/` on
-the same host.
+both route `/api` to the API. With `mcp.enabled`, they also route `/mcp` to the
+[MCP server](../reference-docs/mcp.md); the image then needs the `mcp` extra, e.g. a `-mcp-celery`
+base image. A [UI](orchestration-ui.md) is deployed separately and takes `/` on the same host.
 
 ```yaml
 httpRoute:
@@ -158,5 +159,5 @@ httpRoute:
 
 - Turn authentication on: [Auth(n|z)](../reference-docs/auth-backend-and-frontend.md).
 - Tune worker queues and counts: [Scaling the orchestrator](../guides/scaling.md).
-- Keep secrets out of values files: see the chart README's
-  [Environment](https://github.com/workfloworchestrator/orchestrator-core/blob/main/chart/README.md#environment).
+- Keep secrets out of values files, e.g. in a key vault: see the chart README's
+  [Secrets and certificates from other sources](https://github.com/workfloworchestrator/orchestrator-core/blob/main/chart/README.md#secrets-and-certificates-from-other-sources).

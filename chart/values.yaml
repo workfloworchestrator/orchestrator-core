@@ -1,123 +1,150 @@
-# Default values for orchestrator-core. See README.md for what each value does.
+# Default values for orchestrator-core. README.md is generated from the `# --` comments with helm-docs.
 
-# -- Your orchestrator image, built FROM the orchestrator-core image. Both are required.
 image:
+  # -- Your orchestrator image, built FROM the orchestrator-core image. Required.
   repository: ""
+  # -- Image tag. Required; a digest-pinned tag (`1.0@sha256:...`) works.
   tag: ""
+  # -- Image pull policy.
   pullPolicy: IfNotPresent
 
+# -- Image pull secrets for private registries.
 imagePullSecrets: []
+# -- Override the chart name in resource names and labels.
 nameOverride: ""
+# -- Override the full resource name prefix.
 fullnameOverride: ""
 
-# -- Your CLI entrypoint; the chart appends the subcommand, e.g. `db upgrade heads`.
+# -- Your CLI entrypoint; the chart appends subcommands such as `db upgrade heads`.
 cli: ["python", "main.py"]
 
-# -- Environment of every orchestrator container. See README.md, Environment.
+# -- Plain environment of every orchestrator container, rendered into a ConfigMap with the chart's
+# defaults. See [Environment](#environment).
 env: {}
+# -- Secret environment of every orchestrator container, rendered into a Secret owned by the chart.
 secretEnv: {}
+# -- Names of existing Secrets whose keys become environment variables of every orchestrator container.
 existingSecrets: []
+# -- Extra env entries (Kubernetes `EnvVar` objects, e.g. with `valueFrom`) for every orchestrator container.
 extraEnv: []
 
-serviceAccount:
-  create: false
-  automount: true
-  annotations: {}
-  name: ""
+# -- Mount a Kubernetes API token in the pods. The orchestrator does not call the Kubernetes API, but a
+# service mesh can need it: for example, the Linkerd proxy uses it to get its mTLS identity. Set to
+# `false` without one.
+automountServiceAccountToken: true
 
+# -- Annotations on every orchestrator pod.
 podAnnotations: {}
+# -- Labels on every orchestrator pod.
 podLabels: {}
+# -- Pod security context of every orchestrator pod.
 podSecurityContext: {}
+# -- Container security context of every orchestrator container.
 securityContext: {}
 
-# -- Volumes on every orchestrator pod; mounts on every orchestrator container, init containers
-# included.
+# -- Volumes on every orchestrator pod.
 volumes: []
+# -- Volume mounts on every orchestrator container, init containers included.
 volumeMounts: []
 
+# -- Node selector of every orchestrator pod.
 nodeSelector: {}
+# -- Tolerations of every orchestrator pod.
 tolerations: []
+# -- Affinity of every orchestrator pod.
 affinity: {}
 
 api:
+  # -- API replicas. Set `SESSION_SECRET` when above 1.
   replicaCount: 1
-  # Listens on 8080, which the Service and probes use.
+  # -- The API process. Must listen on 8080, which the Service and probes use.
   command: ["python", "-m", "uvicorn", "--host", "0.0.0.0", "--port", "8080", "wsgi:app"]
+  # -- API container resources.
   resources: {}
-  # Liveness does not query the database, so a database outage does not restart the API.
+  # -- Liveness probe. TCP, so a database outage does not restart the API.
   livenessProbe:
     tcpSocket:
       port: http
     initialDelaySeconds: 15
+  # -- Readiness probe. `/api/health/` checks the database connection.
   readinessProbe:
     httpGet:
       path: /api/health/
       port: http
     periodSeconds: 5
+  # -- Extra init containers of the API pods, run after the migrations.
   extraInitContainers: []
 
 migrations:
+  # -- Run the database migrations in an init container of each API pod.
   enabled: true
-  # Defaults to `<cli> db upgrade heads`.
+  # -- Full migrations command. Defaults to `<cli> db upgrade heads`.
   command: []
 
 scheduler:
+  # -- Run the scheduler, a singleton that runs scheduled tasks. Needs `CACHE_URI`.
   enabled: false
-  # Subcommands run in order before the scheduler starts, each in its own init container and each
-  # appended to cli. A failing one is retried by Kubernetes, e.g. until the database is up.
+  # -- Subcommands run in order before the scheduler starts, each appended to `cli` in its own init
+  # container. Kubernetes retries a failing one, e.g. until the database is up.
   initCommands:
     - ["scheduler", "load-initial-schedule"]
+  # -- Scheduler container resources.
   resources: {}
 
 celery:
+  # -- Run Celery workers. Needs the `celery` extra in your image and `CACHE_URI`; sets `EXECUTOR=celery`
+  # and `DISTLOCK_BACKEND=redis`.
   enabled: false
-  # The module that creates your Celery app, passed to `celery -A`.
+  # -- The module that creates your Celery app, passed to `celery -A`. Required when enabled.
   app: ""
+  # -- Celery log level.
   logLevel: info
-  # Worker processes per pod, unless a worker sets its own. Celery's default is one per node CPU,
-  # which ignores the pod's CPU limit.
+  # -- Worker processes per pod, unless a worker sets its own. Celery's default is one per node CPU,
+  # ignoring the pod's CPU limit.
   concurrency: 2
+  # -- One Deployment per entry: `name`, `queues`, and optionally `replicas` (default 1, 0 pauses it),
+  # `concurrency` and `resources`.
   workers:
     - name: tasks
       queues: [new_tasks, resume_tasks]
     - name: workflows
       queues: [new_workflows, resume_workflows]
 
+mcp:
+  # -- Serve the MCP server at `/mcp` and route it next to `/api`. Needs the `mcp` extra in your image
+  # (a `-mcp` or `-mcp-celery` base image); sets `MCP_ENABLED=true`. Uses the API's authentication.
+  enabled: false
+
 service:
+  # -- Service type.
   type: ClusterIP
+  # -- Service port.
   port: 80
 
 ingress:
+  # -- Expose the API with an Ingress, routing `/api` (and `/mcp`).
   enabled: false
+  # -- Ingress class.
   className: ""
+  # -- Ingress annotations, e.g. for cert-manager.
   annotations: {}
+  # -- Host names.
   hosts:
     - chart-example.local
+  # -- TLS configuration.
   tls: []
 
 httpRoute:
+  # -- Expose the API with a Gateway API HTTPRoute, routing `/api` (and `/mcp`).
   enabled: false
+  # -- Gateways the route attaches to.
   parentRefs:
     - name: gateway
       sectionName: http
+  # -- Host names.
   hostnames:
     - chart-example.local
 
-certificate:
-  enabled: false
-  name: chart-example-tls
-  dnsName: chart-example.local
-  issuerRef:
-    name: letsencrypt
-    kind: Issuer
-  secretName: chart-example-tls
-  privateKey:
-    rotationPolicy: Always
-
-secretProviderClass:
-  enabled: false
-  provider: azure
-  keyVaultName: ""
-  tenantId: ""
-  nodePublishSecretRefName: ""
-  objects: []
+# -- Extra manifests rendered as-is, through `tpl`, e.g. a cert-manager Certificate or a
+# SecretProviderClass.
+extraObjects: []

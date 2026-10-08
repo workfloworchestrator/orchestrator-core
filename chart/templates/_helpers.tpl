@@ -60,24 +60,16 @@ app.kubernetes.io/instance: {{ $root.Release.Name }}
 {{- end }}
 
 {{/*
-Create the name of the service account to use
-*/}}
-{{- define "orchestrator-core.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "orchestrator-core.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
-{{- end }}
-
-{{/*
 The env ConfigMap: what the enabled components need, overridden by .Values.env. Every later envFrom
-source (secretEnv, existingSecrets, the secret provider) overrides it in turn.
+source (secretEnv, existingSecrets) overrides it in turn.
 */}}
 {{- define "orchestrator-core.envConfig" -}}
 {{- $defaults := dict -}}
 {{- if .Values.celery.enabled -}}
 {{- $defaults = dict "EXECUTOR" "celery" "DISTLOCK_BACKEND" "redis" -}}
+{{- end -}}
+{{- if .Values.mcp.enabled -}}
+{{- $_ := set $defaults "MCP_ENABLED" "true" -}}
 {{- end -}}
 {{- /* orchestrator-core defaults TESTING to true, which makes the API wait for every workflow to finish. */}}
 {{- $_ := set $defaults "TESTING" "false" -}}
@@ -116,21 +108,9 @@ Usage: include "orchestrator-core.container" (list $ "name" (list "command" "arg
     - secretRef:
         name: {{ . }}
     {{- end }}
-    {{- if $values.secretProviderClass.enabled }}
-    - secretRef:
-        name: {{ include "orchestrator-core.fullname" $root }}-secret-provider
-    {{- end }}
-  {{- /* The secret-provider mount is what makes the CSI driver sync its Secret, so every container gets it. */}}
-  {{- if or $values.volumeMounts $values.secretProviderClass.enabled }}
+  {{- with $values.volumeMounts }}
   volumeMounts:
-    {{- with $values.volumeMounts }}
     {{- toYaml . | nindent 4 }}
-    {{- end }}
-    {{- if $values.secretProviderClass.enabled }}
-    - name: secret-store
-      mountPath: /mnt/secret-store
-      readOnly: true
-    {{- end }}
   {{- end }}
 {{- end }}
 
@@ -158,28 +138,14 @@ spec:
   imagePullSecrets:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  serviceAccountName: {{ include "orchestrator-core.serviceAccountName" $root }}
+  automountServiceAccountToken: {{ $values.automountServiceAccountToken }}
   {{- with $values.podSecurityContext }}
   securityContext:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  {{- if or $values.volumes $values.secretProviderClass.enabled }}
+  {{- with $values.volumes }}
   volumes:
-    {{- with $values.volumes }}
     {{- toYaml . | nindent 4 }}
-    {{- end }}
-    {{- if $values.secretProviderClass.enabled }}
-    - name: secret-store
-      csi:
-        driver: secrets-store.csi.k8s.io
-        readOnly: true
-        volumeAttributes:
-          secretProviderClass: {{ include "orchestrator-core.fullname" $root }}
-        {{- with $values.secretProviderClass.nodePublishSecretRefName }}
-        nodePublishSecretRef:
-          name: {{ . }}
-        {{- end }}
-    {{- end }}
   {{- end }}
   {{- with $values.nodeSelector }}
   nodeSelector:

@@ -6,22 +6,32 @@ cli: ["python", "-m", "main"]
 env:
   OAUTH2_ACTIVE: "false"
 secretEnv:
-  DATABASE_URI: "postgresql+psycopg://orchestrator:password@orchestrator-postgres/orchestrator"
   CACHE_URI: "redis://orchestrator-valkey:6379/0"
+  WEBSOCKET_BROADCASTER_URL: "redis://orchestrator-valkey:6379/0"
+# The second Secret is synced from a key vault by the SecretProviderClass in extraObjects.
 existingSecrets:
   - extra-credentials
+  - kv-secrets
 extraEnv:
   - name: LOG_LEVEL
     value: DEBUG
-serviceAccount:
-  create: true
+# A client certificate and key-vault secrets, set up with cert-manager and the Secrets Store CSI driver.
 volumes:
   - name: tls
     secret:
       secretName: client-cert
+  - name: secret-store
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: ci-kv
 volumeMounts:
   - name: tls
     mountPath: /mnt/tls
+    readOnly: true
+  - name: secret-store
+    mountPath: /mnt/secret-store
     readOnly: true
 api:
   replicaCount: 2
@@ -44,6 +54,8 @@ celery:
       queues: [new_workflows, resume_workflows]
       replicas: 2
       concurrency: 4
+mcp:
+  enabled: true
 ingress:
   enabled: true
   className: nginx
@@ -57,13 +69,32 @@ httpRoute:
   enabled: true
   hostnames:
     - orchestrator.example.net
-certificate:
-  enabled: true
-secretProviderClass:
-  enabled: true
-  keyVaultName: example-kv
-  tenantId: "00000000-0000-0000-0000-000000000000"
-  nodePublishSecretRefName: kv-sp-secret
-  objects:
-    - key: DATABASE_URI
-      objectName: orchestrator-database-uri
+extraObjects:
+  - apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: client-cert
+    spec:
+      dnsNames: [orchestrator.example.net]
+      issuerRef: {name: letsencrypt, kind: Issuer}
+      secretName: client-cert
+      usages: [server auth, client auth, digital signature]
+  - apiVersion: secrets-store.csi.x-k8s.io/v1
+    kind: SecretProviderClass
+    metadata:
+      name: "{{ .Release.Name }}-kv"
+    spec:
+      provider: azure
+      secretObjects:
+        - secretName: kv-secrets
+          type: Opaque
+          data:
+            - {key: DATABASE_URI, objectName: orchestrator-database-uri}
+      parameters:
+        keyvaultName: example-kv
+        tenantId: "00000000-0000-0000-0000-000000000000"
+        objects: |
+          array:
+            - |
+              objectName: orchestrator-database-uri
+              objectType: secret
