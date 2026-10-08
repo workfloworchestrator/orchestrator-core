@@ -1,0 +1,294 @@
+# Copyright 2019-2026 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Fuzzy-ranking regression tests using a small subscription corpus.
+
+Queries cover non-adjacent terms, typos, and matches across fields.
+"""
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from uuid import UUID, uuid4
+
+import pytest
+from sqlalchemy import RowMapping, text
+from sqlalchemy_utils import Ltree
+
+from orchestrator.core.db import db
+from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.search.core.types import EntityType, FieldType
+from orchestrator.core.search.query.builder import build_candidate_query
+from orchestrator.core.search.query.queries import SelectQuery
+from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
+
+# entity key -> {path: value}
+CORPUS: dict[str, dict[str, str]] = {
+    "acm_lir": {
+        "subscription.description": "ACM prefix LIR 192.0.2.0/24",
+        "subscription.product.name": "IP Prefix",
+        "subscription.ip_prefix.prefix": "192.0.2.0/24",
+    },
+    "acm_pa": {
+        "subscription.description": "ACM prefix PA 198.51.100.0/24",
+        "subscription.product.name": "IP Prefix",
+        "subscription.ip_prefix.prefix": "198.51.100.0/24",
+    },
+    "bxt_lir": {
+        "subscription.description": "BXT prefix LIR 203.0.113.0/24",
+        "subscription.product.name": "IP Prefix",
+        "subscription.ip_prefix.prefix": "203.0.113.0/24",
+    },
+    "zeo_lir": {
+        "subscription.description": "ZEO prefix LIR 2001:db8:1::/48",
+        "subscription.product.name": "IP Prefix",
+        "subscription.ip_prefix.prefix": "2001:db8:1::/48",
+    },
+    "acm_l2vpn": {
+        "subscription.description": "ACM L2VPN Hillcrest - Meadowbrook",
+        "subscription.product.name": "L2VPN",
+    },
+    "acm_ip": {
+        "subscription.description": "ACM IP BGP Riverton Hillcrest",
+        "subscription.product.name": "InternetPlus",
+    },
+    "bxt_ip": {
+        "subscription.description": "BXT IP static Harbour Park",
+        "subscription.product.name": "InternetPlus",
+    },
+    "acm_lightpath": {
+        "subscription.description": "ACM LightPath Riverton - Lakeside",
+        "subscription.product.name": "LightPath",
+    },
+    "core_port": {
+        "subscription.description": "Core port node01-rtr-01 et-0/0/1",
+        "subscription.product.name": "Service Port",
+        "subscription.port.node.name": "node01-rtr-01",
+    },
+}
+
+
+@dataclass(frozen=True)
+class EvalCase:
+    query: str
+    expected: str  # the CORPUS key that should rank first
+
+
+EVAL_CASES = [
+    # Non-adjacent terms
+    EvalCase("ACM LIR", "acm_lir"),
+    EvalCase("LIR ACM", "acm_lir"),
+    EvalCase("acm lir", "acm_lir"),
+    EvalCase("ACM prefix LIR", "acm_lir"),
+    EvalCase("BXT LIR", "bxt_lir"),
+    EvalCase("ZEO LIR", "zeo_lir"),
+    EvalCase("ACM PA", "acm_pa"),
+    # Typos
+    EvalCase("ACM LIIR", "acm_lir"),
+    EvalCase("Lightpth Riverton", "acm_lightpath"),
+    # Contiguous phrases and single identifiers
+    EvalCase("ACM L2VPN", "acm_l2vpn"),
+    EvalCase("192.0.2.0/24", "acm_lir"),
+    EvalCase("node01-rtr-01", "core_port"),
+    # Terms spread over the description
+    EvalCase("ACM LightPath Lakeside", "acm_lightpath"),
+    EvalCase("Riverton Lakeside lightpath", "acm_lightpath"),
+    EvalCase("BXT IP Harbour Park", "bxt_ip"),
+    # Terms spread over different fields of the same subscription
+    EvalCase("BXT InternetPlus", "bxt_ip"),
+    EvalCase("ACM InternetPlus", "acm_ip"),
+]
+
+
+@pytest.fixture
+def corpus_ids() -> dict[str, UUID]:
+    ids = {key: uuid4() for key in CORPUS}
+    db.session.add_all(
+        AiSearchIndex(
+            entity_type=EntityType.SUBSCRIPTION,
+            entity_id=ids[key],
+            entity_title=key,
+            path=Ltree(path),
+            value=value,
+            value_type=FieldType.STRING,
+            content_hash=uuid4().hex,
+        )
+        for key, fields in CORPUS.items()
+        for path, value in fields.items()
+    )
+    db.session.commit()
+    return ids
+
+
+def _fuzzy_rows(query_text: str, limit: int) -> Sequence[RowMapping]:
+    """Apply the retriever's session settings before executing its query."""
+    retriever = FuzzyRetriever(query_text, cursor=None)
+    for setting in retriever.session_settings:
+        db.session.execute(text(setting.statement))
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text, limit=limit)
+    return db.session.execute(retriever.apply(build_candidate_query(query))).mappings().all()
+
+
+def _ranking(query_text: str, ids: dict[str, UUID]) -> list[str]:
+    """Return corpus keys in result order."""
+    key_by_id = {entity_id: key for key, entity_id in ids.items()}
+    return [key_by_id[row.entity_id] for row in _fuzzy_rows(query_text, limit=len(ids))]
+
+
+@pytest.mark.parametrize(
+    "query_text,expected",
+    [
+        pytest.param("LIR", {"acm_lir", "bxt_lir", "zeo_lir"}, id="single-term"),
+        # LIR partly matches Lakeside (0.5), so acm_lightpath also qualifies with an average of 0.75.
+        pytest.param("ACM LIR", {"acm_lir", "acm_lightpath"}, id="one-exact-term-is-not-enough"),
+        pytest.param("Riverton with frobnicator", set(), id="one-of-three-terms-matching-is-not-enough"),
+        pytest.param("with", set(), id="term-absent-from-corpus"),
+        pytest.param("xyzzy plugh", set(), id="no-term-matches"),
+    ],
+)
+def test_entities_matching_too_few_terms_are_not_hits(corpus_ids, query_text, expected):
+    """Each term must match a field, and the average score must reach MIN_SCORE."""
+    assert set(_ranking(query_text, corpus_ids)) == expected
+
+
+@pytest.mark.parametrize("threshold", ["0.4", "0.6"])
+@pytest.mark.parametrize(
+    "query_text,expected_first",
+    [
+        ("ACM LIR", "acm_lir"),
+        ("ACM prefix LIR", "acm_lir"),
+        ("BXT InternetPlus", "bxt_ip"),
+        ("xyzzy plugh", None),
+    ],
+)
+def test_term_order_preserves_results(
+    corpus_ids: dict[str, UUID], threshold: str, query_text: str, expected_first: str | None
+) -> None:
+    """Changing the starting term preserves scores, highlights and result order at either threshold."""
+    db.session.execute(
+        text("SELECT set_config('pg_trgm.word_similarity_threshold', :threshold, true)"),
+        {"threshold": threshold},
+    )
+
+    def search(query_text: str) -> list[RowMapping]:
+        query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text)
+        stmt = FuzzyRetriever(query_text, cursor=None).apply(build_candidate_query(query))
+        return list(db.session.execute(stmt).mappings())
+
+    rows = search(query_text)
+    assert rows == search(" ".join(reversed(query_text.split())))
+    if expected_first is None:
+        assert rows == []
+    else:
+        assert rows[0].entity_id == corpus_ids[expected_first]
+
+
+@pytest.mark.parametrize(
+    "query_text,value,value_type,matches",
+    [
+        pytest.param("LIR", "LIR", FieldType.STRING, True, id="single-word"),
+        pytest.param("LIR lir", "LIR", FieldType.STRING, True, id="duplicate-term"),
+        pytest.param("LIR -", "LIR", FieldType.STRING, True, id="punctuation-dropped"),
+        pytest.param(
+            "123e4567-e89b-12d3-a456-426614174000",
+            "123e4567-e89b-12d3-a456-426614174000",
+            FieldType.UUID,
+            True,
+            id="uuid",
+        ),
+        pytest.param("12345", "12345", FieldType.INTEGER, False, id="non-searchable-field"),
+        pytest.param("LIR", "LIP", FieldType.STRING, False, id="passes-gate-but-below-min-score"),
+        pytest.param("xyzzy", "LIR", FieldType.STRING, False, id="no-match"),
+        pytest.param("- / *", "LIR", FieldType.STRING, False, id="punctuation-only"),
+    ],
+)
+def test_single_term_scores_and_highlights(query_text, value, value_type, matches):
+    """Return each match once, with its best score and shallowest matching field."""
+    entity_id = uuid4()
+    db.session.add_all(
+        AiSearchIndex(
+            entity_type=EntityType.SUBSCRIPTION,
+            entity_id=entity_id,
+            entity_title="single term",
+            path=Ltree(path),
+            value=field_value,
+            value_type=field_type,
+            content_hash=uuid4().hex,
+        )
+        for path, field_value, field_type in [
+            ("subscription.description", value, value_type),
+            ("subscription.block.description", value, value_type),
+            ("subscription.status", "active", FieldType.STRING),
+        ]
+    )
+    db.session.commit()
+
+    rows = _fuzzy_rows(query_text, limit=10)
+
+    assert [(row.entity_id, float(row.score), row.highlight_text, row.highlight_path) for row in rows] == (
+        [(entity_id, 1.0, value, "subscription.description")] if matches else []
+    )
+
+
+@pytest.mark.parametrize(
+    "fields,expected",
+    [
+        pytest.param([("subscription.description", "ACM LIP")], [0.75], id="partial-match-in-the-same-field"),
+        pytest.param(
+            [("subscription.customer", "ACM"), ("subscription.description", "LIP")],
+            [0.75],
+            id="partial-match-in-another-field",
+        ),
+        pytest.param([("subscription.customer", "ACM"), ("subscription.description", "LOL")], [], id="no-match"),
+    ],
+)
+def test_every_term_must_pass_the_gate(fields, expected):
+    """LIR must pass the trigram threshold, whether it matches beside ACM or in another field."""
+    entity_id = uuid4()
+    db.session.add_all(
+        AiSearchIndex(
+            entity_type=EntityType.SUBSCRIPTION,
+            entity_id=entity_id,
+            entity_title="split",
+            path=Ltree(path),
+            value=value,
+            value_type=FieldType.STRING,
+            content_hash=uuid4().hex,
+        )
+        for path, value in fields
+    )
+    db.session.commit()
+
+    rows = _fuzzy_rows("ACM LIR", limit=10)
+
+    assert [(row.entity_id, float(row.score)) for row in rows] == [(entity_id, score) for score in expected]
+
+
+def _reciprocal_rank(ranking: list[str], expected: str) -> float:
+    return 1 / (ranking.index(expected) + 1) if expected in ranking else 0.0
+
+
+@pytest.mark.parametrize("case", EVAL_CASES, ids=[case.query for case in EVAL_CASES])
+def test_expected_subscription_ranks_first(corpus_ids, case):
+    ranking = _ranking(case.query, corpus_ids)
+
+    assert ranking[:1] == [case.expected], f"{case.query!r} ranked {ranking}"
+
+
+def test_aggregate_ranking_quality(corpus_ids):
+    """Every expected subscription must rank first: hit@1 and MRR should both be 1."""
+    rankings = [(_ranking(case.query, corpus_ids), case.expected) for case in EVAL_CASES]
+
+    hit_at_1 = sum(ranking[:1] == [expected] for ranking, expected in rankings) / len(rankings)
+    mrr = sum(_reciprocal_rank(ranking, expected) for ranking, expected in rankings) / len(rankings)
+
+    assert (hit_at_1, mrr) == (1.0, 1.0)

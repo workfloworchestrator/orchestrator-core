@@ -11,71 +11,135 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sqlalchemy import Select, and_, cast, func, literal, or_, select
+from functools import reduce
+from operator import add
+from typing import Sequence
+
+from more_itertools import unique_everseen
+from sqlalchemy import CTE, Select, and_, cast, exists, func, literal, or_, select
+from sqlalchemy.orm import aliased
 from sqlalchemy.sql.expression import ColumnElement
 
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import SearchMetadata
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
+from orchestrator.core.search.retrieval.session import SessionSetting
+
+
+def fuzzy_tokens(fuzzy_term: str) -> list[str]:
+    """Split on whitespace and deduplicate terms case-insensitively.
+
+    Ignore punctuation-only tokens. Keep the original query if no tokens remain.
+    """
+    tokens = [token for token in fuzzy_term.split() if any(char.isalnum() for char in token)]
+    return list(unique_everseen(tokens, key=str.casefold)) or [fuzzy_term]
 
 
 class FuzzyRetriever(Retriever):
-    """Ranks results based on the max of fuzzy text similarity scores."""
+    """Rank entities by averaging each query term's best field similarity.
+
+    Each term must pass ``GATE_THRESHOLD`` in at least one searchable field.
+    Terms may match different fields; their average must reach ``MIN_SCORE``.
+    """
+
+    MIN_SCORE = 0.6
+    # Allow typos such as "LIIR" matching "LIR" (similarity 0.5).
+    GATE_THRESHOLD = SessionSetting("pg_trgm.word_similarity_threshold", "0.5")
 
     def __init__(self, fuzzy_term: str, cursor: PageCursor | None) -> None:
         self.fuzzy_term = fuzzy_term
         self.cursor = cursor
 
+    @property
+    def session_settings(self) -> Sequence[SessionSetting]:
+        return (self.GATE_THRESHOLD,)
+
     def apply(self, candidate_query: Select) -> Select:
-        similarity_expr = func.word_similarity(self.fuzzy_term, AiSearchIndex.value)
-        # The highlighted field is the best match, and among equally good ones the shallowest: an entity's
-        # own description over the same text inside a nested block.
-        highlight_order = [similarity_expr.desc(), func.nlevel(AiSearchIndex.path).asc(), AiSearchIndex.path.asc()]
+        tokens = fuzzy_tokens(self.fuzzy_term)
+        token_similarities = [func.word_similarity(token, AiSearchIndex.value) for token in tokens]
 
-        raw_max = func.max(similarity_expr).over(partition_by=AiSearchIndex.entity_id)
+        # Terms may match different fields, so take each term's maximum before averaging.
+        raw_score = reduce(add, (func.max(similarity) for similarity in token_similarities)) / len(tokens)
         score = cast(
-            func.round(cast(raw_max, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
-        ).label(self.SCORE_LABEL)
+            func.round(cast(raw_score, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
+        )
 
+        is_searchable = AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES)
+        entities = self._gated_entities(tokens, is_searchable)
+        # Keep trigram filters in the CTE so scoring can use entity_id lookups.
         gated = (
+            select(AiSearchIndex.entity_id, AiSearchIndex.entity_title, score.label(self.SCORE_LABEL))
+            .join(entities, entities.c.entity_id == AiSearchIndex.entity_id)
+            .where(is_searchable)
+            .group_by(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
+            .having(score >= self.MIN_SCORE)
+        )
+        # Check filters per matching row to avoid scanning a broad candidate set.
+        scored = self._restrict_to_candidates(gated, candidate_query, probe=True).subquery("ranked_fuzzy")
+
+        # Fetch highlights after score filtering; prefer shallower paths when field scores tie.
+        field_similarity = reduce(add, token_similarities) / len(tokens)
+        highlight = (
             select(
-                AiSearchIndex.entity_id,
-                AiSearchIndex.entity_title,
-                score,
-                func.first_value(AiSearchIndex.value)
-                .over(partition_by=AiSearchIndex.entity_id, order_by=highlight_order)
-                .label(self.HIGHLIGHT_TEXT_LABEL),
-                func.first_value(AiSearchIndex.path)
-                .over(partition_by=AiSearchIndex.entity_id, order_by=highlight_order)
-                .label(self.HIGHLIGHT_PATH_LABEL),
+                AiSearchIndex.value.label(self.HIGHLIGHT_TEXT_LABEL),
+                AiSearchIndex.path.label(self.HIGHLIGHT_PATH_LABEL),
             )
-            .select_from(AiSearchIndex)
-            .where(
-                and_(
-                    AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
-                    literal(self.fuzzy_term).op("<%")(AiSearchIndex.value),
-                )
-            )
+            .where(and_(AiSearchIndex.entity_id == scored.c.entity_id, is_searchable))
+            .order_by(field_similarity.desc(), func.nlevel(AiSearchIndex.path).asc(), AiSearchIndex.path.asc())
+            .limit(1)
+            .lateral("fuzzy_highlight")
         )
-        # Trigram hits are few: probing candidate membership per hit keeps the trigram index driving the
-        # plan even under a broad structured filter, where joining the candidate set does not.
-        combined_query = self._restrict_to_candidates(gated, candidate_query, probe=True).distinct(
-            AiSearchIndex.entity_id, AiSearchIndex.entity_title
-        )
-        final_query = combined_query.subquery("ranked_fuzzy")
 
         stmt = select(
-            final_query.c.entity_id,
-            final_query.c.entity_title,
-            final_query.c.score,
-            final_query.c.highlight_text,
-            final_query.c.highlight_path,
-        ).select_from(final_query)
+            scored.c.entity_id,
+            scored.c.entity_title,
+            scored.c.score,
+            highlight.c.highlight_text,
+            highlight.c.highlight_path,
+        ).select_from(scored.join(highlight, literal(True)))
 
-        stmt = self._apply_score_pagination(stmt, final_query.c.score, final_query.c.entity_id)
+        stmt = self._apply_score_pagination(stmt, scored.c.score, scored.c.entity_id)
 
-        return stmt.order_by(final_query.c.score.desc().nulls_last(), final_query.c.entity_id.asc())
+        return stmt.order_by(scored.c.score.desc().nulls_last(), scored.c.entity_id.asc())
+
+    def _gated_entities(self, tokens: list[str], is_searchable: ColumnElement[bool]) -> CTE:
+        """Find entities where every term matches at least one searchable field.
+
+        Start with the first term, then check every term per entity.
+        Materialize the IDs to keep selection separate from scoring.
+        """
+        if len(tokens) == 1:
+            return (
+                select(AiSearchIndex.entity_id)
+                .where(and_(is_searchable, literal(tokens[0]).op("<%")(AiSearchIndex.value)))
+                .distinct()
+                .cte("fuzzy_entities")
+                .prefix_with("MATERIALIZED")
+            )
+
+        # Start with the first term instead of estimating the rarest term.
+        driving_term = literal(tokens[0])
+
+        rows = aliased(AiSearchIndex, name="gate_rows")
+        # Require every term to match within the entity; different terms may match different fields.
+        gated_elsewhere = [
+            exists().where(
+                and_(
+                    rows.entity_id == AiSearchIndex.entity_id,
+                    rows.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
+                    literal(token).op("<%")(rows.value),
+                )
+            )
+            for token in tokens
+        ]
+        return (
+            select(AiSearchIndex.entity_id)
+            .where(and_(is_searchable, driving_term.op("<%")(AiSearchIndex.value), *gated_elsewhere))
+            .distinct()
+            .cte("fuzzy_entities")
+            .prefix_with("MATERIALIZED")
+        )
 
     @property
     def metadata(self) -> SearchMetadata:

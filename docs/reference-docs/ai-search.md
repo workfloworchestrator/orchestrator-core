@@ -61,6 +61,10 @@ Two things follow from this layout:
 share many trigrams are similar, so `nod` still matches `node` and typos still find their target.
 This is what makes fuzzy matching tolerant of spelling.
 
+Fuzzy search matches query terms independently. For example, `ACME LIR` can match
+`ACME prefix LIR`, or an entity with `ACME` and `LIR` in different fields. Every term must
+match somewhere in the entity; see [Ranking formulas](#ranking-formulas) for the thresholds.
+
 ### What embeddings add
 
 An **embedding** is a vector (list) of numbers that represents the meaning of a piece of text. Texts with
@@ -134,22 +138,23 @@ request names one:
 | Filters only                            | **Structured** | no relevance ranking; ordered by a chosen field      |
 | Explicit `retriever: semantic`          | **Semantic**   | closest embedding wins; never chosen automatically   |
 
-Any free text, single-word or a whole phrase, is fuzzy-matched on the full text *and* ranked
-semantically. In a domain where most searches are identifiers, names and descriptions, the
-trigram signal is the strongest one, so it is always included; the semantic source keeps
+Free text is fuzzy-matched term by term and, when an embedding is available, ranked
+semantically using the whole query. In a domain where most searches are identifiers, names and
+descriptions, the trigram signal is the strongest one, so it is always included; the semantic source keeps
 plain-language queries working when no field contains the words. The only text that is not
 embedded is a UUID, which has no meaning to embed and routes to fuzzy matching.
 
 Callers can override the retriever explicitly with `retriever: fuzzy`, `semantic` or `hybrid`.
 If an override needs an embedding and none can be produced, the request fails with a clear error
 rather than silently returning different results; under automatic routing the same situation
-falls back to fuzzy on the full text.
+falls back to fuzzy matching of the query terms.
 
 Process searches use a variant of the hybrid retriever that also searches the `state`
 JSONB of the process's most recent step. Process steps are deliberately left out of the index to
 keep its size manageable, so that column is read and matched at query time instead: candidates
-are found with a substring `ILIKE`, then scored with the same trigram similarity used for indexed
-fields. These rows never contribute a semantic score. Matches are reported under the path
+are found with a substring `ILIKE` using the whole query, then scored with
+`word_similarity(query_text, state_text)`. This last-step lookup does not split the query into
+terms and never contributes a semantic score. Matches are reported under the path
 `process.last_step.state`.
 
 Results are entities, not fields, and are paginated with a keyset (cursor) rather than `OFFSET`,
@@ -273,7 +278,7 @@ python main.py embedding resize
 !!! warning
 
     `embedding resize` **deletes every row** from `ai_search_index` and `search_queries` before
-    altering the column. Re-index afterwards.
+    altering the column and rebuilding the HNSW indexes. Re-index afterwards.
 
 ## Implementation reference
 
@@ -321,7 +326,7 @@ Each index serves one match type:
 | Index                            | Definition                                                        | Serves                                     |
 |----------------------------------|-------------------------------------------------------------------|--------------------------------------------|
 | `ix_flat_embed_hnsw_<entity type>` | `HNSW (embedding vector_l2_ops) WITH (m=16, ef_construction=64)`, partial on one `entity_type` | nearest-neighbour search by L2 distance (`<->`) |
-| `ix_flat_value_trgm`             | `GIN (value gin_trgm_ops)`                                        | trigram similarity (`<%`, `word_similarity`) |
+| `ix_flat_value_trgm`             | `GIN (value gin_trgm_ops)`                                        | trigram filtering (`<%`)                    |
 | `ix_flat_path_gist`              | `GIST (path gist_ltree_ops)`                                      | `ltree` matching (`~`, `@>`, `<@`)          |
 | `ix_flat_path_btree`             | `btree (path)`                                                    | exact path equality, used by the EAV pivot  |
 | `ix_ai_search_index_entity_id`   | `btree (entity_id)`                                               | candidate lookups by entity                 |
@@ -348,10 +353,39 @@ The migration that creates these also creates the `uuid-ossp`, `ltree`, `unaccen
 
 ### Ranking formulas
 
-**Fuzzy**: matches rows where `'<term>' <% value`, restricted to the string-like field types;
-an entity's score is the highest `word_similarity(term, value)` among its matched fields.
-Candidate membership is checked per trigram hit with a correlated probe on `entity_id` rather than by
-joining the candidate set, so `ix_flat_value_trgm` drives the plan even under a broad structured filter.
+**Fuzzy**: splits the query on whitespace, removes case-insensitive duplicates, and ignores
+punctuation-only terms. Identifiers such as UUIDs and IP prefixes stay intact. If no terms remain,
+the original query is used as one term. Searchable field types are `string`, `uuid`, `block` and
+`resource_type`.
+
+Each term gets its best similarity across the entity's searchable fields. The entity's score is
+the average of those best matches:
+
+```text
+term_score(term) = max(word_similarity(term, field_value))  # across the entity's searchable fields
+score           = round(mean(term_score(term)), 12)       # across the query terms
+```
+
+Every term must pass `'<term>' <% value` in at least one field, and the final score must reach
+`MIN_SCORE` (`0.6`). The `<%` operator reads PostgreSQL's `pg_trgm.word_similarity_threshold`;
+the engine sets it to `0.4` through `FuzzyRetriever.GATE_THRESHOLD` before executing the query.
+For example, `ACME LIIR` scores `0.75` against `ACME prefix LIR`: `ACME` matches exactly and
+`LIIR` matches `LIR` with similarity `0.5`.
+
+Candidate selection depends on the number of unique terms:
+
+- **One term**: use its trigram filter directly, without additional term checks.
+- **Multiple terms**: start with the first query term and check every term within each matching entity.
+  Term order can affect performance: starting with a common term may require checking more entities.
+
+The selected entity IDs are stored in a materialized CTE, then their searchable fields are scored.
+For standard queries, we check whether each entity matches the filters.
+Other query shapes use a join. The gate threshold is applied with `SET LOCAL`, so it lasts for the
+search transaction only; it also applies during hybrid search.
+
+After score filtering, a lateral lookup chooses the field with the highest average term similarity
+as the highlight. Ties prefer fewer path levels, then the path itself. Fuzzy results are ordered by
+score descending, then entity ID ascending.
 
 **Semantic**: considers rows with an embedding; an entity's score is
 `1 / (1 + min(embedding <-> query_vector))`, so a smaller distance gives a higher score, bounded
@@ -361,8 +395,8 @@ It runs one of two plans. Interactive searches take the `SEARCH_SEMANTIC_CANDIDA
 nearest the query embedding straight from the entity type's partial HNSW index, applying the
 structured filters *inside* that scan, and rank only those. Ranking within the window is exact;
 only which fields enter the window is approximate, and the window bounds how deep pagination can
-reach. Exports keep the exhaustive plan, which scores every embedded field of every candidate and
-needs a sequential scan: an export is a single query, without a cursor, for up to 10000 entities,
+reach. Exports keep the exhaustive plan, which scores every embedded field of every candidate:
+an export is a single query, without a cursor, for up to 10000 entities,
 and a window of 2000 fields can never yield that many.
 
 **Structured**: no relevance ranking (`score = 1.0`); results are ordered by an optional
@@ -374,8 +408,7 @@ similarity score comparable, it ranks results separately by each signal and comb
 It runs the fuzzy and the semantic retriever on the same candidates, each producing one row per
 entity with its score and the field to highlight, and fuses the two rankings:
 
-- the **fuzzy retriever** ranks every entity with a trigram match on the full query text by its best
-  `word_similarity`;
+- the **fuzzy retriever** uses the per-term matching rules and average score described above;
 - the **semantic retriever** ranks the entities in its bounded window (the
   `SEARCH_SEMANTIC_CANDIDATE_LIMIT` fields closest to the query embedding, read from that entity
   type's HNSW index), or every embedded entity when the query is an export or asks for more entities
@@ -385,11 +418,11 @@ Each side is dense-ranked on its own (equal scores share a rank). Equal fuzzy sc
 the depth of the matching path, so an entity whose own description matches ranks above entities that
 carry the same text in a nested block. The two rankings are joined with a full outer join, so an
 entity found by only one retriever still gets a score and the missing side contributes `0`.
-Plain-language queries that no field trigram-matches therefore come out in the semantic order, while
-identifiers and names that trigram-match are lifted. Note that `word_similarity` compares the whole
-query text with a field, so an identifier surrounded by words that the field does not contain can
-fall below the gate and rank on its embedding only. The reported matching field is the fuzzy
-retriever's when there is one, otherwise the semantic retriever's.
+Queries with no qualifying fuzzy matches therefore come out in the semantic order, while
+identifiers and names that meet the fuzzy thresholds are lifted. Adding a term that matches no
+searchable field excludes an entity from the fuzzy results; it can still appear through semantic
+retrieval. The reported matching field is the fuzzy retriever's when there is one, otherwise
+the semantic retriever's.
 
 ```text
 perfect = 1 if best_fuzzy_score >= 0.9 else 0
@@ -400,8 +433,10 @@ beta    = rrf_max * 1.05
 score   = (rrf + beta * perfect) / (beta + rrf_max)   # normalized to [0, 1]
 ```
 
-Because `beta` exceeds the largest possible `rrf`, any near-exact text match (best fuzzy
-similarity ≥ 0.9) always outranks every non-perfect result, including entities that only semantic
+For indexed fields, `best_fuzzy_score` is the average of the best per-term similarities.
+Process searches use the higher of this score and the last-step score described above.
+Because `beta` exceeds the largest possible `rrf`, any near-exact text match (fuzzy
+score ≥ 0.9) always outranks every non-perfect result, including entities that only semantic
 ranking would have put on top. Among perfect matches the text decides: the semantic term is scaled
 down so far that it cannot overturn a fuzzy-rank difference for the first `R = 1000` rank levels
 (identical similarities share a rank, so real queries stay far below that), and only orders entities
