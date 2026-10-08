@@ -46,14 +46,16 @@ Why these are curated rather than auto-generated from the existing REST API:
   returns the full product-block tree; this returns a flat header.
 """
 
+from collections.abc import Sequence
 from http import HTTPStatus
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 import structlog
-from fastapi.param_functions import Depends
+from fastapi.param_functions import Body, Depends
 from fastapi.routing import APIRouter
 from pydantic import ValidationError
+from pydantic_core import ErrorDetails
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, raiseload
@@ -83,6 +85,8 @@ from orchestrator.core.schemas.mcp_search import (
     SearchToolResultItem,
 )
 from orchestrator.core.schemas.mcp_tools import (
+    FormField,
+    FormFieldError,
     GetWorkflowFormRequest,
     ListRecentProcessesRequest,
     ListSubscriptionsRequest,
@@ -120,6 +124,8 @@ from orchestrator.core.services.workflows import get_workflows_async
 from orchestrator.core.utils.enrich_process import enrich_process
 from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.workflows import get_workflow
+from pydantic_forms.core.shared import GenerateFormJsonSchema
+from pydantic_forms.types import InputForm
 
 logger = structlog.get_logger(__name__)
 
@@ -136,12 +142,13 @@ router = APIRouter()
     openapi_extra=READONLY_TOOL,
 )
 async def list_workflows_endpoint(
-    params: ListWorkflowsRequest, session: AsyncSession = Depends(get_async_session)
+    params: ListWorkflowsRequest = Body(default_factory=ListWorkflowsRequest),
+    session: AsyncSession = Depends(get_async_session),
 ) -> list[WorkflowSchema]:
     """List all registered workflows in the orchestrator.
 
-    Use this to discover what workflows are available before starting one.
-    May return many rows; pass ``target``/``is_task`` to narrow.
+    Use this to discover what workflows are available before starting one. Without arguments it lists
+    everything, tasks included; may return many rows, so pass ``target``/``is_task`` to narrow.
     """
     filters: dict[str, Any] = {}
     if params.target is not None:
@@ -159,30 +166,60 @@ async def list_workflows_endpoint(
     openapi_extra=READONLY_TOOL,
 )
 async def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> WorkflowFormPage:
-    """Get the JSON Schema of a workflow's form page by page.
+    """Get a workflow's input form page by page, as data to fill.
 
-    IMPORTANT: Workflow forms are multi-page. You MUST call this tool repeatedly,
-    adding each filled page to ``page_inputs``, until ``complete=true``. Only
-    then call ``create_workflow`` with all accumulated ``page_inputs``.
+    Forms are multi-page and a later page depends on the answers before it, so walk them: call with the
+    pages filled so far in ``page_inputs`` (``[]`` first) until ``status`` is ``"complete"``, then call
+    ``create_workflow`` with the same ``page_inputs``. Each result is one page. ``fields`` says per field
+    what it takes: its ``kind``, whether it is ``required``, the ``options`` to pick from (submit an
+    option's ``value``), the bounds of a list, the ``fields`` of a nested object. Fields marked
+    ``display_only`` or ``read_only`` are shown to a person and not submitted. ``schema``, the browser's JSON
+    Schema of the same page, is deprecated: pass ``include_schema=false`` to leave it out.
 
-    Algorithm:
-        1. Call ``get_workflow_form(workflow_key)`` to get page 0 schema.
-        2. Fill in the fields shown in the schema.
-        3. Call ``get_workflow_form(workflow_key, [page0_data])`` to get page 1.
-        4. Repeat until ``complete=true``.
-        5. Call ``create_workflow(workflow_key, [page0_data, page1_data, ...])``.
+    A page that does not validate is a tool error, or with ``verdict="result"`` a result with
+    ``status: "rejected"`` and ``errors`` naming the values to fix: resubmit that page corrected.
     """
-    # Lazy-import to avoid a circular import
-    from orchestrator.core.forms import generate_form
+    # Lazy-import to avoid a circular import (``orchestrator.core.forms`` reaches ``orchestrator.core.workflow``)
+    from orchestrator.core.forms.spec import form_fields
+    from orchestrator.core.forms.walk import Complete, NextPage, Rejected, walk_form
 
     wf = get_workflow(params.workflow_key)
     if not wf:
         raise_status(HTTPStatus.NOT_FOUND, f"Workflow '{params.workflow_key}' does not exist")
     initial_state: dict[str, Any] = {"workflow_name": params.workflow_key, "workflow_target": wf.target}
     user_inputs = params.page_inputs or []
-    page_index = len(user_inputs)
-    form_schema = generate_form(wf.initial_input_form, initial_state, user_inputs)
-    return WorkflowFormPage(page=page_index, complete=form_schema is None, schema=form_schema)
+    # Form generators use the sync database session, so the walk runs off the event loop.
+    outcome = await run_in_threadpool(walk_form, wf.initial_input_form, initial_state, user_inputs)
+    match outcome:
+        case Complete():
+            return WorkflowFormPage(page=len(user_inputs), complete=True, status="complete")
+        case NextPage(model=model, index=index):
+            return _form_page(model, index, "next", form_fields(model), params.include_schema)
+        case Rejected(model=model, index=index, error=error):
+            if params.verdict == "error":
+                raise error
+            return _form_page(model, index, "rejected", form_fields(model), params.include_schema, error.errors)
+
+
+def _form_page(
+    model: InputForm,
+    index: int,
+    status: Literal["next", "rejected"],
+    fields: list[FormField],
+    include_schema: bool,
+    errors: Sequence[ErrorDetails] = (),
+) -> WorkflowFormPage:
+    """One page of the walk as data, with the browser's schema while callers still read it."""
+    title = model.model_config.get("title")
+    return WorkflowFormPage(
+        page=index,
+        complete=False,
+        status=status,
+        title=None if title in (None, "unknown") else title,  # "unknown" is pydantic-forms' placeholder
+        schema=model.model_json_schema(schema_generator=GenerateFormJsonSchema) if include_schema else None,
+        fields=fields,
+        errors=[FormFieldError(loc=list(e["loc"]), msg=e["msg"], type=e["type"]) for e in errors],
+    )
 
 
 @router.post(
