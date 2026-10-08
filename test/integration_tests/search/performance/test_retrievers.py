@@ -35,8 +35,8 @@ from orchestrator.core.search.query.queries import SelectQuery
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
 from test.integration_tests.search.performance._plans import (
     assert_no_node_runs_more_often_than,
+    assert_plan_metrics_unchanged,
     plan_metrics,
-    plan_metrics_snapshot,
     plan_of,
     render_plan_metrics,
     seed_index,
@@ -128,4 +128,4 @@ def test_plan_metrics_are_unchanged(seeded_index):
         "of three words. Each scenario is the first page of a search with that query text.",
         scenarios,
     )
-    assert page == plan_metrics_snapshot("retrievers")
+    assert_plan_metrics_unchanged("retrievers", page)
