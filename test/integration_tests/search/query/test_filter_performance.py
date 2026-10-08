@@ -174,6 +174,8 @@ def seeded_index():
     db.session.execute(text("ANALYZE ai_search_index"))
     for name, value in PLAN_SETTINGS.items():
         db.session.execute(text("SELECT set_config(:name, :value, true)"), {"name": name, "value": value})
+    # Counts calls to non-builtin functions, such as ltree's, for the plan metrics. Only a superuser may set it.
+    db.session.execute(text("SELECT set_config('track_functions', 'all', true)"))
 
 
 def _matching(matches):
@@ -185,16 +187,23 @@ def _capturing_plans():
     """Run EXPLAIN ANALYZE next to every SELECT, with the statement's own compiled SQL and bound parameters.
 
     The plan is read from the raw cursor: through SQLAlchemy, the statement's result processors would
-    be applied to the EXPLAIN output.
+    be applied to the EXPLAIN output. Each plan also gets the number of function calls the statement made.
     """
     conn = db.session.connection()
     plans = []
 
+    def function_calls(cursor):
+        # Counted per transaction, not per statement: a statement's calls are the difference around it.
+        cursor.execute("SELECT coalesce(sum(calls), 0)::bigint FROM pg_stat_xact_user_functions")
+        return cursor.fetchone()[0]
+
     def explain(_conn, cursor, statement, parameters, _context, _executemany):
         # Session bookkeeping (SAVEPOINT, SET) cannot be explained and has no plan worth bounding.
         if statement.lstrip().upper().startswith("SELECT"):
+            calls_before = function_calls(cursor)
             cursor.execute(f"EXPLAIN (ANALYZE, BUFFERS, TIMING OFF, FORMAT JSON) {statement}", parameters)
-            plans.append(cursor.fetchone()[0][0]["Plan"])
+            plan = cursor.fetchone()[0][0]["Plan"]
+            plans.append(plan | {"Function Calls": function_calls(cursor) - calls_before})
 
     event.listen(conn, "before_cursor_execute", explain)
     try:
@@ -225,6 +234,10 @@ def _own_blocks(node):
     return _blocks(node) - sum(map(_blocks, node.get("Plans", [])))
 
 
+# Like Actual Rows, these are averages per loop.
+ROWS_REMOVED_KEYS = ("Rows Removed by Filter", "Rows Removed by Join Filter", "Rows Removed by Index Recheck")
+
+
 def _plan_metrics(plan):
     """What one statement cost Postgres, as numbers that are the same on every run.
 
@@ -237,6 +250,12 @@ def _plan_metrics(plan):
       so a filter moved to a node that runs more often shows even when the result is the same.
     - ``max_loops``: how often the busiest node ran. Measured. A node running once per index row instead of once per
       entity shows here first.
+    - ``filtered``: rows nodes read and then discarded, by a filter, a join filter or an index recheck, over all their
+      loops. Measured. Work that did not contribute to the result, so the same result found more selectively shows.
+    - ``function_calls``: calls to non-builtin functions, such as ltree's ``ltq_regex`` behind ``path ~ lquery``,
+      made while evaluating a filter. Measured. Calls an index makes while searching itself are not counted, so this
+      is the CPU work of matching patterns row by row that ``rows`` does not show, and stays 0 while every pattern is
+      an index condition.
     """
     nodes = list(_plan_nodes(plan))
     gist_blocks = sum(_own_blocks(node) for node in nodes if node.get("Index Name") == "ix_flat_path_gist")
@@ -245,6 +264,8 @@ def _plan_metrics(plan):
         "blocks": _blocks(plan) - gist_blocks,
         "rows": sum(node["Actual Rows"] * node["Actual Loops"] for node in nodes),
         "max_loops": max(node["Actual Loops"] for node in nodes),
+        "filtered": sum(node.get(removed, 0) * node["Actual Loops"] for node in nodes for removed in ROWS_REMOVED_KEYS),
+        "function_calls": plan["Function Calls"],
     }
 
 
@@ -379,57 +400,271 @@ def test_plan_cost_is_unchanged(seeded_index, async_session, plans, request):
         == snapshot(
             {
                 "select-status_and_customer": {
-                    17: [{"cost": 686.68, "blocks": 3370, "rows": 3984, "max_loops": 900}],
-                    15: [{"cost": 686.69, "blocks": 3370, "rows": 3984, "max_loops": 900}],
+                    17: [
+                        {
+                            "cost": 686.68,
+                            "blocks": 3370,
+                            "rows": 3984,
+                            "max_loops": 900,
+                            "filtered": 1000,
+                            "function_calls": 0,
+                        }
+                    ],
+                    15: [
+                        {
+                            "cost": 686.69,
+                            "blocks": 3370,
+                            "rows": 3984,
+                            "max_loops": 900,
+                            "filtered": 1000,
+                            "function_calls": 0,
+                        }
+                    ],
                 },
                 "select-speed_or_customer": {
-                    17: [{"cost": 2283547.97, "blocks": 22412, "rows": 26006, "max_loops": 260}],
-                    15: [{"cost": 2282646.56, "blocks": 1459, "rows": 26006, "max_loops": 260}],
+                    17: [
+                        {
+                            "cost": 2283547.97,
+                            "blocks": 22412,
+                            "rows": 26006,
+                            "max_loops": 260,
+                            "filtered": 19745,
+                            "function_calls": 0,
+                        }
+                    ],
+                    15: [
+                        {
+                            "cost": 2282646.56,
+                            "blocks": 1459,
+                            "rows": 26006,
+                            "max_loops": 260,
+                            "filtered": 19745,
+                            "function_calls": 0,
+                        }
+                    ],
                 },
                 "select-status_and_nested_speed_or_customer": {
-                    17: [{"cost": 13982.29, "blocks": 69526, "rows": 33206, "max_loops": 15816}],
-                    15: [{"cost": 13983.2, "blocks": 69526, "rows": 33206, "max_loops": 15816}],
+                    17: [
+                        {
+                            "cost": 13982.29,
+                            "blocks": 69526,
+                            "rows": 33206,
+                            "max_loops": 15816,
+                            "filtered": 31976,
+                            "function_calls": 0,
+                        }
+                    ],
+                    15: [
+                        {
+                            "cost": 13983.2,
+                            "blocks": 69526,
+                            "rows": 33206,
+                            "max_loops": 15816,
+                            "filtered": 31976,
+                            "function_calls": 0,
+                        }
+                    ],
                 },
                 "select-nested_status_and_speed_or_customer": {
-                    17: [{"cost": 2485944.96, "blocks": 22523, "rows": 27926, "max_loops": 260}],
-                    15: [{"cost": 2484922.4, "blocks": 1570, "rows": 27926, "max_loops": 260}],
+                    17: [
+                        {
+                            "cost": 2485944.96,
+                            "blocks": 22523,
+                            "rows": 27926,
+                            "max_loops": 260,
+                            "filtered": 19845,
+                            "function_calls": 0,
+                        }
+                    ],
+                    15: [
+                        {
+                            "cost": 2484922.4,
+                            "blocks": 1570,
+                            "rows": 27926,
+                            "max_loops": 260,
+                            "filtered": 19845,
+                            "function_calls": 0,
+                        }
+                    ],
                 },
                 "select-no_node": {
-                    17: [{"cost": 22013.32, "blocks": 2472, "rows": 67361, "max_loops": 667}],
-                    15: [{"cost": 22113.64, "blocks": 2472, "rows": 43361, "max_loops": 667}],
+                    17: [
+                        {
+                            "cost": 22013.32,
+                            "blocks": 2472,
+                            "rows": 67361,
+                            "max_loops": 667,
+                            "filtered": 0,
+                            "function_calls": 0,
+                        }
+                    ],
+                    15: [
+                        {
+                            "cost": 22113.64,
+                            "blocks": 2472,
+                            "rows": 43361,
+                            "max_loops": 667,
+                            "filtered": 0,
+                            "function_calls": 0,
+                        }
+                    ],
                 },
                 "select-status_and_no_node": {
-                    17: [{"cost": 1882.17, "blocks": 535479, "rows": 97650, "max_loops": 21900}],
-                    15: [{"cost": 1882.98, "blocks": 535479, "rows": 97650, "max_loops": 21900}],
+                    17: [
+                        {
+                            "cost": 1882.17,
+                            "blocks": 535479,
+                            "rows": 97650,
+                            "max_loops": 21900,
+                            "filtered": 525700,
+                            "function_calls": 533100,
+                        }
+                    ],
+                    15: [
+                        {
+                            "cost": 1882.98,
+                            "blocks": 535479,
+                            "rows": 97650,
+                            "max_loops": 21900,
+                            "filtered": 525700,
+                            "function_calls": 533100,
+                        }
+                    ],
                 },
                 "select-customer_or_no_node": {
-                    17: [{"cost": 1090081.37, "blocks": 23558, "rows": 36114, "max_loops": 674}],
-                    15: [{"cost": 1089179.97, "blocks": 2605, "rows": 36114, "max_loops": 674}],
+                    17: [
+                        {
+                            "cost": 1090081.37,
+                            "blocks": 23558,
+                            "rows": 36114,
+                            "max_loops": 674,
+                            "filtered": 9140,
+                            "function_calls": 0,
+                        }
+                    ],
+                    15: [
+                        {
+                            "cost": 1089179.97,
+                            "blocks": 2605,
+                            "rows": 36114,
+                            "max_loops": 674,
+                            "filtered": 9140,
+                            "function_calls": 0,
+                        }
+                    ],
                 },
                 "count": {
-                    17: [{"cost": 24384.04, "blocks": 137312, "rows": 180193, "max_loops": 15816}],
-                    15: [{"cost": 24384.04, "blocks": 137312, "rows": 180193, "max_loops": 15816}],
+                    17: [
+                        {
+                            "cost": 24384.04,
+                            "blocks": 137312,
+                            "rows": 180193,
+                            "max_loops": 15816,
+                            "filtered": 63932,
+                            "function_calls": 0,
+                        }
+                    ],
+                    15: [
+                        {
+                            "cost": 24384.04,
+                            "blocks": 137312,
+                            "rows": 180193,
+                            "max_loops": 15816,
+                            "filtered": 63932,
+                            "function_calls": 0,
+                        }
+                    ],
                 },
                 "search-page_1": {
                     17: [
-                        {"cost": 22856.47, "blocks": 70345, "rows": 127118, "max_loops": 15816},
-                        {"cost": 12890.11, "blocks": 69436, "rows": 23147, "max_loops": 15816},
+                        {
+                            "cost": 22856.47,
+                            "blocks": 70345,
+                            "rows": 127118,
+                            "max_loops": 15816,
+                            "filtered": 32067,
+                            "function_calls": 0,
+                        },
+                        {
+                            "cost": 12890.11,
+                            "blocks": 69436,
+                            "rows": 23147,
+                            "max_loops": 15816,
+                            "filtered": 31966,
+                            "function_calls": 0,
+                        },
                     ],
                     15: [
-                        {"cost": 22857.38, "blocks": 70345, "rows": 127118, "max_loops": 15816},
-                        {"cost": 12890.11, "blocks": 69436, "rows": 23147, "max_loops": 15816},
+                        {
+                            "cost": 22857.38,
+                            "blocks": 70345,
+                            "rows": 127118,
+                            "max_loops": 15816,
+                            "filtered": 32067,
+                            "function_calls": 0,
+                        },
+                        {
+                            "cost": 12890.11,
+                            "blocks": 69436,
+                            "rows": 23147,
+                            "max_loops": 15816,
+                            "filtered": 31966,
+                            "function_calls": 0,
+                        },
                     ],
                 },
                 "search-page_2": {
                     17: [
-                        {"cost": 17296.65, "blocks": 71125, "rows": 127278, "max_loops": 15816},
-                        {"cost": 12890.11, "blocks": 69436, "rows": 23147, "max_loops": 15816},
-                        {"cost": 13901.22, "blocks": 70216, "rows": 23207, "max_loops": 15816},
+                        {
+                            "cost": 17296.65,
+                            "blocks": 71125,
+                            "rows": 127278,
+                            "max_loops": 15816,
+                            "filtered": 32167,
+                            "function_calls": 0,
+                        },
+                        {
+                            "cost": 12890.11,
+                            "blocks": 69436,
+                            "rows": 23147,
+                            "max_loops": 15816,
+                            "filtered": 31966,
+                            "function_calls": 0,
+                        },
+                        {
+                            "cost": 13901.22,
+                            "blocks": 70216,
+                            "rows": 23207,
+                            "max_loops": 15816,
+                            "filtered": 32066,
+                            "function_calls": 0,
+                        },
                     ],
                     15: [
-                        {"cost": 17296.65, "blocks": 71125, "rows": 127278, "max_loops": 15816},
-                        {"cost": 12890.11, "blocks": 69436, "rows": 23147, "max_loops": 15816},
-                        {"cost": 13901.22, "blocks": 70216, "rows": 23207, "max_loops": 15816},
+                        {
+                            "cost": 17296.65,
+                            "blocks": 71125,
+                            "rows": 127278,
+                            "max_loops": 15816,
+                            "filtered": 32167,
+                            "function_calls": 0,
+                        },
+                        {
+                            "cost": 12890.11,
+                            "blocks": 69436,
+                            "rows": 23147,
+                            "max_loops": 15816,
+                            "filtered": 31966,
+                            "function_calls": 0,
+                        },
+                        {
+                            "cost": 13901.22,
+                            "blocks": 70216,
+                            "rows": 23207,
+                            "max_loops": 15816,
+                            "filtered": 32066,
+                            "function_calls": 0,
+                        },
                     ],
                 },
             }
