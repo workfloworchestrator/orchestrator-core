@@ -714,116 +714,121 @@ python main.py index subscriptions --subscription-id <uuid>
 python main.py index rebuild-paths
 ```
 
-Each command is documented below. The `heading` option is used so that the heading shows the CLI command name
-instead of the Python function name.
+### `subscriptions`
 
 ::: orchestrator.core.cli.search.index_llm.subscriptions_command
     options:
-      heading: subscriptions
       docstring_style: google
       separate_signature: false
       show_docstring_parameters: false
       show_docstring_returns: false
-      show_root_heading: true
-      show_root_toc_entry: true
+      show_root_heading: false
+      show_root_toc_entry: false
       show_signature: false
       show_symbol_type_heading: false
       show_symbol_type_toc: false
       heading_level: 3
+
+### `products`
 
 ::: orchestrator.core.cli.search.index_llm.products_command
     options:
-      heading: products
       docstring_style: google
       separate_signature: false
       show_docstring_parameters: false
       show_docstring_returns: false
-      show_root_heading: true
-      show_root_toc_entry: true
+      show_root_heading: false
+      show_root_toc_entry: false
       show_signature: false
       show_symbol_type_heading: false
       show_symbol_type_toc: false
       heading_level: 3
+
+### `processes`
 
 ::: orchestrator.core.cli.search.index_llm.processes_command
     options:
-      heading: processes
       docstring_style: google
       separate_signature: false
       show_docstring_parameters: false
       show_docstring_returns: false
-      show_root_heading: true
-      show_root_toc_entry: true
+      show_root_heading: false
+      show_root_toc_entry: false
       show_signature: false
       show_symbol_type_heading: false
       show_symbol_type_toc: false
       heading_level: 3
+
+### `workflows`
 
 ::: orchestrator.core.cli.search.index_llm.workflows_command
     options:
-      heading: workflows
       docstring_style: google
       separate_signature: false
       show_docstring_parameters: false
       show_docstring_returns: false
-      show_root_heading: true
-      show_root_toc_entry: true
+      show_root_heading: false
+      show_root_toc_entry: false
       show_signature: false
       show_symbol_type_heading: false
       show_symbol_type_toc: false
       heading_level: 3
+
+### `product-blocks`
 
 ::: orchestrator.core.cli.search.index_llm.product_blocks_command
     options:
-      heading: product-blocks
       docstring_style: google
       separate_signature: false
       show_docstring_parameters: false
       show_docstring_returns: false
-      show_root_heading: true
-      show_root_toc_entry: true
+      show_root_heading: false
+      show_root_toc_entry: false
       show_signature: false
       show_symbol_type_heading: false
       show_symbol_type_toc: false
       heading_level: 3
+
+### `resource-types`
 
 ::: orchestrator.core.cli.search.index_llm.resource_types_command
     options:
-      heading: resource-types
       docstring_style: google
       separate_signature: false
       show_docstring_parameters: false
       show_docstring_returns: false
-      show_root_heading: true
-      show_root_toc_entry: true
+      show_root_heading: false
+      show_root_toc_entry: false
       show_signature: false
       show_symbol_type_heading: false
       show_symbol_type_toc: false
       heading_level: 3
+
+### `all`
 
 ::: orchestrator.core.cli.search.index_llm.all_command
     options:
-      heading: all
       docstring_style: google
       separate_signature: false
       show_docstring_parameters: false
       show_docstring_returns: false
-      show_root_heading: true
-      show_root_toc_entry: true
+      show_root_heading: false
+      show_root_toc_entry: false
       show_signature: false
       show_symbol_type_heading: false
       show_symbol_type_toc: false
       heading_level: 3
 
+### `rebuild-paths`
+
 ::: orchestrator.core.cli.search.index_llm.rebuild_paths_command
     options:
-      heading: rebuild-paths
       docstring_style: google
       separate_signature: false
       show_docstring_parameters: false
       show_docstring_returns: false
-      show_root_heading: true
-      show_root_toc_entry: true
+      show_root_heading: false
+      show_root_toc_entry: false
       show_signature: false
       show_symbol_type_heading: false
       show_symbol_type_toc: false
