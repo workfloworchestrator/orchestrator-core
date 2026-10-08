@@ -49,8 +49,8 @@ Every orchestrator container, init containers included, gets the same environmen
 Configuration is orchestrator-core's settings, as environment variables. Later sources override
 earlier ones:
 
-1. Defaults set by the chart: `TESTING=false` (orchestrator-core defaults it to true, which makes
-   the API wait for each workflow); with `celery.enabled` also `EXECUTOR=celery` and
+1. Defaults set by the chart: `TESTING=false` (orchestrator-core before 5.5 defaults it to true,
+   which makes the API wait for each workflow); with `celery.enabled` also `EXECUTOR=celery` and
    `DISTLOCK_BACKEND=redis`; with `mcp.enabled` also `MCP_ENABLED=true`.
 2. `env`: plain settings, rendered into a ConfigMap together with the defaults.
 3. `secretEnv`: a Secret owned by the chart.

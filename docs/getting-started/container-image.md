@@ -38,9 +38,9 @@ CMD ["python", "-m", "uvicorn", "--host", "0.0.0.0", "--port", "8080", "wsgi:app
 - **The `FROM` line pins orchestrator-core.** Tag your image with your own version, e.g.
   `my-orchestrator:1.0.0`. To upgrade orchestrator-core, change the `FROM` tag, rebuild and tag a
   new version; deployments such as the [Helm chart](kubernetes.md) refer to your image's tag.
-- **Run tools with `python -m`.** The environment's `bin` directory is not on `PATH`, so a bare
-  `uvicorn` or `celery` is not found. The [process commands](deployment.md#processes) use
-  `python -m` for that reason.
+- **Run tools with `python -m`.** Some older base images don't have the environment's `bin`
+  directory on `PATH`, so a bare `uvicorn` or `celery` is not found there. `python -m` works with
+  every image, so the [process commands](deployment.md#processes) use it.
 - **Commit `migrations/`.** `db init` creates it once; see
   [Preparing the source folder](prepare-source-folder.md).
 - **Build for Python 3.13**, the base image's version.

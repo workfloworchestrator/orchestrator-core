@@ -71,7 +71,7 @@ source (secretEnv, existingSecrets) overrides it in turn.
 {{- if .Values.mcp.enabled -}}
 {{- $_ := set $defaults "MCP_ENABLED" "true" -}}
 {{- end -}}
-{{- /* orchestrator-core defaults TESTING to true, which makes the API wait for every workflow to finish. */}}
+{{- /* orchestrator-core before 5.5 defaults TESTING to true, which makes the API wait for every workflow to finish. */}}
 {{- $_ := set $defaults "TESTING" "false" -}}
 {{- merge (deepCopy .Values.env) $defaults | toYaml }}
 {{- end }}

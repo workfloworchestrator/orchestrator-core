@@ -78,7 +78,7 @@ process:
 | `DISTLOCK_BACKEND` | `memory` | `redis` | locks must hold across processes |
 | `WEBSOCKET_BROADCASTER_URL` | `memory://` | your `CACHE_URI` | every client must see every update |
 | `EXECUTOR` | `threadpool` | `celery` | to run workflows in Celery workers |
-| `TESTING` | `true` | `false` | when true, the API waits for every workflow it starts or resumes to finish |
+| `TESTING` | `false` (`true` before 5.5) | `false` | when true, the API waits for every workflow it starts or resumes to finish |
 
 ## Health
 
