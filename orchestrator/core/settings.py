@@ -56,7 +56,7 @@ class LifecycleValidationMode(strEnum):
 
 
 class AppSettings(BaseSettings):
-    TESTING: bool = True
+    TESTING: bool = False
     SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
     CORS_ORIGINS: str = "*"
     CORS_ALLOW_METHODS: list[str] = ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS", "HEAD"]

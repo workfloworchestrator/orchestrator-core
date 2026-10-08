@@ -20,6 +20,11 @@ from orchestrator.core.settings import AppSettings
 from orchestrator.core.targets import Target
 
 
+def test_testing_defaults_to_false():
+    # The root conftest sets TESTING=true for the suite, so check the declared default instead.
+    assert AppSettings.model_fields["TESTING"].default is False
+
+
 def test_celery_target_queues_defaults_to_empty_mapping():
     assert AppSettings().CELERY_TARGET_QUEUES == {}
 
