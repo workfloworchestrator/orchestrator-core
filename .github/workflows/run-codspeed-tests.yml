@@ -12,7 +12,7 @@ env:
 jobs:
   codspeed:
     name: Run benchmarks (simulation)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     container:
       image: python:3.13-bookworm
       options: --privileged
@@ -88,7 +88,7 @@ jobs:
     # Simulation counts only the pytest process's instructions, so it misses time spent in Postgres.
     # A shared runner is noisier than the macro runner CodSpeed advises for walltime, but needs no setup.
     name: Run benchmarks (walltime)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # No job container: walltime profiles on the host, so services publish their ports there.
     services:
       postgres:
@@ -129,7 +129,9 @@ jobs:
       - uses: CodSpeedHQ/action@c4fd08a3a159bd0cc208da1e0edf32b8c47d75e5 # v5
         with:
           mode: walltime
-          run: CACHE_URI=redis://localhost DATABASE_URI=postgresql+psycopg://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB uv run pytest test/integration_tests --codspeed -m benchmark_walltime
+          # Shared runners are noisy and these benchmarks take up to ~800ms, so CodSpeed's defaults
+          # (~2-3 rounds before the 1s cap) give too few samples. Warm up, then measure for longer.
+          run: CACHE_URI=redis://localhost DATABASE_URI=postgresql+psycopg://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB uv run pytest test/integration_tests --codspeed --codspeed-warmup-time 2 --codspeed-max-time 10 -m benchmark_walltime
           token: ${{ secrets.CODSPEED_TOKEN }}
         env:
           POSTGRES_DB: orchestrator-core-test
