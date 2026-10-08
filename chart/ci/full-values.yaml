@@ -8,24 +8,26 @@ env:
 secretEnv:
   CACHE_URI: "redis://orchestrator-valkey:6379/0"
   WEBSOCKET_BROADCASTER_URL: "redis://orchestrator-valkey:6379/0"
-# The second Secret is synced from a key vault by the SecretProviderClass in extraObjects.
+# The second Secret is synced from a key vault by the SecretProviderClass in extraObjects. Names of
+# objects the release creates include the release name, so they stay unique in the namespace.
 existingSecrets:
   - extra-credentials
-  - kv-secrets
+  - "{{ .Release.Name }}-kv"
 extraEnv:
   - name: LOG_LEVEL
     value: DEBUG
+serviceAccountName: my-orchestrator-workload-identity
 # A client certificate and key-vault secrets, set up with cert-manager and the Secrets Store CSI driver.
 volumes:
   - name: tls
     secret:
-      secretName: client-cert
+      secretName: "{{ .Release.Name }}-client-cert"
   - name: secret-store
     csi:
       driver: secrets-store.csi.k8s.io
       readOnly: true
       volumeAttributes:
-        secretProviderClass: ci-kv
+        secretProviderClass: "{{ .Release.Name }}-kv"
 volumeMounts:
   - name: tls
     mountPath: /mnt/tls
@@ -73,11 +75,11 @@ extraObjects:
   - apiVersion: cert-manager.io/v1
     kind: Certificate
     metadata:
-      name: client-cert
+      name: "{{ .Release.Name }}-client-cert"
     spec:
       dnsNames: [orchestrator.example.net]
       issuerRef: {name: letsencrypt, kind: Issuer}
-      secretName: client-cert
+      secretName: "{{ .Release.Name }}-client-cert"
       usages: [server auth, client auth, digital signature]
   - apiVersion: secrets-store.csi.x-k8s.io/v1
     kind: SecretProviderClass
@@ -86,7 +88,7 @@ extraObjects:
     spec:
       provider: azure
       secretObjects:
-        - secretName: kv-secrets
+        - secretName: "{{ .Release.Name }}-kv"
           type: Opaque
           data:
             - {key: DATABASE_URI, objectName: orchestrator-database-uri}

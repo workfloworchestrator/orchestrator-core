@@ -106,7 +106,7 @@ Usage: include "orchestrator-core.container" (list $ "name" (list "command" "arg
     {{- end }}
     {{- range $values.existingSecrets }}
     - secretRef:
-        name: {{ . }}
+        name: {{ tpl . $root }}
     {{- end }}
   {{- with $values.volumeMounts }}
   volumeMounts:
@@ -138,6 +138,9 @@ spec:
   imagePullSecrets:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- with $values.serviceAccountName }}
+  serviceAccountName: {{ . }}
+  {{- end }}
   automountServiceAccountToken: {{ $values.automountServiceAccountToken }}
   {{- with $values.podSecurityContext }}
   securityContext:
@@ -145,7 +148,7 @@ spec:
   {{- end }}
   {{- with $values.volumes }}
   volumes:
-    {{- toYaml . | nindent 4 }}
+    {{- tpl (toYaml .) $root | nindent 4 }}
   {{- end }}
   {{- with $values.nodeSelector }}
   nodeSelector:

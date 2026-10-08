@@ -25,9 +25,14 @@ env: {}
 # -- Secret environment of every orchestrator container, rendered into a Secret owned by the chart.
 secretEnv: {}
 # -- Names of existing Secrets whose keys become environment variables of every orchestrator container.
+# Rendered with `tpl`, e.g. `"{{ .Release.Name }}-kv"`.
 existingSecrets: []
 # -- Extra env entries (Kubernetes `EnvVar` objects, e.g. with `valueFrom`) for every orchestrator container.
 extraEnv: []
+
+# -- An existing service account for the pods, e.g. one bound to a cloud identity for Workload Identity.
+# Empty uses the namespace's default account. The chart does not create one.
+serviceAccountName: ""
 
 # -- Mount a Kubernetes API token in the pods. The orchestrator does not call the Kubernetes API, but a
 # service mesh can need it: for example, the Linkerd proxy uses it to get its mTLS identity. Set to
@@ -43,7 +48,7 @@ podSecurityContext: {}
 # -- Container security context of every orchestrator container.
 securityContext: {}
 
-# -- Volumes on every orchestrator pod.
+# -- Volumes on every orchestrator pod. Rendered with `tpl`, so names can include `{{ .Release.Name }}`.
 volumes: []
 # -- Volume mounts on every orchestrator container, init containers included.
 volumeMounts: []

@@ -72,6 +72,11 @@ Secret in `existingSecrets`. A cert-manager Certificate the orchestrator present
 certificate works the same way: the Certificate in `extraObjects`, its Secret in
 `volumes`/`volumeMounts`. `chart/ci/full-values.yaml` shows both.
 
+Names of these objects are unique per namespace, where other releases and applications can have
+their own SecretProviderClass or Certificate. Include the release name, e.g. `{{ .Release.Name }}-kv`:
+`extraObjects`, `volumes` and `existingSecrets` are rendered with `tpl`. If a cloud identity is bound
+to a specific service account, as with Workload Identity, select it with `serviceAccountName`.
+
 ## Selectors
 
 The API selects on `app.kubernetes.io/name: <name>`, the scheduler and workers on
@@ -98,7 +103,7 @@ upgrade.
 | celery.workers | list | `[{"name":"tasks","queues":["new_tasks","resume_tasks"]},{"name":"workflows","queues":["new_workflows","resume_workflows"]}]` | One Deployment per entry: `name`, `queues`, and optionally `replicas` (default 1, 0 pauses it), `concurrency` and `resources`. |
 | cli | list | `["python","main.py"]` | Your CLI entrypoint; the chart appends subcommands such as `db upgrade heads`. |
 | env | object | `{}` | Plain environment of every orchestrator container, rendered into a ConfigMap with the chart's defaults. See [Environment](#environment). |
-| existingSecrets | list | `[]` | Names of existing Secrets whose keys become environment variables of every orchestrator container. |
+| existingSecrets | list | `[]` | Names of existing Secrets whose keys become environment variables of every orchestrator container. Rendered with `tpl`, e.g. `"{{ .Release.Name }}-kv"`. |
 | extraEnv | list | `[]` | Extra env entries (Kubernetes `EnvVar` objects, e.g. with `valueFrom`) for every orchestrator container. |
 | extraObjects | list | `[]` | Extra manifests rendered as-is, through `tpl`, e.g. a cert-manager Certificate or a SecretProviderClass. |
 | fullnameOverride | string | `""` | Override the full resource name prefix. |
@@ -129,6 +134,7 @@ upgrade.
 | securityContext | object | `{}` | Container security context of every orchestrator container. |
 | service.port | int | `80` | Service port. |
 | service.type | string | `"ClusterIP"` | Service type. |
+| serviceAccountName | string | `""` | An existing service account for the pods, e.g. one bound to a cloud identity for Workload Identity. Empty uses the namespace's default account. The chart does not create one. |
 | tolerations | list | `[]` | Tolerations of every orchestrator pod. |
 | volumeMounts | list | `[]` | Volume mounts on every orchestrator container, init containers included. |
-| volumes | list | `[]` | Volumes on every orchestrator pod. |
+| volumes | list | `[]` | Volumes on every orchestrator pod. Rendered with `tpl`, so names can include `{{ .Release.Name }}`. |
