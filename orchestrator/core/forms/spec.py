@@ -23,20 +23,20 @@ and fixed (``read_only``).
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
 from typing import Annotated, Any, Literal, cast, get_args, get_origin
 from uuid import UUID
 
-from more_itertools import first
+from annotated_types import BaseMetadata, GroupedMetadata
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined, to_jsonable_python
 
 from orchestrator.core.schemas.mcp_tools import FormField, FormFieldKind, FormFieldOption
-from orchestrator.core.types import filter_nonetype, is_optional_type, yield_max_length, yield_min_length
+from orchestrator.core.types import filter_nonetype, is_optional_type
 from pydantic_forms.validators import Accept, AcceptValues
 from pydantic_forms.validators.constants import EXTRA_PROPERTIES
 
@@ -48,10 +48,14 @@ def form_fields(model: type[BaseModel]) -> list[FormField]:
 
 def form_field(name: str, info: FieldInfo) -> FormField:
     """One field of a page: what its model declares, read without rendering a schema."""
-    extra = _schema_extra(info.json_schema_extra)
+    inner = _inner(info.annotation)
+    extra = _schema_extra(info.json_schema_extra) or (_schema_extra(inner.json_schema_extra) if inner else {})
     widgets = next((w for w in (extra.get(EXTRA_PROPERTIES), extra.get("uniforms")) if isinstance(w, Mapping)), {})
     annotation, nullable = _unwrap_optional(_strip_annotated(info.annotation))
     shape = _shape(annotation)
+    options = shape.options
+    if options is None and isinstance(widgets.get("productIds"), list):  # ``product_id([...])``: the products it allows
+        options = [_option(value, str(value)) for value in widgets["productIds"]]
     return FormField(
         name=name,
         title=info.title or name.title().replace("_", " "),  # pydantic's own humanisation of a name
@@ -61,10 +65,9 @@ def form_field(name: str, info: FieldInfo) -> FormField:
         required=info.is_required(),
         default=_default(info),
         nullable=nullable,
-        options=shape.options,
+        options=options,
         item=shape.item,
-        min_items=first(yield_min_length(info.metadata), None) if shape.kind == "list" else None,
-        max_items=first(yield_max_length(info.metadata), None) if shape.kind == "list" else None,
+        constraints=_constraints([*info.metadata, *(inner.metadata if inner else [])]),
         unique_items=extra.get("uniqueItems") is True,
         fields=shape.fields,
         read_only=bool(widgets.get("disabled")),
@@ -127,6 +130,41 @@ def _scalar_kind(type_: type) -> FormFieldKind:
 def _item(annotation: Any) -> FormField:
     """A list's items as a field of their own: the type's shape, with no name, default or requirement."""
     return form_field("", FieldInfo.from_annotation(annotation)).model_copy(update={"required": False})
+
+
+def _inner(annotation: Any) -> FieldInfo | None:
+    """What ``Optional[Annotated[...]]`` declares on the inner type, as a field of its own; None otherwise.
+
+    pydantic lifts the metadata of a top-level ``Annotated`` onto the field, but leaves what sits inside a
+    union member (its constraints, its ``json_schema_extra``) on that member.
+    """
+    annotation = _strip_annotated(annotation)
+    if not is_optional_type(annotation):
+        return None
+    variants = list(filter_nonetype(get_args(annotation)))
+    if len(variants) != 1 or get_origin(variants[0]) is not Annotated:
+        return None
+    return FieldInfo.from_annotation(variants[0])
+
+
+def _constraints(metadata: Sequence[Any]) -> dict[str, Any]:
+    """Every limit the field validates the value with, by pydantic's own ``Field`` keyword.
+
+    pydantic keeps constraints as metadata objects whose attributes are those keywords: ``MinLen`` / ``MaxLen`` /
+    ``Len`` (``min_length``, ``max_length``), ``Ge`` / ``Gt`` / ``Le`` / ``Lt`` / ``Interval``, ``MultipleOf``,
+    ``StringConstraints``, ``Field(pattern=...)``, and whatever a later pydantic adds: every attribute that is
+    set is reported, so a new kind of limit needs no change here. Validators are code, not limits, and are left out.
+    """
+    found: dict[str, Any] = {}
+    for meta in metadata:
+        if not isinstance(meta, (BaseMetadata, GroupedMetadata)):
+            continue
+        names = getattr(meta, "__dataclass_fields__", None) or vars(meta)
+        values = {name: getattr(meta, name) for name in names}
+        found.update(
+            {name: _json(value) for name, value in values.items() if value is not None and not callable(value)}
+        )
+    return found
 
 
 def _option(value: Any, label: str) -> FormFieldOption:

@@ -13,25 +13,27 @@
 
 """The agent-facing page spec: what ``form_fields`` says about each kind of field a form can declare."""
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import pytest
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, conint, constr
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.spec import form_fields
-from orchestrator.core.forms.validators import CustomerId, DisplaySubscription
+from orchestrator.core.forms.validators import CustomerId, DisplaySubscription, product_id
 from pydantic_forms.validators import (
     Accept,
     Choice,
     Label,
+    LongText,
     choice_list,
     migration_summary,
     read_only_field,
 )
 
 SUBSCRIPTION_ID = UUID("11111111-2222-3333-4444-555555555555")
+PRODUCT_IDS = [UUID("aaaaaaaa-0000-0000-0000-000000000001"), UUID("aaaaaaaa-0000-0000-0000-000000000002")]
 SUMMARY = {"labels": ["speed"], "columns": [["10G"]]}
 
 
@@ -64,6 +66,13 @@ class Page(FormPage):
     ratio: float | None = None
     flag: bool = False
     customer: CustomerId
+    note: Annotated[LongText, Field(max_length=5000)] = ""  # modify_note's own shape
+    ticket: constr(pattern=r"^T-\d+$", max_length=10)
+    vlan: Annotated[int, Field(ge=1, le=4094)]
+    fraction: Annotated[float, Field(gt=0, lt=1)] = 0.5
+    step: conint(ge=0, multiple_of=5) = 0
+    remark: Annotated[LongText, Field(max_length=50)] | None = None  # declared inside the Optional
+    product: product_id(PRODUCT_IDS)
     people: list[Person] = Field(default_factory=list)
 
 
@@ -105,11 +114,18 @@ def _subset(actual: Any, expected: Any) -> bool:
         pytest.param("color", {"kind": "string", "required": True, "default": None, "options": COLORS}, id="choice"),
         pytest.param(
             "colors",
-            {"kind": "list", "min_items": 1, "max_items": 2, "unique_items": True, "item": {"options": COLORS}},
+            {
+                "kind": "list",
+                "constraints": {"min_length": 1, "max_length": 2},
+                "unique_items": True,
+                "item": {"options": COLORS},
+            },
             id="choice-list",
         ),
         pytest.param(
-            "one_color", {"kind": "list", "min_items": 0, "max_items": 1, "unique_items": False}, id="list-of-one"
+            "one_color",
+            {"kind": "list", "constraints": {"min_length": 0, "max_length": 1}, "unique_items": False},
+            id="list-of-one",
         ),
         pytest.param("no_color", {"options": []}, id="choice-without-options"),
         pytest.param(
@@ -127,7 +143,44 @@ def _subset(actual: Any, expected: Any) -> bool:
         ),
         pytest.param("flag", {"kind": "boolean", "default": False}, id="boolean"),
         pytest.param(
+            "note",
+            {"kind": "string", "format": "long", "constraints": {"max_length": 5000}},
+            id="max-length",
+        ),
+        pytest.param(
+            "remark",
+            {"kind": "string", "format": "long", "nullable": True, "constraints": {"max_length": 50}},
+            id="constraints-inside-optional",
+        ),
+        pytest.param(  # Interval + MultipleOf, read generically: a constraint type this module never heard of
+            "step", {"kind": "integer", "constraints": {"ge": 0, "multiple_of": 5}}, id="generic-constraints"
+        ),
+        pytest.param(
+            "ticket",
+            {"kind": "string", "constraints": {"max_length": 10, "pattern": r"^T-\d+$"}},
+            id="string-constraints",
+        ),
+        pytest.param(
+            "vlan",
+            {"kind": "integer", "constraints": {"ge": 1, "le": 4094}},
+            id="int-bounds",
+        ),
+        pytest.param(
+            "fraction",
+            {"kind": "number", "constraints": {"gt": 0, "lt": 1}},
+            id="float-bounds",
+        ),
+        pytest.param(
             "customer", {"kind": "string", "format": "customerId", "required": True, "options": None}, id="customer-id"
+        ),
+        pytest.param(  # the ids ``product_id([...])`` allows are its options; core rejects any other
+            "product",
+            {
+                "kind": "string",
+                "format": "productId",
+                "options": [{"value": str(i), "label": str(i)} for i in PRODUCT_IDS],
+            },
+            id="product-id-restricted",
         ),
         pytest.param(
             "people",
@@ -149,8 +202,11 @@ def _subset(actual: Any, expected: Any) -> bool:
 )
 def test_field_spec(name, expected):
     assert _subset(FIELDS[name], expected), FIELDS[name]
+    if "constraints" in expected:  # exactly these limits, none invented
+        assert FIELDS[name]["constraints"] == expected["constraints"]
 
 
 def test_fields_keep_the_forms_order_and_are_titled():
     assert list(FIELDS) == list(Page.model_fields)
     assert FIELDS["no_color"]["title"] == "No Color"  # pydantic's own humanisation of a name without a title
+    assert FIELDS["customer"]["constraints"] == {}

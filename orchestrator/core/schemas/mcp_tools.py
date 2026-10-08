@@ -119,8 +119,12 @@ class FormField(OrchestratorBaseModel):
         description="The values the field is limited to, in order. `[]`: a choice with no option today. `null`: free.",
     )
     item: "FormField | None" = Field(default=None, description='For kind "list": the shape of one item.')
-    min_items: int | None = None
-    max_items: int | None = None
+    constraints: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Every limit the value is validated against, by pydantic's `Field` keyword: `min_length` / "
+        "`max_length` (characters of a string, items of a list), `pattern`, `ge` / `gt` / `le` / `lt`, `multiple_of`, "
+        "... Empty when there is none.",
+    )
     unique_items: bool = False
     fields: "list[FormField] | None" = Field(
         default=None, description='For kind "object": the nested fields, in order.'
