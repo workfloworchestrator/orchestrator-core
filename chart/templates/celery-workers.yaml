@@ -2,6 +2,9 @@
 {{- $app := required "celery.app is required when celery.enabled: the module that creates your Celery app" .Values.celery.app }}
 {{- range $worker := .Values.celery.workers }}
 {{- $component := printf "worker-%s" $worker.name }}
+{{- if gt (len $worker.name) 54 }}
+{{- fail (printf "celery.workers[%s].name is too long: it must be at most 54 characters" $worker.name) }}
+{{- end }}
 {{- $selector := include "orchestrator-core.componentSelectorLabels" (list $ $component) }}
 {{- $queues := required (printf "celery.workers[%s].queues is required" $worker.name) $worker.queues }}
 {{- $command := list "python" "-m" "celery" "-A" $app "worker" "-E" (printf "--loglevel=%s" $.Values.celery.logLevel) "-Q" (join "," $queues) (printf "--concurrency=%v" ($worker.concurrency | default $.Values.celery.concurrency)) }}

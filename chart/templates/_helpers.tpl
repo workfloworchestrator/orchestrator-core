@@ -49,13 +49,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Selector labels of a component other than the API: "<name>-<component>". Selectors are immutable,
-so these never change between chart versions.
+Selector labels of a component other than the API: "<name>-<component>", with the name truncated to
+fit the 63-character label limit. Selectors are immutable, so these never change between chart versions.
 Usage: include "orchestrator-core.componentSelectorLabels" (list $ "scheduler")
 */}}
 {{- define "orchestrator-core.componentSelectorLabels" -}}
 {{- $root := index . 0 -}}
-app.kubernetes.io/name: {{ include "orchestrator-core.name" $root }}-{{ index . 1 }}
+{{- $suffix := printf "-%s" (index . 1) -}}
+app.kubernetes.io/name: {{ include "orchestrator-core.name" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" }}{{ $suffix }}
 app.kubernetes.io/instance: {{ $root.Release.Name }}
 {{- end }}
 
