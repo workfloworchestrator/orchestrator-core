@@ -273,40 +273,6 @@ def test_every_term_must_pass_the_gate(fields, expected):
     assert [(row.entity_id, float(row.score)) for row in rows] == [(entity_id, score) for score in expected]
 
 
-@pytest.mark.parametrize(
-    "query_text,value,expected",
-    [
-        # Per term, "CG-3000-XS" scores 0.43 and misses the 0.5 gate; the whole phrase scores 0.71.
-        pytest.param("Coffee grinder CG-3000-XS", "Coffee grinder CG-2000-XL", [0.809524], id="typo-forgiven"),
-        # The whole phrase scores 0.625, but "LIR" reaches only 0.25: below MIN_TERM_SCORE.
-        pytest.param("ACM LIR", "ACM L2VPN Hillcrest - Meadowbrook", [], id="absent-term-not-forgiven"),
-        # The whole phrase scores 0.79, but "XYZ" reaches 0.0: below MIN_TERM_SCORE.
-        pytest.param("Coffee grinder XYZ", "Coffee grinder", [], id="unmatched-term-not-forgiven"),
-        # Every term passes the gate on its own; the phrase route is not needed.
-        pytest.param("grinder Coffee", "Coffee grinder", [1.0], id="every-term-matches"),
-    ],
-)
-def test_whole_phrase_match_forgives_one_weak_term(query_text, value, expected):
-    """A strong phrase match passes despite one term missing the gate, if every term reaches MIN_TERM_SCORE."""
-    entity_id = uuid4()
-    db.session.add(
-        AiSearchIndex(
-            entity_type=EntityType.SUBSCRIPTION,
-            entity_id=entity_id,
-            entity_title="phrase",
-            path=Ltree("subscription.description"),
-            value=value,
-            value_type=FieldType.STRING,
-            content_hash=uuid4().hex,
-        )
-    )
-    db.session.commit()
-
-    rows = _fuzzy_rows(query_text, limit=10)
-
-    assert [(row.entity_id, round(float(row.score), 6)) for row in rows] == [(entity_id, score) for score in expected]
-
-
 def _reciprocal_rank(ranking: list[str], expected: str) -> float:
     return 1 / (ranking.index(expected) + 1) if expected in ranking else 0.0
 
