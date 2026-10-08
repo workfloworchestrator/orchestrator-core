@@ -65,6 +65,7 @@ def test_single_term_uses_one_direct_gate(fuzzy_term):
     assert sql.count("<%") == 1
     assert "rarity" not in sql
     assert "EXISTS" not in sql
+    assert "UNION" not in sql
     assert sql.count("max(word_similarity(") == 2
     assert "HAVING" in sql
     assert "LATERAL" in sql
@@ -80,7 +81,7 @@ def test_single_term_uses_one_direct_gate(fuzzy_term):
     ],
 )
 def test_every_term_is_scored_and_gated(fuzzy_term, gates):
-    """Multi-term queries start with the first term and require all terms to match, without sampling."""
+    """Multi-term queries start with the first term and require all terms to match, or the whole phrase to match."""
     candidates = select(AiSearchIndex.entity_id, AiSearchIndex.entity_title).distinct()
     stmt = FuzzyRetriever(fuzzy_term, cursor=None).apply(candidates)
 
@@ -92,12 +93,20 @@ def test_every_term_is_scored_and_gated(fuzzy_term, gates):
     assert "UNION ALL" not in sql
     assert sql.count("LIMIT %(param_") == 1  # Only the highlight lookup needs a limit.
     assert sql.count("EXISTS (SELECT") == gates
-    # One filter for the starting term, plus one per entity check.
-    assert sql.count("<%") == gates + 1
+    # One filter for the starting term, one per entity check, and one for the whole phrase.
+    assert sql.count("<%") == gates + 2
+    assert sql.count("UNION SELECT") == 1
     literal_sql = str(stmt.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
     assert f"AND ('{fuzzy_tokens(fuzzy_term)[0]}' <%% ai_search_index.value)" in literal_sql
-    # The score appears in both SELECT and HAVING.
-    assert sql.count("max(word_similarity(") == 2 * gates
+    assert f"('{fuzzy_term}' <%% ai_search_index.value)" in literal_sql
+    assert f"word_similarity('{fuzzy_term}', ai_search_index.value) >= 0.6" in literal_sql
+    # The score appears in SELECT and HAVING; HAVING also holds each term's MIN_TERM_SCORE floor.
+    assert sql.count("max(word_similarity(") == 3 * gates
     assert sql.count("HAVING") == 1
     assert "OVER (" not in sql
     assert "LATERAL" in sql
+
+
+def test_term_floor_does_not_exceed_gate_threshold():
+    """Entities where every term passes the gate must also clear the whole-phrase route's per-term minimum."""
+    assert float(FuzzyRetriever.GATE_THRESHOLD.value) >= FuzzyRetriever.MIN_TERM_SCORE

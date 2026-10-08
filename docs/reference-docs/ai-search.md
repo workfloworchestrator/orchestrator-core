@@ -352,31 +352,103 @@ The migration that creates these also creates the `uuid-ossp`, `ltree`, `unaccen
 
 ### Ranking formulas
 
-**Fuzzy**: splits the query on whitespace, removes case-insensitive duplicates, and ignores
+#### Fuzzy ranking
+
+Fuzzy search splits the query on whitespace, removes case-insensitive duplicates, and ignores
 punctuation-only terms. Identifiers such as UUIDs and IP prefixes stay intact. If no terms remain,
 the original query is used as one term. Searchable field types are `string`, `uuid`, `block` and
 `resource_type`.
 
-Each term gets its best similarity across the entity's searchable fields. The entity's score is
-the average of those best matches:
+Each term gets its best similarity across the entity's searchable fields. Terms can match in any
+order, with words between them, or in different fields. The entity's score is the average of those
+best matches. A separate whole-phrase similarity can help an entity qualify, but does not determine
+its ranking score:
 
 ```text
 term_score(term) = max(word_similarity(term, field_value))  # across the entity's searchable fields
 score           = round(mean(term_score(term)), 12)       # across the query terms
+phrase_score    = max(word_similarity(whole_query, field_value))
 ```
 
-Every term must pass `'<term>' <% value` in at least one field, and the final score must reach
-`MIN_SCORE` (`0.6`). The `<%` operator reads PostgreSQL's `pg_trgm.word_similarity_threshold`;
-the engine sets it to `0.4` through `FuzzyRetriever.GATE_THRESHOLD` before executing the query.
-For example, `ACME LIIR` scores `0.75` against `ACME prefix LIR`: `ACME` matches exactly and
-`LIIR` matches `LIR` with similarity `0.5`.
+##### What the three thresholds control
+
+The thresholds are defined on `FuzzyRetriever`. Similarities range from `0` to `1`; higher means a
+closer text match.
+
+| Constant | Default | Checked against | Purpose |
+| --- | ---: | --- | --- |
+| `GATE_THRESHOLD` | `0.5` | A term or the whole query against one searchable field, using `<%` | Finds candidates through the trigram index before scoring all their fields. Passing this gate alone does not guarantee a result. |
+| `MIN_TERM_SCORE` | `0.4` | Each term's best similarity anywhere in the entity | Stops a strong phrase match from hiding a term that barely matches or is absent. Applies to multi-term queries. |
+| `MIN_SCORE` | `0.6` | The final average term score; also the best whole-phrase similarity for the fallback route | Requires a sufficiently strong overall match. Both checks currently share this value. |
+
+For a multi-term query, an entity must pass both stages:
+
+1. **Candidate selection — either route is enough:** every term passes `'<term>' <% value` in
+   at least one searchable field, **or** the whole query passes `<%` and reaches `MIN_SCORE` in
+   one field. The second route tolerates a weak term when the surrounding phrase matches well.
+2. **Score filtering — both checks must pass:** every term's best similarity reaches
+   `MIN_TERM_SCORE`, **and** their average reaches `MIN_SCORE`. These checks apply regardless of
+   which route selected the entity.
+
+For a single term, there is only the term gate and the final `MIN_SCORE` check. For example,
+`LIR` against `LIP` scores `0.5`: it passes the gate but is excluded because it falls below `0.6`.
+
+`MIN_SCORE` is not just a phrase threshold: it also filters the score returned by the retriever.
+Renaming it to `MIN_PHRASE_SCORE` would describe only the fallback check. If these checks need
+independent tuning, they can be split into `MIN_PHRASE_SCORE` and `MIN_ENTITY_SCORE`; the current
+implementation uses one shared minimum.
+
+With the defaults, `MIN_TERM_SCORE < GATE_THRESHOLD < MIN_SCORE`: the phrase route can admit a
+term below the normal gate, but the entity must still have a strong average. Raising
+`GATE_THRESHOLD` narrows candidate selection; raising `MIN_TERM_SCORE` makes the phrase route
+less tolerant of weak terms; raising `MIN_SCORE` tightens both the final score filter and phrase
+admission. Keep `MIN_TERM_SCORE <= GATE_THRESHOLD <= MIN_SCORE` when tuning so the term floor
+does not undo the normal gate and the gate does not block otherwise qualifying phrase matches.
+
+##### Worked ranking example
+
+For the query **`ACM LIR`**, assume each entity has only the searchable fields shown below:
+
+| Searchable fields | Best `ACM` | Best `LIR` | Average score | Fuzzy result |
+| --- | ---: | ---: | ---: | --- |
+| description: `ACM prefix LIR` | 1.0 | 1.0 | **1.0** | Included; tied for highest score. Terms need not be adjacent. |
+| customer: `ACM`; description: `LIR` | 1.0 | 1.0 | **1.0** | Included; tied for highest score. Terms can match different fields. |
+| description: `ACM LIP` | 1.0 | 0.5 | **0.75** | Included below the exact matches; both terms pass the gate. |
+| description: `ACM L2VPN Hillcrest - Meadowbrook` | 1.0 | 0.25 | **0.625** | Excluded: the phrase scores `0.625`, but `LIR` fails `MIN_TERM_SCORE`. |
+
+The last row shows why the per-term floor matters: a good average and a good phrase score are
+not enough if one requested term barely matches. Equal fuzzy scores are ordered by entity ID.
+These are fuzzy-only results; hybrid search can still return excluded entities through its
+semantic source.
+
+##### Worked whole-phrase fallback
+
+For the query **`Coffee grinder CG-3000-XS`**, consider an entity whose only searchable field is
+the description **`Coffee grinder CG-2000-XL`**. Values below are rounded for display:
+
+| Check | Similarity | Outcome |
+| --- | ---: | --- |
+| Best match for `Coffee` | 1.0 | Passes the term gate. |
+| Best match for `grinder` | 1.0 | Passes the term gate. |
+| Best match for `CG-3000-XS` | 0.43 | Fails the `0.5` gate, but clears the `0.4` term floor. |
+| Whole query against the description | 0.71 | Passes the phrase gate and the `0.6` minimum, admitting the entity for scoring. |
+| Average of the three best term scores | **0.81** | Passes the `0.6` final minimum; the entity is returned with this score. |
+
+The phrase score admits the typo; the average term score determines its rank. By comparison,
+`Coffee grinder XYZ` against `Coffee grinder` has a strong phrase score (about `0.79`) and an
+average term score of about `0.67`, but `XYZ` scores `0.0`, so the entity is excluded.
+
+##### Query execution and highlights
 
 Candidate selection depends on the number of unique terms:
 
 - **One term**: use its trigram filter directly, without additional term checks.
 - **Multiple terms**: start with the first query term and check every term within each matching entity.
   Term order can affect performance: starting with a common term may require checking more entities.
+  A `UNION` adds entities with a field that matches the whole phrase.
 
+The `<%` operator reads PostgreSQL's `pg_trgm.word_similarity_threshold`; the engine sets it
+through `FuzzyRetriever.GATE_THRESHOLD` before executing the query.
 The selected entity IDs are stored in a materialized CTE, then their searchable fields are scored.
 For standard queries, we check whether each entity matches the filters.
 Other query shapes use a join. The gate threshold is applied with `SET LOCAL`, so it lasts for the
@@ -386,7 +458,9 @@ After score filtering, a lateral lookup chooses the field with the highest avera
 as the highlight. Ties prefer fewer path levels, then the path itself. Fuzzy results are ordered by
 score descending, then entity ID ascending.
 
-**Semantic**: considers rows with an embedding; an entity's score is
+#### Semantic ranking
+
+Semantic search considers rows with an embedding; an entity's score is
 `1 / (1 + min(embedding <-> query_vector))`, so a smaller distance gives a higher score, bounded
 to `[0, 1]`.
 
@@ -398,10 +472,14 @@ reach. Exports keep the exhaustive plan, which scores every embedded field of ev
 an export is a single query, without a cursor, for up to 10000 entities,
 and a window of 2000 fields can never yield that many.
 
-**Structured**: no relevance ranking (`score = 1.0`); results are ordered by an optional
+#### Structured ranking
+
+Structured search has no relevance ranking (`score = 1.0`); results are ordered by an optional
 `order_by` field materialized from the index rows.
 
-**Hybrid** uses **Reciprocal Rank Fusion (RRF)**: rather than trying to make a distance and a
+#### Hybrid ranking
+
+Hybrid search uses **Reciprocal Rank Fusion (RRF)**: rather than trying to make a distance and a
 similarity score comparable, it ranks results separately by each signal and combines the *ranks*.
 
 It runs the fuzzy and the semantic retriever on the same candidates, each producing one row per
