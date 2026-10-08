@@ -77,3 +77,5 @@ There are a number of options for getting started:
   docker-compose so you can experiment on your localhost.
 - For those who are more adventurous, follow the guide on the [next page](getting-started/base.md) to
   start coding right away.
+- To run your own orchestrator in containers or on Kubernetes, see
+  [Running your orchestrator](getting-started/deployment.md).

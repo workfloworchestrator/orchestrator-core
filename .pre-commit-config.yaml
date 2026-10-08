@@ -19,7 +19,7 @@ repos:
       - id: check-docstring-first
       - id: check-json
       - id: check-yaml
-        exclude: mkdocs.yml
+        exclude: mkdocs.yml|chart/templates/
       - id: debug-statements
       - id: detect-private-key
 
@@ -68,3 +68,10 @@ repos:
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
+
+  # Generates chart/README.md from chart/README.md.gotmpl and the `# --` comments in values.yaml
+  - repo: https://github.com/norwoodj/helm-docs
+    rev: v1.14.2
+    hooks:
+      - id: helm-docs-built
+        args: [--chart-search-root=chart]

@@ -1,0 +1,3 @@
+To reach the API locally:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "orchestrator-core.fullname" . }} 8080:{{ .Values.service.port }}
+  curl http://127.0.0.1:8080/api/health/

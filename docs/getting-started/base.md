@@ -39,7 +39,8 @@ createdb orchestrator-core -O nwa
 
 </div>
 
-Choose a password and remember it for later steps.
+Choose a password and remember it for later steps. The server needs pgvector; see
+[Postgres with pgvector](deployment.md#postgres-with-pgvector).
 
 As an example, you can run these docker commands in separate shells to start a temporary postgres instance:
 
@@ -152,3 +153,4 @@ Visit the [ReDoc](http://127.0.0.1:8080/api/redoc) or [OpenAPI](http://127.0.0.1
 - [Create a product.](../../../workshops/example-orchestrator/domain-models/)
 - [Create a workflow for a product.](./workflows.md)
 - [Generate products and workflows](../reference-docs/cli.md#generate)
+- [Run your orchestrator in containers or on Kubernetes](./deployment.md)

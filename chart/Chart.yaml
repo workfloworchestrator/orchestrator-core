@@ -1,0 +1,21 @@
+apiVersion: v2
+name: orchestrator-core
+description: Runs an orchestrator-core application (API, migrations, scheduler, Celery workers) on Kubernetes
+type: application
+
+# The chart version is maintained by hand and is independent of orchestrator-core releases, so a
+# chart fix does not need a core release. Bump it in every change under chart/; CI publishes a
+# version only once.
+version: 0.1.0
+
+# No appVersion: the chart runs your own orchestrator image, which pins its orchestrator-core version
+# when it is built (image.repository / image.tag are required).
+
+home: https://workfloworchestrator.org/orchestrator-core/
+sources:
+  - https://github.com/workfloworchestrator/orchestrator-core
+keywords:
+  - orchestrator
+  - workflow
+annotations:
+  org.opencontainers.image.source: https://github.com/workfloworchestrator/orchestrator-core

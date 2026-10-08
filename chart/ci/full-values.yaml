@@ -1,0 +1,102 @@
+# Every component and option enabled, so CI renders all templates.
+image:
+  repository: ghcr.io/example/my-orchestrator
+  tag: "1.0.0"
+cli: ["python", "-m", "main"]
+env:
+  OAUTH2_ACTIVE: "false"
+secretEnv:
+  CACHE_URI: "redis://orchestrator-valkey:6379/0"
+  WEBSOCKET_BROADCASTER_URL: "redis://orchestrator-valkey:6379/0"
+# The second Secret is synced from a key vault by the SecretProviderClass in extraObjects. Names of
+# objects the release creates include the release name, so they stay unique in the namespace.
+existingSecrets:
+  - extra-credentials
+  - "{{ .Release.Name }}-kv"
+extraEnv:
+  - name: LOG_LEVEL
+    value: DEBUG
+serviceAccountName: my-orchestrator-workload-identity
+# A client certificate and key-vault secrets, set up with cert-manager and the Secrets Store CSI driver.
+volumes:
+  - name: tls
+    secret:
+      secretName: "{{ .Release.Name }}-client-cert"
+  - name: secret-store
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: "{{ .Release.Name }}-kv"
+volumeMounts:
+  - name: tls
+    mountPath: /mnt/tls
+    readOnly: true
+  - name: secret-store
+    mountPath: /mnt/secret-store
+    readOnly: true
+api:
+  replicaCount: 2
+  extraInitContainers:
+    - name: index
+      image: ghcr.io/example/my-orchestrator:1.0.0
+      command: ["python", "-m", "main", "index", "subscriptions"]
+scheduler:
+  enabled: true
+  initCommands:
+    - ["scheduler", "load-initial-schedule"]
+    - ["scheduler", "load-project-schedule"]
+celery:
+  enabled: true
+  app: my_orchestrator.celery_worker
+  workers:
+    - name: tasks
+      queues: [new_tasks, resume_tasks]
+    - name: workflows
+      queues: [new_workflows, resume_workflows]
+      replicas: 2
+      concurrency: 4
+mcp:
+  enabled: true
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - orchestrator.example.net
+  tls:
+    - secretName: orchestrator-tls
+      hosts:
+        - orchestrator.example.net
+httpRoute:
+  enabled: true
+  hostnames:
+    - orchestrator.example.net
+extraObjects:
+  - apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: "{{ .Release.Name }}-client-cert"
+    spec:
+      dnsNames: [orchestrator.example.net]
+      issuerRef: {name: letsencrypt, kind: Issuer}
+      secretName: "{{ .Release.Name }}-client-cert"
+      usages: [server auth, client auth, digital signature]
+  - apiVersion: secrets-store.csi.x-k8s.io/v1
+    kind: SecretProviderClass
+    metadata:
+      name: "{{ .Release.Name }}-kv"
+    spec:
+      provider: azure
+      secretObjects:
+        - secretName: "{{ .Release.Name }}-kv"
+          type: Opaque
+          data:
+            - {key: DATABASE_URI, objectName: orchestrator-database-uri}
+      parameters:
+        keyvaultName: example-kv
+        tenantId: "00000000-0000-0000-0000-000000000000"
+        objects: |
+          array:
+            - |
+              objectName: orchestrator-database-uri
+              objectType: secret
