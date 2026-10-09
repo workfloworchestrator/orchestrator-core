@@ -19,10 +19,13 @@ into a single FilterConditionInput with optional fields and dispatch to the
 correct Pydantic model via to_pydantic().
 
 SearchInput.to_select_query(entity_type) builds a SelectQuery; entity_type is
-supplied by the resolver rather than stored as a GraphQL field.
+supplied by the resolver rather than stored as a GraphQL field. ResourceSearchInput
+is the `search` argument of list resources.
 """
 
 import strawberry
+from pydantic import TypeAdapter
+from strawberry.scalars import JSON
 
 from orchestrator.core.search.core.types import (
     BooleanOperator,
@@ -38,8 +41,10 @@ from orchestrator.core.search.filters.base import (
     StringFilter,
 )
 from orchestrator.core.search.filters.date_filters import DateRange, DateRangeFilter, DateValueFilter
+from orchestrator.core.search.filters.elastic_dsl import ElasticQuery, elastic_to_filter_tree
 from orchestrator.core.search.filters.ltree_filters import LtreeFilter
 from orchestrator.core.search.filters.numeric_filter import NumericRange, NumericRangeFilter, NumericValueFilter
+from orchestrator.core.search.indexing.field_types import resolve_field_value_kind
 from orchestrator.core.search.query.mixins import OrderDirection, StructuredOrderBy
 from orchestrator.core.search.query.queries import SelectQuery
 
@@ -143,22 +148,56 @@ class StructuredOrderByInput:
         return StructuredOrderBy(element=self.element, direction=self.direction)
 
 
-@strawberry.input(description="Top-level search input for GraphQL queries.")
-class SearchInput:
+@strawberry.input(description="Search criteria shared by the search query and the list resources.")
+class SearchCriteriaInput:
     query: str | None = None
     filters: FilterTreeInput | None = None
+    elastic_filters: JSON | None = strawberry.field(
+        default=None,
+        description=(
+            "Filters in Elasticsearch DSL, as produced by react-querybuilder's formatQuery(query, 'elasticsearch');"
+            " an alternative to filters."
+        ),
+    )
     limit: int = 10
     retriever: RetrieverTypeEnum | None = None  # type: ignore[valid-type]
     order_by: StructuredOrderByInput | None = None
-    response_columns: list[str] | None = None
 
     def to_select_query(self, entity_type: EntityType) -> SelectQuery:
         return SelectQuery(
             entity_type=entity_type,
             query_text=self.query,
-            filters=self.filters.to_pydantic() if self.filters else None,
+            filters=self._filter_tree(entity_type),
             limit=self.limit,
             retriever=self.retriever,
             order_by=self.order_by.to_pydantic() if self.order_by else None,
-            response_columns=self.response_columns,
         )
+
+    def _filter_tree(self, entity_type: EntityType) -> FilterTree | None:
+        if self.filters and self.elastic_filters is not None:
+            raise ValueError("Pass either filters or elasticFilters, not both")
+        if self.filters:
+            return self.filters.to_pydantic()
+        if self.elastic_filters is None:
+            return None
+        # GraphQL input types can't be unions, so the DSL arrives as JSON and is validated here.
+        es_query: ElasticQuery = TypeAdapter(ElasticQuery).validate_python(self.elastic_filters)
+        return elastic_to_filter_tree(
+            es_query, value_kind_resolver=lambda path, _value: resolve_field_value_kind(entity_type, path)
+        )
+
+
+@strawberry.input(description="Top-level search input for GraphQL queries.")
+class SearchInput(SearchCriteriaInput):
+    response_columns: list[str] | None = None
+
+    def to_select_query(self, entity_type: EntityType) -> SelectQuery:
+        return super().to_select_query(entity_type).model_copy(update={"response_columns": self.response_columns})
+
+
+@strawberry.input(description="LLM search on a list resource; replaces its filterBy, sortBy, query, first and after.")
+class ResourceSearchInput(SearchCriteriaInput):
+    cursor: str | None = strawberry.field(
+        default=None,
+        description="nextPageCursor of the previous page; resumes that search, so the other search fields are ignored.",
+    )

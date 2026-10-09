@@ -27,9 +27,9 @@ import strawberry.scalars
 import structlog
 from graphql import GraphQLError
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.db import SearchQueryTable
+from orchestrator.core.graphql.resource_search import matching_field_to_gql, metadata_to_gql
 from orchestrator.core.graphql.schemas.search import (
     AggregationPairType,
     ComponentInfoType,
@@ -37,11 +37,9 @@ from orchestrator.core.graphql.schemas.search import (
     ExportResponseType,
     GroupValuePairType,
     LeafInfoType,
-    MatchingFieldType,
     PathsResponseType,
     QueryResultsResponseType,
     ResultRowType,
-    SearchMetadataType,
     SearchPageInfoType,
     SearchResultsConnection,
     SearchResultType,
@@ -57,11 +55,15 @@ from orchestrator.core.search.core.types import EntityType, FilterOp, SearchMeta
 from orchestrator.core.search.filters.definitions import ValueSchema, generate_definitions
 from orchestrator.core.search.query import QueryState, engine
 from orchestrator.core.search.query.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
+from orchestrator.core.search.query.page import SearchPage, execute_search_page
 from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, QueryAdapter, SelectQuery
-from orchestrator.core.search.query.results import MatchingField, QueryResultsResponse, ResultRow, SearchResult
+from orchestrator.core.search.query.results import (
+    QueryResultsResponse,
+    ResultRow,
+    SearchResult,
+)
 from orchestrator.core.search.query.results import VisualizationType as DomainVisualizationType
 from orchestrator.core.search.query.validation import is_lquery_syntactically_valid
-from orchestrator.core.search.retrieval.pagination import PageCursor, encode_next_page_cursor
 
 logger = structlog.get_logger(__name__)
 
@@ -69,15 +71,6 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Helper converters
 # ---------------------------------------------------------------------------
-
-
-def _matching_field_to_gql(mf: MatchingField) -> MatchingFieldType:
-    """Convert a domain MatchingField to its GraphQL type."""
-    return MatchingFieldType(
-        text=mf.text,
-        path=mf.path,
-        highlight_indices=mf.highlight_indices,
-    )
 
 
 def _result_to_gql(result: SearchResult) -> SearchResultType:
@@ -88,16 +81,8 @@ def _result_to_gql(result: SearchResult) -> SearchResultType:
         entity_title=result.entity_title,
         score=result.score,
         perfect_match=result.perfect_match,
-        matching_fields=[_matching_field_to_gql(mf) for mf in result.matching_fields],
+        matching_fields=[matching_field_to_gql(mf) for mf in result.matching_fields],
         response_columns=cast(strawberry.scalars.JSON, result.response_columns) if result.response_columns else None,
-    )
-
-
-def _metadata_to_gql(metadata: SearchMetadata) -> SearchMetadataType:
-    """Convert a domain SearchMetadata to its Strawberry GraphQL type."""
-    return SearchMetadataType(
-        search_type=metadata.search_type,
-        description=metadata.description,
     )
 
 
@@ -127,7 +112,7 @@ def _build_search_results_connection(
     return SearchResultsConnection(
         data=[_result_to_gql(r) for r in results],
         page_info=page_info,
-        search_metadata=_metadata_to_gql(metadata),
+        search_metadata=metadata_to_gql(metadata),
         cursor=cursor_info,
     )
 
@@ -162,7 +147,7 @@ def _query_results_response_to_gql(resp: QueryResultsResponse) -> QueryResultsRe
     return QueryResultsResponseType(
         results=[_result_row_to_gql(r) for r in resp.results],
         total_results=resp.total_results,
-        metadata=_metadata_to_gql(resp.metadata),
+        metadata=metadata_to_gql(resp.metadata),
         visualization_type=_domain_visualization_to_gql(resp.visualization_type),
     )
 
@@ -172,26 +157,16 @@ def _query_results_response_to_gql(resp: QueryResultsResponse) -> QueryResultsRe
 # ---------------------------------------------------------------------------
 
 
-async def _execute_search_and_paginate(
-    query: SelectQuery,
-    query_state: QueryState[SelectQuery],
-    page_cursor: PageCursor | None,
-    session: AsyncSession,
-) -> SearchResultsConnection:
-    """Execute a search query and build a paginated connection result."""
-    search_response = await engine.execute_search(query, session, page_cursor, query_state.query_embedding)
-    next_page_cursor = (
-        await encode_next_page_cursor(search_response, page_cursor, query, session) if search_response.results else None
-    )
-
+def _search_page_to_connection(page: SearchPage) -> SearchResultsConnection:
+    response = page.response
     return _build_search_results_connection(
-        results=search_response.results,
-        metadata=search_response.metadata,
-        has_next_page=next_page_cursor is not None,
-        next_page_cursor=next_page_cursor,
-        total_items=search_response.total_items,
-        start_cursor=search_response.start_cursor,
-        end_cursor=search_response.end_cursor,
+        results=response.results,
+        metadata=response.metadata,
+        has_next_page=page.next_page_cursor is not None,
+        next_page_cursor=page.next_page_cursor,
+        total_items=response.total_items,
+        start_cursor=response.start_cursor,
+        end_cursor=response.end_cursor,
     )
 
 
@@ -217,22 +192,13 @@ async def resolve_search(
         include_columns: Whether to include response columns in results.
     """
     try:
-        page_cursor: PageCursor | None = None
-        query: SelectQuery
-        session = info.context.session
-
-        if cursor:
-            page_cursor = PageCursor.decode(cursor)
-            query_state = await QueryState.load_from_id(page_cursor.query_id, SelectQuery, session)
-            query = query_state.query
-        else:
-            query = input.to_select_query(entity_type)
-            query_state = QueryState(query=query, query_embedding=None)
-
-        if not include_columns:
-            query = query.model_copy(update={"response_columns": []})
-
-        return await _execute_search_and_paginate(query, query_state, page_cursor, session)
+        page = await execute_search_page(
+            info.context.session,
+            query=None if cursor else input.to_select_query(entity_type),
+            cursor=cursor,
+            include_columns=include_columns,
+        )
+        return _search_page_to_connection(page)
     except (InvalidCursorError, ValueError) as e:
         raise GraphQLError(str(e), extensions={"code": "VALIDATION_ERROR"}) from e
     except QueryStateNotFoundError as e:
@@ -394,16 +360,8 @@ async def resolve_search_query(
         cursor: Optional pagination cursor.
     """
     try:
-        page_cursor: PageCursor | None = None
-        session = info.context.session
-
-        if cursor:
-            page_cursor = PageCursor.decode(cursor)
-            query_state = await QueryState.load_from_id(page_cursor.query_id, SelectQuery, session)
-        else:
-            query_state = await QueryState.load_from_id(query_id, SelectQuery, session)
-
-        return await _execute_search_and_paginate(query_state.query, query_state, page_cursor, session)
+        page = await execute_search_page(info.context.session, cursor=cursor, query_id=query_id)
+        return _search_page_to_connection(page)
     except (InvalidCursorError, ValueError) as e:
         raise GraphQLError(str(e), extensions={"code": "VALIDATION_ERROR"}) from e
     except QueryStateNotFoundError as e:
