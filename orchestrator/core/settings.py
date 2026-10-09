@@ -207,6 +207,9 @@ if app_settings.EXPOSE_SETTINGS:
 if app_settings.EXPOSE_OAUTH_SETTINGS:
     expose_settings("oauth2lib_settings", oauth2lib_settings)
 
+# Always expose whether semantic search is enabled or not
+expose_settings("search_settings", llm_settings, include={"EMBEDDING_API_ENABLED"})
+
 
 class Authorizers(BaseModel):
     # Callbacks specifically for orchestrator-core callbacks.

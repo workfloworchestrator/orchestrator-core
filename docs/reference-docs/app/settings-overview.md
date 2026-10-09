@@ -124,6 +124,15 @@ two arguments: the name of the settings class and the instance of the settings c
     expose_settings("my_settings", my_settings)
     ```
 
+To expose only a subset of the fields, pass `include`:
+
+```python
+expose_settings("my_public_settings", my_settings, include={"debug"})
+```
+
+`orchestrator-core` always exposes `search_settings`, which contains only `EMBEDDING_API_ENABLED` from the LLM settings.
+The UI uses it to decide whether to show semantic/hybrid search options.
+
 ## Lifecycle Validation Mode
 
 The Lifecycle Validation Mode is used to validate in workflow steps that a **subscription model has been instantiated with the correct product type class for its lifecycle status**. E.g. a subscription model with a lifecycle status of `PROVISIONING` should be instantiated with a product type class that has a lifecycle status of `PROVISIONING`.
