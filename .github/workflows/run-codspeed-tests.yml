@@ -12,7 +12,7 @@ env:
 jobs:
   codspeed:
     name: Run benchmarks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     container:
       image: python:3.13-bookworm
       options: --privileged
