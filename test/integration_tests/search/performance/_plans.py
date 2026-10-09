@@ -46,8 +46,8 @@ PLAN_SETTINGS = {
     "track_functions": "all",
 }
 
-# Filled by the seed's inserts, this index differs in size between runs by tens of pages, which changes the planner's
-# cost estimates. Rebuilt, it still differs by a few pages, no longer enough to change them, but its blocks read do.
+# Filled by the seed's inserts, this index differs in size between runs, which changes the planner's cost estimates.
+# Rebuilt sorted, see `sorted_gist_build`, it is the same on every run.
 GIST_INDEX = "ix_flat_path_gist"
 TRIGRAM_INDEX = "ix_flat_value_trgm"
 
@@ -59,8 +59,7 @@ METRICS = {
     "cost": "the planner's estimated total cost of the statement, decided before it runs. Its unit is one sequential "
     "page read; random page reads, rows and operator calls are weighted in by the `*_cost` settings. It follows from "
     "the plan and the statistics only, so it changes with the plan, not with how the plan ran.",
-    "blocks": "8kB pages the statement read, from shared buffers or from disk. Measured. Leaves out those of the GiST "
-    "path index: even rebuilt after seeding, its size varies a little between runs.",
+    "blocks": "8kB pages the statement read, from shared buffers or from disk. Measured.",
     "rows": "rows output by all plan nodes together, over all their loops. Measured. Counts the work between the nodes, "
     "so a filter moved to a node that runs more often shows even when the result is the same.",
     "max_loops": "how often the busiest plan node ran. Measured. A node running once per index row instead of once per "
@@ -85,6 +84,7 @@ def seed_index(seed_sql, **params):
     db.session.execute(text("ALTER TABLE ai_search_index DISABLE TRIGGER ai_search_paths_maintain_trg"))
     rows = db.session.execute(seed_sql, params).rowcount
     assert rows <= MAX_SEED_ROWS, f"ANALYZE would sample {MAX_SEED_ROWS} of the {rows} seeded rows"
+    # Sorted, see `sorted_gist_build`: built by insertion its size would differ per run.
     db.session.execute(text(f"REINDEX INDEX {GIST_INDEX}"))
     # Inserted rows wait in the GIN index's pending list until something flushes it, and how much has been flushed by
     # then varies between runs. Rebuilt, it has none.
@@ -149,17 +149,12 @@ def _blocks(node):
     return node["Shared Hit Blocks"] + node["Shared Read Blocks"]
 
 
-def _own_blocks(node):
-    return _blocks(node) - sum(map(_blocks, node.get("Plans", [])))
-
-
 def plan_metrics(plan):
     """What one statement cost Postgres, as the `METRICS`."""
     nodes = list(plan_nodes(plan))
-    gist_blocks = sum(_own_blocks(node) for node in nodes if node.get("Index Name") == GIST_INDEX)
     return {
         "cost": plan["Total Cost"],
-        "blocks": _blocks(plan) - gist_blocks,
+        "blocks": _blocks(plan),
         "rows": sum(node["Actual Rows"] * node["Actual Loops"] for node in nodes),
         "max_loops": max(node["Actual Loops"] for node in nodes),
         "filtered": sum(node.get(removed, 0) * node["Actual Loops"] for node in nodes for removed in ROWS_REMOVED_KEYS),
