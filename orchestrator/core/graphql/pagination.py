@@ -14,6 +14,8 @@ from typing import Any, Generic, TypeVar
 
 import strawberry
 
+from orchestrator.core.graphql.schemas.search import MatchingFieldType, SearchMetadataType
+
 GenericType = TypeVar("GenericType")
 
 
@@ -59,6 +61,35 @@ class Edge(Generic[GenericType]):
 
     node: GenericType
     cursor: str
+
+
+@strawberry.type(description="A search hit: the matched entity and how it matched the search")
+class SearchEdge(Generic[GenericType]):
+    """Search hit wrapping its entity.
+
+    Score and match data live here, not on the entity type, which non-search queries share.
+    """
+
+    node: GenericType
+    score: float
+    perfect_match: int
+    matching_fields: list[MatchingFieldType]
+
+
+@strawberry.type(description="A paginated list that can also return search hits")
+class SearchConnection(Connection[GenericType], Generic[GenericType]):
+    """Connection of a list resource that accepts a `search` argument.
+
+    Without `search` the search fields are null; with it `page` is null, as `page` only serves the legacy arguments.
+    """
+
+    page: list["GenericType"] | None = None  # type: ignore[assignment]
+    search_edges: list[SearchEdge[GenericType]] | None = None
+    search_metadata: SearchMetadataType | None = None
+    next_page_cursor: str | None = strawberry.field(
+        default=None,
+        description="Set when more hits follow; pass as search.cursor for the next page",
+    )
 
 
 EMPTY_PAGE: Connection[Any] = Connection(

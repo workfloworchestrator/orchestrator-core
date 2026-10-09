@@ -222,6 +222,55 @@ def test_search_input_with_order_by() -> None:
     assert result.order_by.direction == OrderDirection.DESC
 
 
+ELASTIC_STATUS_FILTER = {"bool": {"should": [{"term": {"subscription.status": "active"}}]}}
+
+
+def test_search_input_converts_elastic_filters() -> None:
+    result = SearchInput(elastic_filters=ELASTIC_STATUS_FILTER).to_select_query(EntityType.SUBSCRIPTION)
+
+    assert result.filters == FilterTree(
+        op=BooleanOperator.AND,
+        children=[
+            PathFilter(
+                path="subscription.status",
+                condition=EqualityFilter(op=FilterOp.EQ, value="active"),
+                value_kind=UIType.STRING,
+            )
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "elastic_filters",
+    [
+        pytest.param({"bool": {}}, id="empty-bool"),
+        pytest.param({"match": {"subscription.status": "active"}}, id="unsupported-query"),
+        pytest.param({"term": {}}, id="term-without-field"),
+    ],
+)
+def test_search_input_rejects_invalid_elastic_filters(elastic_filters) -> None:
+    with pytest.raises(ValueError):
+        SearchInput(elastic_filters=elastic_filters).to_select_query(EntityType.SUBSCRIPTION)
+
+
+def test_search_input_rejects_both_filter_formats() -> None:
+    search = SearchInput(
+        filters=FilterTreeInput(
+            filters=[
+                PathFilterInput(
+                    path="subscription.status",
+                    condition=FilterConditionInput(op=FilterOp.EQ, value="active"),
+                    value_kind=UIType.STRING,
+                )
+            ]
+        ),
+        elastic_filters=ELASTIC_STATUS_FILTER,
+    )
+
+    with pytest.raises(ValueError, match="Pass either filters or elasticFilters, not both"):
+        search.to_select_query(EntityType.SUBSCRIPTION)
+
+
 def test_comparison_op_invalid_value_kind_raises() -> None:
     condition = FilterConditionInput(op=FilterOp.GT, value="42")
     with pytest.raises(ValueError, match="Operator .* is not valid for value_kind"):

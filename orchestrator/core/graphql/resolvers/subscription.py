@@ -10,9 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import cast
+from typing import Annotated, cast
 from uuid import UUID
 
+import strawberry
 import structlog
 from graphql import GraphQLError
 from pydantic.alias_generators import to_camel as to_lower_camel
@@ -35,9 +36,11 @@ from orchestrator.core.db.sorting.subscription import (
     sort_subscriptions,
     subscription_sort_fields,
 )
-from orchestrator.core.graphql.pagination import Connection
+from orchestrator.core.graphql.pagination import SearchConnection
+from orchestrator.core.graphql.resource_search import execute_resource_search, to_search_connection
 from orchestrator.core.graphql.schemas.product import ProductModelGraphql
 from orchestrator.core.graphql.schemas.subscription import SubscriptionInterface
+from orchestrator.core.graphql.search_inputs import ResourceSearchInput
 from orchestrator.core.graphql.types import (
     GraphqlFilter,
     GraphqlSort,
@@ -49,6 +52,7 @@ from orchestrator.core.graphql.utils import (
     is_querying_page_data,
     to_graphql_result_page,
 )
+from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.utils.get_subscription_dict import get_subscription_dict
 
 logger = structlog.get_logger(__name__)
@@ -107,14 +111,37 @@ async def resolve_subscription(info: OrchestratorInfo, id: UUID) -> Subscription
     return None
 
 
-async def resolve_subscriptions(
+async def search_subscriptions(
+    info: OrchestratorInfo, search: ResourceSearchInput
+) -> SearchConnection[SubscriptionInterface]:
+    search_page = await execute_resource_search(info, EntityType.SUBSCRIPTION, search)
+
+    stmt = (
+        select(SubscriptionTable)
+        .join(ProductTable)
+        .options(contains_eager(SubscriptionTable.product))
+        .where(SubscriptionTable.subscription_id.in_([UUID(entity_id) for entity_id in search_page.entity_ids]))
+    )
+    subscriptions = (await run_in_threadpool(db.session.scalars, stmt)).all() if search_page.entity_ids else []
+    graphql_subscriptions = cast(
+        list[SubscriptionInterface], await gather_nice(format_subscription(info, s) for s in subscriptions)
+    )
+    graphql_subscriptions_map = {
+        str(subscription.subscription_id): subscription for subscription in graphql_subscriptions
+    }
+
+    return to_search_connection(search_page, graphql_subscriptions_map, has_previous_page=search.cursor is not None)
+
+
+async def query_subscriptions(
     info: OrchestratorInfo,
-    filter_by: list[GraphqlFilter] | None = None,
-    sort_by: list[GraphqlSort] | None = None,
-    first: int = 10,
-    after: int = 0,
-    query: str | None = None,
-) -> Connection[SubscriptionInterface]:
+    filter_by: list[GraphqlFilter] | None,
+    sort_by: list[GraphqlSort] | None,
+    first: int,
+    after: int,
+    query: str | None,
+) -> SearchConnection[SubscriptionInterface]:
+    """List subscriptions with the legacy filterBy/sortBy/query arguments and offset paging."""
     _error_handler = create_resolver_error_handler(info)
 
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
@@ -152,6 +179,25 @@ async def resolve_subscriptions(
         graphql_subscriptions = list(await gather_nice((format_subscription(info, p) for p in subscriptions)))  # type: ignore
     logger.info("Resolve subscriptions", filter_by=filter_by, total=total)
 
-    return to_graphql_result_page(
+    connection = to_graphql_result_page(
         graphql_subscriptions, first, after, total, subscription_sort_fields(), subscription_filter_fields()
     )
+    return SearchConnection(page=connection.page, page_info=connection.page_info)
+
+
+async def resolve_subscriptions(
+    info: OrchestratorInfo,
+    filter_by: Annotated[
+        list[GraphqlFilter] | None, strawberry.argument(deprecation_reason="Use search.filters instead")
+    ] = None,
+    sort_by: Annotated[
+        list[GraphqlSort] | None, strawberry.argument(deprecation_reason="Use search.orderBy instead")
+    ] = None,
+    first: Annotated[int, strawberry.argument(deprecation_reason="Use search.limit instead")] = 10,
+    after: Annotated[int, strawberry.argument(deprecation_reason="Use search.cursor instead")] = 0,
+    query: Annotated[str | None, strawberry.argument(deprecation_reason="Use search.query instead")] = None,
+    search: ResourceSearchInput | None = None,
+) -> SearchConnection[SubscriptionInterface]:
+    if search is not None:
+        return await search_subscriptions(info, search)
+    return await query_subscriptions(info, filter_by, sort_by, first, after, query)

@@ -37,7 +37,7 @@ from orchestrator.core.graphql.extensions.model_cache import ModelCacheExtension
 from orchestrator.core.graphql.extensions.stats import StatsExtension
 from orchestrator.core.graphql.mutations.customer_description import CustomerSubscriptionDescriptionMutation
 from orchestrator.core.graphql.mutations.start_process import ProcessMutation
-from orchestrator.core.graphql.pagination import Connection
+from orchestrator.core.graphql.pagination import Connection, SearchConnection
 from orchestrator.core.graphql.resolvers import (
     SettingsMutation,
     resolve_customer,
@@ -114,8 +114,9 @@ class OrchestratorQuery:
     subscription: SubscriptionInterface | None = authenticated_field(
         resolver=resolve_subscription, description="Returns a single Subscription"
     )
-    subscriptions: Connection[SubscriptionInterface] = authenticated_field(
-        resolver=resolve_subscriptions, description="Returns list of subscriptions"
+    subscriptions: SearchConnection[SubscriptionInterface] = authenticated_field(
+        resolver=resolve_subscriptions,
+        description="Returns list of subscriptions; pass `search` for LLM search with scored searchEdges",
     )
     settings: StatusType = authenticated_field(
         resolver=resolve_settings,
