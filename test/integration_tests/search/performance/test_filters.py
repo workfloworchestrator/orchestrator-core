@@ -17,9 +17,10 @@ The index has one row per (entity, path), so a filter evaluated per index row in
 paths-per-entity times too much. The tests assert that no plan node runs more often than there are entities, and
 snapshot what each scenario's statements cost Postgres in ``plan_metrics/filters.pg<major>.md``; see `_plans`.
 
-Each leaf of a `FilterTree` compiles to a correlated ``EXISTS`` (``NOT EXISTS`` for ``not_has_component``) on the
-index, combined with AND and OR. Whether Postgres runs such a subquery once, as a hashed SubPlan or a semi-join, or once
-per outer row depends on where it sits in the tree; the xfail marks below name the shapes where it runs per row.
+A `FilterTree` compiles to an uncorrelated set of entity ids (INTERSECT for AND, UNION for OR, EXCEPT for
+``not_has_component``), applied as a single ``entity_id IN (...)``, so each leaf runs once rather than once per index
+row. The shapes here nest AND, OR and ``not_has_component`` in the ways that, compiled to correlated ``EXISTS``
+instead, made Postgres re-run a leaf per index row.
 """
 
 # TODO: Scenarios still to cover:
@@ -84,23 +85,6 @@ SEED_SQL = text(
     """
 )
 
-# Why the xfail cases fail. #1983 (fix-slow-or-search-filter) compiles the filter tree to uncorrelated entity-id sets
-# instead (INTERSECT for AND, UNION for OR, EXCEPT for not_has_component), which makes them pass: it removes these
-# marks. strict=True turns any other change that makes them pass into a failure, so the marks cannot go stale.
-#
-# At the top of the WHERE clause, the planner runs each EXISTS of an OR once, as a hashed SubPlan. Inside an AND it
-# drives from the other child's matching index rows instead, and re-runs the OR's EXISTS for each of them: 24 per
-# entity here, so 15,816 runs for 1,000 entities.
-EXISTS_UNDER_OR_IN_AND = "EXISTS under OR inside AND is re-run per index row; fixed by #1983"
-# NOT EXISTS inside an AND becomes an anti-join probed for each index row of the other child's entities, and each probe
-# matches `path ~ '*.node.*'` as a filter on every path of the entity instead of as an index condition: 21,900 runs and
-# 533,100 ltq_regex calls for 1,000 entities.
-NOT_EXISTS_IN_AND = "NOT EXISTS inside AND is re-run per index row; fixed by #1983"
-# `build_simple_count_query` counts `base_query.c.entity_id`, a column of the candidate query itself rather than of
-# its subquery, so SQLAlchemy adds the candidate query as a second FROM: the count runs over the cartesian product of
-# both. On top of that the candidate query has EXISTS_UNDER_OR_IN_AND.
-COUNT_OVER_SECOND_FROM = "count(distinct) references the inner query, adding it as a second FROM; fixed by #1983"
-
 
 def _entity_id(n):
     return UUID(int=n)
@@ -156,7 +140,6 @@ FILTER_SHAPES = [
         STATUS_AND_SPEED_OR_CUSTOMER,
         _matches_status_and_speed_or_customer,
         id="status_and_nested_speed_or_customer",
-        marks=pytest.mark.xfail(strict=True, reason=EXISTS_UNDER_OR_IN_AND),
     ),
     pytest.param(
         {"op": "OR", "children": [{"op": "AND", "children": [ACTIVE, FAST]}, CUST7]},
@@ -172,7 +155,6 @@ FILTER_SHAPES = [
         {"op": "AND", "children": [ACTIVE, NO_NODE]},
         lambda n: _status(n) == "active" and not _has_node(n),
         id="status_and_no_node",
-        marks=pytest.mark.xfail(strict=True, reason=NOT_EXISTS_IN_AND),
     ),
     pytest.param(
         {"op": "OR", "children": [CUST7, NO_NODE]},
@@ -241,7 +223,6 @@ def test_select_runs_each_plan_node_at_most_once_per_entity(seeded_index, filter
     _assert_no_node_runs_per_index_row(plan_of(stmt))
 
 
-@pytest.mark.xfail(strict=True, reason=COUNT_OVER_SECOND_FROM)
 def test_count_runs_each_plan_node_at_most_once_per_entity(seeded_index):
     """The count query wraps the candidate query."""
     stmt = _count_stmt(STATUS_AND_SPEED_OR_CUSTOMER)
@@ -255,7 +236,6 @@ def test_count_runs_each_plan_node_at_most_once_per_entity(seeded_index):
 
 
 # Both pages count over the filter, page 2 twice; see `_create_cursor_info`.
-@pytest.mark.xfail(strict=True, reason=EXISTS_UNDER_OR_IN_AND)
 @pytest.mark.parametrize("page", [pytest.param(1, id="page_1"), pytest.param(2, id="page_2")])
 def test_search_total_count_runs_each_plan_node_at_most_once_per_entity(seeded_index, async_session, benchmark, page):
     """The search endpoint counts all matches, and from page 2 on also the matches from the cursor on."""
@@ -289,7 +269,6 @@ def _search_plans(page, async_session):
     return plans
 
 
-# Without the xfail marks of FILTER_SHAPES: a failing scenario's cost is what the snapshot should show.
 PLAN_SCENARIOS = {
     **{f"select-{shape.id}": partial(_select_plans, shape.values[0]) for shape in FILTER_SHAPES},
     "count": partial(_count_plans, STATUS_AND_SPEED_OR_CUSTOMER),
