@@ -17,6 +17,7 @@ import pytest
 from pydantic_settings import BaseSettings
 
 from orchestrator.core.services.settings_env_variables import (
+    EXPOSED_ENV_SETTINGS_INCLUDES,
     EXPOSED_ENV_SETTINGS_REGISTRY,
     expose_settings,
     get_all_exposed_settings,
@@ -26,10 +27,15 @@ from orchestrator.core.utils.expose_settings import SettingsEnvVariablesSchema, 
 
 @pytest.fixture(autouse=True)
 def clear_registry():
-    """Isolate each test by clearing the global registry before and after."""
+    """Isolate each test by clearing the global registry and restoring it afterwards."""
+    registry, includes = dict(EXPOSED_ENV_SETTINGS_REGISTRY), dict(EXPOSED_ENV_SETTINGS_INCLUDES)
     EXPOSED_ENV_SETTINGS_REGISTRY.clear()
+    EXPOSED_ENV_SETTINGS_INCLUDES.clear()
     yield
     EXPOSED_ENV_SETTINGS_REGISTRY.clear()
+    EXPOSED_ENV_SETTINGS_INCLUDES.clear()
+    EXPOSED_ENV_SETTINGS_REGISTRY.update(registry)
+    EXPOSED_ENV_SETTINGS_INCLUDES.update(includes)
 
 
 class _SimpleSettings(BaseSettings):
@@ -144,3 +150,30 @@ def test_get_all_exposed_settings_multiple_registrations_correct_variable_counts
 
     assert counts_by_name["simple"] == 3
     assert counts_by_name["another"] == 2
+
+
+def test_get_all_exposed_settings_with_include_only_returns_included_fields():
+    expose_settings("simple", _SimpleSettings(), include={"debug"})
+
+    result = get_all_exposed_settings()
+
+    assert [(v.env_name, v.env_value) for v in result[0].variables] == [("debug", False)]
+
+
+def test_get_all_exposed_settings_same_settings_full_and_partial():
+    settings = _SimpleSettings()
+    expose_settings("full", settings)
+    expose_settings("partial", settings, include={"port"})
+
+    result = {entry.name: [v.env_name for v in entry.variables] for entry in get_all_exposed_settings()}
+
+    assert result == {"full": ["debug", "host", "port"], "partial": ["port"]}
+
+
+def test_expose_settings_without_include_resets_previous_include():
+    expose_settings("simple", _SimpleSettings(), include={"port"})
+    expose_settings("simple", _SimpleSettings())
+
+    result = get_all_exposed_settings()
+
+    assert len(result[0].variables) == 3
