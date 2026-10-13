@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.schemas.search_requests import SearchRequest
+from orchestrator.core.schemas.search_requests import BaseSearchRequest
 from orchestrator.core.search.aggregations import AggregationType
 from orchestrator.core.search.core.types import EntityType, FieldType
 from orchestrator.core.search.filters import FilterCondition, FilterTree, LtreeFilter, PathFilter
@@ -302,7 +302,7 @@ async def _has_ai_search_index_for_entity_type(entity_type: EntityType, session:
 
 
 async def validate_structured_order_by_element(
-    entity_type: EntityType | None, request: SearchRequest | None, session: AsyncSession
+    entity_type: EntityType | None, request: BaseSearchRequest | None, session: AsyncSession
 ) -> None:
     """Validate that the structured order_by element is an indexed path for the entity type.
 

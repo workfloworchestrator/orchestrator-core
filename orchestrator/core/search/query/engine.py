@@ -127,7 +127,7 @@ async def _execute_search(
 
 
 async def execute_search(
-    query: SelectQuery,
+    query: SelectQuery | ExportQuery,
     db_session: AsyncSession,
     cursor: PageCursor | None = None,
     query_embedding: list[float] | None = None,
@@ -137,7 +137,7 @@ async def execute_search(
     This executes a SELECT action search using vector/fuzzy/filter search with ranking.
 
     Args:
-        query: SelectQuery with search criteria
+        query: SelectQuery or ExportQuery with search criteria
         db_session: Database session
         cursor: Optional pagination cursor
         query_embedding: Optional pre-computed embedding

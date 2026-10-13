@@ -25,7 +25,7 @@ from starlette.testclient import TestClient
 from orchestrator.core.api.api_v1.endpoints.search import EXPORT_ENTITY_TYPES, SearchExportEntity, router
 from orchestrator.core.db import get_async_session
 from orchestrator.core.search.core.types import EntityType, SearchMetadata
-from orchestrator.core.search.query.queries import BaseQuery, SelectExportQuery
+from orchestrator.core.search.query.queries import BaseQuery, ExportQuery
 from orchestrator.core.search.query.results import SearchResponse, SearchResult
 from test.unit_tests.search.fixtures.helpers import SIMPLE_SUBSCRIPTION_FILTER
 
@@ -86,7 +86,7 @@ def test_export_routes_entity_type(test_client, mock_execute_search, entity, ent
 
     assert response.status_code == HTTPStatus.OK
     query = mock_execute_search.call_args[0][0]
-    assert isinstance(query, SelectExportQuery)
+    assert isinstance(query, ExportQuery)
     assert query.entity_type == entity_type
 
 
@@ -146,6 +146,13 @@ def test_export_passes_order_by_and_response_columns(test_client, mock_execute_s
     query = mock_execute_search.call_args[0][0]
     assert query.order_by.element == "subscription.description"
     assert query.response_columns == ["subscription.status", "subscription.product.name"]
+
+
+def test_export_without_limit_uses_max_export_limit(test_client, mock_execute_search):
+    response = test_client.post("/api/search/subscriptions/export", json={"filters": FILTERS})
+
+    assert response.status_code == HTTPStatus.OK
+    assert mock_execute_search.call_args[0][0].limit == BaseQuery.MAX_EXPORT_LIMIT
 
 
 def test_export_does_not_paginate(test_client, mock_execute_search):
