@@ -36,7 +36,6 @@ from orchestrator.core.search.query.queries import (
     CountQuery,
     ExportQuery,
     Query,
-    SelectExportQuery,
     SelectQuery,
 )
 from orchestrator.core.settings import llm_settings
@@ -98,7 +97,6 @@ def test_max_export_limit_follows_setting():
     assert BaseQuery.MAX_LIMIT == 100
 
 
-@pytest.mark.parametrize("query_cls", [ExportQuery, SelectExportQuery])
 @pytest.mark.parametrize(
     "limit,valid",
     [
@@ -109,21 +107,25 @@ def test_max_export_limit_follows_setting():
         pytest.param(BaseQuery.MAX_EXPORT_LIMIT + 1, False, id="above-export-max"),
     ],
 )
-def test_export_query_limit_bounds(query_cls: type[SelectQuery | ExportQuery], limit: int, valid: bool):
+def test_export_query_limit_bounds(limit: int, valid: bool):
     if valid:
-        assert query_cls(entity_type=EntityType.SUBSCRIPTION, limit=limit).limit == limit
+        assert ExportQuery(entity_type=EntityType.SUBSCRIPTION, limit=limit).limit == limit
     else:
         with pytest.raises(ValidationError):
-            query_cls(entity_type=EntityType.SUBSCRIPTION, limit=limit)
+            ExportQuery(entity_type=EntityType.SUBSCRIPTION, limit=limit)
 
 
-def test_select_export_query_keeps_select_behaviour():
-    query = SelectExportQuery(entity_type=EntityType.SUBSCRIPTION, response_columns=["subscription.status"])
+def test_export_query_supports_select_options():
+    query = ExportQuery(
+        entity_type=EntityType.SUBSCRIPTION,
+        response_columns=["subscription.status"],
+        order_by={"element": "subscription.description", "direction": "desc"},
+    )
     assert query.limit == BaseQuery.MAX_EXPORT_LIMIT
-    assert query.query_type == "select"
     assert query.query_operation == QueryOperation.SELECT
     assert query.response_columns == ["subscription.status"]
-    assert isinstance(query, SelectQuery)
+    assert query.order_by is not None
+    assert query.order_by.element == "subscription.description"
 
 
 def test_select_query_rejects_export_sized_limit():

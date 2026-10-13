@@ -228,7 +228,8 @@ async def export_search(
 ) -> SearchResultsSchema[SearchResult]:
     """Run a search with the export limit and return all results at once.
 
-    Accepts the same body as the search endpoints, but `limit` may go up to `SEARCH_MAX_EXPORT_LIMIT`.
+    Accepts the same body as the search endpoints, but `limit` defaults to, and may go up to,
+    `SEARCH_MAX_EXPORT_LIMIT`, so clients can leave it out to export as much as allowed.
     The results are not paginated and the query is not saved: `page_info.has_next_page` signals that
     more results exist than were exported, but no cursor is returned.
     """

@@ -26,7 +26,7 @@ from orchestrator.core.search.core.types import EntityType, RetrieverType, UITyp
 from orchestrator.core.search.filters.base import PathFilter
 from orchestrator.core.search.indexing.field_types import clear_field_type_cache
 from orchestrator.core.search.query.mixins import StructuredOrderBy
-from orchestrator.core.search.query.queries import BaseQuery, SelectExportQuery, SelectQuery
+from orchestrator.core.search.query.queries import BaseQuery, ExportQuery, SelectQuery
 from orchestrator.core.settings import llm_settings
 
 
@@ -84,11 +84,11 @@ def test_export_request_default_limit() -> None:
     "request_cls,expected_query_cls",
     [
         pytest.param(SearchRequest, SelectQuery, id="search"),
-        pytest.param(SearchExportRequest, SelectExportQuery, id="export"),
+        pytest.param(SearchExportRequest, ExportQuery, id="export"),
     ],
 )
 def test_to_query_returns_matching_query_class(
-    request_cls: type[SearchRequest], expected_query_cls: type[SelectQuery]
+    request_cls: type[SearchRequest | SearchExportRequest], expected_query_cls: type[SelectQuery | ExportQuery]
 ) -> None:
     query = request_cls(query="fiber", limit=50, response_columns=["subscription.status"]).to_query(
         EntityType.SUBSCRIPTION
@@ -107,6 +107,13 @@ def test_export_request_to_query_keeps_large_limit_and_order_by() -> None:
 def test_export_request_rejects_order_by_with_query() -> None:
     with pytest.raises(ValidationError, match="order_by can only be set when query is empty"):
         SearchExportRequest(query="hello", order_by=StructuredOrderBy(element="name"))
+
+
+def test_export_request_converts_elastic_filters() -> None:
+    request = SearchExportRequest(filters={"term": {"subscription.status": "active"}})  # type: ignore[arg-type]
+    query = request.to_query(EntityType.SUBSCRIPTION)
+    assert query.filters is not None
+    assert [str(leaf.path) for leaf in query.filters.get_all_leaves()] == ["subscription.status"]
 
 
 def test_export_request_forbids_extra_fields() -> None:

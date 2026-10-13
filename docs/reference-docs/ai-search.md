@@ -162,7 +162,7 @@ All three interfaces run the same engine.
 
 | Interface   | Where                       | What it offers                                                                             |
 |-------------|-----------------------------|--------------------------------------------------------------------------------------------|
-| **REST**    | `/api/search` (authenticated) | `POST /subscriptions`, `/products`, `/processes`, `/workflows` to search; `GET /paths` for field autocomplete; `GET /definitions` for the operators valid per UI type; `POST /{entity}/export` to return up to `SEARCH_MAX_EXPORT_LIMIT` results in one unpaginated response; `GET /queries/{id}`, `/results`, `/export` to re-run or export a saved query |
+| **REST**    | `/api/search` (authenticated) | `POST /subscriptions`, `/products`, `/processes`, `/workflows` to search; `GET /paths` for field autocomplete; `GET /definitions` for the operators valid per UI type; `POST /{entity}/export` to return up to `SEARCH_MAX_EXPORT_LIMIT` results in one unpaginated response (`limit` defaults to that maximum); `GET /queries/{id}`, `/results`, `/export` to re-run or export a saved query |
 | **GraphQL** | root fields                 | `search`, `searchPaths`, `searchDefinitions`, `searchQuery`, `searchQueryResults`, `searchQueryExport`, mirroring REST |
 | **Agent tools** | `/api/agent`            | `search`, `aggregate`, `discover_filter_paths`, `get_valid_operators`, `resolve_entity`, `export_query`, exposed as read-only [MCP](mcp.md) tools when `MCP_ENABLED` is set |
 
@@ -538,7 +538,7 @@ All embedding settings live in `LLMSettings` (`orchestrator/core/settings.py`).
 | `LLM_MAX_RETRIES` / `LLM_TIMEOUT`       | `3` / `30`                       | LiteLLM retry and timeout, used during indexing             |
 | `LLM_FORCE_EXTENSION_MIGRATION`         | `False`                          | force `CREATE EXTENSION` in the search migration            |
 | `SEARCH_SEMANTIC_CANDIDATE_LIMIT`       | `2000`                           | fields the semantic retriever, and the hybrid retriever's semantic source, read from the HNSW index per search; bounds how deep pagination reaches |
-| `SEARCH_MAX_EXPORT_LIMIT`               | `1000`                           | maximum `limit` of an export (`POST /{entity}/export`, saved-query export); normal search stays capped at 100 |
+| `SEARCH_MAX_EXPORT_LIMIT`               | `1000`                           | maximum and default `limit` of an export (`POST /{entity}/export`, saved-query export); normal search stays capped at 100 |
 
 Live queries do not use `LLM_MAX_RETRIES`/`LLM_TIMEOUT`: they embed with a 5-second timeout and no
 retries, because a slow search is worse than one without semantic ranking.

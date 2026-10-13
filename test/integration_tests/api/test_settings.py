@@ -109,10 +109,7 @@ def test_get_exposed_settings_includes_search_settings(test_client):
     assert response.status_code == HTTPStatus.OK
 
     search_settings = next(entry for entry in response.json() if entry["name"] == "search_settings")
-    assert [var["env_name"] for var in search_settings["variables"]] == [
-        "EMBEDDING_API_ENABLED",
-        "SEARCH_MAX_EXPORT_LIMIT",
-    ]
+    assert [var["env_name"] for var in search_settings["variables"]] == ["EMBEDDING_API_ENABLED"]
 
 
 def test_get_cache_names(test_client):
