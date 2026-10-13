@@ -220,7 +220,7 @@ def test_create_workflows_migration_wizard_never_offers_source_workflows_for_del
         SimpleNamespace(name=name, target="SYSTEM", description="d", is_task=False, products=[product])
         for name in ("designed_wf", "stale_wf")
     ]
-    source = SimpleNamespace(get=lambda name: None, names=lambda: {"designed_wf"})
+    source = SimpleNamespace(get=lambda name: None, names=lambda: set(), owned_names=lambda: {"designed_wf"})
 
     def menu(options, **_kw):
         dangling = dict(options)["Delete unregistered workflows from database"]

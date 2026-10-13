@@ -111,7 +111,9 @@ set_authorizer_factory(lambda name: my_task_authorizer(name))
 `get_workflow` falls back to *workflow sources* for names that are not registered in code with a
 `LazyWorkflowInstance`. The designer registers a source that loads a designed workflow from the database and builds
 it, so the API, workers, the scheduler and the CLI all resolve designed workflows without further configuration.
-Applications can register their own source with `register_workflow_source`.
+Applications can register their own source with `register_workflow_source`. A source reports the workflows it
+provides (`names`) and the `workflows` rows it manages, archived ones included (`owned_names`); the
+`migrate-tasks`/`migrate-workflows` wizards never offer the latter for deletion.
 
 Built workflows are cached per process and rebuilt when the stored definition changes. A definition cannot be
 changed or deleted while the workflow has unfinished processes, because a resumed process continues at a step

@@ -26,6 +26,7 @@ from orchestrator.core.workflows import (
     all_workflow_names,
     get_workflow,
     register_workflow_source,
+    source_owned_workflow_names,
     source_workflow_names,
 )
 
@@ -55,6 +56,9 @@ class DictSource:
 
     def names(self) -> set[str]:
         return set(self.workflows)
+
+    def owned_names(self) -> set[str]:
+        return self.names() | {"archived"}
 
 
 @pytest.mark.parametrize(
@@ -117,4 +121,5 @@ def test_workflow_names(sources) -> None:
     register_workflow_source(DictSource({"designed_b": None}))
 
     assert source_workflow_names() == {"designed_a", "designed_b"}
+    assert source_owned_workflow_names() == {"designed_a", "designed_b", "archived"}
     assert all_workflow_names() == set(ALL_WORKFLOWS) | {"designed_a", "designed_b"}

@@ -127,6 +127,8 @@ def test_delete(status, result, row_kept):
 
     assert get_workflow(REPORT.name) is None
     assert REPORT.name not in designed_workflows.names()
+    # Archived rows stay owned by the designer, so cleanup tooling never treats them as dangling.
+    assert (REPORT.name in designed_workflows.owned_names()) is row_kept
     assert (_row(REPORT.name, include_deleted=True) is not None) is row_kept
     with pytest.raises(DesignerError):
         get_workflow_definition(REPORT.name)

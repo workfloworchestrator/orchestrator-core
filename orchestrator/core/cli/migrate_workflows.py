@@ -202,7 +202,7 @@ def create_workflows_migration_wizard() -> tuple[list[dict], list[dict]]:
         - list of workflow items to delete in the migration
     """
     # Workflows provided by a workflow source (e.g. designed in the GUI) live only in the database; leave them alone.
-    source_workflows = orchestrator.core.workflows.source_workflow_names()
+    source_workflows = orchestrator.core.workflows.source_owned_workflow_names()
     database_workflows = [wf for wf in db.session.scalars(select(WorkflowTable)) if wf.name not in source_workflows]
     registered_workflows = orchestrator.core.workflows.ALL_WORKFLOWS
     system_workflow_names = {wf.name for wf in database_workflows if wf.is_task}

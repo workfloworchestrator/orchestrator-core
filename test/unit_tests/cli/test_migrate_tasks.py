@@ -219,8 +219,9 @@ def test_create_tasks_migration_wizard_returns_empty(abort: bool):
 class _NamesSource:
     """A workflow source that only reports names, like one backed by workflows designed in the GUI."""
 
-    def __init__(self, *names: str):
+    def __init__(self, *names: str, archived: tuple[str, ...] = ()):
         self._names = set(names)
+        self._archived = set(archived)
 
     def get(self, name):
         return None
@@ -228,9 +229,12 @@ class _NamesSource:
     def names(self):
         return self._names
 
+    def owned_names(self):
+        return self._names | self._archived
+
 
 def test_create_tasks_migration_wizard_never_offers_source_tasks_for_deletion():
-    """Tasks provided by a workflow source have no LazyWorkflowInstance but must not count as dangling."""
+    """Tasks provided by a workflow source, archived ones included, have no LazyWorkflowInstance but are not dangling."""
     offered: dict[str, list[str]] = {}
 
     def menu(options, **_kw):
@@ -243,9 +247,13 @@ def test_create_tasks_migration_wizard_never_offers_source_tasks_for_deletion():
         return lambda s: {**s, "done": True, "abort": True}
 
     with (
-        _mock_db_tasks([_task_row("designed_task"), _task_row("stale_task")]),
+        _mock_db_tasks([_task_row("designed_task"), _task_row("archived_designed_task"), _task_row("stale_task")]),
         _mock_all_workflows([]),
-        mock.patch.object(orchestrator.core.workflows, "WORKFLOW_SOURCES", [_NamesSource("designed_task")]),
+        mock.patch.object(
+            orchestrator.core.workflows,
+            "WORKFLOW_SOURCES",
+            [_NamesSource("designed_task", archived=("archived_designed_task",))],
+        ),
         mock.patch.object(migrate_tasks, "_prompt_user_menu", side_effect=menu),
     ):
         migrate_tasks.create_tasks_migration_wizard()

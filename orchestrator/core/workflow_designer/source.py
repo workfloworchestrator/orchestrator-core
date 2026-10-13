@@ -70,17 +70,10 @@ class DesignedWorkflowSource:
             return workflow
 
     def names(self) -> set[str]:
-        if not _db_configured():
-            return set()
-        stmt = (
-            select(WorkflowTable.name)
-            .join(
-                WorkflowDesignerDefinitionTable,
-                WorkflowDesignerDefinitionTable.workflow_id == WorkflowTable.workflow_id,
-            )
-            .where(WorkflowTable.deleted_at.is_(None))
-        )
-        return set(_execute_safely(lambda: db.session.scalars(stmt).all(), default=[]))
+        return _designed_names(include_archived=False)
+
+    def owned_names(self) -> set[str]:
+        return _designed_names(include_archived=True)
 
     def invalidate(self, name: str | None = None) -> None:
         """Forget built workflows, e.g. after the definition or the authorizer changed in this process."""
@@ -89,6 +82,17 @@ class DesignedWorkflowSource:
                 self._cache.clear()
             else:
                 self._cache.pop(name, None)
+
+
+def _designed_names(include_archived: bool) -> set[str]:
+    if not _db_configured():
+        return set()
+    stmt = select(WorkflowTable.name).join(
+        WorkflowDesignerDefinitionTable, WorkflowDesignerDefinitionTable.workflow_id == WorkflowTable.workflow_id
+    )
+    if not include_archived:
+        stmt = stmt.where(WorkflowTable.deleted_at.is_(None))
+    return set(_execute_safely(lambda: db.session.scalars(stmt).all(), default=[]))
 
 
 def _execute_safely(query: Any, default: Any) -> Any:

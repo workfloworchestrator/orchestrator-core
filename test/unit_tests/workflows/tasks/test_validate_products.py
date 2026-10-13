@@ -24,7 +24,7 @@ from orchestrator.core.utils.functional import orig
 
 
 def _check(db_names: set[str], code_names: set[str], source_names: set[str]):
-    source = SimpleNamespace(get=lambda name: None, names=lambda: source_names)
+    source = SimpleNamespace(get=lambda name: None, names=lambda: source_names, owned_names=lambda: source_names)
     with (
         mock.patch.object(validate_products, "get_workflows", return_value=[SimpleNamespace(name=n) for n in db_names]),
         mock.patch.object(workflows_module, "ALL_WORKFLOWS", dict.fromkeys(code_names)),

@@ -115,6 +115,13 @@ class WorkflowSource(Protocol):
         """Return the names of all workflows this source provides."""
         ...
 
+    def owned_names(self) -> set[str]:
+        """Return the names of all `workflows` rows this source manages, including archived (soft deleted) ones.
+
+        Tooling that cleans up rows without a workflow in code must leave these alone.
+        """
+        ...
+
 
 WORKFLOW_SOURCES: list[WorkflowSource] = []
 
@@ -128,6 +135,11 @@ def register_workflow_source(source: WorkflowSource) -> None:
 def source_workflow_names() -> set[str]:
     """Names of the workflows provided by registered sources rather than by code."""
     return {name for source in WORKFLOW_SOURCES for name in source.names()}
+
+
+def source_owned_workflow_names() -> set[str]:
+    """Names of every `workflows` row managed by a registered source, including archived ones."""
+    return {name for source in WORKFLOW_SOURCES for name in source.owned_names()}
 
 
 def all_workflow_names() -> set[str]:
