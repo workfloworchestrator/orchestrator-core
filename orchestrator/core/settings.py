@@ -192,6 +192,12 @@ class LLMSettings(BaseSettings):
         ),
     )
 
+    SEARCH_MAX_EXPORT_LIMIT: int = Field(
+        1000,
+        gt=0,
+        description="Maximum number of results a single export request may return.",
+    )
+
     # Indexing behaviour
     SEARCH_INDEXING_STRICT: bool = False  # Raise on indexing errors (dev/test); log and continue by default
 
@@ -207,8 +213,8 @@ if app_settings.EXPOSE_SETTINGS:
 if app_settings.EXPOSE_OAUTH_SETTINGS:
     expose_settings("oauth2lib_settings", oauth2lib_settings)
 
-# Always expose whether semantic search is enabled or not
-expose_settings("search_settings", llm_settings, include={"EMBEDDING_API_ENABLED"})
+# Always expose whether semantic search is enabled and how many results an export may return
+expose_settings("search_settings", llm_settings, include={"EMBEDDING_API_ENABLED", "SEARCH_MAX_EXPORT_LIMIT"})
 
 
 class Authorizers(BaseModel):

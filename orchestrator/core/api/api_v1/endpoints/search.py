@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from enum import Enum
 from uuid import UUID
 
 import structlog
@@ -26,7 +27,7 @@ from orchestrator.core.schemas.search import (
     PathsResponse,
     SearchResultsSchema,
 )
-from orchestrator.core.schemas.search_requests import SearchRequest
+from orchestrator.core.schemas.search_requests import SearchExportRequest, SearchRequest
 from orchestrator.core.search.core.exceptions import InvalidCursorError, QueryStateNotFoundError
 from orchestrator.core.search.core.types import EntityType, UIType
 from orchestrator.core.search.filters.definitions import TypeDefinition, generate_definitions
@@ -191,6 +192,72 @@ async def search_resource_types(
 ) -> SearchResultsSchema[SearchResult]:
     return await _perform_search_and_fetch(
         session, EntityType.RESOURCE_TYPE, request, cursor, include_columns=include_columns
+    )
+
+
+class SearchExportEntity(str, Enum):
+    """Entity path segments that support `POST /search/{entity}/export`."""
+
+    SUBSCRIPTIONS = "subscriptions"
+    WORKFLOWS = "workflows"
+    PRODUCTS = "products"
+    PROCESSES = "processes"
+    PRODUCT_BLOCKS = "product_blocks"
+    RESOURCE_TYPES = "resource_types"
+
+
+EXPORT_ENTITY_TYPES: dict[SearchExportEntity, EntityType] = {
+    SearchExportEntity.SUBSCRIPTIONS: EntityType.SUBSCRIPTION,
+    SearchExportEntity.WORKFLOWS: EntityType.WORKFLOW,
+    SearchExportEntity.PRODUCTS: EntityType.PRODUCT,
+    SearchExportEntity.PROCESSES: EntityType.PROCESS,
+    SearchExportEntity.PRODUCT_BLOCKS: EntityType.PRODUCT_BLOCK,
+    SearchExportEntity.RESOURCE_TYPES: EntityType.RESOURCE_TYPE,
+}
+
+
+@router.post(
+    "/{entity}/export",
+    response_model=SearchResultsSchema[SearchResult],
+    summary="Export search results in a single response",
+)
+async def export_search(
+    entity: SearchExportEntity,
+    request: SearchExportRequest,
+    session: AsyncSession = Depends(get_async_session),
+) -> SearchResultsSchema[SearchResult]:
+    """Run a search with the export limit and return all results at once.
+
+    Accepts the same body as the search endpoints, but `limit` may go up to `SEARCH_MAX_EXPORT_LIMIT`.
+    The results are not paginated and the query is not saved: `page_info.has_next_page` signals that
+    more results exist than were exported, but no cursor is returned.
+    """
+    entity_type = EXPORT_ENTITY_TYPES[entity]
+    try:
+        await validate_structured_order_by_element(entity_type, request, session)
+        search_response = await engine.execute_search(request.to_query(entity_type), session)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Export failed: {str(e)}",
+        )
+
+    cursor_info = (
+        CursorInfoSchema(
+            total_items=search_response.total_items,
+            start_cursor=search_response.start_cursor,
+            end_cursor=search_response.end_cursor,
+        )
+        if search_response.total_items
+        else None
+    )
+    return SearchResultsSchema(
+        data=search_response.results,
+        page_info=PageInfoSchema(has_next_page=search_response.has_more),
+        search_metadata=search_response.metadata,
+        cursor=cursor_info,
     )
 
 

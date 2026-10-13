@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -18,7 +19,7 @@ from orchestrator.core.search.core.types import EntityType, RetrieverType
 from orchestrator.core.search.filters import ElasticQuery, FilterTree, elastic_to_filter_tree
 from orchestrator.core.search.indexing.field_types import resolve_field_value_kind
 from orchestrator.core.search.query.mixins import StructuredOrderBy
-from orchestrator.core.search.query.queries import SelectQuery
+from orchestrator.core.search.query.queries import BaseQuery, SelectExportQuery, SelectQuery
 
 
 class SearchRequest(BaseModel):
@@ -59,6 +60,8 @@ class SearchRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    _query_class: ClassVar[type[SelectQuery]] = SelectQuery
+
     def to_query(self, entity_type: EntityType) -> SelectQuery:
         """Convert API request to SelectQuery domain model.
 
@@ -75,7 +78,7 @@ class SearchRequest(BaseModel):
                 value_kind_resolver=lambda path, _value: resolve_field_value_kind(entity_type, path),
             )
 
-        return SelectQuery(
+        return self._query_class(
             entity_type=entity_type,
             filters=filters,
             query_text=self.query,
@@ -90,3 +93,19 @@ class SearchRequest(BaseModel):
         if self.order_by and self.query:
             raise ValueError("order_by can only be set when query is empty")
         return self
+
+
+class SearchExportRequest(SearchRequest):
+    """API request model for exporting search results.
+
+    Same as SearchRequest, but the limit is bounded by the export limit (`SEARCH_MAX_EXPORT_LIMIT`).
+    """
+
+    limit: int = Field(
+        default=BaseQuery.MAX_EXPORT_LIMIT,
+        ge=BaseQuery.MIN_LIMIT,
+        le=BaseQuery.MAX_EXPORT_LIMIT,
+        description="Maximum number of search results to export.",
+    )
+
+    _query_class: ClassVar[type[SelectQuery]] = SelectExportQuery

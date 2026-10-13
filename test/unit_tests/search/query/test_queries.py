@@ -30,7 +30,16 @@ from orchestrator.core.search.core.types import EntityType, QueryOperation
 from orchestrator.core.search.filters import FilterTree
 from orchestrator.core.search.query.builder import build_aggregation_query, build_candidate_query
 from orchestrator.core.search.query.mixins import OrderBy, OrderDirection
-from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, Query, SelectQuery
+from orchestrator.core.search.query.queries import (
+    AggregateQuery,
+    BaseQuery,
+    CountQuery,
+    ExportQuery,
+    Query,
+    SelectExportQuery,
+    SelectQuery,
+)
+from orchestrator.core.settings import llm_settings
 
 pytestmark = pytest.mark.search
 
@@ -79,9 +88,47 @@ def test_select_query_with_filters(select_query_with_filters: SelectQuery):
 
 def test_export_query_limits(export_query_minimal: ExportQuery):
     """ExportQuery has higher limits than SelectQuery for bulk exports."""
-    assert export_query_minimal.limit == 1000
-    query_max = ExportQuery(entity_type=EntityType.SUBSCRIPTION, limit=10000)
-    assert query_max.limit == 10000
+    assert export_query_minimal.limit == BaseQuery.MAX_EXPORT_LIMIT
+    query_max = ExportQuery(entity_type=EntityType.SUBSCRIPTION, limit=BaseQuery.MAX_EXPORT_LIMIT)
+    assert query_max.limit == BaseQuery.MAX_EXPORT_LIMIT
+
+
+def test_max_export_limit_follows_setting():
+    assert BaseQuery.MAX_EXPORT_LIMIT == llm_settings.SEARCH_MAX_EXPORT_LIMIT
+    assert BaseQuery.MAX_LIMIT == 100
+
+
+@pytest.mark.parametrize("query_cls", [ExportQuery, SelectExportQuery])
+@pytest.mark.parametrize(
+    "limit,valid",
+    [
+        pytest.param(BaseQuery.MIN_LIMIT, True, id="min"),
+        pytest.param(BaseQuery.MAX_LIMIT + 1, True, id="above-search-max"),
+        pytest.param(BaseQuery.MAX_EXPORT_LIMIT, True, id="export-max"),
+        pytest.param(BaseQuery.MIN_LIMIT - 1, False, id="below-min"),
+        pytest.param(BaseQuery.MAX_EXPORT_LIMIT + 1, False, id="above-export-max"),
+    ],
+)
+def test_export_query_limit_bounds(query_cls: type[SelectQuery | ExportQuery], limit: int, valid: bool):
+    if valid:
+        assert query_cls(entity_type=EntityType.SUBSCRIPTION, limit=limit).limit == limit
+    else:
+        with pytest.raises(ValidationError):
+            query_cls(entity_type=EntityType.SUBSCRIPTION, limit=limit)
+
+
+def test_select_export_query_keeps_select_behaviour():
+    query = SelectExportQuery(entity_type=EntityType.SUBSCRIPTION, response_columns=["subscription.status"])
+    assert query.limit == BaseQuery.MAX_EXPORT_LIMIT
+    assert query.query_type == "select"
+    assert query.query_operation == QueryOperation.SELECT
+    assert query.response_columns == ["subscription.status"]
+    assert isinstance(query, SelectQuery)
+
+
+def test_select_query_rejects_export_sized_limit():
+    with pytest.raises(ValidationError):
+        SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=BaseQuery.MAX_LIMIT + 1)
 
 
 # ---------------------------------------------------------------------------
