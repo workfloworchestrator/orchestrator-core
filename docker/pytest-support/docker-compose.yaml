@@ -17,7 +17,9 @@
 services:
   ### Supporting services
   postgres:
-    image: 'pgvector/pgvector:pg17'
+    # Override TEST_POSTGRES_IMAGE to run against another Postgres major
+    # version, e.g. pgvector/pgvector:pg15 to regenerate pg15 snapshots.
+    image: '${TEST_POSTGRES_IMAGE:-pgvector/pgvector:pg17}'
     ports:
       - "5432:5432"
     environment:

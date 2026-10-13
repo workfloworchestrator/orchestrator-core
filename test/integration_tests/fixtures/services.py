@@ -41,11 +41,23 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 
+POSTGRES_IMAGE_ENV_VAR = "TEST_POSTGRES_IMAGE"
 DEFAULT_POSTGRES_IMAGE = "pgvector/pgvector:pg17"
 DEFAULT_REDIS_IMAGE = "redis:7"
 DEFAULT_POSTGRES_USER = "nwa"
 DEFAULT_POSTGRES_PASSWORD = "nwa"  # noqa: S105 — local-only test default
 DEFAULT_POSTGRES_DB = "orchestrator-core-test"
+
+
+def postgres_image() -> str:
+    """The Postgres image the testcontainers fallback starts.
+
+    Set ``TEST_POSTGRES_IMAGE`` to run the suite against another Postgres major version, for example
+    ``pgvector/pgvector:pg15`` to (re)generate the ``plan_metrics/*.pg15.md`` search snapshots. The bundled
+    ``docker/pytest-support/docker-compose.yaml`` honours the same variable. An unset or empty value falls back to
+    :data:`DEFAULT_POSTGRES_IMAGE`.
+    """
+    return os.environ.get(POSTGRES_IMAGE_ENV_VAR) or DEFAULT_POSTGRES_IMAGE
 
 
 @dataclass(frozen=True)
@@ -92,7 +104,7 @@ def _testcontainers_services() -> Iterator[ServiceURIs]:
         raise RuntimeError(_missing_services_message(["Postgres", "Redis"])) from exc
 
     pg = PostgresContainer(
-        image=DEFAULT_POSTGRES_IMAGE,
+        image=postgres_image(),
         username=DEFAULT_POSTGRES_USER,
         password=DEFAULT_POSTGRES_PASSWORD,
         dbname=DEFAULT_POSTGRES_DB,
