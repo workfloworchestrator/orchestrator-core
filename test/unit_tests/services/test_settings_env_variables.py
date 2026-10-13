@@ -17,8 +17,8 @@ import pytest
 from pydantic_settings import BaseSettings
 
 from orchestrator.core.services.settings_env_variables import (
-    EXPOSED_ENV_SETTINGS_INCLUDES,
     EXPOSED_ENV_SETTINGS_REGISTRY,
+    ExposedSettings,
     expose_settings,
     get_all_exposed_settings,
 )
@@ -28,14 +28,11 @@ from orchestrator.core.utils.expose_settings import SettingsEnvVariablesSchema, 
 @pytest.fixture(autouse=True)
 def clear_registry():
     """Isolate each test by clearing the global registry and restoring it afterwards."""
-    registry, includes = dict(EXPOSED_ENV_SETTINGS_REGISTRY), dict(EXPOSED_ENV_SETTINGS_INCLUDES)
+    registry = dict(EXPOSED_ENV_SETTINGS_REGISTRY)
     EXPOSED_ENV_SETTINGS_REGISTRY.clear()
-    EXPOSED_ENV_SETTINGS_INCLUDES.clear()
     yield
     EXPOSED_ENV_SETTINGS_REGISTRY.clear()
-    EXPOSED_ENV_SETTINGS_INCLUDES.clear()
     EXPOSED_ENV_SETTINGS_REGISTRY.update(registry)
-    EXPOSED_ENV_SETTINGS_INCLUDES.update(includes)
 
 
 class _SimpleSettings(BaseSettings):
@@ -54,8 +51,16 @@ def test_expose_settings_registers_in_dict():
     result = expose_settings("simple", settings)
 
     assert "simple" in EXPOSED_ENV_SETTINGS_REGISTRY
-    assert EXPOSED_ENV_SETTINGS_REGISTRY["simple"] is settings
+    assert EXPOSED_ENV_SETTINGS_REGISTRY["simple"] == ExposedSettings(settings, None)
+    assert EXPOSED_ENV_SETTINGS_REGISTRY["simple"].settings is settings
     assert result is settings
+
+
+def test_expose_settings_registers_include():
+    settings = _SimpleSettings()
+    expose_settings("simple", settings, include={"port"})
+
+    assert EXPOSED_ENV_SETTINGS_REGISTRY["simple"] == ExposedSettings(settings, {"port"})
 
 
 def test_expose_settings_returns_same_object():
@@ -70,7 +75,7 @@ def test_expose_settings_overwrites_existing_key():
     expose_settings("simple", settings_a)
     expose_settings("simple", settings_b)
 
-    assert EXPOSED_ENV_SETTINGS_REGISTRY["simple"] is settings_b
+    assert EXPOSED_ENV_SETTINGS_REGISTRY["simple"].settings is settings_b
 
 
 def test_get_all_exposed_settings_returns_empty_when_no_registrations():
@@ -176,4 +181,13 @@ def test_expose_settings_without_include_resets_previous_include():
 
     result = get_all_exposed_settings()
 
+    assert EXPOSED_ENV_SETTINGS_REGISTRY["simple"].include is None
     assert len(result[0].variables) == 3
+
+
+def test_get_all_exposed_settings_with_empty_include_exposes_no_fields():
+    expose_settings("simple", _SimpleSettings(), include=set())
+
+    result = get_all_exposed_settings()
+
+    assert result[0].variables == []
