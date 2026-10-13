@@ -130,8 +130,10 @@ To expose only a subset of the fields, pass `include`:
 expose_settings("my_public_settings", my_settings, include={"debug"})
 ```
 
-`orchestrator-core` always exposes `search_settings`, which contains only `EMBEDDING_API_ENABLED` from the LLM settings.
-The UI uses it to decide whether to show semantic/hybrid search options.
+`orchestrator-core` always exposes `search_settings`, which contains only `EMBEDDING_API_ENABLED` and
+`SEARCH_MAX_EXPORT_LIMIT` from the LLM settings. The UI uses `EMBEDDING_API_ENABLED` to decide whether to show
+semantic/hybrid search options, and `SEARCH_MAX_EXPORT_LIMIT` as the largest `limit` it may send to
+`POST /api/search/{entity}/export`.
 
 ## Lifecycle Validation Mode
 

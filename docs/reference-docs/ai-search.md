@@ -162,7 +162,7 @@ All three interfaces run the same engine.
 
 | Interface   | Where                       | What it offers                                                                             |
 |-------------|-----------------------------|--------------------------------------------------------------------------------------------|
-| **REST**    | `/api/search` (authenticated) | `POST /subscriptions`, `/products`, `/processes`, `/workflows` to search; `GET /paths` for field autocomplete; `GET /definitions` for the operators valid per UI type; `GET /queries/{id}`, `/results`, `/export` to re-run or export a saved query |
+| **REST**    | `/api/search` (authenticated) | `POST /subscriptions`, `/products`, `/processes`, `/workflows` to search; `GET /paths` for field autocomplete; `GET /definitions` for the operators valid per UI type; `POST /{entity}/export` to return up to `SEARCH_MAX_EXPORT_LIMIT` results in one unpaginated response; `GET /queries/{id}`, `/results`, `/export` to re-run or export a saved query |
 | **GraphQL** | root fields                 | `search`, `searchPaths`, `searchDefinitions`, `searchQuery`, `searchQueryResults`, `searchQueryExport`, mirroring REST |
 | **Agent tools** | `/api/agent`            | `search`, `aggregate`, `discover_filter_paths`, `get_valid_operators`, `resolve_entity`, `export_query`, exposed as read-only [MCP](mcp.md) tools when `MCP_ENABLED` is set |
 
@@ -371,8 +371,8 @@ nearest the query embedding straight from the entity type's partial HNSW index, 
 structured filters *inside* that scan, and rank only those. Ranking within the window is exact;
 only which fields enter the window is approximate, and the window bounds how deep pagination can
 reach. Exports keep the exhaustive plan, which scores every embedded field of every candidate and
-needs a sequential scan: an export is a single query, without a cursor, for up to 10000 entities,
-and a window of 2000 fields can never yield that many.
+needs a sequential scan: an export is a single query, without a cursor, for up to `SEARCH_MAX_EXPORT_LIMIT`
+(default 1000) entities, and a bounded window of fields cannot guarantee that many distinct entities.
 
 **Structured**: no relevance ranking (`score = 1.0`); results are ordered by an optional
 `order_by` field materialized from the index rows.
@@ -452,7 +452,7 @@ A search is one of four typed query objects:
 | Query            | Purpose                                   | Limit    |
 |------------------|-------------------------------------------|----------|
 | `SelectQuery`    | return matching entities                  | ≤ 100    |
-| `ExportQuery`    | bulk export matching entities             | ≤ 10 000 |
+| `ExportQuery`    | bulk export matching entities             | ≤ `SEARCH_MAX_EXPORT_LIMIT` (1000) |
 | `CountQuery`     | count, optionally grouped                 | n/a      |
 | `AggregateQuery` | `COUNT`/`SUM`/`AVG`/`MIN`/`MAX` over matches | n/a   |
 
@@ -538,6 +538,7 @@ All embedding settings live in `LLMSettings` (`orchestrator/core/settings.py`).
 | `LLM_MAX_RETRIES` / `LLM_TIMEOUT`       | `3` / `30`                       | LiteLLM retry and timeout, used during indexing             |
 | `LLM_FORCE_EXTENSION_MIGRATION`         | `False`                          | force `CREATE EXTENSION` in the search migration            |
 | `SEARCH_SEMANTIC_CANDIDATE_LIMIT`       | `2000`                           | fields the semantic retriever, and the hybrid retriever's semantic source, read from the HNSW index per search; bounds how deep pagination reaches |
+| `SEARCH_MAX_EXPORT_LIMIT`               | `1000`                           | maximum `limit` of an export (`POST /{entity}/export`, saved-query export); normal search stays capped at 100 |
 
 Live queries do not use `LLM_MAX_RETRIES`/`LLM_TIMEOUT`: they embed with a 5-second timeout and no
 retries, because a slow search is worse than one without semantic ranking.
