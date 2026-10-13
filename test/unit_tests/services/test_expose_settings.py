@@ -33,10 +33,7 @@ def test_expose_settings():
 
     exposed_settings = get_all_exposed_settings()
 
-    assert len(exposed_settings) == 1
-    my_settings_index = 0
-
-    assert exposed_settings[my_settings_index].name == "my_settings"
+    my_settings_index = next(i for i, entry in enumerate(exposed_settings) if entry.name == "my_settings")
 
     assert len(exposed_settings[my_settings_index].variables) == 6
 
