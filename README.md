@@ -11,6 +11,8 @@
 ## Documentation
 
 The documentation can be found at [workfloworchestrator.org](https://workfloworchestrator.org/orchestrator-core/).
+To run your orchestrator in containers or on Kubernetes, see
+[Running your orchestrator](https://workfloworchestrator.org/orchestrator-core/getting-started/deployment/).
 
 ## Installation (quick start)
 
@@ -29,7 +31,9 @@ pip install orchestrator-core
 
 ### Step 2 - Setup the database
 
-Create a postgres database:
+Create a postgres database. The server needs
+[pgvector](https://workfloworchestrator.org/orchestrator-core/getting-started/deployment/#postgres-with-pgvector),
+which the `pgvector/pgvector` Docker images include:
 
 ```shell
 createuser -sP nwa
