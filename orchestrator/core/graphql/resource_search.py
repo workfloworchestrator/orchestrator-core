@@ -18,8 +18,9 @@ Runs the search and pairs its hits with entities the resource resolvers load.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import TypeVar, cast
+from uuid import UUID
 
 import structlog
 from graphql import GraphQLError
@@ -150,3 +151,20 @@ def to_search_connection(
         search_metadata=metadata_to_gql(response.metadata),
         next_page_cursor=search_page.next_page_cursor,
     )
+
+
+async def search_resource(
+    info: OrchestratorInfo,
+    entity_type: EntityType,
+    search: ResourceSearchInput,
+    load_nodes: Callable[[Sequence[UUID]], Awaitable[Mapping[str, T]]],
+) -> SearchConnection[T]:
+    """Run the `search` argument of a list resource and load its hits with `load_nodes`.
+
+    `load_nodes` gets the ids of the hits and returns their GraphQL nodes keyed by the id as string; it is not
+    called when there are no hits.
+    """
+    search_page = await execute_resource_search(info, entity_type, search)
+    entity_ids = [UUID(entity_id) for entity_id in search_page.entity_ids]
+    nodes_by_id = await load_nodes(entity_ids) if entity_ids else {}
+    return to_search_connection(search_page, nodes_by_id, has_previous_page=search.cursor is not None)
