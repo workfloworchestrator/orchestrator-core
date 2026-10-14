@@ -29,6 +29,7 @@ from orchestrator.core.search.query.queries import SelectQuery
 from orchestrator.core.search.query.results import SearchResponse
 from orchestrator.core.search.query.state import QueryState
 from orchestrator.core.search.retrieval.pagination import PageCursor, encode_next_page_cursor
+from orchestrator.core.search.retrieval.retrievers import Retriever
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,7 @@ async def execute_search_page(
     query_id: str | None = None,
     entity_type: EntityType | None = None,
     entity_ids: Sequence[UUID] | None = None,
+    offset: int = 0,
     include_columns: bool = True,
 ) -> SearchPage:
     """Resume a search from `cursor`, else run the saved query `query_id`, else run `query`.
@@ -77,17 +79,28 @@ async def execute_search_page(
     with the query, so pass it again with every cursor. The query is saved only when a next page
     follows, as the next page cursor references it.
 
+    `offset` skips ranked results, structured search only; a cursor already sets the start, so the two exclude
+    each other.
+
     Raises:
         InvalidCursorError: When the cursor is malformed or belongs to another entity's search.
         QueryStateNotFoundError: When the saved query does not exist.
-        ValueError: When none of query, cursor or query_id is given, or the query is invalid.
+        ValueError: When none of query, cursor or query_id is given, the query is invalid, or `offset` is used
+            with a cursor or a non-structured search.
     """
+    if offset and cursor:
+        raise ValueError("Page with either an offset or a cursor, not both")
+
     page_cursor = PageCursor.decode(cursor) if cursor else None
     query_state = await _load_query_state(session, query, page_cursor, query_id, entity_type)
     select_query = (
         query_state.query if include_columns else query_state.query.model_copy(update={"response_columns": []})
     )
-    response = await engine.execute_search(select_query, session, page_cursor, query_state.query_embedding, entity_ids)
+    if offset and not Retriever.supports_offset(select_query):
+        raise ValueError("An offset only works for structured search (filters without query text); page with a cursor")
+    response = await engine.execute_search(
+        select_query, session, page_cursor, query_state.query_embedding, entity_ids, offset
+    )
 
     next_page_cursor = None
     if response.results:

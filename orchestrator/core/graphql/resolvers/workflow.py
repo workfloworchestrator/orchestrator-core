@@ -12,13 +12,10 @@
 # limitations under the License.
 
 from collections.abc import Sequence
-from typing import Annotated
 from uuid import UUID
 
-import strawberry
 import structlog
 from sqlalchemy import func, select
-from starlette.concurrency import run_in_threadpool
 
 from orchestrator.core.db import db
 from orchestrator.core.db.filters import Filter
@@ -35,7 +32,14 @@ from orchestrator.core.graphql.pagination import SearchConnection
 from orchestrator.core.graphql.resolvers.helpers import make_async, rows_from_statement
 from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.workflow import Workflow
-from orchestrator.core.graphql.search_inputs import ResourceSearchInput
+from orchestrator.core.graphql.search_inputs import (
+    After,
+    DeprecatedFilterBy,
+    DeprecatedQuery,
+    DeprecatedSortBy,
+    First,
+    ResourceSearchInput,
+)
 from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.core.graphql.utils import create_resolver_error_handler, is_querying_page_data, to_graphql_result_page
 from orchestrator.core.graphql.utils.get_query_loaders import get_query_loaders_for_gql_fields
@@ -90,6 +94,7 @@ def query_workflows(
     )
 
 
+@make_async
 def _load_workflows(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, Workflow]:
     query_loaders = get_query_loaders_for_gql_fields(WorkflowTable, info)
     stmt = WorkflowTable.select().where(WorkflowTable.workflow_id.in_(ids))
@@ -97,26 +102,21 @@ def _load_workflows(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, Wo
     return {str(row.workflow_id): Workflow.from_pydantic(row) for row in rows}
 
 
-async def search_workflows(info: OrchestratorInfo, search: ResourceSearchInput) -> SearchConnection[Workflow]:
-    async def load_nodes(ids: Sequence[UUID]) -> dict[str, Workflow]:
-        return await run_in_threadpool(_load_workflows, info, ids)
-
-    return await search_resource(info, EntityType.WORKFLOW, search, load_nodes)
+async def search_workflows(
+    info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
+) -> SearchConnection[Workflow]:
+    return await search_resource(info, EntityType.WORKFLOW, search, _load_workflows, first=first, after=after)
 
 
 async def resolve_workflows(
     info: OrchestratorInfo,
-    filter_by: Annotated[
-        list[GraphqlFilter] | None, strawberry.argument(deprecation_reason="Use search.filters instead")
-    ] = None,
-    sort_by: Annotated[
-        list[GraphqlSort] | None, strawberry.argument(deprecation_reason="Use search.orderBy instead")
-    ] = None,
-    first: Annotated[int, strawberry.argument(deprecation_reason="Use search.limit instead")] = 10,
-    after: Annotated[int, strawberry.argument(deprecation_reason="Use search.cursor instead")] = 0,
-    query: Annotated[str | None, strawberry.argument(deprecation_reason="Use search.query instead")] = None,
+    filter_by: DeprecatedFilterBy = None,
+    sort_by: DeprecatedSortBy = None,
+    first: First = 10,
+    after: After = 0,
+    query: DeprecatedQuery = None,
     search: ResourceSearchInput | None = None,
 ) -> SearchConnection[Workflow]:
     if search is not None:
-        return await search_workflows(info, search)
+        return await search_workflows(info, search, first, after)
     return await query_workflows(info, filter_by, sort_by, first, after, query)

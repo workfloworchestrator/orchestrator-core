@@ -146,7 +146,7 @@ class SubscriptionInterface:
     ) -> SearchConnection[ProcessType]:
         if search:
             process_ids = [ps.process_id for ps in get_original_model(self, SubscriptionTable).processes]
-            return await resolve_processes(info, search=search.within(process_ids))
+            return await resolve_processes(info, first=first, after=after, search=search.within(process_ids))
 
         filter_by_with_related_processes = (filter_by or []) + [
             GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))
