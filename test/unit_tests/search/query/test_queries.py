@@ -38,7 +38,7 @@ from orchestrator.core.search.query.queries import (
     Query,
     SelectQuery,
 )
-from orchestrator.core.settings import llm_settings
+from orchestrator.core.settings import app_settings
 
 pytestmark = pytest.mark.search
 
@@ -93,7 +93,7 @@ def test_export_query_limits(export_query_minimal: ExportQuery):
 
 
 def test_max_export_limit_follows_setting():
-    assert BaseQuery.MAX_EXPORT_LIMIT == llm_settings.SEARCH_MAX_EXPORT_LIMIT
+    assert BaseQuery.MAX_EXPORT_LIMIT == app_settings.SEARCH_MAX_EXPORT_LIMIT
     assert BaseQuery.MAX_LIMIT == 100
 
 

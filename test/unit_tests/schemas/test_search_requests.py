@@ -27,7 +27,7 @@ from orchestrator.core.search.filters.base import PathFilter
 from orchestrator.core.search.indexing.field_types import clear_field_type_cache
 from orchestrator.core.search.query.mixins import StructuredOrderBy
 from orchestrator.core.search.query.queries import BaseQuery, ExportQuery, SelectQuery
-from orchestrator.core.settings import llm_settings
+from orchestrator.core.settings import app_settings
 
 
 @pytest.mark.parametrize(
@@ -125,12 +125,12 @@ def test_export_request_forbids_extra_fields() -> None:
 def test_max_export_limit_setting_must_be_positive(value: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SEARCH_MAX_EXPORT_LIMIT", value)
     with pytest.raises(ValidationError):
-        type(llm_settings)()
+        type(app_settings)()
 
 
 def test_max_export_limit_setting_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SEARCH_MAX_EXPORT_LIMIT", "25000")
-    assert type(llm_settings)().SEARCH_MAX_EXPORT_LIMIT == 25000
+    assert type(app_settings)().SEARCH_MAX_EXPORT_LIMIT == 25000
 
 
 def test_order_by_with_query_raises() -> None:
