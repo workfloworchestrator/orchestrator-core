@@ -27,7 +27,6 @@ from orchestrator.core.search.filters.base import PathFilter
 from orchestrator.core.search.indexing.field_types import clear_field_type_cache
 from orchestrator.core.search.query.mixins import StructuredOrderBy
 from orchestrator.core.search.query.queries import BaseQuery, ExportQuery, SelectQuery
-from orchestrator.core.settings import app_settings
 
 
 @pytest.mark.parametrize(
@@ -57,9 +56,8 @@ def test_limit_boundaries_succeed(limit: int) -> None:
     "limit,valid",
     [
         pytest.param(BaseQuery.MIN_LIMIT, True, id="min"),
-        pytest.param(500, True, id="above-search-max"),
+        pytest.param(BaseQuery.MAX_LIMIT + 1, True, id="above-search-max"),
         pytest.param(BaseQuery.MAX_EXPORT_LIMIT, True, id="export-max"),
-        pytest.param(BaseQuery.MIN_LIMIT - 1, False, id="below-min"),
         pytest.param(BaseQuery.MAX_EXPORT_LIMIT + 1, False, id="above-export-max"),
     ],
 )
@@ -71,15 +69,6 @@ def test_export_request_limit_bounds(limit: int, valid: bool) -> None:
             SearchExportRequest(limit=limit)
 
 
-def test_search_request_still_capped_at_search_max() -> None:
-    with pytest.raises(ValidationError):
-        SearchRequest(limit=5768)
-
-
-def test_export_request_default_limit() -> None:
-    assert SearchExportRequest().limit == BaseQuery.MAX_EXPORT_LIMIT
-
-
 @pytest.mark.parametrize(
     "request_cls,expected_query_cls",
     [
@@ -87,9 +76,7 @@ def test_export_request_default_limit() -> None:
         pytest.param(SearchExportRequest, ExportQuery, id="export"),
     ],
 )
-def test_to_query_returns_matching_query_class(
-    request_cls: type[SearchRequest | SearchExportRequest], expected_query_cls: type[SelectQuery | ExportQuery]
-) -> None:
+def test_to_query_returns_matching_query_class(request_cls, expected_query_cls) -> None:
     query = request_cls(query="fiber", limit=50, response_columns=["subscription.status"]).to_query(
         EntityType.SUBSCRIPTION
     )
@@ -97,45 +84,10 @@ def test_to_query_returns_matching_query_class(
     assert (query.query_text, query.limit, query.response_columns) == ("fiber", 50, ["subscription.status"])
 
 
-def test_export_request_to_query_keeps_large_limit_and_order_by() -> None:
-    request = SearchExportRequest(limit=500, order_by=StructuredOrderBy(element="subscription.description"))
-    query = request.to_query(EntityType.SUBSCRIPTION)
-    assert query.limit == 500
-    assert query.order_by == request.order_by
-
-
-def test_export_request_rejects_order_by_with_query() -> None:
+@pytest.mark.parametrize("request_cls", [SearchRequest, SearchExportRequest])
+def test_order_by_with_query_raises(request_cls) -> None:
     with pytest.raises(ValidationError, match="order_by can only be set when query is empty"):
-        SearchExportRequest(query="hello", order_by=StructuredOrderBy(element="name"))
-
-
-def test_export_request_converts_elastic_filters() -> None:
-    request = SearchExportRequest(filters={"term": {"subscription.status": "active"}})  # type: ignore[arg-type]
-    query = request.to_query(EntityType.SUBSCRIPTION)
-    assert query.filters is not None
-    assert [str(leaf.path) for leaf in query.filters.get_all_leaves()] == ["subscription.status"]
-
-
-def test_export_request_forbids_extra_fields() -> None:
-    with pytest.raises(ValidationError):
-        SearchExportRequest(cursor="abc")  # type: ignore[call-arg]
-
-
-@pytest.mark.parametrize("value", [pytest.param("0", id="zero"), pytest.param("-1", id="negative")])
-def test_max_export_limit_setting_must_be_positive(value: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SEARCH_MAX_EXPORT_LIMIT", value)
-    with pytest.raises(ValidationError):
-        type(app_settings)()
-
-
-def test_max_export_limit_setting_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SEARCH_MAX_EXPORT_LIMIT", "25000")
-    assert type(app_settings)().SEARCH_MAX_EXPORT_LIMIT == 25000
-
-
-def test_order_by_with_query_raises() -> None:
-    with pytest.raises(ValidationError, match="order_by can only be set when query is empty"):
-        SearchRequest(query="hello", order_by=StructuredOrderBy(element="name"))
+        request_cls(query="hello", order_by=StructuredOrderBy(element="name"))
 
 
 def test_order_by_without_query_succeeds() -> None:

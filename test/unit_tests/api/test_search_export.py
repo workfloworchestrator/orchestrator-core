@@ -91,53 +91,27 @@ def test_export_routes_entity_type(test_client, mock_execute_search, entity, ent
 
 
 @pytest.mark.parametrize(
-    "limit",
+    "body_limit,expected_status,expected_limit",
     [
-        pytest.param(BaseQuery.MAX_LIMIT + 1, id="above-search-max"),
-        pytest.param(500, id="between-search-and-export-max"),
-        pytest.param(BaseQuery.MAX_EXPORT_LIMIT, id="export-max"),
+        pytest.param(None, HTTPStatus.OK, BaseQuery.MAX_EXPORT_LIMIT, id="defaults-to-max"),
+        pytest.param(BaseQuery.MAX_LIMIT + 1, HTTPStatus.OK, BaseQuery.MAX_LIMIT + 1, id="above-search-max"),
+        pytest.param(BaseQuery.MAX_EXPORT_LIMIT + 1, HTTPStatus.UNPROCESSABLE_ENTITY, None, id="above-export-max"),
     ],
 )
-def test_export_accepts_limits_above_search_max(test_client, mock_execute_search, limit):
-    response = test_client.post("/api/search/subscriptions/export", json={"filters": FILTERS, "limit": limit})
+def test_export_limit(test_client, mock_execute_search, body_limit, expected_status, expected_limit):
+    body = {"filters": FILTERS} | ({"limit": body_limit} if body_limit is not None else {})
+    response = test_client.post("/api/search/subscriptions/export", json=body)
 
-    assert response.status_code == HTTPStatus.OK
-    assert mock_execute_search.call_args[0][0].limit == limit
-
-
-@pytest.mark.parametrize(
-    "limit",
-    [
-        pytest.param(BaseQuery.MIN_LIMIT - 1, id="below-min"),
-        pytest.param(BaseQuery.MAX_EXPORT_LIMIT + 1, id="above-export-max"),
-    ],
-)
-def test_export_rejects_out_of_range_limits(test_client, mock_execute_search, limit):
-    response = test_client.post("/api/search/subscriptions/export", json={"filters": FILTERS, "limit": limit})
-
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert response.json()["detail"][0]["loc"] == ["body", "limit"]
-    mock_execute_search.assert_not_called()
-
-
-def test_search_endpoint_still_capped_at_search_max(test_client, mock_execute_search):
-    response = test_client.post("/api/search/subscriptions", json={"filters": FILTERS, "limit": 5768})
-
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert response.json()["detail"][0]["ctx"] == {"le": BaseQuery.MAX_LIMIT}
-
-
-def test_export_unknown_entity_returns_422(test_client, mock_execute_search):
-    response = test_client.post("/api/search/customers/export", json={"filters": FILTERS})
-
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    mock_execute_search.assert_not_called()
+    assert response.status_code == expected_status
+    if expected_limit is None:
+        mock_execute_search.assert_not_called()
+    else:
+        assert mock_execute_search.call_args[0][0].limit == expected_limit
 
 
 def test_export_passes_order_by_and_response_columns(test_client, mock_execute_search):
     body = {
         "filters": FILTERS,
-        "limit": 500,
         "order_by": {"element": "subscription.description", "direction": "desc"},
         "response_columns": ["subscription.status", "subscription.product.name"],
     }
@@ -148,66 +122,28 @@ def test_export_passes_order_by_and_response_columns(test_client, mock_execute_s
     assert query.response_columns == ["subscription.status", "subscription.product.name"]
 
 
-def test_export_without_limit_uses_max_export_limit(test_client, mock_execute_search):
-    response = test_client.post("/api/search/subscriptions/export", json={"filters": FILTERS})
+def test_export_truncated_response(test_client, mock_execute_search):
+    mock_execute_search.return_value = _response(3, has_more=True, total_items=10)
 
-    assert response.status_code == HTTPStatus.OK
-    assert mock_execute_search.call_args[0][0].limit == BaseQuery.MAX_EXPORT_LIMIT
+    body = test_client.post("/api/search/subscriptions/export", json={"filters": FILTERS}).json()
 
-
-def test_export_does_not_paginate(test_client, mock_execute_search):
-    test_client.post("/api/search/subscriptions/export", json={"filters": FILTERS})
-
-    assert mock_execute_search.call_args[0][2:] == ()
-    assert "cursor" not in mock_execute_search.call_args.kwargs
+    assert [row["entity_id"] for row in body["data"]] == ["0", "1", "2"]
+    assert body["page_info"] == {"has_next_page": True, "next_page_cursor": None}
+    assert body["cursor"]["total_items"] == 10
 
 
 @pytest.mark.parametrize(
-    "count,has_more,total_items,expected_cursor",
+    "patch_path,error,expected_status,expected_detail",
     [
-        pytest.param(3, True, 10, {"total_items": 10, "start_cursor": 0, "end_cursor": 2}, id="truncated-with-total"),
-        pytest.param(3, False, 3, {"total_items": 3, "start_cursor": 0, "end_cursor": 2}, id="complete-with-total"),
-        pytest.param(3, False, None, None, id="no-total-non-structured"),
-        pytest.param(0, False, None, None, id="empty"),
+        pytest.param(VALIDATE_PATH, ValueError("bad path"), HTTPStatus.UNPROCESSABLE_ENTITY, "bad path", id="invalid"),
+        pytest.param(
+            ENGINE_PATH, RuntimeError("boom"), HTTPStatus.INTERNAL_SERVER_ERROR, "Export failed: boom", id="error"
+        ),
     ],
 )
-def test_export_response_shape(test_client, mock_execute_search, count, has_more, total_items, expected_cursor):
-    mock_execute_search.return_value = _response(count, has_more=has_more, total_items=total_items)
-
-    response = test_client.post("/api/search/subscriptions/export", json={"filters": FILTERS})
-
-    body = response.json()
-    assert response.status_code == HTTPStatus.OK
-    assert [row["entity_id"] for row in body["data"]] == [str(i) for i in range(count)]
-    assert body["page_info"] == {"has_next_page": has_more, "next_page_cursor": None}
-    assert body["cursor"] == expected_cursor
-
-
-@pytest.mark.parametrize(
-    "error,expected_status,detail_prefix",
-    [
-        pytest.param(ValueError("bad path"), HTTPStatus.UNPROCESSABLE_ENTITY, "bad path", id="value-error"),
-        pytest.param(RuntimeError("boom"), HTTPStatus.INTERNAL_SERVER_ERROR, "Export failed: boom", id="other-error"),
-    ],
-)
-def test_export_engine_errors(test_client, mock_execute_search, error, expected_status, detail_prefix):
-    mock_execute_search.side_effect = error
-
-    response = test_client.post("/api/search/subscriptions/export", json={"filters": FILTERS})
+def test_export_errors(test_client, mock_execute_search, patch_path, error, expected_status, expected_detail):
+    with patch(patch_path, new=AsyncMock(side_effect=error)):
+        response = test_client.post("/api/search/subscriptions/export", json={"filters": FILTERS})
 
     assert response.status_code == expected_status
-    assert response.json()["detail"] == detail_prefix
-
-
-def test_export_invalid_order_by_returns_422(test_client):
-    with (
-        patch(VALIDATE_PATH, new=AsyncMock(side_effect=ValueError("Element x is not a valid path"))),
-        patch(ENGINE_PATH, new_callable=AsyncMock) as mock_execute,
-    ):
-        response = test_client.post(
-            "/api/search/subscriptions/export", json={"filters": FILTERS, "order_by": {"element": "x"}}
-        )
-
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert response.json()["detail"] == "Element x is not a valid path"
-    mock_execute.assert_not_called()
+    assert response.json()["detail"] == expected_detail

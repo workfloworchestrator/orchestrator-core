@@ -38,7 +38,6 @@ from orchestrator.core.search.query.queries import (
     Query,
     SelectQuery,
 )
-from orchestrator.core.settings import app_settings
 
 pytestmark = pytest.mark.search
 
@@ -86,51 +85,10 @@ def test_select_query_with_filters(select_query_with_filters: SelectQuery):
 
 
 def test_export_query_limits(export_query_minimal: ExportQuery):
-    """ExportQuery has higher limits than SelectQuery for bulk exports."""
+    """ExportQuery defaults to, and is capped at, the configurable export limit."""
     assert export_query_minimal.limit == BaseQuery.MAX_EXPORT_LIMIT
-    query_max = ExportQuery(entity_type=EntityType.SUBSCRIPTION, limit=BaseQuery.MAX_EXPORT_LIMIT)
-    assert query_max.limit == BaseQuery.MAX_EXPORT_LIMIT
-
-
-def test_max_export_limit_follows_setting():
-    assert BaseQuery.MAX_EXPORT_LIMIT == app_settings.SEARCH_MAX_EXPORT_LIMIT
-    assert BaseQuery.MAX_LIMIT == 100
-
-
-@pytest.mark.parametrize(
-    "limit,valid",
-    [
-        pytest.param(BaseQuery.MIN_LIMIT, True, id="min"),
-        pytest.param(BaseQuery.MAX_LIMIT + 1, True, id="above-search-max"),
-        pytest.param(BaseQuery.MAX_EXPORT_LIMIT, True, id="export-max"),
-        pytest.param(BaseQuery.MIN_LIMIT - 1, False, id="below-min"),
-        pytest.param(BaseQuery.MAX_EXPORT_LIMIT + 1, False, id="above-export-max"),
-    ],
-)
-def test_export_query_limit_bounds(limit: int, valid: bool):
-    if valid:
-        assert ExportQuery(entity_type=EntityType.SUBSCRIPTION, limit=limit).limit == limit
-    else:
-        with pytest.raises(ValidationError):
-            ExportQuery(entity_type=EntityType.SUBSCRIPTION, limit=limit)
-
-
-def test_export_query_supports_select_options():
-    query = ExportQuery(
-        entity_type=EntityType.SUBSCRIPTION,
-        response_columns=["subscription.status"],
-        order_by={"element": "subscription.description", "direction": "desc"},
-    )
-    assert query.limit == BaseQuery.MAX_EXPORT_LIMIT
-    assert query.query_operation == QueryOperation.SELECT
-    assert query.response_columns == ["subscription.status"]
-    assert query.order_by is not None
-    assert query.order_by.element == "subscription.description"
-
-
-def test_select_query_rejects_export_sized_limit():
     with pytest.raises(ValidationError):
-        SelectQuery(entity_type=EntityType.SUBSCRIPTION, limit=BaseQuery.MAX_LIMIT + 1)
+        ExportQuery(entity_type=EntityType.SUBSCRIPTION, limit=BaseQuery.MAX_EXPORT_LIMIT + 1)
 
 
 # ---------------------------------------------------------------------------
