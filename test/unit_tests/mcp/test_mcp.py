@@ -29,12 +29,14 @@ These tests verify that:
 from __future__ import annotations
 
 from http import HTTPStatus
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import ConfigDict
 
 from orchestrator.core.api.api_v1.endpoints import (
     mcp_tools,
@@ -46,8 +48,13 @@ from orchestrator.core.api.api_v1.endpoints import (
     workflows,
 )
 from orchestrator.core.exception_handlers import query_validation_handler
+from orchestrator.core.forms import FormPage, generate_form
+from orchestrator.core.forms.validators import Choice
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG
+from orchestrator.core.schemas.mcp_tools import WorkflowFormPage
 from orchestrator.core.search.query.exceptions import InvalidLtreePatternError, PathNotFoundError, QueryValidationError
+from pydantic_forms.exception_handlers.fastapi import form_error_handler
+from pydantic_forms.exceptions import FormException
 
 if TYPE_CHECKING:
     from fastmcp.tools.tool import Tool
@@ -137,8 +144,9 @@ def app_with_agent_routes() -> FastAPI:
     app.dependency_overrides[authenticate] = lambda: None
     app.dependency_overrides[authorize] = lambda: None
     app.dependency_overrides[get_async_session] = lambda: AsyncMock()
-    # Mirror OrchestratorCore.__init__: search-layer validation errors -> 422.
+    # Mirror OrchestratorCore.__init__: search-layer validation errors -> 422, a rejected form page -> 400.
     app.add_exception_handler(QueryValidationError, query_validation_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(FormException, form_error_handler)  # type: ignore[arg-type]
     return app
 
 
@@ -301,3 +309,88 @@ def test_search_without_criteria_rejected_as_422(app_with_agent_routes: FastAPI)
     client = TestClient(app_with_agent_routes)
     response = client.post("/api/agent/search", json={"entity_type": "SUBSCRIPTION"})
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+# --- the form tool: a page as data, a verdict as a result ----------------------------------------------
+
+
+class _Speed(Choice):
+    ten = ("10G", "10 Gbit/s")
+
+
+class _PortPage(FormPage):
+    model_config = ConfigDict(title="Port")
+
+    speed: _Speed
+    vlan: int = 0
+
+
+def _port_form(state):
+    yield _PortPage
+    return state
+
+
+_PORT_WORKFLOW = SimpleNamespace(initial_input_form=_port_form, target="CREATE")
+
+
+async def _form_tool(app: FastAPI, arguments: dict) -> dict:
+    """Call ``get_workflow_form`` for the port workflow through fastmcp; the structured result."""
+    from fastmcp import Client
+
+    from orchestrator.core.mcp.server import build_mcp
+
+    with patch.object(mcp_tools, "get_workflow", return_value=_PORT_WORKFLOW):
+        async with Client(build_mcp(app)) as client:
+            result = await client.call_tool("get_workflow_form", {"workflow_key": "create_port", **arguments})
+    assert result.structured_content is not None
+    return result.structured_content
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_form_describes_the_page_as_data(app_with_agent_routes: FastAPI) -> None:
+    pytest.importorskip("fastmcp")
+    first = await _form_tool(app_with_agent_routes, {})
+    assert (first["status"], first["page"], first["complete"], first["title"]) == ("next", 0, False, "Port")
+    assert [(f["name"], f["kind"], f["required"]) for f in first["fields"]] == [
+        ("speed", "string", True),
+        ("vlan", "integer", False),
+    ]
+    assert first["fields"][0]["options"] == [{"value": "10G", "label": "10 Gbit/s"}]
+    # The browser's schema is still there, and it is the one ``generate_form`` rendered before.
+    state = {"workflow_name": "create_port", "workflow_target": "CREATE"}
+    assert first["schema"] == generate_form(_port_form, state, [])
+    without = await _form_tool(app_with_agent_routes, {"include_schema": False})
+    assert without["schema"] is None and without["fields"] == first["fields"]
+    assert WorkflowFormPage.model_json_schema()["properties"]["schema"]["deprecated"] is True
+    done = await _form_tool(app_with_agent_routes, {"page_inputs": [{"speed": "10G"}]})
+    assert (done["status"], done["page"], done["complete"], done["fields"]) == ("complete", 1, True, None)
+
+
+@pytest.mark.asyncio
+async def test_a_rejected_page_is_an_error_or_a_result_as_asked(app_with_agent_routes: FastAPI) -> None:
+    pytest.importorskip("fastmcp")
+    from fastmcp.exceptions import ToolError
+
+    bad = {"page_inputs": [{"speed": "100G"}]}
+    with pytest.raises(ToolError) as excinfo:  # the default, as before: a 400 carrying the form's error body
+        await _form_tool(app_with_agent_routes, bad)
+    assert "400" in str(excinfo.value) and "speed" in str(excinfo.value)
+    rejected = await _form_tool(app_with_agent_routes, {**bad, "verdict": "result"})
+    assert (rejected["status"], rejected["page"], rejected["complete"]) == ("rejected", 0, False)
+    assert [(e["loc"], e["type"]) for e in rejected["errors"]] == [(["speed"], "enum")]
+    assert [f["name"] for f in rejected["fields"]] == ["speed", "vlan"]
+
+
+@pytest.mark.asyncio
+async def test_list_workflows_takes_a_call_without_arguments(app_with_agent_routes: FastAPI) -> None:
+    pytest.importorskip("fastmcp")
+    from fastmcp import Client
+
+    from orchestrator.core.mcp.server import build_mcp
+
+    listed = AsyncMock(return_value=[])
+    with patch.object(mcp_tools, "get_workflows_async", listed):
+        async with Client(build_mcp(app_with_agent_routes)) as client:
+            await client.call_tool("list_workflows", {})
+    listed.assert_awaited_once()
+    assert listed.await_args is not None and listed.await_args.kwargs["filters"] is None
