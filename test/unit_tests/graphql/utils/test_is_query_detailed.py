@@ -14,9 +14,9 @@
 from unittest.mock import MagicMock
 
 import pytest
-from strawberry.types.nodes import FragmentSpread, SelectedField
+from strawberry.types.nodes import FragmentSpread, InlineFragment, SelectedField
 
-from orchestrator.core.graphql.utils import is_query_detailed
+from orchestrator.core.graphql.utils import is_query_detailed, is_querying_page_data
 
 is_test_query_detailed = is_query_detailed(("basic", "name"))
 
@@ -27,6 +27,12 @@ def _field(name: str, *selections, alias: str | None = None) -> SelectedField:
 
 def _fragment(*selections) -> FragmentSpread:
     return FragmentSpread(name="fragment", type_condition="graphql type", directives={}, selections=list(selections))
+
+
+def _inline(*selections) -> InlineFragment:
+    return InlineFragment(
+        type_condition="SubscriptionInterfaceSearchConnection", directives={}, selections=list(selections)
+    )
 
 
 def _page(*selections) -> SelectedField:
@@ -87,3 +93,35 @@ def test_is_test_query_detailed_reads_page(root, expected):
 )
 def test_is_test_query_detailed_reads_entity_selections(root, expected):
     assert is_test_query_detailed(MagicMock(selected_fields=[root])) is expected
+
+
+@pytest.mark.parametrize(
+    "root, expected",
+    [
+        pytest.param(_field("subscriptions", _fragment(_field("page", _field("basic")))), False, id="page-in-fragment"),
+        pytest.param(_field("subscriptions", _inline(_field("page", _field("basic")))), False, id="page-in-inline"),
+        pytest.param(
+            _field("subscriptions", _fragment(_field("page", _field("detailed")))), True, id="detail-in-fragment"
+        ),
+        pytest.param(
+            _field("subscriptions", _fragment(_field("searchEdges", _field("node", _field("basic"))))),
+            False,
+            id="search-edges-in-fragment",
+        ),
+    ],
+)
+def test_is_test_query_detailed_reads_connection_fragments(root, expected):
+    assert is_test_query_detailed(MagicMock(selected_fields=[root])) is expected
+
+
+@pytest.mark.parametrize(
+    "root, expected",
+    [
+        pytest.param(_field("subscriptions", _field("page", _field("basic"))), True, id="page"),
+        pytest.param(_field("subscriptions", _fragment(_field("page", _field("basic")))), True, id="page-in-fragment"),
+        pytest.param(_field("subscriptions", _inline(_field("page", _field("basic")))), True, id="page-in-inline"),
+        pytest.param(_field("subscriptions", _field("pageInfo", _field("totalItems"))), False, id="no-page"),
+    ],
+)
+def test_is_querying_page_data(root, expected):
+    assert is_querying_page_data(MagicMock(selected_fields=[root])) is expected

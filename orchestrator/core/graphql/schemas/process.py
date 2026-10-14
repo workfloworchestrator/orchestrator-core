@@ -21,10 +21,11 @@ from strawberry.scalars import JSON
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.core.api.api_v1.endpoints.processes import get_auth_callbacks, get_steps_to_evaluate_for_rbac
 from orchestrator.core.db import ProcessTable, ProductTable, db
-from orchestrator.core.graphql.pagination import EMPTY_PAGE, Connection
+from orchestrator.core.graphql.pagination import EMPTY_PAGE, SearchConnection
 from orchestrator.core.graphql.schemas.customer import CustomerType
 from orchestrator.core.graphql.schemas.helpers import get_original_model
 from orchestrator.core.graphql.schemas.product import ProductType
+from orchestrator.core.graphql.search_inputs import ResourceSearchInput
 from orchestrator.core.graphql.types import FormUserPermissionsType, GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.core.schemas.process import ProcessSchema, ProcessStepSchema
 from orchestrator.core.services.processes import load_process
@@ -124,13 +125,26 @@ class ProcessType:
         sort_by: list[GraphqlSort] | None = None,
         first: int = 10,
         after: int = 0,
-    ) -> Connection[SubscriptionInterface]:
+        search: ResourceSearchInput | None = None,
+    ) -> SearchConnection[SubscriptionInterface]:
         from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
 
-        subscription_ids = [str(s.subscription_id) for s in self._original_model.subscriptions]  # type: ignore
+        subscription_ids = [s.subscription_id for s in get_original_model(self, ProcessTable).subscriptions]
         if not subscription_ids:
             return EMPTY_PAGE
-        filter_by_with_related_subscriptions = (filter_by or []) + [
-            GraphqlFilter(field="subscriptionId", value="|".join(subscription_ids))
-        ]
-        return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
+
+        # Todo: remove with later version.
+        old_filters = filter_by or []
+        if not search:
+            old_filters = (filter_by or []) + [
+                GraphqlFilter(field="subscriptionId", value="|".join(map(str, subscription_ids)))
+            ]
+
+        return await resolve_subscriptions(
+            info,
+            old_filters,
+            sort_by,
+            first,
+            after,
+            search=search.within(subscription_ids) if search else None,
+        )
