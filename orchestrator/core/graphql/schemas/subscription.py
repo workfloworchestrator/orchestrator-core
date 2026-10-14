@@ -26,7 +26,7 @@ from oauth2_lib.strawberry import authenticated_field
 from orchestrator.core.db import FixedInputTable, ProductTable, SubscriptionTable, db
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.core.graphql.loaders.subscriptions import SubsLoaderType
-from orchestrator.core.graphql.pagination import EMPTY_PAGE, Connection, SearchConnection
+from orchestrator.core.graphql.pagination import EMPTY_PAGE, SearchConnection
 from orchestrator.core.graphql.resolvers.process import resolve_processes
 from orchestrator.core.graphql.schemas.customer import CustomerType
 from orchestrator.core.graphql.schemas.customer_description import CustomerDescription
@@ -142,7 +142,12 @@ class SubscriptionInterface:
         sort_by: list[GraphqlSort] | None = None,
         first: int = 10,
         after: int = 0,
-    ) -> Connection[ProcessType]:
+        search: ResourceSearchInput | None = None,
+    ) -> SearchConnection[ProcessType]:
+        if search:
+            process_ids = [ps.process_id for ps in get_original_model(self, SubscriptionTable).processes]
+            return await resolve_processes(info, search=search.within(process_ids))
+
         filter_by_with_related_processes = (filter_by or []) + [
             GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))
         ]

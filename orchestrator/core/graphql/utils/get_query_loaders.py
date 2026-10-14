@@ -27,6 +27,7 @@ def get_query_loaders_for_gql_fields(root_model: type[DbBaseModel], info: Orches
     Based on the GraphQL query's selected fields, returns the required DB loaders to use
     in SQLALchemy's `.options()` for efficiently quering (nested) relationships.
     """
-    model_paths = [path.removeprefix("page.") for path in get_selected_paths(info)]
+    # A search returns the same entities under `searchEdges.node` that a plain list returns under `page`.
+    model_paths = [path.removeprefix("page.").removeprefix("search_edges.node.") for path in get_selected_paths(info)]
 
     return get_query_loaders_for_model_paths(root_model, model_paths)
