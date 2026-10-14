@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import Sequence
 from typing import Annotated, cast
 from uuid import UUID
 
@@ -37,7 +38,7 @@ from orchestrator.core.db.sorting.subscription import (
     subscription_sort_fields,
 )
 from orchestrator.core.graphql.pagination import SearchConnection
-from orchestrator.core.graphql.resource_search import execute_resource_search, to_search_connection
+from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.product import ProductModelGraphql
 from orchestrator.core.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.core.graphql.search_inputs import ResourceSearchInput
@@ -114,23 +115,20 @@ async def resolve_subscription(info: OrchestratorInfo, id: UUID) -> Subscription
 async def search_subscriptions(
     info: OrchestratorInfo, search: ResourceSearchInput
 ) -> SearchConnection[SubscriptionInterface]:
-    search_page = await execute_resource_search(info, EntityType.SUBSCRIPTION, search)
+    async def load_subscriptions(subscription_ids: Sequence[UUID]) -> dict[str, SubscriptionInterface]:
+        stmt = (
+            select(SubscriptionTable)
+            .join(ProductTable)
+            .options(contains_eager(SubscriptionTable.product))
+            .where(SubscriptionTable.subscription_id.in_(subscription_ids))
+        )
+        subscriptions = (await run_in_threadpool(db.session.scalars, stmt)).all()
+        graphql_subscriptions = cast(
+            list[SubscriptionInterface], await gather_nice(format_subscription(info, s) for s in subscriptions)
+        )
+        return {str(subscription.subscription_id): subscription for subscription in graphql_subscriptions}
 
-    stmt = (
-        select(SubscriptionTable)
-        .join(ProductTable)
-        .options(contains_eager(SubscriptionTable.product))
-        .where(SubscriptionTable.subscription_id.in_([UUID(entity_id) for entity_id in search_page.entity_ids]))
-    )
-    subscriptions = (await run_in_threadpool(db.session.scalars, stmt)).all() if search_page.entity_ids else []
-    graphql_subscriptions = cast(
-        list[SubscriptionInterface], await gather_nice(format_subscription(info, s) for s in subscriptions)
-    )
-    graphql_subscriptions_map = {
-        str(subscription.subscription_id): subscription for subscription in graphql_subscriptions
-    }
-
-    return to_search_connection(search_page, graphql_subscriptions_map, has_previous_page=search.cursor is not None)
+    return await search_resource(info, EntityType.SUBSCRIPTION, search, load_subscriptions)
 
 
 async def query_subscriptions(
@@ -179,10 +177,9 @@ async def query_subscriptions(
         graphql_subscriptions = list(await gather_nice((format_subscription(info, p) for p in subscriptions)))  # type: ignore
     logger.info("Resolve subscriptions", filter_by=filter_by, total=total)
 
-    connection = to_graphql_result_page(
+    return to_graphql_result_page(
         graphql_subscriptions, first, after, total, subscription_sort_fields(), subscription_filter_fields()
     )
-    return SearchConnection(page=connection.page, page_info=connection.page_info)
 
 
 async def resolve_subscriptions(

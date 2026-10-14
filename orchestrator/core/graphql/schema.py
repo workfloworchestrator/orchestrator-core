@@ -96,20 +96,25 @@ logger = structlog.get_logger(__name__)
 @strawberry.federation.type(description="Orchestrator queries")
 class OrchestratorQuery:
     process: ProcessType | None = authenticated_field(resolver=resolve_process, description="Returns a single process")
-    processes: Connection[ProcessType] = authenticated_field(
-        resolver=resolve_processes, description="Returns list of processes"
+    processes: SearchConnection[ProcessType] = authenticated_field(
+        resolver=resolve_processes,
+        description="Returns list of processes; pass `search` for LLM search with scored searchEdges",
     )
-    products: Connection[ProductType] = authenticated_field(
-        resolver=resolve_products, description="Returns list of products"
+    products: SearchConnection[ProductType] = authenticated_field(
+        resolver=resolve_products,
+        description="Returns list of products; pass `search` for LLM search with scored searchEdges",
     )
-    product_blocks: Connection[ProductBlock] = authenticated_field(
-        resolver=resolve_product_blocks, description="Returns list of product blocks"
+    product_blocks: SearchConnection[ProductBlock] = authenticated_field(
+        resolver=resolve_product_blocks,
+        description="Returns list of product blocks; pass `search` for LLM search with scored searchEdges",
     )
-    resource_types: Connection[ResourceType] = authenticated_field(
-        resolver=resolve_resource_types, description="Returns list of resource types"
+    resource_types: SearchConnection[ResourceType] = authenticated_field(
+        resolver=resolve_resource_types,
+        description="Returns list of resource types; pass `search` for LLM search with scored searchEdges",
     )
-    workflows: Connection[Workflow] = authenticated_field(
-        resolver=resolve_workflows, description="Returns list of workflows"
+    workflows: SearchConnection[Workflow] = authenticated_field(
+        resolver=resolve_workflows,
+        description="Returns list of workflows; pass `search` for LLM search with scored searchEdges",
     )
     subscription: SubscriptionInterface | None = authenticated_field(
         resolver=resolve_subscription, description="Returns a single Subscription"
