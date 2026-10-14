@@ -23,6 +23,10 @@ supplied by the resolver rather than stored as a GraphQL field. ResourceSearchIn
 is the `search` argument of list resources.
 """
 
+from collections.abc import Sequence
+from dataclasses import replace
+from uuid import UUID
+
 import strawberry
 from pydantic import TypeAdapter
 from strawberry.scalars import JSON
@@ -199,5 +203,24 @@ class SearchInput(SearchCriteriaInput):
 class ResourceSearchInput(SearchCriteriaInput):
     cursor: str | None = strawberry.field(
         default=None,
-        description="nextPageCursor of the previous page; resumes that search, so the other search fields are ignored.",
+        description=(
+            "nextPageCursor of the previous page; resumes that search, so the other search fields except entityIds"
+            " are ignored."
+        ),
     )
+    entity_ids: list[UUID] | None = strawberry.field(
+        default=None,
+        description=(
+            "Only return these entities. Not stored with the search, so pass it again with every cursor; on a"
+            " relation field it narrows within the related entities."
+        ),
+    )
+
+    def within(self, allowed_ids: Sequence[UUID] | None) -> "ResourceSearchInput":
+        """This search narrowed to `allowed_ids`, e.g. a relation's ids; the client can narrow it, never widen it."""
+        if allowed_ids is None:
+            return self
+        if self.entity_ids is None:
+            return replace(self, entity_ids=list(allowed_ids))
+        allowed = set(allowed_ids)
+        return replace(self, entity_ids=[entity_id for entity_id in self.entity_ids if entity_id in allowed])

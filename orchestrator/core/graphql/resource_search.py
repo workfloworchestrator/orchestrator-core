@@ -102,6 +102,7 @@ async def execute_resource_search(
             query=None if search.cursor else search.to_select_query(entity_type),
             cursor=search.cursor,
             entity_type=entity_type,
+            entity_ids=search.entity_ids,
         )
     except (InvalidCursorError, ValueError) as e:
         raise _client_error(str(e), ErrorType.BAD_REQUEST) from e

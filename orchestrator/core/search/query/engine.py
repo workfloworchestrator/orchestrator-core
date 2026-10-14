@@ -11,6 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
+from uuid import UUID
+
 import structlog
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,6 +70,7 @@ async def _execute_search(
     limit: int,
     cursor: PageCursor | None = None,
     query_embedding: list[float] | None = None,
+    entity_ids: Sequence[UUID] | None = None,
 ) -> SearchResponse:
     """Internal implementation to execute search with specified query.
 
@@ -76,6 +80,7 @@ async def _execute_search(
         limit: Maximum number of results to return.
         cursor: Optional pagination cursor.
         query_embedding: Optional pre-computed query embedding to use instead of generating a new one.
+        entity_ids: Optional scope; only these entities can be returned.
 
     Returns:
         SearchResponse with results and embedding (for internal use).
@@ -84,7 +89,7 @@ async def _execute_search(
         logger.warning("No search criteria provided (query_text or filters).")
         return SearchResponse(results=[], metadata=SearchMetadata.empty())
 
-    candidate_query = build_candidate_query(query)
+    candidate_query = build_candidate_query(query, entity_ids)
 
     if Retriever.needs_embedding(query) and not query_embedding and query.vector_query:
         from orchestrator.core.search.core.embedding import QueryEmbedder
@@ -115,8 +120,8 @@ async def _execute_search(
 
     column_data: ResponseColumnData | None = None
     if query.response_columns and result_rows:
-        entity_ids = [str(row.entity_id) for row in result_rows]
-        col_stmt = build_response_columns_query(entity_ids, query.entity_type, query.response_columns)
+        result_ids = [str(row.entity_id) for row in result_rows]
+        col_stmt = build_response_columns_query(result_ids, query.entity_type, query.response_columns)
         col_execute_result = await db_session.execute(col_stmt)
         col_rows = col_execute_result.all()
         column_data = process_response_columns(col_rows, query.response_columns)
@@ -131,6 +136,7 @@ async def execute_search(
     db_session: AsyncSession,
     cursor: PageCursor | None = None,
     query_embedding: list[float] | None = None,
+    entity_ids: Sequence[UUID] | None = None,
 ) -> SearchResponse:
     """Execute a SELECT search query.
 
@@ -141,6 +147,8 @@ async def execute_search(
         db_session: Database session
         cursor: Optional pagination cursor
         query_embedding: Optional pre-computed embedding
+        entity_ids: Optional scope; only these entities can be returned. It is not stored with the query, so a
+            caller paging with a cursor must pass the same scope again.
 
     Returns:
         SearchResponse with ranked results
@@ -148,7 +156,7 @@ async def execute_search(
 
     # Fetch one extra to determine if there is a next page
     fetch_limit = query.limit + 1 if query.limit > 0 else query.limit
-    response = await _execute_search(query, db_session, fetch_limit, cursor, query_embedding)
+    response = await _execute_search(query, db_session, fetch_limit, cursor, query_embedding, entity_ids)
     has_more = len(response.results) > query.limit and query.limit > 0
 
     # Trim to requested limit

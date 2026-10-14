@@ -116,7 +116,7 @@ def test_search_returns_scored_edges_without_page(test_client_graphql, indexed_s
     edges = subscriptions["searchEdges"]
     edge_ids = [edge["node"]["subscriptionId"] for edge in edges]
     assert sorted(edge_ids) == sorted(str(sub_id) for sub_id in indexed_subscription_ids)
-    assert subscriptions["page"] is None
+    assert subscriptions["page"] == []
     assert all(edge["matchingFields"][0]["path"] == "subscription.status" for edge in edges)
     assert all(edge["matchingFields"][0]["text"] == "active" for edge in edges)
     assert subscriptions["searchMetadata"]["searchType"] == "structured"
@@ -168,7 +168,7 @@ def test_search_without_criteria_returns_empty_edges(test_client_graphql, indexe
     assert "errors" not in result
     subscriptions = result["data"]["subscriptions"]
     assert subscriptions["searchEdges"] == []
-    assert subscriptions["page"] is None
+    assert subscriptions["page"] == []
     assert subscriptions["nextPageCursor"] is None
 
 
@@ -178,9 +178,34 @@ def test_without_search_the_search_fields_are_null(test_client_graphql, indexed_
     assert "errors" not in result
     subscriptions = result["data"]["subscriptions"]
     assert len(subscriptions["page"]) == 2
-    assert subscriptions["searchEdges"] is None
+    assert subscriptions["searchEdges"] == []
     assert subscriptions["searchMetadata"] is None
     assert subscriptions["nextPageCursor"] is None
+
+
+@pytest.mark.parametrize("count", [pytest.param(2, id="some"), pytest.param(0, id="none")])
+def test_search_entity_ids_restricts_hits(test_client_graphql, indexed_subscription_ids, count):
+    wanted = [str(sub_id) for sub_id in indexed_subscription_ids[:count]]
+
+    result = _post(test_client_graphql, search={"filters": STATUS_FILTER, "entityIds": wanted})
+
+    assert "errors" not in result
+    edge_ids = [edge["node"]["subscriptionId"] for edge in result["data"]["subscriptions"]["searchEdges"]]
+    assert sorted(edge_ids) == sorted(wanted)
+
+
+def test_search_entity_ids_apply_to_cursor_pages(test_client_graphql, indexed_subscription_ids):
+    wanted = [str(sub_id) for sub_id in indexed_subscription_ids[:2]]
+    first_page = _post(test_client_graphql, search={"filters": STATUS_FILTER, "limit": 1, "entityIds": wanted})
+    cursor = first_page["data"]["subscriptions"]["nextPageCursor"]
+
+    second_page = _post(test_client_graphql, search={"cursor": cursor, "entityIds": wanted})
+
+    assert "errors" not in second_page
+    pages = [first_page, second_page]
+    seen = [edge["node"]["subscriptionId"] for page in pages for edge in page["data"]["subscriptions"]["searchEdges"]]
+    assert sorted(seen) == sorted(wanted)
+    assert second_page["data"]["subscriptions"]["nextPageCursor"] is None
 
 
 @pytest.mark.parametrize(
@@ -256,3 +281,160 @@ def test_legacy_arguments_are_deprecated(test_client_graphql):
         "first": "Use search.limit instead",
         "after": "Use search.cursor instead",
     }
+
+
+RELATION_SEARCH_QUERY = """
+query RelationSearch($id: UUID!, $search: ResourceSearchInput, $filterBy: [GraphqlFilter!]) {
+    subscription(id: $id) {
+        dependsOnSubscriptions(search: $search, filterBy: $filterBy) {
+            ...hits
+        }
+        inUseBySubscriptions(search: $search, filterBy: $filterBy) {
+            ...hits
+        }
+    }
+}
+
+fragment hits on SubscriptionInterfaceSearchConnection {
+    page {
+        subscriptionId
+    }
+    searchEdges {
+        node {
+            subscriptionId
+        }
+    }
+    nextPageCursor
+    pageInfo {
+        hasNextPage
+        totalItems
+    }
+}
+"""
+
+
+@pytest.fixture
+def indexed_relations(
+    product_type_1_subscriptions_factory,
+    sub_one_subscription_1,
+    sub_two_subscription_1,
+    product_sub_list_union_subscription_1,
+) -> dict[str, UUID]:
+    """The list union subscription depends on sub one and sub two, all indexed as active.
+
+    Unrelated subscriptions are indexed as active too, so a search that ignores the relation would return them.
+    """
+    relations = {
+        "sub_one": sub_one_subscription_1.subscription_id,
+        "sub_two": sub_two_subscription_1.subscription_id,
+        "list_union": product_sub_list_union_subscription_1,
+    }
+    unrelated = [UUID(sub_id) for sub_id in product_type_1_subscriptions_factory(3)]
+    db.session.add_all(
+        [_index_row(sub_id, "subscription.status", "active") for sub_id in [*relations.values(), *unrelated]]
+    )
+    db.session.commit()
+    return relations
+
+
+def _post_relations(test_client_graphql, subscription_id: UUID, **variables) -> dict:
+    data = json.dumps({"query": RELATION_SEARCH_QUERY, "variables": {"id": str(subscription_id), **variables}})
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers=GRAPHQL_HEADERS)
+    assert response.status_code == HTTPStatus.OK
+    return response.json()
+
+
+def _edge_ids(connection: dict) -> list[str]:
+    return [edge["node"]["subscriptionId"] for edge in connection["searchEdges"]]
+
+
+@pytest.mark.parametrize(
+    "subject, field, expected",
+    [
+        pytest.param("list_union", "dependsOnSubscriptions", ["sub_one", "sub_two"], id="depends-on"),
+        pytest.param("sub_one", "inUseBySubscriptions", ["list_union"], id="in-use-by"),
+    ],
+)
+def test_relation_search_is_scoped_to_related_subscriptions(
+    test_client_graphql, indexed_relations, subject, field, expected
+):
+    result = _post_relations(
+        test_client_graphql, indexed_relations[subject], search={"filters": STATUS_FILTER, "limit": 10}
+    )
+
+    assert "errors" not in result
+    connection = result["data"]["subscription"][field]
+    assert sorted(_edge_ids(connection)) == sorted(str(indexed_relations[name]) for name in expected)
+    assert connection["pageInfo"]["totalItems"] == len(expected)
+
+
+def test_relation_search_without_relations_returns_empty_edges(test_client_graphql, indexed_relations):
+    result = _post_relations(
+        test_client_graphql, indexed_relations["list_union"], search={"filters": STATUS_FILTER, "limit": 10}
+    )
+
+    assert "errors" not in result
+    connection = result["data"]["subscription"]["inUseBySubscriptions"]
+    assert connection["searchEdges"] == []
+    assert connection["nextPageCursor"] is None
+
+
+def test_relation_search_cursor_stays_within_relation(test_client_graphql, indexed_relations):
+    list_union = indexed_relations["list_union"]
+    first_page = _post_relations(test_client_graphql, list_union, search={"filters": STATUS_FILTER, "limit": 1})
+    first = first_page["data"]["subscription"]["dependsOnSubscriptions"]
+
+    assert first["pageInfo"] == {"hasNextPage": True, "totalItems": 2}
+
+    second_page = _post_relations(test_client_graphql, list_union, search={"cursor": first["nextPageCursor"]})
+
+    assert "errors" not in second_page
+    second = second_page["data"]["subscription"]["dependsOnSubscriptions"]
+    assert sorted(_edge_ids(first) + _edge_ids(second)) == sorted(
+        str(indexed_relations[name]) for name in ("sub_one", "sub_two")
+    )
+    assert second["nextPageCursor"] is None
+
+
+def test_relation_search_entity_ids_narrow_within_relation(test_client_graphql, indexed_relations):
+    """Client ids intersect the relation: an unrelated id is never returned, an id in both is."""
+    unrelated = str(uuid4())
+    search = {"filters": STATUS_FILTER, "entityIds": [str(indexed_relations["sub_one"]), unrelated]}
+
+    result = _post_relations(test_client_graphql, indexed_relations["list_union"], search=search)
+
+    assert "errors" not in result
+    connection = result["data"]["subscription"]["dependsOnSubscriptions"]
+    assert _edge_ids(connection) == [str(indexed_relations["sub_one"])]
+
+
+@pytest.mark.parametrize(
+    "subject, field, expected",
+    [
+        pytest.param("list_union", "dependsOnSubscriptions", ["sub_one", "sub_two"], id="depends-on"),
+        pytest.param("sub_one", "inUseBySubscriptions", ["list_union"], id="in-use-by"),
+        pytest.param("list_union", "inUseBySubscriptions", [], id="no-relations"),
+    ],
+)
+def test_relation_without_search_lists_related_subscriptions(
+    test_client_graphql, indexed_relations, subject, field, expected
+):
+    result = _post_relations(test_client_graphql, indexed_relations[subject])
+
+    assert "errors" not in result
+    connection = result["data"]["subscription"][field]
+    page_ids = [item["subscriptionId"] for item in connection["page"]]
+    assert sorted(page_ids) == sorted(str(indexed_relations[name]) for name in expected)
+    assert connection["searchEdges"] == []
+
+
+def test_relation_search_combined_with_filter_by_is_rejected(test_client_graphql, indexed_relations):
+    result = _post_relations(
+        test_client_graphql,
+        indexed_relations["sub_one"],
+        search={"filters": STATUS_FILTER},
+        filterBy=[{"field": "status", "value": "active"}],
+    )
+
+    assert result["errors"][0]["message"] == "'search' cannot be combined with filterBy"
+    assert result["errors"][0]["extensions"]["code"] == "VALIDATION_ERROR"

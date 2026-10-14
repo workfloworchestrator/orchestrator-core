@@ -14,7 +14,7 @@
 import json
 from http import HTTPStatus
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 import strawberry.scalars
@@ -43,6 +43,7 @@ from orchestrator.core.graphql.search_inputs import (
     FilterConditionInput,
     FilterTreeInput,
     PathFilterInput,
+    ResourceSearchInput,
     SearchInput,
     StructuredOrderByInput,
 )
@@ -269,6 +270,23 @@ def test_search_input_rejects_both_filter_formats() -> None:
 
     with pytest.raises(ValueError, match="Pass either filters or elasticFilters, not both"):
         search.to_select_query(EntityType.SUBSCRIPTION)
+
+
+_A, _B, _C = (UUID(int=n) for n in range(1, 4))
+
+
+@pytest.mark.parametrize(
+    "client_ids, allowed_ids, expected",
+    [
+        pytest.param(None, None, None, id="unscoped"),
+        pytest.param([_A], None, [_A], id="client-only"),
+        pytest.param(None, [_A, _B], [_A, _B], id="relation-only"),
+        pytest.param([_A, _C], [_A, _B], [_A], id="client-narrows-relation"),
+        pytest.param([_C], [_A, _B], [], id="client-cannot-widen"),
+    ],
+)
+def test_resource_search_within_never_widens(client_ids, allowed_ids, expected) -> None:
+    assert ResourceSearchInput(entity_ids=client_ids).within(allowed_ids).entity_ids == expected
 
 
 def test_comparison_op_invalid_value_kind_raises() -> None:

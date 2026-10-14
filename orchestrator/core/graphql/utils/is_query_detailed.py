@@ -20,8 +20,14 @@ from orchestrator.core.graphql.types import OrchestratorInfo
 
 
 def _named_fields(selected_field: Selection, name: str) -> list[SelectedField]:
-    """Every selection of field `name`; a client may select one field several times under different aliases."""
-    return [s for s in selected_field.selections if isinstance(s, SelectedField) and s.name == name]
+    """Every selection of field `name`, including those inside fragments.
+
+    A client may select one field several times under different aliases, or through a named or inline fragment
+    (`...hits`), which wraps the field in a FragmentSpread or InlineFragment instead of listing it directly.
+    """
+    direct = [s for s in selected_field.selections if isinstance(s, SelectedField) and s.name == name]
+    fragments = [s for s in selected_field.selections if isinstance(s, FragmentSpread | InlineFragment)]
+    return [*direct, *flatten(_named_fields(fragment, name) for fragment in fragments)]
 
 
 def get_selected_field_selections(selected_field: Selection, name: str) -> list[Selection]:

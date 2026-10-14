@@ -16,7 +16,9 @@
 Each endpoint converts the page to its own response type and maps the raised errors to its own transport.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,11 +68,13 @@ async def execute_search_page(
     cursor: str | None = None,
     query_id: str | None = None,
     entity_type: EntityType | None = None,
+    entity_ids: Sequence[UUID] | None = None,
     include_columns: bool = True,
 ) -> SearchPage:
     """Resume a search from `cursor`, else run the saved query `query_id`, else run `query`.
 
-    `entity_type` rejects a cursor from another entity's search. The query is saved only when a next page
+    `entity_type` rejects a cursor from another entity's search. `entity_ids` scopes the search; it is not saved
+    with the query, so pass it again with every cursor. The query is saved only when a next page
     follows, as the next page cursor references it.
 
     Raises:
@@ -83,7 +87,7 @@ async def execute_search_page(
     select_query = (
         query_state.query if include_columns else query_state.query.model_copy(update={"response_columns": []})
     )
-    response = await engine.execute_search(select_query, session, page_cursor, query_state.query_embedding)
+    response = await engine.execute_search(select_query, session, page_cursor, query_state.query_embedding, entity_ids)
 
     next_page_cursor = None
     if response.results:

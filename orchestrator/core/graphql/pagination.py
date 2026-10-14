@@ -80,11 +80,11 @@ class SearchEdge(Generic[GenericType]):
 class SearchConnection(Connection[GenericType], Generic[GenericType]):
     """Connection of a list resource that accepts a `search` argument.
 
-    Without `search` the search fields are null; with it `page` is null, as `page` only serves the legacy arguments.
+    `page` and `searchEdges` are always lists: without `search` the edges are empty, with it `page` is.
     """
 
-    page: list["GenericType"] | None = None  # type: ignore[assignment]
-    search_edges: list[SearchEdge[GenericType]] | None = None
+    page: list["GenericType"] = strawberry.field(default_factory=list)
+    search_edges: list[SearchEdge[GenericType]] = strawberry.field(default_factory=list)
     search_metadata: SearchMetadataType | None = None
     next_page_cursor: str | None = strawberry.field(
         default=None,
@@ -92,7 +92,8 @@ class SearchConnection(Connection[GenericType], Generic[GenericType]):
     )
 
 
-EMPTY_PAGE: Connection[Any] = Connection(
+EMPTY_PAGE: SearchConnection[Any] = SearchConnection(
+    search_edges=[],
     page=[],
     page_info=PageInfo(
         has_previous_page=False,
