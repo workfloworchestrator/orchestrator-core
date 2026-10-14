@@ -50,6 +50,7 @@ async def _create_cursor_info(
     query_embedding: list[float] | None,
     candidate_query: Select,
     row_count: int,
+    offset: int,
 ) -> tuple[int | None, int | None, int | None]:
     total_count_stmt = Retriever.route(query, None, query_embedding).apply(candidate_query) if cursor else final_stmt
     total_items_or_none = await db_session.scalar(select(func.count()).select_from(total_count_stmt.subquery()))
@@ -58,7 +59,7 @@ async def _create_cursor_info(
         await db_session.scalar(select(func.count()).select_from(final_stmt.subquery())) if cursor else total_items
     )
     count_with_cursor = count_with_cursor_or_none or 0
-    start_cursor = total_items - count_with_cursor
+    start_cursor = total_items - count_with_cursor + offset
     row_end_cursor_count = row_count - (2 if row_count > query.limit else 1)
     end_cursor = start_cursor + row_end_cursor_count
     return total_items, start_cursor, end_cursor
@@ -71,6 +72,7 @@ async def _execute_search(
     cursor: PageCursor | None = None,
     query_embedding: list[float] | None = None,
     entity_ids: Sequence[UUID] | None = None,
+    offset: int = 0,
 ) -> SearchResponse:
     """Internal implementation to execute search with specified query.
 
@@ -81,6 +83,7 @@ async def _execute_search(
         cursor: Optional pagination cursor.
         query_embedding: Optional pre-computed query embedding to use instead of generating a new one.
         entity_ids: Optional scope; only these entities can be returned.
+        offset: Number of ranked results to skip.
 
     Returns:
         SearchResponse with results and embedding (for internal use).
@@ -102,7 +105,7 @@ async def _execute_search(
     await apply_session_settings(db_session, retriever.session_settings)
 
     final_stmt = retriever.apply(candidate_query)
-    final_stmt_with_limit = final_stmt.limit(limit)
+    final_stmt_with_limit = final_stmt.offset(offset).limit(limit)
     logger.debug(final_stmt_with_limit)
 
     execute_result = await db_session.execute(final_stmt_with_limit)
@@ -115,7 +118,7 @@ async def _execute_search(
     end_cursor: int | None = None
     if isinstance(retriever, StructuredRetriever) and row_count > 0:
         total_items, start_cursor, end_cursor = await _create_cursor_info(
-            final_stmt, db_session, cursor, query, query_embedding, candidate_query, row_count
+            final_stmt, db_session, cursor, query, query_embedding, candidate_query, row_count, offset
         )
 
     column_data: ResponseColumnData | None = None
@@ -137,6 +140,7 @@ async def execute_search(
     cursor: PageCursor | None = None,
     query_embedding: list[float] | None = None,
     entity_ids: Sequence[UUID] | None = None,
+    offset: int = 0,
 ) -> SearchResponse:
     """Execute a SELECT search query.
 
@@ -149,6 +153,7 @@ async def execute_search(
         query_embedding: Optional pre-computed embedding
         entity_ids: Optional scope; only these entities can be returned. It is not stored with the query, so a
             caller paging with a cursor must pass the same scope again.
+        offset: Number of ranked results to skip; structured search only (see `Retriever.supports_offset`).
 
     Returns:
         SearchResponse with ranked results
@@ -156,7 +161,7 @@ async def execute_search(
 
     # Fetch one extra to determine if there is a next page
     fetch_limit = query.limit + 1 if query.limit > 0 else query.limit
-    response = await _execute_search(query, db_session, fetch_limit, cursor, query_embedding, entity_ids)
+    response = await _execute_search(query, db_session, fetch_limit, cursor, query_embedding, entity_ids, offset)
     has_more = len(response.results) > query.limit and query.limit > 0
 
     # Trim to requested limit

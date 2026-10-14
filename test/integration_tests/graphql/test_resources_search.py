@@ -69,8 +69,8 @@ RESOURCES = [
 
 def _query(resource: Resource) -> str:
     return f"""
-query ResourceSearch($search: ResourceSearchInput, $first: Int) {{
-    {resource.field}(search: $search, first: $first) {{
+query ResourceSearch($search: ResourceSearchInput, $first: Int, $after: Int, $query: String) {{
+    {resource.field}(search: $search, first: $first, after: $after, query: $query) {{
         page {{
             {resource.gql_id}
         }}
@@ -145,7 +145,7 @@ def _post(test_client_graphql, resource: Resource, **variables) -> dict:
 
 
 def test_search_returns_hits_of_resource(test_client_graphql, indexed_ids, resource):
-    result = _post(test_client_graphql, resource, search={"filters": _marker_filter(resource), "limit": 10})
+    result = _post(test_client_graphql, resource, search={"filters": _marker_filter(resource)}, first=10)
 
     assert "errors" not in result
     connection = result["data"][resource.field]
@@ -157,7 +157,7 @@ def test_search_returns_hits_of_resource(test_client_graphql, indexed_ids, resou
 
 
 def test_search_cursor_pages_through_hits(test_client_graphql, indexed_ids, resource):
-    first = _post(test_client_graphql, resource, search={"filters": _marker_filter(resource), "limit": 2})
+    first = _post(test_client_graphql, resource, search={"filters": _marker_filter(resource)}, first=2)
     first_page = first["data"][resource.field]
     second = _post(test_client_graphql, resource, search={"cursor": first_page["nextPageCursor"]})
 
@@ -170,10 +170,21 @@ def test_search_cursor_pages_through_hits(test_client_graphql, indexed_ids, reso
 
 
 def test_search_combined_with_legacy_argument_is_rejected(test_client_graphql, resource):
-    result = _post(test_client_graphql, resource, search={"filters": _marker_filter(resource)}, first=5)
+    result = _post(test_client_graphql, resource, search={"filters": _marker_filter(resource)}, query="hit")
 
     assert result["data"] is None
-    assert result["errors"][0]["message"] == "'search' cannot be combined with first"
+    assert result["errors"][0]["message"] == "'search' cannot be combined with query"
+
+
+def test_search_pages_by_offset(test_client_graphql, indexed_ids, resource):
+    ordered = sorted(str(entity_id) for entity_id in indexed_ids)
+
+    result = _post(test_client_graphql, resource, search={"filters": _marker_filter(resource)}, first=2, after=1)
+
+    assert "errors" not in result
+    connection = result["data"][resource.field]
+    assert [edge["node"][resource.gql_id] for edge in connection["searchEdges"]] == ordered[1:3]
+    assert connection["pageInfo"] == {"hasNextPage": False, "hasPreviousPage": True, "totalItems": 3}
 
 
 def test_without_search_lists_page(test_client_graphql, seeded_rows, resource):

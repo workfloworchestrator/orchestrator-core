@@ -80,6 +80,17 @@ class Retriever(ABC):
         return retriever_cls
 
     @classmethod
+    def supports_offset(cls, query: "SelectQuery | ExportQuery") -> bool:
+        """Whether this query may be paged by offset.
+
+        Only structured search: its order is stable and needs no embedding, so re-ranking per page stays cheap.
+        Other retrievers page with a cursor, which reuses the saved embedding.
+        """
+        from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
+
+        return cls._plan(query) is StructuredRetriever
+
+    @classmethod
     def needs_embedding(cls, query: "SelectQuery | ExportQuery") -> bool:
         """Whether the planned retriever for this query needs a query embedding.
 

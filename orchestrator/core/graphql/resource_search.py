@@ -60,14 +60,13 @@ def metadata_to_gql(metadata: SearchMetadata) -> SearchMetadataType:
 
 
 # GraphQL names of the list-resource arguments that `search` replaces.
-_NON_SEARCH_ARGUMENTS = frozenset({"filterBy", "sortBy", "query", "first", "after"})
+_NON_SEARCH_ARGUMENTS = frozenset({"filterBy", "sortBy", "query"})
 
 
 def _reject_non_search_arguments(info: OrchestratorInfo) -> None:
-    """Raise when `search` is combined with the resource's own filter/sort/paging arguments.
+    """Raise when `search` is combined with the resource's own filter and sort arguments.
 
-    The resolver signature can't tell their defaults (first=10, after=0) from explicit values, so sent arguments
-    are read from the query itself.
+    Reads sent arguments from the query, as the resolver only sees values after defaults.
     """
     field = cast(SelectedField, one(info.selected_fields))
     sent = {name for name, value in field.arguments.items() if value is not None}
@@ -86,12 +85,12 @@ def _client_error(message: str, error_type: ErrorType) -> GraphQLError:
 
 
 async def execute_resource_search(
-    info: OrchestratorInfo, entity_type: EntityType, search: ResourceSearchInput
+    info: OrchestratorInfo, entity_type: EntityType, search: ResourceSearchInput, first: int, after: int
 ) -> SearchPage:
     """Run the `search` argument of a list resource and return the ranked hits.
 
-    `search.entity_ids` scopes the search. It isn't saved with the query, so pass it on every page, cursor pages
-    included.
+    `first` is the page size; `after` skips hits, structured search only.
+    `search.entity_ids` isn't saved with the query, so pass it on every page, cursor pages included.
 
     Raises:
         GraphQLError: When `search` is combined with other arguments, or the search itself fails.
@@ -100,10 +99,11 @@ async def execute_resource_search(
     try:
         page = await execute_search_page(
             info.context.session,
-            query=None if search.cursor else search.to_select_query(entity_type),
+            query=None if search.cursor else search.to_select_query(entity_type, first),
             cursor=search.cursor,
             entity_type=entity_type,
             entity_ids=search.entity_ids,
+            offset=after,
         )
     except (InvalidCursorError, ValueError) as e:
         raise _client_error(str(e), ErrorType.BAD_REQUEST) from e
@@ -157,14 +157,18 @@ async def search_resource(
     info: OrchestratorInfo,
     entity_type: EntityType,
     search: ResourceSearchInput,
-    load_nodes: Callable[[Sequence[UUID]], Awaitable[Mapping[str, T]]],
+    load_nodes: Callable[[OrchestratorInfo, Sequence[UUID]], Awaitable[Mapping[str, T]]],
+    *,
+    first: int,
+    after: int,
 ) -> SearchConnection[T]:
     """Run the `search` argument of a list resource and load its hits with `load_nodes`.
 
-    `load_nodes` gets the ids of the hits and returns their GraphQL nodes keyed by the id as string; it is not
-    called when there are no hits.
+    `load_nodes` gets `info` and the hit ids and returns their GraphQL nodes keyed by id as string; it is not called
+    when there are no hits.
     """
-    search_page = await execute_resource_search(info, entity_type, search)
+    search_page = await execute_resource_search(info, entity_type, search, first, after)
     entity_ids = [UUID(entity_id) for entity_id in search_page.entity_ids]
-    nodes_by_id = await load_nodes(entity_ids) if entity_ids else {}
-    return to_search_connection(search_page, nodes_by_id, has_previous_page=search.cursor is not None)
+    nodes_by_id = await load_nodes(info, entity_ids) if entity_ids else {}
+    has_previous_page = bool(after) or search.cursor is not None
+    return to_search_connection(search_page, nodes_by_id, has_previous_page=has_previous_page)

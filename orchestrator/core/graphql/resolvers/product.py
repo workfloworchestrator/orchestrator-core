@@ -12,13 +12,10 @@
 # limitations under the License.
 
 from collections.abc import Sequence
-from typing import Annotated
 from uuid import UUID
 
-import strawberry
 import structlog
 from sqlalchemy import func, select
-from starlette.concurrency import run_in_threadpool
 
 from orchestrator.core.db import db
 from orchestrator.core.db.filters import Filter
@@ -31,7 +28,14 @@ from orchestrator.core.graphql.pagination import SearchConnection
 from orchestrator.core.graphql.resolvers.helpers import make_async, rows_from_statement
 from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.product import ProductType
-from orchestrator.core.graphql.search_inputs import ResourceSearchInput
+from orchestrator.core.graphql.search_inputs import (
+    After,
+    DeprecatedFilterBy,
+    DeprecatedQuery,
+    DeprecatedSortBy,
+    First,
+    ResourceSearchInput,
+)
 from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.core.graphql.utils import create_resolver_error_handler, is_querying_page_data, to_graphql_result_page
 from orchestrator.core.graphql.utils.get_query_loaders import get_query_loaders_for_gql_fields
@@ -83,6 +87,7 @@ def query_products(
     return to_graphql_result_page(graphql_products, first, after, total, product_sort_fields(), product_filter_fields())
 
 
+@make_async
 def _load_products(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, ProductType]:
     query_loaders = get_query_loaders_for_gql_fields(ProductTable, info)
     stmt = select(ProductTable).where(ProductTable.product_id.in_(ids))
@@ -90,26 +95,21 @@ def _load_products(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, Pro
     return {str(row.product_id): ProductType.from_pydantic(row) for row in rows}
 
 
-async def search_products(info: OrchestratorInfo, search: ResourceSearchInput) -> SearchConnection[ProductType]:
-    async def load_nodes(ids: Sequence[UUID]) -> dict[str, ProductType]:
-        return await run_in_threadpool(_load_products, info, ids)
-
-    return await search_resource(info, EntityType.PRODUCT, search, load_nodes)
+async def search_products(
+    info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
+) -> SearchConnection[ProductType]:
+    return await search_resource(info, EntityType.PRODUCT, search, _load_products, first=first, after=after)
 
 
 async def resolve_products(
     info: OrchestratorInfo,
-    filter_by: Annotated[
-        list[GraphqlFilter] | None, strawberry.argument(deprecation_reason="Use search.filters instead")
-    ] = None,
-    sort_by: Annotated[
-        list[GraphqlSort] | None, strawberry.argument(deprecation_reason="Use search.orderBy instead")
-    ] = None,
-    first: Annotated[int, strawberry.argument(deprecation_reason="Use search.limit instead")] = 10,
-    after: Annotated[int, strawberry.argument(deprecation_reason="Use search.cursor instead")] = 0,
-    query: Annotated[str | None, strawberry.argument(deprecation_reason="Use search.query instead")] = None,
+    filter_by: DeprecatedFilterBy = None,
+    sort_by: DeprecatedSortBy = None,
+    first: First = 10,
+    after: After = 0,
+    query: DeprecatedQuery = None,
     search: ResourceSearchInput | None = None,
 ) -> SearchConnection[ProductType]:
     if search is not None:
-        return await search_products(info, search)
+        return await search_products(info, search, first, after)
     return await query_products(info, filter_by, sort_by, first, after, query)
