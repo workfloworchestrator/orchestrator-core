@@ -25,6 +25,27 @@ def test_testing_defaults_to_false():
     assert AppSettings.model_fields["TESTING"].default is False
 
 
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        pytest.param(None, 1000, id="default"),
+        pytest.param("25000", 25000, id="from-env"),
+    ],
+)
+def test_search_max_export_limit(monkeypatch, value, expected):
+    if value is not None:
+        monkeypatch.setenv("SEARCH_MAX_EXPORT_LIMIT", value)
+
+    assert AppSettings().SEARCH_MAX_EXPORT_LIMIT == expected
+
+
+def test_search_max_export_limit_must_be_positive(monkeypatch):
+    monkeypatch.setenv("SEARCH_MAX_EXPORT_LIMIT", "0")
+
+    with pytest.raises(ValidationError):
+        AppSettings()
+
+
 def test_celery_target_queues_defaults_to_empty_mapping():
     assert AppSettings().CELERY_TARGET_QUEUES == {}
 
