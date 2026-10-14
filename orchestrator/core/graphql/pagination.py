@@ -93,8 +93,6 @@ class SearchConnection(Connection[GenericType], Generic[GenericType]):
 
 
 EMPTY_PAGE: SearchConnection[Any] = SearchConnection(
-    search_edges=[],
-    page=[],
     page_info=PageInfo(
         has_previous_page=False,
         has_next_page=False,

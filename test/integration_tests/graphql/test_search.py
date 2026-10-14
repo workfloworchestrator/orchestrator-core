@@ -226,7 +226,7 @@ def test_search_input_with_order_by() -> None:
 ELASTIC_STATUS_FILTER = {"bool": {"should": [{"term": {"subscription.status": "active"}}]}}
 
 
-def test_search_input_converts_elastic_filters() -> None:
+def test_search_input_converts_elastic_filters():
     result = SearchInput(elastic_filters=ELASTIC_STATUS_FILTER).to_select_query(EntityType.SUBSCRIPTION)
 
     assert result.filters == FilterTree(
@@ -249,12 +249,12 @@ def test_search_input_converts_elastic_filters() -> None:
         pytest.param({"term": {}}, id="term-without-field"),
     ],
 )
-def test_search_input_rejects_invalid_elastic_filters(elastic_filters) -> None:
+def test_search_input_rejects_invalid_elastic_filters(elastic_filters):
     with pytest.raises(ValueError):
         SearchInput(elastic_filters=elastic_filters).to_select_query(EntityType.SUBSCRIPTION)
 
 
-def test_search_input_rejects_both_filter_formats() -> None:
+def test_search_input_rejects_both_filter_formats():
     search = SearchInput(
         filters=FilterTreeInput(
             filters=[
@@ -285,7 +285,7 @@ _A, _B, _C = (UUID(int=n) for n in range(1, 4))
         pytest.param([_C], [_A, _B], [], id="client-cannot-widen"),
     ],
 )
-def test_resource_search_within_never_widens(client_ids, allowed_ids, expected) -> None:
+def test_resource_search_within_never_widens(client_ids, allowed_ids, expected):
     assert ResourceSearchInput(entity_ids=client_ids).within(allowed_ids).entity_ids == expected
 
 

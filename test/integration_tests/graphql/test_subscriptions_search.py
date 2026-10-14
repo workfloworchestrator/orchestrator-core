@@ -109,7 +109,7 @@ def _post(test_client_graphql, **variables) -> dict:
 
 
 def test_search_returns_scored_edges_without_page(test_client_graphql, indexed_subscription_ids):
-    result = _post(test_client_graphql, search={"filters": STATUS_FILTER, "limit": 10})
+    result = _post(test_client_graphql, search={"filters": STATUS_FILTER}, first=10)
 
     assert "errors" not in result
     subscriptions = result["data"]["subscriptions"]
@@ -127,7 +127,7 @@ def test_search_returns_scored_edges_without_page(test_client_graphql, indexed_s
 def test_search_accepts_elastic_filters_from_query_builder(test_client_graphql, indexed_subscription_ids):
     elastic_filters = {"bool": {"should": [{"term": {"subscription.status": "active"}}]}}
 
-    result = _post(test_client_graphql, search={"elasticFilters": elastic_filters, "limit": 10})
+    result = _post(test_client_graphql, search={"elasticFilters": elastic_filters}, first=10)
 
     assert "errors" not in result
     edge_ids = [edge["node"]["subscriptionId"] for edge in result["data"]["subscriptions"]["searchEdges"]]
@@ -135,7 +135,7 @@ def test_search_accepts_elastic_filters_from_query_builder(test_client_graphql, 
 
 
 def test_search_cursor_pages_through_hits(test_client_graphql, indexed_subscription_ids):
-    first_page = _post(test_client_graphql, search={"filters": STATUS_FILTER, "limit": 2})["data"]["subscriptions"]
+    first_page = _post(test_client_graphql, search={"filters": STATUS_FILTER}, first=2)["data"]["subscriptions"]
     cursor = first_page["nextPageCursor"]
 
     assert first_page["pageInfo"]["hasNextPage"] is True
@@ -151,11 +151,43 @@ def test_search_cursor_pages_through_hits(test_client_graphql, indexed_subscript
     assert second_page["nextPageCursor"] is None
 
 
+@pytest.mark.parametrize(
+    "first, after, expected_slice, has_next_page",
+    [
+        pytest.param(2, 0, slice(0, 2), True, id="first-page"),
+        pytest.param(2, 2, slice(2, 3), False, id="last-page"),
+        pytest.param(1, 1, slice(1, 2), True, id="middle-page"),
+        pytest.param(2, 5, slice(3, 3), False, id="past-the-end"),
+    ],
+)
+def test_search_pages_by_offset(
+    test_client_graphql, indexed_subscription_ids, first, after, expected_slice, has_next_page
+):
+    ordered = sorted(str(sub_id) for sub_id in indexed_subscription_ids)
+
+    result = _post(test_client_graphql, search={"filters": STATUS_FILTER}, first=first, after=after)
+
+    assert "errors" not in result
+    subscriptions = result["data"]["subscriptions"]
+    assert [edge["node"]["subscriptionId"] for edge in subscriptions["searchEdges"]] == ordered[expected_slice]
+    assert subscriptions["pageInfo"]["hasNextPage"] is has_next_page
+    assert subscriptions["pageInfo"]["hasPreviousPage"] is bool(after)
+
+
+def test_cursor_page_keeps_page_size_of_first_page(test_client_graphql, indexed_subscription_ids):
+    first_page = _post(test_client_graphql, search={"filters": STATUS_FILTER}, first=1)["data"]["subscriptions"]
+
+    second_page = _post(test_client_graphql, search={"cursor": first_page["nextPageCursor"]}, first=2)
+
+    assert "errors" not in second_page
+    assert len(second_page["data"]["subscriptions"]["searchEdges"]) == 1
+
+
 def test_search_skips_hits_whose_subscription_no_longer_exists(test_client_graphql, indexed_subscription_ids):
     db.session.add(_index_row(uuid4(), "subscription.status", "active"))
     db.session.commit()
 
-    result = _post(test_client_graphql, search={"filters": STATUS_FILTER, "limit": 10})
+    result = _post(test_client_graphql, search={"filters": STATUS_FILTER}, first=10)
 
     assert "errors" not in result
     edge_ids = [edge["node"]["subscriptionId"] for edge in result["data"]["subscriptions"]["searchEdges"]]
@@ -196,7 +228,7 @@ def test_search_entity_ids_restricts_hits(test_client_graphql, indexed_subscript
 
 def test_search_entity_ids_apply_to_cursor_pages(test_client_graphql, indexed_subscription_ids):
     wanted = [str(sub_id) for sub_id in indexed_subscription_ids[:2]]
-    first_page = _post(test_client_graphql, search={"filters": STATUS_FILTER, "limit": 1, "entityIds": wanted})
+    first_page = _post(test_client_graphql, search={"filters": STATUS_FILTER, "entityIds": wanted}, first=1)
     cursor = first_page["data"]["subscriptions"]["nextPageCursor"]
 
     second_page = _post(test_client_graphql, search={"cursor": cursor, "entityIds": wanted})
@@ -214,9 +246,9 @@ def test_search_entity_ids_apply_to_cursor_pages(test_client_graphql, indexed_su
         pytest.param({"filterBy": [{"field": "status", "value": "active"}]}, "filterBy", id="filterBy"),
         pytest.param({"sortBy": [{"field": "startDate", "order": "ASC"}]}, "sortBy", id="sortBy"),
         pytest.param({"query": "active"}, "query", id="query"),
-        pytest.param({"first": 5}, "first", id="first"),
-        pytest.param({"after": 5}, "after", id="after"),
-        pytest.param({"first": 5, "query": "active"}, "first, query", id="multiple"),
+        pytest.param(
+            {"filterBy": [{"field": "status", "value": "active"}], "query": "active"}, "filterBy, query", id="multiple"
+        ),
     ],
 )
 def test_search_combined_with_other_arguments_is_rejected(test_client_graphql, other_arguments, conflicting):
@@ -232,7 +264,6 @@ def test_search_combined_with_other_arguments_is_rejected(test_client_graphql, o
     [
         pytest.param({"cursor": "not-a-cursor"}, "VALIDATION_ERROR", id="malformed-cursor"),
         pytest.param({"retriever": "FUZZY"}, "VALIDATION_ERROR", id="retriever-without-query"),
-        pytest.param({"limit": 0}, "VALIDATION_ERROR", id="limit-below-minimum"),
         pytest.param({"elasticFilters": {"bool": {}}}, "VALIDATION_ERROR", id="invalid-elastic-filters"),
         pytest.param(
             {"cursor": PageCursor(score=1.0, id=str(uuid4()), query_id=uuid4()).encode()},
@@ -248,6 +279,40 @@ def test_invalid_search_returns_graphql_error(test_client_graphql, search, code)
     error = result["errors"][0]
     assert error["message"] != "Internal Server Error"
     assert error["extensions"]["code"] == code
+
+
+@pytest.mark.parametrize(
+    "search, paging, message",
+    [
+        pytest.param(
+            {"query": "active"},
+            {"after": 2},
+            "An offset only works for structured search (filters without query text); page with a cursor",
+            id="after-with-query-text",
+        ),
+        pytest.param(
+            {"filters": STATUS_FILTER, "retriever": "FUZZY", "query": "active"},
+            {"after": 2},
+            "An offset only works for structured search (filters without query text); page with a cursor",
+            id="after-with-forced-retriever",
+        ),
+        pytest.param(
+            {"cursor": PageCursor(score=1.0, id=str(uuid4()), query_id=uuid4()).encode()},
+            {"after": 2},
+            "Page with either an offset or a cursor, not both",
+            id="after-with-cursor",
+        ),
+        pytest.param({"filters": STATUS_FILTER}, {"first": 0}, None, id="first-below-minimum"),
+    ],
+)
+def test_invalid_paging_returns_graphql_error(test_client_graphql, search, paging, message):
+    result = _post(test_client_graphql, search=search, **paging)
+
+    assert result["data"] is None
+    error = result["errors"][0]
+    assert error["extensions"]["code"] == "VALIDATION_ERROR"
+    if message:
+        assert error["message"] == message
 
 
 async def test_cursor_of_other_entity_type_is_rejected(test_client_graphql, async_session):
@@ -278,18 +343,16 @@ def test_legacy_arguments_are_deprecated(test_client_graphql):
         "filterBy": "Use search.filters instead",
         "sortBy": "Use search.orderBy instead",
         "query": "Use search.query instead",
-        "first": "Use search.limit instead",
-        "after": "Use search.cursor instead",
     }
 
 
 RELATION_SEARCH_QUERY = """
-query RelationSearch($id: UUID!, $search: ResourceSearchInput, $filterBy: [GraphqlFilter!]) {
+query RelationSearch($id: UUID!, $search: ResourceSearchInput, $filterBy: [GraphqlFilter!], $first: Int) {
     subscription(id: $id) {
-        dependsOnSubscriptions(search: $search, filterBy: $filterBy) {
+        dependsOnSubscriptions(search: $search, filterBy: $filterBy, first: $first) {
             ...hits
         }
-        inUseBySubscriptions(search: $search, filterBy: $filterBy) {
+        inUseBySubscriptions(search: $search, filterBy: $filterBy, first: $first) {
             ...hits
         }
     }
@@ -359,7 +422,7 @@ def test_relation_search_is_scoped_to_related_subscriptions(
     test_client_graphql, indexed_relations, subject, field, expected
 ):
     result = _post_relations(
-        test_client_graphql, indexed_relations[subject], search={"filters": STATUS_FILTER, "limit": 10}
+        test_client_graphql, indexed_relations[subject], search={"filters": STATUS_FILTER}, first=10
     )
 
     assert "errors" not in result
@@ -370,7 +433,7 @@ def test_relation_search_is_scoped_to_related_subscriptions(
 
 def test_relation_search_without_relations_returns_empty_edges(test_client_graphql, indexed_relations):
     result = _post_relations(
-        test_client_graphql, indexed_relations["list_union"], search={"filters": STATUS_FILTER, "limit": 10}
+        test_client_graphql, indexed_relations["list_union"], search={"filters": STATUS_FILTER}, first=10
     )
 
     assert "errors" not in result
@@ -381,7 +444,7 @@ def test_relation_search_without_relations_returns_empty_edges(test_client_graph
 
 def test_relation_search_cursor_stays_within_relation(test_client_graphql, indexed_relations):
     list_union = indexed_relations["list_union"]
-    first_page = _post_relations(test_client_graphql, list_union, search={"filters": STATUS_FILTER, "limit": 1})
+    first_page = _post_relations(test_client_graphql, list_union, search={"filters": STATUS_FILTER}, first=1)
     first = first_page["data"]["subscription"]["dependsOnSubscriptions"]
 
     assert first["pageInfo"] == {"hasNextPage": True, "totalItems": 2}

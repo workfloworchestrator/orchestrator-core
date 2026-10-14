@@ -11,10 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections.abc import Sequence
-from typing import Annotated, cast
+from typing import cast
 from uuid import UUID
 
-import strawberry
 import structlog
 from graphql import GraphQLError
 from pydantic.alias_generators import to_camel as to_lower_camel
@@ -41,7 +40,14 @@ from orchestrator.core.graphql.pagination import SearchConnection
 from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.product import ProductModelGraphql
 from orchestrator.core.graphql.schemas.subscription import SubscriptionInterface
-from orchestrator.core.graphql.search_inputs import ResourceSearchInput
+from orchestrator.core.graphql.search_inputs import (
+    After,
+    DeprecatedFilterBy,
+    DeprecatedQuery,
+    DeprecatedSortBy,
+    First,
+    ResourceSearchInput,
+)
 from orchestrator.core.graphql.types import (
     GraphqlFilter,
     GraphqlSort,
@@ -112,23 +118,26 @@ async def resolve_subscription(info: OrchestratorInfo, id: UUID) -> Subscription
     return None
 
 
-async def search_subscriptions(
-    info: OrchestratorInfo, search: ResourceSearchInput
-) -> SearchConnection[SubscriptionInterface]:
-    async def load_subscriptions(subscription_ids: Sequence[UUID]) -> dict[str, SubscriptionInterface]:
-        stmt = (
-            select(SubscriptionTable)
-            .join(ProductTable)
-            .options(contains_eager(SubscriptionTable.product))
-            .where(SubscriptionTable.subscription_id.in_(subscription_ids))
-        )
-        subscriptions = (await run_in_threadpool(db.session.scalars, stmt)).all()
-        graphql_subscriptions = cast(
-            list[SubscriptionInterface], await gather_nice(format_subscription(info, s) for s in subscriptions)
-        )
-        return {str(subscription.subscription_id): subscription for subscription in graphql_subscriptions}
+async def _load_subscriptions(
+    info: OrchestratorInfo, subscription_ids: Sequence[UUID]
+) -> dict[str, SubscriptionInterface]:
+    stmt = (
+        select(SubscriptionTable)
+        .join(ProductTable)
+        .options(contains_eager(SubscriptionTable.product))
+        .where(SubscriptionTable.subscription_id.in_(subscription_ids))
+    )
+    subscriptions = (await run_in_threadpool(db.session.scalars, stmt)).all()
+    graphql_subscriptions = cast(
+        list[SubscriptionInterface], await gather_nice(format_subscription(info, s) for s in subscriptions)
+    )
+    return {str(subscription.subscription_id): subscription for subscription in graphql_subscriptions}
 
-    return await search_resource(info, EntityType.SUBSCRIPTION, search, load_subscriptions)
+
+async def search_subscriptions(
+    info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
+) -> SearchConnection[SubscriptionInterface]:
+    return await search_resource(info, EntityType.SUBSCRIPTION, search, _load_subscriptions, first=first, after=after)
 
 
 async def query_subscriptions(
@@ -184,17 +193,13 @@ async def query_subscriptions(
 
 async def resolve_subscriptions(
     info: OrchestratorInfo,
-    filter_by: Annotated[
-        list[GraphqlFilter] | None, strawberry.argument(deprecation_reason="Use search.filters instead")
-    ] = None,
-    sort_by: Annotated[
-        list[GraphqlSort] | None, strawberry.argument(deprecation_reason="Use search.orderBy instead")
-    ] = None,
-    first: Annotated[int, strawberry.argument(deprecation_reason="Use search.limit instead")] = 10,
-    after: Annotated[int, strawberry.argument(deprecation_reason="Use search.cursor instead")] = 0,
-    query: Annotated[str | None, strawberry.argument(deprecation_reason="Use search.query instead")] = None,
+    filter_by: DeprecatedFilterBy = None,
+    sort_by: DeprecatedSortBy = None,
+    first: First = 10,
+    after: After = 0,
+    query: DeprecatedQuery = None,
     search: ResourceSearchInput | None = None,
 ) -> SearchConnection[SubscriptionInterface]:
     if search is not None:
-        return await search_subscriptions(info, search)
+        return await search_subscriptions(info, search, first, after)
     return await query_subscriptions(info, filter_by, sort_by, first, after, query)

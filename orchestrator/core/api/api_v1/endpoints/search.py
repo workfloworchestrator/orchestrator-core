@@ -292,7 +292,6 @@ async def get_by_query_id(
     summary="Export query results by query_id",
     response_model=ExportResponse,
 )
-
 async def export_by_query_id(
     query_id: str, session: AsyncSession = Depends(get_async_session)
 ) -> ExportResponse:
