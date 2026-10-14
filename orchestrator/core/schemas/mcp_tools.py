@@ -13,7 +13,7 @@
 
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -41,6 +41,19 @@ class GetWorkflowFormRequest(OrchestratorBaseModel):
     page_inputs: list[dict[str, Any]] | None = Field(
         default=None,
         description="List of dicts with previously filled form pages. Pass `[]` or omit for the first page.",
+    )
+    include_schema: bool = Field(
+        default=True,
+        description="Also send the page's browser JSON Schema as `schema` (deprecated: read `fields`). Pass false "
+        "to receive `fields` only.",
+    )
+    verdict: Literal["error", "result"] = Field(
+        default="error",
+        description=(
+            'How a page the form rejects is reported. "error" (default): the validation errors are raised as a tool '
+            'error. "result": the page comes back with `status: "rejected"`, its `errors` and its `fields`, so the '
+            "values named can be corrected and the same page resubmitted."
+        ),
     )
 
 
@@ -71,13 +84,78 @@ class ListSubscriptionsRequest(OrchestratorBaseModel):
 # Response models
 
 
+FormFieldKind = Literal["string", "integer", "number", "boolean", "list", "object", "any"]
+
+
+class FormFieldOption(OrchestratorBaseModel):
+    value: Any = Field(description="What a caller submits for this option.")
+    label: str = Field(description="How a person sees the option (a product's name, a Choice label).")
+
+
+class FormFieldError(OrchestratorBaseModel):
+    loc: list[int | str] = Field(
+        description='Path of the rejected value on the page: the field name, then an index or sub-field. `["__root__"]` for a page-level error.'
+    )
+    msg: str = Field(description="The message, as the UI shows it.")
+    type: str = Field(description='pydantic\'s error type, e.g. "missing", "enum", "value_error".')
+
+
+class FormField(OrchestratorBaseModel):
+    """One field of a form page, as data: what it takes, what it is limited to, and whether it is asked at all."""
+
+    name: str
+    title: str
+    description: str | None = None
+    kind: FormFieldKind = Field(description="The kind of value the field takes.")
+    format: str | None = Field(
+        default=None,
+        description='The form\'s marker for a special field, e.g. "accept", "productId", "customerId", "subscription", "summary".',
+    )
+    required: bool
+    default: Any = Field(default=None, description="The value that applies when none is sent (`null` when required).")
+    nullable: bool = False
+    options: list[FormFieldOption] | None = Field(
+        default=None,
+        description="The values the field is limited to, in order. `[]`: a choice with no option today. `null`: free.",
+    )
+    item: "FormField | None" = Field(default=None, description='For kind "list": the shape of one item.')
+    constraints: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Every limit the value is validated against, by pydantic's `Field` keyword: `min_length` / "
+        "`max_length` (characters of a string, items of a list), `pattern`, `ge` / `gt` / `le` / `lt`, `multiple_of`, "
+        "... Empty when there is none.",
+    )
+    unique_items: bool = False
+    fields: "list[FormField] | None" = Field(
+        default=None, description='For kind "object": the nested fields, in order.'
+    )
+    read_only: bool = Field(default=False, description="Shown with its `default` and never asked; do not submit.")
+    display_only: bool = Field(
+        default=False, description="A label, divider, text or summary table: shown and never submitted."
+    )
+    data: Any = Field(default=None, description="What a display field shows: a summary table, a text, accept items.")
+
+
 class WorkflowFormPage(OrchestratorBaseModel):
-    page: int = Field(description="Current page number (0-indexed).")
+    page: int = Field(description="The page this result is about (0-indexed).")
     complete: bool = Field(description="True when all pages have been filled and `create_workflow` may be called.")
+    status: Literal["next", "complete", "rejected"] = Field(
+        description='"next": fill `fields` and call again with the page added to `page_inputs`. "complete": call '
+        '`create_workflow`. "rejected": page `page` did not validate; fix the values `errors` name and resubmit it.'
+    )
+    title: str | None = Field(default=None, description="The page's title, when the form gives it one.")
     schema_: dict[str, Any] | None = Field(
         default=None,
         alias="schema",
-        description="JSON Schema for the current page's fields. `null` when complete.",
+        deprecated="`schema` is the browser's rendering of the page; read `fields`. It is removed in the next major release.",
+        description="Deprecated, read `fields` instead: the browser's JSON Schema of the page. `null` when complete "
+        "or when `include_schema` is false; to be removed in the next major release.",
+    )
+    fields: list[FormField] | None = Field(
+        default=None, description="The page's fields as data, in the form's order. `null` when complete."
+    )
+    errors: list[FormFieldError] = Field(
+        default_factory=list, description='The verdict on a rejected page; empty unless `status` is "rejected".'
     )
 
 
