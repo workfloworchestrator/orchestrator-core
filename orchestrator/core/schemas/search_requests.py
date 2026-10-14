@@ -56,12 +56,13 @@ class BaseSearchRequest(BaseModel):
 
     def filter_tree(self, entity_type: EntityType) -> FilterTree | None:
         """Return the filters as a FilterTree, converting ES DSL filters for the given entity type."""
-        if isinstance(self.filters, ElasticQuery):
+        filters = self.filters
+        if isinstance(filters, ElasticQuery):
             return elastic_to_filter_tree(
-                self.filters,
+                filters,
                 value_kind_resolver=lambda path, _value: resolve_field_value_kind(entity_type, path),
             )
-        return self.filters
+        return filters
 
     @model_validator(mode="after")
     def validate_order_by_not_compatible_with_query(self) -> Self:
