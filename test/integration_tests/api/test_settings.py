@@ -91,17 +91,25 @@ def test_get_exposed_settings(test_client):
 
     my_settings = MySettings()
     expose_settings("my_settings", my_settings)
-    assert len(get_all_exposed_settings()) == 1
+    assert "my_settings" in {entry.name for entry in get_all_exposed_settings()}
 
     response = test_client.get("/api/settings/overview")
     assert response.status_code == HTTPStatus.OK
 
-    exposed_settings = response.json()
+    exposed_settings = {entry["name"]: entry["variables"] for entry in response.json()}
 
     # Find the env_name db_password and ensure it is masked is **********
-    session_secret = next((var for var in exposed_settings[0]["variables"] if var["env_name"] == "db_password"), None)
+    session_secret = next((var for var in exposed_settings["my_settings"] if var["env_name"] == "db_password"), None)
     assert session_secret is not None
     assert session_secret["env_value"] == "**********"
+
+
+def test_get_exposed_settings_includes_search_settings(test_client):
+    response = test_client.get("/api/settings/overview")
+    assert response.status_code == HTTPStatus.OK
+
+    search_settings = next(entry for entry in response.json() if entry["name"] == "search_settings")
+    assert [var["env_name"] for var in search_settings["variables"]] == ["EMBEDDING_API_ENABLED"]
 
 
 def test_get_cache_names(test_client):

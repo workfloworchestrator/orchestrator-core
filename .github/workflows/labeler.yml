@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   label:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     steps:
       # `sync-labels: true` means the labeler both adds and REMOVES labels — but
       # ONLY the ones it can derive from changed paths (see .github/labeler.yml:
@@ -47,7 +47,7 @@ jobs:
     # if the labeler was skipped or failed.
     needs: label
     if: ${{ always() }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     permissions:
       pull-requests: read
     steps:

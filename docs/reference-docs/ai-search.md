@@ -219,7 +219,12 @@ python main.py index processes
 python main.py index workflows
 ```
 
-Each command accepts:
+!!! note "Indexing is not part of `db upgrade` by default"
+    `python main.py db upgrade` and `python main.py db downgrade` do **not** update the search index
+    unless you pass `--index`. Indexing a large database can take a long time, so it is better to run
+    the indexing commands above as a separate post-deployment step.
+
+Each of the per-entity commands above accepts:
 
 | Option                | Effect                                                     |
 |-----------------------|------------------------------------------------------------|
@@ -228,8 +233,12 @@ Each command accepts:
 | `--dry-run`           | make no database writes and no embedding calls              |
 | `--show-progress`     | show a progress bar                                        |
 
+To index every entity type in one go, use `python main.py index all`. It accepts only
+`--force-index`; the entity ID, `--dry-run` and `--show-progress` options are not available because it
+runs the per-entity commands with their defaults.
+
 `python main.py index rebuild-paths` recomputes the
-[distinct-paths table](#the-distinct-paths-table) from scratch.
+[distinct-paths table](#the-distinct-paths-table) from scratch. It takes no options.
 
 `python main.py search` runs individual search strategies from a shell (`structured`, `semantic`,
 `fuzzy`, `hierarchical`, `hybrid`, plus `generate-schema` and `nested-demo`), and

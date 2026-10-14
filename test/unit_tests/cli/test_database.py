@@ -29,8 +29,14 @@ COMMANDS = [
 @pytest.mark.parametrize(
     ("flags", "expected_calls"),
     [
-        pytest.param([], [call.migrate(ANY, ANY), call.index_all(force_index=False)], id="index_by_default"),
-        pytest.param(["--force-index"], [call.migrate(ANY, ANY), call.index_all(force_index=True)], id="force_index"),
+        pytest.param([], [call.migrate(ANY, ANY)], id="no_index_by_default"),
+        pytest.param(["--index"], [call.migrate(ANY, ANY), call.index_all(force_index=False)], id="index"),
+        pytest.param(
+            ["--index", "--force-index"],
+            [call.migrate(ANY, ANY), call.index_all(force_index=True)],
+            id="index_force",
+        ),
+        pytest.param(["--force-index"], [call.migrate(ANY, ANY)], id="force_index_without_index"),
         pytest.param(["--no-index"], [call.migrate(ANY, ANY)], id="no_index"),
     ],
 )

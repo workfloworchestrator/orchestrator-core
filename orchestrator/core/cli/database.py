@@ -41,7 +41,15 @@ logger = get_logger(__name__)
 
 app: typer.Typer = typer.Typer()
 
-Index = Annotated[bool, typer.Option(help="Index the search tables after the migration")]
+Index = Annotated[
+    bool,
+    typer.Option(
+        help=(
+            "Index the search tables after the migration. This is opt-in and can take a long time on large "
+            "databases; consider running `python main.py index all` as a separate post-deployment step instead."
+        )
+    ),
+]
 
 orchestrator_module_location = os.path.join(os.path.dirname(__file__), os.pardir)
 migration_dir = "migrations"
@@ -180,14 +188,18 @@ def merge(
 @app.command()
 def upgrade(
     revision: str = typer.Argument(help="Rev id to upgrade to"),
-    index: Index = True,
+    index: Index = False,
     force_index: ForceIndex = False,
 ) -> None:
     """The `upgrade` command will upgrade the database to the specified revision.
 
+    By default the search index is left untouched. Pass `--index` to rebuild the search index as part of the
+    migration. Indexing is opt-in because it can take a long time on large databases; on a production deployment it
+    is usually better to run `python main.py index all` as a separate post-deployment step.
+
     Args:
         revision: Optional argument to indicate where to upgrade to.
-        index: Whether to index the search tables after the migration.
+        index: Whether to index the search tables after the migration. Defaults to `False` (opt-in).
         force_index: Whether to re-index all fields regardless of the hash cache.
 
     Returns:
@@ -199,7 +211,7 @@ def upgrade(
             [REVISION]  Rev id to upgrade to
 
         Options:
-            --index / --no-index              Index the search tables after the migration  [default: index]
+            --index / --no-index              Index the search tables after the migration (can be slow)  [default: no-index]
             --force-index / --no-force-index  Force re-index (ignore hash cache)  [default: no-force-index]
             --help                            Show this message and exit.
         ```
@@ -214,14 +226,18 @@ def upgrade(
 @app.command()
 def downgrade(
     revision: str = typer.Argument("-1", help="Rev id to downgrade to"),
-    index: Index = True,
+    index: Index = False,
     force_index: ForceIndex = False,
 ) -> None:
     """The `downgrade` command will downgrade the database to the previous revision or to the optionally specified revision.
 
+    By default the search index is left untouched. Pass `--index` to rebuild the search index as part of the
+    migration. Indexing is opt-in because it can take a long time on large databases; on a production deployment it
+    is usually better to run `python main.py index all` as a separate post-deployment step.
+
     Args:
         revision (str, optional): Optional argument to indicate where to downgrade to. [default: -1]
-        index: Whether to index the search tables after the migration.
+        index: Whether to index the search tables after the migration. Defaults to `False` (opt-in).
         force_index: Whether to re-index all fields regardless of the hash cache.
 
     Returns:
@@ -233,7 +249,7 @@ def downgrade(
             [REVISION]  Rev id to downgrade to  [default: -1]
 
         Options:
-            --index / --no-index              Index the search tables after the migration  [default: index]
+            --index / --no-index              Index the search tables after the migration (can be slow)  [default: no-index]
             --force-index / --no-force-index  Force re-index (ignore hash cache)  [default: no-force-index]
             --help                            Show this message and exit.
         ```

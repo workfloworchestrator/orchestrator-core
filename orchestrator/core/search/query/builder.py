@@ -436,9 +436,8 @@ def build_simple_count_query(base_query: Select) -> Select:
     Returns:
         Select statement that counts distinct entity IDs
     """
-    return select(func.count(func.distinct(base_query.c.entity_id)).label("total_count")).select_from(
-        base_query.subquery()
-    )
+    candidates = base_query.subquery()
+    return select(func.count(func.distinct(candidates.c.entity_id)).label("total_count")).select_from(candidates)
 
 
 def build_aggregation_query(query: CountQuery | AggregateQuery, base_query: Select) -> tuple[Select, list[str]]:

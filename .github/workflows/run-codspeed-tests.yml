@@ -12,7 +12,7 @@ env:
 jobs:
   codspeed:
     name: Run benchmarks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     container:
       image: python:3.13-bookworm
       options: --privileged
@@ -46,7 +46,7 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.12.23"
+          version: "0.13.0"
 
       - name: Install the project
         # --all-extras: [project.optional-dependencies]
@@ -72,7 +72,7 @@ jobs:
       - name: Add $HOME/.cargo/bin to PATH
         run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
-      - uses: CodSpeedHQ/action@c4fd08a3a159bd0cc208da1e0edf32b8c47d75e5 # v5
+      - uses: CodSpeedHQ/action@f842b9a3ffe213dbb81768fd7f7eeb4dfcf1c369 # v5
         with:
           mode: simulation
           run: CACHE_URI=redis://redis DATABASE_URI=postgresql+psycopg://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB uv run pytest test/integration_tests --codspeed
