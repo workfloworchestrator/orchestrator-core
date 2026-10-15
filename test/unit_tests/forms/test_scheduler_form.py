@@ -13,7 +13,12 @@
 
 import pytest
 
-from orchestrator.core.forms.scheduler_form import _check_authorize, get_cron_kwargs, validate_cron
+from orchestrator.core.forms.scheduler_form import (
+    _check_authorize,
+    _translate_dow_for_apscheduler3,
+    get_cron_kwargs,
+    validate_cron,
+)
 from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.workflow import begin, done, step, workflow
 
@@ -109,9 +114,40 @@ START_DATE = object()  # get_cron_kwargs passes start_date through unchanged
             id="list",
         ),
         pytest.param(
+            # crontab 1 = Monday, APScheduler 3.x 0 = Monday
             "0 8 * * 1",
+            {"minute": "0", "hour": "8", "day": "*", "month": "*", "day_of_week": "0"},
+            id="specific-monday",
+        ),
+        pytest.param(
+            # crontab 2 = Tuesday, APScheduler 3.x 1 = Tuesday
+            "0 8 * * 2",
             {"minute": "0", "hour": "8", "day": "*", "month": "*", "day_of_week": "1"},
-            id="specific",
+            id="specific-tuesday",
+        ),
+        pytest.param(
+            # crontab 0 = Sunday, APScheduler 3.x 6 = Sunday
+            "0 8 * * 0",
+            {"minute": "0", "hour": "8", "day": "*", "month": "*", "day_of_week": "6"},
+            id="specific-sunday-zero",
+        ),
+        pytest.param(
+            # crontab 7 = Sunday alias, APScheduler 3.x 6 = Sunday
+            "0 8 * * 7",
+            {"minute": "0", "hour": "8", "day": "*", "month": "*", "day_of_week": "6"},
+            id="specific-sunday-seven",
+        ),
+        pytest.param(
+            # crontab 1-5 = Mon-Fri, APScheduler 3.x 0-4 = Mon-Fri
+            "0 9 * * 1-5",
+            {"minute": "0", "hour": "9", "day": "*", "month": "*", "day_of_week": "0-4"},
+            id="range-weekdays",
+        ),
+        pytest.param(
+            # named days pass through unchanged
+            "0 9 * * mon-fri",
+            {"minute": "0", "hour": "9", "day": "*", "month": "*", "day_of_week": "mon-fri"},
+            id="named-days",
         ),
         pytest.param(
             "*/15 * * * * *",
@@ -131,9 +167,37 @@ def test_get_cron_kwargs_rejects_wrong_field_count(cron):
 
 
 @pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        pytest.param("*", "*", id="wildcard"),
+        pytest.param("*/2", "*/2", id="step-wildcard"),
+        pytest.param("1", "0", id="monday"),
+        pytest.param("2", "1", id="tuesday"),
+        pytest.param("6", "5", id="saturday"),
+        pytest.param("0", "6", id="sunday-zero"),
+        pytest.param("7", "6", id="sunday-seven"),
+        pytest.param("1-5", "0-4", id="range-weekdays"),
+        pytest.param("0,6", "6,5", id="list-sunday-saturday"),
+        pytest.param("mon-fri", "mon-fri", id="named-days"),
+        pytest.param("tue", "tue", id="named-single"),
+    ],
+)
+def test_translate_dow_for_apscheduler3(value, expected):
+    assert _translate_dow_for_apscheduler3(value) == expected
+
+
+@pytest.mark.parametrize(
     "cron",
-    ["* * * * *", "0-59 * * * *", "1,15,30 * * * *", "0 9-17 * * 1-5", "*/15 * * * * *"],
-    ids=["wildcards", "range", "list", "workhours", "6-field-seconds"],
+    [
+        "* * * * *",
+        "0-59 * * * *",
+        "1,15,30 * * * *",
+        "0 9-17 * * 1-5",
+        "*/15 * * * * *",
+        "0 8 * * 7",  # crontab Sunday alias (7)
+        "0 8 * * 0",  # crontab 0 (Sunday)
+    ],
+    ids=["wildcards", "range", "list", "workhours", "6-field-seconds", "sunday-seven", "sunday-zero"],
 )
 def test_validate_cron_accepts_valid(cron):
     assert validate_cron(cron) == cron

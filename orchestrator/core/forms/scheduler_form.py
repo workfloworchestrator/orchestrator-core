@@ -1,4 +1,4 @@
-# Copyright 2019-2026 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,6 +17,7 @@ from typing import Annotated
 from uuid import UUID
 
 import structlog
+from apscheduler import version_info as apscheduler_version
 from apscheduler.triggers.cron import CronTrigger
 from pydantic import AfterValidator, ConfigDict
 from sqlalchemy import select
@@ -88,6 +89,36 @@ def get_interval_kwargs(form_data: dict) -> dict:
     return {"start_date": form_data["start_date"]} | INTERVAL_MAPPING[form_data["interval"]]
 
 
+_APSCHEDULER_V3 = apscheduler_version < (4,)
+
+
+def _translate_dow_for_apscheduler3(value: str) -> str:
+    """Translate a cron day_of_week value from crontab convention to APScheduler 3.x.
+
+    Named days (mon, tue, ...) are left unchanged because APScheduler handles them correctly.
+    Numeric atomic values are shifted: (n - 1) % 7, mapping crontab 0 or 7 (Sunday) to APScheduler 6,
+    crontab 1 (Mon) to 0, etc.  Step denominators (after `/`) are not shifted.
+    """
+    if any(c.isalpha() for c in value):
+        return value
+
+    def _shift(token: str) -> str:
+        if token == "*":  # noqa: S105 - Not a hard-coded password
+            return token
+        n = int(token)
+        if n not in range(0, 8):
+            raise ValueError(f"{token!r} is not a valid weekday number (0–7)")
+        return str((n - 1) % 7)
+
+    # Handle "1-5", "*/2", "1-5/2", "1,3,5", and even "1,2/2"
+    parts = []
+    for expr in value.split(","):
+        range_part, separator, step = expr.partition("/")
+        translated = "-".join(_shift(token) for token in range_part.split("-"))
+        parts.append(f"{translated}/{step}" if separator else translated)
+    return ",".join(parts)
+
+
 def _cron_fields(cron: str) -> dict[str, str]:
     """Map cron field strings to their CronTrigger keyword names.
 
@@ -107,9 +138,16 @@ def _cron_fields(cron: str) -> dict[str, str]:
 
 
 def _cron_field_error(name: str, value: str) -> str | None:
-    """Return a field-scoped error message if ``value`` is invalid for cron field ``name``, else None."""
+    """Return a field-scoped error message if ``value`` is invalid for cron field ``name``, else None.
+
+    ``value`` is the raw user-typed value; for day_of_week it is translated before passing to
+    CronTrigger so that crontab integers (0-7 Sunday alias) are accepted. See
+    [Issue #1930](https://github.com/workfloworchestrator/orchestrator-core/issues/1930)
+    Error messages always show the original user-typed value returned error values are unambiguous.
+    """
     try:
-        CronTrigger(**{name: value})
+        translated = _translate_dow_for_apscheduler3(value) if name == "day_of_week" and _APSCHEDULER_V3 else value
+        CronTrigger(**{name: translated})
         return None
     except ValueError as exc:
         return f"{name} {value!r}: {exc}"
@@ -128,7 +166,10 @@ def validate_cron(cron: str) -> str:
 
 
 def get_cron_kwargs(form_data: dict) -> dict:
-    return {"start_date": form_data["start_date"]} | _cron_fields(form_data["cron"])
+    fields = _cron_fields(form_data["cron"])
+    if _APSCHEDULER_V3:
+        fields["day_of_week"] = _translate_dow_for_apscheduler3(fields["day_of_week"])
+    return {"start_date": form_data["start_date"]} | fields
 
 
 async def _check_authorize(workflow: Workflow, user_model: OIDCUserModel | None) -> bool:
