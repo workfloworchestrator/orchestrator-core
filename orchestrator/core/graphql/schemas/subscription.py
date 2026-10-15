@@ -23,7 +23,7 @@ from strawberry.federation.schema_directives import Key
 from strawberry.federation.types import FieldSet
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.core.db import FixedInputTable, ProductTable, SubscriptionTable, db
+from orchestrator.core.db import FixedInputTable, ProcessSubscriptionTable, ProductTable, SubscriptionTable, db
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.core.graphql.loaders.subscriptions import SubsLoaderType
 from orchestrator.core.graphql.pagination import EMPTY_PAGE, SearchConnection
@@ -145,7 +145,10 @@ class SubscriptionInterface:
         search: ResourceSearchInput | None = None,
     ) -> SearchConnection[ProcessType]:
         if search:
-            process_ids = [ps.process_id for ps in get_original_model(self, SubscriptionTable).processes]
+            stmt = select(ProcessSubscriptionTable.process_id).where(
+                ProcessSubscriptionTable.subscription_id == self.subscription_id
+            )
+            process_ids = list(db.session.scalars(stmt))
             return await resolve_processes(info, first=first, after=after, search=search.within(process_ids))
 
         filter_by_with_related_processes = (filter_by or []) + [
