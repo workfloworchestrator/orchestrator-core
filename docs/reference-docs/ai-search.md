@@ -163,7 +163,7 @@ All three interfaces run the same engine.
 | Interface   | Where                       | What it offers                                                                             |
 |-------------|-----------------------------|--------------------------------------------------------------------------------------------|
 | **REST**    | `/api/search` (authenticated) | `POST /subscriptions`, `/products`, `/processes`, `/workflows` to search; `GET /paths` for field autocomplete; `GET /definitions` for the operators valid per UI type; `GET /queries/{id}`, `/results`, `/export` to re-run or export a saved query |
-| **GraphQL** | root fields                 | `search`, `searchPaths`, `searchDefinitions`, `searchQuery`, `searchQueryResults`, `searchQueryExport`, mirroring REST |
+| **GraphQL** | root fields                 | `search`, `searchPaths`, `searchDefinitions`, `searchQuery`, `searchQueryResults`, `searchQueryExport`, mirroring REST; plus a `search` argument on the list resources ([GraphQL](graphql.md#searching-list-resources)) |
 | **Agent tools** | `/api/agent`            | `search`, `aggregate`, `discover_filter_paths`, `get_valid_operators`, `resolve_entity`, `export_query`, exposed as read-only [MCP](mcp.md) tools when `MCP_ENABLED` is set |
 
 The REST and GraphQL search routers are always registered, and the agent tools are ordinary REST
