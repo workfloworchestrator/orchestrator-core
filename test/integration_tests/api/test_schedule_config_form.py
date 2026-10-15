@@ -128,7 +128,7 @@ def test_forms_endpoint_scheduler_config_cron_type(test_client):
                 "hour": "9",
                 "day": "*",
                 "month": "*",
-                "day_of_week": "1-5",
+                "day_of_week": "0-4",
             },
             "user_inputs": [{}],
         }
