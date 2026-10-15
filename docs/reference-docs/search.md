@@ -8,7 +8,8 @@ tables, and text search on subscriptions.
     Since 5.0, the `query` parameter on the subscriptions REST and GraphQL endpoints emits a
     deprecation warning and will be removed in a future 5.x release. Use
     [AI / Hybrid Search](ai-search.md) instead, which covers subscriptions, products, processes
-    and workflows through `/api/search`.
+    and workflows through `/api/search`, or through the GraphQL `search` argument on the list resources
+    (see [GraphQL](graphql.md#searching-list-resources)).
 
 The overview below describes which objects can be searched through which endpoint, and the underlying search implementation.
 
