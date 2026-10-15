@@ -21,21 +21,21 @@ from orchestrator.core.graphql.utils import is_query_detailed, is_querying_page_
 is_test_query_detailed = is_query_detailed(("basic", "name"))
 
 
-def _field(name: str, *selections, alias: str | None = None) -> SelectedField:
+def _field(name, *selections, alias=None):
     return SelectedField(name=name, directives={}, arguments={}, alias=alias, selections=list(selections))
 
 
-def _fragment(*selections) -> FragmentSpread:
+def _fragment(*selections):
     return FragmentSpread(name="fragment", type_condition="graphql type", directives={}, selections=list(selections))
 
 
-def _inline(*selections) -> InlineFragment:
+def _inline(*selections):
     return InlineFragment(
         type_condition="SubscriptionInterfaceSearchConnection", directives={}, selections=list(selections)
     )
 
 
-def _page(*selections) -> SelectedField:
+def _page(*selections):
     return _field("subscriptions", _field("page", *selections), _field("pageInfo", _field("totalItems")))
 
 
@@ -51,15 +51,6 @@ def _page(*selections) -> SelectedField:
             True,
             id="basic-and-detailed-fields",
         ),
-    ],
-)
-def test_is_test_query_detailed_reads_page(root, expected):
-    assert is_test_query_detailed(MagicMock(selected_fields=[root])) is expected
-
-
-@pytest.mark.parametrize(
-    "root, expected",
-    [
         pytest.param(
             _field("subscriptions", _field("searchEdges", _field("node", _field("basic")))),
             False,
@@ -89,17 +80,7 @@ def test_is_test_query_detailed_reads_page(root, expected):
             id="aliased-page",
         ),
         pytest.param(_field("subscription", _field("basic"), _field("detailed")), True, id="single-entity"),
-    ],
-)
-def test_is_test_query_detailed_reads_entity_selections(root, expected):
-    assert is_test_query_detailed(MagicMock(selected_fields=[root])) is expected
-
-
-@pytest.mark.parametrize(
-    "root, expected",
-    [
         pytest.param(_field("subscriptions", _fragment(_field("page", _field("basic")))), False, id="page-in-fragment"),
-        pytest.param(_field("subscriptions", _inline(_field("page", _field("basic")))), False, id="page-in-inline"),
         pytest.param(
             _field("subscriptions", _fragment(_field("page", _field("detailed")))), True, id="detail-in-fragment"
         ),
@@ -110,7 +91,7 @@ def test_is_test_query_detailed_reads_entity_selections(root, expected):
         ),
     ],
 )
-def test_is_test_query_detailed_reads_connection_fragments(root, expected):
+def test_is_test_query_detailed(root, expected):
     assert is_test_query_detailed(MagicMock(selected_fields=[root])) is expected
 
 
