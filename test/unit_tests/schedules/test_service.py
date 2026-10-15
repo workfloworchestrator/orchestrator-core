@@ -13,11 +13,31 @@
 
 """Tests for load_schedules, the entry point for registering schedules from code."""
 
+import importlib
+import warnings
 from uuid import NAMESPACE_DNS, uuid5
 
 import pytest
 
+import orchestrator.core.schedules as schedules
 from orchestrator.core.schedules.service import load_schedules
+
+
+def test_importing_schedules_does_not_warn():
+    with warnings.catch_warnings(record=True) as caught_warnings:
+        warnings.simplefilter("always")
+        importlib.reload(schedules)
+        with pytest.raises(AttributeError):
+            _ = schedules.UNKNOWN_ATTRIBUTE
+
+    assert not caught_warnings
+
+
+def test_accessing_all_schedulers_warns():
+    namespace = {}
+    with pytest.warns(DeprecationWarning, match=r"removed in 6\.0\.0"):
+        exec("from orchestrator.core.schedules import *", namespace)  # noqa: S102
+    assert namespace["ALL_SCHEDULERS"] == []
 
 
 def test_load_schedules_enriches_workflow_id_and_passes_recreate(mock_schedule_queue):
