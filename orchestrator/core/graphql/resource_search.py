@@ -24,7 +24,6 @@ from uuid import UUID
 
 import structlog
 from graphql import GraphQLError
-from more_itertools import one
 from strawberry.types.nodes import SelectedField
 
 from nwastdlib.graphql.extensions.error_handler_extension import EXTENSION_ERROR_TYPE, ErrorType
@@ -66,10 +65,12 @@ _NON_SEARCH_ARGUMENTS = frozenset({"filterBy", "sortBy", "query"})
 def _reject_non_search_arguments(info: OrchestratorInfo) -> None:
     """Raise when `search` is combined with the resource's own filter and sort arguments.
 
-    Reads sent arguments from the query, as the resolver only sees values after defaults.
+    Reads sent arguments from the query, as the resolver only sees values after defaults. A field selected more than
+    once without an alias is resolved once with all its selections; GraphQL only merges them when their arguments are
+    equal, so any of them shows what was sent.
     """
-    field = cast(SelectedField, one(info.selected_fields))
-    sent = {name for name, value in field.arguments.items() if value is not None}
+    fields = cast(list[SelectedField], info.selected_fields)
+    sent = {name for field in fields for name, value in field.arguments.items() if value is not None}
     if conflicting := sorted(sent & _NON_SEARCH_ARGUMENTS):
         raise _client_error(f"'search' cannot be combined with {', '.join(conflicting)}", ErrorType.BAD_REQUEST)
 

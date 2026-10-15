@@ -241,17 +241,12 @@ def test_search_input_converts_elastic_filters():
     )
 
 
-@pytest.mark.parametrize(
-    "elastic_filters",
-    [
-        pytest.param({"bool": {}}, id="empty-bool"),
-        pytest.param({"match": {"subscription.status": "active"}}, id="unsupported-query"),
-        pytest.param({"term": {}}, id="term-without-field"),
-    ],
-)
-def test_search_input_rejects_invalid_elastic_filters(elastic_filters):
+def test_search_input_rejects_invalid_elastic_filters():
+    """The DSL itself is covered by test_elastic_dsl.py; this pins that the JSON input is validated against it."""
     with pytest.raises(ValueError):
-        SearchInput(elastic_filters=elastic_filters).to_select_query(EntityType.SUBSCRIPTION)
+        SearchInput(elastic_filters={"match": {"subscription.status": "active"}}).to_select_query(
+            EntityType.SUBSCRIPTION
+        )
 
 
 def test_search_input_rejects_both_filter_formats():
