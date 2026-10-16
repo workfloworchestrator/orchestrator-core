@@ -13,8 +13,10 @@
 
 import pytest
 
+import orchestrator.core.forms.scheduler_form as scheduler_form_module
 from orchestrator.core.forms.scheduler_form import (
     _check_authorize,
+    _cron_field_error,
     _translate_dow_for_apscheduler3,
     get_cron_kwargs,
     validate_cron,
@@ -154,6 +156,30 @@ START_DATE = object()  # get_cron_kwargs passes start_date through unchanged
             {"second": "*/15", "minute": "*", "hour": "*", "day": "*", "month": "*", "day_of_week": "*"},
             id="6-field-seconds",
         ),
+        pytest.param(
+            # crontab 0-6 = all days, APScheduler 3.x 0-6 (full coverage, no inversion)
+            "0 9 * * 0-6",
+            {"minute": "0", "hour": "9", "day": "*", "month": "*", "day_of_week": "0-6"},
+            id="range-all-days",
+        ),
+        pytest.param(
+            # crontab 0-3 = Sun-Wed, split to avoid inverted APScheduler range
+            "0 9 * * 0-3",
+            {"minute": "0", "hour": "9", "day": "*", "month": "*", "day_of_week": "0-2,6"},
+            id="range-sunday-start",
+        ),
+        pytest.param(
+            # mixed named+numeric: "mon" passes through, "5" (Fri) → "4"
+            "0 9 * * mon,5",
+            {"minute": "0", "hour": "9", "day": "*", "month": "*", "day_of_week": "mon,4"},
+            id="mixed-named-numeric",
+        ),
+        pytest.param(
+            # crontab 0-3/2 = Sun,Tue stepped, shifted then sorted → "1,6"
+            "0 9 * * 0-3/2",
+            {"minute": "0", "hour": "9", "day": "*", "month": "*", "day_of_week": "1,6"},
+            id="range-sunday-start-stepped",
+        ),
     ],
 )
 def test_get_cron_kwargs(cron, expected):
@@ -177,8 +203,20 @@ def test_get_cron_kwargs_rejects_wrong_field_count(cron):
         pytest.param("0", "6", id="sunday-zero"),
         pytest.param("7", "6", id="sunday-seven"),
         pytest.param("1-5", "0-4", id="range-weekdays"),
+        pytest.param("1-5/2", "0-4/2", id="range-weekdays-step"),
+        pytest.param("3-7", "2-6", id="range-with-sunday-alias"),
+        pytest.param("0-6", "0-6", id="range-all-days"),
+        pytest.param("0-7", "0-6", id="range-all-days-with-alias"),
+        pytest.param("0-3", "0-2,6", id="range-sunday-start-partial"),
+        pytest.param("0-5", "0-4,6", id="range-sunday-start-to-friday"),
+        pytest.param("0-1", "0,6", id="range-sunday-monday"),
+        pytest.param("0-6/2", "1,3,5,6", id="range-all-days-stepped"),
+        pytest.param("0-3/2", "1,6", id="range-sunday-start-stepped"),
         pytest.param("0,6", "6,5", id="list-sunday-saturday"),
-        pytest.param("mon-fri", "mon-fri", id="named-days"),
+        pytest.param("mon,5", "mon,4", id="mixed-named-numeric"),
+        pytest.param("mon,7", "mon,6", id="mixed-named-sunday-alias"),
+        pytest.param("0,tue", "6,tue", id="mixed-numeric-named"),
+        pytest.param("mon-fri", "mon-fri", id="named-range"),
         pytest.param("tue", "tue", id="named-single"),
     ],
 )
@@ -196,8 +234,22 @@ def test_translate_dow_for_apscheduler3(value, expected):
         "*/15 * * * * *",
         "0 8 * * 7",  # crontab Sunday alias (7)
         "0 8 * * 0",  # crontab 0 (Sunday)
+        "0 9 * * 0-6",  # full crontab range: translates to APScheduler "0-6"
+        "0 9 * * mon,5",  # mixed named+numeric: "mon" passes through, 5→4
+        "0 9 * * 0-3",  # inverted range starting at Sunday: splits to "0-2,6"
     ],
-    ids=["wildcards", "range", "list", "workhours", "6-field-seconds", "sunday-seven", "sunday-zero"],
+    ids=[
+        "wildcards",
+        "range",
+        "list",
+        "workhours",
+        "6-field-seconds",
+        "sunday-seven",
+        "sunday-zero",
+        "every-day-range",
+        "mixed-named-numeric",
+        "sunday-start-range",
+    ],
 )
 def test_validate_cron_accepts_valid(cron):
     assert validate_cron(cron) == cron
@@ -248,3 +300,36 @@ def test_validate_cron_error_names_all_bad_fields(cron, expected_fields):
         validate_cron(cron)
     message = str(exc_info.value)
     assert all(field in message for field in expected_fields)
+
+
+# If APScheduler ever gets a v4 release
+@pytest.mark.parametrize(
+    ("value", "expected_error"),
+    [
+        pytest.param("1-5", None, id="range-no-translation"),
+        pytest.param("0", None, id="sunday-zero-no-translation"),
+        # Without translation, "7" is passed raw to APScheduler 3.x which rejects it (max 6)
+        pytest.param("7", "error", id="sunday-seven-no-translation-fails"),
+    ],
+)
+def test_cron_field_error_skips_translation_when_not_v3(monkeypatch, value, expected_error):
+    monkeypatch.setattr(scheduler_form_module, "_APSCHEDULER_V3", False)
+    result = _cron_field_error("day_of_week", value)
+    if expected_error is None:
+        assert result is None
+    else:
+        assert isinstance(result, str)
+
+
+@pytest.mark.parametrize(
+    ("cron", "expected_dow"),
+    [
+        pytest.param("0 8 * * 1", "1", id="monday-untranslated"),
+        pytest.param("0 8 * * 1-5", "1-5", id="range-untranslated"),
+        pytest.param("0 8 * * 0", "0", id="sunday-zero-untranslated"),
+    ],
+)
+def test_get_cron_kwargs_skips_translation_when_not_v3(monkeypatch, cron, expected_dow):
+    monkeypatch.setattr(scheduler_form_module, "_APSCHEDULER_V3", False)
+    result = get_cron_kwargs({"cron": cron, "start_date": START_DATE})
+    assert result["day_of_week"] == expected_dow

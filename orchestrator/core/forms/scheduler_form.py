@@ -92,31 +92,76 @@ def get_interval_kwargs(form_data: dict) -> dict:
 _APSCHEDULER_V3 = apscheduler_version < (4,)
 
 
+def _day_of_week_shift(n: int) -> int:
+    """Shift a crontab weekday number to APScheduler 3.x numbering.
+
+    Crontab: 0=Sunday, 1=Monday..6=Saturday, 7=Sunday (alias).
+    APScheduler 3.x: 0=Monday..6=Sunday. Formula: (n - 1) % 7.
+    """
+    if n not in range(0, 8):
+        raise ValueError(f"{n!r} is not a valid weekday number (0–7)")
+    return (n - 1) % 7
+
+
+def _expand_and_shift(a: int, b: int, step: int) -> str:
+    """Expand crontab range(a, b+1, step), shift each day, sort, and comma-join."""
+    shifted_days = sorted(_day_of_week_shift(d) for d in range(a, b + 1, step))
+    return ",".join(str(d) for d in shifted_days)
+
+
+def _translate_dow_numeric_range(range_part: str, separator: str, step: str) -> str:
+    """Translate a numeric A-B[/step] sub-expression to APScheduler 3.x."""
+    a_str, _, b_str = range_part.partition("-")
+    a, b = int(a_str), int(b_str)
+    step_int = int(step) if separator else 1
+
+    # Full-coverage range: spans all 7 weekdays (e.g. 0-6 or 0-7)
+    if b - a + 1 >= 7:
+        return "0-6" if not separator else _expand_and_shift(a, b, step_int)
+
+    first, last = _day_of_week_shift(a), _day_of_week_shift(b)
+
+    if first <= last:
+        # Non-inverted: range order preserved after shifting
+        return f"{first}-{last}/{step}" if separator else f"{first}-{last}"
+
+    # Inverted (only when a == 0): expand if stepped, else split into "0-last,6"
+    if separator:
+        return _expand_and_shift(a, b, step_int)
+    return "0,6" if last == 0 else f"0-{last},6"
+
+
+def _translate_dow_expr(expr: str) -> str:
+    """Translate one comma-separated sub-expression of a cron day_of_week field."""
+    if any(c.isalpha() for c in expr):
+        # named day or named range which APScheduler handles natively
+        # also, _cron_field_error will raise APScheduler error in case of
+        # "mixed" names & numerals (e.g., `mon-4`)
+        return expr
+
+    range_part, separator, step = expr.partition("/")
+
+    if range_part == "*":
+        return expr  # wildcard (with or without step) means no numeric shifting needed
+
+    if "-" not in range_part:
+        shifted = _day_of_week_shift(int(range_part))
+        return f"{shifted}/{step}" if separator else str(shifted)
+
+    return _translate_dow_numeric_range(range_part, separator, step)
+
+
 def _translate_dow_for_apscheduler3(value: str) -> str:
     """Translate a cron day_of_week value from crontab convention to APScheduler 3.x.
 
-    Named days (mon, tue, ...) are left unchanged because APScheduler handles them correctly.
-    Numeric atomic values are shifted: (n - 1) % 7, mapping crontab 0 or 7 (Sunday) to APScheduler 6,
-    crontab 1 (Mon) to 0, etc.  Step denominators (after `/`) are not shifted.
+    Crontab: 0=Sunday, 1=Monday..6=Saturday, 7=Sunday (alias).
+    APScheduler 3.x: 0=Monday..6=Sunday.
+
+    Named days (mon, tue, etc...) are left unchanged; APScheduler handles them natively.
+    Numeric ranges whose shifted endpoints would be inverted are split or expanded
+    so that APScheduler's ``RangeExpression`` never sees ``first > last``.
     """
-    if any(c.isalpha() for c in value):
-        return value
-
-    def _shift(token: str) -> str:
-        if token == "*":  # noqa: S105 - Not a hard-coded password
-            return token
-        n = int(token)
-        if n not in range(0, 8):
-            raise ValueError(f"{token!r} is not a valid weekday number (0–7)")
-        return str((n - 1) % 7)
-
-    # Handle "1-5", "*/2", "1-5/2", "1,3,5", and even "1,2/2"
-    parts = []
-    for expr in value.split(","):
-        range_part, separator, step = expr.partition("/")
-        translated = "-".join(_shift(token) for token in range_part.split("-"))
-        parts.append(f"{translated}/{step}" if separator else translated)
-    return ",".join(parts)
+    return ",".join(_translate_dow_expr(expr) for expr in value.split(","))
 
 
 def _cron_fields(cron: str) -> dict[str, str]:
