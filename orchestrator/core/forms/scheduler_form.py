@@ -118,6 +118,12 @@ def _translate_dow_numeric_range(range_part: str, separator: str, step: str) -> 
     """Translate a numeric A-B[/step] sub-expression to APScheduler 3.x."""
     a_str, _, b_str = range_part.partition("-")
     a, b = int(a_str), int(b_str)
+    # Validate endpoints before any shortcut so out-of-range values (e.g. 1-8)
+    # are always caught, not silently treated as full-coverage ranges.
+    if a not in range(0, 8):
+        raise ValueError(f"{a!r} is not a valid weekday number (0–7)")
+    if b not in range(0, 8):
+        raise ValueError(f"{b!r} is not a valid weekday number (0–7)")
     if a > b:
         raise ValueError(f"day_of_week range {a}-{b} is invalid: start must not exceed end")
     step_int = int(step) if separator else 1
@@ -157,8 +163,20 @@ def _translate_dow_expr(expr: str) -> str:
         return _expand_and_shift(0, 6, int(step))
 
     if "-" not in range_part:
-        shifted = _day_of_week_shift(int(range_part))
-        return f"{shifted}/{step}" if separator else str(shifted)
+        n = int(range_part)
+        if separator:
+            # N/step: crontab steps from N through 6 with the given stride.
+            # Shifting N alone would produce "shifted/step" which APScheduler
+            # rejects when shifted == 6 (Sunday) because the range 6..6 is
+            # smaller than the step.
+            # We expand the sequence first, then shift.
+            # _day_of_week_shift validates n and maps 7 (Sunday alias) to 6
+            _ = _day_of_week_shift(n)  # validate; raises for n outside 0..7
+            # then for expansion we need the crontab origin (0), not the shifted
+            # value, so normalize 7 to 0 before expanding.
+            n_normalized = 0 if n == 7 else n
+            return _expand_and_shift(n_normalized, 6, int(step))
+        return str(_day_of_week_shift(n))
 
     return _translate_dow_numeric_range(range_part, separator, step)
 
