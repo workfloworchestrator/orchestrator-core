@@ -1,4 +1,4 @@
-# Copyright 2019-2026 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -173,13 +173,13 @@ START_DATE = object()  # get_cron_kwargs passes start_date through unchanged
             id="range-sunday-start",
         ),
         pytest.param(
-            # mixed named+numeric: "mon" passes through, "5" (Fri) → "4"
+            # mixed named+numeric: "mon" passes through, "5" (Fri) ->"4"
             "0 9 * * mon,5",
             {"minute": "0", "hour": "9", "day": "*", "month": "*", "day_of_week": "mon,4"},
             id="mixed-named-numeric",
         ),
         pytest.param(
-            # crontab 0-3/2 = Sun,Tue stepped, shifted then sorted → "1,6"
+            # crontab 0-3/2 = Sun,Tue stepped, shifted then sorted ->"1,6"
             "0 9 * * 0-3/2",
             {"minute": "0", "hour": "9", "day": "*", "month": "*", "day_of_week": "1,6"},
             id="range-sunday-start-stepped",
@@ -218,6 +218,11 @@ def test_get_cron_kwargs_rejects_wrong_field_count(cron):
         pytest.param("0-1", "0,6", id="range-sunday-monday"),
         pytest.param("0-6/2", "1,3,5,6", id="range-all-days-stepped"),
         pytest.param("0-3/2", "1,6", id="range-sunday-start-stepped"),
+        # N/step: expand from N to 6 then shift, same as */step but starting at N
+        pytest.param("0/2", "1,3,5,6", id="step-sunday-zero"),  # Sun,Tue,Thu,Sat->6,1,3,5 sorted->1,3,5,6
+        pytest.param("7/2", "1,3,5,6", id="step-sunday-seven"),  # 7=Sunday alias->same as 0/2
+        pytest.param("1/2", "0,2,4", id="step-monday"),  # Mon,Wed,Fri->0,2,4
+        pytest.param("0/3", "2,5,6", id="step-sunday-zero-three"),  # Sun,Wed,Sat->6,2,5 sorted->2,5,6
         pytest.param("0,6", "6,5", id="list-sunday-saturday"),
         pytest.param("mon,5", "mon,4", id="mixed-named-numeric"),
         pytest.param("mon,7", "mon,6", id="mixed-named-sunday-alias"),
@@ -241,9 +246,11 @@ def test_translate_dow_for_apscheduler3(value, expected):
         "0 8 * * 7",  # crontab Sunday alias (7)
         "0 8 * * 0",  # crontab 0 (Sunday)
         "0 9 * * 0-6",  # full crontab range: translates to APScheduler "0-6"
-        "0 9 * * mon,5",  # mixed named+numeric: "mon" passes through, 5→4
+        "0 9 * * mon,5",  # mixed named+numeric: "mon" passes through, 5-4
         "0 9 * * 0-3",  # inverted range starting at Sunday: splits to "0-2,6"
-        "0 9 * * */2",  # wildcard step: Sun,Tue,Thu,Sat in crontab → 1,3,5,6 in APScheduler
+        "0 9 * * */2",  # wildcard step: Sun,Tue,Thu,Sat in crontab ->1,3,5,6 in APScheduler
+        "0 9 * * 0/2",  # Sunday-start step: Sun,Tue,Thu,Sat->same as */2
+        "0 9 * * 1/2",  # Monday-start step: Mon,Wed,Fri ->0,2,4
     ],
     ids=[
         "wildcards",
@@ -257,6 +264,8 @@ def test_translate_dow_for_apscheduler3(value, expected):
         "mixed-named-numeric",
         "sunday-start-range",
         "wildcard-step",
+        "sunday-start-step",
+        "monday-start-step",
     ],
 )
 def test_validate_cron_accepts_valid(cron):
@@ -275,6 +284,8 @@ def test_validate_cron_accepts_valid(cron):
         "* * * 13 *",
         "* * * * 8",
         "* * * * 5-0",
+        "* * * * 1-8",
+        "* * * * 0-9",
         "* * * *",
         "* * * * * * *",
     ],
@@ -288,6 +299,8 @@ def test_validate_cron_accepts_valid(cron):
         "month-oob",
         "day_of_week-oob",
         "day_of_week-inverted-range",
+        "day_of_week-range-upper-oob",
+        "day_of_week-range-upper-oob-nine",
         "4-fields",
         "7-fields",
     ],
@@ -398,6 +411,8 @@ def _fire_days(cron: str) -> list[str]:
         pytest.param("0 0 * * 0-6", CRONTAB_DAY_NAMES, id="range-from-sunday"),
         pytest.param("0 0 * * 0-7", CRONTAB_DAY_NAMES, id="range-to-sunday-alias"),
         pytest.param("0 0 * * */2", ["Sun", "Tue", "Thu", "Sat"], id="step-wildcard"),
+        pytest.param("0 0 * * 0/2", ["Sun", "Tue", "Thu", "Sat"], id="step-sunday-start"),
+        pytest.param("0 0 * * 1/2", ["Mon", "Wed", "Fri"], id="step-monday-start"),
         pytest.param("0 0 * * mon,3", ["Mon", "Wed"], id="mixed-name-and-number"),
     ],
 )
