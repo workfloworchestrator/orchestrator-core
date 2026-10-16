@@ -17,6 +17,10 @@ changelog:
       # Exclusion is evaluated before the categories below, so it wins over all
       # of them — including Security for a lock-only Dependabot bump.
       - dev-only
+      # dev-dependencies is set by Renovate (renovate.json) on bumps of
+      # [dependency-groups] entries. It is deliberately NOT a labeler.yml label:
+      # sync-labels would strip it again, since pyproject.toml is not dev-only.
+      - dev-dependencies
   categories:
     # Breaking Changes is deliberately first. A breaking change is often also a
     # feature or a bug fix, and since a PR lands in only the FIRST matching

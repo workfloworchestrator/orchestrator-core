@@ -23,6 +23,13 @@
       "description": "Skip the release-age cooldown for our own libraries",
       "matchPackageNames": ["pydantic-forms", "nwa-stdlib", "oauth2-lib"],
       "minimumReleaseAge": "0 days"
+    },
+    {
+      "description": "Development-only dependencies never reach users of this library; keep their bumps out of the release notes. click and sqlalchemy are excluded because they are runtime dependencies too, and a grouped PR would otherwise hide the runtime bump.",
+      "matchManagers": ["pep621"],
+      "matchDepTypes": ["dependency-groups"],
+      "matchPackageNames": ["!click", "!sqlalchemy"],
+      "addLabels": ["dev-dependencies"]
     }
   ],
   "minimumReleaseAge": "3 days",
