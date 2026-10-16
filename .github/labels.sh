@@ -45,6 +45,7 @@ labels=(
   "area/search|5319e7|Search subsystem"
   "area/llm|5319e7|LLM / embeddings"
   "skip-changelog|ededed|Exclude this PR from the generated release notes"
+  "dev-only|ededed|Only touches development files (uv.lock, .github, ...); excluded from release notes (auto-applied)"
 )
 
 for entry in "${labels[@]}"; do

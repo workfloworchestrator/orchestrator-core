@@ -28,7 +28,8 @@ jobs:
     steps:
       # `sync-labels: true` means the labeler both adds and REMOVES labels — but
       # ONLY the ones it can derive from changed paths (see .github/labeler.yml:
-      # kind/documentation, kind/test, kind/ci, kind/build, area/search).
+      # kind/documentation, kind/test, kind/ci, kind/build, area/search,
+      # dev-only).
       #
       # It deliberately does NOT touch the type labels that require developer
       # judgement (kind/feature, kind/bug, kind/refactor, kind/security, ...) or
