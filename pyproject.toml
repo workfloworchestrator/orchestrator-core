@@ -111,7 +111,7 @@ dev = [
     "jsonref>=1.1.0",
     "mypy>=2.4,<2.5",
     "mypy-extensions>=1.1.0",
-    "pre-commit>=4.2.0",
+    "prek>=0.5.5",
     "pydocstyle>=6.3.0",
     "pyinstrument>=5.0.2",
     "pytest==9.1.1",

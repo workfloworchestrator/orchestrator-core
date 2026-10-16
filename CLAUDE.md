@@ -13,7 +13,7 @@ uv run pytest test/integration_tests   # integration tests
 uv run mypy orchestrator               # type check
 uv run ruff check orchestrator         # lint
 uv run ruff format orchestrator        # format
-pre-commit run --all-files             # format, lint, type check.
+prek run --all-files                   # format, lint, type check.
 ```
 
 ## Code Style
