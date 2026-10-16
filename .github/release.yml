@@ -12,6 +12,11 @@ changelog:
   exclude:
     labels:
       - skip-changelog
+      # dev-only is applied by the path labeler (.github/labeler.yml) only when
+      # every changed file is development-only (uv.lock, .github/**, ...).
+      # Exclusion is evaluated before the categories below, so it wins over all
+      # of them — including Security for a lock-only Dependabot bump.
+      - dev-only
   categories:
     # Breaking Changes is deliberately first. A breaking change is often also a
     # feature or a bug fix, and since a PR lands in only the FIRST matching
