@@ -54,7 +54,8 @@ dependencies = [
     "pgvector>=0.4.1",
     "prometheus-client==0.25.0",
     "psycopg[binary]>=3.3.3",
-    "pydantic-forms>=2.4.0",
+    # TODO: pin to the pydantic-forms release that includes #114 (walk_form, page_schema, form_errors, readOnly).
+    "pydantic-forms>=2.8.0rc1",
     "pydantic-settings~=2.15.0",
     "pydantic[email]~=2.13.0",
     "python-dateutil==2.9.0.post0",
@@ -227,6 +228,10 @@ exclude-newer-package = { pydantic-forms = false, nwa-stdlib = false, oauth2-lib
 override-dependencies = [
     "grpcio==1.76.0",  # Force grpcio 1.76.0 for Python 3.14 wheel support
 ]
+
+# TODO: drop before merge; develops against pydantic-forms PR #114 (branch feat/form-page-as-data) until the release.
+[tool.uv.sources]
+pydantic-forms = { git = "https://github.com/workfloworchestrator/pydantic-forms", branch = "feat/form-page-as-data" }
 
 [tool.uv.build-backend]
 module-name = "orchestrator.core"
