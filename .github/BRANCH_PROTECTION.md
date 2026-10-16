@@ -15,7 +15,7 @@ The following status checks must pass before a PR can be merged:
 3. **CLI acceptance tests** — Validates CLI code generation and commands
 4. **Celery acceptance tests** — Ensures Celery worker functionality
 5. **LLM/embedding acceptance tests** — Tests LLM integration
-6. **Linting tests** — `Linting Tests (Python 3.11)`, `Linting Tests (Python 3.12)`, `Linting Tests (Python 3.13)`, `Linting Tests (Python 3.14)`
+6. **Linting tests** — `mypy (3.11)`, `mypy (3.12)`, `mypy (3.13)`, `mypy (3.14)`, `prek hooks`
 7. **All checks passed (merge gate)** — Aggregated status indicating all required checks have passed
 
 ### Setting Up Branch Protection via GitHub CLI
@@ -27,7 +27,7 @@ gh auth login
 # Configure branch protection for main branch
 gh api repos/workfloworchestrator/orchestrator-core/branches/main/protection \
   -X PUT \
-  -f required_status_checks='{"strict":true,"contexts":["Unit tests (Python 3.11)","Unit tests (Python 3.12)","Unit tests (Python 3.13)","Unit tests (Python 3.14)","Integration tests (Python 3.11 / Postgres 15 / Redis 7)","Integration tests (Python 3.14 / Postgres 17 / Redis 8)","CLI acceptance tests","Celery acceptance tests","LLM/embedding acceptance tests","Linting Tests (Python 3.11)","Linting Tests (Python 3.12)","Linting Tests (Python 3.13)","Linting Tests (Python 3.14)","All checks passed (merge gate)"]}' \
+  -f required_status_checks='{"strict":true,"contexts":["Unit tests (Python 3.11)","Unit tests (Python 3.12)","Unit tests (Python 3.13)","Unit tests (Python 3.14)","Integration tests (Python 3.11 / Postgres 15 / Redis 7)","Integration tests (Python 3.14 / Postgres 17 / Redis 8)","CLI acceptance tests","Celery acceptance tests","LLM/embedding acceptance tests","mypy (3.11)","mypy (3.12)","mypy (3.13)","mypy (3.14)","prek hooks","All checks passed (merge gate)"]}' \
   -f enforce_admins=true \
   -f required_pull_request_reviews='{"dismiss_stale_reviews":true,"require_code_owner_reviews":false,"required_approving_review_count":1}' \
   -f allow_force_pushes=false \
@@ -58,7 +58,7 @@ gh api repos/workfloworchestrator/orchestrator-core/branches/main/protection \
    - CLI acceptance tests
    - Celery acceptance tests
    - LLM acceptance tests
-   - All Python version variants of linting tests
+   - All Python version variants of mypy, and the prek hooks
    - All checks passed (merge gate)
 
 ## Why These Rules Matter
