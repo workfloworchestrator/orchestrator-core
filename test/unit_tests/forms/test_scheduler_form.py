@@ -11,7 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime as dt
+from datetime import UTC, datetime, timedelta
+
 import pytest
+from apscheduler.triggers.cron import CronTrigger
 
 import orchestrator.core.forms.scheduler_form as scheduler_form_module
 from orchestrator.core.forms.scheduler_form import (
@@ -196,7 +200,9 @@ def test_get_cron_kwargs_rejects_wrong_field_count(cron):
     ("value", "expected"),
     [
         pytest.param("*", "*", id="wildcard"),
-        pytest.param("*/2", "*/2", id="step-wildcard"),
+        pytest.param("*/2", "1,3,5,6", id="step-wildcard"),
+        pytest.param("*/1", "0,1,2,3,4,5,6", id="step-wildcard-one"),
+        pytest.param("*/7", "6", id="step-wildcard-seven"),
         pytest.param("1", "0", id="monday"),
         pytest.param("2", "1", id="tuesday"),
         pytest.param("6", "5", id="saturday"),
@@ -237,6 +243,7 @@ def test_translate_dow_for_apscheduler3(value, expected):
         "0 9 * * 0-6",  # full crontab range: translates to APScheduler "0-6"
         "0 9 * * mon,5",  # mixed named+numeric: "mon" passes through, 5→4
         "0 9 * * 0-3",  # inverted range starting at Sunday: splits to "0-2,6"
+        "0 9 * * */2",  # wildcard step: Sun,Tue,Thu,Sat in crontab → 1,3,5,6 in APScheduler
     ],
     ids=[
         "wildcards",
@@ -249,6 +256,7 @@ def test_translate_dow_for_apscheduler3(value, expected):
         "every-day-range",
         "mixed-named-numeric",
         "sunday-start-range",
+        "wildcard-step",
     ],
 )
 def test_validate_cron_accepts_valid(cron):
@@ -266,6 +274,7 @@ def test_validate_cron_accepts_valid(cron):
         "* * * 0 *",
         "* * * 13 *",
         "* * * * 8",
+        "* * * * 5-0",
         "* * * *",
         "* * * * * * *",
     ],
@@ -278,6 +287,7 @@ def test_validate_cron_accepts_valid(cron):
         "month-zero",
         "month-oob",
         "day_of_week-oob",
+        "day_of_week-inverted-range",
         "4-fields",
         "7-fields",
     ],
@@ -333,3 +343,63 @@ def test_get_cron_kwargs_skips_translation_when_not_v3(monkeypatch, cron, expect
     monkeypatch.setattr(scheduler_form_module, "_APSCHEDULER_V3", False)
     result = get_cron_kwargs({"cron": cron, "start_date": START_DATE})
     assert result["day_of_week"] == expected_dow
+
+
+def test_apscheduler3_dow_numbering_canary():
+    """Canary: fails when APScheduler fixes its day_of_week numbering to match crontab.
+
+    APScheduler 3.x uses 0=Monday..6=Sunday instead of the crontab convention 0=Sunday..6=Saturday.
+    The translation shim (_translate_dow_for_apscheduler3) exists solely because of this mismatch.
+    When this test fails it means APScheduler has been updated to use crontab-compatible numbering (>= v4)
+    The shim & _APSCHEDULER_V3 gating should be removed entirely.
+    """
+    # In APScheduler 3.x, day_of_week=0 means Monday (not Sunday as in crontab).
+    # Probe from a known Sunday: 2024-01-07.
+    trigger = CronTrigger(day_of_week=0)
+    next_fire = trigger.get_next_fire_time(None, dt.datetime(2024, 1, 7, 0, 0, tzinfo=dt.timezone.utc))
+    assert next_fire is not None
+    # If APScheduler 3.x behaviour holds, day_of_week=0 fires on Monday (2024-01-08), not Sunday.
+    assert next_fire.weekday() == 0, (
+        "APScheduler day_of_week=0 no longer means Monday the crontab-to-APScheduler translation shim can be removed."
+    )
+
+
+# Verify actual crong trigger firing, not just strings
+CRONTAB_DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+# A known Sunday to use as the reference start for the 7-day scan window.
+_FIRE_DAY_START = datetime(2026, 10, 11, tzinfo=UTC)  # 2026-10-11 is a Sunday
+
+
+def _fire_days(cron: str) -> list[str]:
+    """Return the weekday names on which a cron expression fires within the next 7 days.
+
+    Builds a CronTrigger from the translated kwargs and probes each of the 7 days
+    starting from a known Sunday, so the result reflects true crontab semantics.
+    """
+    kwargs = get_cron_kwargs({"cron": cron, "start_date": _FIRE_DAY_START})
+    start_date = kwargs.pop("start_date")
+    trigger = CronTrigger(**kwargs, timezone=UTC)
+    days = {
+        fire_time.strftime("%a")
+        for day in range(7)
+        if (fire_time := trigger.get_next_fire_time(None, start_date + timedelta(days=day)))
+    }
+    return sorted(days, key=CRONTAB_DAY_NAMES.index)
+
+
+@pytest.mark.parametrize(
+    ("cron", "expected"),
+    [
+        pytest.param("0 0 * * 2", ["Tue"], id="single"),
+        pytest.param("0 0 * * 0", ["Sun"], id="sunday-zero"),
+        pytest.param("0 0 * * 7", ["Sun"], id="sunday-seven"),
+        pytest.param("0 0 * * 1-5", ["Mon", "Tue", "Wed", "Thu", "Fri"], id="range-weekdays"),
+        pytest.param("0 0 * * 0-6", CRONTAB_DAY_NAMES, id="range-from-sunday"),
+        pytest.param("0 0 * * 0-7", CRONTAB_DAY_NAMES, id="range-to-sunday-alias"),
+        pytest.param("0 0 * * */2", ["Sun", "Tue", "Thu", "Sat"], id="step-wildcard"),
+        pytest.param("0 0 * * mon,3", ["Mon", "Wed"], id="mixed-name-and-number"),
+    ],
+)
+def test_get_cron_kwargs_fires_on_crontab_weekdays(cron, expected):
+    assert _fire_days(cron) == expected

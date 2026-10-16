@@ -12,12 +12,12 @@
 # limitations under the License.
 
 import asyncio
+import importlib.metadata
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
 import structlog
-from apscheduler import version_info as apscheduler_version
 from apscheduler.triggers.cron import CronTrigger
 from pydantic import AfterValidator, ConfigDict
 from sqlalchemy import select
@@ -89,7 +89,12 @@ def get_interval_kwargs(form_data: dict) -> dict:
     return {"start_date": form_data["start_date"]} | INTERVAL_MAPPING[form_data["interval"]]
 
 
-_APSCHEDULER_V3 = apscheduler_version < (4,)
+_APSCHEDULER_V3 = tuple(
+    # handles v4.1.1-rc4, for example, though it's probably only going to be normal semver (4.0.0)
+    int(x)
+    for x in importlib.metadata.version("APScheduler").split("-")[0].split(".")
+    if x.isdigit()
+) < (4,)
 
 
 def _day_of_week_shift(n: int) -> int:
@@ -113,6 +118,8 @@ def _translate_dow_numeric_range(range_part: str, separator: str, step: str) -> 
     """Translate a numeric A-B[/step] sub-expression to APScheduler 3.x."""
     a_str, _, b_str = range_part.partition("-")
     a, b = int(a_str), int(b_str)
+    if a > b:
+        raise ValueError(f"day_of_week range {a}-{b} is invalid: start must not exceed end")
     step_int = int(step) if separator else 1
 
     # Full-coverage range: spans all 7 weekdays (e.g. 0-6 or 0-7)
@@ -142,7 +149,12 @@ def _translate_dow_expr(expr: str) -> str:
     range_part, separator, step = expr.partition("/")
 
     if range_part == "*":
-        return expr  # wildcard (with or without step) means no numeric shifting needed
+        if not separator:
+            # plain "*" APScheduler fires every day, no shift needed
+            return expr
+        # "*/N": crontab steps from Sunday(0); APScheduler steps from Monday(0).
+        # Expand the crontab sequence, shift each day, sort, and comma-join.
+        return _expand_and_shift(0, 6, int(step))
 
     if "-" not in range_part:
         shifted = _day_of_week_shift(int(range_part))
