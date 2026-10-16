@@ -72,17 +72,17 @@ The `(#PR-number)` suffix is appended automatically by GitHub on squash merge â€
 
 ## Pre-commit hooks
 
-We use pre-commit hooks to ensure that the code is formatted correctly and that the tests pass.
-To install the pre-commit hooks, run the following command:
+We use [prek](https://prek.j178.dev/) to run the pre-commit hooks to ensure that the code is formatted correctly and that the tests pass.
+To install the hooks, run the following command:
 
 ```shell
-uv run pre-commit install
+uv run prek install
 ```
 
-To run the pre-commit hooks manually, run the following command:
+To run the hooks manually, run the following command:
 
 ```shell
-uv run pre-commit run --all-files
+uv run prek run --all-files
 ```
 
 ## Updating AI context (CLAUDE.md)

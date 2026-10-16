@@ -39,16 +39,16 @@ jobs:
       - name: Check with mypy
         run: uv run mypy .
 
-      - name: Cache pre-commit hooks and environments
+      - name: Cache prek hooks and environments
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: ~/.cache/pre-commit
-          key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          path: ~/.cache/prek
+          key: ${{ runner.os }}-prek-${{ hashFiles('.pre-commit-config.yaml') }}
 
       - name: Check edited files contain an up-to-date copyright header
-        run: uv run pre-commit run copyright-required
+        run: uv run prek run copyright-required
 
-      - name: Run remaining pre-commit hooks
-        run: uv run pre-commit run --all-files
+      - name: Run remaining prek hooks
+        run: uv run prek run --all-files
         env:
           SKIP: mypy,copyright-required
