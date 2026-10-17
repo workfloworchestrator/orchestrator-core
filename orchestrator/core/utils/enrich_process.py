@@ -60,6 +60,7 @@ def enrich_step_details(step: ProcessStepTable, previous_step: ProcessStepTable 
         "executed": step.completed_at.timestamp(),
         "started": step.started_at.timestamp(),
         "completed": step.completed_at.timestamp(),
+        "importance": step.importance,
         "status": step.status,
         "state": step.state,
         "created_by": step.created_by,
