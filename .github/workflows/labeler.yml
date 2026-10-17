@@ -59,9 +59,12 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           # Read the *live* labels, not the (stale) event payload snapshot.
+          # dev-only and dev-dependencies count too: those PRs are left out of the
+          # release notes anyway. Path labels only fire when every file matches, so a
+          # dev-only PR mixing e.g. .github/** and renovate.json may have no kind/* label.
           LABELS=$(gh pr view "${PR}" --repo "${REPO}" --json labels --jq '[.labels[].name]')
           echo "Labels on this PR: ${LABELS}"
-          if echo "${LABELS}" | jq -e 'any(.[]; startswith("kind/") or startswith("area/") or . == "skip-changelog")' >/dev/null; then
+          if echo "${LABELS}" | jq -e 'any(.[]; startswith("kind/") or startswith("area/") or . == "skip-changelog" or . == "dev-only" or . == "dev-dependencies")' >/dev/null; then
             echo "Found a release-notes label — OK."
           else
             echo "::error::This PR needs a 'kind/*' or 'area/*' label (e.g. kind/feature, kind/bug), or 'skip-changelog' to exclude it, so it is handled correctly in the release notes."
