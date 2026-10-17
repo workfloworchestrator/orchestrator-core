@@ -23,6 +23,7 @@ from orchestrator.core.search.query.mixins import (
     SearchMixin,
     StructuredOrderByMixin,
 )
+from orchestrator.core.settings import app_settings
 
 
 class BaseQuery(BaseModel):
@@ -34,8 +35,7 @@ class BaseQuery(BaseModel):
     MIN_LIMIT: ClassVar[int] = 1
     DEFAULT_LIMIT: ClassVar[int] = 10
     MAX_LIMIT: ClassVar[int] = 100
-    DEFAULT_EXPORT_LIMIT: ClassVar[int] = 1000
-    MAX_EXPORT_LIMIT: ClassVar[int] = 10000
+    MAX_EXPORT_LIMIT: ClassVar[int] = app_settings.SEARCH_MAX_EXPORT_LIMIT
 
     _query_operation: ClassVar[QueryOperation]
 
@@ -88,7 +88,7 @@ class ExportQuery(BaseQuery, SearchMixin, StructuredOrderByMixin):
     _query_operation: ClassVar[QueryOperation] = QueryOperation.SELECT
 
     limit: int = Field(
-        default=BaseQuery.DEFAULT_EXPORT_LIMIT,
+        default=BaseQuery.MAX_EXPORT_LIMIT,
         ge=BaseQuery.MIN_LIMIT,
         le=BaseQuery.MAX_EXPORT_LIMIT,
         description="Maximum number of results to export",
