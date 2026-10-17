@@ -187,7 +187,8 @@ class RrfHybridRetriever(Retriever):
 
     @property
     def session_settings(self) -> Sequence[SessionSetting]:
-        return self.semantic.session_settings if self.semantic is not None else ()
+        semantic_settings = self.semantic.session_settings if self.semantic is not None else ()
+        return (*self.fuzzy.session_settings, *semantic_settings)
 
     def apply(self, candidate_query: Select) -> Select:
         fuzzy_results = self._fuzzy_results(candidate_query)
