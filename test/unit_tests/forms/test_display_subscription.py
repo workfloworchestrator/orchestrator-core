@@ -14,7 +14,7 @@
 from uuid import uuid4
 
 from orchestrator.core.forms.validators import DisplaySubscription, Label, migration_summary
-from pydantic_forms.core import FormPage
+from pydantic_forms.core import FormPage, page_schema
 
 
 def test_display_subscription():
@@ -40,6 +40,7 @@ def test_display_subscription_update_not_allowed():
 
 
 def test_display_only_schema():
+    """The form's schema marks every display field ``readOnly``: shown to a person, nothing to submit."""
     some_sub_id = uuid4()
     Summary = migration_summary({"headers": ["one"]})
 
@@ -61,6 +62,7 @@ def test_display_only_schema():
             "display_sub": {
                 "default": str(some_sub_id),
                 "format": "subscription",
+                "readOnly": True,
                 "title": "Display Sub",
                 "type": "string",
             },
@@ -68,6 +70,7 @@ def test_display_only_schema():
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "format": "label",
                 "default": None,
+                "readOnly": True,
                 "title": "Label",
                 "type": "string",
             },
@@ -75,6 +78,7 @@ def test_display_only_schema():
                 "$ref": "#/$defs/MigrationSummaryValue",
                 "format": "summary",
                 "default": None,
+                "readOnly": True,
                 "type": "string",
                 "uniforms": {"data": {"headers": ["one"]}},
                 "extraProperties": {"data": {"headers": ["one"]}},
@@ -84,4 +88,4 @@ def test_display_only_schema():
         "type": "object",
     }
 
-    assert Form.model_json_schema() == expected
+    assert page_schema(Form) == expected

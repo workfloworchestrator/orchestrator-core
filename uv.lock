@@ -2911,7 +2911,7 @@ requires-dist = [
     { name = "prometheus-client", specifier = "==0.25.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.3" },
     { name = "pydantic", extras = ["email"], specifier = "~=2.13.0" },
-    { name = "pydantic-forms", specifier = ">=2.4.0" },
+    { name = "pydantic-forms", git = "https://github.com/workfloworchestrator/pydantic-forms?branch=feat%2Fform-page-as-data" },
     { name = "pydantic-settings", specifier = "~=2.15.0" },
     { name = "python-dateutil", specifier = "==2.9.0.post0" },
     { name = "python-rapidjson", specifier = ">=1.25,<1.26" },
@@ -3598,16 +3598,12 @@ wheels = [
 
 [[package]]
 name = "pydantic-forms"
-version = "2.6.0"
-source = { registry = "https://pypi.org/simple" }
+version = "2.8.0rc1"
+source = { git = "https://github.com/workfloworchestrator/pydantic-forms?branch=feat%2Fform-page-as-data#55698136447b6f247abd210eac72cfc516a293bc" }
 dependencies = [
     { name = "more-itertools" },
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-i18n" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f0/be/753f1658c50ea70d9e84d8d466891934f4a6e2ee9511c2e6a8e2a05a6307/pydantic_forms-2.6.0.tar.gz", hash = "sha256:23ada2cc04d02c14664d9d51101124be034e62e9b55e6c5ff21c0ee34b0b0bb1", size = 40965, upload-time = "2026-08-04T13:29:06.361Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8c/70/8c7ef6fc7fbd8bd9ecdfee15ec85ff6e047168d3f9c9350b9b5be5ff779a/pydantic_forms-2.6.0-py3-none-any.whl", hash = "sha256:dcfd64946f78c091cd506fcd922e78b532400bc3a837032d5d3fda6dcddf4c3a", size = 48713, upload-time = "2026-08-04T13:29:05.151Z" },
 ]
 
 [[package]]
