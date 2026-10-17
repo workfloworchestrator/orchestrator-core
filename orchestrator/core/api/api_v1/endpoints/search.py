@@ -32,13 +32,13 @@ from orchestrator.core.search.core.types import EntityType, UIType
 from orchestrator.core.search.filters.definitions import TypeDefinition, generate_definitions
 from orchestrator.core.search.query import QueryState, engine
 from orchestrator.core.search.query.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
+from orchestrator.core.search.query.page import execute_search_page
 from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, QueryAdapter, SelectQuery
 from orchestrator.core.search.query.results import QueryResultsResponse, ResultRow, SearchResult, VisualizationType
 from orchestrator.core.search.query.validation import (
     is_lquery_syntactically_valid,
     validate_structured_order_by_element,
 )
-from orchestrator.core.search.retrieval.pagination import PageCursor, encode_next_page_cursor
 
 router = APIRouter()
 logger = structlog.get_logger(__name__)
@@ -67,40 +67,17 @@ async def _perform_search_and_fetch(
     """
     try:
         await validate_structured_order_by_element(entity_type, request, session)
-
-        page_cursor: PageCursor | None = None
-        query: SelectQuery
-
-        if cursor:
-            page_cursor = PageCursor.decode(cursor)
-            query_state = await QueryState.load_from_id(page_cursor.query_id, SelectQuery, session)
-            query = query_state.query
-
-        elif query_id:
-            query_state = await QueryState.load_from_id(query_id, SelectQuery, session)
-            query = query_state.query
-
-        elif request and entity_type:
-            query = request.to_query(entity_type)
-            query_state = QueryState(query=query, query_embedding=None)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Either (request + entity_type), cursor, or query_id must be provided",
-            )
-
-        if not include_columns:
-            query = query.model_copy(update={"response_columns": []})
-
-        search_response = await engine.execute_search(query, session, page_cursor, query_state.query_embedding)
+        query = request.to_query(entity_type) if request and entity_type else None
+        page = await execute_search_page(
+            session, query=query, cursor=cursor, query_id=query_id, include_columns=include_columns
+        )
+        search_response = page.response
         if not search_response.results:
             return SearchResultsSchema(search_metadata=search_response.metadata)
 
-        next_page_cursor = await encode_next_page_cursor(search_response, page_cursor, query, session)
-        has_next_page = next_page_cursor is not None
         page_info = PageInfoSchema(
-            has_next_page=has_next_page,
-            next_page_cursor=next_page_cursor,
+            has_next_page=page.next_page_cursor is not None,
+            next_page_cursor=page.next_page_cursor,
         )
 
         cursor_info = None

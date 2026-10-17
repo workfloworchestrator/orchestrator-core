@@ -11,6 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
+from uuid import UUID
+
 import structlog
 from sqlalchemy import func, select
 
@@ -25,26 +28,37 @@ from orchestrator.core.db.models import ResourceTypeTable
 from orchestrator.core.db.range import apply_range_to_statement
 from orchestrator.core.db.sorting import Sort
 from orchestrator.core.db.sorting.resource_type import resource_type_sort_fields, sort_resource_types
-from orchestrator.core.graphql.pagination import Connection
+from orchestrator.core.graphql.pagination import SearchConnection
 from orchestrator.core.graphql.resolvers.helpers import make_async, rows_from_statement
+from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.resource_type import ResourceType
+from orchestrator.core.graphql.search_inputs import (
+    After,
+    DeprecatedFilterBy,
+    DeprecatedQuery,
+    DeprecatedSortBy,
+    First,
+    ResourceSearchInput,
+)
 from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.core.graphql.utils import create_resolver_error_handler, is_querying_page_data, to_graphql_result_page
 from orchestrator.core.graphql.utils.get_query_loaders import get_query_loaders_for_gql_fields
+from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
 
 
 @make_async
-def resolve_resource_types(
+def query_resource_types(
     info: OrchestratorInfo,
     filter_by: list[GraphqlFilter] | None = None,
     sort_by: list[GraphqlSort] | None = None,
     first: int = 10,
     after: int = 0,
     query: str | None = None,
-) -> Connection[ResourceType]:
+) -> SearchConnection[ResourceType]:
+    """List resource types with the legacy filterBy/sortBy/query arguments and offset paging."""
     _error_handler = create_resolver_error_handler(info)
 
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
@@ -78,3 +92,31 @@ def resolve_resource_types(
     return to_graphql_result_page(
         graphql_resource_types, first, after, total, resource_type_sort_fields(), resource_type_filter_fields()
     )
+
+
+@make_async
+def _load_resource_types(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, ResourceType]:
+    query_loaders = get_query_loaders_for_gql_fields(ResourceTypeTable, info)
+    stmt = select(ResourceTypeTable).where(ResourceTypeTable.resource_type_id.in_(ids))
+    rows = rows_from_statement(stmt, ResourceTypeTable, loaders=query_loaders)
+    return {str(row.resource_type_id): ResourceType.from_pydantic(row) for row in rows}
+
+
+async def search_resource_types(
+    info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
+) -> SearchConnection[ResourceType]:
+    return await search_resource(info, EntityType.RESOURCE_TYPE, search, _load_resource_types, first=first, after=after)
+
+
+async def resolve_resource_types(
+    info: OrchestratorInfo,
+    filter_by: DeprecatedFilterBy = None,
+    sort_by: DeprecatedSortBy = None,
+    first: First = 10,
+    after: After = 0,
+    query: DeprecatedQuery = None,
+    search: ResourceSearchInput | None = None,
+) -> SearchConnection[ResourceType]:
+    if search is not None:
+        return await search_resource_types(info, search, first, after)
+    return await query_resource_types(info, filter_by, sort_by, first, after, query)

@@ -11,6 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
+from uuid import UUID
+
 import structlog
 from sqlalchemy import func, select
 
@@ -25,26 +28,37 @@ from orchestrator.core.db.models import ProductBlockTable
 from orchestrator.core.db.range.range import apply_range_to_statement
 from orchestrator.core.db.sorting import Sort
 from orchestrator.core.db.sorting.product_block import product_block_sort_fields, sort_product_blocks
-from orchestrator.core.graphql.pagination import Connection
+from orchestrator.core.graphql.pagination import SearchConnection
 from orchestrator.core.graphql.resolvers.helpers import make_async, rows_from_statement
+from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.product_block import ProductBlock
+from orchestrator.core.graphql.search_inputs import (
+    After,
+    DeprecatedFilterBy,
+    DeprecatedQuery,
+    DeprecatedSortBy,
+    First,
+    ResourceSearchInput,
+)
 from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.core.graphql.utils import create_resolver_error_handler, is_querying_page_data, to_graphql_result_page
 from orchestrator.core.graphql.utils.get_query_loaders import get_query_loaders_for_gql_fields
+from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
 
 
 @make_async
-def resolve_product_blocks(
+def query_product_blocks(
     info: OrchestratorInfo,
     filter_by: list[GraphqlFilter] | None = None,
     sort_by: list[GraphqlSort] | None = None,
     first: int = 10,
     after: int = 0,
     query: str | None = None,
-) -> Connection[ProductBlock]:
+) -> SearchConnection[ProductBlock]:
+    """List product blocks with the legacy filterBy/sortBy/query arguments and offset paging."""
     _error_handler = create_resolver_error_handler(info)
 
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
@@ -79,3 +93,31 @@ def resolve_product_blocks(
     return to_graphql_result_page(
         graphql_product_blocks, first, after, total, product_block_sort_fields(), product_block_filter_fields()
     )
+
+
+@make_async
+def _load_product_blocks(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, ProductBlock]:
+    query_loaders = get_query_loaders_for_gql_fields(ProductBlockTable, info)
+    stmt = select(ProductBlockTable).where(ProductBlockTable.product_block_id.in_(ids))
+    rows = rows_from_statement(stmt, ProductBlockTable, loaders=query_loaders)
+    return {str(row.product_block_id): ProductBlock.from_pydantic(row) for row in rows}
+
+
+async def search_product_blocks(
+    info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
+) -> SearchConnection[ProductBlock]:
+    return await search_resource(info, EntityType.PRODUCT_BLOCK, search, _load_product_blocks, first=first, after=after)
+
+
+async def resolve_product_blocks(
+    info: OrchestratorInfo,
+    filter_by: DeprecatedFilterBy = None,
+    sort_by: DeprecatedSortBy = None,
+    first: First = 10,
+    after: After = 0,
+    query: DeprecatedQuery = None,
+    search: ResourceSearchInput | None = None,
+) -> SearchConnection[ProductBlock]:
+    if search is not None:
+        return await search_product_blocks(info, search, first, after)
+    return await query_product_blocks(info, filter_by, sort_by, first, after, query)

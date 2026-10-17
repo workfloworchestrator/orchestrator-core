@@ -13,208 +13,96 @@
 
 from unittest.mock import MagicMock
 
-from strawberry.types.nodes import FragmentSpread, SelectedField
+import pytest
+from strawberry.types.nodes import FragmentSpread, InlineFragment, SelectedField
 
-from orchestrator.core.graphql.utils import is_query_detailed
+from orchestrator.core.graphql.utils import is_query_detailed, is_querying_page_data
 
 is_test_query_detailed = is_query_detailed(("basic", "name"))
 
 
-def test_is_test_query_detailed_with_basic_fields():
-    info = MagicMock(
-        selected_fields=[
-            SelectedField(
-                name="subscriptions",
-                directives={},
-                arguments={},
-                alias=None,
-                selections=[
-                    SelectedField(
-                        name="page",
-                        directives={},
-                        arguments={},
-                        alias=None,
-                        selections=[
-                            SelectedField(name="basic", directives={}, arguments={}, alias=None, selections=[]),
-                            SelectedField(name="name", directives={}, arguments={}, alias=None, selections=[]),
-                        ],
-                    ),
-                    SelectedField(
-                        name="pageInfo",
-                        directives={},
-                        arguments={},
-                        alias=None,
-                        selections=[
-                            SelectedField(name="totalItems", directives={}, arguments={}, alias=None, selections=[]),
-                        ],
-                    ),
-                ],
-            ),
-        ]
+def _field(name, *selections, alias=None):
+    return SelectedField(name=name, directives={}, arguments={}, alias=alias, selections=list(selections))
+
+
+def _fragment(*selections):
+    return FragmentSpread(name="fragment", type_condition="graphql type", directives={}, selections=list(selections))
+
+
+def _inline(*selections):
+    return InlineFragment(
+        type_condition="SubscriptionInterfaceSearchConnection", directives={}, selections=list(selections)
     )
 
-    assert not is_test_query_detailed(info)
+
+def _page(*selections):
+    return _field("subscriptions", _field("page", *selections), _field("pageInfo", _field("totalItems")))
 
 
-def test_is_test_query_detailed_with_basic_gragment_field():
-    info = MagicMock(
-        selected_fields=[
-            SelectedField(
-                name="subscriptions",
-                directives={},
-                arguments={},
-                alias=None,
-                selections=[
-                    SelectedField(
-                        name="page",
-                        directives={},
-                        arguments={},
-                        alias=None,
-                        selections=[
-                            FragmentSpread(
-                                name="fragment",
-                                type_condition="graphql type",
-                                directives={},
-                                selections=[
-                                    SelectedField(name="basic", directives={}, arguments={}, selections=[], alias=None),
-                                    SelectedField(name="name", directives={}, arguments={}, selections=[], alias=None),
-                                ],
-                            )
-                        ],
-                    ),
-                    SelectedField(
-                        name="pageInfo",
-                        directives={},
-                        arguments={},
-                        alias=None,
-                        selections=[
-                            SelectedField(name="totalItems", directives={}, arguments={}, alias=None, selections=[]),
-                        ],
-                    ),
-                ],
+@pytest.mark.parametrize(
+    "root, expected",
+    [
+        pytest.param(_page(_field("basic"), _field("name")), False, id="basic-fields"),
+        pytest.param(_page(_fragment(_field("basic"), _field("name"))), False, id="basic-fragment-fields"),
+        pytest.param(_page(_field("detailed"), _field("not basic")), True, id="detailed-fields"),
+        pytest.param(_page(_fragment(_field("detailed"), _field("not basic"))), True, id="detailed-fragment-fields"),
+        pytest.param(
+            _page(_field("basic"), _field("name"), _field("detailed"), _field("not basic")),
+            True,
+            id="basic-and-detailed-fields",
+        ),
+        pytest.param(
+            _field("subscriptions", _field("searchEdges", _field("node", _field("basic")))),
+            False,
+            id="search-edges-basic",
+        ),
+        pytest.param(
+            _field("subscriptions", _field("searchEdges", _field("node", _field("detailed")))),
+            True,
+            id="search-edges-detailed",
+        ),
+        pytest.param(
+            _field(
+                "subscriptions",
+                _field("page", _field("detailed")),
+                _field("searchEdges", _field("node", _field("basic"))),
             ),
-        ]
-    )
-
-    assert not is_test_query_detailed(info)
-
-
-def test_is_test_query_detailed_with_detailed_fields():
-    info = MagicMock(
-        selected_fields=[
-            SelectedField(
-                name="subscriptions",
-                directives={},
-                arguments={},
-                alias=None,
-                selections=[
-                    SelectedField(
-                        name="page",
-                        directives={},
-                        arguments={},
-                        alias=None,
-                        selections=[
-                            SelectedField(name="detailed", directives={}, arguments={}, alias=None, selections=[]),
-                            SelectedField(name="not basic", directives={}, arguments={}, alias=None, selections=[]),
-                        ],
-                    ),
-                    SelectedField(
-                        name="pageInfo",
-                        directives={},
-                        arguments={},
-                        alias=None,
-                        selections=[
-                            SelectedField(name="totalItems", directives={}, arguments={}, alias=None, selections=[]),
-                        ],
-                    ),
-                ],
+            True,
+            id="detail-in-page-only",
+        ),
+        pytest.param(
+            _field(
+                "subscriptions",
+                _field("page", _field("basic"), alias="a"),
+                _field("page", _field("detailed"), alias="b"),
             ),
-        ]
-    )
-
-    assert is_test_query_detailed(info)
-
-
-def test_is_test_query_detailed_with_detailed_fragment_field():
-    info = MagicMock(
-        selected_fields=[
-            SelectedField(
-                name="subscriptions",
-                directives={},
-                arguments={},
-                alias=None,
-                selections=[
-                    SelectedField(
-                        name="page",
-                        directives={},
-                        arguments={},
-                        alias=None,
-                        selections=[
-                            FragmentSpread(
-                                name="fragment",
-                                type_condition="graphql type",
-                                directives={},
-                                selections=[
-                                    SelectedField(
-                                        name="detailed", directives={}, arguments={}, alias=None, selections=[]
-                                    ),
-                                    SelectedField(
-                                        name="not basic", directives={}, arguments={}, alias=None, selections=[]
-                                    ),
-                                ],
-                            )
-                        ],
-                    ),
-                    SelectedField(
-                        name="pageInfo",
-                        directives={},
-                        arguments={},
-                        alias=None,
-                        selections=[
-                            SelectedField(name="totalItems", directives={}, arguments={}, alias=None, selections=[]),
-                        ],
-                    ),
-                ],
-            ),
-        ]
-    )
-
-    assert is_test_query_detailed(info)
+            True,
+            id="aliased-page",
+        ),
+        pytest.param(_field("subscription", _field("basic"), _field("detailed")), True, id="single-entity"),
+        pytest.param(_field("subscriptions", _fragment(_field("page", _field("basic")))), False, id="page-in-fragment"),
+        pytest.param(
+            _field("subscriptions", _fragment(_field("page", _field("detailed")))), True, id="detail-in-fragment"
+        ),
+        pytest.param(
+            _field("subscriptions", _fragment(_field("searchEdges", _field("node", _field("basic"))))),
+            False,
+            id="search-edges-in-fragment",
+        ),
+    ],
+)
+def test_is_test_query_detailed(root, expected):
+    assert is_test_query_detailed(MagicMock(selected_fields=[root])) is expected
 
 
-def test_is_test_query_detailed_with_basic_and_detailed_fields():
-    info = MagicMock(
-        selected_fields=[
-            SelectedField(
-                name="subscriptions",
-                directives={},
-                arguments={},
-                alias=None,
-                selections=[
-                    SelectedField(
-                        name="page",
-                        directives={},
-                        arguments={},
-                        alias=None,
-                        selections=[
-                            SelectedField(name="basic", directives={}, arguments={}, alias=None, selections=[]),
-                            SelectedField(name="name", directives={}, arguments={}, alias=None, selections=[]),
-                            SelectedField(name="detailed", directives={}, arguments={}, alias=None, selections=[]),
-                            SelectedField(name="not basic", directives={}, arguments={}, alias=None, selections=[]),
-                        ],
-                    ),
-                    SelectedField(
-                        name="pageInfo",
-                        directives={},
-                        arguments={},
-                        alias=None,
-                        selections=[
-                            SelectedField(name="totalItems", directives={}, arguments={}, alias=None, selections=[]),
-                        ],
-                    ),
-                ],
-            ),
-        ]
-    )
-
-    assert is_test_query_detailed(info)
+@pytest.mark.parametrize(
+    "root, expected",
+    [
+        pytest.param(_field("subscriptions", _field("page", _field("basic"))), True, id="page"),
+        pytest.param(_field("subscriptions", _fragment(_field("page", _field("basic")))), True, id="page-in-fragment"),
+        pytest.param(_field("subscriptions", _inline(_field("page", _field("basic")))), True, id="page-in-inline"),
+        pytest.param(_field("subscriptions", _field("pageInfo", _field("totalItems"))), False, id="no-page"),
+    ],
+)
+def test_is_querying_page_data(root, expected):
+    assert is_querying_page_data(MagicMock(selected_fields=[root])) is expected
