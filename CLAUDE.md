@@ -81,6 +81,9 @@ chart/             Helm chart for downstream orchestrators (API, migrations, sch
   `## Checklist`) and fill them in — edit the prefilled body in place instead of
   replacing it, so you don't drop required sections.
 - Set a `kind/*` or `area/*` label (or `skip-changelog`); the "Require a
-  release-notes label" check fails without one. Labels are applied automatically
-  for some paths, but general labels must be set by hand.
+  release-notes label" check fails without one. kind/documentation, kind/test,
+  kind/ci and kind/build are only applied automatically when every changed file is
+  of that kind, so a PR that changes library code needs a type label set by hand
+  (kind/feature, kind/bug, kind/deprecation, kind/refactor, ...). Use
+  `kind/deprecation` when deprecating user-facing API.
 - The first line of a commit message is the PR title by convention.

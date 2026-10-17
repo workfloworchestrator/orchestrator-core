@@ -6,8 +6,8 @@
 # Run .github/labels.sh to create/update these labels in the repo.
 #
 # Each PR is placed in the FIRST category whose labels it matches, so order
-# matters: more specific buckets (Search / LLM, Security) come before the
-# broader ones (Bug Fixes, Dependency Updates).
+# matters: what users need when upgrading comes first (Breaking Changes,
+# Deprecations), then user-facing changes, and internal changes last.
 changelog:
   exclude:
     labels:
@@ -33,6 +33,13 @@ changelog:
     - title: ⚠️ Breaking Changes
       labels:
         - kind/breaking
+    # Deprecations come right after Breaking Changes: they tell users what will
+    # break in a future release, so they shouldn't be buried under Features or
+    # Bug Fixes. A PR that deprecates something while adding its replacement is
+    # listed here rather than under Features.
+    - title: 🗑️ Deprecations
+      labels:
+        - kind/deprecation
     - title: 🚀 Features
       labels:
         - kind/feature
@@ -43,6 +50,19 @@ changelog:
     - title: 🐛 Bug Fixes
       labels:
         - kind/bug
+    - title: 🔒 Security Updates
+      labels:
+        - kind/security
+    # Dependency Updates sits above CI / Build on purpose: a dependency PR can
+    # also get a path-based label. Since a PR lands in the FIRST matching
+    # category, listing dependencies first keeps those bumps in the right section.
+    - title: 📦 Dependency Updates
+      labels:
+        - kind/dependencies
+    - title: 📚 Documentation
+      labels:
+        - kind/documentation
+    # Internal changes come last: they rarely affect users of the library.
     - title: ♻️ Refactors & Internal Changes
       labels:
         - kind/refactor
@@ -50,19 +70,6 @@ changelog:
     - title: 🧪 Tests
       labels:
         - kind/test
-    - title: 📚 Documentation
-      labels:
-        - kind/documentation
-    - title: 🔒 Security Updates
-      labels:
-        - kind/security
-    # Dependency Updates sits above CI / Build on purpose: a dependency PR often
-    # touches pyproject.toml / uv.lock and so also gets the path-based kind/build
-    # label. Since a PR lands in the FIRST matching category, listing
-    # dependencies first keeps those bumps in the right section.
-    - title: 📦 Dependency Updates
-      labels:
-        - kind/dependencies
     - title: 🔧 CI / Build / Tooling
       labels:
         - kind/ci
