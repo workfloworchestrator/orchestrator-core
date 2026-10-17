@@ -350,12 +350,27 @@ async def _form_tool(app: FastAPI, arguments: dict) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_get_workflow_form_serves_the_page_as_one_schema(app_with_agent_routes: FastAPI) -> None:
+async def test_get_workflow_form_serves_the_page_as_one_schema(app_with_agent_routes: FastAPI, monkeypatch) -> None:
     pytest.importorskip("fastmcp")
+    labels = {"note": "Notes", "note_info": "Reminders", "vlan_info": "The vlan id"}
+    monkeypatch.setattr(mcp_tools, "form_field_labels", lambda language: labels if language == "en-GB" else {})
     first = await _form_tool(app_with_agent_routes, {})
     assert (first["status"], first["page"], first["complete"], first["title"]) == ("next", 0, False, "Port")
     schema = first["schema"]
-    assert schema == page_schema(_PortPage, inline_refs=True)
+    plain = page_schema(_PortPage, inline_refs=True)
+    assert schema["properties"]["speed"] == plain["properties"]["speed"]  # no label: as pydantic-forms renders it
+    assert (schema["properties"]["note"]["title"], schema["properties"]["note"]["description"]) == (
+        "Notes",
+        "Reminders",
+    )
+    assert (
+        schema["properties"]["vlan"]["description"] == "The vlan id"
+    )  # the form translations, as the frontend shows them
+    assert {k: v for k, v in schema.items() if k != "properties"} == {
+        k: v for k, v in plain.items() if k != "properties"
+    }
+    other = await _form_tool(app_with_agent_routes, {"language": "nl-NL"})  # a language without a table
+    assert other["schema"] == plain
     assert "$defs" not in schema and "$ref" not in json.dumps(schema)  # the choice is inlined
     assert list(schema["properties"]) == ["note", "speed", "vlan"] and schema["required"] == ["speed"]
     assert schema["properties"]["note"]["readOnly"] is True  # a label: shown, nothing to submit
@@ -379,7 +394,8 @@ async def test_a_rejected_page_is_an_error_or_a_result_as_asked(app_with_agent_r
     rejected = await _form_tool(app_with_agent_routes, {**bad, "verdict": "result"})
     assert (rejected["status"], rejected["page"], rejected["complete"]) == ("rejected", 0, False)
     assert [(e["loc"], e["type"]) for e in rejected["errors"]] == [(["speed"], "enum")]
-    assert rejected["schema"] == page_schema(_PortPage, inline_refs=True)  # the page to resubmit
+    first = await _form_tool(app_with_agent_routes, {})
+    assert rejected["schema"] == first["schema"]  # the page to resubmit, labelled as it was served
 
 
 @pytest.mark.asyncio

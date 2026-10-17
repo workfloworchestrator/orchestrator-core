@@ -15,6 +15,9 @@ import json
 import pathlib
 import tempfile
 
+import pytest
+
+from orchestrator.core.services import translations
 from orchestrator.core.services.translations import generate_translations
 from orchestrator.core.settings import app_settings
 
@@ -72,3 +75,66 @@ def test_generate_translations_extend_default():
             assert "modify_note" in result.get("workflow", {})
     finally:
         app_settings.TRANSLATIONS_DIR = old_value
+
+
+@pytest.mark.parametrize(
+    "table,expected",
+    [
+        pytest.param(
+            {"forms": {"fields": {"note": "Notes", "note_info": "Help"}}},
+            {"note": "Notes", "note_info": "Help"},
+            id="labels",
+        ),
+        pytest.param(
+            {"forms": {"fields": {"note": "Notes", "nested": {"x": "y"}}}}, {"note": "Notes"}, id="only-strings"
+        ),
+        pytest.param({"workflow": {}}, {}, id="no-forms-table"),
+    ],
+)
+def test_form_field_labels(monkeypatch, table, expected):
+    monkeypatch.setattr(translations, "generate_translations", lambda language: table)
+    assert translations.form_field_labels("en-GB") == expected
+
+
+LABELS = {"note": "Notes", "note_info": "Notes and reminders", "vlan_info": "The vlan id", "email": "E-mail"}
+
+
+@pytest.mark.parametrize(
+    "prop,expected",
+    [
+        pytest.param(
+            ("note", {"type": "string", "title": "Note"}),
+            {"type": "string", "title": "Notes", "description": "Notes and reminders"},
+            id="label-and-help-text",
+        ),
+        pytest.param(
+            ("vlan", {"type": "integer", "description": "as the form says"}),
+            {"type": "integer", "description": "as the form says"},
+            id="a-description-the-schema-has-is-kept",
+        ),
+        pytest.param(
+            ("speed", {"type": "string", "title": "Speed"}),
+            {"type": "string", "title": "Speed"},
+            id="no-label-untouched",
+        ),
+        pytest.param(
+            ("contact", {"type": "object", "properties": {"email": {"type": "string", "title": "Email"}}}),
+            {"type": "object", "properties": {"email": {"type": "string", "title": "E-mail"}}},
+            id="a-nested-objects-fields",
+        ),
+        pytest.param(
+            ("ports", {"type": "array", "items": {"type": "object", "properties": {"vlan": {"type": "integer"}}}}),
+            {
+                "type": "array",
+                "items": {"type": "object", "properties": {"vlan": {"type": "integer", "description": "The vlan id"}}},
+            },
+            id="a-lists-items",
+        ),
+    ],
+)
+def test_label_schema(prop, expected):
+    name, schema_prop = prop
+    schema = {"type": "object", "properties": {name: schema_prop}, "required": [name]}
+    labelled = translations.label_schema(schema, LABELS)
+    assert labelled["properties"][name] == expected
+    assert labelled["required"] == [name] and schema["properties"][name] == schema_prop  # the input is not mutated

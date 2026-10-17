@@ -51,6 +51,15 @@ class GetWorkflowFormRequest(OrchestratorBaseModel):
             "values named can be corrected and the same page resubmitted."
         ),
     )
+    language: str = Field(
+        default="en-GB",
+        pattern=r"^[a-z]+-[A-Z]+$",
+        description=(
+            "Language of the labels and help texts written into the schema's properties (`title`, `description`) "
+            "from core's form translations, as the frontend shows them. A field without a translation keeps the "
+            "schema's own title."
+        ),
+    )
 
 
 class SubscriptionIdRequest(OrchestratorBaseModel):
@@ -92,6 +101,7 @@ class WorkflowFormPage(OrchestratorBaseModel):
         default=None,
         alias="schema",
         description="The page as one self-contained JSON Schema: the values to submit, every reference inlined. "
+        "A property's `title` and `description` are the field's label and help text as the frontend shows them. "
         "A property with `readOnly: true` is shown and takes no value; `enum` lists the values a property takes "
         'and `options` their labels; `format: "accept"` takes `"ACCEPTED"`. `null` when complete.',
     )

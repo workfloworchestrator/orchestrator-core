@@ -117,6 +117,7 @@ from orchestrator.core.search.query.validation import (
 )
 from orchestrator.core.services.processes import get_process_async, load_process
 from orchestrator.core.services.subscriptions import get_subscription_async, subscription_workflows
+from orchestrator.core.services.translations import form_field_labels, label_schema
 from orchestrator.core.services.workflows import get_workflows_async
 from orchestrator.core.utils.enrich_process import enrich_process
 from orchestrator.core.utils.errors import DBInternalError
@@ -177,6 +178,10 @@ async def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> Workflow
     A page that does not validate is a tool error, or with ``verdict="result"`` a result with
     ``status: "rejected"``, ``errors`` (``loc``, ``msg``, ``type``) naming the values to fix, and that page's
     ``schema``: resubmit the page corrected. ``create_workflow`` validates the pages again.
+
+    A property's ``title`` and ``description`` are the field's label and help text as the frontend shows them,
+    from core's form translations in ``language`` (default ``en-GB``); a field without one keeps the schema's
+    own title.
     """
     wf = get_workflow(params.workflow_key)
     if not wf:
@@ -189,11 +194,11 @@ async def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> Workflow
         case Complete():
             return WorkflowFormPage(page=len(user_inputs), complete=True, status="complete")
         case NextPage(model=model, index=index):
-            return _form_page(model, index, "next")
+            return _form_page(model, index, "next", language=params.language)
         case Rejected(model=model, index=index, error=error):
             if params.verdict == "error":
                 raise error
-            return _form_page(model, index, "rejected", form_errors(error))
+            return _form_page(model, index, "rejected", form_errors(error), language=params.language)
 
 
 def _form_page(
@@ -201,15 +206,17 @@ def _form_page(
     index: int,
     status: Literal["next", "rejected"],
     errors: Sequence[FormFieldError] = (),
+    *,
+    language: str,
 ) -> WorkflowFormPage:
-    """One page of the walk: its schema as one self-contained document, and the verdict when it was rejected."""
+    """One page of the walk: its schema as one self-contained document, labelled as the frontend shows it, and the verdict when it was rejected."""
     title = model.model_config.get("title")
     return WorkflowFormPage(
         page=index,
         complete=False,
         status=status,
         title=None if title in (None, "unknown") else title,  # "unknown" is pydantic-forms' placeholder
-        schema=page_schema(model, inline_refs=True),
+        schema=label_schema(page_schema(model, inline_refs=True), form_field_labels(language)),
         errors=list(errors),
     )
 
