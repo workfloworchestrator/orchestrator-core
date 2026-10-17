@@ -13,8 +13,10 @@
 
 
 from importlib import import_module
+from typing import Protocol, runtime_checkable
 
 import structlog
+from more_itertools import first
 
 from orchestrator.core.utils.docs import make_workflow_index_doc
 from orchestrator.core.workflow import Workflow
@@ -98,14 +100,61 @@ class LazyWorkflowInstance:
         return f"LazyWorkflowInstance('{self.package}','{self.function}')"
 
 
+@runtime_checkable
+class WorkflowSource(Protocol):
+    """Provides workflows that are not registered in code with a `LazyWorkflowInstance`, e.g. stored in the database.
+
+    A source is consulted for names that are not in `ALL_WORKFLOWS`, so a workflow defined in code always wins.
+    """
+
+    def get(self, name: str) -> Workflow | None:
+        """Return the workflow called `name`, or None when this source does not provide it."""
+        ...
+
+    def names(self) -> set[str]:
+        """Return the names of all workflows this source provides."""
+        ...
+
+    def owned_names(self) -> set[str]:
+        """Return the names of all `workflows` rows this source manages, including archived (soft deleted) ones.
+
+        Tooling that cleans up rows without a workflow in code must leave these alone.
+        """
+        ...
+
+
+WORKFLOW_SOURCES: list[WorkflowSource] = []
+
+
+def register_workflow_source(source: WorkflowSource) -> None:
+    """Make `get_workflow` fall back to `source` for names that are not registered in code."""
+    if source not in WORKFLOW_SOURCES:
+        WORKFLOW_SOURCES.append(source)
+
+
+def source_workflow_names() -> set[str]:
+    """Names of the workflows provided by registered sources rather than by code."""
+    return {name for source in WORKFLOW_SOURCES for name in source.names()}
+
+
+def source_owned_workflow_names() -> set[str]:
+    """Names of every `workflows` row managed by a registered source, including archived ones."""
+    return {name for source in WORKFLOW_SOURCES for name in source.owned_names()}
+
+
+def all_workflow_names() -> set[str]:
+    """Names of every workflow that `get_workflow` can resolve."""
+    return set(ALL_WORKFLOWS) | source_workflow_names()
+
+
 def get_workflow(name: str) -> Workflow | None:
-    wi = ALL_WORKFLOWS.get(name)
+    if wi := ALL_WORKFLOWS.get(name):
+        return wi.instantiate()
 
-    if not wi:
-        logger.debug("LazyWorkflowInstance not found with this name", name=name)
-        return None
-
-    return wi.instantiate()
+    workflow = first((wf for source in WORKFLOW_SOURCES if (wf := source.get(name)) is not None), None)
+    if workflow is None:
+        logger.debug("Workflow not found with this name", name=name)
+    return workflow
 
 
 # Modify
@@ -118,5 +167,10 @@ LazyWorkflowInstance(".tasks.validate_awaiting_callbacks", "task_validate_awaiti
 LazyWorkflowInstance(".tasks.validate_products", "task_validate_products")
 LazyWorkflowInstance(".tasks.validate_product_type", "task_validate_product_type")
 LazyWorkflowInstance(".tasks.validate_subscriptions", "task_validate_subscriptions")
+
+# Workflows designed in the GUI live in the database; registering their source here makes every process resolve them.
+from orchestrator.core.workflow_designer.source import designed_workflows  # noqa: E402
+
+register_workflow_source(designed_workflows)
 
 __doc__ = make_workflow_index_doc(ALL_WORKFLOWS)

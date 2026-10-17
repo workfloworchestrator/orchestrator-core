@@ -23,6 +23,11 @@
                 "description": "Description",
                 "subscription_id": "Subscription ID",
                 "title": "Title"
+            },
+            "designer_confirmation": "Confirmation",
+            "accept_designer_confirmation": {
+                "accept": "I confirm, continue the workflow",
+                "accept_info": ""
             }
         }
     },

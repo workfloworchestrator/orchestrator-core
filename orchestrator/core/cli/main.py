@@ -17,6 +17,7 @@ from orchestrator.core.cli import (
     database,
     generate,
     scheduler,
+    workflow_designer,
 )
 from orchestrator.core.cli.search import index_llm, resize_embedding, search_explore, speedtest
 
@@ -35,6 +36,11 @@ app.add_typer(
     speedtest.app,
     name="speedtest",
     help="Search performance testing and analysis.",
+)
+app.add_typer(
+    workflow_designer.app,
+    name="workflow-designer",
+    help="Inspect the steps a designed workflow can use, and the designed workflows.",
 )
 
 
