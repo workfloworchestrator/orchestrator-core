@@ -236,14 +236,11 @@ async def export_search(
     entity_type = EXPORT_ENTITY_TYPES[entity]
     try:
         await validate_structured_order_by_element(entity_type, request, session)
-        search_response = await engine.execute_search(request.to_query(entity_type), session)
+        query = request.to_query(entity_type)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Export failed: {str(e)}",
-        )
+
+    search_response = await engine.execute_search(query, session)
 
     cursor_info = (
         CursorInfoSchema(

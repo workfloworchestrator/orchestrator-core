@@ -133,17 +133,27 @@ def test_export_truncated_response(test_client, mock_execute_search):
 
 
 @pytest.mark.parametrize(
-    "patch_path,error,expected_status,expected_detail",
+    "body,validate_error",
     [
-        pytest.param(VALIDATE_PATH, ValueError("bad path"), HTTPStatus.UNPROCESSABLE_ENTITY, "bad path", id="invalid"),
-        pytest.param(
-            ENGINE_PATH, RuntimeError("boom"), HTTPStatus.INTERNAL_SERVER_ERROR, "Export failed: boom", id="error"
-        ),
+        pytest.param({"filters": FILTERS, "order_by": {"element": "x"}}, ValueError("bad path"), id="invalid-order-by"),
+        pytest.param({"filters": {"bool": {}}}, None, id="invalid-filters"),
+        pytest.param({"retriever": "semantic"}, None, id="retriever-without-query"),
+        pytest.param({"filters": {"range": {"field": {"unknown_op": 42}}}}, None, id="invalid-range-bounds"),
     ],
 )
-def test_export_errors(test_client, mock_execute_search, patch_path, error, expected_status, expected_detail):
-    with patch(patch_path, new=AsyncMock(side_effect=error)):
-        response = test_client.post("/api/search/subscriptions/export", json={"filters": FILTERS})
+def test_export_invalid_request(test_client, mock_execute_search, body, validate_error):
+    with patch(VALIDATE_PATH, new=AsyncMock(side_effect=validate_error)):
+        response = test_client.post("/api/search/subscriptions/export", json=body)
 
-    assert response.status_code == expected_status
-    assert response.json()["detail"] == expected_detail
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    mock_execute_search.assert_not_called()
+
+
+@pytest.mark.parametrize("error_type", [ValueError, RuntimeError])
+def test_export_engine_error_is_not_handled(
+    test_client: TestClient, mock_execute_search: AsyncMock, error_type: type[Exception]
+) -> None:
+    mock_execute_search.side_effect = error_type("boom")
+
+    with pytest.raises(error_type, match="boom"):
+        test_client.post("/api/search/subscriptions/export", json={"filters": FILTERS})
