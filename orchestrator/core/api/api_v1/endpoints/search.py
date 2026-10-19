@@ -33,6 +33,7 @@ from orchestrator.core.search.core.types import EntityType, UIType
 from orchestrator.core.search.filters.definitions import TypeDefinition, generate_definitions
 from orchestrator.core.search.query import QueryState, engine
 from orchestrator.core.search.query.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
+from orchestrator.core.search.query.exceptions import QueryValidationError
 from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, QueryAdapter, SelectQuery
 from orchestrator.core.search.query.results import QueryResultsResponse, ResultRow, SearchResult, VisualizationType
 from orchestrator.core.search.query.validation import (
@@ -118,7 +119,7 @@ async def _perform_search_and_fetch(
             search_metadata=search_response.metadata,
             cursor=cursor_info,
         )
-    except (InvalidCursorError, ValueError) as e:
+    except (InvalidCursorError, QueryValidationError, ValueError) as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except QueryStateNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -148,7 +149,9 @@ async def search_workflows(
     include_columns: bool = True,
     session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(session, EntityType.WORKFLOW, request, cursor, include_columns=include_columns)
+    return await _perform_search_and_fetch(
+        session, EntityType.WORKFLOW, request, cursor, include_columns=include_columns
+    )
 
 
 @router.post("/products", response_model=SearchResultsSchema[SearchResult])
@@ -158,7 +161,9 @@ async def search_products(
     include_columns: bool = True,
     session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(session, EntityType.PRODUCT, request, cursor, include_columns=include_columns)
+    return await _perform_search_and_fetch(
+        session, EntityType.PRODUCT, request, cursor, include_columns=include_columns
+    )
 
 
 @router.post("/processes", response_model=SearchResultsSchema[SearchResult])
@@ -168,7 +173,9 @@ async def search_processes(
     include_columns: bool = True,
     session: AsyncSession = Depends(get_async_session),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(session, EntityType.PROCESS, request, cursor, include_columns=include_columns)
+    return await _perform_search_and_fetch(
+        session, EntityType.PROCESS, request, cursor, include_columns=include_columns
+    )
 
 
 @router.post("/product_blocks", response_model=SearchResultsSchema[SearchResult])
@@ -234,11 +241,8 @@ async def export_search(
     more results exist than were exported, but no cursor is returned.
     """
     entity_type = EXPORT_ENTITY_TYPES[entity]
-    try:
-        await validate_structured_order_by_element(entity_type, request, session)
-        query = request.to_query(entity_type)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    await validate_structured_order_by_element(entity_type, request, session)
+    query = request.to_query(entity_type)
 
     search_response = await engine.execute_search(query, session)
 
@@ -304,9 +308,7 @@ async def get_definitions() -> dict[UIType, TypeDefinition]:
     response_model=QueryResultsResponse,
     summary="Fetch full query results by query_id",
 )
-async def get_query_results(
-    query_id: UUID, session: AsyncSession = Depends(get_async_session)
-) -> QueryResultsResponse:
+async def get_query_results(query_id: UUID, session: AsyncSession = Depends(get_async_session)) -> QueryResultsResponse:
     """Fetch full results for any query type (select, count, aggregate).
 
     Detects query type from stored parameters and executes accordingly,
@@ -380,9 +382,7 @@ async def get_by_query_id(
     summary="Export query results by query_id",
     response_model=ExportResponse,
 )
-async def export_by_query_id(
-    query_id: str, session: AsyncSession = Depends(get_async_session)
-) -> ExportResponse:
+async def export_by_query_id(query_id: str, session: AsyncSession = Depends(get_async_session)) -> ExportResponse:
     """Export search results using query_id.
 
     The query is retrieved from the database, re-executed, and results are returned

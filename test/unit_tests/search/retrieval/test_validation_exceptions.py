@@ -36,6 +36,7 @@ from orchestrator.core.search.query.exceptions import (
     EmptyFilterPathError,
     IncompatibleFilterTypeError,
     InvalidEntityPrefixError,
+    InvalidOrderByElementError,
     PathNotFoundError,
 )
 from orchestrator.core.search.query.validation import (
@@ -269,11 +270,11 @@ async def test_validate_structured_order_by_element_without_request(async_db_ses
 @patch("orchestrator.core.search.query.validation._has_ai_search_index_for_entity_type", return_value=True)
 @patch("orchestrator.core.search.query.validation.get_ai_search_index_by_entity_type_and_path", return_value=None)
 async def test_validate_structured_order_by_element_not_existing(mock_get_index, mock_has_index, async_db_session):
-    """Non-existent order_by element raises ValueError when the entity type has indexed rows."""
+    """Non-existent order_by element raises InvalidOrderByElementError when the entity type has indexed rows."""
     element = "subscription.element.not.exist"
     request_mock = MagicMock()
     request_mock.order_by.element = element
-    with pytest.raises(ValueError, match=f"Element {element} is not a valid path"):
+    with pytest.raises(InvalidOrderByElementError, match=f"Element {element} is not a valid path"):
         await validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock, async_db_session)
 
 

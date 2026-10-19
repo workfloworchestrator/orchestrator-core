@@ -24,7 +24,9 @@ from starlette.testclient import TestClient
 
 from orchestrator.core.api.api_v1.endpoints.search import EXPORT_ENTITY_TYPES, SearchExportEntity, router
 from orchestrator.core.db import get_async_session
+from orchestrator.core.exception_handlers import query_validation_handler
 from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.query.exceptions import InvalidOrderByElementError, QueryValidationError
 from orchestrator.core.search.query.queries import BaseQuery, ExportQuery
 from orchestrator.core.search.query.results import SearchResponse, SearchResult
 from test.unit_tests.search.fixtures.helpers import SIMPLE_SUBSCRIPTION_FILTER
@@ -60,6 +62,7 @@ def test_client():
         yield AsyncMock(spec=AsyncSession)
 
     app = FastAPI()
+    app.add_exception_handler(QueryValidationError, query_validation_handler)
     app.include_router(router, prefix="/api/search")
     app.dependency_overrides[get_async_session] = _session
     return TestClient(app)
@@ -135,7 +138,9 @@ def test_export_truncated_response(test_client, mock_execute_search):
 @pytest.mark.parametrize(
     "body,validate_error",
     [
-        pytest.param({"filters": FILTERS, "order_by": {"element": "x"}}, ValueError("bad path"), id="invalid-order-by"),
+        pytest.param(
+            {"filters": FILTERS, "order_by": {"element": "x"}}, InvalidOrderByElementError("x"), id="invalid-order-by"
+        ),
         pytest.param({"filters": {"bool": {}}}, None, id="invalid-filters"),
         pytest.param({"retriever": "semantic"}, None, id="retriever-without-query"),
         pytest.param({"filters": {"range": {"field": {"unknown_op": 42}}}}, None, id="invalid-range-bounds"),

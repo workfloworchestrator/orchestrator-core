@@ -29,6 +29,7 @@ from orchestrator.core.search.query.exceptions import (
     IncompatibleTemporalGroupingTypeError,
     InvalidEntityPrefixError,
     InvalidLtreePatternError,
+    InvalidOrderByElementError,
     PathNotFoundError,
 )
 from orchestrator.core.search.query.mixins import OrderBy
@@ -310,10 +311,10 @@ async def validate_structured_order_by_element(
     validated; the search then returns no results instead of rejecting a valid field.
 
     Raises:
-        ValueError: If the entity type has indexed rows but none for the order_by element.
+        InvalidOrderByElementError: If the entity type has indexed rows but none for the order_by element.
     """
     if request and request.order_by and entity_type:
         element = request.order_by.element
         exists = await get_ai_search_index_by_entity_type_and_path(entity_type, element, session)
         if not exists and await _has_ai_search_index_for_entity_type(entity_type, session):
-            raise ValueError(f"Element {element} is not a valid path")
+            raise InvalidOrderByElementError(element)

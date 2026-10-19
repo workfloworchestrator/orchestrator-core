@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from orchestrator.core.search.core.types import EntityType, RetrieverType
 from orchestrator.core.search.filters import ElasticQuery, FilterTree, elastic_to_filter_tree
 from orchestrator.core.search.indexing.field_types import resolve_field_value_kind
+from orchestrator.core.search.query.exceptions import QueryValidationError
 from orchestrator.core.search.query.mixins import StructuredOrderBy
 from orchestrator.core.search.query.queries import BaseQuery, ExportQuery, SelectQuery
 
@@ -92,16 +93,22 @@ class SearchRequest(BaseSearchRequest):
 
         Returns:
             SelectQuery for search operation
+
+        Raises:
+            QueryValidationError: If the filters or query fields are invalid.
         """
-        return SelectQuery(
-            entity_type=entity_type,
-            filters=self.filter_tree(entity_type),
-            query_text=self.query,
-            limit=self.limit,
-            retriever=self.retriever,
-            order_by=self.order_by,
-            response_columns=self.response_columns,
-        )
+        try:
+            return SelectQuery(
+                entity_type=entity_type,
+                filters=self.filter_tree(entity_type),
+                query_text=self.query,
+                limit=self.limit,
+                retriever=self.retriever,
+                order_by=self.order_by,
+                response_columns=self.response_columns,
+            )
+        except ValueError as e:
+            raise QueryValidationError(str(e)) from e
 
 
 class SearchExportRequest(BaseSearchRequest):
@@ -126,13 +133,19 @@ class SearchExportRequest(BaseSearchRequest):
 
         Returns:
             ExportQuery for export operation
+
+        Raises:
+            QueryValidationError: If the filters or query fields are invalid.
         """
-        return ExportQuery(
-            entity_type=entity_type,
-            filters=self.filter_tree(entity_type),
-            query_text=self.query,
-            limit=self.limit,
-            retriever=self.retriever,
-            order_by=self.order_by,
-            response_columns=self.response_columns,
-        )
+        try:
+            return ExportQuery(
+                entity_type=entity_type,
+                filters=self.filter_tree(entity_type),
+                query_text=self.query,
+                limit=self.limit,
+                retriever=self.retriever,
+                order_by=self.order_by,
+                response_columns=self.response_columns,
+            )
+        except ValueError as e:
+            raise QueryValidationError(str(e)) from e
