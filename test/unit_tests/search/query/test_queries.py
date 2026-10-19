@@ -30,7 +30,14 @@ from orchestrator.core.search.core.types import EntityType, QueryOperation
 from orchestrator.core.search.filters import FilterTree
 from orchestrator.core.search.query.builder import build_aggregation_query, build_candidate_query
 from orchestrator.core.search.query.mixins import OrderBy, OrderDirection
-from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, Query, SelectQuery
+from orchestrator.core.search.query.queries import (
+    AggregateQuery,
+    BaseQuery,
+    CountQuery,
+    ExportQuery,
+    Query,
+    SelectQuery,
+)
 
 pytestmark = pytest.mark.search
 
@@ -78,10 +85,10 @@ def test_select_query_with_filters(select_query_with_filters: SelectQuery):
 
 
 def test_export_query_limits(export_query_minimal: ExportQuery):
-    """ExportQuery has higher limits than SelectQuery for bulk exports."""
-    assert export_query_minimal.limit == 1000
-    query_max = ExportQuery(entity_type=EntityType.SUBSCRIPTION, limit=10000)
-    assert query_max.limit == 10000
+    """ExportQuery defaults to, and is capped at, the configurable export limit."""
+    assert export_query_minimal.limit == BaseQuery.MAX_EXPORT_LIMIT
+    with pytest.raises(ValidationError):
+        ExportQuery(entity_type=EntityType.SUBSCRIPTION, limit=BaseQuery.MAX_EXPORT_LIMIT + 1)
 
 
 # ---------------------------------------------------------------------------

@@ -141,6 +141,12 @@ class AppSettings(BaseSettings):
             'Example (env var, JSON): CELERY_TARGET_QUEUES=\'{"RECONCILE": "reconcile"}\''
         ),
     )
+    SEARCH_MAX_EXPORT_LIMIT: int = Field(
+        1000,
+        gt=0,
+        description="Maximum number of results a single export request may return.",
+    )
+
 
     @field_validator("CELERY_TARGET_QUEUES")
     @classmethod

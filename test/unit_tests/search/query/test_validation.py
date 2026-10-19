@@ -33,6 +33,7 @@ from orchestrator.core.search.query.exceptions import (
     IncompatibleFilterTypeError,
     IncompatibleTemporalGroupingTypeError,
     InvalidEntityPrefixError,
+    InvalidOrderByElementError,
     PathNotFoundError,
 )
 from orchestrator.core.search.query.mixins import OrderBy, OrderDirection
@@ -377,7 +378,7 @@ async def test_validate_structured_order_by_element_invalid_raises(mock_get: Asy
     mock_get.return_value = None
     request_mock = MagicMock()
     request_mock.order_by.element = element
-    with pytest.raises(ValueError, match=f"Element {element} is not a valid path"):
+    with pytest.raises(InvalidOrderByElementError, match=f"Element {element} is not a valid path"):
         await validate_structured_order_by_element(EntityType.SUBSCRIPTION, request_mock, async_db_session)
 
 

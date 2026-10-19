@@ -12,19 +12,21 @@
 # limitations under the License.
 
 
+from typing import Self
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from orchestrator.core.search.core.types import EntityType, RetrieverType
 from orchestrator.core.search.filters import ElasticQuery, FilterTree, elastic_to_filter_tree
 from orchestrator.core.search.indexing.field_types import resolve_field_value_kind
+from orchestrator.core.search.query.exceptions import QueryValidationError
 from orchestrator.core.search.query.mixins import StructuredOrderBy
-from orchestrator.core.search.query.queries import SelectQuery
+from orchestrator.core.search.query.queries import BaseQuery, ExportQuery, SelectQuery
 
 
-class SearchRequest(BaseModel):
-    """API request model for search operations.
+class BaseSearchRequest(BaseModel):
+    """Fields shared by the search and export request models.
 
-    Only supports SELECT action, used by search endpoints.
     Accepts filters in either FilterTree format or Elasticsearch DSL format.
     ES DSL filters are converted to FilterTree in to_query, once the entity type is known.
     """
@@ -37,12 +39,6 @@ class SearchRequest(BaseModel):
     query: str | None = Field(
         default=None,
         description="Text search query for semantic/fuzzy search.",
-    )
-    limit: int = Field(
-        default=SelectQuery.DEFAULT_LIMIT,
-        ge=SelectQuery.MIN_LIMIT,
-        le=SelectQuery.MAX_LIMIT,
-        description="Maximum number of search results to return.",
     )
     retriever: RetrieverType | None = Field(
         default=None,
@@ -59,6 +55,36 @@ class SearchRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    def filter_tree(self, entity_type: EntityType) -> FilterTree | None:
+        """Return the filters as a FilterTree, converting ES DSL filters for the given entity type."""
+        filters = self.filters
+        if isinstance(filters, ElasticQuery):
+            return elastic_to_filter_tree(
+                filters,
+                value_kind_resolver=lambda path, _value: resolve_field_value_kind(entity_type, path),
+            )
+        return filters
+
+    @model_validator(mode="after")
+    def validate_order_by_not_compatible_with_query(self) -> Self:
+        if self.order_by and self.query:
+            raise ValueError("order_by can only be set when query is empty")
+        return self
+
+
+class SearchRequest(BaseSearchRequest):
+    """API request model for search operations.
+
+    Only supports SELECT action, used by search endpoints.
+    """
+
+    limit: int = Field(
+        default=SelectQuery.DEFAULT_LIMIT,
+        ge=SelectQuery.MIN_LIMIT,
+        le=SelectQuery.MAX_LIMIT,
+        description="Maximum number of search results to return.",
+    )
+
     def to_query(self, entity_type: EntityType) -> SelectQuery:
         """Convert API request to SelectQuery domain model.
 
@@ -67,26 +93,59 @@ class SearchRequest(BaseModel):
 
         Returns:
             SelectQuery for search operation
+
+        Raises:
+            QueryValidationError: If the filters or query fields are invalid.
         """
-        filters = self.filters
-        if isinstance(filters, ElasticQuery):
-            filters = elastic_to_filter_tree(
-                filters,
-                value_kind_resolver=lambda path, _value: resolve_field_value_kind(entity_type, path),
+        try:
+            return SelectQuery(
+                entity_type=entity_type,
+                filters=self.filter_tree(entity_type),
+                query_text=self.query,
+                limit=self.limit,
+                retriever=self.retriever,
+                order_by=self.order_by,
+                response_columns=self.response_columns,
             )
+        except ValueError as e:
+            raise QueryValidationError(str(e)) from e
 
-        return SelectQuery(
-            entity_type=entity_type,
-            filters=filters,
-            query_text=self.query,
-            limit=self.limit,
-            retriever=self.retriever,
-            order_by=self.order_by,
-            response_columns=self.response_columns,
-        )
 
-    @model_validator(mode="after")
-    def validate_order_by_not_compatible_with_query(self) -> "SearchRequest":
-        if self.order_by and self.query:
-            raise ValueError("order_by can only be set when query is empty")
-        return self
+class SearchExportRequest(BaseSearchRequest):
+    """API request model for exporting search results.
+
+    Same as SearchRequest, but the limit is bounded by the export limit (`SEARCH_MAX_EXPORT_LIMIT`)
+    and defaults to it.
+    """
+
+    limit: int = Field(
+        default=BaseQuery.MAX_EXPORT_LIMIT,
+        ge=BaseQuery.MIN_LIMIT,
+        le=BaseQuery.MAX_EXPORT_LIMIT,
+        description="Maximum number of search results to export. Defaults to the maximum.",
+    )
+
+    def to_query(self, entity_type: EntityType) -> ExportQuery:
+        """Convert API request to ExportQuery domain model.
+
+        Args:
+            entity_type: The entity type to export (provided by endpoint)
+
+        Returns:
+            ExportQuery for export operation
+
+        Raises:
+            QueryValidationError: If the filters or query fields are invalid.
+        """
+        try:
+            return ExportQuery(
+                entity_type=entity_type,
+                filters=self.filter_tree(entity_type),
+                query_text=self.query,
+                limit=self.limit,
+                retriever=self.retriever,
+                order_by=self.order_by,
+                response_columns=self.response_columns,
+            )
+        except ValueError as e:
+            raise QueryValidationError(str(e)) from e

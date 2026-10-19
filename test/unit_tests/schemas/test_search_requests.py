@@ -21,11 +21,12 @@ from pydantic import ConfigDict, ValidationError
 
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.core.domain.base import SubscriptionModel
-from orchestrator.core.schemas.search_requests import SearchRequest
+from orchestrator.core.schemas.search_requests import SearchExportRequest, SearchRequest
 from orchestrator.core.search.core.types import EntityType, RetrieverType, UIType
 from orchestrator.core.search.filters.base import PathFilter
 from orchestrator.core.search.indexing.field_types import clear_field_type_cache
 from orchestrator.core.search.query.mixins import StructuredOrderBy
+from orchestrator.core.search.query.queries import BaseQuery, ExportQuery, SelectQuery
 
 
 @pytest.mark.parametrize(
@@ -51,9 +52,42 @@ def test_limit_boundaries_succeed(limit: int) -> None:
     assert SearchRequest(limit=limit).limit == limit
 
 
-def test_order_by_with_query_raises() -> None:
+@pytest.mark.parametrize(
+    "limit,valid",
+    [
+        pytest.param(BaseQuery.MIN_LIMIT, True, id="min"),
+        pytest.param(BaseQuery.MAX_LIMIT + 1, True, id="above-search-max"),
+        pytest.param(BaseQuery.MAX_EXPORT_LIMIT, True, id="export-max"),
+        pytest.param(BaseQuery.MAX_EXPORT_LIMIT + 1, False, id="above-export-max"),
+    ],
+)
+def test_export_request_limit_bounds(limit: int, valid: bool) -> None:
+    if valid:
+        assert SearchExportRequest(limit=limit).limit == limit
+    else:
+        with pytest.raises(ValidationError):
+            SearchExportRequest(limit=limit)
+
+
+@pytest.mark.parametrize(
+    "request_cls,expected_query_cls",
+    [
+        pytest.param(SearchRequest, SelectQuery, id="search"),
+        pytest.param(SearchExportRequest, ExportQuery, id="export"),
+    ],
+)
+def test_to_query_returns_matching_query_class(request_cls, expected_query_cls) -> None:
+    query = request_cls(query="fiber", limit=50, response_columns=["subscription.status"]).to_query(
+        EntityType.SUBSCRIPTION
+    )
+    assert type(query) is expected_query_cls
+    assert (query.query_text, query.limit, query.response_columns) == ("fiber", 50, ["subscription.status"])
+
+
+@pytest.mark.parametrize("request_cls", [SearchRequest, SearchExportRequest])
+def test_order_by_with_query_raises(request_cls) -> None:
     with pytest.raises(ValidationError, match="order_by can only be set when query is empty"):
-        SearchRequest(query="hello", order_by=StructuredOrderBy(element="name"))
+        request_cls(query="hello", order_by=StructuredOrderBy(element="name"))
 
 
 def test_order_by_without_query_succeeds() -> None:

@@ -160,15 +160,55 @@ so pages stay stable while data changes underneath.
 Four entity types are indexed: **subscriptions**, **products**, **processes** and **workflows**.
 All three interfaces run the same engine.
 
-| Interface   | Where                       | What it offers                                                                             |
-|-------------|-----------------------------|--------------------------------------------------------------------------------------------|
-| **REST**    | `/api/search` (authenticated) | `POST /subscriptions`, `/products`, `/processes`, `/workflows` to search; `GET /paths` for field autocomplete; `GET /definitions` for the operators valid per UI type; `GET /queries/{id}`, `/results`, `/export` to re-run or export a saved query |
-| **GraphQL** | root fields                 | `search`, `searchPaths`, `searchDefinitions`, `searchQuery`, `searchQueryResults`, `searchQueryExport`, mirroring REST |
-| **Agent tools** | `/api/agent`            | `search`, `aggregate`, `discover_filter_paths`, `get_valid_operators`, `resolve_entity`, `export_query`, exposed as read-only [MCP](mcp.md) tools when `MCP_ENABLED` is set |
+- **REST** under `/api/search` (authenticated): search, field autocomplete, operator definitions,
+  and re-running or exporting saved queries.
+- **GraphQL** root fields that mirror the REST endpoints.
+- **Agent tools** under `/api/agent`, which can also be exposed as read-only [MCP](mcp.md) tools.
 
-The REST and GraphQL search routers are always registered, and the agent tools are ordinary REST
-endpoints that are always available. Only surfacing them over MCP is opt-in: that needs
-`MCP_ENABLED=True` and the `mcp` extra installed. See [MCP Server](mcp.md).
+### REST
+
+All endpoints are under `/api/search`.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /subscriptions`, `/products`, `/processes`, `/workflows` | Search an entity type, one page at a time |
+| `POST /{entity}/export` | Export the results of a search in one unpaginated response |
+| `GET /paths` | Field path autocomplete |
+| `GET /definitions` | Operators valid per UI type |
+| `GET /queries/{id}` | Re-run a saved search |
+| `GET /queries/{id}/results` | Full results of a saved query of any type (select, count, aggregate) |
+| `GET /queries/{id}/export` | Export a saved search as flattened records, e.g. for CSV |
+
+The search and export endpoints take the same body: `query`, `filters` (a filter tree or
+Elasticsearch DSL), `retriever`, `order_by` (only without `query`), `response_columns` and
+`limit`. They differ in `limit`:
+
+- **Search** defaults to 10 and is capped at 100. Use the cursor from the response to page further.
+- **Export** defaults to, and is capped at, `SEARCH_MAX_EXPORT_LIMIT`, so clients can leave it out.
+  The query is not saved and no cursor is returned; `page_info.has_next_page` is `true` when the
+  export was cut off.
+
+Saved-query exports return up to `SEARCH_MAX_EXPORT_LIMIT` records as well.
+
+### GraphQL
+
+| Field | REST equivalent |
+|---|---|
+| `search` | The `POST` search endpoints, with the entity type as an argument |
+| `searchPaths` | `GET /paths` |
+| `searchDefinitions` | `GET /definitions` |
+| `searchQuery` | `GET /queries/{id}` |
+| `searchQueryResults` | `GET /queries/{id}/results` |
+| `searchQueryExport` | `GET /queries/{id}/export` |
+
+### Agent tools
+
+The tools are `search`, `aggregate`, `discover_filter_paths`, `get_valid_operators`,
+`resolve_entity` and `export_query`. They are ordinary REST endpoints under `/api/agent` and are
+always available, like the REST and GraphQL search routers. Only surfacing them over MCP is
+opt-in: that needs `MCP_ENABLED=True` and the `mcp` extra installed. See [MCP Server](mcp.md).
+
+### Saved queries
 
 Queries are stored in `search_queries` and addressed by `query_id`, so a caller can page through,
 re-run or export a search without re-sending it. The agent `search` and `aggregate` tools always
@@ -371,8 +411,8 @@ nearest the query embedding straight from the entity type's partial HNSW index, 
 structured filters *inside* that scan, and rank only those. Ranking within the window is exact;
 only which fields enter the window is approximate, and the window bounds how deep pagination can
 reach. Exports keep the exhaustive plan, which scores every embedded field of every candidate and
-needs a sequential scan: an export is a single query, without a cursor, for up to 10000 entities,
-and a window of 2000 fields can never yield that many.
+needs a sequential scan: an export is a single query, without a cursor, for up to `SEARCH_MAX_EXPORT_LIMIT`
+(default 1000) entities, and a bounded window of fields cannot guarantee that many distinct entities.
 
 **Structured**: no relevance ranking (`score = 1.0`); results are ordered by an optional
 `order_by` field materialized from the index rows.
@@ -452,7 +492,7 @@ A search is one of four typed query objects:
 | Query            | Purpose                                   | Limit    |
 |------------------|-------------------------------------------|----------|
 | `SelectQuery`    | return matching entities                  | ≤ 100    |
-| `ExportQuery`    | bulk export matching entities             | ≤ 10 000 |
+| `ExportQuery`    | bulk export matching entities             | ≤ `SEARCH_MAX_EXPORT_LIMIT` (1000) |
 | `CountQuery`     | count, optionally grouped                 | n/a      |
 | `AggregateQuery` | `COUNT`/`SUM`/`AVG`/`MIN`/`MAX` over matches | n/a   |
 
@@ -538,6 +578,7 @@ All embedding settings live in `LLMSettings` (`orchestrator/core/settings.py`).
 | `LLM_MAX_RETRIES` / `LLM_TIMEOUT`       | `3` / `30`                       | LiteLLM retry and timeout, used during indexing             |
 | `LLM_FORCE_EXTENSION_MIGRATION`         | `False`                          | force `CREATE EXTENSION` in the search migration            |
 | `SEARCH_SEMANTIC_CANDIDATE_LIMIT`       | `2000`                           | fields the semantic retriever, and the hybrid retriever's semantic source, read from the HNSW index per search; bounds how deep pagination reaches |
+| `SEARCH_MAX_EXPORT_LIMIT`               | `1000`                           | maximum and default `limit` of an export (`POST /{entity}/export`, saved-query export); normal search stays capped at 100 |
 
 Live queries do not use `LLM_MAX_RETRIES`/`LLM_TIMEOUT`: they embed with a 5-second timeout and no
 retries, because a slow search is worse than one without semantic ranking.

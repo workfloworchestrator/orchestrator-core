@@ -53,6 +53,18 @@ class PathNotFoundError(QueryValidationError):
         super().__init__(message)
 
 
+class InvalidOrderByElementError(QueryValidationError):
+    """Raised when a structured order_by element is not an indexed path for the entity type.
+
+    Examples:
+        >>> print(InvalidOrderByElementError('subscription.nonexistent'))
+        Element subscription.nonexistent is not a valid path
+    """
+
+    def __init__(self, element: str) -> None:
+        super().__init__(f"Element {element} is not a valid path")
+
+
 class IncompatibleFilterTypeError(QueryValidationError):
     """Raised when a filter operator is incompatible with the field's data type.
 
