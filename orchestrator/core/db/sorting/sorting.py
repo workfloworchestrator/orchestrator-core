@@ -18,7 +18,7 @@ from typing import TypeVar, Union
 import strawberry
 from more_itertools import partition
 from pydantic import BaseModel
-from sqlalchemy import Column, CompoundSelect, Select, func, select
+from sqlalchemy import Column, CompoundSelect, Select, func
 from sqlalchemy.sql import expression
 
 from orchestrator.core.api.error_handling import ProblemDetailException
@@ -104,8 +104,10 @@ def generic_column_sort(field: Column, base_table: type[DbBaseModel]) -> Callabl
     def sort_function(query: QueryType, order: SortOrder) -> QueryType:
         sa_sort = expression.desc if order == SortOrder.DESC else expression.asc
         sa_order_by = sa_sort(func.lower(field)) if field.type.python_type is str else sa_sort(field)
+        # A compound select must be wrapped in a subquery before it can be ordered. Ordering the
+        # subquery directly avoids a mypy overload error on SQLAlchemy 2.1 (``select(subquery)``).
         select_base = (
-            select(query.subquery(base_table.__table__.name))  # type: ignore[attr-defined]
+            query.subquery(base_table.__table__.name).select()  # type: ignore[attr-defined]
             if isinstance(query, CompoundSelect)
             else query
         )

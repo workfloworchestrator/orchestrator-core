@@ -16,8 +16,47 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlalchemy.orm import RelationshipDirection, joinedload, selectinload, subqueryload
 
-from orchestrator.core.db.loaders import AttrLoader, get_query_loaders_for_model_paths
+from orchestrator.core.db.loaders import AttrLoader, _relation_type_to_loader_func, get_query_loaders_for_model_paths
+
+
+def test_relation_type_to_loader_func_joinedload() -> None:
+    """MANYTOONE relationships are always eager loaded through a join."""
+    relationship = MagicMock()
+    relationship.direction = RelationshipDirection.MANYTOONE
+
+    assert _relation_type_to_loader_func(relationship) is joinedload
+
+
+@pytest.mark.parametrize(
+    "lazy,expected_loader",
+    [
+        ("subquery", subqueryload),
+        ("select", selectinload),
+        ("selectin", selectinload),
+    ],
+)
+@pytest.mark.parametrize(
+    "direction",
+    [RelationshipDirection.MANYTOMANY, RelationshipDirection.ONETOMANY],
+)
+def test_relation_type_to_loader_func_respects_lazy_strategy(lazy, expected_loader, direction) -> None:
+    """A 'subquery' lazy strategy maps to subqueryload, everything else to selectinload."""
+    relationship = MagicMock()
+    relationship.direction = direction
+    relationship.lazy = lazy
+
+    assert _relation_type_to_loader_func(relationship) is expected_loader
+
+
+def test_relation_type_to_loader_func_rejects_unrecognized_direction() -> None:
+    """An unsupported relationship direction raises TypeError."""
+    relationship = MagicMock()
+    relationship.direction = object()
+
+    with pytest.raises(TypeError, match="Unrecognized relationship direction"):
+        _relation_type_to_loader_func(relationship)
 
 
 def _make_attr_loader(name: str = "field") -> AttrLoader:

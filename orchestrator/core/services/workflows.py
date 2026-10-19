@@ -61,7 +61,7 @@ def _add_filter(stmt: Select, filters: dict | None) -> Select:
 def get_workflows(
     filters: dict | None = None, include_steps: bool = False, include_deleted: bool = False
 ) -> Iterable[WorkflowSchema]:
-    stmt = select(WorkflowTable) if include_deleted else WorkflowTable.select()
+    stmt: Select = select(WorkflowTable) if include_deleted else WorkflowTable.select()
     workflows = db.session.scalars(_add_filter(stmt, filters)).all()
 
     return [_to_workflow_schema(wf, include_steps=include_steps) for wf in workflows]
@@ -73,7 +73,7 @@ async def get_workflows_async(
     include_steps: bool = False,
     include_deleted: bool = False,
 ) -> list[WorkflowSchema]:
-    stmt = select(WorkflowTable) if include_deleted else WorkflowTable.select()
+    stmt: Select = select(WorkflowTable) if include_deleted else WorkflowTable.select()
     workflows = await session.scalars(_add_filter(stmt, filters))
 
     return [_to_workflow_schema(wf, include_steps=include_steps) for wf in workflows]
