@@ -11,17 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime as dt
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from apscheduler.triggers.cron import CronTrigger
 
-import orchestrator.core.forms.scheduler_form as scheduler_form_module
+import orchestrator.core.forms.apscheduler_dow_fix as apscheduler_dow_fix_module
 from orchestrator.core.forms.scheduler_form import (
     _check_authorize,
     _cron_field_error,
-    _translate_dow_for_apscheduler3,
     get_cron_kwargs,
     validate_cron,
 )
@@ -197,45 +195,6 @@ def test_get_cron_kwargs_rejects_wrong_field_count(cron):
 
 
 @pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        pytest.param("*", "*", id="wildcard"),
-        pytest.param("*/2", "1,3,5,6", id="step-wildcard"),
-        pytest.param("*/1", "0,1,2,3,4,5,6", id="step-wildcard-one"),
-        pytest.param("*/7", "6", id="step-wildcard-seven"),
-        pytest.param("1", "0", id="monday"),
-        pytest.param("2", "1", id="tuesday"),
-        pytest.param("6", "5", id="saturday"),
-        pytest.param("0", "6", id="sunday-zero"),
-        pytest.param("7", "6", id="sunday-seven"),
-        pytest.param("1-5", "0-4", id="range-weekdays"),
-        pytest.param("1-5/2", "0-4/2", id="range-weekdays-step"),
-        pytest.param("3-7", "2-6", id="range-with-sunday-alias"),
-        pytest.param("0-6", "0-6", id="range-all-days"),
-        pytest.param("0-7", "0-6", id="range-all-days-with-alias"),
-        pytest.param("0-3", "0-2,6", id="range-sunday-start-partial"),
-        pytest.param("0-5", "0-4,6", id="range-sunday-start-to-friday"),
-        pytest.param("0-1", "0,6", id="range-sunday-monday"),
-        pytest.param("0-6/2", "1,3,5,6", id="range-all-days-stepped"),
-        pytest.param("0-3/2", "1,6", id="range-sunday-start-stepped"),
-        # N/step: expand from N to 6 then shift, same as */step but starting at N
-        pytest.param("0/2", "1,3,5,6", id="step-sunday-zero"),  # Sun,Tue,Thu,Sat->6,1,3,5 sorted->1,3,5,6
-        pytest.param("7/2", "1,3,5,6", id="step-sunday-seven"),  # 7=Sunday alias->same as 0/2
-        pytest.param("1/2", "0,2,4", id="step-monday"),  # Mon,Wed,Fri->0,2,4
-        pytest.param("0/3", "2,5,6", id="step-sunday-zero-three"),  # Sun,Wed,Sat->6,2,5 sorted->2,5,6
-        pytest.param("0,6", "6,5", id="list-sunday-saturday"),
-        pytest.param("mon,5", "mon,4", id="mixed-named-numeric"),
-        pytest.param("mon,7", "mon,6", id="mixed-named-sunday-alias"),
-        pytest.param("0,tue", "6,tue", id="mixed-numeric-named"),
-        pytest.param("mon-fri", "mon-fri", id="named-range"),
-        pytest.param("tue", "tue", id="named-single"),
-    ],
-)
-def test_translate_dow_for_apscheduler3(value, expected):
-    assert _translate_dow_for_apscheduler3(value) == expected
-
-
-@pytest.mark.parametrize(
     "cron",
     [
         "* * * * *",
@@ -336,7 +295,7 @@ def test_validate_cron_error_names_all_bad_fields(cron, expected_fields):
     ],
 )
 def test_cron_field_error_skips_translation_when_not_v3(monkeypatch, value, expected_error):
-    monkeypatch.setattr(scheduler_form_module, "_APSCHEDULER_V3", False)
+    monkeypatch.setattr(apscheduler_dow_fix_module, "APSCHEDULER_V3", False)
     result = _cron_field_error("day_of_week", value)
     if expected_error is None:
         assert result is None
@@ -353,31 +312,12 @@ def test_cron_field_error_skips_translation_when_not_v3(monkeypatch, value, expe
     ],
 )
 def test_get_cron_kwargs_skips_translation_when_not_v3(monkeypatch, cron, expected_dow):
-    monkeypatch.setattr(scheduler_form_module, "_APSCHEDULER_V3", False)
+    monkeypatch.setattr(apscheduler_dow_fix_module, "APSCHEDULER_V3", False)
     result = get_cron_kwargs({"cron": cron, "start_date": START_DATE})
     assert result["day_of_week"] == expected_dow
 
 
-def test_apscheduler3_dow_numbering_canary():
-    """Canary: fails when APScheduler fixes its day_of_week numbering to match crontab.
-
-    APScheduler 3.x uses 0=Monday..6=Sunday instead of the crontab convention 0=Sunday..6=Saturday.
-    The translation shim (_translate_dow_for_apscheduler3) exists solely because of this mismatch.
-    When this test fails it means APScheduler has been updated to use crontab-compatible numbering (>= v4)
-    The shim & _APSCHEDULER_V3 gating should be removed entirely.
-    """
-    # In APScheduler 3.x, day_of_week=0 means Monday (not Sunday as in crontab).
-    # Probe from a known Sunday: 2024-01-07.
-    trigger = CronTrigger(day_of_week=0)
-    next_fire = trigger.get_next_fire_time(None, dt.datetime(2024, 1, 7, 0, 0, tzinfo=dt.timezone.utc))
-    assert next_fire is not None
-    # If APScheduler 3.x behaviour holds, day_of_week=0 fires on Monday (2024-01-08), not Sunday.
-    assert next_fire.weekday() == 0, (
-        "APScheduler day_of_week=0 no longer means Monday the crontab-to-APScheduler translation shim can be removed."
-    )
-
-
-# Verify actual crong trigger firing, not just strings
+# Verify actual cron trigger firing, not just strings
 CRONTAB_DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
 # A known Sunday to use as the reference start for the 7-day scan window.

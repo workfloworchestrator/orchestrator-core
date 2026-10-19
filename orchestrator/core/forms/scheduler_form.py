@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import asyncio
-import importlib.metadata
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
@@ -26,6 +25,7 @@ from typing_extensions import TypedDict
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.db import db
 from orchestrator.core.db.models import WorkflowTable
+from orchestrator.core.forms.apscheduler_dow_fix import maybe_translate_dow
 from orchestrator.core.forms.validators import Choice
 from orchestrator.core.forms.validators.timestamp import to_timestamp_field
 from orchestrator.core.utils.auth import AuthContext
@@ -89,111 +89,6 @@ def get_interval_kwargs(form_data: dict) -> dict:
     return {"start_date": form_data["start_date"]} | INTERVAL_MAPPING[form_data["interval"]]
 
 
-_APSCHEDULER_V3 = tuple(
-    # handles v4.1.1-rc4, for example, though it's probably only going to be normal semver (4.0.0)
-    int(x)
-    for x in importlib.metadata.version("APScheduler").split("-")[0].split(".")
-    if x.isdigit()
-) < (4,)
-
-
-def _day_of_week_shift(n: int) -> int:
-    """Shift a crontab weekday number to APScheduler 3.x numbering.
-
-    Crontab: 0=Sunday, 1=Monday..6=Saturday, 7=Sunday (alias).
-    APScheduler 3.x: 0=Monday..6=Sunday. Formula: (n - 1) % 7.
-    """
-    if n not in range(0, 8):
-        raise ValueError(f"{n!r} is not a valid weekday number (0–7)")
-    return (n - 1) % 7
-
-
-def _expand_and_shift(a: int, b: int, step: int) -> str:
-    """Expand crontab range(a, b+1, step), shift each day, sort, and comma-join."""
-    shifted_days = sorted(_day_of_week_shift(d) for d in range(a, b + 1, step))
-    return ",".join(str(d) for d in shifted_days)
-
-
-def _translate_dow_numeric_range(range_part: str, separator: str, step: str) -> str:
-    """Translate a numeric A-B[/step] sub-expression to APScheduler 3.x."""
-    a_str, _, b_str = range_part.partition("-")
-    a, b = int(a_str), int(b_str)
-    # Validate endpoints before any shortcut so out-of-range values (e.g. 1-8)
-    # are always caught, not silently treated as full-coverage ranges.
-    if a not in range(0, 8):
-        raise ValueError(f"{a!r} is not a valid weekday number (0–7)")
-    if b not in range(0, 8):
-        raise ValueError(f"{b!r} is not a valid weekday number (0–7)")
-    if a > b:
-        raise ValueError(f"day_of_week range {a}-{b} is invalid: start must not exceed end")
-    step_int = int(step) if separator else 1
-
-    # Full-coverage range: spans all 7 weekdays (e.g. 0-6 or 0-7)
-    if b - a + 1 >= 7:
-        return "0-6" if not separator else _expand_and_shift(a, b, step_int)
-
-    first, last = _day_of_week_shift(a), _day_of_week_shift(b)
-
-    if first <= last:
-        # Non-inverted: range order preserved after shifting
-        return f"{first}-{last}/{step}" if separator else f"{first}-{last}"
-
-    # Inverted (only when a == 0): expand if stepped, else split into "0-last,6"
-    if separator:
-        return _expand_and_shift(a, b, step_int)
-    return "0,6" if last == 0 else f"0-{last},6"
-
-
-def _translate_dow_expr(expr: str) -> str:
-    """Translate one comma-separated sub-expression of a cron day_of_week field."""
-    if any(c.isalpha() for c in expr):
-        # named day or named range which APScheduler handles natively
-        # also, _cron_field_error will raise APScheduler error in case of
-        # "mixed" names & numerals (e.g., `mon-4`)
-        return expr
-
-    range_part, separator, step = expr.partition("/")
-
-    if range_part == "*":
-        if not separator:
-            # plain "*" APScheduler fires every day, no shift needed
-            return expr
-        # "*/N": crontab steps from Sunday(0); APScheduler steps from Monday(0).
-        # Expand the crontab sequence, shift each day, sort, and comma-join.
-        return _expand_and_shift(0, 6, int(step))
-
-    if "-" not in range_part:
-        n = int(range_part)
-        if separator:
-            # N/step: crontab steps from N through 6 with the given stride.
-            # Shifting N alone would produce "shifted/step" which APScheduler
-            # rejects when shifted == 6 (Sunday) because the range 6..6 is
-            # smaller than the step.
-            # We expand the sequence first, then shift.
-            # _day_of_week_shift validates n and maps 7 (Sunday alias) to 6
-            _ = _day_of_week_shift(n)  # validate; raises for n outside 0..7
-            # then for expansion we need the crontab origin (0), not the shifted
-            # value, so normalize 7 to 0 before expanding.
-            n_normalized = 0 if n == 7 else n
-            return _expand_and_shift(n_normalized, 6, int(step))
-        return str(_day_of_week_shift(n))
-
-    return _translate_dow_numeric_range(range_part, separator, step)
-
-
-def _translate_dow_for_apscheduler3(value: str) -> str:
-    """Translate a cron day_of_week value from crontab convention to APScheduler 3.x.
-
-    Crontab: 0=Sunday, 1=Monday..6=Saturday, 7=Sunday (alias).
-    APScheduler 3.x: 0=Monday..6=Sunday.
-
-    Named days (mon, tue, etc...) are left unchanged; APScheduler handles them natively.
-    Numeric ranges whose shifted endpoints would be inverted are split or expanded
-    so that APScheduler's ``RangeExpression`` never sees ``first > last``.
-    """
-    return ",".join(_translate_dow_expr(expr) for expr in value.split(","))
-
-
 def _cron_fields(cron: str) -> dict[str, str]:
     """Map cron field strings to their CronTrigger keyword names.
 
@@ -221,7 +116,7 @@ def _cron_field_error(name: str, value: str) -> str | None:
     Error messages always show the original user-typed value returned error values are unambiguous.
     """
     try:
-        translated = _translate_dow_for_apscheduler3(value) if name == "day_of_week" and _APSCHEDULER_V3 else value
+        translated = maybe_translate_dow(value) if name == "day_of_week" else value
         CronTrigger(**{name: translated})
         return None
     except ValueError as exc:
@@ -242,8 +137,7 @@ def validate_cron(cron: str) -> str:
 
 def get_cron_kwargs(form_data: dict) -> dict:
     fields = _cron_fields(form_data["cron"])
-    if _APSCHEDULER_V3:
-        fields["day_of_week"] = _translate_dow_for_apscheduler3(fields["day_of_week"])
+    fields["day_of_week"] = maybe_translate_dow(fields["day_of_week"])
     return {"start_date": form_data["start_date"]} | fields
 
 
