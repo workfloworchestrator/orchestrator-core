@@ -531,11 +531,13 @@ def callback_step(
     )
 
 
-def _purestep(name: str) -> Callable[[StepToProcessFunc], StepList]:
+def _purestep(
+    name: str, importance: StepImportance = StepImportance.DEFAULT
+) -> Callable[[StepToProcessFunc], StepList]:
     """Part of workflow "DSL" to map a `state -> Process state` function into a workflow step."""
 
     def _purestep(f: StepToProcessFunc) -> StepList:
-        return StepList([make_step_function(f, name)])
+        return StepList([make_step_function(f, name, importance=importance)])
 
     return _purestep
 
