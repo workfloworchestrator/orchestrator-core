@@ -14,14 +14,13 @@
 """Tests for indexing task orchestration: entity counting and run_indexing_for_entity.
 
 Covers count retrieval, indexer invocation, entity_id forwarding, dry_run/force_index
-forwarding, progress toggling, and Query vs Select type handling.
+forwarding, and progress toggling.
 """
 
 from contextlib import contextmanager
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from sqlalchemy.orm import Query
 
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
@@ -239,45 +238,6 @@ def test_run_indexing_show_progress_false_skips_entity_count():
     mock_count.assert_not_called()
 
 
-def test_run_indexing_query_type_enables_eagerloads_and_uses_statement():
-    mock_query = MagicMock(spec=Query)
-    no_eagerload_query = MagicMock(spec=Query)
-    mock_stmt = _make_mock_stmt()
-    mock_query.enable_eagerloads.return_value = no_eagerload_query
-    no_eagerload_query.statement = mock_stmt
-
-    config = MagicMock()
-    config.get_all_query.return_value = mock_query
-    registry = {EntityType.SUBSCRIPTION: config}
-
-    mock_db = MagicMock()
-    mock_db.session.execute.return_value.scalars.return_value = iter([])
-    mock_indexer_cls = MagicMock(return_value=MagicMock())
-    cache_ctx = MagicMock(return_value=_noop_context())
-
-    _run_indexing(registry, mock_db, mock_indexer_cls, cache_ctx)
-
-    mock_query.enable_eagerloads.assert_called_once_with(False)
-
-
-def test_run_indexing_select_type_does_not_access_statement():
-    mock_select = MagicMock(spec=[])
-    mock_select.subquery = MagicMock(return_value=MagicMock())
-    mock_select.execution_options = MagicMock(return_value=mock_select)
-
-    config = MagicMock()
-    config.get_all_query.return_value = mock_select
-    registry = {EntityType.SUBSCRIPTION: config}
-
-    mock_db = MagicMock()
-    mock_db.session.execute.return_value.scalars.return_value = iter([])
-    mock_indexer_cls = MagicMock(return_value=MagicMock())
-    cache_ctx = MagicMock(return_value=_noop_context())
-
-    _run_indexing(registry, mock_db, mock_indexer_cls, cache_ctx)
-
-    assert not hasattr(mock_select, "_statement_accessed")
-    assert call.enable_eagerloads(False) not in mock_select.mock_calls
 
 
 # ---------------------------------------------------------------------------

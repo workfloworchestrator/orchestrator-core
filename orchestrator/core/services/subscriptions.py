@@ -22,9 +22,10 @@ from typing import Any, TypeVar, overload
 from uuid import UUID
 
 import structlog
+from deprecated import deprecated
 from more_itertools import first
 from psycopg import InterfaceError
-from sqlalchemy import Text, cast, not_, select
+from sqlalchemy import Select, Text, cast, not_, select
 from sqlalchemy.exc import InvalidRequestError, OperationalError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -412,35 +413,60 @@ def find_values_for_resource_types(
     return rt2v
 
 
-def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: list[str] | None = None) -> Query:
-    """Return a query with all subscriptions -in_use_by- that use this subscription with resource_type or direct relation.
+_QUERY_HELPER_DEPRECATION = (
+    "{old} returns a legacy SQLAlchemy Query and will be removed in 6.0.0; use {new} which returns a Select. "
+    "See https://workfloworchestrator.org/orchestrator-core/guides/upgrading/5.5/"
+)
 
-    The query can be used to add extra filters when/where needed.
+
+def _as_legacy_query(stmt: Select[tuple[SubscriptionTable]]) -> Query:
+    return db.session.query(SubscriptionTable).filter(stmt.whereclause)
+
+
+@deprecated(
+    reason=_QUERY_HELPER_DEPRECATION.format(old="query_in_use_by_subscriptions", new="select_in_use_by_subscriptions")
+)
+def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: list[str] | None = None) -> Query:
+    return _as_legacy_query(select_in_use_by_subscriptions(subscription_id, filter_statuses))
+
+
+@deprecated(
+    reason=_QUERY_HELPER_DEPRECATION.format(old="query_depends_on_subscriptions", new="select_depends_on_subscriptions")
+)
+def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[str] | None = None) -> Query:
+    return _as_legacy_query(select_depends_on_subscriptions(subscription_id, filter_statuses))
+
+
+def select_in_use_by_subscriptions(
+    subscription_id: UUID, filter_statuses: list[str] | None = None
+) -> Select[tuple[SubscriptionTable]]:
+    """Return a statement selecting all subscriptions -in_use_by- that use this subscription with resource_type or direct relation.
+
+    The statement can be used to add extra filters when/where needed.
     """
     # Find relations through resource types
     resource_type_relations = (
-        SubscriptionTable.query.join(SubscriptionInstanceTable)
-        .options(joinedload(SubscriptionTable.customer_descriptions))
+        select(SubscriptionTable.subscription_id)
+        .join(SubscriptionInstanceTable)
         .join(SubscriptionInstanceValueTable)
         .join(ResourceTypeTable)
-        .filter(ResourceTypeTable.resource_type.in_(RELATION_RESOURCE_TYPES))
-        .filter(SubscriptionInstanceValueTable.value == str(subscription_id))
-        .with_entities(SubscriptionTable.subscription_id)
+        .where(ResourceTypeTable.resource_type.in_(RELATION_RESOURCE_TYPES))
+        .where(SubscriptionInstanceValueTable.value == str(subscription_id))
     )
 
     # Find relations through instance hierarchy
     in_use_by_instances = aliased(SubscriptionInstanceTable)
     depends_on_instances = aliased(SubscriptionInstanceTable)
     relation_relations = (
-        SubscriptionTable.query.join(in_use_by_instances.subscription)
+        select(SubscriptionTable.subscription_id)
+        .join(in_use_by_instances.subscription)
         .join(in_use_by_instances.depends_on_block_relations)
         .join(depends_on_instances, SubscriptionInstanceRelationTable.depends_on)
-        .filter(depends_on_instances.subscription_id == subscription_id)
-        .filter(in_use_by_instances.subscription_id != subscription_id)
-        .with_entities(SubscriptionTable.subscription_id)
+        .where(depends_on_instances.subscription_id == subscription_id)
+        .where(in_use_by_instances.subscription_id != subscription_id)
     )
 
-    return SubscriptionTable.query.filter(
+    return select(SubscriptionTable).where(
         or_(
             SubscriptionTable.subscription_id.in_(resource_type_relations.scalar_subquery()),
             SubscriptionTable.subscription_id.in_(relation_relations.scalar_subquery()),
@@ -449,34 +475,37 @@ def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: list[s
     )
 
 
-def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[str] | None = None) -> Query:
-    """Return a query with all subscriptions -depends_on- that this subscription is dependent on with resource_type or direct relation.
+def select_depends_on_subscriptions(
+    subscription_id: UUID, filter_statuses: list[str] | None = None
+) -> Select[tuple[SubscriptionTable]]:
+    """Return a statement selecting all subscriptions -depends_on- that this subscription is dependent on with resource_type or direct relation.
 
-    The query can be used to add extra filters when/where needed.
+    The statement can be used to add extra filters when/where needed.
     """
     # Find relations through resource types
     resource_type_relations = (
-        SubscriptionInstanceTable.query.join(SubscriptionInstanceValueTable)
+        select(SubscriptionTable.subscription_id)
+        .select_from(SubscriptionInstanceTable)
+        .join(SubscriptionInstanceValueTable)
         .join(ResourceTypeTable)
-        .filter(ResourceTypeTable.resource_type.in_(RELATION_RESOURCE_TYPES))
-        .filter(SubscriptionInstanceTable.subscription_id == subscription_id)
+        .where(ResourceTypeTable.resource_type.in_(RELATION_RESOURCE_TYPES))
+        .where(SubscriptionInstanceTable.subscription_id == subscription_id)
         .join(SubscriptionTable, SubscriptionInstanceValueTable.value == cast(SubscriptionTable.subscription_id, Text))
-        .with_entities(SubscriptionTable.subscription_id)
     )
 
     # Find relations through instance hierarchy
     in_use_by_instances = aliased(SubscriptionInstanceTable)
     depends_on_instances = aliased(SubscriptionInstanceTable)
     relation_relations = (
-        SubscriptionTable.query.join(depends_on_instances.subscription)
+        select(SubscriptionTable.subscription_id)
+        .join(depends_on_instances.subscription)
         .join(depends_on_instances.in_use_by_block_relations)
         .join(in_use_by_instances, SubscriptionInstanceRelationTable.in_use_by)
-        .filter(in_use_by_instances.subscription_id == subscription_id)
-        .filter(depends_on_instances.subscription_id != subscription_id)
-        .with_entities(SubscriptionTable.subscription_id)
+        .where(in_use_by_instances.subscription_id == subscription_id)
+        .where(depends_on_instances.subscription_id != subscription_id)
     )
 
-    return SubscriptionTable.query.filter(
+    return select(SubscriptionTable).where(
         or_(
             SubscriptionTable.subscription_id.in_(resource_type_relations.scalar_subquery()),
             SubscriptionTable.subscription_id.in_(relation_relations.scalar_subquery()),
@@ -485,16 +514,20 @@ def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[
     )
 
 
-def _terminated_filter(query: Query) -> list[SubscriptionRelationSchema]:
-    rows = query.filter(SubscriptionTable.status != "terminated").with_entities(
-        SubscriptionTable.subscription_id, SubscriptionTable.description
+def _terminated_filter(stmt: Select[tuple[SubscriptionTable]]) -> list[SubscriptionRelationSchema]:
+    rows = db.session.execute(
+        stmt.where(SubscriptionTable.status != "terminated").with_only_columns(
+            SubscriptionTable.subscription_id, SubscriptionTable.description
+        )
     )
     return [SubscriptionRelationSchema(subscription_id=row[0], subscription_description=row[1]) for row in rows]
 
 
-def _in_sync_filter(query: Query) -> list[SubscriptionRelationSchema]:
-    rows = query.filter(not_(SubscriptionTable.insync)).with_entities(
-        SubscriptionTable.subscription_id, SubscriptionTable.description
+def _in_sync_filter(stmt: Select[tuple[SubscriptionTable]]) -> list[SubscriptionRelationSchema]:
+    rows = db.session.execute(
+        stmt.where(not_(SubscriptionTable.insync)).with_only_columns(
+            SubscriptionTable.subscription_id, SubscriptionTable.description
+        )
     )
     return [SubscriptionRelationSchema(subscription_id=row[0], subscription_description=row[1]) for row in rows]
 
@@ -518,12 +551,12 @@ def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[S
     """
     if not subscription:
         return {"locked_relations": [], "unterminated_in_use_by_subscriptions": []}
-    in_use_by_query = query_in_use_by_subscriptions(subscription.subscription_id)
+    in_use_by_query = select_in_use_by_subscriptions(subscription.subscription_id)
 
     unterminated_in_use_by_subscriptions = _terminated_filter(in_use_by_query)
     locked_in_use_by_block_relations = _in_sync_filter(in_use_by_query)
 
-    depends_on_query = query_depends_on_subscriptions(subscription.subscription_id)
+    depends_on_query = select_depends_on_subscriptions(subscription.subscription_id)
 
     locked_depends_on_block_relations = _in_sync_filter(depends_on_query)
 

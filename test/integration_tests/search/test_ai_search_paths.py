@@ -16,7 +16,7 @@
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import delete, text, update
 from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.core.db import db
@@ -76,23 +76,21 @@ def test_second_entity_same_tuple_increments_refcount():
 def test_delete_one_of_two_keeps_row_at_one():
     first = _add_index_row("subscription.node.name")
     _add_index_row("subscription.node.name")
-    db.session.query(AiSearchIndex).filter(AiSearchIndex.entity_id == first).delete(synchronize_session=False)
+    db.session.execute(delete(AiSearchIndex).where(AiSearchIndex.entity_id == first))
     db.session.flush()
     assert _refcount("subscription.node.name", FieldType.STRING) == 1
 
 
 def test_delete_last_removes_row():
     eid = _add_index_row("subscription.node.name")
-    db.session.query(AiSearchIndex).filter(AiSearchIndex.entity_id == eid).delete(synchronize_session=False)
+    db.session.execute(delete(AiSearchIndex).where(AiSearchIndex.entity_id == eid))
     db.session.flush()
     assert _refcount("subscription.node.name", FieldType.STRING) is None
 
 
 def test_update_value_type_moves_refcount_between_tuples():
     eid = _add_index_row("subscription.node.enabled", value_type=FieldType.STRING)
-    db.session.query(AiSearchIndex).filter(AiSearchIndex.entity_id == eid).update(
-        {"value_type": FieldType.BOOLEAN}, synchronize_session=False
-    )
+    db.session.execute(update(AiSearchIndex).where(AiSearchIndex.entity_id == eid).values(value_type=FieldType.BOOLEAN))
     db.session.flush()
     assert _refcount("subscription.node.enabled", FieldType.STRING) is None
     assert _refcount("subscription.node.enabled", FieldType.BOOLEAN) == 1
@@ -100,9 +98,7 @@ def test_update_value_type_moves_refcount_between_tuples():
 
 def test_reindex_same_tuple_is_noop():
     eid = _add_index_row("subscription.node.name", value="old")
-    db.session.query(AiSearchIndex).filter(AiSearchIndex.entity_id == eid).update(
-        {"value": "new"}, synchronize_session=False
-    )
+    db.session.execute(update(AiSearchIndex).where(AiSearchIndex.entity_id == eid).values(value="new"))
     db.session.flush()
     assert _refcount("subscription.node.name", FieldType.STRING) == 1
 
@@ -156,7 +152,7 @@ def test_rebuild_reconstructs_exact_table_after_drift():
 
 def test_rebuild_on_empty_index_yields_empty_table():
     _add_index_row("subscription.node.name")
-    db.session.query(AiSearchIndex).delete(synchronize_session=False)
+    db.session.execute(delete(AiSearchIndex))
     db.session.flush()
     rebuild_search_paths()
     assert _all_paths_rows() == set()

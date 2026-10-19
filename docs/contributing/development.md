@@ -102,6 +102,35 @@ uv run pytest test/integration_tests
 If Docker is unreachable and no env vars are set, the runner aborts with a
 clear message pointing at the three options above.
 
+### Choose the Postgres major version
+
+The default Postgres image is `pgvector/pgvector:pg17`. To run against another
+major version, set `TEST_POSTGRES_IMAGE`. Both the testcontainers fallback
+(Options A) and the bundled docker-compose stack (Option C) honour it.
+
+```shell
+# Ephemeral testcontainers on Postgres 15
+export TEST_POSTGRES_IMAGE=pgvector/pgvector:pg15
+unset DATABASE_URI CACHE_URI
+uv run pytest test/integration_tests
+
+# ...or the bundled docker-compose stack on Postgres 15
+export TEST_POSTGRES_IMAGE=pgvector/pgvector:pg15
+docker compose -f docker/pytest-support/docker-compose.yaml up -d
+```
+
+This matters for the search performance snapshots, which are kept per Postgres
+major version (`plan_metrics/*.pg<major>.md`). To (re)generate them, run the
+performance tests with `--inline-snapshot=fix` against the matching version:
+
+```shell
+TEST_POSTGRES_IMAGE=pgvector/pgvector:pg15 \
+  uv run pytest test/integration_tests/search/performance --inline-snapshot=fix
+```
+
+When you bring your own services (Option B), `TEST_POSTGRES_IMAGE` has no
+effect — the version is whatever your `DATABASE_URI` points at.
+
 ### Run the Celery acceptance tests
 
 The Celery suite uses the same `CACHE_URI` rules — the snippet below assumes

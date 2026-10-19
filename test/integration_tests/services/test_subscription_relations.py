@@ -11,9 +11,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from orchestrator.core.db import db
+import pytest
+
+from orchestrator.core.db import SubscriptionTable, db
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.services.subscription_relations import get_depends_on_subscriptions, get_in_use_by_subscriptions
+from orchestrator.core.services.subscriptions import (
+    query_depends_on_subscriptions,
+    query_in_use_by_subscriptions,
+    select_depends_on_subscriptions,
+    select_in_use_by_subscriptions,
+)
 from orchestrator.core.types import SubscriptionLifecycle
 
 
@@ -201,3 +209,28 @@ async def test_get_depends_on_subscriptions_empty():
     expected_result = []
 
     assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    ("legacy", "replacement", "subject"),
+    [
+        pytest.param(query_in_use_by_subscriptions, select_in_use_by_subscriptions, "sub_one", id="in_use_by"),
+        pytest.param(query_depends_on_subscriptions, select_depends_on_subscriptions, "union", id="depends_on"),
+    ],
+)
+def test_deprecated_query_helpers_match_select_helpers(
+    legacy, replacement, subject, sub_one_subscription_1, product_sub_list_union_subscription_1
+):
+    subscription_id = {
+        "sub_one": sub_one_subscription_1.subscription_id,
+        "union": product_sub_list_union_subscription_1,
+    }[subject]
+
+    with pytest.warns(DeprecationWarning, match="will be removed in 6.0.0"):
+        legacy_ids = {sub.subscription_id for sub in legacy(subscription_id).all()}
+
+    expected_ids = set(
+        db.session.scalars(replacement(subscription_id).with_only_columns(SubscriptionTable.subscription_id))
+    )
+    assert expected_ids
+    assert legacy_ids == expected_ids

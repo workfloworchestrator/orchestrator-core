@@ -131,6 +131,15 @@ def _run_retriever(query_text: str, q_vec: list[float], filters: FilterTree | No
     return list(db.session.execute(stmt).mappings().all())
 
 
+def _describe(rows: list) -> str:
+    """Readable ranking for assertion messages: title, score, perfect flag and highlight per row."""
+    return "\n".join(
+        f"{i}. {r['entity_title']:<10} score={r['score']} perfect={r['perfect_match']} "
+        f"highlight={r['highlight_path']}: {r['highlight_text']!r}"
+        for i, r in enumerate(rows, start=1)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Retriever-level ranking
 # ---------------------------------------------------------------------------
@@ -189,11 +198,11 @@ def test_entity_in_both_sources_outranks_single_source_entities(seeded):
     """
     rows = _run_retriever(TYPO_QUERY, _vec(seeded.axes[seeded.sibling]))
 
-    order = [r["entity_id"] for r in rows]
-    assert order[:2] == [seeded.sibling, seeded.exact]
-    assert {r["perfect_match"] for r in rows} == {0}
+    ranking = _describe(rows)
+    assert [r["entity_title"] for r in rows[:2]] == ["sibling", "exact"], ranking
+    assert {r["perfect_match"] for r in rows} == {0}, ranking
     by_id = {r["entity_id"]: r for r in rows}
-    assert float(by_id[seeded.semantic_only]["score"]) < float(by_id[seeded.exact]["score"])
+    assert float(by_id[seeded.semantic_only]["score"]) < float(by_id[seeded.exact]["score"]), ranking
 
 
 def test_structured_filter_removes_entity_from_both_sources(seeded):

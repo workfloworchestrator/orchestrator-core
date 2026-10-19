@@ -18,7 +18,7 @@ from functools import lru_cache
 from typing import Any
 
 import structlog
-from sqlalchemy import delete, tuple_
+from sqlalchemy import delete, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.dialects.postgresql.dml import Insert
 from sqlalchemy.orm import Session
@@ -245,11 +245,11 @@ class Indexer:
         if not entity_ids:
             return {}
 
-        results = (
-            session.query(AiSearchIndex.entity_id, AiSearchIndex.path, AiSearchIndex.content_hash)
-            .filter(AiSearchIndex.entity_id.in_(entity_ids))
-            .all()
-        )
+        results = session.execute(
+            select(AiSearchIndex.entity_id, AiSearchIndex.path, AiSearchIndex.content_hash).where(
+                AiSearchIndex.entity_id.in_(entity_ids)
+            )
+        ).all()
 
         hashes_by_entity: dict[str, dict[str, str]] = {eid: {} for eid in entity_ids}
         for entity_id, path, content_hash in results:

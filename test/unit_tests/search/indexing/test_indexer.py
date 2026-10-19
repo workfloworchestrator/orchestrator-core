@@ -417,7 +417,7 @@ def test_get_all_existing_hashes_empty_ids(indexer: Indexer) -> None:
     mock_session = MagicMock()
     result = indexer._get_all_existing_hashes([], mock_session)
     assert result == {}
-    mock_session.query.assert_not_called()
+    mock_session.execute.assert_not_called()
 
 
 _ENTITY_ID_1 = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
@@ -432,7 +432,7 @@ _HASH_DB_ROWS = [
 
 def test_get_all_existing_hashes_returns_dict_of_dicts(indexer: Indexer) -> None:
     mock_session = MagicMock()
-    mock_session.query.return_value.filter.return_value.all.return_value = _HASH_DB_ROWS
+    mock_session.execute.return_value.all.return_value = _HASH_DB_ROWS
 
     result = indexer._get_all_existing_hashes([_ENTITY_ID_1, _ENTITY_ID_2], mock_session)
 
@@ -444,7 +444,7 @@ def test_get_all_existing_hashes_returns_dict_of_dicts(indexer: Indexer) -> None
 def test_get_all_existing_hashes_no_rows_gets_empty_inner_dict(indexer: Indexer) -> None:
     mock_session = MagicMock()
     entity_id = "cccccccc-cccc-cccc-cccc-cccccccccccc"
-    mock_session.query.return_value.filter.return_value.all.return_value = []
+    mock_session.execute.return_value.all.return_value = []
 
     result = indexer._get_all_existing_hashes([entity_id], mock_session)
 
@@ -456,7 +456,7 @@ def test_get_all_existing_hashes_path_values_are_stringified(indexer: Indexer) -
     mock_session = MagicMock()
     ltree_path = Ltree("root.description")
 
-    mock_session.query.return_value.filter.return_value.all.return_value = [
+    mock_session.execute.return_value.all.return_value = [
         (ENTITY_ID, ltree_path, "hash123"),
     ]
 

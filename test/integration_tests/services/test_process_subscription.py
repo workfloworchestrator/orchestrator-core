@@ -15,6 +15,7 @@
 from uuid import UUID
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 
 from nwastdlib import const
@@ -52,9 +53,11 @@ def test_process_subscription_relation_is_idempotent(generic_subscription_1):
 
         assert_complete(result)
         state = extract_state(result)
-        db.session.query(ProcessSubscriptionTable).filter(
-            ProcessSubscriptionTable.process_id == state["process_id"],
-            ProcessSubscriptionTable.subscription_id == state["subscription_id"],
+        db.session.scalars(
+            select(ProcessSubscriptionTable).where(
+                ProcessSubscriptionTable.process_id == state["process_id"],
+                ProcessSubscriptionTable.subscription_id == state["subscription_id"],
+            )
         ).one()
 
 
@@ -72,8 +75,8 @@ def test_process_subscription_none_for_task(generic_subscription_1):
         assert_complete(result)
         state = extract_state(result)
         with pytest.raises(NoResultFound):
-            db.session.query(ProcessSubscriptionTable).filter(
-                ProcessSubscriptionTable.process_id == state["process_id"]
+            db.session.scalars(
+                select(ProcessSubscriptionTable).where(ProcessSubscriptionTable.process_id == state["process_id"])
             ).one()
 
 
@@ -90,9 +93,11 @@ def test_process_subscription_relation_stored_in_workflow(generic_subscription_1
 
         assert_complete(result)
         state = extract_state(result)
-        db.session.query(ProcessSubscriptionTable).filter(
-            ProcessSubscriptionTable.process_id == state["process_id"],
-            ProcessSubscriptionTable.subscription_id == state["subscription_id"],
+        db.session.scalars(
+            select(ProcessSubscriptionTable).where(
+                ProcessSubscriptionTable.process_id == state["process_id"],
+                ProcessSubscriptionTable.subscription_id == state["subscription_id"],
+            )
         ).one()
 
 
@@ -122,15 +127,17 @@ def test_process_subscription_relation_stored_in_create_workflow(generic_product
         state = extract_state(result)
         assert_suspended(result)
         with pytest.raises(NoResultFound):
-            db.session.query(ProcessSubscriptionTable).where(
-                ProcessSubscriptionTable.process_id == state["process_id"]
+            db.session.scalars(
+                select(ProcessSubscriptionTable).where(ProcessSubscriptionTable.process_id == state["process_id"])
             ).one()
 
         result, _ = resume_workflow(process, step_log, {})
         assert_complete(result)
 
         state = extract_state(result)
-        db.session.query(ProcessSubscriptionTable).where(
-            ProcessSubscriptionTable.process_id == state["process_id"],
-            ProcessSubscriptionTable.subscription_id == state["subscription_id"],
+        db.session.scalars(
+            select(ProcessSubscriptionTable).where(
+                ProcessSubscriptionTable.process_id == state["process_id"],
+                ProcessSubscriptionTable.subscription_id == state["subscription_id"],
+            )
         ).one()

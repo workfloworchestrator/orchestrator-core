@@ -11,12 +11,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import warnings
+from typing import Any
 
-warnings.warn(
-    "ALL_SCHEDULERS is deprecated and will be removed in 5.0.0. "
-    "Scheduling tasks can now be handled entirely through the API. "
-    "For more details, please consult https://workfloworchestrator.org/orchestrator-core/guides/upgrading/4.7/",
-    DeprecationWarning,
-    stacklevel=2,
-)
-ALL_SCHEDULERS: list = []
+__all__ = ["ALL_SCHEDULERS"]
+_ALL_SCHEDULERS: list[Any] = []
+
+
+def __getattr__(name: str) -> list[Any]:
+    """Return deprecated module attributes."""
+    if name != "ALL_SCHEDULERS":
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    warnings.warn(
+        "ALL_SCHEDULERS is deprecated and will be removed in 6.0.0. "
+        "Scheduling tasks can now be handled entirely through the API. "
+        "For more details, please consult https://workfloworchestrator.org/orchestrator-core/guides/upgrading/4.7/",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _ALL_SCHEDULERS

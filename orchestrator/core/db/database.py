@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -38,6 +39,13 @@ MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED = (
 logger = structlog.get_logger(__name__)
 
 
+QUERY_DEPRECATION_MESSAGE = (
+    "The legacy SQLAlchemy Query API (`Model.query`, `SearchQuery`) is deprecated and will be removed in 6.0.0. "
+    "Use `db.session.scalars(select(Model))` instead. "
+    "See https://workfloworchestrator.org/orchestrator-core/guides/upgrading/5.5/"
+)
+
+
 class SearchQuery(Query):
     """Custom Query class to have search() property."""
 
@@ -58,6 +66,7 @@ class BaseModelMeta(DeclarativeMeta):
 
     @property
     def query(self) -> SearchQuery:
+        warnings.warn(QUERY_DEPRECATION_MESSAGE, DeprecationWarning, stacklevel=2)
         if self._query is not None:
             return self._query
         raise NoSessionError("Can't get session. Please, call init_database() first")

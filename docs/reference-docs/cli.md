@@ -687,6 +687,153 @@ None]
     The `workflows/__init__.py` will only be extended with the needed `LazyWorkflowInstance`
     declarations when `--force` is used.
 
+## index
+
+(Re-)index the search tables used by [AI / Hybrid Search](ai-search.md). Run the commands below for the initial
+build of the index and after bulk changes to subscriptions, products, processes, workflows, product blocks or
+resource types.
+
+!!! warning "Indexing can take a long time"
+    Indexing a large database can take a long time (up to hours on production deployments). The
+    `db upgrade` and `db downgrade` commands therefore do **not** update the search index by default. Run the
+    indexing commands below as a separate post-deployment step, or pass `--index` to the migration command to opt in.
+
+The syntax of an index command is:
+
+```shell
+python main.py index <sub_command>
+```
+
+Some examples:
+
+```shell
+python main.py index all
+
+python main.py index subscriptions --subscription-id <uuid>
+
+python main.py index rebuild-paths
+```
+
+### `subscriptions`
+
+::: orchestrator.core.cli.search.index_llm.subscriptions_command
+    options:
+      docstring_style: google
+      separate_signature: false
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+
+### `products`
+
+::: orchestrator.core.cli.search.index_llm.products_command
+    options:
+      docstring_style: google
+      separate_signature: false
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+
+### `processes`
+
+::: orchestrator.core.cli.search.index_llm.processes_command
+    options:
+      docstring_style: google
+      separate_signature: false
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+
+### `workflows`
+
+::: orchestrator.core.cli.search.index_llm.workflows_command
+    options:
+      docstring_style: google
+      separate_signature: false
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+
+### `product-blocks`
+
+::: orchestrator.core.cli.search.index_llm.product_blocks_command
+    options:
+      docstring_style: google
+      separate_signature: false
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+
+### `resource-types`
+
+::: orchestrator.core.cli.search.index_llm.resource_types_command
+    options:
+      docstring_style: google
+      separate_signature: false
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+
+### `all`
+
+::: orchestrator.core.cli.search.index_llm.all_command
+    options:
+      docstring_style: google
+      separate_signature: false
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+
+### `rebuild-paths`
+
+::: orchestrator.core.cli.search.index_llm.rebuild_paths_command
+    options:
+      docstring_style: google
+      separate_signature: false
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+
 ## scheduler
 
 Commands to interact with the scheduler and scheduled jobs.

@@ -40,10 +40,10 @@ docs-preview:
     @just sync
     uv run mkdocs serve --livereload
 
-# Run pre-commit on all files
+# Run the pre-commit hooks (via prek) on all files
 pre-commit:
-    uv run pre-commit run --all-files
+    uv run prek run --all-files
 
-# Install pre-commit script into .git/hooks/pre-commit
+# Install the prek hook script into .git/hooks/pre-commit
 pre-commit-install:
-    uv run pre-commit install
+    uv run prek install

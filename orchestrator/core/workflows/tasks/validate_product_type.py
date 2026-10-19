@@ -14,8 +14,9 @@ from functools import cache
 from typing import Any
 
 import structlog
+from sqlalchemy import select
 
-from orchestrator.core.db import ProductTable
+from orchestrator.core.db import ProductTable, db
 from orchestrator.core.forms import SubmitFormPage
 from orchestrator.core.forms.validators import Choice
 from orchestrator.core.services.subscriptions import (
@@ -39,7 +40,7 @@ def create_select_product_type_form() -> type[SubmitFormPage]:
 
     @cache
     def get_product_type_choices() -> dict[Any, Any]:
-        return {product.product_type: product.product_type for product in ProductTable.query.all()}
+        return {product.product_type: product.product_type for product in db.session.scalars(select(ProductTable))}
 
     ProductTypeChoices = Choice.__call__("Product Type", get_product_type_choices())
 
@@ -68,10 +69,7 @@ def validate_product_type(product_type: str) -> State:
 
     # Not possible to use SubscriptionTable objects past this point, as the original DB session will be closed
     for info in validations:
-        validation_result = start_subscription_validations(
-            info=info,
-            product_type_filter=product_type
-        )
+        validation_result = start_subscription_validations(info=info, product_type_filter=product_type)
         if len(validation_result) > 0:
             result.append({"total_workflows_validated": len(validation_result), "workflows": validation_result})
 

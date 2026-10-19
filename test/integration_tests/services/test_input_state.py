@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from orchestrator.core.db import InputStateTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.core.services.input_state import retrieve_input_state, store_input_state
@@ -72,7 +73,7 @@ def test_store_input_state(completed_process):
     process_id, input_state = completed_process
     store_input_state(process_id, input_state.input_state, "user_input")
 
-    states = InputStateTable.query.all()
+    states = db.session.scalars(select(InputStateTable)).all()
     assert len(states) == 2
 
 

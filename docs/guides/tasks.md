@@ -297,7 +297,7 @@ The scheduler automatically loads any schedules that are imported before the sch
 
 !!! Info
     In previous versions, schedules needed to be explicitly added in the `ALL_SCHEDULERS` variable.
-    This is no longer required; `ALL_SCHEDULERS` is deprecated as of orchestrator-core v4.7.0 and will be removed in v5.0.0.
+    This is no longer required; `ALL_SCHEDULERS` is deprecated as of orchestrator-core v4.7.0 and will be removed in v6.0.0.
     Follow-up ticket to remove deprecated code: [#1276](https://github.com/workfloworchestrator/orchestrator-core/issues/1276)
 
 ## Registering your own schedules from code

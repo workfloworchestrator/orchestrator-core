@@ -34,6 +34,7 @@ labels=(
   "kind/breaking|b60205|Breaking change — requires action from users when upgrading"
   "kind/feature|0052cc|New user-facing functionality"
   "kind/bug|0052cc|A confirmed bug fix"
+  "kind/deprecation|0052cc|Deprecates user-facing API or behavior; users should migrate before it is removed"
   "kind/refactor|0052cc|Internal refactor with no behavior change"
   "kind/chore|0052cc|Housekeeping / internal change"
   "kind/documentation|0052cc|Documentation only"
@@ -45,6 +46,8 @@ labels=(
   "area/search|5319e7|Search subsystem"
   "area/llm|5319e7|LLM / embeddings"
   "skip-changelog|ededed|Exclude this PR from the generated release notes"
+  "dev-only|ededed|Only touches development files (uv.lock, .github, ...); excluded from release notes (auto-applied)"
+  "dev-dependencies|ededed|Bumps a development-only dependency; excluded from release notes (set by Renovate)"
 )
 
 for entry in "${labels[@]}"; do

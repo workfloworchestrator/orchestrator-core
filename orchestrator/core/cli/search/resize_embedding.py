@@ -11,9 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import cast
+
 import structlog
 import typer
-from sqlalchemy import text
+from sqlalchemy import delete, text
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.core.db import db
@@ -21,6 +24,9 @@ from orchestrator.core.db.models import AiSearchIndex, SearchQueryTable
 from orchestrator.core.settings import llm_settings
 
 logger = structlog.get_logger(__name__)
+
+ENTITY_TYPES = ("SUBSCRIPTION", "PRODUCT", "WORKFLOW", "PROCESS")
+HNSW_OPTIONS = "USING HNSW (embedding vector_l2_ops) WITH (m = 16, ef_construction = 64)"
 
 app = typer.Typer(
     name="embedding",
@@ -60,8 +66,8 @@ def drop_all_embeddings() -> tuple[int, int]:
         Tuple of (ai_search_index records deleted, search_queries records deleted)
     """
     try:
-        index_deleted = db.session.query(AiSearchIndex).delete()
-        query_deleted = db.session.query(SearchQueryTable).delete()
+        index_deleted = cast(CursorResult, db.session.execute(delete(AiSearchIndex))).rowcount
+        query_deleted = cast(CursorResult, db.session.execute(delete(SearchQueryTable))).rowcount
         db.session.commit()
         logger.info(
             f"Deleted {index_deleted} records from ai_search_index and {query_deleted} records from search_queries"
@@ -99,13 +105,40 @@ def alter_embedding_column_dimension(new_dimension: int) -> None:
         raise
 
 
+def rebuild_hnsw_indexes() -> None:
+    """Rebuild HNSW indexes on ai_search_index table.
+
+    Creates partial HNSW indexes, one per entity type, with embedding IS NOT NULL filter.
+    This is called after resizing the embedding column to rebuild the indexes that were
+    dropped when the column was recreated.
+    """
+
+    def create_partial_index(entity_type: str) -> str:
+        index_name = f"ix_flat_embed_hnsw_{entity_type.lower()}"
+        return (
+            f"CREATE INDEX IF NOT EXISTS {index_name} ON ai_search_index "
+            f"{HNSW_OPTIONS} WHERE entity_type = '{entity_type}' AND embedding IS NOT NULL"
+        )
+
+    try:
+        for query in map(create_partial_index, ENTITY_TYPES):
+            db.session.execute(text(query))
+        db.session.commit()
+        logger.info(f"Rebuilt {len(ENTITY_TYPES)} HNSW indexes on ai_search_index")
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logger.error("Failed to rebuild HNSW indexes", error=str(e))
+        raise
+
+
 @app.command("resize")
 def resize_embeddings_command() -> None:
     """Resize vector dimensions of embedding columns in ai_search_index and search_queries tables.
 
     Compares the current embedding dimension in the database with the configured
-    dimension in llm_settings. If they differ, drops all records and alters both
-    embedding columns to match the new dimension.
+    dimension in llm_settings. If they differ, drops all records, alters both
+    embedding columns to match the new dimension, and rebuilds HNSW indexes.
     """
     new_dimension = llm_settings.EMBEDDING_DIMENSION
 
@@ -140,6 +173,10 @@ def resize_embeddings_command() -> None:
         # Then alter column dimensions.
         logger.info(f"Altering embedding columns to dimension {new_dimension}...")
         alter_embedding_column_dimension(new_dimension)
+
+        # Rebuild HNSW indexes.
+        logger.info("Rebuilding HNSW indexes...")
+        rebuild_hnsw_indexes()
 
         logger.info(
             "Embedding dimension resize completed successfully",

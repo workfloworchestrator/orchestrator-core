@@ -13,9 +13,9 @@ env:
   UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged
 
 jobs:
-  build:
-    name: Linting Tests
-    runs-on: ubuntu-latest
+  mypy:
+    name: mypy
+    runs-on: ubuntu-26.04
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
@@ -28,7 +28,7 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.12.18"
+          version: "0.13.0"
           python-version: ${{ matrix.python-version }}
 
       - name: Install the project
@@ -39,16 +39,35 @@ jobs:
       - name: Check with mypy
         run: uv run mypy .
 
-      - name: Cache pre-commit hooks and environments
+  # The hooks do not depend on the python version, so they run once instead of per matrix entry
+  hooks:
+    name: prek hooks
+    runs-on: ubuntu-26.04
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          # It is considered best practice to pin to a specific uv version.
+          version: "0.13.0"
+          python-version: "3.13"
+
+      - name: Install the project
+        # The local vulture hook runs through `uv run`, so the project must be installed
+        run: uv sync --all-extras --dev
+
+      - name: Cache prek hooks and environments
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: ~/.cache/pre-commit
-          key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          path: ~/.cache/prek
+          key: ${{ runner.os }}-prek-${{ hashFiles('.pre-commit-config.yaml') }}
 
       - name: Check edited files contain an up-to-date copyright header
-        run: uv run pre-commit run copyright-required
+        run: uv run prek run copyright-required
 
-      - name: Run remaining pre-commit hooks
-        run: uv run pre-commit run --all-files
+      - name: Run remaining prek hooks
+        run: uv run prek run --all-files
         env:
           SKIP: mypy,copyright-required

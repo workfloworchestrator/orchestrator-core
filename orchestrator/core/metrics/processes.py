@@ -11,12 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Iterable
+from typing import Iterable, cast
 
 from prometheus_client.metrics_core import GaugeMetricFamily, Metric
 from prometheus_client.registry import Collector
 from pydantic import BaseModel
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, select
 
 from orchestrator.core.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db
 from orchestrator.core.db.models import ProcessSubscriptionTable
@@ -81,33 +81,36 @@ def _get_processes() -> list[ProcessTableQueryResult]:
         total_process_time = func.coalesce(
             func.sum(func.extract("epoch", (ProcessTable.last_modified_at - ProcessTable.started_at))), 0
         ).label("total_runtime")
-        result = (
-            db.session.query(
-                ProcessTable.last_status,
-                ProcessTable.created_by,
-                ProcessTable.is_task,
-                ProductTable.name.label("product_name"),
-                WorkflowTable.name.label("workflow_name"),
-                SubscriptionTable.customer_id,
-                WorkflowTable.target.label("workflow_target"),
-                process_count,
-                total_process_time,
-            )
-            .join(WorkflowTable, WorkflowTable.workflow_id == ProcessTable.workflow_id)
-            .join(ProcessSubscriptionTable, ProcessSubscriptionTable.process_id == ProcessTable.process_id)
-            .join(SubscriptionTable, SubscriptionTable.subscription_id == ProcessSubscriptionTable.subscription_id)
-            .join(ProductTable, ProductTable.product_id == SubscriptionTable.product_id)
-            .group_by(
-                ProcessTable.last_status,
-                ProcessTable.created_by,
-                ProcessTable.is_task,
-                ProductTable.name,
-                WorkflowTable.name,
-                SubscriptionTable.customer_id,
-                WorkflowTable.target,
-            )
-            .order_by(desc(process_count))
-        ).all()
+        result = cast(
+            list[ProcessTableQueryResult],
+            db.session.execute(
+                select(
+                    ProcessTable.last_status,
+                    ProcessTable.created_by,
+                    ProcessTable.is_task,
+                    ProductTable.name.label("product_name"),
+                    WorkflowTable.name.label("workflow_name"),
+                    SubscriptionTable.customer_id,
+                    WorkflowTable.target.label("workflow_target"),
+                    process_count,
+                    total_process_time,
+                )
+                .join(WorkflowTable, WorkflowTable.workflow_id == ProcessTable.workflow_id)
+                .join(ProcessSubscriptionTable, ProcessSubscriptionTable.process_id == ProcessTable.process_id)
+                .join(SubscriptionTable, SubscriptionTable.subscription_id == ProcessSubscriptionTable.subscription_id)
+                .join(ProductTable, ProductTable.product_id == SubscriptionTable.product_id)
+                .group_by(
+                    ProcessTable.last_status,
+                    ProcessTable.created_by,
+                    ProcessTable.is_task,
+                    ProductTable.name,
+                    WorkflowTable.name,
+                    SubscriptionTable.customer_id,
+                    WorkflowTable.target,
+                )
+                .order_by(desc(process_count))
+            ).all(),
+        )
 
     return result or []
 

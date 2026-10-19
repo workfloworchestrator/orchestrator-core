@@ -17,7 +17,7 @@ An example of the settings is shown below:
 
 
     class AppSettings(BaseSettings):
-        TESTING: bool = True
+        TESTING: bool = False
         SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
         CORS_ORIGINS: str = "*"
         ...
@@ -43,7 +43,7 @@ An example of the settings is shown below:
 
 
     class AppSettings(BaseSettings):
-        TESTING: bool = True
+        TESTING: bool = False
         SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
         CORS_ORIGINS: str = "*"
         ...
@@ -123,6 +123,15 @@ two arguments: the name of the settings class and the instance of the settings c
 
     expose_settings("my_settings", my_settings)
     ```
+
+To expose only a subset of the fields, pass `include`:
+
+```python
+expose_settings("my_public_settings", my_settings, include={"debug"})
+```
+
+`orchestrator-core` always exposes `search_settings`, which contains only `EMBEDDING_API_ENABLED` from the LLM settings.
+The UI uses it to decide whether to show semantic/hybrid search options.
 
 ## Lifecycle Validation Mode
 

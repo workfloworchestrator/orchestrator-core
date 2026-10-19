@@ -2,36 +2,65 @@
 # Covers the labels that can be inferred from touched files. Type labels that
 # cannot be derived from paths (kind/feature vs. kind/bug) still need to be
 # applied by the author or a reviewer — see the PR template checklist.
+#
+# The kind/* rules only fire when EVERY changed file matches
+# (`any-glob-to-all-files`), so they describe PRs that are entirely docs, tests,
+# CI or build changes. A PR that also touches library code gets none of them and
+# needs a type label (kind/feature, kind/bug, ...) set by hand. With "any file"
+# matching, nearly every code PR got kind/test, which satisfied the release-label
+# check and listed features under "Tests". Because sync-labels is on, setting one
+# of these by hand on a mixed PR doesn't stick: the labeler removes it again.
+#
+# Multiple patterns are written as ONE brace-expanded glob; see dev-only below
+# for why a YAML list doesn't work with `any-glob-to-all-files`.
+#
+# pyproject.toml and uv.lock are deliberately not in kind/build: a pyproject.toml
+# change can be a runtime dependency change users care about, so the author picks
+# the label, and lock-only changes are dev-only.
 kind/documentation:
   - changed-files:
-      - any-glob-to-any-file:
-          - "docs/**"
-          - "**/*.md"
-          - "mkdocs.yml"
+      - any-glob-to-all-files:
+          - "{docs/**,**/*.md,mkdocs.yml}"
 
 kind/test:
   - changed-files:
-      - any-glob-to-any-file:
+      - any-glob-to-all-files:
           - "test/**"
 
 kind/ci:
   - changed-files:
-      - any-glob-to-any-file:
-          - ".github/**"
-          - ".pre-commit-config.yaml"
-          - "codecov.yml"
+      - any-glob-to-all-files:
+          - "{.github/**,.pre-commit-config.yaml,codecov.yml}"
 
 kind/build:
   - changed-files:
-      - any-glob-to-any-file:
-          - "pyproject.toml"
-          - "uv.lock"
-          - "Dockerfile"
-          - ".dockerignore"
-          - "Justfile"
-          - "renovate.json"
+      - any-glob-to-all-files:
+          - "{Dockerfile,.dockerignore,Justfile,renovate.json}"
 
 area/search:
   - changed-files:
       - any-glob-to-any-file:
           - "orchestrator/core/search/**"
+
+# Applied only when EVERY changed file is development-only, i.e. nothing that
+# ends up in the published package. Excluded from the release notes in
+# .github/release.yml. Unlike skip-changelog this label is path-managed:
+# sync-labels removes it again as soon as a PR touches any other file.
+#
+# The patterns are ONE brace-expanded glob on purpose. `any-glob-to-all-files`
+# requires a single glob to match every changed file; with a YAML list of
+# separate patterns each pattern is tested against all files independently, so a
+# PR touching both uv.lock and .github/** would match no single pattern and stay
+# unlabeled. The brace keeps the "every file matches one of these" meaning.
+#
+# build-push-container.yml and chart.yml are excluded because they build
+# artifacts users consume (container image, Helm chart), so a PR that only
+# touches them is not dev-only.
+dev-only:
+  - all:
+      - changed-files:
+          - any-glob-to-all-files:
+              - "{uv.lock,.github/**,.pre-commit-config.yaml,codecov.yml,renovate.json,.gitignore,CLAUDE.md,AGENTS.md,.claude/**,.mcp.json}"
+          - all-globs-to-all-files:
+              - "!.github/workflows/build-push-container.yml"
+              - "!.github/workflows/chart.yml"

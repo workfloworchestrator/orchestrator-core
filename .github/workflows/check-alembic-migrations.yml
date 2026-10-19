@@ -11,7 +11,7 @@ env:
 jobs:
   build:
     name: Check alembic migrations
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -20,7 +20,7 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.12.18"
+          version: "0.13.0"
 
       - name: Ensure there is 1 migration head
         run: |

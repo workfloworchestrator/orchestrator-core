@@ -62,7 +62,7 @@ router = APIRouter()
 logger = structlog.get_logger(__name__)
 
 
-def _apply_auth_reason(workflow_dict: dict[str, Any], current_user: OIDCUserModel | None) -> None:
+async def _apply_auth_reason(workflow_dict: dict[str, Any], current_user: OIDCUserModel | None) -> None:
     """Stamp ``workflow_dict`` with an insufficient-permissions reason when the user cannot run it."""
     workflow = get_workflow(workflow_dict["name"])
     if workflow is None:
@@ -70,22 +70,22 @@ def _apply_auth_reason(workflow_dict: dict[str, Any], current_user: OIDCUserMode
 
     context = AuthContext(user=current_user, workflow=workflow, action="start_workflow")
     if (
-        not workflow.authorize_callback(context)  # The current user isn't allowed to run this workflow
-        and "reason" not in workflow_dict  # and there isn't already a reason why this workflow cannot run
+        "reason" not in workflow_dict  # There isn't already a reason why this workflow cannot run
+        and not await workflow.authorize_callback(context)  # and the current user isn't allowed to run it
     ):
         workflow_dict["reason"] = "subscription.insufficient_workflow_permissions"
 
 
-def _authorized_subscription_workflows(
+async def _authorized_subscription_workflows(
     subscription: SubscriptionTable, current_user: OIDCUserModel | None
 ) -> dict[str, list[dict[str, list[Any] | str]]]:
-    subscription_workflows_dict = subscription_workflows(subscription)
+    subscription_workflows_dict = await run_in_threadpool(subscription_workflows, subscription)
 
     all_workflow_dicts = itertools.chain.from_iterable(
         subscription_workflows_dict[target.lower()] for target in Target.values()
     )
     for workflow_dict in all_workflow_dicts:
-        _apply_auth_reason(workflow_dict, current_user)
+        await _apply_auth_reason(workflow_dict, current_user)
 
     return subscription_workflows_dict
 
@@ -188,7 +188,7 @@ async def subscription_workflows_by_id(
     if not subscription:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    return await run_in_threadpool(_authorized_subscription_workflows, subscription, current_user)
+    return await _authorized_subscription_workflows(subscription, current_user)
 
 
 async def _failed_processes(subscription_id: UUID, session: AsyncSession) -> list[str]:

@@ -23,10 +23,11 @@ from rich.table import Table
 
 from orchestrator.core.db import db
 from orchestrator.core.search.core.embedding import QueryEmbedder
-from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.core.types import EntityType, RetrieverType
 from orchestrator.core.search.core.validators import is_uuid
 from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.queries import SelectQuery
+from orchestrator.core.search.retrieval.retrievers import Retriever
 
 logger = structlog.get_logger(__name__)
 console = Console()
@@ -47,6 +48,11 @@ DEFAULT_QUERIES = [
 ]
 
 
+def build_query(query_text: str, retriever: RetrieverType | None) -> SelectQuery:
+    """Build the subscription query for a speedtest run, optionally forcing a retriever."""
+    return SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text, limit=30, retriever=retriever)
+
+
 async def generate_embeddings_for_queries(queries: list[str]) -> dict[str, list[float]]:
     embedding_lookup = {}
 
@@ -63,15 +69,25 @@ async def generate_embeddings_for_queries(queries: list[str]) -> dict[str, list[
     return embedding_lookup
 
 
-async def run_single_query(query_text: str, embedding_lookup: dict[str, list[float]]) -> dict[str, Any]:
-    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text, limit=30)
-
+async def run_single_query(
+    query_text: str, embedding_lookup: dict[str, list[float]], retriever: RetrieverType | None = None
+) -> dict[str, Any]:
+    query = build_query(query_text, retriever)
     query_embedding = None
 
     if is_uuid(query_text):
-        logger.debug("Using fuzzy-only ranking for full UUID", query_text=query_text)
-    else:
-        query_embedding = embedding_lookup[query_text]
+        logger.debug(
+            "Full UUID query", query_text=query_text, retriever=retriever.value if retriever else "auto (fuzzy)"
+        )
+
+    if Retriever.needs_embedding(query):
+        # Fail loudly: a missing embedding would otherwise be generated inside the timed block.
+        query_embedding = embedding_lookup.get(query_text)
+        if query_embedding is None:
+            raise ValueError(
+                f"Embedding unavailable for query {query_text!r}; "
+                f"the {retriever.value if retriever else 'auto-routed'} retriever requires one"
+            )
 
     start_time = time.perf_counter()
     async with db.async_session() as session:
@@ -91,13 +107,20 @@ async def run_single_query(query_text: str, embedding_lookup: dict[str, list[flo
 @app.command()
 def quick(
     queries: list[str] | None = typer.Option(None, "--query", "-q", help="Custom queries to test"),
+    retriever: RetrieverType | None = typer.Option(
+        None, "--retriever", "-r", help="Force a retriever (fuzzy/semantic/hybrid). Default: automatic routing"
+    ),
 ) -> None:
     test_queries = queries if queries else DEFAULT_QUERIES
+    retriever_label = retriever.value if retriever else "auto"
 
-    console.print(f"[bold blue]Quick Speed Test[/bold blue] - Testing {len(test_queries)} queries")
+    console.print(
+        f"[bold blue]Quick Speed Test[/bold blue] - Testing {len(test_queries)} queries (retriever: {retriever_label})"
+    )
 
     async def run_tests() -> list[dict[str, Any]]:
-        embedding_lookup = await generate_embeddings_for_queries(test_queries)
+        embedding_queries = [q for q in test_queries if Retriever.needs_embedding(build_query(q, retriever))]
+        embedding_lookup = await generate_embeddings_for_queries(embedding_queries)
 
         results = []
 
@@ -110,7 +133,7 @@ def quick(
             task = progress.add_task("Running queries...", total=len(test_queries))
 
             for query in test_queries:
-                result = await run_single_query(query, embedding_lookup)
+                result = await run_single_query(query, embedding_lookup, retriever)
                 results.append(result)
                 progress.advance(task)
 
