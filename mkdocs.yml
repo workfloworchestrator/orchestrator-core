@@ -163,7 +163,7 @@ nav:
           - v5.0: guides/upgrading/5.0.md
           - v5.4: guides/upgrading/5.4.md
           - v5.5: guides/upgrading/5.5.md
-          - v5.6: guides/upgrading/5.6.md
+          - v5.6 (pre-release): guides/upgrading/5.6.md
   - Architecture:
       - Architecture; TL;DR: architecture/tldr.md
       - Orchestration Philosophy: architecture/orchestration/philosophy.md
