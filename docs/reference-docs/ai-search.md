@@ -160,15 +160,55 @@ so pages stay stable while data changes underneath.
 Four entity types are indexed: **subscriptions**, **products**, **processes** and **workflows**.
 All three interfaces run the same engine.
 
-| Interface   | Where                       | What it offers                                                                             |
-|-------------|-----------------------------|--------------------------------------------------------------------------------------------|
-| **REST**    | `/api/search` (authenticated) | `POST /subscriptions`, `/products`, `/processes`, `/workflows` to search; `GET /paths` for field autocomplete; `GET /definitions` for the operators valid per UI type; `POST /{entity}/export` to return up to `SEARCH_MAX_EXPORT_LIMIT` results in one unpaginated response (`limit` defaults to that maximum); `GET /queries/{id}`, `/results`, `/export` to re-run or export a saved query |
-| **GraphQL** | root fields                 | `search`, `searchPaths`, `searchDefinitions`, `searchQuery`, `searchQueryResults`, `searchQueryExport`, mirroring REST |
-| **Agent tools** | `/api/agent`            | `search`, `aggregate`, `discover_filter_paths`, `get_valid_operators`, `resolve_entity`, `export_query`, exposed as read-only [MCP](mcp.md) tools when `MCP_ENABLED` is set |
+- **REST** under `/api/search` (authenticated): search, field autocomplete, operator definitions,
+  and re-running or exporting saved queries.
+- **GraphQL** root fields that mirror the REST endpoints.
+- **Agent tools** under `/api/agent`, which can also be exposed as read-only [MCP](mcp.md) tools.
 
-The REST and GraphQL search routers are always registered, and the agent tools are ordinary REST
-endpoints that are always available. Only surfacing them over MCP is opt-in: that needs
-`MCP_ENABLED=True` and the `mcp` extra installed. See [MCP Server](mcp.md).
+### REST
+
+All endpoints are under `/api/search`.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /subscriptions`, `/products`, `/processes`, `/workflows` | Search an entity type, one page at a time |
+| `POST /{entity}/export` | Export the results of a search in one unpaginated response |
+| `GET /paths` | Field path autocomplete |
+| `GET /definitions` | Operators valid per UI type |
+| `GET /queries/{id}` | Re-run a saved search |
+| `GET /queries/{id}/results` | Full results of a saved query of any type (select, count, aggregate) |
+| `GET /queries/{id}/export` | Export a saved search as flattened records, e.g. for CSV |
+
+The search and export endpoints take the same body: `query`, `filters` (a filter tree or
+Elasticsearch DSL), `retriever`, `order_by` (only without `query`), `response_columns` and
+`limit`. They differ in `limit`:
+
+- **Search** defaults to 10 and is capped at 100. Use the cursor from the response to page further.
+- **Export** defaults to, and is capped at, `SEARCH_MAX_EXPORT_LIMIT`, so clients can leave it out.
+  The query is not saved and no cursor is returned; `page_info.has_next_page` is `true` when the
+  export was cut off.
+
+Saved-query exports return up to `SEARCH_MAX_EXPORT_LIMIT` records as well.
+
+### GraphQL
+
+| Field | REST equivalent |
+|---|---|
+| `search` | The `POST` search endpoints, with the entity type as an argument |
+| `searchPaths` | `GET /paths` |
+| `searchDefinitions` | `GET /definitions` |
+| `searchQuery` | `GET /queries/{id}` |
+| `searchQueryResults` | `GET /queries/{id}/results` |
+| `searchQueryExport` | `GET /queries/{id}/export` |
+
+### Agent tools
+
+The tools are `search`, `aggregate`, `discover_filter_paths`, `get_valid_operators`,
+`resolve_entity` and `export_query`. They are ordinary REST endpoints under `/api/agent` and are
+always available, like the REST and GraphQL search routers. Only surfacing them over MCP is
+opt-in: that needs `MCP_ENABLED=True` and the `mcp` extra installed. See [MCP Server](mcp.md).
+
+### Saved queries
 
 Queries are stored in `search_queries` and addressed by `query_id`, so a caller can page through,
 re-run or export a search without re-sending it. The agent `search` and `aggregate` tools always
