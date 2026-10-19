@@ -21,8 +21,8 @@ Every step carries an `importance` value, which the orchestrator stores on each 
 REST and GraphQL process APIs. The orchestrator UI uses it to decide how much of each step to show in the process
 detail page. The engine itself does not change its behaviour based on importance.
 
-The value is a member of `StepImportance`: `low`, `default` or `high`. Every step is `default` unless specified; the
-built-in `Start` step is `low`.
+The value is a member of `StepImportance`: `low`, `default` or `high`. Every step is `default` unless specified,
+including the built-in `Start`, `Done` and `Abort` steps.
 
 ### How the UI renders importance
 
