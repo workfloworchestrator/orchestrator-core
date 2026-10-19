@@ -288,11 +288,16 @@ def make_workflow(
 
 
 def step(
-    name: str,
-    retry_auth_callback: Authorizer | None = None,
-    importance: StepImportance = StepImportance.DEFAULT
+    name: str, retry_auth_callback: Authorizer | None = None, importance: StepImportance = StepImportance.DEFAULT
 ) -> Callable[[StepFunc], Step]:
-    """Mark a function as a workflow step."""
+    """Mark a function as a workflow step.
+
+    Args:
+        name: Step name shown in the process detail.
+        retry_auth_callback: Authorizer deciding who may retry this step after a failure.
+        importance: Stored with the process step and exposed to the frontend so it can emphasise or de-emphasise the
+            step. Does not affect execution.
+    """
 
     def decorator(func: StepFunc) -> Step:
         @functools.wraps(func)
@@ -322,9 +327,7 @@ def step(
 
 
 def retrystep(
-    name: str,
-    retry_auth_callback: Authorizer | None = None,
-    importance: StepImportance = StepImportance.DEFAULT
+    name: str, retry_auth_callback: Authorizer | None = None, importance: StepImportance = StepImportance.DEFAULT
 ) -> Callable[[StepFunc], Step]:
     """Mark a function as a retryable workflow step.
 
@@ -363,7 +366,7 @@ def inputstep(
     assignee: Assignee,
     resume_auth_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
-    importance: StepImportance = StepImportance.DEFAULT
+    importance: StepImportance = StepImportance.DEFAULT,
 ) -> Callable[[InputStepFunc], Step]:
     """Add user input step to workflow.
 
@@ -422,7 +425,10 @@ def _extend_step_group_steps(name: str, steps: StepList) -> StepList:
 
 
 def step_group(
-    name: str, steps: StepList, extract_form: bool = True, retry_auth_callback: Authorizer | None = None,
+    name: str,
+    steps: StepList,
+    extract_form: bool = True,
+    retry_auth_callback: Authorizer | None = None,
 ) -> Step:
     """Add a group of steps to the workflow as a single step.
 
@@ -484,7 +490,7 @@ def _awaitstep(
     name: str,
     result_key: str | None = None,
     timeout: int | None = None,
-    importance: StepImportance = StepImportance.DEFAULT
+    importance: StepImportance = StepImportance.DEFAULT,
 ) -> Step:
     extra_state: State = {}
     if result_key:
@@ -522,6 +528,9 @@ def callback_step(
     still in AWAITING_CALLBACK after that many seconds (measured from when the await started) is transitioned to FAILED
     by the ``task_validate_awaiting_callbacks`` scheduled task, so it can be retried or aborted through the normal
     flows. The timeout is a minimum: enforcement resolution equals that task's run interval (30 seconds by default).
+
+
+    ``importance`` is applied to the ``Await callback`` sub step; the other sub steps keep the default importance.
     """
     create_endpoint_step = step(f"{name} - Create endpoint")(_create_endpoint_step(key=callback_route_key))
     await_step = _awaitstep(f"{name} - Await callback", result_key=result_key, timeout=timeout, importance=importance)
