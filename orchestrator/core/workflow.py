@@ -90,7 +90,7 @@ class Step(Protocol):
     __name__: str
     __qualname__: str
     name: str
-    importance: StepImportance | None = StepImportance.DEFAULT
+    importance: StepImportance = StepImportance.DEFAULT
     form: InputFormGenerator | None
     assignee: Assignee | None
     resume_auth_callback: Authorizer | None = None
@@ -152,7 +152,7 @@ def make_step_function(
     assignee: Assignee | None = Assignee.SYSTEM,
     resume_auth_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
-    importance: StepImportance | None = StepImportance.DEFAULT,
+    importance: StepImportance = StepImportance.DEFAULT,
 ) -> Step:
     step_func = cast(Step, f)
 
@@ -161,7 +161,7 @@ def make_step_function(
     step_func.assignee = assignee
     step_func.resume_auth_callback = resume_auth_callback
     step_func.retry_auth_callback = retry_auth_callback
-    step_func.importance = importance or StepImportance.DEFAULT
+    step_func.importance = importance
     return step_func
 
 
@@ -290,7 +290,7 @@ def make_workflow(
 def step(
     name: str,
     retry_auth_callback: Authorizer | None = None,
-    importance: StepImportance | None = StepImportance.DEFAULT
+    importance: StepImportance = StepImportance.DEFAULT
 ) -> Callable[[StepFunc], Step]:
     """Mark a function as a workflow step."""
 
@@ -324,7 +324,7 @@ def step(
 def retrystep(
     name: str,
     retry_auth_callback: Authorizer | None = None,
-    importance: StepImportance | None = StepImportance.DEFAULT
+    importance: StepImportance = StepImportance.DEFAULT
 ) -> Callable[[StepFunc], Step]:
     """Mark a function as a retryable workflow step.
 
@@ -363,7 +363,7 @@ def inputstep(
     assignee: Assignee,
     resume_auth_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
-    importance: StepImportance | None = StepImportance.DEFAULT
+    importance: StepImportance = StepImportance.DEFAULT
 ) -> Callable[[InputStepFunc], Step]:
     """Add user input step to workflow.
 
@@ -484,7 +484,7 @@ def _awaitstep(
     name: str,
     result_key: str | None = None,
     timeout: int | None = None,
-    importance: StepImportance | None = StepImportance.DEFAULT
+    importance: StepImportance = StepImportance.DEFAULT
 ) -> Step:
     extra_state: State = {}
     if result_key:
@@ -505,7 +505,7 @@ def callback_step(
     result_key: str | None = None,
     callback_route_key: str = DEFAULT_CALLBACK_ROUTE_KEY,
     timeout: int | None = None,
-    importance: StepImportance | None = StepImportance.DEFAULT,
+    importance: StepImportance = StepImportance.DEFAULT,
 ) -> Step:
     """Creates an asynchronous callback step.
 
