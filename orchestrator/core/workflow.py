@@ -161,7 +161,7 @@ def make_step_function(
     step_func.assignee = assignee
     step_func.resume_auth_callback = resume_auth_callback
     step_func.retry_auth_callback = retry_auth_callback
-    step_func.importance = importance
+    step_func.importance = importance or StepImportance.DEFAULT
     return step_func
 
 

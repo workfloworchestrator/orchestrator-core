@@ -52,6 +52,7 @@ class ProcessStepType:
     started: strawberry.auto
     completed: strawberry.auto
     commit_hash: strawberry.auto
+    importance: str
     state: JSON | None
     state_delta: JSON | None
 
