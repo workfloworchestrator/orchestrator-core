@@ -199,6 +199,7 @@ def test_long_running_pause(test_client, long_running_workflow, monkeypatch):
     # Let it run until completing the first lock step
     with test_condition:
         test_condition.notify_all()
+    # FIXME: flaky, running_processes is read from the WorkerStatusMonitor cache which refreshes every 5s (#2039)
     time.sleep(1)
 
     # Check status after pausing.

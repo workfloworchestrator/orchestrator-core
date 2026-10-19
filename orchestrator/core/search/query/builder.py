@@ -191,7 +191,7 @@ def _build_pivot_cte(base_query: Select, pivot_fields: list[str]) -> CTE:
     return (
         select(*pivot_columns)
         .where(
-            AiSearchIndex.entity_id.in_(select(base_query.c.entity_id)),
+            AiSearchIndex.entity_id.in_(select(base_query.subquery().c.entity_id)),
             AiSearchIndex.path.in_([Ltree(p) for p in pivot_fields]),
         )
         .group_by(AiSearchIndex.entity_id)

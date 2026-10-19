@@ -45,8 +45,14 @@ from test.integration_tests.search.retrieval.retrievers.snapshot_helper import a
 
 
 def compile_query_to_sql(query) -> str:
-    """Compile SQLAlchemy query to PostgreSQL SQL string."""
-    compiled = query.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": False})
+    """Compile SQLAlchemy query to PostgreSQL SQL string.
+
+    Uses the psycopg (v3) dialect explicitly: it is what ``DATABASE_URI`` uses in production, and
+    SQLAlchemy 2.1 changed the default driver behind ``postgresql.dialect()`` from psycopg2 to
+    psycopg, which renders parameter type casts (``%(p)s::VARCHAR``) and would otherwise make the
+    snapshots depend on whichever driver SQLAlchemy happens to default to.
+    """
+    compiled = query.compile(dialect=postgresql.psycopg.dialect(), compile_kwargs={"literal_binds": False})
     return str(compiled)
 
 

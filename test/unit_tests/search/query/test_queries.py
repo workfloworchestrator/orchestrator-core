@@ -286,6 +286,45 @@ def test_order_by_uses_group_field():
     assert "DESC" in sql.upper()
 
 
+def test_pivot_cte_keeps_candidate_query_filters(simple_filter_tree: FilterTree) -> None:
+    """The pivot CTE must select entity ids from the filtered candidate query, not the bare table.
+
+    Regression test: selecting ``base_query.selected_columns`` built a fresh ``SELECT ... FROM
+    ai_search_index`` without the candidate query's WHERE clause, so grouped counts aggregated
+    over the whole index and ignored entity_type and user filters.
+    """
+    query = CountQuery(
+        entity_type=EntityType.SUBSCRIPTION,
+        group_by=["subscription.product.name"],
+        filters=simple_filter_tree,
+    )
+    base_query = build_candidate_query(query)
+    stmt, _ = build_aggregation_query(query, base_query)
+    sql = " ".join(str(stmt.compile()).split())
+
+    # The entity-id subquery inside the pivot CTE must be built from the candidate query (a
+    # derived table), so its WHERE clause (entity_type and the user filter) is applied.
+    assert "IN (SELECT anon_1.entity_id FROM (SELECT DISTINCT" in sql
+    pivot_in_clause = sql[sql.index("IN (SELECT anon_1.entity_id") :]
+    assert "entity_type" in pivot_in_clause
+    assert "lower(flt_1.value) =" in pivot_in_clause
+
+
+def test_pivot_cte_entity_id_subquery_is_not_bare_table() -> None:
+    """Without filters the pivot CTE must still NOT select from the bare ai_search_index table."""
+    query = CountQuery(
+        entity_type=EntityType.SUBSCRIPTION,
+        group_by=["subscription.product.name"],
+    )
+    base_query = build_candidate_query(query)
+    stmt, _ = build_aggregation_query(query, base_query)
+    sql = " ".join(str(stmt.compile()).split())
+
+    # A bare ``SELECT ai_search_index.entity_id FROM ai_search_index`` would drop the entity_type filter.
+    assert "IN (SELECT ai_search_index.entity_id FROM ai_search_index)" not in sql
+    assert "IN (SELECT anon_1.entity_id FROM (SELECT DISTINCT" in sql
+
+
 @pytest.mark.parametrize(
     "agg_type",
     [
