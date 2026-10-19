@@ -22,6 +22,7 @@ from orchestrator.core.workflow import (
     DEFAULT_CALLBACK_ROUTE_KEY,
     AwaitingCallback,
     ProcessStatus,
+    StepImportance,
     begin,
     callback_step,
     done,
@@ -358,6 +359,34 @@ def test_wf_callback_progress_with_multiple_callback_steps(test_client):
         state = response_data["current_state"]
         assert state["ext_data"] == "56789"
         assert DEFAULT_CALLBACK_PROGRESS_KEY not in state
+
+
+def test_callback_step_importance_in_pending_and_awaiting_details(test_client):
+    high_cb = callback_step(
+        "For real", action_step=action_fr, validate_step=validate_state, importance=StepImportance.HIGH
+    )
+    assert high_cb.importance == StepImportance.HIGH
+
+    @workflow(target=Target.CREATE)
+    def importance_wf():
+        return begin >> cb1 >> high_cb >> done
+
+    def for_real_rows(process_id):
+        steps = test_client.get(f"api/processes/{process_id}").json()["steps"]
+        return [(s["status"], s["importance"]) for s in steps if s["name"] == "For real"]
+
+    with WorkflowInstanceForTests(importance_wf, "importance_wf"):
+        response = test_client.post("/api/processes/importance_wf", json=[{}])
+        assert response.status_code == 201
+        process_id = response.json()["id"]
+
+        assert for_real_rows(process_id) == [("pending", "high")]
+
+        callback_route = test_client.get(f"api/processes/{process_id}").json()["current_state"]["callback_route"]
+        assert test_client.post(callback_route, json={"ext_data": "12345"}).status_code == 200
+
+        # The step awaiting its callback is also listed as pending, as that is where the process resumes
+        assert for_real_rows(process_id) == [("awaiting_callback", "high"), ("pending", "high")]
 
 
 def _start_timeout_wf(test_client, timeout):

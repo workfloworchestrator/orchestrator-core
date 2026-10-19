@@ -429,6 +429,7 @@ def step_group(
     steps: StepList,
     extract_form: bool = True,
     retry_auth_callback: Authorizer | None = None,
+    importance: StepImportance = StepImportance.DEFAULT,
 ) -> Step:
     """Add a group of steps to the workflow as a single step.
 
@@ -443,6 +444,8 @@ def step_group(
         steps: The sub steps in the step group
         extract_form: Whether to attach the first form of the sub steps to the step group
         retry_auth_callback: Callback to determine if user is authorized to retry this group on failure
+        importance: Importance of the group. The sub steps all log into the group's single process step row, so
+            this, not the sub steps' own importance, is what clients see.
     """
 
     steps = _extend_step_group_steps(name, steps)
@@ -457,7 +460,12 @@ def step_group(
             step_list = steps
 
         def dblogstep(step_: Step, p: Process) -> Process:
-            p = p.map(lambda s: s | {"__sub_step": step_.name, "__step_name_override": name})
+            p = p.map(
+                lambda s: (
+                    s
+                    | {"__sub_step": step_.name, "__step_name_override": name, "__step_importance_override": importance}
+                )
+            )
             # If this is not the first step to be executed, replace previous state
             if step_list[0] != step_ or "__sub_step" in initial_state:
                 p = p.map(lambda s: s | {"__replace_last_state": True})
@@ -473,7 +481,7 @@ def step_group(
 
     # Make sure we return a form is a sub step has a form
     form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
-    return make_step_function(func, name, form, retry_auth_callback=retry_auth_callback)
+    return make_step_function(func, name, form, retry_auth_callback=retry_auth_callback, importance=importance)
 
 
 def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
@@ -490,7 +498,6 @@ def _awaitstep(
     name: str,
     result_key: str | None = None,
     timeout: int | None = None,
-    importance: StepImportance = StepImportance.DEFAULT,
 ) -> Step:
     extra_state: State = {}
     if result_key:
@@ -501,7 +508,7 @@ def _awaitstep(
     def await_(state: State) -> Process:
         return AwaitingCallback(state | extra_state)
 
-    return make_step_function(await_, name, importance=importance)
+    return make_step_function(await_, name)
 
 
 def callback_step(
@@ -530,13 +537,16 @@ def callback_step(
     flows. The timeout is a minimum: enforcement resolution equals that task's run interval (30 seconds by default).
 
 
-    ``importance`` is applied to the ``Await callback`` sub step; the other sub steps keep the default importance.
+    ``importance`` is applied to the returned step group, and so to its process step row, both while pending and
+    while awaiting the callback.
     """
     create_endpoint_step = step(f"{name} - Create endpoint")(_create_endpoint_step(key=callback_route_key))
-    await_step = _awaitstep(f"{name} - Await callback", result_key=result_key, timeout=timeout, importance=importance)
+    await_step = _awaitstep(f"{name} - Await callback", result_key=result_key, timeout=timeout)
     cleanup_step = step(f"{name} - Cleanup callback step")(lambda: {"__remove_keys": [CALLBACK_TOKEN_KEY]})
     return step_group(
-        name=name, steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step >> cleanup_step
+        name=name,
+        steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step >> cleanup_step,
+        importance=importance,
     )
 
 

@@ -513,6 +513,7 @@ def store(log) -> StepLogFunc:
     def _store(_: ProcessStat, step_: Step, process: Process):
         state = process.unwrap()
         step_name = state.pop("__step_name_override", step_.name)
+        state.pop("__step_importance_override", None)
         keys_to_remove = state.get("__remove_keys", []) + ["__remove_keys"]
         for k in keys_to_remove:
             state.pop(k, None)
