@@ -73,4 +73,4 @@ def get_root_blocks_to_instance_ids(subscription_id: UUID | UUIDstr) -> dict[str
         .order_by(ProductBlockTable.name)
     ).all()
 
-    return group_by_key(block_name_to_instance_id_rows)  # type: ignore[arg-type]
+    return group_by_key(block_name_to_instance_id_rows)

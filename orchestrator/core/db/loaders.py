@@ -26,7 +26,6 @@ from sqlalchemy.orm import (
     selectinload,
     subqueryload,
 )
-from sqlalchemy.orm.strategies import SubqueryLoader
 
 from orchestrator.core.db import ALL_DB_MODELS
 from orchestrator.core.db.database import BaseModel as DbBaseModel
@@ -51,8 +50,9 @@ def _relation_type_to_loader_func(relationship: RelationshipProperty) -> LoaderF
             # Always eagerload this through a join
             return cast(LoaderFunc, joinedload)
         case RelationshipDirection.MANYTOMANY | RelationshipDirection.ONETOMANY:
-            # Respect the strategy configured on the relationship
-            loader_fn = subqueryload if isinstance(relationship.strategy, SubqueryLoader) else selectinload
+            # Respect the strategy configured on the relationship, using the public
+            # ``RelationshipProperty.lazy`` value (``SubqueryLoader`` became private in SQLAlchemy 2.1).
+            loader_fn = subqueryload if relationship.lazy == "subquery" else selectinload
             return cast(LoaderFunc, loader_fn)
     raise TypeError(f"Unrecognized relationship direction {relationship.direction}")
 

@@ -162,3 +162,39 @@ def test_generic_column_sort_compiles(col_type: str, order: SortOrder, expected_
     result = sort_fn(select(col), order)
     compiled = str(result.compile())
     assert expected_fragment in compiled or expected_fragment.lower() in compiled.lower()
+
+
+@pytest.mark.parametrize(
+    "order,expected_suffix",
+    [
+        pytest.param(SortOrder.ASC, "ASC", id="asc"),
+        pytest.param(SortOrder.DESC, "DESC", id="desc"),
+    ],
+)
+def test_generic_column_sort_wraps_compound_select(order: SortOrder, expected_suffix: str) -> None:
+    """A compound select (UNION) is ordered through a subquery that keeps the selected columns.
+
+    A ``CompoundSelect`` cannot be ordered directly on SQLAlchemy 2.1; ``generic_column_sort``
+    wraps it via ``query.subquery(...).select()``. This exercises that branch, asserting the
+    projection survives and the requested direction is applied.
+    """
+    from sqlalchemy import Column, MetaData, String, Table, select, union_all
+
+    metadata = MetaData()
+    t = Table("test_table", metadata, Column("my_col", String))
+    col = t.c.my_col
+
+    base_table = MagicMock()
+    base_table.__table__ = MagicMock()
+    base_table.__table__.name = "test_table"
+
+    compound = union_all(select(col), select(col))
+    sort_fn = generic_column_sort(col, base_table)
+    result = sort_fn(compound, order)
+    compiled = str(result.compile())
+
+    # The union's projection is preserved inside the wrapping subquery.
+    assert "my_col" in compiled
+    assert "UNION ALL" in compiled.upper()
+    # The ordering is applied on the outer select, in the requested direction.
+    assert compiled.rstrip().upper().endswith(expected_suffix)

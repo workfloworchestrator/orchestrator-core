@@ -47,7 +47,7 @@ class Relation(NamedTuple):
 
 
 def _get_instance_relations(instance_relations_query: Any) -> list[Relation]:
-    def to_relation(row: Row[Any]) -> Relation:
+    def to_relation(row: Row) -> Relation:
         return Relation(row[0], row[1])
 
     return [to_relation(row) for row in db.session.execute(instance_relations_query)]
@@ -96,7 +96,7 @@ async def _get_depends_on_instance_relations(
 
 
 def _get_resource_type_relations(resource_type_relations_query: Any) -> list[Relation]:
-    def to_relation(row: Row[Any]) -> Relation:
+    def to_relation(row: Row) -> Relation:
         return Relation(UUID(row[0]), row[1])
 
     return [to_relation(row) for row in db.session.execute(resource_type_relations_query)]

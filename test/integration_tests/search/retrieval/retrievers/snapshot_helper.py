@@ -15,10 +15,10 @@
 
 Usage:
     # Record mode (generates/updates snapshots):
-    pytest test/unit_tests/search/retrieval/retrievers/test_retrievers.py --record
+    pytest test/integration_tests/search/retrieval/retrievers/test_retrievers.py --record
 
     # Normal mode (asserts against snapshots):
-    pytest test/unit_tests/search/retrieval/retrievers/test_retrievers.py
+    pytest test/integration_tests/search/retrieval/retrievers/test_retrievers.py
 """
 
 import json
@@ -50,6 +50,7 @@ def save_snapshots(snapshots: dict[str, str]) -> None:
 
     with open(snapshot_file, "w") as f:
         json.dump(snapshots, f, indent=2, sort_keys=True)
+        f.write("\n")
 
 
 def assert_sql_matches_snapshot(test_name: str, sql: str, request) -> None:
@@ -81,7 +82,7 @@ def assert_sql_matches_snapshot(test_name: str, sql: str, request) -> None:
             raise AssertionError(
                 f"No snapshot found for '{test_name}'.\n"
                 f"Run with --record to create it:\n"
-                f"  pytest test/unit_tests/search/retrieval/retrievers/test_retrievers.py --record"
+                f"  pytest test/integration_tests/search/retrieval/retrievers/test_retrievers.py --record"
             )
 
         expected_sql = snapshots[test_name]
@@ -92,5 +93,5 @@ def assert_sql_matches_snapshot(test_name: str, sql: str, request) -> None:
                 f"Expected:\n{expected_sql}\n\n"
                 f"Got:\n{sql}\n\n"
                 f"To update snapshot, run:\n"
-                f"  pytest test/unit_tests/search/retrieval/retrievers/test_retrievers.py --record"
+                f"  pytest test/integration_tests/search/retrieval/retrievers/test_retrievers.py --record"
             )

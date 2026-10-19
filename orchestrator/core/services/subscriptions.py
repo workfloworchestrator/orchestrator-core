@@ -419,7 +419,7 @@ _QUERY_HELPER_DEPRECATION = (
 )
 
 
-def _as_legacy_query(stmt: Select[tuple[SubscriptionTable]]) -> Query:
+def _as_legacy_query(stmt: Select[SubscriptionTable]) -> Query:
     return db.session.query(SubscriptionTable).filter(stmt.whereclause)
 
 
@@ -439,7 +439,7 @@ def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[
 
 def select_in_use_by_subscriptions(
     subscription_id: UUID, filter_statuses: list[str] | None = None
-) -> Select[tuple[SubscriptionTable]]:
+) -> Select[SubscriptionTable]:
     """Return a statement selecting all subscriptions -in_use_by- that use this subscription with resource_type or direct relation.
 
     The statement can be used to add extra filters when/where needed.
@@ -477,7 +477,7 @@ def select_in_use_by_subscriptions(
 
 def select_depends_on_subscriptions(
     subscription_id: UUID, filter_statuses: list[str] | None = None
-) -> Select[tuple[SubscriptionTable]]:
+) -> Select[SubscriptionTable]:
     """Return a statement selecting all subscriptions -depends_on- that this subscription is dependent on with resource_type or direct relation.
 
     The statement can be used to add extra filters when/where needed.
@@ -514,7 +514,7 @@ def select_depends_on_subscriptions(
     )
 
 
-def _terminated_filter(stmt: Select[tuple[SubscriptionTable]]) -> list[SubscriptionRelationSchema]:
+def _terminated_filter(stmt: Select[SubscriptionTable]) -> list[SubscriptionRelationSchema]:
     rows = db.session.execute(
         stmt.where(SubscriptionTable.status != "terminated").with_only_columns(
             SubscriptionTable.subscription_id, SubscriptionTable.description
@@ -523,7 +523,7 @@ def _terminated_filter(stmt: Select[tuple[SubscriptionTable]]) -> list[Subscript
     return [SubscriptionRelationSchema(subscription_id=row[0], subscription_description=row[1]) for row in rows]
 
 
-def _in_sync_filter(stmt: Select[tuple[SubscriptionTable]]) -> list[SubscriptionRelationSchema]:
+def _in_sync_filter(stmt: Select[SubscriptionTable]) -> list[SubscriptionRelationSchema]:
     rows = db.session.execute(
         stmt.where(not_(SubscriptionTable.insync)).with_only_columns(
             SubscriptionTable.subscription_id, SubscriptionTable.description

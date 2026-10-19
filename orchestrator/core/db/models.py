@@ -472,7 +472,7 @@ class WorkflowTable(BaseModel):
     is_task = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
     @staticmethod
-    def select() -> Select:
+    def select() -> Select[WorkflowTable]:
         return (
             select(WorkflowTable).options(undefer(WorkflowTable.deleted_at)).filter(WorkflowTable.deleted_at.is_(None))
         )
@@ -682,7 +682,7 @@ class SubscriptionTable(BaseModel):
         return SubscriptionTable.query.join(ProductTable).filter(ProductTable.tag == tag)
 
     @staticmethod
-    def select_by_product_tag(tag: str) -> Select[tuple["SubscriptionTable"]]:
+    def select_by_product_tag(tag: str) -> Select[SubscriptionTable]:
         return select(SubscriptionTable).join(ProductTable).where(ProductTable.tag == tag)
 
     def find_instance_by_block_name(self, name: str) -> list[SubscriptionInstanceTable]:
