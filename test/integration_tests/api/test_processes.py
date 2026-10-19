@@ -199,6 +199,7 @@ def test_long_running_pause(test_client, long_running_workflow, monkeypatch):
     # Let it run until completing the first lock step
     with test_condition:
         test_condition.notify_all()
+    # FIXME: flaky, the worker may not have finished within this sleep (#2039). Poll the status instead.
     time.sleep(1)
 
     # Check status after pausing.
