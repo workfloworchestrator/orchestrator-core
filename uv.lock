@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 4
 requires-python = ">=3.11, <3.15"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -2896,7 +2896,7 @@ docs = [
 requires-dist = [
     { name = "alembic", specifier = "==1.20.0" },
     { name = "anyio", specifier = ">=3.7.0" },
-    { name = "apscheduler", specifier = ">=3.11.0" },
+    { name = "apscheduler", specifier = ">=3.11.0,<4" },
     { name = "celery", marker = "extra == 'celery'", specifier = "~=5.6.0" },
     { name = "celery-types", specifier = ">=0.26.0" },
     { name = "click", specifier = "==8.*" },
