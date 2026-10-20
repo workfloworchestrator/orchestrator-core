@@ -5,12 +5,14 @@ reviewed: false
 ---
 
 # Parallelization in GÉANT
+<!-- diataxis: -->
 
 In GÉANT, there are a few tasks and workflows that make use of parallel execution of workflows. These are mostly used
 for mass-migration or -reconciliation. Parallelization takes place outside the orchestrator-core however, as we add
 items to the Celery queue directly. This only allows us to run multiple workflows in parallel, and not separate steps.
 
 ## Hierarchy
+<!-- diataxis: -->
 
 In this section, we will refer to mass-deploy workflows, but their behaviour is identical to how mass-migrate and
 -reconcile workflows behave. When running the **workflow** `redeploy_base_config`, the standard set of configuration

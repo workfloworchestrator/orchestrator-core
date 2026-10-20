@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Overview
+<!-- diataxis: -->
 
 Domain models are one of the core concepts to understand in the workflow orchestrator. To understand the high-level
 concepts of a domain model, start by reading the domain models page in the

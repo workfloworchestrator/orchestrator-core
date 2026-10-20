@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Context
+<!-- diataxis: -->
 
 The models described further on assume an Ethernet network that consists of nodes where each node has physical ports.
 Network services have endpoints that connect to ports. The attributes that are specific to an endpoint are modeled as a

@@ -30,6 +30,7 @@ Together with [ESnet](https://www.es.net) this project has been open-sourced in 
 to help facilitate collaboration. We invite all who are interested to take a look and to contribute!__
 
 ## Orchestration
+<!-- diataxis: -->
 
 When do you orchestrate and when do you automate? The answer is you probably need both. Automation helps you execute repetitive
 tasks reliably and easily. Orchestration adds a layer and allows you to add more intelligence to the tasks you need to automate and
@@ -45,6 +46,7 @@ to have a complete audit log of changes.
 >   *‘the developers were able to orchestrate a favorable media campaign’*
 
 ## Project Goal
+<!-- diataxis: -->
 
 This **Workflow Orchestrator** provides a framework through which you can manage service orchestration for your end-users. The
 framework helps and guides **you**, the person who needs to get things done, through the steps from
@@ -56,6 +58,7 @@ The Application extends a FastAPI application and therefore can make use of all 
 pydantic and async python.
 
 ## What does a workflow look like? It must be pretty complex!!
+<!-- diataxis: -->
 
 Programming a new workflow should be really easy, and at its core it is. By defining workflows as Python functions,
 all you need to do is understand how to write basic python code, the framework will help take care of the rest.
@@ -73,6 +76,7 @@ def workflow():
 ```
 
 ## I'm convinced! Show me more!
+<!-- diataxis: -->
 
 There are a number of options for getting started:
 

@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # L2 VPN
+<!-- diataxis: -->
 
 The Layer 2 VPN service is much like the Layer 2 point-to-point service, which
 makes it possible to reuse existing product blocks, with a few differences such

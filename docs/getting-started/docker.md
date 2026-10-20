@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Docker Compose (example orchestrator)
+<!-- diataxis: -->
 
 The [example-orchestrator](https://github.com/workfloworchestrator/example-orchestrator) repository
 contains a complete orchestrator with example products and workflows, and a `docker-compose.yml`
@@ -18,6 +19,7 @@ machine.
     [Kubernetes](kubernetes.md).
 
 ## What it runs
+<!-- diataxis: -->
 
 The `docker-compose.yml` starts:
 

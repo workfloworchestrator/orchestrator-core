@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Modeling
+<!-- diataxis: -->
 
 There are several ways in which network service products can be modeled and split up into logical parts (product
 blocks). This may for example depend on the requirements from the stakeholders, the environment such products are used

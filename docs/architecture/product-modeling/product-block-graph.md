@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Product Block Instance Graph
+<!-- diataxis: -->
 
 A subscription for a specific customer for a product that is deployed on the network is stored in the Workflow
 Orchestrator database. The notion of subscription ownership allows for fine-grained control over which customer is
@@ -23,6 +24,7 @@ university. The business rules that describe the (optional) authorization logic 
 different customers to each other are coded in the Workflow Orchestrator workflows related to these products.
 
 ## Customers
+<!-- diataxis: -->
 
 ```mermaid
 flowchart
@@ -36,6 +38,7 @@ flowchart
 ```
 
 ## Example Subscription Diagram
+<!-- diataxis: -->
 
 ```mermaid
 %%{init: {

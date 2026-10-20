@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # AI / Hybrid Search
+<!-- diataxis: -->
 
 AI / Hybrid Search finds subscriptions, products, processes and workflows by combining several
 kinds of matching (by meaning, by spelling, by structure and by exact value) over a single
@@ -21,6 +22,7 @@ It is the successor to the [classic search](search.md) implementations and is th
 `/api/search`, the GraphQL `search` field, and the orchestrator's agent tools.
 
 ## How it compares to classic search
+<!-- diataxis: -->
 
 |                | Classic search                                                          | AI / Hybrid Search                                                  |
 |----------------|-------------------------------------------------------------------------|---------------------------------------------------------------------|
@@ -35,8 +37,10 @@ Classic search is still in place and still documented in [Search](search.md). Ne
 should use AI / Hybrid Search.
 
 ## Key ideas
+<!-- diataxis: -->
 
 ### One row per field
+<!-- diataxis: -->
 
 A traditional search index stores one document per record. This subsystem stores one row per
 **field**, in a table called `ai_search_index`. A subscription with 40 fields contributes 40 rows. This includes, besides the fields of the domain model of a subscription, all "depends-on" products fields.
@@ -56,6 +60,7 @@ Two things follow from this layout:
   [`ai_search_paths`](#the-distinct-paths-table) table instead.
 
 ### Three ways to match
+<!-- diataxis: -->
 
 | Match type          | Answers                                    | Built on                                                        |
 |---------------------|--------------------------------------------|-----------------------------------------------------------------|
@@ -68,6 +73,7 @@ share many trigrams are similar, so `nod` still matches `node` and typos still f
 This is what makes fuzzy matching tolerant of spelling.
 
 ### What embeddings add
+<!-- diataxis: -->
 
 An **embedding** is a vector (list) of numbers that represents the meaning of a piece of text. Texts with
 similar meanings get numerically close vectors, so "closeness" becomes a distance calculation the
@@ -81,8 +87,10 @@ value in the same row.
 Embeddings are **optional**. See [Running without embeddings](#running-without-embeddings).
 
 ## How it works
+<!-- diataxis: -->
 
 ### Indexing (write path)
+<!-- diataxis: -->
 
 ```mermaid
 flowchart LR
@@ -119,6 +127,7 @@ Indexing is triggered from three places:
 - **The CLI**: see [Building and refreshing the index](#building-and-refreshing-the-index).
 
 ### Searching (read path)
+<!-- diataxis: -->
 
 ```mermaid
 flowchart TD
@@ -162,6 +171,7 @@ Results are entities, not fields, and are paginated with a keyset (cursor) rathe
 so pages stay stable while data changes underneath.
 
 ## What you can search, and where
+<!-- diataxis: -->
 
 Four entity types are indexed: **subscriptions**, **products**, **processes** and **workflows**.
 All three interfaces run the same engine.
@@ -228,8 +238,10 @@ put the id in the page cursor, which is also what keeps paging consistent while 
     `discover_filter_paths` → `get_valid_operators` → `search`/`aggregate` → `export_query`.
 
 ## Running it
+<!-- diataxis: -->
 
 ### Enabling embeddings
+<!-- diataxis: -->
 
 Search works out of the box without any embedding configuration. To enable semantic and hybrid
 retrieval, point the orchestrator at an embedding provider:
@@ -246,6 +258,7 @@ the required PostgreSQL extensions. All settings are listed under
 [Settings](#settings).
 
 ### Running without embeddings
+<!-- diataxis: -->
 
 `EMBEDDING_API_ENABLED` defaults to `False`. Indexing then stores every row with
 `embedding = NULL` and searches use fuzzy and structured retrieval only, so anything that would
@@ -254,6 +267,7 @@ way, except when a request names `semantic` or `hybrid` explicitly: those return
 than falling back. See [Searching](#searching-read-path).
 
 ### Building and refreshing the index
+<!-- diataxis: -->
 
 Workflows keep subscriptions and processes up to date on their own. Use the CLI for the initial
 build, and after bulk changes:
@@ -293,6 +307,7 @@ force a retriever, default is automatic routing). These are exploration aids; th
 `semantic`, `fuzzy` and `hybrid` commands force the retriever of the same name.
 
 ### Running a local embedding server
+<!-- diataxis: -->
 
 For a self-hosted endpoint, only OpenAI-compatible APIs are supported. To run
 [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) locally with
@@ -317,6 +332,7 @@ whose limits LiteLLM cannot look up. They are not needed with hosted OpenAI mode
 Changing `EMBEDDING_DIMENSION` also requires a resize (see below).
 
 ### Changing the embedding dimension
+<!-- diataxis: -->
 
 `EMBEDDING_DIMENSION` is baked into the vector column type, so it cannot be changed by
 configuration alone:
@@ -331,11 +347,13 @@ python main.py embedding resize
     altering the column. Re-index afterwards.
 
 ## Implementation reference
+<!-- diataxis: -->
 
 Everything below describes how the current implementation works. It is useful for debugging,
 performance work and maintenance, but it is not a stable interface.
 
 ### Data model
+<!-- diataxis: -->
 
 `ai_search_index` is an entity-attribute-value (EAV) table: each scalar field of each entity is
 one row.
@@ -370,6 +388,7 @@ Supporting tables:
   resumable agent. Core writes and reads them but contains no agent itself.
 
 ### Indexes
+<!-- diataxis: -->
 
 Each index serves one match type:
 
@@ -402,6 +421,7 @@ The migration that creates these also creates the `uuid-ossp`, `ltree`, `unaccen
 `vector` extensions, unless `vector` already exists and `LLM_FORCE_EXTENSION_MIGRATION` is off.
 
 ### Ranking formulas
+<!-- diataxis: -->
 
 **Fuzzy**: matches rows where `'<term>' <% value`, restricted to the string-like field types;
 an entity's score is the highest `word_similarity(term, value)` among its matched fields.
@@ -469,6 +489,7 @@ process hybrid runs its fuzzy side alone and normalises with one source, so a pe
 scores `1.0` instead of about `0.76`.
 
 ### Filters
+<!-- diataxis: -->
 
 Structured filtering is a typed tree:
 
@@ -492,6 +513,7 @@ the `value_kind` a filter declares. Read it from there rather than from this pag
 from the same definitions the query builder uses.
 
 ### Query types and persistence
+<!-- diataxis: -->
 
 A search is one of four typed query objects:
 
@@ -511,6 +533,7 @@ referenced paths exist, whether the filter matches the field's type, and groupin
 constraints.
 
 ### The distinct-paths table
+<!-- diataxis: -->
 
 A filter UI needs to know which fields are queryable for an entity type, so it can offer
 autocomplete and render the right control per field. That is what `GET /api/search/paths`
@@ -551,6 +574,7 @@ manual `TRUNCATE ai_search_index`, which (unlike `DELETE`) does not fire the tri
     not have it, and `GET /api/search/paths` fails until they migrate.
 
 ### Empty-result broadening for the agent tool
+<!-- diataxis: -->
 
 The agent `search` tool runs a broadening waterfall rather than returning nothing. It first runs
 the query as asked; if that returns no rows and free text is present, it retries with
@@ -568,6 +592,7 @@ once and reused by every rung. The response reports which retriever produced the
 whether broadening was used.
 
 ### Settings
+<!-- diataxis: -->
 
 All embedding settings live in `LLMSettings` (`orchestrator/core/settings.py`).
 
@@ -592,6 +617,7 @@ retries, because a slow search is worse than one without semantic ranking.
 The only related `AppSettings` flag is `MCP_ENABLED` (default `False`), which mounts `/mcp`.
 
 ### Where the code lives
+<!-- diataxis: -->
 
 | Area                                             | Location                                                              |
 |--------------------------------------------------|-----------------------------------------------------------------------|

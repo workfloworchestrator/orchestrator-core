@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Base application
+<!-- diataxis: -->
 
 By following these steps you can start a bare orchestrator application that can be used to run workflows. This
 app runs as a standalone API with workflows loaded that can be run in the background. Similar to a Framework like FastAPI,
@@ -19,6 +20,7 @@ Flask and Django, you install the core library, initialize it with configuration
     information about how this works read the [Reference documentation](../reference-docs/app/app.md).
 
 ### Step 1 - Install the package:
+<!-- diataxis: -->
 
 Create a virtualenv and install the core.
 
@@ -33,6 +35,7 @@ pip install orchestrator-core
 </div>
 
 ### Step 2 - Setup the database:
+<!-- diataxis: -->
 
 Create a postgres database:
 
@@ -57,6 +60,7 @@ docker exec -it temp-orch-db su - postgres -c 'createuser -sP nwa && createdb or
 ```
 
 ### Step 3 - Create the main.py and wsgi.py:
+<!-- diataxis: -->
 
 Create a `main.py` file.
 This provides the CLI entrypoint to your Orchestrator.
@@ -123,6 +127,7 @@ This will be used to run the Orchestrator API.
     ```
 
 ### Step 4 - Run the database migrations:
+<!-- diataxis: -->
 
 Initialize the migration environment and database tables.
 
@@ -138,6 +143,7 @@ python main.py db upgrade heads
 </div>
 
 ### Step 5 - Run the app
+<!-- diataxis: -->
 
 <div class="termy">
 
@@ -151,10 +157,12 @@ uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
 </div>
 
 ### Step 6 - Profit :boom: :grin:
+<!-- diataxis: -->
 
 Visit the [ReDoc](http://127.0.0.1:8080/api/redoc) or [OpenAPI](http://127.0.0.1:8080/api/docs) to view and interact with the API.
 
 ### Next:
+<!-- diataxis: -->
 
 - [Create a product.](../../../workshops/example-orchestrator/domain-models/)
 - [Create a workflow for a product.](./workflows.md)
