@@ -15,7 +15,7 @@ import pytest
 
 from orchestrator.core.db import SubscriptionTable, db
 from orchestrator.core.targets import Target
-from test.integration_tests.workflows import (
+from orchestrator.core.testing import (
     assert_complete,
     extract_state,
     run_workflow,

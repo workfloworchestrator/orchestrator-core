@@ -16,7 +16,7 @@ from sqlalchemy import text
 
 from orchestrator.core.db import db
 from orchestrator.core.services.subscriptions import get_subscription
-from test.integration_tests.workflows import assert_complete, extract_state, run_workflow
+from orchestrator.core.testing import assert_complete, extract_state, run_workflow
 
 TEST = "Some note"
 

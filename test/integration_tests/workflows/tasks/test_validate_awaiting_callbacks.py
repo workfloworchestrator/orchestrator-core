@@ -20,9 +20,9 @@ import pytest
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessStepTable, ProcessTable, WorkflowTable, db
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import assert_complete, extract_state, run_workflow
 from orchestrator.core.utils.datetime import nowtz
 from orchestrator.core.workflow import CALLBACK_TIMEOUT_KEY, ProcessStatus
-from test.integration_tests.workflows import assert_complete, extract_state, run_workflow
 
 
 @pytest.fixture

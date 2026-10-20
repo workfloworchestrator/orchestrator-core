@@ -21,10 +21,10 @@ from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.forms import FormPage
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.workflow import ProcessStatus, StepStatus, done, init, inputstep, workflow
 from test.integration_tests.config import GRAPHQL_ENDPOINT
-from test.integration_tests.workflows import WorkflowInstanceForTests
 
 
 def build_simple_query(process_id):

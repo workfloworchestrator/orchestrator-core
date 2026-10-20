@@ -24,10 +24,10 @@ from fastapi.websockets import WebSocketDisconnect
 
 from orchestrator.core.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.core.settings import app_settings
+from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.websocket import websocket_manager
 from orchestrator.core.workflow import ProcessStatus, StepStatus, done, init, step, workflow
 from pydantic_forms.types import UUIDstr
-from test.integration_tests.workflows import WorkflowInstanceForTests
 
 test_condition = Condition()
 

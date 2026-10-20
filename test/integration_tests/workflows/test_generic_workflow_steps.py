@@ -15,17 +15,17 @@ from sqlalchemy import select
 
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import InputStateTable
-from orchestrator.core.utils.functional import orig
-from orchestrator.core.workflow import begin, done, inputstep, step, workflow
-from orchestrator.core.workflows.steps import unsync
-from pydantic_forms.core import FormPage
-from test.integration_tests.workflows import (
+from orchestrator.core.testing import (
     WorkflowInstanceForTests,
     assert_complete,
     assert_suspended,
     resume_workflow,
     run_workflow,
 )
+from orchestrator.core.utils.functional import orig
+from orchestrator.core.workflow import begin, done, inputstep, step, workflow
+from orchestrator.core.workflows.steps import unsync
+from pydantic_forms.core import FormPage
 
 
 def test_resume_workflow():

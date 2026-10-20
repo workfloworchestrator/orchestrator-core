@@ -19,8 +19,8 @@ from pydantic import ValidationError
 
 import orchestrator.core.workflows.tasks.validate_products as validate_products
 from orchestrator.core.db import WorkflowTable
+from orchestrator.core.testing import assert_complete, run_workflow
 from orchestrator.core.utils.errors import ProcessFailureError
-from test.integration_tests.workflows import assert_complete, run_workflow
 
 
 @pytest.mark.workflow

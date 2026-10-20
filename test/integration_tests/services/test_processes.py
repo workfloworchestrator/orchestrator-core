@@ -46,6 +46,7 @@ from orchestrator.core.services.processes import (
 from orchestrator.core.services.settings import generate_engine_settings_schema, get_engine_settings_table
 from orchestrator.core.settings import app_settings
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import WorkflowInstanceForTests, run_workflow, store_workflow
 from orchestrator.core.utils.errors import ApiException, error_state_to_dict
 from orchestrator.core.workflow import (
     Abort,
@@ -70,7 +71,6 @@ from orchestrator.core.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core.translations import translations
 from pydantic_forms.exceptions import FormValidationError
 from test.integration_tests.fixtures.workflows import initial_input_form, step1, step2
-from test.integration_tests.workflows import WorkflowInstanceForTests, run_workflow, store_workflow
 
 
 def _workflow_test_fn():
