@@ -160,11 +160,11 @@ so pages stay stable while data changes underneath.
 Four entity types are indexed: **subscriptions**, **products**, **processes** and **workflows**.
 All three interfaces run the same engine.
 
-| Interface   | Where                       | What it offers                                                                             |
-|-------------|-----------------------------|--------------------------------------------------------------------------------------------|
-| **REST**    | `/api/search` (authenticated) | `POST /subscriptions`, `/products`, `/processes`, `/workflows` to search; `GET /paths` for field autocomplete; `GET /definitions` for the operators valid per UI type; `GET /queries/{id}`, `/results`, `/export` to re-run or export a saved query |
-| **GraphQL** | root fields                 | `search`, `searchPaths`, `searchDefinitions`, `searchQuery`, `searchQueryResults`, `searchQueryExport`, mirroring REST; plus a `search` argument on the list resources ([GraphQL](graphql.md#searching-list-resources)) |
-| **Agent tools** | `/api/agent`            | `search`, `aggregate`, `discover_filter_paths`, `get_valid_operators`, `resolve_entity`, `export_query`, exposed as read-only [MCP](mcp.md) tools when `MCP_ENABLED` is set |
+- **REST** under `/api/search` (authenticated): search, field autocomplete, operator definitions,
+  and re-running or exporting saved queries.
+- **GraphQL** root fields that mirror the REST endpoints, plus a `search` argument on the list
+  resources ([GraphQL](graphql.md#searching-list-resources)).
+- **Agent tools** under `/api/agent`, which can also be exposed as read-only [MCP](mcp.md) tools.
 
 ### REST
 

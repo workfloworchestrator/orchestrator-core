@@ -28,7 +28,7 @@ from orchestrator.core.db.models import ProductBlockTable
 from orchestrator.core.db.range.range import apply_range_to_statement
 from orchestrator.core.db.sorting import Sort
 from orchestrator.core.db.sorting.product_block import product_block_sort_fields, sort_product_blocks
-from orchestrator.core.graphql.pagination import SearchConnection
+from orchestrator.core.graphql.pagination import Connection
 from orchestrator.core.graphql.resolvers.helpers import make_async, rows_from_statement
 from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.product_block import ProductBlock
@@ -57,7 +57,7 @@ def query_product_blocks(
     first: int = 10,
     after: int = 0,
     query: str | None = None,
-) -> SearchConnection[ProductBlock]:
+) -> Connection[ProductBlock]:
     """List product blocks with the legacy filterBy/sortBy/query arguments and offset paging."""
     _error_handler = create_resolver_error_handler(info)
 
@@ -105,7 +105,7 @@ def _load_product_blocks(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[st
 
 async def search_product_blocks(
     info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
-) -> SearchConnection[ProductBlock]:
+) -> Connection[ProductBlock]:
     return await search_resource(info, EntityType.PRODUCT_BLOCK, search, _load_product_blocks, first=first, after=after)
 
 
@@ -117,7 +117,7 @@ async def resolve_product_blocks(
     after: After = 0,
     query: DeprecatedQuery = None,
     search: ResourceSearchInput | None = None,
-) -> SearchConnection[ProductBlock]:
+) -> Connection[ProductBlock]:
     if search is not None:
         return await search_product_blocks(info, search, first, after)
     return await query_product_blocks(info, filter_by, sort_by, first, after, query)

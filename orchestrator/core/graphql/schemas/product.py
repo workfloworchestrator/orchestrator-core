@@ -14,18 +14,20 @@
 from typing import TYPE_CHECKING, Annotated, Iterable
 
 import strawberry
+from sqlalchemy import select
 from strawberry import UNSET
 from strawberry.federation.schema_directives import Key
 from strawberry.federation.types import FieldSet
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.core.db import ProductBlockTable, ProductTable
+from orchestrator.core.db import ProductBlockTable, ProductTable, SubscriptionTable, db
 from orchestrator.core.domain.base import ProductModel
 from orchestrator.core.graphql.pagination import Connection
 from orchestrator.core.graphql.schemas.fixed_input import FixedInput
 from orchestrator.core.graphql.schemas.helpers import get_original_model
 from orchestrator.core.graphql.schemas.product_block import ProductBlock
 from orchestrator.core.graphql.schemas.workflow import Workflow
+from orchestrator.core.graphql.search_inputs import ResourceSearchInput
 from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.core.schemas.product import ProductSchema
 
@@ -53,8 +55,8 @@ class ProductType:
     as used in `resolvers/product.py`.
 
     `subscriptions` is not a `ProductTable` relation and cannot be eager loaded that way; it
-    delegates to `resolve_subscriptions` with a `productId` filter, and is paginated and
-    filterable in its own right.
+    delegates to `resolve_subscriptions` with a `productId` filter, or with `search` narrowed to
+    the product's subscriptions, and is paginated and filterable in its own right.
     """
 
     product_id: strawberry.auto
@@ -78,13 +80,24 @@ class ProductType:
         sort_by: list[GraphqlSort] | None = None,
         first: int = 10,
         after: int = 0,
+        search: ResourceSearchInput | None = None,
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
 
-        filter_by_with_related_subscriptions = (filter_by or []) + [
-            GraphqlFilter(field="productId", value=str(self.product_id))
-        ]
-        return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
+        # Todo: remove with later version.
+        old_filters = filter_by or []
+        if not search:
+            old_filters = (filter_by or []) + [GraphqlFilter(field="productId", value=str(self.product_id))]
+
+        stmt = select(SubscriptionTable.subscription_id).where(SubscriptionTable.product_id == self.product_id)
+        return await resolve_subscriptions(
+            info,
+            old_filters,
+            sort_by,
+            first,
+            after,
+            search=search.within(list(db.session.scalars(stmt))) if search else None,
+        )
 
     @strawberry.field(description="Returns list of all nested productblock names")  # type: ignore
     async def all_product_block_names(self) -> list[str]:

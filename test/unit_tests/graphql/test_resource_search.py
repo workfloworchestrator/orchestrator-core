@@ -70,6 +70,7 @@ def test_to_search_connection_page_info(next_page_cursor, has_previous_page):
     connection = to_search_connection(search_page, {"a": "node a"}, has_previous_page=has_previous_page)
 
     assert connection.next_page_cursor == next_page_cursor
+    assert connection.page == ["node a"]
     assert connection.page_info.has_next_page is (next_page_cursor is not None)
     assert connection.page_info.has_previous_page is has_previous_page
 

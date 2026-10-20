@@ -28,7 +28,7 @@ from orchestrator.core.db.models import ResourceTypeTable
 from orchestrator.core.db.range import apply_range_to_statement
 from orchestrator.core.db.sorting import Sort
 from orchestrator.core.db.sorting.resource_type import resource_type_sort_fields, sort_resource_types
-from orchestrator.core.graphql.pagination import SearchConnection
+from orchestrator.core.graphql.pagination import Connection
 from orchestrator.core.graphql.resolvers.helpers import make_async, rows_from_statement
 from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.resource_type import ResourceType
@@ -57,7 +57,7 @@ def query_resource_types(
     first: int = 10,
     after: int = 0,
     query: str | None = None,
-) -> SearchConnection[ResourceType]:
+) -> Connection[ResourceType]:
     """List resource types with the legacy filterBy/sortBy/query arguments and offset paging."""
     _error_handler = create_resolver_error_handler(info)
 
@@ -104,7 +104,7 @@ def _load_resource_types(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[st
 
 async def search_resource_types(
     info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
-) -> SearchConnection[ResourceType]:
+) -> Connection[ResourceType]:
     return await search_resource(info, EntityType.RESOURCE_TYPE, search, _load_resource_types, first=first, after=after)
 
 
@@ -116,7 +116,7 @@ async def resolve_resource_types(
     after: After = 0,
     query: DeprecatedQuery = None,
     search: ResourceSearchInput | None = None,
-) -> SearchConnection[ResourceType]:
+) -> Connection[ResourceType]:
     if search is not None:
         return await search_resource_types(info, search, first, after)
     return await query_resource_types(info, filter_by, sort_by, first, after, query)

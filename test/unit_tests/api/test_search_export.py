@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for POST /api/search/{entity}/export: export limit, query passthrough, response shape and errors."""
+"""Tests for POST /api/search/{entity}[/export]: cursor resumption, export limit, query passthrough, response shape and errors."""
 
 from http import HTTPStatus
 from typing import AsyncIterator
@@ -27,6 +27,7 @@ from orchestrator.core.db import get_async_session
 from orchestrator.core.exception_handlers import query_validation_handler
 from orchestrator.core.search.core.types import EntityType, SearchMetadata
 from orchestrator.core.search.query.exceptions import InvalidOrderByElementError, QueryValidationError
+from orchestrator.core.search.query.page import SearchPage
 from orchestrator.core.search.query.queries import BaseQuery, ExportQuery
 from orchestrator.core.search.query.results import SearchResponse, SearchResult
 from test.unit_tests.search.fixtures.helpers import SIMPLE_SUBSCRIPTION_FILTER
@@ -34,6 +35,7 @@ from test.unit_tests.search.fixtures.helpers import SIMPLE_SUBSCRIPTION_FILTER
 pytestmark = pytest.mark.search
 
 ENGINE_PATH = "orchestrator.core.api.api_v1.endpoints.search.engine.execute_search"
+PAGE_PATH = "orchestrator.core.api.api_v1.endpoints.search.execute_search_page"
 VALIDATE_PATH = "orchestrator.core.api.api_v1.endpoints.search.validate_structured_order_by_element"
 
 FILTERS = SIMPLE_SUBSCRIPTION_FILTER.model_dump(mode="json")
@@ -76,6 +78,22 @@ def mock_execute_search():
     ):
         mock_execute.return_value = _response(0)
         yield mock_execute
+
+
+@pytest.mark.parametrize(
+    "entity", ["subscriptions", "workflows", "products", "processes", "product_blocks", "resource_types"]
+)
+def test_cursor_ignores_request_query_fields(test_client, entity):
+    """A cursor resumes the saved query, so request fields that would not form a valid query must not reject it."""
+    empty_page = SearchPage(response=SearchResponse(results=[], metadata=SearchMetadata.empty()), next_page_cursor=None)
+    with (
+        patch(VALIDATE_PATH, new=AsyncMock()),
+        patch(PAGE_PATH, new=AsyncMock(return_value=empty_page)) as mock_page,
+    ):
+        response = test_client.post(f"/api/search/{entity}?cursor=abc", json={"retriever": "fuzzy"})
+
+    assert response.status_code == HTTPStatus.OK
+    assert mock_page.call_args.kwargs["query"] is None
 
 
 def test_every_export_entity_is_mapped():

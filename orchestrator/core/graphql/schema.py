@@ -37,7 +37,7 @@ from orchestrator.core.graphql.extensions.model_cache import ModelCacheExtension
 from orchestrator.core.graphql.extensions.stats import StatsExtension
 from orchestrator.core.graphql.mutations.customer_description import CustomerSubscriptionDescriptionMutation
 from orchestrator.core.graphql.mutations.start_process import ProcessMutation
-from orchestrator.core.graphql.pagination import Connection, SearchConnection
+from orchestrator.core.graphql.pagination import Connection
 from orchestrator.core.graphql.resolvers import (
     SettingsMutation,
     resolve_customer,
@@ -96,30 +96,30 @@ logger = structlog.get_logger(__name__)
 @strawberry.federation.type(description="Orchestrator queries")
 class OrchestratorQuery:
     process: ProcessType | None = authenticated_field(resolver=resolve_process, description="Returns a single process")
-    processes: SearchConnection[ProcessType] = authenticated_field(
+    processes: Connection[ProcessType] = authenticated_field(
         resolver=resolve_processes,
         description="Returns list of processes",
     )
-    products: SearchConnection[ProductType] = authenticated_field(
+    products: Connection[ProductType] = authenticated_field(
         resolver=resolve_products,
         description="Returns list of products",
     )
-    product_blocks: SearchConnection[ProductBlock] = authenticated_field(
+    product_blocks: Connection[ProductBlock] = authenticated_field(
         resolver=resolve_product_blocks,
         description="Returns list of product blocks",
     )
-    resource_types: SearchConnection[ResourceType] = authenticated_field(
+    resource_types: Connection[ResourceType] = authenticated_field(
         resolver=resolve_resource_types,
         description="Returns list of resource types",
     )
-    workflows: SearchConnection[Workflow] = authenticated_field(
+    workflows: Connection[Workflow] = authenticated_field(
         resolver=resolve_workflows,
         description="Returns list of workflows",
     )
     subscription: SubscriptionInterface | None = authenticated_field(
         resolver=resolve_subscription, description="Returns a single Subscription"
     )
-    subscriptions: SearchConnection[SubscriptionInterface] = authenticated_field(
+    subscriptions: Connection[SubscriptionInterface] = authenticated_field(
         resolver=resolve_subscriptions,
         description="Returns list of subscriptions",
     )

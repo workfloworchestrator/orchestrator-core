@@ -155,7 +155,7 @@ def test_search_returns_hits_of_resource(test_client_graphql, seeded_rows, resou
     connection = result["data"][resource.field]
     edge_ids = [edge["node"][resource.gql_id] for edge in connection["searchEdges"]]
     assert sorted(edge_ids) == sorted(str(entity_id) for entity_id in hits)
-    assert connection["page"] == []
+    assert [node[resource.gql_id] for node in connection["page"]] == edge_ids
     assert connection["searchMetadata"]["searchType"] == "structured"
     assert connection["pageInfo"] == {"hasNextPage": False, "hasPreviousPage": False, "totalItems": 3}
 
@@ -233,6 +233,7 @@ query SubscriptionsSearch($search: ResourceSearchInput, $filterBy: [GraphqlFilte
         pageInfo {
             hasNextPage
             hasPreviousPage
+            totalItems
         }
     }
 }
@@ -294,7 +295,7 @@ def test_search_cursor_pages_through_hits(test_client_graphql, indexed_subscript
     second_page = second_response["data"]["subscriptions"]
     seen = [edge["node"]["subscriptionId"] for edge in first_page["searchEdges"] + second_page["searchEdges"]]
     assert sorted(seen) == indexed_subscription_ids
-    assert second_page["pageInfo"] == {"hasNextPage": False, "hasPreviousPage": True}
+    assert second_page["pageInfo"] == {"hasNextPage": False, "hasPreviousPage": True, "totalItems": 3}
     assert second_page["nextPageCursor"] is None
 
 
@@ -328,7 +329,11 @@ def test_search_pages_by_offset(
     subscriptions = result["data"]["subscriptions"]
     edge_ids = [edge["node"]["subscriptionId"] for edge in subscriptions["searchEdges"]]
     assert edge_ids == indexed_subscription_ids[expected_slice]
-    assert subscriptions["pageInfo"] == {"hasNextPage": has_next_page, "hasPreviousPage": True}
+    assert subscriptions["pageInfo"] == {
+        "hasNextPage": has_next_page,
+        "hasPreviousPage": True,
+        "totalItems": len(indexed_subscription_ids),
+    }
 
 
 @pytest.mark.parametrize("count", [pytest.param(2, id="some"), pytest.param(0, id="none")])
@@ -420,7 +425,7 @@ query RelationSearch($id: UUID!, $search: ResourceSearchInput, $filterBy: [Graph
     }
 }
 
-fragment hits on SubscriptionInterfaceSearchConnection {
+fragment hits on SubscriptionInterfaceConnection {
     searchEdges {
         node {
             subscriptionId
@@ -578,4 +583,40 @@ def test_process_subscriptions_search_is_scoped_to_its_subscriptions(
 
     assert "errors" not in result
     edges = result["data"]["process"]["subscriptions"]["searchEdges"]
+    assert [edge["node"]["subscriptionId"] for edge in edges] == [generic_subscription_1]
+
+
+def test_product_subscriptions_search_is_scoped_to_its_subscriptions(
+    test_client_graphql, generic_subscription_1, generic_subscription_2
+):
+    """generic_subscription_2 is of another product; indexed, it must still stay out of this product's hits."""
+    product_id = db.session.get(SubscriptionTable, UUID(generic_subscription_1)).product_id
+    db.session.add_all(
+        [
+            _index_row(EntityType.SUBSCRIPTION, sub_id, "subscription.marker")
+            for sub_id in [generic_subscription_1, generic_subscription_2]
+        ]
+    )
+    db.session.commit()
+    query = """
+    query ProductSubscriptions($filterBy: [GraphqlFilter!], $search: ResourceSearchInput) {
+        products(filterBy: $filterBy) {
+            page {
+                subscriptions(search: $search) {
+                    searchEdges { node { subscriptionId } }
+                }
+            }
+        }
+    }
+    """
+
+    result = _post(
+        test_client_graphql,
+        query,
+        filterBy=[{"field": "productId", "value": str(product_id)}],
+        search={"filters": HIT_FILTER},
+    )
+
+    assert "errors" not in result
+    edges = result["data"]["products"]["page"][0]["subscriptions"]["searchEdges"]
     assert [edge["node"]["subscriptionId"] for edge in edges] == [generic_subscription_1]

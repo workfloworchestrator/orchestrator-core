@@ -27,7 +27,7 @@ from graphql import GraphQLError
 from strawberry.types.nodes import SelectedField
 
 from nwastdlib.graphql.extensions.error_handler_extension import EXTENSION_ERROR_TYPE, ErrorType
-from orchestrator.core.graphql.pagination import PageInfo, SearchConnection, SearchEdge
+from orchestrator.core.graphql.pagination import Connection, PageInfo, SearchEdge
 from orchestrator.core.graphql.schemas.search import MatchingFieldType, SearchMetadataType
 from orchestrator.core.graphql.search_inputs import ResourceSearchInput
 from orchestrator.core.graphql.types import OrchestratorInfo
@@ -127,7 +127,7 @@ def _search_edge(result: SearchResult, node: T) -> SearchEdge[T]:
 
 def to_search_connection(
     search_page: SearchPage, nodes_by_id: Mapping[str, T], *, has_previous_page: bool
-) -> SearchConnection[T]:
+) -> Connection[T]:
     """Pair each hit with its loaded entity, keeping the search ranking.
 
     Hits without an entity are skipped: the search index can lag behind deletions.
@@ -138,7 +138,7 @@ def to_search_connection(
         for result in response.results
         if result.entity_id in nodes_by_id
     ]
-    return SearchConnection(
+    return Connection(
         page_info=PageInfo(
             has_previous_page=has_previous_page,
             has_next_page=search_page.next_page_cursor is not None,
@@ -151,6 +151,7 @@ def to_search_connection(
         search_edges=edges,
         search_metadata=metadata_to_gql(response.metadata),
         next_page_cursor=search_page.next_page_cursor,
+        page=[edge.node for edge in edges],
     )
 
 
@@ -162,7 +163,7 @@ async def search_resource(
     *,
     first: int,
     after: int,
-) -> SearchConnection[T]:
+) -> Connection[T]:
     """Run the `search` argument of a list resource and load its hits with `load_nodes`.
 
     `load_nodes` gets `info` and the hit ids and returns their GraphQL nodes keyed by id as string; it is not called

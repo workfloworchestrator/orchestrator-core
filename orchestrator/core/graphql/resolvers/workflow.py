@@ -28,7 +28,7 @@ from orchestrator.core.db.models import WorkflowTable
 from orchestrator.core.db.range.range import apply_range_to_statement
 from orchestrator.core.db.sorting import Sort
 from orchestrator.core.db.sorting.workflow import sort_workflows, workflow_sort_fields
-from orchestrator.core.graphql.pagination import SearchConnection
+from orchestrator.core.graphql.pagination import Connection
 from orchestrator.core.graphql.resolvers.helpers import make_async, rows_from_statement
 from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.workflow import Workflow
@@ -57,7 +57,7 @@ def query_workflows(
     first: int = 10,
     after: int = 0,
     query: str | None = None,
-) -> SearchConnection[Workflow]:
+) -> Connection[Workflow]:
     """List workflows with the legacy filterBy/sortBy/query arguments and offset paging."""
     _error_handler = create_resolver_error_handler(info)
 
@@ -104,7 +104,7 @@ def _load_workflows(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, Wo
 
 async def search_workflows(
     info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
-) -> SearchConnection[Workflow]:
+) -> Connection[Workflow]:
     return await search_resource(info, EntityType.WORKFLOW, search, _load_workflows, first=first, after=after)
 
 
@@ -116,7 +116,7 @@ async def resolve_workflows(
     after: After = 0,
     query: DeprecatedQuery = None,
     search: ResourceSearchInput | None = None,
-) -> SearchConnection[Workflow]:
+) -> Connection[Workflow]:
     if search is not None:
         return await search_workflows(info, search, first, after)
     return await query_workflows(info, filter_by, sort_by, first, after, query)
