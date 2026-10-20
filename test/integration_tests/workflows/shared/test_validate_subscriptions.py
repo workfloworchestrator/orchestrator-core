@@ -68,4 +68,4 @@ def test_failed_validation(generic_subscription_1: str) -> None:
                 "failing_validation_workflow", {"subscription_id": generic_subscription_1}
             )
             assert_failed(result)
-            assert "Failed" in extract_error(result)
+            assert "Failed" in (extract_error(result) or "")

@@ -87,6 +87,13 @@ celery = [
 mcp = [
     "fastmcp>=2.0.0",
 ]
+# Test helpers in orchestrator.core.testing for downstream test suites
+testing = [
+    "pytest>=8.0",
+    "requests>=2.32",
+    "testcontainers[postgres,redis]>=4.7.2",
+    "urllib3-mock>=0.3.3",
+]
 
 # Local dependencies for development
 [dependency-groups]
@@ -200,6 +207,7 @@ ban-relative-imports = "all"
 "orchestrator/core/api/*" = ["B008"]
 "orchestrator/core/cli/*" = ["B008"]
 "orchestrator/core/devtools/scripts/*" = ["S101", "T201"]
+"orchestrator/core/testing/*" = ["S101"]
 "test/acceptance_tests/search/llm/scripts/*" = ["ASYNC"]
 "orchestrator/core/search/llm_migration.py" = ["S608"]
 "test/*" = ["S101", "B033", "N816", "N802", "T201"]

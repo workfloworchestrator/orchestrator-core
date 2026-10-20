@@ -60,7 +60,7 @@ uv run pytest test/acceptance_tests/search/llm
 
 ### Provisioning Postgres + Redis
 
-`test/integration_tests/fixtures/services.py` resolves how the services are
+`orchestrator.core.testing.services` resolves how the services are
 made available, in this order:
 
 1. **`DATABASE_URI` and `CACHE_URI` set in the environment** — used as-is.
@@ -70,7 +70,7 @@ made available, in this order:
    test session starts ephemeral Postgres + Redis containers via
    [testcontainers-python](https://testcontainers-python.readthedocs.io/) and
    removes them when the session ends. Requires Docker to be reachable and
-   the `dev` dependency group installed.
+   the `testing` extra installed.
 3. **Otherwise, abort** with an actionable message.
 
 Partial env configuration (only one of the two URIs set) is rejected so the
@@ -78,19 +78,79 @@ test setup never silently mixes a real service with an ephemeral one. The
 bundled `docker/pytest-support/docker-compose.yaml` continues to work
 unchanged for contributors who prefer that flow.
 
-## Test helpers
+## Using the test helpers in your orchestrator
 
-Workflow tests use a set of helpers from `test.integration_tests.workflows`:
+Since 5.6 the workflow helpers and the database, app and test client fixtures ship with orchestrator-core in
+`orchestrator.core.testing`. Install them with the `testing` extra, which adds pytest, testcontainers and urllib3-mock:
+
+```shell
+uv add --dev "orchestrator-core[testing]"
+```
+
+Load the fixtures from the root `conftest.py` of your test suite:
 
 ```python
-from test.integration_tests.workflows import (
+# conftest.py
+import os
+
+os.environ.setdefault("TESTING", "true")
+
+pytest_plugins = ["orchestrator.core.testing.fixtures"]
+```
+
+The plugin is not loaded automatically when the extra is installed. Its `database` fixture drops and recreates the test
+database, and `db_session`, `fastapi_app` and `responses` are `autouse`, so a suite has to opt in.
+
+The plugin provides these fixtures:
+
+| Fixture | Scope | Description |
+|---------|-------|-------------|
+| `integration_services` | session | Resolves Postgres and Redis, see [Provisioning Postgres + Redis](#provisioning-postgres-redis). |
+| `db_uri` | session | The test database URI, with a suffix per pytest-xdist worker. |
+| `alembic_config` | session | The alembic configuration used to migrate the test database. |
+| `database` | session | Creates the test database, runs the migrations and drops it afterwards. |
+| `db_session` | function, autouse | Runs each test in a transaction that is rolled back afterwards. |
+| `responses` | function, autouse | Mocks outgoing `requests` calls. Mark a test with `noresponses` to disable it. |
+| `fastapi_app` | session, autouse | The `OrchestratorCore` app, with OAuth2 disabled. |
+| `test_client` | session | A `JsonTestClient` for REST calls. |
+| `fastapi_app_graphql`, `test_client_graphql` | function | The app and a client with the GraphQL schema rebuilt for the current product models. |
+
+The `alembic_config` fixture uses `alembic.ini` in the directory pytest runs from when it exists, so your own
+migrations run together with the orchestrator-core migrations. Override the fixture in your `conftest.py` to use a
+different configuration. Override `fastapi_app` to register your own routers or settings:
+
+```python
+import pytest
+
+from orchestrator.core.testing.fixtures import make_orchestrator_app
+
+
+@pytest.fixture(scope="session", autouse=True)
+def fastapi_app(database, db_uri):
+    with make_orchestrator_app() as app:
+        app.include_router(my_router)
+        yield app
+```
+
+Your product and subscription fixtures stay in your own test suite.
+
+!!! note "Upgrading from a copy of the helpers"
+    Before 5.6 the helpers had to be copied into each orchestrator, usually as `test/unit_tests/workflows/__init__.py`
+    and `test/unit_tests/conftest.py`. Replace imports from that copy with `orchestrator.core.testing` and delete it.
+    `orchestrator generate unit-tests` now generates tests that import from `orchestrator.core.testing`.
+
+## Test helpers
+
+The workflow helpers are importable from `orchestrator.core.testing`:
+
+```python
+from orchestrator.core.testing import (
     WorkflowInstanceForTests,
     assert_aborted,
     assert_assignee,
     assert_awaiting_callback,
     assert_complete,
     assert_failed,
-    assert_product_blocks_equal,
     assert_state,
     assert_state_equal,
     assert_step_name,
@@ -123,8 +183,6 @@ The `assert_*` helpers for terminal state each raise with a descriptive message 
 
 `assert_assignee(log, expected)` and `assert_step_name(log, expected)` inspect the last entry of the step log — useful for verifying which step a workflow stopped on and who it was assigned to.
 
-`assert_product_blocks_equal(expected, actual)` compares lists of product block instance dicts, sorting by block type before comparison.
-
 `extract_state(result)` unwraps the state dict from a result; `extract_error(result)` pulls the error string from a failed result.
 
 ## Writing a workflow test
@@ -133,13 +191,35 @@ The `assert_*` helpers for terminal state each raise with a descriptive message 
 
 Mark workflow tests with `@pytest.mark.workflow`. The `responses` HTTP mock fixture is active automatically (see [HTTP mocking](#http-mocking)); include it in the test signature only when you need to register mocks with `responses.add()`:
 
-=== "`orchestrator-core` ≥ 5.0"
+=== "`orchestrator-core` ≥ 5.6"
+
+    ```python
+    import pytest
+    from orchestrator.core.db import ProductTable
+    from orchestrator.core.testing import assert_complete, extract_state, run_workflow
+    from sqlalchemy import select
+
+    @pytest.mark.workflow
+    def test_create_my_product(responses, db_session):
+        product = db_session.scalars(select(ProductTable).where(ProductTable.name == "MyProduct")).one()
+
+        result, process, step_log = run_workflow(
+            "create_my_product",
+            [{"product": product.product_id}, {"customer_id": CUSTOMER_ID, "field": "value"}],
+        )
+
+        assert_complete(result)
+        state = extract_state(result)
+        assert state["field"] == "value"
+    ```
+
+=== "`orchestrator-core` 5.0 – 5.5"
 
     ```python
     import pytest
     from orchestrator.core.db import ProductTable
     from sqlalchemy import select
-    from test.integration_tests.workflows import assert_complete, extract_state, run_workflow
+    from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
     @pytest.mark.workflow
     def test_create_my_product(responses, db_session):
@@ -208,12 +288,33 @@ Repeat the `assert_suspended` / `resume_workflow` cycle for each suspension poin
 
 To test a workflow defined inline (not registered in `ALL_WORKFLOWS`), use `WorkflowInstanceForTests` as a context manager:
 
-=== "`orchestrator-core` ≥ 5.0"
+=== "`orchestrator-core` ≥ 5.6"
+
+    ```python
+    from orchestrator.core.targets import Target
+    from orchestrator.core.testing import WorkflowInstanceForTests, assert_complete, assert_suspended, resume_workflow, run_workflow
+    from orchestrator.core.workflow import begin, done, inputstep, step, workflow
+
+    def test_my_inline_workflow():
+        @step("Do work")
+        def do_work():
+            return {"result": 42}
+
+        @workflow(target=Target.CREATE)
+        def my_wf():
+            return begin >> do_work >> done
+
+        with WorkflowInstanceForTests(my_wf, "my_wf"):
+            result, process, step_log = run_workflow("my_wf", {})
+            assert_complete(result)
+    ```
+
+=== "`orchestrator-core` 5.0 – 5.5"
 
     ```python
     from orchestrator.core.targets import Target
     from orchestrator.core.workflow import begin, done, inputstep, step, workflow
-    from test.integration_tests.workflows import WorkflowInstanceForTests, assert_complete, assert_suspended, resume_workflow, run_workflow
+    from test.unit_tests.workflows import WorkflowInstanceForTests, assert_complete, assert_suspended, resume_workflow, run_workflow
 
     def test_my_inline_workflow():
         @step("Do work")
@@ -335,7 +436,7 @@ def test_my_product_save_and_load(my_product_subscription_id):
 Use `run_form_generator` to test multi-page form logic in isolation, without running a full workflow:
 
 ```python
-from test.integration_tests.workflows import run_form_generator
+from orchestrator.core.testing import run_form_generator
 
 def test_my_form_generator():
     forms, result = run_form_generator(

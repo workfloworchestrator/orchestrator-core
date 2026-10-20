@@ -19,7 +19,7 @@ so sibling trees (e.g. ``test/acceptance_tests/celery``) can load them via
 the same module is path-discovered AND named as a plugin.
 """
 
-pytest_plugins = ["test.integration_tests._fixtures"]
+pytest_plugins = ["orchestrator.core.testing.fixtures", "test.integration_tests._fixtures"]
 
 # Re-export non-fixture symbols (constants, classes, plain helpers) that
 # individual test files import by name. Fixtures and hooks are NOT
@@ -30,10 +30,10 @@ import pytest  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from orchestrator.core.db import get_async_session  # noqa: E402
+from orchestrator.core.testing.fixtures import JsonTestClient  # noqa: E402
 from test.integration_tests._async_session import session_joined_async  # noqa: E402
 from test.integration_tests._fixtures import (  # noqa: E402
     CUSTOMER_ID,
-    JsonTestClient,
     TestOrchestratorCelery,
     do_refresh_subscriptions_search_view,
 )

@@ -2827,6 +2827,12 @@ celery = [
 mcp = [
     { name = "fastmcp" },
 ]
+testing = [
+    { name = "pytest" },
+    { name = "requests" },
+    { name = "testcontainers", extra = ["redis"] },
+    { name = "urllib3-mock" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -2913,10 +2919,12 @@ requires-dist = [
     { name = "pydantic", extras = ["email"], specifier = "~=2.13.0" },
     { name = "pydantic-forms", specifier = ">=2.4.0" },
     { name = "pydantic-settings", specifier = "~=2.15.0" },
+    { name = "pytest", marker = "extra == 'testing'", specifier = ">=8.0" },
     { name = "python-dateutil", specifier = "==2.9.0.post0" },
     { name = "python-rapidjson", specifier = ">=1.25,<1.26" },
     { name = "pytz", specifier = ">=2025" },
     { name = "redis", specifier = "==8.1.0" },
+    { name = "requests", marker = "extra == 'testing'", specifier = ">=2.32" },
     { name = "semver", specifier = "==3.1.0" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.29.1" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = "==2.1.4" },
@@ -2924,10 +2932,12 @@ requires-dist = [
     { name = "strawberry-graphql", specifier = ">=0.311.3" },
     { name = "structlog", specifier = ">=25.4.0" },
     { name = "tabulate", specifier = "==0.10.0" },
+    { name = "testcontainers", extras = ["postgres", "redis"], marker = "extra == 'testing'", specifier = ">=4.7.2" },
     { name = "typer", specifier = "==0.27.3" },
+    { name = "urllib3-mock", marker = "extra == 'testing'", specifier = ">=0.3.3" },
     { name = "uvicorn", extras = ["standard"], specifier = "~=0.53.0" },
 ]
-provides-extras = ["celery", "mcp"]
+provides-extras = ["celery", "mcp", "testing"]
 
 [package.metadata.requires-dev]
 dev = [
