@@ -1,4 +1,4 @@
-# Copyright 2019-2026 SURF, GÉANT.
+# Copyright 2019-2026 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -25,6 +25,7 @@ from typing_extensions import TypedDict
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.db import db
 from orchestrator.core.db.models import WorkflowTable
+from orchestrator.core.forms.apscheduler_dow_fix import maybe_translate_dow
 from orchestrator.core.forms.validators import Choice
 from orchestrator.core.forms.validators.timestamp import to_timestamp_field
 from orchestrator.core.utils.auth import AuthContext
@@ -107,9 +108,16 @@ def _cron_fields(cron: str) -> dict[str, str]:
 
 
 def _cron_field_error(name: str, value: str) -> str | None:
-    """Return a field-scoped error message if ``value`` is invalid for cron field ``name``, else None."""
+    """Return a field-scoped error message if ``value`` is invalid for cron field ``name``, else None.
+
+    ``value`` is the raw user-typed value; for day_of_week it is translated before passing to
+    CronTrigger so that crontab integers (0-7 Sunday alias) are accepted. See
+    [Issue #1930](https://github.com/workfloworchestrator/orchestrator-core/issues/1930)
+    Error messages always show the original user-typed value returned error values are unambiguous.
+    """
     try:
-        CronTrigger(**{name: value})
+        translated = maybe_translate_dow(value) if name == "day_of_week" else value
+        CronTrigger(**{name: translated})
         return None
     except ValueError as exc:
         return f"{name} {value!r}: {exc}"
@@ -128,7 +136,9 @@ def validate_cron(cron: str) -> str:
 
 
 def get_cron_kwargs(form_data: dict) -> dict:
-    return {"start_date": form_data["start_date"]} | _cron_fields(form_data["cron"])
+    fields = _cron_fields(form_data["cron"])
+    fields["day_of_week"] = maybe_translate_dow(fields["day_of_week"])
+    return {"start_date": form_data["start_date"]} | fields
 
 
 async def _check_authorize(workflow: Workflow, user_model: OIDCUserModel | None) -> bool:
