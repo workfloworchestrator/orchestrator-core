@@ -13,6 +13,8 @@
 
 from datetime import timedelta
 
+import pytest
+
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.services import processes
 from orchestrator.core.targets import Target
@@ -389,8 +391,10 @@ def test_callback_step_importance_in_pending_and_awaiting_details(test_client):
         assert for_real_rows(process_id) == [("awaiting_callback", "high"), ("pending", "high")]
 
 
-def _start_timeout_wf(test_client, timeout):
-    call_ext = callback_step(name="Call ext", action_step=action, validate_step=step1, timeout=timeout)
+def _start_timeout_wf(test_client, timeout, importance=StepImportance.DEFAULT):
+    call_ext = callback_step(
+        name="Call ext", action_step=action, validate_step=step1, timeout=timeout, importance=importance
+    )
 
     @workflow(target=Target.CREATE)
     def timeout_wf():
@@ -472,3 +476,19 @@ def test_fail_awaiting_process_is_noop_when_not_awaiting(test_client):
 
         assert result.iscomplete()
         assert db.session.get(ProcessTable, process_id).last_status == ProcessStatus.COMPLETED
+
+
+@pytest.mark.parametrize("importance", [StepImportance.LOW, StepImportance.HIGH])
+def test_timed_out_callback_preserves_importance(test_client, importance):
+    instance, process_id = _start_timeout_wf(test_client, timeout=300, importance=importance)
+    try:
+        assert db.session.get(ProcessTable, process_id).steps[-1].importance == importance
+        _backdate_await_step(process_id, seconds=600)
+
+        processes.fail_awaiting_process(db.session.get(ProcessTable, process_id))
+
+        failed_step = db.session.get(ProcessTable, process_id).steps[-1]
+        assert failed_step.status == "failed"
+        assert failed_step.importance == importance
+    finally:
+        instance.__exit__(None, None, None)
