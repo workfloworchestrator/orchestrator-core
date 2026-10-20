@@ -49,7 +49,7 @@ temporary state.
 
 ### Setting the importance
 
-Pass it as a keyword to `@step`, `@retrystep`, `@inputstep` or `callback_step`:
+Pass it as a keyword to `@step`, `@retrystep`, `@inputstep`, `callback_step` or `step_group`:
 
 ```python
 from orchestrator.core.workflow import StepImportance, step
@@ -60,8 +60,9 @@ def deploy_to_network(subscription: SubscriptionModel) -> State:
     ...
 ```
 
-For `callback_step` the importance is applied to the `Await callback` sub step, since that is the one an operator
-waits on. Steps wrapped by `conditional` or `steplens` keep the importance of the step they wrap.
+For `callback_step`, importance applies to the whole group's single process step row, including while awaiting a
+callback. `step_group` also accepts `importance`; its value, not its children's values, is stored on the shared row.
+Steps wrapped by `conditional` or `steplens` keep the importance of the step they wrap.
 
 Pending steps (steps not yet executed) report the importance from the step definition; executed steps report the
 value that was stored when the step ran.
