@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # L2 Point-to-Point
+<!-- diataxis: -->
 
 The Layer 2 point-to-point service is modeled using two product blocks. The `L2p2pVirtualCircuitBlock` root product block holds the
 pointers to IMS and the NRM, the speed of the circuit, and whether the speed policer is enabled or not, as well as

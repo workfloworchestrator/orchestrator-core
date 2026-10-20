@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Workflow User Guides
+<!-- diataxis: -->
 
 Orchestrator can serve a Markdown guide alongside a workflow, for operators who need
 instructions on how to run it or what to expect. This mirrors the way
@@ -13,6 +14,7 @@ are served: a directory of files is pointed to by an application setting, and a 
 endpoint reads the file matching the requested name.
 
 ## Configuring the guide directory
+<!-- diataxis: -->
 
 Set `WORKFLOW_USER_GUIDE_DIR` in your application settings to the directory that holds
 your guide files:
@@ -33,6 +35,7 @@ do not protect against an untrusted local writer replacing files between validat
 and opening them. Only put content intended for guide readers in this directory.
 
 ## Guide file layout
+<!-- diataxis: -->
 
 Each guide is a single Markdown file, named after the workflow it documents:
 
@@ -48,6 +51,7 @@ as UTF-8 text and returns its contents, or `None` if the directory isn't configu
 the file doesn't exist. Workflows without a corresponding file simply have no guide.
 
 ## REST endpoint
+<!-- diataxis: -->
 
 The guide is served at:
 

@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Port
+<!-- diataxis: -->
 
 Once a NOC engineer has physically installed a port in a node and added
 some basic administration to IMS, the port is marked as available and can be

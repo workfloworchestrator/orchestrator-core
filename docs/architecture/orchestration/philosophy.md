@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Philosophy
+<!-- diataxis: -->
 The Workflow Orchestrator is a framework of tools that help the developer create workflow to modify the lifecycle of
 subscribed products. It is un-opinionated in what it can orchestrate, but very opinionated in how. The Orchestrator is
 designed to run linear workflows that represent the business process of delivering a product. In comparison to other
@@ -13,6 +14,7 @@ the options of the developer limited. In most cases the Workflow Orchestrator fr
 handle the intelligence needed in the business process.
 
 ## Lightweight
+<!-- diataxis: -->
 The core functionality of the framework is relatively simple:
 
 * There is a simple step engine that executes python functions.

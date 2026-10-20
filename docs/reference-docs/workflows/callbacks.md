@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Callbacks
+<!-- diataxis: -->
 
 In most workflow steps, when an operation is initiated, it completes and
 returns a result within a few seconds. However, if you have (for example)
@@ -15,6 +16,7 @@ result in missing the response without the ability to recover.
 To handle this scenario, Workflow Orchestrator supports callbacks.
 
 ## Using callbacks
+<!-- diataxis: -->
 
 When you wish to use a callback, Orchestrator supplies a callback URL that
 should be passed to the remote service. When the operation is triggered,
@@ -31,6 +33,7 @@ of the workflow is paused, and the operator is prompted for confirmation
 before it continues.
 
 ## Writing a callback
+<!-- diataxis: -->
 
 The only immediate difference between a regular step and one that uses
 a callback is the addition of the `callback_route` parameter. This will
@@ -322,6 +325,7 @@ directly, provide the step as a parameter to the interaction function:
     ```
 
 ## Callback progress during execution
+<!-- diataxis: -->
 
 For long-running jobs, such as executing Terraform or Ansible playbooks, the Orchestrator allows callback jobs to send real-time progress updates which can be used to provide operators with feedback on the progress of the running task.
 
@@ -330,6 +334,7 @@ Progress updates should be delivered to `{callback_route}/progress`, where `"/pr
 The remote service should send a JSON or plain string payload with each progress callback, this replaces the previous progress update and refreshes the UI. Once the final callback is triggered and the job completes, progress updates are removed, leaving only the callback result. Therefore, all troubleshooting or diagnostic information must be included in the final callback payload, as progress updates are not retained for debugging.
 
 ## Callbacks that arrive too early
+<!-- diataxis: -->
 
 The callback URL accepts a result only while the process is in `AWAITING_CALLBACK`. A process
 enters that state after the action step has returned and been saved, not when the action step
@@ -350,6 +355,7 @@ the process is no longer waiting at all, for example after it was aborted. Retry
 because a callback URL accepts only one result.
 
 ## Timeouts
+<!-- diataxis: -->
 
 By default a callback step waits **indefinitely** for the remote service to call back. If that
 service never responds (for example after a network failure), the process stays in
@@ -373,6 +379,7 @@ callback_step(
 callbacks are unaffected.
 
 ### What happens when the timeout is exceeded
+<!-- diataxis: -->
 
 When the deadline passes, the process is moved to `FAILED` with `failed_reason = "Callback timed
 out"`. This unblocks the standard recovery actions, so you no longer have to edit the database:
@@ -389,6 +396,7 @@ The deadline is measured from the moment the await started. Progress updates sen
 `{callback_route}/progress` do **not** extend it.
 
 ### Enforcement resolution
+<!-- diataxis: -->
 
 Timeouts are enforced by the `task_validate_awaiting_callbacks` scheduled task, which sweeps every
 **30 seconds** by default. So `timeout` is a *minimum*: a process is failed on the first sweep at or

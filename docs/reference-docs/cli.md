@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Command Line Interface Commands
+<!-- diataxis: -->
 
 This page documents CLI commands available in orchestrator-core.
 
@@ -43,6 +44,7 @@ Show completion for the specified shell, to copy it or customize the
 installation. [default: None]
 
 ## db
+<!-- diataxis: -->
 
 Interact with the application database. By default, does nothing, specify `main.py db --help` for more information.
 
@@ -70,6 +72,7 @@ Interact with the application database. By default, does nothing, specify `main.
       heading_level: 3
 
 ### `migrate-domain-models`
+<!-- diataxis: -->
 
 The `migrate-domain-models` CLI command is used to
 automatically generate the data migrations that you'll need when you add or
@@ -111,10 +114,12 @@ Arguments
     - renaming a resource type to existing resource type: `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
 
 #### Example
+<!-- diataxis: -->
 
 You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will use these models (taken out of [example-orchestrator](https://github.com/workfloworchestrator/example-orchestrator-beginner)):
 
 ##### UserGroup Block
+<!-- diataxis: -->
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -177,6 +182,7 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
     ```
 
 ##### UserGroup Product
+<!-- diataxis: -->
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -237,6 +243,7 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
     ```
 
 ##### User Block
+<!-- diataxis: -->
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -319,6 +326,7 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
     ```
 
 ##### User Product
+<!-- diataxis: -->
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -387,6 +395,7 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
     ```
 
 ##### `SUBSCRIPTION_MODEL_REGISTRY`
+<!-- diataxis: -->
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -425,6 +434,7 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
     ```
 
 #### Running the command
+<!-- diataxis: -->
 
 - only with a message
     ```shell
@@ -583,6 +593,7 @@ Migration generated. Don't forget to create a database backup before migrating!
 If you are running with `--test`, the SQL file will not be generated.
 
 ## generate
+<!-- diataxis: -->
 
 Generate products, workflows and other artifacts.
 
@@ -612,11 +623,13 @@ generated product blocks, the order in which `generate product-blocks` is run is
 the code for the blocks used in other blocks should be generated first.
 
 ### config file
+<!-- diataxis: -->
 
 See the [Generate Config File guide](../guides/generate-config-file.md) for full documentation on the YAML product
 configuration format used by the `generate` commands.
 
 ### migration
+<!-- diataxis: -->
 
 The `python main.py generate migration` command creates a migration from a
 configuration file.
@@ -629,6 +642,7 @@ Options
 --skip-existing-blocks - If set, the migration will not contain product blocks for which a python implementation exists [default: False]
 
 ### product
+<!-- diataxis: -->
 
 The `python main.py generate product` command creates a product domain model
 from a configuration file.
@@ -643,6 +657,7 @@ Options
 --folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
 
 ### product-blocks
+<!-- diataxis: -->
 
 The `python main.py generate product-blocks` command creates product block
 domain models from a configuration file.
@@ -657,6 +672,7 @@ Options
 --folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
 
 ### unit-tests
+<!-- diataxis: -->
 
 The `python main.py generate unit-tests` command creates unit tests from a
 configuration file.
@@ -671,6 +687,7 @@ Options
 --tdd - Force test driven development with failing asserts [default: True]
 
 ### workflows
+<!-- diataxis: -->
 
 The `python main.py generate workflows` command creates create, modify,
 terminate and validate workflows from a configuration file. The
@@ -841,6 +858,7 @@ python main.py index rebuild-paths
       heading_level: 3
 
 ## scheduler
+<!-- diataxis: -->
 
 Commands to interact with the scheduler and scheduled jobs.
 

@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # IP static
+<!-- diataxis: -->
 
 The modeling of the IP static service is slightly more difficult. Luckily, we
 are again able to reuse existing product blocks and add or change attributes to
@@ -47,6 +48,7 @@ classDiagram
 ```
 
 ## class IPStaticProduct
+<!-- diataxis: -->
 
 **Fixed Inputs:**
 

@@ -5,9 +5,13 @@ reviewed: false
 ---
 
 # Prerequisites
+<!-- diataxis: -->
+
 The orchestrator backend has the following requirements
 
 ### Backend
+<!-- diataxis: -->
+
 For the backend you need the following packages:
 
 * Python >= 3.11
@@ -15,6 +19,8 @@ For the backend you need the following packages:
   (e.g. the `pgvector/pgvector` images)
 
 ### Optional dependencies
+<!-- diataxis: -->
+
 * Redis or Valkey: required for the scheduler, Celery workers and more than one API replica
 * Docker
 

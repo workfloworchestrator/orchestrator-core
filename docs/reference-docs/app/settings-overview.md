@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Settings overview in Orchestrator
+<!-- diataxis: -->
 
 You can use the `api/settings/overview` endpoint to get an overview of the settings that are used in the application.
 This endpoint provides a JSON response that contains the settings that are defined in the application. The settings are
@@ -96,6 +97,7 @@ the `api/settings/overview` endpoint, the result looks like this:
 The `app_settings` in the example above is a name of the settings class that is registered to be exposed.
 
 ## Exposing your settings
+<!-- diataxis: -->
 
 In order to expose your settings, you need to register them using the `expose_settings()` function. This function takes
 two arguments: the name of the settings class and the instance of the settings class.
@@ -140,6 +142,7 @@ expose_settings("my_public_settings", my_settings, include={"debug"})
 The UI uses it to decide whether to show semantic/hybrid search options.
 
 ## Lifecycle Validation Mode
+<!-- diataxis: -->
 
 The Lifecycle Validation Mode is used to validate in workflow steps that a **subscription model has been instantiated with the correct product type class for its lifecycle status**. E.g. a subscription model with a lifecycle status of `PROVISIONING` should be instantiated with a product type class that has a lifecycle status of `PROVISIONING`.
 
@@ -173,16 +176,19 @@ The Lifecycle Validation Mode can be set using the `LIFECYCLE_VALIDATION_MODE` e
 - `ignored`: The application will ignore all lifecycle validation issues and run normally.
 
 ## Masking Secrets
+<!-- diataxis: -->
 
 The following rules apply when exposing settings:
 
 ### Rules for Masking Secrets
+<!-- diataxis: -->
 
 - `SecretStr` from `from pydantic import SecretStr` are masked.
 - `SecretPostgresDsn` from `from orchestrator.core.settings import SecretPostgresDsn` is masked.
 - `SecretRedisDsn` from `from orchestrator.core.settings import SecretRedisDsn` is masked.
 
 ## Overview of AppSettings class
+<!-- diataxis: -->
 
 Toggle the source code block below to get a complete overview of the current application settings.
 ::: orchestrator.core.settings.AppSettings

@@ -5,8 +5,10 @@ reviewed: false
 ---
 
 # Product Types
+<!-- diataxis: -->
 
 ## Defining a Product Type
+<!-- diataxis: -->
 
 A Product Type (often referred to simply as a product) is the top level object of a domain model. A product is effectively the template used for creating a subscription instance, and you can instantiate as many instances of these as you want. To see an example product model, you can see a very simple Node product type from the [example workflow orchestrator](https://github.com/workfloworchestrator/example-orchestrator):
 
@@ -39,6 +41,7 @@ It is also quite helpful to see how the Product Type is stored in the databaseâ€
         heading_level: 3
 
 ## Subscription Model Registry
+<!-- diataxis: -->
 
 When you define a Product Type as a domain model in python, you also need to register it in the subscription model registry, by using the `SUBSCRIPTION_MODEL_REGISTRY` dictionary, like is shown here in the [example workflow orchestrator](https://github.com/workfloworchestrator/example-orchestrator):
 
@@ -47,10 +50,12 @@ When you define a Product Type as a domain model in python, you also need to reg
 ```
 
 ## Automatically Generating Product Types
+<!-- diataxis: -->
 
 If all of this seems like too much work, then good news, as all clever engineers before us have done, we've fixed that with YAML! Using the WFO CLI, you can generate your product types directly from a YAML. For more information on how to do that, check out the [CLI `generate` command documentation.](../cli.md#generate)
 
 ## Creating Database Migrations
+<!-- diataxis: -->
 
 After defining all of the components of a Product type, you'll also need to create a database migration to properly wire-up the product in the orchestrator's database. A migration file for this example Node model looks like this:
 

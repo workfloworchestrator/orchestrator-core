@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Scaling the Orchestrator
+<!-- diataxis: -->
 
 By default the Orchestrator is capable to handle a reasonable amount of workflows and tasks. For a larger and more
 distributed workload we introduced the [Celery library](https://docs.celeryq.dev/en/stable/).
@@ -15,6 +16,7 @@ This document describes the two modes in which an Orchestrator instance can run 
 2. running the Orchestrator with a number of workflow workers
 
 ## Running workflows or tasks within a threadpool
+<!-- diataxis: -->
 
 This is the default configuration. Workflows and tasks are both scheduled by the same threadpool with equal priority.
 If you need to have tasks with a lower priority, you can for example [use a scheduler][use-a-scheduler] and run them during a quiet period.
@@ -31,6 +33,7 @@ class AppSettings(BaseSettings):
 ```
 
 ## Running workflows or tasks using a worker
+<!-- diataxis: -->
 
 When the orchestrator-core's process executor is specified as `"celery"`, the FastAPI
 application registers Celery-specific task functions, and `start_process` and `resume_process` now defer to the Celery task queue.
@@ -66,6 +69,7 @@ The application flow looks like this when `EXECUTOR = "celery"` and websockets a
 By default, [Redis](https://redis.io/) is used for the Celery broker and backend, but these [can be overridden][celery-backends-and-brokers].
 
 ### Invoking Celery
+<!-- diataxis: -->
 
 A Celery worker must start by calling your worker module instead of `main.py`, like so:
 
@@ -79,6 +83,7 @@ celery -A your_orch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks,ne
 - `-Q` specifies the queues which the worker should watch for new tasks
 
 ### Queues
+<!-- diataxis: -->
 
 Tasks and workflows are submitted on different queues:
 
@@ -123,6 +128,7 @@ celery.conf.task_routes = {
 If you decide to override the queue names in this configuration, you must also update the names accordingly after the `-Q` flag.
 
 ### Dedicated queues per workflow target
+<!-- diataxis: -->
 
 The four default queues separate tasks from workflows, but they cannot isolate a *class* of
 workflows whose volume or duration profile differs from interactive work. A typical example is a
@@ -167,12 +173,14 @@ Notes on the semantics:
 Kombu auto-declares the queue on first use, so no broker-side configuration is needed.
 
 ### Worker count
+<!-- diataxis: -->
 
 How many workers one needs for each queue depends on the number of subscriptions they have, what resources (mostly RAM) they have available, and how demanding their workflows/tasks are on external systems.
 
 Currently, SURF recommends 1 worker per queue by default. You can then scale those up after observing which queues experience the most contention for your workflows.
 
 ### Implementing the worker
+<!-- diataxis: -->
 
 The orchestrator-core needs to know what workflows a user has defined.
 After creating workflows, you should have
@@ -400,12 +408,14 @@ Next, update your `main.py` and `wsgi.py` to include the following imports:
 And finally, ensure both files include `initialize_celery(celery)` in the initialization of the CLI or API app.
 
 #### Redis
+<!-- diataxis: -->
 
 As you can see in the code above, we are using Redis as a broker.
 You can of course replace this by RabbitMQ or another broker of your choice.
 See the Celery documentation for more details.
 
 ### Running locally
+<!-- diataxis: -->
 
 If you want to test your application locally you have to start both the orchestrator-api and one or more workers.
 For example:
@@ -432,6 +442,7 @@ each consuming the queues you list; add an entry per
 [README](https://github.com/workfloworchestrator/orchestrator-core/blob/main/chart/README.md#values).
 
 ### Monitoring Celery with Flower
+<!-- diataxis: -->
 
 [Flower][flower-intro] is an optional web-based tool for monitoring and administrating Celery clusters. It is not
 part of `orchestrator-core` itself and is not required to run the orchestrator with Celery — it's an additional
@@ -462,6 +473,7 @@ celery -A surf.tasks flower --port=5555
 ```
 
 ### Celery workflow/task flow
+<!-- diataxis: -->
 
 This diagram shows the current flow of how we execute a workflow or task with celery.
 It's created to show the reason why a workflow/task can get stuck on `CREATED` or `RESUMED` and what we've done to fix it.

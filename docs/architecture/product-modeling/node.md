@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Node
+<!-- diataxis: -->
 
 The administration handoff in IMS will be different for every organization. For
 this example, it is assumed that all administration that comes with the physical

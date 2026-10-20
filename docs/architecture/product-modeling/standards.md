@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Standards
+<!-- diataxis: -->
 
 There are many standards describing how network service products and their attributes can be modeled. Most of these are
 very detailed as they try to cover as many use cases as possible, which can prove overwhelming. Here we aim to do the

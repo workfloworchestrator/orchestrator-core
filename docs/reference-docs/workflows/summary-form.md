@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Summary Forms
+<!-- diataxis: -->
 
 !!! info "New in `orchestrator-core` 5.2.0"
     `orchestrator.core.forms.summary_form` is a new module — there is no equivalent toolkit in
@@ -21,6 +22,7 @@ The recap is rendered by the frontend as one or more read-only tables, using the
 `MigrationSummary` field type.
 
 ## Quick start
+<!-- diataxis: -->
 
 For the common case — a single product table, optionally compared against its previous values —
 use `base_summary`. It is a generator, so it must be delegated to with `yield from` at the end of
@@ -86,6 +88,7 @@ to render a **before / after** table instead:
     ```
 
 ## Multiple tables: `generate_summary_form` and `SummaryOptions`
+<!-- diataxis: -->
 
 `base_summary` is a thin wrapper around `generate_summary_form`, which accepts a `SummaryOptions`
 dict describing the product table plus any number of extra tables (for example, one table per
@@ -124,6 +127,7 @@ old items (or `None` for every item, if there is nothing to compare against) int
 `(new, old)` tuples that `TableOptions["data"]` expects.
 
 ### How a table is rendered
+<!-- diataxis: -->
 
 For each `TableOptions`, `generate_summary_form` picks the table layout based on the data it is
 given:
@@ -139,6 +143,7 @@ Use `single_column=True` when items don't share a natural "before/after" or "sid
 relationship (for example, a list of dissimilar ports).
 
 ### Before/after table example
+<!-- diataxis: -->
 
 Passing a truthy `old` value alongside a `new` item renders a **Before/After** table for that item
 (one table per item, not one combined table). A full modify workflow comparing a list of ports
@@ -220,6 +225,7 @@ original number instead of renumbering by position:
 
 
 ## Custom field formatters
+<!-- diataxis: -->
 
 By default, a field is shown as its field name and `str(value)`; the frontend translates the field
 name the same way it translates any other form field (falling back to the raw name if no
@@ -307,6 +313,7 @@ field shows up. A handful of general-purpose formatters ship out of the box:
     ```
 
 ## API summary
+<!-- diataxis: -->
 
 All of the above is importable from `orchestrator.core.forms.summary_form`:
 

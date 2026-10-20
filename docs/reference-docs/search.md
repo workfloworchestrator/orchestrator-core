@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # Search
+<!-- diataxis: -->
 
 This page describes the two classic search implementations: query-string filtering on database
 tables, and text search on subscriptions.
@@ -33,6 +34,7 @@ There are 2 implementations:
 1. **Subscription Search**: specialized implementation to search for values anywhere in a subscription, such as instance values or customer descriptions
 
 ## Usage
+<!-- diataxis: -->
 
 Call the REST or GraphQL endpoint with the `query` parameter set to the search query.
 
@@ -59,6 +61,7 @@ Note that:
 * Search words cannot contain the characters `|-*():"` as they are part of the search query grammar
 
 ## Implementation 1: Filter on DB Table
+<!-- diataxis: -->
 
 This implementation translates the user's search query to `WHERE` clauses on DB columns of the object's DB table. For some objects this extends to related DB tables.
 
@@ -68,6 +71,7 @@ We can distinguish these steps:
 * The REST/GraphQL endpoint appends these clauses to the sqlalchemy `select()` to find objects that match the user's query
 
 ## Implementation 2: Subscription Search
+<!-- diataxis: -->
 
 This is a specialized implementation to allow searching values anywhere in a subscription or in related entities, without sacrificing performance.
 
@@ -85,6 +89,7 @@ The diagram below visualizes the flow and dependencies between components in the
 <!-- search-overview.png can be opened and modified in draw.io -->
 
 ### Postgres Text Search
+<!-- diataxis: -->
 
 Postgres _Full Text Search_ (TS) has extensive [documentation](https://www.postgresql.org/docs/current/textsearch.html) but we'll cover the fundamentals in this section. TS queries can be done on "normal" DB tables, i.e. without a search index, but this is too slow. It is recommended to maintain a search index which we do in DB view `subscriptions_search`.
 
@@ -179,6 +184,7 @@ Note that the `color <-> Green | count <-> 4` string passed to `ts_query()` must
 This happens in the orchestrator-core module `search_query.py` as shown in the overview diagram.
 
 ### Materialized View subscriptions_search
+<!-- diataxis: -->
 
 As mentioned before, `subscriptions_search` is a DB view which lies at the heart of the implementation.
 If you're not familiar with database views; they represent a (usually complicated) database query in the form of a "virtual table".

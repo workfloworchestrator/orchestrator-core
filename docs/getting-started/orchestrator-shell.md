@@ -5,6 +5,7 @@ reviewed: false
 ---
 
 # The Orchestrator Shell
+<!-- diataxis: -->
 
 For different reasons, it could be that incorrect information somehow ends up in the Orchestrator database. For the
 (few) users that are aware of the database model of Workflow Orchestrator, a last resort could be to fix this with
@@ -28,10 +29,12 @@ easy way to navigate and edit subscriptions, product blocks, processes, and reso
     `resource_type  update` command, but do not try to update non-scalar resource types using the `orchestrator_shell`.
 
 ## Installation
+<!-- diataxis: -->
 
 There are three ways of running Orchestrator Shell, and the best option will vary per deployment of WFO.
 
 ### Running using `uv`
+<!-- diataxis: -->
 
 The quickest option is to run the following command in a terminal window:
 
@@ -43,6 +46,7 @@ This will install any required dependencies for Orchestrator Shell, and connect 
 however require the database URI to be available in your shell environment as `DATABASE_URI`, which is the same for WFO.
 
 ### Running Inside Your WFO Installation
+<!-- diataxis: -->
 
 The second option is to install `orchestrator-shell` inside an existing deployment of your orchestrator. How to do this
 will depend on how your orchestrator is deployed. For example, when your orchestrator runs from a Docker container, the
@@ -53,16 +57,19 @@ For this option, since Orchestrator Shell will run in the same environment as yo
 required for the Orchestrator Shell to connect to your subscription database.
 
 #### Bundling It With Your Own Orchestrator
+<!-- diataxis: -->
 
 To prevent having to re-install Orchestrator Shell each time your application has restarted, you could bundle the
 Orchestrator Shell with your own orchestrator. This can be done by simply running `uv add orchestrator-shell` in your
 orchestrator project, and building a new version of your application.
 
 ## Usage
+<!-- diataxis: -->
 
 The Orchestrator Shell can be used to manipulate subscription instances and processes.
 
 ### Updating a Subscription
+<!-- diataxis: -->
 
 To update the value of an attribute of an existing subscription, use the following commands:
 
@@ -78,6 +85,7 @@ resource_type update <new_value>
 ```
 
 ### Updating a Process
+<!-- diataxis: -->
 
 The only operation supported on processes is leapfrogging. This can be useful when a step is continuously failing for
 reasons that lie outside of the orchestrator. For example, an interaction with an external system could be
