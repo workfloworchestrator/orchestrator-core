@@ -50,8 +50,4 @@ Just like Product types, you'll need to create a database migration to properly 
 
 Thankfully, you don't have to write these database migrations by hand, you can simply use the `main.py db migrate-domain-models` command that is part of the [orchestrator CLI, documented here.](../cli.md#migrate-domain-models)
 
-## Automatically Generating Product Types
-<!-- diataxis: explanation -->
-<!-- TODO this section can be fleshed out more with details about why the product generator was added, the structure, which may now be documented elsewhere in the codebase. This section can then be used to link from a tutorial/how-to on using the product generator. 
-
-If all of this seems like too much work, then good news, as all clever engineers before us have done, we've fixed that with YAML! Using the WFO CLI, you can generate your product types directly from a YAML. For more information on how to do that, check out the [CLI `generate` command documentation.](../cli.md#generate)
+<!-- Removed `## Automatically Generating Product Types` section, it's also in ./product-types.md -->
