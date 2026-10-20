@@ -26,7 +26,7 @@ from oauth2_lib.strawberry import authenticated_field
 from orchestrator.core.db import FixedInputTable, ProcessSubscriptionTable, ProductTable, SubscriptionTable, db
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.core.graphql.loaders.subscriptions import SubsLoaderType
-from orchestrator.core.graphql.pagination import EMPTY_PAGE, SearchConnection
+from orchestrator.core.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.core.graphql.resolvers.process import resolve_processes
 from orchestrator.core.graphql.schemas.customer import CustomerType
 from orchestrator.core.graphql.schemas.customer_description import CustomerDescription
@@ -143,18 +143,23 @@ class SubscriptionInterface:
         first: int = 10,
         after: int = 0,
         search: ResourceSearchInput | None = None,
-    ) -> SearchConnection[ProcessType]:
-        if search:
-            stmt = select(ProcessSubscriptionTable.process_id).where(
-                ProcessSubscriptionTable.subscription_id == self.subscription_id
-            )
-            process_ids = list(db.session.scalars(stmt))
-            return await resolve_processes(info, first=first, after=after, search=search.within(process_ids))
+    ) -> Connection[ProcessType]:
+        # Todo: remove with later version.
+        old_filters = filter_by or []
+        if not search:
+            old_filters = (filter_by or []) + [GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))]
 
-        filter_by_with_related_processes = (filter_by or []) + [
-            GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))
-        ]
-        return await resolve_processes(info, filter_by_with_related_processes, sort_by, first, after)
+        stmt = select(ProcessSubscriptionTable.process_id).where(
+            ProcessSubscriptionTable.subscription_id == self.subscription_id
+        )
+        return await resolve_processes(
+            info,
+            old_filters,
+            sort_by,
+            first,
+            after,
+            search=search.within(list(db.session.scalars(stmt))) if search else None,
+        )
 
     @authenticated_field(description="Returns list of subscriptions that use this subscription")  # type: ignore
     async def in_use_by_subscriptions(
@@ -166,7 +171,7 @@ class SubscriptionInterface:
         after: int = 0,
         in_use_by_filter: SubscriptionRelationFilter | None = None,
         search: ResourceSearchInput | None = None,
-    ) -> SearchConnection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
+    ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
 
         subscriptions = await _load_recursive_relations(
@@ -202,7 +207,7 @@ class SubscriptionInterface:
         after: int = 0,
         depends_on_filter: SubscriptionRelationFilter | None = None,
         search: ResourceSearchInput | None = None,
-    ) -> SearchConnection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
+    ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
 
         subscriptions = await _load_recursive_relations(

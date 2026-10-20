@@ -24,7 +24,7 @@ from orchestrator.core.db.models import ProductTable
 from orchestrator.core.db.range.range import apply_range_to_statement
 from orchestrator.core.db.sorting import Sort
 from orchestrator.core.db.sorting.product import product_sort_fields, sort_products
-from orchestrator.core.graphql.pagination import SearchConnection
+from orchestrator.core.graphql.pagination import Connection
 from orchestrator.core.graphql.resolvers.helpers import make_async, rows_from_statement
 from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.product import ProductType
@@ -53,7 +53,7 @@ def query_products(
     first: int = 10,
     after: int = 0,
     query: str | None = None,
-) -> SearchConnection[ProductType]:
+) -> Connection[ProductType]:
     """List products with the legacy filterBy/sortBy/query arguments and offset paging."""
     _error_handler = create_resolver_error_handler(info)
 
@@ -97,7 +97,7 @@ def _load_products(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, Pro
 
 async def search_products(
     info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
-) -> SearchConnection[ProductType]:
+) -> Connection[ProductType]:
     return await search_resource(info, EntityType.PRODUCT, search, _load_products, first=first, after=after)
 
 
@@ -109,7 +109,7 @@ async def resolve_products(
     after: After = 0,
     query: DeprecatedQuery = None,
     search: ResourceSearchInput | None = None,
-) -> SearchConnection[ProductType]:
+) -> Connection[ProductType]:
     if search is not None:
         return await search_products(info, search, first, after)
     return await query_products(info, filter_by, sort_by, first, after, query)

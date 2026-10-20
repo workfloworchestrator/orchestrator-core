@@ -69,7 +69,7 @@ async def _perform_search_and_fetch(
     """
     try:
         await validate_structured_order_by_element(entity_type, request, session)
-        query = request.to_query(entity_type) if request and entity_type else None
+        query = request.to_query(entity_type) if request and entity_type and not cursor and not query_id else None
         page = await execute_search_page(
             session, query=query, cursor=cursor, query_id=query_id, include_columns=include_columns
         )

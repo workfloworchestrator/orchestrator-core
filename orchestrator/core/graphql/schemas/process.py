@@ -21,7 +21,7 @@ from strawberry.scalars import JSON
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.core.api.api_v1.endpoints.processes import get_auth_callbacks, get_steps_to_evaluate_for_rbac
 from orchestrator.core.db import ProcessTable, ProductTable, db
-from orchestrator.core.graphql.pagination import EMPTY_PAGE, SearchConnection
+from orchestrator.core.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.core.graphql.schemas.customer import CustomerType
 from orchestrator.core.graphql.schemas.helpers import get_original_model
 from orchestrator.core.graphql.schemas.product import ProductType
@@ -126,7 +126,7 @@ class ProcessType:
         first: int = 10,
         after: int = 0,
         search: ResourceSearchInput | None = None,
-    ) -> SearchConnection[SubscriptionInterface]:
+    ) -> Connection[SubscriptionInterface]:
         from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
 
         subscription_ids = [s.subscription_id for s in get_original_model(self, ProcessTable).subscriptions]

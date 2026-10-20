@@ -36,7 +36,7 @@ from orchestrator.core.db.sorting.subscription import (
     sort_subscriptions,
     subscription_sort_fields,
 )
-from orchestrator.core.graphql.pagination import SearchConnection
+from orchestrator.core.graphql.pagination import Connection
 from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.product import ProductModelGraphql
 from orchestrator.core.graphql.schemas.subscription import SubscriptionInterface
@@ -136,7 +136,7 @@ async def _load_subscriptions(
 
 async def search_subscriptions(
     info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
-) -> SearchConnection[SubscriptionInterface]:
+) -> Connection[SubscriptionInterface]:
     return await search_resource(info, EntityType.SUBSCRIPTION, search, _load_subscriptions, first=first, after=after)
 
 
@@ -147,7 +147,7 @@ async def query_subscriptions(
     first: int,
     after: int,
     query: str | None,
-) -> SearchConnection[SubscriptionInterface]:
+) -> Connection[SubscriptionInterface]:
     """List subscriptions with the legacy filterBy/sortBy/query arguments and offset paging."""
     _error_handler = create_resolver_error_handler(info)
 
@@ -199,7 +199,7 @@ async def resolve_subscriptions(
     after: After = 0,
     query: DeprecatedQuery = None,
     search: ResourceSearchInput | None = None,
-) -> SearchConnection[SubscriptionInterface]:
+) -> Connection[SubscriptionInterface]:
     if search is not None:
         return await search_subscriptions(info, search, first, after)
     return await query_subscriptions(info, filter_by, sort_by, first, after, query)

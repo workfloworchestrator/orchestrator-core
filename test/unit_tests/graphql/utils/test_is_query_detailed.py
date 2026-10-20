@@ -30,9 +30,7 @@ def _fragment(*selections):
 
 
 def _inline(*selections):
-    return InlineFragment(
-        type_condition="SubscriptionInterfaceSearchConnection", directives={}, selections=list(selections)
-    )
+    return InlineFragment(type_condition="SubscriptionInterfaceConnection", directives={}, selections=list(selections))
 
 
 def _page(*selections):

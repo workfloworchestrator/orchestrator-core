@@ -25,7 +25,7 @@ from orchestrator.core.db.models import ProcessSubscriptionTable, SubscriptionTa
 from orchestrator.core.db.range import apply_range_to_statement
 from orchestrator.core.db.sorting import Sort
 from orchestrator.core.db.sorting.process import process_sort_fields, sort_processes
-from orchestrator.core.graphql.pagination import SearchConnection
+from orchestrator.core.graphql.pagination import Connection
 from orchestrator.core.graphql.resolvers.helpers import make_async, rows_from_statement
 from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.process import ProcessType
@@ -91,7 +91,7 @@ def query_processes(
     first: int = 10,
     after: int = 0,
     query: str | None = None,
-) -> SearchConnection[ProcessType]:
+) -> Connection[ProcessType]:
     """List processes with the legacy filterBy/sortBy/query arguments and offset paging."""
     _error_handler = create_resolver_error_handler(info)
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
@@ -140,7 +140,7 @@ def _load_processes(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, Pr
 
 async def search_processes(
     info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
-) -> SearchConnection[ProcessType]:
+) -> Connection[ProcessType]:
     return await search_resource(info, EntityType.PROCESS, search, _load_processes, first=first, after=after)
 
 
@@ -152,7 +152,7 @@ async def resolve_processes(
     after: After = 0,
     query: DeprecatedQuery = None,
     search: ResourceSearchInput | None = None,
-) -> SearchConnection[ProcessType]:
+) -> Connection[ProcessType]:
     if search is not None:
         return await search_processes(info, search, first, after)
     return await query_processes(info, filter_by, sort_by, first, after, query)

@@ -195,7 +195,7 @@ tricky to implement):
 
     from oauth2_lib.strawberry import authenticated_field
     from orchestrator.core.db import SubscriptionTable, db
-    from orchestrator.core.graphql.pagination import SearchConnection
+    from orchestrator.core.graphql.pagination import Connection
     from orchestrator.core.graphql.schemas.subscription import SubscriptionInterface
     from orchestrator.core.graphql.search_inputs import ResourceSearchInput
     from orchestrator.core.graphql.types import OrchestratorInfo
@@ -216,7 +216,7 @@ tricky to implement):
             first: int = 10,
             after: int = 0,
             search: ResourceSearchInput | None = None,
-        ) -> SearchConnection[SubscriptionInterface]:
+        ) -> Connection[SubscriptionInterface]:
             from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
 
             stmt = select(SubscriptionTable.subscription_id).where(SubscriptionTable.customer_id == self.customer_id)
@@ -894,7 +894,7 @@ Here's a generic override for the `CustomerType` that introduces a new `subscrip
 
     from oauth2_lib.strawberry import authenticated_field
     from orchestrator.core.db import SubscriptionTable, db
-    from orchestrator.core.graphql.pagination import SearchConnection
+    from orchestrator.core.graphql.pagination import Connection
     from orchestrator.core.graphql.schemas.customer import CustomerType
     from orchestrator.core.graphql.schemas.subscription import (
         SubscriptionInterface,
@@ -904,7 +904,7 @@ Here's a generic override for the `CustomerType` that introduces a new `subscrip
     from orchestrator.core.graphql.utils.override_class import override_class
 
     # Type annotation for better readability rather than having this directly as a return type
-    SubscriptionInterfaceType = SearchConnection[
+    SubscriptionInterfaceType = Connection[
         Annotated[
             "SubscriptionInterface",
             strawberry.lazy("orchestrator.core.graphql.schemas.subscription"),
@@ -1327,8 +1327,9 @@ query {
 | `cursor`         | `nextPageCursor` from the previous page. Resumes that search and ignores the other fields except `entityIds`. |
 | `entityIds`      | Only return these entities. It is not saved with the search, so pass it again with every `cursor`. |
 
-Results are returned in `searchEdges`, ranked, with each match's `score` and `matchingFields`. `page` is only filled
-for queries without `search`, so a client selects `searchEdges` when it searches and `page` when it does not.
+Results are returned in `searchEdges`, ranked, with each match's `score` and `matchingFields`. A structured search
+(filters without `query` text) gives every result a `score` of `1` and is ordered by `orderBy` instead. `page` has
+the same entities without the match data and is deprecated.
 
 ### Pagination
 

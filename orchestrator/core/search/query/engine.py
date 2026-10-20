@@ -55,6 +55,8 @@ async def _create_cursor_info(
     total_count_stmt = Retriever.route(query, None, query_embedding).apply(candidate_query) if cursor else final_stmt
     total_items_or_none = await db_session.scalar(select(func.count()).select_from(total_count_stmt.subquery()))
     total_items = total_items_or_none or 0
+    if not row_count:
+        return total_items, None, None
     count_with_cursor_or_none = (
         await db_session.scalar(select(func.count()).select_from(final_stmt.subquery())) if cursor else total_items
     )
@@ -116,7 +118,7 @@ async def _execute_search(
     total_items: int | None = None
     start_cursor: int | None = None
     end_cursor: int | None = None
-    if isinstance(retriever, StructuredRetriever) and row_count > 0:
+    if isinstance(retriever, StructuredRetriever):
         total_items, start_cursor, end_cursor = await _create_cursor_info(
             final_stmt, db_session, cursor, query, query_embedding, candidate_query, row_count, offset
         )

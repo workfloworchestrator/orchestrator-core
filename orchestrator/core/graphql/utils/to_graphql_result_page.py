@@ -13,7 +13,7 @@
 
 from typing import Any
 
-from orchestrator.core.graphql.pagination import PageInfo, SearchConnection
+from orchestrator.core.graphql.pagination import Connection, PageInfo
 
 
 def to_graphql_result_page(
@@ -23,12 +23,8 @@ def to_graphql_result_page(
     total: int | None,
     sort_fields: list[str] | None = None,
     filter_fields: list[str] | None = None,
-) -> SearchConnection:
-    """One offset page of `items`, which holds up to one extra item to tell whether a next page follows.
-
-    Returned as a SearchConnection, which list resources with a `search` argument need; it is a Connection, so
-    resources without one return it unchanged.
-    """
+) -> Connection:
+    """One offset page of `items`, which holds up to one extra item to tell whether a next page follows."""
     has_next_page = len(items) > first
 
     page_items = items[:first]
@@ -36,7 +32,7 @@ def to_graphql_result_page(
     start_cursor = after if page_items_length else None
     end_cursor = after + page_items_length - 1
 
-    return SearchConnection(
+    return Connection(
         page=page_items,
         page_info=PageInfo(
             has_previous_page=bool(after),
