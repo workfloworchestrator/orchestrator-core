@@ -87,3 +87,75 @@ chart/             Helm chart for downstream orchestrators (API, migrations, sch
   (kind/feature, kind/bug, kind/deprecation, kind/refactor, ...). Use
   `kind/deprecation` when deprecating user-facing API.
 - The first line of a commit message is the PR title by convention.
+
+## Documentation: Diátaxis classification
+`docs/` is being mapped to the [Diátaxis](https://diataxis.fr) framework. Every page and every section carries a
+label saying which kind of documentation it is. Follow these rules whenever you add, change, move or remove docs.
+
+### The four kinds
+| Kind | Serves the reader who is… | Form | Quick test |
+|---|---|---|---|
+| `tutorial` | learning by doing (study + action) | guided lesson with a guaranteed outcome, no choices, minimal explanation | "follow me and you'll learn" |
+| `how-to` | getting a real task done (work + action) | goal-oriented steps for someone already competent, no teaching | "to achieve X, do this" |
+| `reference` | looking up facts while working (work + cognition) | dry, accurate, complete, structured like the code (settings, CLI, API, fields); describes, doesn't instruct | boring to read straight through |
+| `explanation` | wanting to understand (study + cognition) | discussion of why, context, design decisions, trade-offs, alternatives | could be read away from the keyboard |
+
+### The compass
+Ask two questions about the content, not about its heading or its location in the nav:
+1. Does it inform **action** (what to do) or **cognition** (what to know)?
+2. Does it serve **acquisition** (study, learning) or **application** (work, using)?
+
+|  | acquisition (study) | application (work) |
+|---|---|---|
+| **action** | tutorial | how-to |
+| **cognition** | explanation | reference |
+
+### Principles
+- Classify by purpose, not by surface. Code doesn't make a section reference or how-to: a snippet that shows *why*
+  is explanation, one that lists what's allowed is reference, one that completes a task is how-to.
+- Headings mislead ("Code examples", "Advanced use cases", "Guide"). Judge the content underneath.
+- Link, don't absorb. Each kind links to the others instead of containing them. Explanation and how-to link to
+  reference for details; reference doesn't explain.
+- Improve one page at a time. Don't create empty sections or pages to fill out a structure.
+
+### Label format
+Page front matter. Merge it with any existing keys, e.g. `hide:`:
+```
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis: <kind>
+reviewed: false
+---
+```
+Sections: on the line directly after every Markdown heading, a single-line comment in lowercase, so it stays
+greppable: `<!-- diataxis: <kind> -->`.
+- Allowed values: `tutorial`, `how-to`, `reference`, `explanation`, `mixed`. An empty `<!-- diataxis: -->` means
+  not yet classified.
+- Only real Markdown headings count. Headings inside admonitions, tabs or code blocks belong to the enclosing
+  section.
+
+### Deriving labels
+- Work bottom-up: classify the leaf sections first, then their parents, up to the page.
+- A section's kind covers its own body plus all its subsections. If they are all one kind, use that kind. If any of
+  them differ, or any subsection is `mixed`, use `mixed`.
+- The page's `diataxis` follows the same rule over its top-level sections.
+
+### When editing docs
+- **New page:** add the front matter with `reviewed: false`, label every section, and derive the page label.
+- **Added or changed section:** (re)classify it, then walk up its ancestors to the front matter and fix any label
+  that changes.
+- **Removed section:** walk up its former ancestors and re-derive them, because a parent may no longer be `mixed`.
+- **Moved section:** treat it as a removal from one page and an addition to the other.
+- **`reviewed` is a human decision:** never set `reviewed: true` yourself. If you change a label on a page with
+  `reviewed: true`, set it back to `false`.
+- **Labels describe, they don't prescribe:** leave `mixed` or misplaced content as it is. Don't move, split or
+  rewrite content to fix a label unless asked; conventions for that are not settled yet.
+- **Unrelated placeholders:** don't fill in empty `<!-- diataxis: -->` placeholders outside the sections you're
+  touching unless asked.
+
+Check progress with:
+```bash
+grep -rL '^reviewed: true' docs --include='*.md'         # pages not yet reviewed
+grep -rh '^diataxis:' docs | sort | uniq -c               # page labels
+grep -rh '<!-- diataxis:' docs | sort | uniq -c           # section labels
+```
