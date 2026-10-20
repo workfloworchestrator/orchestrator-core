@@ -38,16 +38,8 @@ When building a more complicated product, you will likely want to start nesting 
 
 Note in this example how the attribute `node` is type-hinted with `NodeBlockInactive`. This tells the WFO to bring in the entire tree of product blocks that are referenced, in this case, `NodeBlockInactive` when you load the `CorePortBlockInactive` into your workflow step. To read more on this concept, read through the [Product Modeling page](../../architecture/product-modeling/product-block-graph.md) in the architecture section of the docs.
 
-## Creating Database Migrations
-<!-- diataxis: explanation -->
-
-Just like Product types, you'll need to create a database migration to properly wire-up the product block in the orchestrator's database. A migration file for this example NodeBlock model looks like this:
-
-??? example "Example: `example-orchestrator/migrations/versions/schema/2023-10-27_a84ca2e5e4db_add_node.py`"
-    ```python linenums="1"
-    {% include 'https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator/master/migrations/versions/schema/2023-10-27_a84ca2e5e4db_add_node.py' %}
-    ```
-
-Thankfully, you don't have to write these database migrations by hand, you can simply use the `main.py db migrate-domain-models` command that is part of the [orchestrator CLI, documented here.](../cli.md#migrate-domain-models)
+<!-- Removed `## Creating Database Migrations` section, it's also in ./product-types.md. Though it probably belongs in a how-to -->
 
 <!-- Removed `## Automatically Generating Product Types` section, it's also in ./product-types.md -->
+
+<!-- TODO: perhaps add a "See Also" block at the bottom which links to How-To for creating/modifying a product(block) -->  
