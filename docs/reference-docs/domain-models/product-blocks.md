@@ -1,14 +1,15 @@
 ---
 # tutorial | how-to | reference | explanation | mixed
-diataxis: 
-reviewed: false
+diataxis: mixed
+reviewed: true
 ---
 
 # Product Blocks
-<!-- diataxis: -->
+<!-- diataxis: mixed -->
 
 ## Defining a Product Block
-<!-- diataxis: -->
+<!-- diataxis: mixed -->
+<!-- TODO: mostly explanation, move generated docs of ProductBlockModel to reference, then link to it --> 
 
 !!! warning inline end
     You should only have one root Product Block on your domain model!
@@ -26,7 +27,7 @@ Breaking this product block down a bit more, we see 3 classes, `NodeBlockInactiv
         heading_level: 3
 
 ## Nesting Product Blocks
-<!-- diataxis: -->
+<!-- diataxis: explanation -->
 
 When building a more complicated product, you will likely want to start nesting layers of product blocks. Some of these might just be used by one product, but some of these will be a reference to a product block in use by multiple product types. For an example of this, let's look at the `CorePortBlock` product block from the [example workflow orchestrator](https://github.com/workfloworchestrator/example-orchestrator):
 
@@ -35,10 +36,10 @@ When building a more complicated product, you will likely want to start nesting 
     {% include 'https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator/master/products/product_blocks/core_port.py' %}
     ```
 
-Note in this example how the attribute `node` is type-hinted with `NodeBlockInactive`. This tells the WFO to bring in the entire tree of product blocks that are referenced, in this case, `NodeBlockInactive` when you load the `CorePortBlockInactive` into your workflow step. To read more on this concept, read through the [Product Modelling page](../../architecture/product-modeling/product-block-graph.md) in the architecture section of the docs.
+Note in this example how the attribute `node` is type-hinted with `NodeBlockInactive`. This tells the WFO to bring in the entire tree of product blocks that are referenced, in this case, `NodeBlockInactive` when you load the `CorePortBlockInactive` into your workflow step. To read more on this concept, read through the [Product Modeling page](../../architecture/product-modeling/product-block-graph.md) in the architecture section of the docs.
 
 ## Creating Database Migrations
-<!-- diataxis: -->
+<!-- diataxis: explanation -->
 
 Just like Product types, you'll need to create a database migration to properly wire-up the product block in the orchestrator's database. A migration file for this example NodeBlock model looks like this:
 
@@ -50,6 +51,7 @@ Just like Product types, you'll need to create a database migration to properly 
 Thankfully, you don't have to write these database migrations by hand, you can simply use the `main.py db migrate-domain-models` command that is part of the [orchestrator CLI, documented here.](../cli.md#migrate-domain-models)
 
 ## Automatically Generating Product Types
-<!-- diataxis: -->
+<!-- diataxis: explanation -->
+<!-- TODO this section can be fleshed out more with details about why the product generator was added, the structure, which may now be documented elsewhere in the codebase. This section can then be used to link from a tutorial/how-to on using the product generator. 
 
 If all of this seems like too much work, then good news, as all clever engineers before us have done, we've fixed that with YAML! Using the WFO CLI, you can generate your product types directly from a YAML. For more information on how to do that, check out the [CLI `generate` command documentation.](../cli.md#generate)
