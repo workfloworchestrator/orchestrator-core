@@ -1,7 +1,7 @@
 ---
 # tutorial | how-to | reference | explanation | mixed
 diataxis: mixed
-reviewed: false
+reviewed: true
 ---
 
 # Domain Models
