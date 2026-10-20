@@ -203,6 +203,7 @@ ban-relative-imports = "all"
 "test/acceptance_tests/search/llm/scripts/*" = ["ASYNC"]
 "orchestrator/core/search/llm_migration.py" = ["S608"]
 "test/*" = ["S101", "B033", "N816", "N802", "T201"]
+"scripts/check_diataxis.py" = ["T201"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -294,7 +295,7 @@ markers = [
 ]
 
 [tool.mypy]
-exclude = "(venv|test/acceptance_tests/cli/data/generate|orchestrator/core/vendor|vulture_whitelist.py)"
+exclude = "(venv|test/acceptance_tests/cli/data/generate|orchestrator/core/vendor|scripts/vulture_whitelist.py)"
 ignore_missing_imports = true
 disallow_untyped_calls = true
 disallow_untyped_defs = true
