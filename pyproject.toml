@@ -223,7 +223,8 @@ index-url = "https://pypi.org/simple"
 # Keep in sync with minimumReleaseAge in renovate.json.
 exclude-newer = "3 days"
 # Exempt our own libraries from the cooldown so their releases are available immediately.
-exclude-newer-package = { pydantic-forms = false, nwa-stdlib = false, oauth2-lib = false }
+# certifi is exempt so the emSign CA distrust (GHSA-6q48-6c7w-9gw2) is picked up immediately.
+exclude-newer-package = { certifi = false, pydantic-forms = false, nwa-stdlib = false, oauth2-lib = false }
 override-dependencies = [
     "grpcio==1.76.0",  # Force grpcio 1.76.0 for Python 3.14 wheel support
 ]

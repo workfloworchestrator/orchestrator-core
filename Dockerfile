@@ -1,5 +1,5 @@
 # Pin uv to a specific version so builds are reproducible
-FROM ghcr.io/astral-sh/uv:0.11.5 AS uv_image
+FROM ghcr.io/astral-sh/uv:0.13.4 AS uv_image
 
 ###############
 ### Build stage
