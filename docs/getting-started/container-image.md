@@ -48,3 +48,12 @@ CMD ["python", "-m", "uvicorn", "--host", "0.0.0.0", "--port", "8080", "wsgi:app
   [Implementing the worker](../guides/scaling.md#implementing-the-worker).
 
 Add a `.dockerignore` for `.venv`, `.git` and other local files.
+
+!!! note
+    If you used the [orchestrator-cookiecutter](https://github.com/workfloworchestrator/orchestrator-cookiecutter),
+    `main.py` and `wsgi.py` live inside the package directory (e.g. `my_orchestrator/main.py`),
+    not at the project root. Adjust your `COPY` and `CMD` accordingly, for example:
+
+    ```dockerfile
+    CMD ["python", "-m", "uvicorn", "--host", "0.0.0.0", "--port", "8080", "my_orchestrator.wsgi:app"]
+    ```

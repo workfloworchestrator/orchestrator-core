@@ -7,6 +7,13 @@ reviewed: false
 # Prepare source folder
 <!-- diataxis: -->
 
+!!! tip
+    The [orchestrator-cookiecutter](https://github.com/workfloworchestrator/orchestrator-cookiecutter)
+    generates this folder layout automatically, including the migration environment, translations
+    and empty product/workflow modules. If you used the cookiecutter, you can skip ahead to
+    [creating a workflow](./workflows.md) or
+    [generating products](../reference-docs/cli.md#generate).
+
 ## Folder layout
 <!-- diataxis: -->
 
@@ -33,7 +40,9 @@ valid Git repository.
 ### Migrations folder and local Alembic head
 <!-- diataxis: -->
 
-The `migrations` folder is created when running `python main.py db init`.
+The `migrations` folder is created when running `python main.py db init`. The cookiecutter runs
+this command automatically during project generation, so if you used the cookiecutter the
+migration environment already exists.
 This folder is used to store the local Alembic database migrations.
 The orchestrator-core package also contains Alembic database migrations, the Alembic head in the core is labeled `schema`.
 The local Alembic head should be labeled `data`.

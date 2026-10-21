@@ -80,9 +80,13 @@ def workflow():
 
 There are a number of options for getting started:
 
-- For those of you who would like to see it working, take a look at [this repo](https://github.com/workfloworchestrator/example-orchestrator) and follow the README to setup a
-  docker-compose so you can experiment on your localhost.
-- For those who are more adventurous, follow the guide on the [next page](getting-started/base.md) to
-  start coding right away.
+- **Recommended**: Generate a complete project with the
+  [orchestrator-cookiecutter](https://github.com/workfloworchestrator/orchestrator-cookiecutter).
+  See [Getting Started](getting-started/base.md).
+- To see a working setup first, look at the
+  [example-orchestrator](https://github.com/workfloworchestrator/example-orchestrator) and follow
+  its README to spin up a docker-compose on your localhost.
+- To set up a project step by step without the cookiecutter, see
+  [Manual setup](getting-started/base.md#manual-setup).
 - To run your own orchestrator in containers or on Kubernetes, see
   [Running your orchestrator](getting-started/deployment.md).
