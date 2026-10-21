@@ -17,31 +17,17 @@ Workflows are what actually takes a product definition and populates your domain
 
 ## Step Importance
 
-Every step carries an `importance` value, which the orchestrator stores on each process step and exposes through the
-REST and GraphQL process APIs. The orchestrator UI uses it to decide how much of each step to show in the process
-detail page. The engine itself does not change its behaviour based on importance.
+!!! info "Available since `orchestrator-core` 5.6"
+
+Every step carries an `importance` value, which the orchestrator stores on each process step when it runs and exposes
+through the REST and GraphQL process APIs. The engine itself does not change its behaviour based on importance; it is
+metadata that consumers of the process APIs can use. The main use case today is the orchestrator UI, which uses the
+importance of a step to decide how much of that step to show in the process detail page. See the
+[orchestrator-ui-library docs](https://workfloworchestrator.org/orchestrator-ui-library/) for how the UI maps importance
+to its rendering of steps.
 
 The value is a member of `StepImportance`: `low`, `default` or `high`. Every step is `default` unless specified,
 including the built-in `Start`, `Done` and `Abort` steps.
-
-### How the UI renders importance
-
-The process detail page has a **Detail** selector with three levels: Minimal, Standard and Verbose. Each step is
-rendered in one of three presentations depending on the selected level and the step's importance:
-
-- **Minimal**: a single compact row with the status icon and the step name (the name can be hidden via a toggle).
-- **Standard**: the regular step card with name, status and duration, collapsed.
-- **Verbose**: the step card expanded, showing the state and subscription delta.
-
-| Detail level | `high` step | `default` step | `low` step |
-|--------------|-------------|----------------|------------|
-| Minimal      | Standard    | Minimal        | Minimal    |
-| Standard     | Verbose     | Standard       | Minimal    |
-| Verbose      | Verbose     | Verbose        | Standard   |
-
-Steps that need attention are never collapsed to minimal, regardless of importance: a running step, a suspended step
-waiting for user input, and a failed step at the end of the process are shown at least as Standard. Clicking a step
-expands it one presentation level and clicking an expanded step shrinks it back.
 
 In practice: mark a step `high` when an operator should see its result without clicking (for example the step that
 pushes configuration to the network), and `low` for housekeeping steps that only add noise, such as cleaning up
@@ -51,21 +37,38 @@ temporary state.
 
 Pass it as a keyword to `@step`, `@retrystep`, `@inputstep`, `callback_step` or `step_group`:
 
-```python
-from orchestrator.core.workflow import StepImportance, step
+=== "`orchestrator-core` ≥ 5.6"
+
+    ```python
+    from orchestrator.core.workflow import StepImportance, step
 
 
-@step("Deploy to network", importance=StepImportance.HIGH)
-def deploy_to_network(subscription: SubscriptionModel) -> State:
-    ...
-```
+    @step("Deploy to network", importance=StepImportance.HIGH)
+    def deploy_to_network(subscription: SubscriptionModel) -> State:
+        ...
+    ```
+
+=== "`orchestrator-core` < 5.6"
+
+    The `importance` keyword does not exist in these versions; steps have no importance.
+
+    ```python
+    from orchestrator.core.workflow import step
+
+
+    @step("Deploy to network")
+    def deploy_to_network(subscription: SubscriptionModel) -> State:
+        ...
+    ```
 
 For `callback_step`, importance applies to the whole group's single process step row, including while awaiting a
 callback. `step_group` also accepts `importance`; its value, not its children's values, is stored on the shared row.
 Steps wrapped by `conditional` or `steplens` keep the importance of the step they wrap.
 
-Pending steps (steps not yet executed) report the importance from the step definition; executed steps report the
-value that was stored when the step ran.
+Importance is stored when a step runs. Pending steps (steps not yet executed) report the importance from the current
+step definition, executed steps report the value that was stored when the step ran. Changing the importance of a step
+therefore only takes effect for new workflow runs; steps that already ran in existing processes keep the value they
+were stored with.
 
 ## Database Implications
 

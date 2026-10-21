@@ -804,9 +804,7 @@ def test_step_group_marks_every_sub_step_with_group_importance(importance):
     def store(_, __, process):
         state = process.unwrap()
         if "__sub_step" in state:
-            logged.append(
-                (state["__sub_step"], state.get("__step_importance_override"))
-            )
+            logged.append((state["__sub_step"], state.get("__step_importance_override")))
         return process
 
     result = runwf(create_new_process_stat(wf, {}), store)

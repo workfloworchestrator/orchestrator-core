@@ -295,8 +295,7 @@ def step(
     Args:
         name: Step name shown in the process detail.
         retry_auth_callback: Authorizer deciding who may retry this step after a failure.
-        importance: Stored with the process step and exposed to the frontend so it can emphasise or de-emphasise the
-            step. Does not affect execution.
+        importance: Stored with the process step and exposed through the API. Does not affect execution.
     """
 
     def decorator(func: StepFunc) -> Step:
