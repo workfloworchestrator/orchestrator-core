@@ -56,7 +56,7 @@ dependencies = [
     "psycopg[binary]>=3.3.3",
     "pydantic-forms>=2.4.0",
     "pydantic-settings~=2.16.0",
-    "pydantic[email]~=2.13.0",
+    "pydantic[email]~=2.14.1",
     "python-dateutil==2.9.0.post0",
     "python-rapidjson>=1.25,<1.26",
     "pytz>=2025",
