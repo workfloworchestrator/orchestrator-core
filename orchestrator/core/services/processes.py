@@ -306,7 +306,6 @@ def _get_current_step_to_update(
     step_name = step_state.pop("__step_name_override", step.name)
 
     # Core internal: __step_importance_override
-    # Only step groups set it. A replace without it (e.g. fail_awaiting_wf) must keep the row's importance.
     step_importance = step_state.pop("__step_importance_override", None)
 
     # Core internal: __replace_last_state
