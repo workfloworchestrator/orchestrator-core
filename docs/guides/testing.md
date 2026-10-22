@@ -4,6 +4,15 @@ This guide covers how to write tests for workflows and domain models using
 orchestrator-core. For setup instructions (services, running tests), see
 [development.md](../contributing/development.md).
 
+!!! info "For orchestrator-core and for your own orchestrator"
+    The test helpers in `orchestrator.core.testing` are the same for both. orchestrator-core's own test suite uses
+    them, and so can the test suite of an orchestrator built on it. Most of this guide applies to both. Only the way you
+    install the test dependencies differs:
+
+    - **orchestrator-core contributors** get them from the `dev` dependency group: `uv sync --group dev`.
+    - **Your own orchestrator** gets them from the `testing` extra, see
+      [Using the test helpers in your orchestrator](#using-the-test-helpers-in-your-orchestrator).
+
 ## Test layout — unit vs integration
 
 The test suite is split into two layers:
@@ -70,7 +79,8 @@ made available, in this order:
    test session starts ephemeral Postgres + Redis containers via
    [testcontainers-python](https://testcontainers-python.readthedocs.io/) and
    removes them when the session ends. Requires Docker to be reachable and
-   the `testing` extra installed.
+   testcontainers installed, which comes with both the `dev` group and the
+   `testing` extra.
 3. **Otherwise, abort** with an actionable message.
 
 Partial env configuration (only one of the two URIs set) is rejected so the
@@ -112,7 +122,7 @@ The plugin provides these fixtures:
 | `db_session` | function, autouse | Runs each test in a transaction that is rolled back afterwards. |
 | `responses` | function, autouse | Mocks outgoing `requests` calls. Mark a test with `noresponses` to disable it. |
 | `fastapi_app` | session, autouse | The `OrchestratorCore` app, with OAuth2 disabled. |
-| `test_client` | session | A `JsonTestClient` for REST calls. |
+| `test_client` | function | A `JsonTestClient` for REST calls. Async endpoints share the test's transaction. |
 | `fastapi_app_graphql`, `test_client_graphql` | function | The app and a client with the GraphQL schema rebuilt for the current product models. |
 
 The `alembic_config` fixture uses `alembic.ini` in the directory pytest runs from when it exists, so your own
