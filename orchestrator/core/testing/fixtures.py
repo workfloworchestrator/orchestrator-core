@@ -54,7 +54,7 @@ from structlog import get_logger
 from urllib3_mock import Responses
 
 from orchestrator.core.app import OrchestratorCore
-from orchestrator.core.db import db, warn_db_uri_scheme, wrapped_db
+from orchestrator.core.db import db, get_async_session, warn_db_uri_scheme, wrapped_db
 from orchestrator.core.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.core.settings import SecretPostgresDsn, app_settings
 from orchestrator.core.testing.services import ServiceURIs, patch_app_settings, provide_services
@@ -324,15 +324,32 @@ def fastapi_app_graphql(fastapi_app: OrchestratorCore) -> Iterator[OrchestratorC
 
 
 @pytest.fixture(scope="session")
-def test_client(fastapi_app: OrchestratorCore) -> JsonTestClient:
-    """Client to test REST calls."""
-    return JsonTestClient(fastapi_app)
-
-
-@pytest.fixture(scope="session")
 def joined_async_session() -> Callable[[], AbstractAsyncContextManager[AsyncSession]]:
     """Factory for async sessions that join the per-test transaction. See :func:`session_joined_async`."""
     return session_joined_async
+
+
+@pytest.fixture
+def test_client(
+    fastapi_app: OrchestratorCore,
+    db_session: None,
+    joined_async_session: Callable[[], AbstractAsyncContextManager[AsyncSession]],
+) -> Iterator[JsonTestClient]:
+    """Client to test REST calls, with async endpoints sharing the per-test transaction.
+
+    Endpoints that depend on ``get_async_session`` would otherwise open their own connection. That connection cannot
+    see the uncommitted rows of the test, and its commits would survive the rollback at the end of the test.
+    """
+
+    async def _joined_async_session() -> AsyncIterator[AsyncSession]:
+        async with joined_async_session() as session:
+            yield session
+
+    fastapi_app.dependency_overrides[get_async_session] = _joined_async_session
+    try:
+        yield JsonTestClient(fastapi_app)
+    finally:
+        fastapi_app.dependency_overrides.pop(get_async_session, None)
 
 
 @pytest.fixture
