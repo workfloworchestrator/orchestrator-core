@@ -13,10 +13,13 @@ orchestrator organises its migrations, how to recognise a divergence, and how to
 An orchestrator built on orchestrator-core has two independent Alembic branches, identified by their
 [branch labels](https://alembic.sqlalchemy.org/en/latest/branches.html#branch-labels):
 
-| Branch   | Owned by           | Location                                               | Contains                                    |
-| -------- | ------------------ | ------------------------------------------------------ | ------------------------------------------- |
-| `schema` | orchestrator-core  | `orchestrator/core/migrations/versions/schema`         | Core tables, columns, indexes and functions |
-| `data`   | your orchestrator  | `migrations/versions/schema` in your orchestrator repo | Products, product blocks, workflows, tasks  |
+| Branch   | Owned by          | Location                                                                 | Contains                                    |
+| -------- | ----------------- | ------------------------------------------------------------------------ | ------------------------------------------- |
+| `schema` | orchestrator-core | `orchestrator/core/migrations/versions/schema` in the installed package  | Core tables, columns, indexes and functions |
+| `data`   | your orchestrator | the `version_locations` folder set in your `alembic.ini`                 | Products, product blocks, workflows, tasks  |
+
+`python main.py db init` sets `version_locations` to `migrations/versions/schema`, but an orchestrator can use any
+folder, for example `migrations/versions/general`. Check your `alembic.ini` to see where your migrations live.
 
 The first time you run `python main.py db revision`, the orchestrator creates a `create_data_head` migration for you.
 It has no `down_revision`, but it carries `branch_labels = ("data",)` and a `depends_on` pointing to the `schema`
