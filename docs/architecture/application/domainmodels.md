@@ -119,12 +119,11 @@ a property that references one or more other product block models.
 
 !!! info
     A Product Block should be modeled as though it is a resource that can be re-used in multiple products.
-    In networking the analogy would be: A physical interface may be used in a Layer 2 service and Layer 3 service
-    It is not necessary to define two different physical interface types.
+    In networking the analogy would be: A physical interface may be used in a Layer 2 service and Layer 3 service.
+    It is then not necessary to define two different physical interface types.
 
 #### Product Block Model - Inactive
-<!-- diataxis: mixed -->
-<!-- TODO unmix: merge Inactive/Provisioning/Active into one tabbed example that only shows Optional -> required; move the product_block_name / resource_type / ValidationError details to product-blocks.md and link there -->
+<!-- diataxis: explanation -->
 
 ```python hl_lines="1 4"
 class ServicePortBlockInactive(ProductBlockModel, product_block_name="Service Port"):
@@ -139,14 +138,22 @@ class ServicePortBlockInactive(ProductBlockModel, product_block_name="Service Po
 
 ```
 
-As you can see in this model we define it as an Inactive Class. As parameter we pass the name of the `product_block` in
-the database. In the second highlighted line you see a variable. This references a `resource_type` in the database, and
-annotates what type it should be at runtime. In the `Inactive` or `Initial` phase of the Subscription lifecycle we are
-least restrictive in annotating the properties; All fields/resource types are Optional.
+As you can see in this model we define it as an Inactive Class.
+
+The first highlighted line shows that parameter `product_block_name` provides the name of the product block the way it
+is registered in the database.
+
+The second highlighted line is a variable in the class.
+It references a [`resource_type`](../../reference-docs/domain-models/model-attributes.md#resource-types) in the
+database, and annotates that its runtime type is UUID.
+It is also `Optional`, just like all other resource types in this class.
+
+It is good practice to be least restrictive in the `Initial` phase of the Subscription lifecycle.
+This allows constructing the empty initial Subscription model and extending it with inputs from the user or 
+by progressing through workflow steps.
 
 #### Product Block Model - Provisioning
-<!-- diataxis: mixed -->
-<!-- TODO unmix: see 'Product Block Model - Inactive' -->
+<!-- diataxis: explanation -->
 
 ```python hl_lines="1-3 6"
 class ServicePortBlockProvisioning(
@@ -162,13 +169,21 @@ class ServicePortBlockProvisioning(
     node: NodeProductBlock
 ```
 
-In this stage we have changed the way a Subscription domain model should look like in a certain Lifecycle state.
-You also see that the `resource_type` now no-longer is Optional. It must exist in this instantiation of the class. The
-model will raise a `ValidationError` upon `.save()` if typing is not filled in correctly.
+This model defines the `Provisioning` phase of the Subscription lifecycle. 
+You can see that the class extends from the Inactive class and that it repeats all defined resource types.
+
+You can also see that several resource types are no longer `Optional`. 
+This means that the model will raise a `ValidationError` when attempting to store it without all required values.
+
+Defining a Provisioning version of a product block is a way to ensure that a minimum set of information is present 
+before proceeding with steps that, for example, provision other systems.
+
+!!! Tip
+    The stricter you are in defining your product block models the more you are able to leverage the built-in validation
+    of `Pydantic`.
 
 #### Product Block Model - Active
-<!-- diataxis: mixed -->
-<!-- TODO unmix: see 'Product Block Model - Inactive' -->
+<!-- diataxis: explanation -->
 
 ```python hl_lines="1 4-9"
 class ServicePortBlock(ServicePortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -182,60 +197,79 @@ class ServicePortBlock(ServicePortBlockProvisioning, lifecycle=[SubscriptionLife
     node: NodeProductBlock
 ```
 
-The Class is now defined in its most strict form, in other words in the Active lifecycle of a subscription,
-this product block model must have all `resource_type`s filled in except for `auto_negotiation` to function correctly.
+The model is now defined in its most strict form; the `Active` phase of the Subscription lifecycle.
+This product block requires almost all resource types to be provided except for `auto_negotiation`.
+
+An Active version of a product block indicates that its configuration has been used to successfully provision other
+system(s) and that it now stores references to those resources.
 
 !!! Tip
-    The stricter you are in defining your product block models the more you are able to leverage the built in validation
-    of`Pydantic`.
+    While you could rely on inheritance, we recommend to be explicit and always repeat resource types in each lifecycle.
+    In our experience, the added "duplication" is an acceptable cost to pay because it forces you to consider how
+    adding or changing a resource type in one lifecycle impacts the next lifecycle.
 
 ### Product Model
 <!-- diataxis: explanation -->
 
-Product models are very similar to Product Block Models in that they adhere to the same principles as explained above. However,
-the difference to Product Block models is that they create `Subscriptions` in the database. They must always have a reference
-to a customer and instead of containing dynamic `resource_types` they contain `fixed_inputs`
-which basically describe fixed product attributes.
-Similar to Product Block models, a Product model also contains a Product Block model, also known as the _root_ Product Block.
+Product models are very similar to Product Block Models in that they adhere to the same principles as explained above.
+The Product model also contains a Product Block model which is referred to as the **root** Product Block.
 
-#### Product Model - Inactive
-<!-- diataxis: reference -->
+One difference with Product Block models is that Product models create `Subscriptions` in the database.
+Additionally, instead of dynamic resource types they contain 
+[**fixed inputs**](../../reference-docs/domain-models/model-attributes.md#fixed-inputs).
 
-```python hl_lines="2 5 7"
-class ServicePortInitial(
-    SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.INITIAL, SubscriptionLifecycle.TERMINATED]
-):
-    domain: Domain
-    port_speed: PortSpeed
+The below example shows a Product model definition for each Subscription lifecycle.
 
-    port: Optional[ServicePortBlockInactive] = None
-```
+=== "Inactive"
 
-In the above example you can observe the lifecycle definition as per the `ProductBlockModels`. Below that you see `fixed_input`s
-These can be of any type, however if they are a `SubClass` of a `ProductBlockModel` the code will automatically create
-a database instance of that object.
+    ```python hl_lines="2 5 7"
+    class ServicePortInactive(
+        SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.INITIAL]
+    ):
+        domain: Domain
+        port_speed: PortSpeed
+    
+        port: Optional[ServicePortBlockInactive] = None
+    ```
 
-#### Product Model - Provisioning and Active
-<!-- diataxis: reference -->
+=== "Provisioning"
 
-```python hl_lines="6 12"
-class ServicePortProvisioning(
-    ServicePortInitial, lifecycle=[SubscriptionLifecycle.PROVISIONING]
-):
-    domain: Domain
-    port_speed: PortSpeed
-    port: ServicePortBlockProvisioning
+    ```python hl_lines="7"
+    class ServicePortProvisioning(
+        ServicePortInitial, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        domain: Domain
+        port_speed: PortSpeed
+
+        port: ServicePortBlockProvisioning
+    ```
+
+=== "Active"
+
+    ```python hl_lines="7"
+    class ServicePort(
+        ServicePortProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    ):
+        domain: Domain
+        port_speed: PortSpeed
+
+        port: ServicePortBlock
+    ```
+
+On the **Inactive** tab, the second highlighted line shows a fixed input called `port_speed`.
+This value is both limited to a range of predefined values and immutable once the Subscription is created. 
+
+The last highlighted line `port` is the root product block which uses the `ServicePortBlockInactive` type of the same
+lifecycle.
+
+You can click through the tabs to observe how the Product definition changes depending on the lifecycle.
+For example, the `port` property changes to the Product Block that corresponds to the `PROVISIONING` and `ACTIVE`
+lifecycle.
 
 
-class ServicePort(ServicePortProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    domain: Domain
-    port_speed: PortSpeed
-    port: ServicePortBlock
-
-```
-
-Again you can observe how the Product definition changes depending on the lifecycle. It annotates a different type
-to the `port` property in `SubscriptionLifecycle.ACTIVE` compared to `SubscriptionLifecycle.PROVISIONING`.
+!!! Tip
+    While it is possible to use multiple Product Block models in your Product model, it is recommended to use one
+    root Product Block.
 
 ### Advanced Use Cases
 <!-- diataxis: mixed -->
