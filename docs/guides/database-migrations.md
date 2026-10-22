@@ -114,11 +114,17 @@ diverging migrations have already been applied to a shared database.
 
 ```mermaid
 flowchart TD
-    start([Multiple data heads]) --> q{"Has any of the diverging migrations<br/>been applied to a shared database<br/>(test, acceptance, production)?"}
-    q -- yes --> merge[Create a merge revision]
-    q -- no --> choice{Prefer a linear history?}
-    choice -- yes --> rebase[Re-parent one of the migrations]
-    choice -- no --> merge
+    start(["Multiple data heads"])
+    applied{"Already applied<br/>to a shared DB?"}
+    linear{"Do you prefer a<br/>linear history?"}
+    merge["Option 1:<br/>merge dA and dB"]
+    reparent["Option 2:<br/>put dB after dA"]
+
+    start --> applied
+    applied -- "yes" --> merge
+    applied -- "no" --> linear
+    linear -- "yes" --> reparent
+    linear -- "no" --> merge
 ```
 
 ### Option 1: Create a Merge Revision
