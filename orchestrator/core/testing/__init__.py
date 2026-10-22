@@ -11,15 +11,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helpers for testing orchestrators built on orchestrator-core.
+"""Helpers for testing orchestrator-core and orchestrators built on it.
 
-Install them with the ``testing`` extra: ``pip install orchestrator-core[testing]``.
+This package is part of every orchestrator-core install. Its test dependencies, such as pytest and testcontainers,
+are not: install them with the ``testing`` extra, ``pip install orchestrator-core[testing]``.
 
-- The workflow helpers below (``run_workflow``, ``assert_complete``, ...) are importable from this package and do not
-  need pytest.
+- The workflow helpers below (``run_workflow``, ``assert_complete``, ...) are importable from this package.
 - :mod:`orchestrator.core.testing.fixtures` is a pytest plugin with database, app and test client fixtures. Load it
   with ``pytest_plugins = ["orchestrator.core.testing.fixtures"]`` in your root ``conftest.py``.
 - :mod:`orchestrator.core.testing.services` resolves Postgres and Redis from the environment or testcontainers.
+
+See the testing guide for usage and examples: https://workfloworchestrator.org/orchestrator-core/guides/testing/
 """
 
 from orchestrator.core.testing.workflows import (

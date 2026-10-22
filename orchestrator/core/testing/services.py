@@ -72,9 +72,9 @@ def _missing_services_message(missing: list[str]) -> str:
         "(bring-your-own services, used by CI and the docker-compose flow).\n"
         "  - Unset both DATABASE_URI and CACHE_URI; the test runner will start\n"
         "    ephemeral Postgres+Redis containers via testcontainers, which\n"
-        "    requires Docker to be running and the ``orchestrator-core[testing]``\n"
-        "    extra to be installed.\n"
-        "See the orchestrator-core testing guide for details."
+        "    requires Docker to be running and the testcontainers package to be\n"
+        "    installed.\n"
+        "See https://workfloworchestrator.org/orchestrator-core/guides/testing/ for details."
     )
 
 
