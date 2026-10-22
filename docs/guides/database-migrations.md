@@ -274,16 +274,29 @@ d3    uses new column    depends_on = "f4a7c9e21b08"
 
 Divergence is easiest to fix before it reaches a shared database. Some ways to catch it early:
 
-- **Check heads in CI.** Fail the pipeline when the `data` branch has more than one head, for example:
+- **Check for a single head per branch.** Add a test to your orchestrator that fails when a branch has more than one
+  head. It only reads the migration files, so it needs no database. Run it as part of your unit tests, or as a
+  separate CI step (for example `pytest test/test_migration_heads.py`) so divergence is caught in the pull request:
 
-    ```shell
-    data_heads=$(python main.py db heads | grep -c "(data)")
-    if [ "$data_heads" -ne 1 ]; then
-        echo "Expected one data head, found $data_heads. Resolve with 'python main.py db merge'."
-        python main.py db heads
-        exit 1
-    fi
+    ```python
+    from collections import Counter
+
+    from alembic.script import ScriptDirectory
+
+    from orchestrator.core.cli.database import alembic_cfg
+
+
+    def test_single_head_per_branch() -> None:
+        # alembic_cfg() reads alembic.ini from the current directory and adds the orchestrator-core migrations
+        heads = ScriptDirectory.from_config(alembic_cfg()).get_revisions("heads")
+        heads_per_branch = Counter(", ".join(sorted(head.branch_labels)) for head in heads)
+
+        diverged = [branch for branch, count in heads_per_branch.items() if count > 1]
+        assert not diverged, f"Multiple heads in {diverged}, run 'python main.py db heads' and 'db merge' them"
     ```
+
+    A merged `data, schema` head (see [above](#do-not-merge-the-schema-and-data-branches)) is reported as its own
+    branch, so it shows up in `python main.py db heads` but does not fail this test.
 
 - **Rebase before merging.** When a feature branch that contains a migration is rebased on `main`, check
   `python main.py db heads` and re-parent the migration if needed. At that point it has not been applied to any shared
