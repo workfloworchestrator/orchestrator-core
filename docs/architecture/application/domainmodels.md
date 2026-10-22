@@ -106,9 +106,8 @@ layer subscriptions to represent a complex portfolio of network services.
    we assign a subscription to a customer which contains the interface resource. That interface resource is then used
    again in the circuit subscription, as a resource.
 
-## Code examples
+## Design examples
 <!-- diataxis: mixed -->
-<!-- TODO unmix: keep only the "strictness increases per lifecycle" point as one compact example under 'Lifecycle transitions'; link to reference-docs/domain-models/product-blocks.md and product-types.md for the class definitions; drop this heading -->
 
 ### Product Block Model
 <!-- diataxis: explanation -->
