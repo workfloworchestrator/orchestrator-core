@@ -27,8 +27,8 @@ from orchestrator.core.graphql.schemas.fixed_input import FixedInput
 from orchestrator.core.graphql.schemas.helpers import get_original_model
 from orchestrator.core.graphql.schemas.product_block import ProductBlock
 from orchestrator.core.graphql.schemas.workflow import Workflow
-from orchestrator.core.graphql.search_inputs import ResourceSearchInput
-from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+from orchestrator.core.graphql.search_inputs import DeprecatedFilterBy, DeprecatedSortBy, ResourceSearchInput
+from orchestrator.core.graphql.types import GraphqlFilter, OrchestratorInfo
 from orchestrator.core.schemas.product import ProductSchema
 
 if TYPE_CHECKING:
@@ -76,8 +76,8 @@ class ProductType:
     async def subscriptions(
         self,
         info: OrchestratorInfo,
-        filter_by: list[GraphqlFilter] | None = None,
-        sort_by: list[GraphqlSort] | None = None,
+        filter_by: DeprecatedFilterBy = None,
+        sort_by: DeprecatedSortBy = None,
         first: int = 10,
         after: int = 0,
         search: ResourceSearchInput | None = None,

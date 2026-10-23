@@ -97,31 +97,25 @@ logger = structlog.get_logger(__name__)
 class OrchestratorQuery:
     process: ProcessType | None = authenticated_field(resolver=resolve_process, description="Returns a single process")
     processes: Connection[ProcessType] = authenticated_field(
-        resolver=resolve_processes,
-        description="Returns list of processes",
+        resolver=resolve_processes, description="Returns list of processes",
     )
     products: Connection[ProductType] = authenticated_field(
-        resolver=resolve_products,
-        description="Returns list of products",
+        resolver=resolve_products, description="Returns list of products",
     )
     product_blocks: Connection[ProductBlock] = authenticated_field(
-        resolver=resolve_product_blocks,
-        description="Returns list of product blocks",
+        resolver=resolve_product_blocks, description="Returns list of product blocks",
     )
     resource_types: Connection[ResourceType] = authenticated_field(
-        resolver=resolve_resource_types,
-        description="Returns list of resource types",
+        resolver=resolve_resource_types, description="Returns list of resource types",
     )
     workflows: Connection[Workflow] = authenticated_field(
-        resolver=resolve_workflows,
-        description="Returns list of workflows",
+        resolver=resolve_workflows, description="Returns list of workflows",
     )
     subscription: SubscriptionInterface | None = authenticated_field(
         resolver=resolve_subscription, description="Returns a single Subscription"
     )
     subscriptions: Connection[SubscriptionInterface] = authenticated_field(
-        resolver=resolve_subscriptions,
-        description="Returns list of subscriptions",
+        resolver=resolve_subscriptions, description="Returns list of subscriptions",
     )
     settings: StatusType = authenticated_field(
         resolver=resolve_settings,

@@ -155,7 +155,7 @@ class StructuredOrderByInput:
 
 
 @strawberry.input(description="Search criteria shared by the search query and the list resources.")
-class SearchCriteriaInput:
+class BaseSearchInput:
     query: str | None = None
     filters: FilterTreeInput | None = None
     elastic_filters: JSON | None = strawberry.field(
@@ -193,7 +193,7 @@ class SearchCriteriaInput:
 
 
 @strawberry.input(description="Top-level search input for GraphQL queries.")
-class SearchInput(SearchCriteriaInput):
+class SearchInput(BaseSearchInput):
     limit: int = 10
     response_columns: list[str] | None = None
 
@@ -203,10 +203,11 @@ class SearchInput(SearchCriteriaInput):
 
 
 @strawberry.input(
-    description="LLM search on a list resource; replaces its filterBy, sortBy and query. Page with first and after,"
-    " or with cursor."
+    description="Search on a list resource; replaces its filterBy, sortBy and query. Filters without query text run a"
+    " structured search, query text runs a fuzzy, semantic or hybrid search. Page with first and after (structured"
+    " search only), or with cursor."
 )
-class ResourceSearchInput(SearchCriteriaInput):
+class ResourceSearchInput(BaseSearchInput):
     cursor: str | None = strawberry.field(
         default=None,
         description=(

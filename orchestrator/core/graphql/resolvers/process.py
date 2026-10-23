@@ -10,13 +10,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from uuid import UUID
 
 import structlog
 from pydantic.alias_generators import to_camel as to_lower_camel
-from sqlalchemy import func, select
+from sqlalchemy import CompoundSelect, Select, func, select
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.strategy_options import _AbstractLoad
 
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.db.filters import Filter
@@ -73,6 +74,14 @@ def _enrich_process(process: ProcessTable, with_details: bool = False) -> Proces
     return ProcessSchema(**process_data)
 
 
+def _graphql_processes(
+    info: OrchestratorInfo, stmt: Select | CompoundSelect, loaders: Sequence[_AbstractLoad]
+) -> Iterator[ProcessType]:
+    is_detailed = _is_process_detailed(info)
+    for process in rows_from_statement(stmt, ProcessTable, loaders=loaders):
+        yield ProcessType.from_pydantic(_enrich_process(process, is_detailed))
+
+
 @make_async
 def resolve_process(info: OrchestratorInfo, process_id: UUID) -> ProcessType | None:
     query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info)
@@ -116,11 +125,7 @@ def query_processes(
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    graphql_processes = []
-    if is_querying_page_data(info):
-        processes = rows_from_statement(stmt, ProcessTable, loaders=query_loaders)
-        is_detailed = _is_process_detailed(info)
-        graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]
+    graphql_processes = list(_graphql_processes(info, stmt, query_loaders)) if is_querying_page_data(info) else []
     return to_graphql_result_page(
         graphql_processes, first, after, total, process_sort_fields(), process_filter_fields()
     )
@@ -130,12 +135,7 @@ def query_processes(
 def _load_processes(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, ProcessType]:
     query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info) or _DEFAULT_PROCESS_LOADERS
     stmt = select(ProcessTable).where(ProcessTable.process_id.in_(ids))
-    processes = rows_from_statement(stmt, ProcessTable, loaders=query_loaders)
-    is_detailed = _is_process_detailed(info)
-    return {
-        str(process.process_id): ProcessType.from_pydantic(_enrich_process(process, is_detailed))
-        for process in processes
-    }
+    return {str(process.process_id): process for process in _graphql_processes(info, stmt, query_loaders)}
 
 
 async def search_processes(

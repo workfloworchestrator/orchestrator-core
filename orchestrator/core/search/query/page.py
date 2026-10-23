@@ -22,7 +22,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.core.search.core.exceptions import InvalidCursorError
+from orchestrator.core.search.core.exceptions import InvalidCursorError, InvalidSearchPageError
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.queries import SelectQuery
@@ -59,7 +59,7 @@ async def _load_query_state(
         return await QueryState.load_from_id(query_id, SelectQuery, session)
     if query:
         return QueryState(query=query, query_embedding=None)
-    raise ValueError("Either query, cursor or query_id must be provided")
+    raise InvalidSearchPageError("Either query, cursor or query_id must be provided")
 
 
 async def execute_search_page(
@@ -85,11 +85,12 @@ async def execute_search_page(
     Raises:
         InvalidCursorError: When the cursor is malformed or belongs to another entity's search.
         QueryStateNotFoundError: When the saved query does not exist.
-        ValueError: When none of query, cursor or query_id is given, the query is invalid, or `offset` is used
-            with a cursor or a non-structured search.
+        InvalidSearchPageError: When none of query, cursor or query_id is given, or `offset` is used with a cursor or
+            a non-structured search.
+        ValueError: When the query is invalid.
     """
     if offset and cursor:
-        raise ValueError("Page with either an offset or a cursor, not both")
+        raise InvalidSearchPageError("Page with either an offset or a cursor, not both")
 
     page_cursor = PageCursor.decode(cursor) if cursor else None
     query_state = await _load_query_state(session, query, page_cursor, query_id, entity_type)
@@ -97,7 +98,9 @@ async def execute_search_page(
         query_state.query if include_columns else query_state.query.model_copy(update={"response_columns": []})
     )
     if offset and not Retriever.supports_offset(select_query):
-        raise ValueError("An offset only works for structured search (filters without query text); page with a cursor")
+        raise InvalidSearchPageError(
+            "An offset only works for structured search (filters without query text); page with a cursor"
+        )
     response = await engine.execute_search(
         select_query, session, page_cursor, query_state.query_embedding, entity_ids, offset
     )

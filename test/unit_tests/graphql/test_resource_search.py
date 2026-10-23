@@ -16,21 +16,25 @@ What needs the search index or a saved query is covered in test/integration_test
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from graphql import GraphQLError
 from strawberry.types.nodes import SelectedField
 
-from orchestrator.core.graphql.resource_search import (
-    _reject_non_search_arguments,
-    execute_resource_search,
-    to_search_connection,
-)
+from orchestrator.core.graphql.resource_search import _reject_non_search_arguments, search_resource
 from orchestrator.core.graphql.search_inputs import ResourceSearchInput
-from orchestrator.core.search.core.exceptions import InvalidCursorError, QueryStateNotFoundError
+from orchestrator.core.search.core.exceptions import (
+    InvalidCursorError,
+    InvalidSearchPageError,
+    QueryStateNotFoundError,
+)
 from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.query.exceptions import PathNotFoundError
 from orchestrator.core.search.query.page import SearchPage
 from orchestrator.core.search.query.results import MatchingField, SearchResponse, SearchResult
+
+EXECUTE_SEARCH_PAGE = "orchestrator.core.graphql.resource_search.execute_search_page"
 
 
 def _info(repeat=1, **arguments):
@@ -56,23 +60,52 @@ def _page(*results, next_page_cursor=None):
     return SearchPage(response=response, next_page_cursor=next_page_cursor)
 
 
+async def _search(search_page, load_nodes, search=None, first=10, after=0):
+    with patch(EXECUTE_SEARCH_PAGE, AsyncMock(return_value=search_page)):
+        return await search_resource(
+            _info(), EntityType.SUBSCRIPTION, search or ResourceSearchInput(), load_nodes, first=first, after=after
+        )
+
+
 @pytest.mark.parametrize(
-    "next_page_cursor, has_previous_page",
+    "next_page_cursor, search, after, has_previous_page",
     [
-        pytest.param(None, False, id="single-page"),
-        pytest.param("cursor", False, id="first-of-more"),
-        pytest.param(None, True, id="last-of-more"),
+        pytest.param(None, ResourceSearchInput(), 0, False, id="single-page"),
+        pytest.param("next", ResourceSearchInput(), 0, False, id="first-of-more"),
+        pytest.param(None, ResourceSearchInput(), 10, True, id="last-of-more-by-offset"),
+        pytest.param(None, ResourceSearchInput(cursor="previous"), 0, True, id="last-of-more-by-cursor"),
     ],
 )
-def test_to_search_connection_page_info(next_page_cursor, has_previous_page):
-    search_page = _page(_result("a"), next_page_cursor=next_page_cursor)
+async def test_search_resource_page_info(next_page_cursor, search, after, has_previous_page):
+    entity_id = str(uuid4())
+    search_page = _page(_result(entity_id), next_page_cursor=next_page_cursor)
 
-    connection = to_search_connection(search_page, {"a": "node a"}, has_previous_page=has_previous_page)
+    connection = await _search(search_page, AsyncMock(return_value={entity_id: "node"}), search=search, after=after)
 
     assert connection.next_page_cursor == next_page_cursor
-    assert connection.page == ["node a"]
+    assert connection.page == ["node"]
     assert connection.page_info.has_next_page is (next_page_cursor is not None)
     assert connection.page_info.has_previous_page is has_previous_page
+
+
+async def test_search_resource_keeps_ranking_and_skips_hits_without_entity():
+    """The search index can lag behind deletions, so a hit whose entity no longer loads is dropped."""
+    first, deleted, second = (str(uuid4()) for _ in range(3))
+    search_page = _page(_result(first, 0.9), _result(deleted, 0.8), _result(second, 0.7))
+
+    connection = await _search(search_page, AsyncMock(return_value={second: "second", first: "first"}))
+
+    assert connection.page == ["first", "second"]
+    assert [edge.score for edge in connection.search_edges] == [0.9, 0.7]
+
+
+async def test_search_resource_without_hits_does_not_load_nodes():
+    load_nodes = AsyncMock()
+
+    connection = await _search(_page(), load_nodes)
+
+    assert connection.page == []
+    load_nodes.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -109,23 +142,27 @@ def test_repeated_field_combined_with_other_arguments_is_rejected():
     "error, code, message",
     [
         pytest.param(InvalidCursorError("Invalid pagination cursor"), "VALIDATION_ERROR", None, id="invalid-cursor"),
+        pytest.param(InvalidSearchPageError("Missing input"), "VALIDATION_ERROR", None, id="missing-input"),
         pytest.param(ValueError("Invalid query"), "VALIDATION_ERROR", None, id="invalid-query"),
+        pytest.param(PathNotFoundError("subscription.x"), "VALIDATION_ERROR", None, id="query-validation"),
         pytest.param(QueryStateNotFoundError("Query not found"), "NOT_FOUND", None, id="query-not-found"),
         pytest.param(RuntimeError("runtime error"), "INTERNAL_ERROR", "Search failed: runtime error", id="unexpected"),
     ],
 )
-async def test_execute_resource_search_maps_errors(error, code, message):
-    with patch("orchestrator.core.graphql.resource_search.execute_search_page", AsyncMock(side_effect=error)):
+async def test_search_resource_maps_errors(error, code, message):
+    with patch(EXECUTE_SEARCH_PAGE, AsyncMock(side_effect=error)):
         with pytest.raises(GraphQLError) as exc_info:
-            await execute_resource_search(_info(), EntityType.SUBSCRIPTION, ResourceSearchInput(), first=10, after=0)
+            await search_resource(
+                _info(), EntityType.SUBSCRIPTION, ResourceSearchInput(), AsyncMock(), first=10, after=0
+            )
 
     assert exc_info.value.extensions["code"] == code
     assert exc_info.value.message == (message or str(error))
 
 
-async def test_execute_resource_search_maps_invalid_page_size():
+async def test_search_resource_maps_invalid_page_size():
     """The page size is validated while building the query, inside the same error mapping."""
     with pytest.raises(GraphQLError) as exc_info:
-        await execute_resource_search(_info(), EntityType.SUBSCRIPTION, ResourceSearchInput(), first=0, after=0)
+        await search_resource(_info(), EntityType.SUBSCRIPTION, ResourceSearchInput(), AsyncMock(), first=0, after=0)
 
     assert exc_info.value.extensions["code"] == "VALIDATION_ERROR"

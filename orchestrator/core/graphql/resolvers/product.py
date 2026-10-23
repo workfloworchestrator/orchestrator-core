@@ -11,11 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from uuid import UUID
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import CompoundSelect, Select, func, select
+from sqlalchemy.orm.strategy_options import _AbstractLoad
 
 from orchestrator.core.db import db
 from orchestrator.core.db.filters import Filter
@@ -43,6 +44,11 @@ from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
+
+
+def _graphql_products(stmt: Select | CompoundSelect, loaders: Sequence[_AbstractLoad]) -> Iterator[ProductType]:
+    for product in rows_from_statement(stmt, ProductTable, unique=True, loaders=loaders):
+        yield ProductType.from_pydantic(product)
 
 
 @make_async
@@ -80,10 +86,7 @@ def query_products(
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    graphql_products = []
-    if is_querying_page_data(info):
-        products = rows_from_statement(stmt, ProductTable, unique=True, loaders=query_loaders)
-        graphql_products = [ProductType.from_pydantic(p) for p in products]
+    graphql_products = list(_graphql_products(stmt, query_loaders)) if is_querying_page_data(info) else []
     return to_graphql_result_page(graphql_products, first, after, total, product_sort_fields(), product_filter_fields())
 
 
@@ -91,8 +94,7 @@ def query_products(
 def _load_products(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, ProductType]:
     query_loaders = get_query_loaders_for_gql_fields(ProductTable, info)
     stmt = select(ProductTable).where(ProductTable.product_id.in_(ids))
-    rows = rows_from_statement(stmt, ProductTable, unique=True, loaders=query_loaders)
-    return {str(row.product_id): ProductType.from_pydantic(row) for row in rows}
+    return {str(product.product_id): product for product in _graphql_products(stmt, query_loaders)}
 
 
 async def search_products(

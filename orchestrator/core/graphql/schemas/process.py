@@ -25,8 +25,8 @@ from orchestrator.core.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.core.graphql.schemas.customer import CustomerType
 from orchestrator.core.graphql.schemas.helpers import get_original_model
 from orchestrator.core.graphql.schemas.product import ProductType
-from orchestrator.core.graphql.search_inputs import ResourceSearchInput
-from orchestrator.core.graphql.types import FormUserPermissionsType, GraphqlFilter, GraphqlSort, OrchestratorInfo
+from orchestrator.core.graphql.search_inputs import DeprecatedFilterBy, DeprecatedSortBy, ResourceSearchInput
+from orchestrator.core.graphql.types import FormUserPermissionsType, GraphqlFilter, OrchestratorInfo
 from orchestrator.core.schemas.process import ProcessSchema, ProcessStepSchema
 from orchestrator.core.services.processes import load_process
 from orchestrator.core.settings import app_settings
@@ -121,8 +121,8 @@ class ProcessType:
     async def subscriptions(
         self,
         info: OrchestratorInfo,
-        filter_by: list[GraphqlFilter] | None = None,
-        sort_by: list[GraphqlSort] | None = None,
+        filter_by: DeprecatedFilterBy = None,
+        sort_by: DeprecatedSortBy = None,
         first: int = 10,
         after: int = 0,
         search: ResourceSearchInput | None = None,

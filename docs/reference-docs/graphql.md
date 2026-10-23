@@ -1274,8 +1274,9 @@ custom_subscription_interface = override_class(SubscriptionInterface, [customer_
 
 !!! warning "Deprecated"
 
-    `filterBy`, `sortBy` and `query` are deprecated on the list resources. Use the `search` argument instead, see
-    [Searching list resources](#searching-list-resources). `FILTER_BY_MODE` only applies to `filterBy`.
+    `filterBy`, `sortBy` and `query` are deprecated on the list resources, as are `filterBy` and `sortBy` on the
+    relation fields. Use the `search` argument instead, see [Searching list resources](#searching-list-resources).
+    `FILTER_BY_MODE` only applies to `filterBy`.
 
 By default, string matching is configured for exact matches, i.e a search for `10` will return ONLY `10`
 and won't include `10G` or `100G`.
@@ -1329,7 +1330,7 @@ query {
 
 Results are returned in `searchEdges`, ranked, with each match's `score` and `matchingFields`. A structured search
 (filters without `query` text) gives every result a `score` of `1` and is ordered by `orderBy` instead. `page` has
-the same entities without the match data and is deprecated.
+the same entities without the match data.
 
 ### Pagination
 
