@@ -28,6 +28,7 @@ These tests verify that:
 
 from __future__ import annotations
 
+import json
 from http import HTTPStatus
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
@@ -48,11 +49,12 @@ from orchestrator.core.api.api_v1.endpoints import (
     workflows,
 )
 from orchestrator.core.exception_handlers import query_validation_handler
-from orchestrator.core.forms import FormPage, generate_form
-from orchestrator.core.forms.validators import Choice
+from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import Choice, Label
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG
-from orchestrator.core.schemas.mcp_tools import WorkflowFormPage
+from orchestrator.core.schemas.mcp_tools import GetWorkflowFormRequest, WorkflowFormPage
 from orchestrator.core.search.query.exceptions import InvalidLtreePatternError, PathNotFoundError, QueryValidationError
+from pydantic_forms.core import page_schema
 from pydantic_forms.exception_handlers.fastapi import form_error_handler
 from pydantic_forms.exceptions import FormException
 
@@ -311,7 +313,7 @@ def test_search_without_criteria_rejected_as_422(app_with_agent_routes: FastAPI)
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-# --- the form tool: a page as data, a verdict as a result ----------------------------------------------
+# --- the form tool: a page as one JSON Schema, a verdict as a result -------------------------------------
 
 
 class _Speed(Choice):
@@ -321,6 +323,7 @@ class _Speed(Choice):
 class _PortPage(FormPage):
     model_config = ConfigDict(title="Port")
 
+    note: Label
     speed: _Speed
     vlan: int = 0
 
@@ -347,23 +350,36 @@ async def _form_tool(app: FastAPI, arguments: dict) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_get_workflow_form_describes_the_page_as_data(app_with_agent_routes: FastAPI) -> None:
+async def test_get_workflow_form_serves_the_page_as_one_schema(app_with_agent_routes: FastAPI, monkeypatch) -> None:
     pytest.importorskip("fastmcp")
+    labels = {"note": "Notes", "note_info": "Reminders", "vlan_info": "The vlan id"}
+    monkeypatch.setattr(mcp_tools, "form_field_labels", lambda language: labels if language == "en-GB" else {})
     first = await _form_tool(app_with_agent_routes, {})
     assert (first["status"], first["page"], first["complete"], first["title"]) == ("next", 0, False, "Port")
-    assert [(f["name"], f["kind"], f["required"]) for f in first["fields"]] == [
-        ("speed", "string", True),
-        ("vlan", "integer", False),
-    ]
-    assert first["fields"][0]["options"] == [{"value": "10G", "label": "10 Gbit/s"}]
-    # The browser's schema is still there, and it is the one ``generate_form`` rendered before.
-    state = {"workflow_name": "create_port", "workflow_target": "CREATE"}
-    assert first["schema"] == generate_form(_port_form, state, [])
-    without = await _form_tool(app_with_agent_routes, {"include_schema": False})
-    assert without["schema"] is None and without["fields"] == first["fields"]
-    assert WorkflowFormPage.model_json_schema()["properties"]["schema"]["deprecated"] is True
+    schema = first["schema"]
+    plain = page_schema(_PortPage, inline_refs=True)
+    assert schema["properties"]["speed"] == plain["properties"]["speed"]  # no label: as pydantic-forms renders it
+    assert (schema["properties"]["note"]["title"], schema["properties"]["note"]["description"]) == (
+        "Notes",
+        "Reminders",
+    )
+    assert (
+        schema["properties"]["vlan"]["description"] == "The vlan id"
+    )  # the form translations, as the frontend shows them
+    assert {k: v for k, v in schema.items() if k != "properties"} == {
+        k: v for k, v in plain.items() if k != "properties"
+    }
+    other = await _form_tool(app_with_agent_routes, {"language": "nl-NL"})  # a language without a table
+    assert other["schema"] == plain
+    assert "$defs" not in schema and "$ref" not in json.dumps(schema)  # the choice is inlined
+    assert list(schema["properties"]) == ["note", "speed", "vlan"] and schema["required"] == ["speed"]
+    assert schema["properties"]["note"]["readOnly"] is True  # a label: shown, nothing to submit
+    speed = schema["properties"]["speed"]
+    assert (speed["enum"], speed["options"]) == (["10G"], {"10G": "10 Gbit/s"})
+    assert "fields" not in first and WorkflowFormPage.model_fields["schema_"].deprecated is None
+    assert "include_schema" not in GetWorkflowFormRequest.model_fields
     done = await _form_tool(app_with_agent_routes, {"page_inputs": [{"speed": "10G"}]})
-    assert (done["status"], done["page"], done["complete"], done["fields"]) == ("complete", 1, True, None)
+    assert (done["status"], done["page"], done["complete"], done["schema"]) == ("complete", 1, True, None)
 
 
 @pytest.mark.asyncio
@@ -378,7 +394,8 @@ async def test_a_rejected_page_is_an_error_or_a_result_as_asked(app_with_agent_r
     rejected = await _form_tool(app_with_agent_routes, {**bad, "verdict": "result"})
     assert (rejected["status"], rejected["page"], rejected["complete"]) == ("rejected", 0, False)
     assert [(e["loc"], e["type"]) for e in rejected["errors"]] == [(["speed"], "enum")]
-    assert [f["name"] for f in rejected["fields"]] == ["speed", "vlan"]
+    first = await _form_tool(app_with_agent_routes, {})
+    assert rejected["schema"] == first["schema"]  # the page to resubmit, labelled as it was served
 
 
 @pytest.mark.asyncio
