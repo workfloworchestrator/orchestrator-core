@@ -103,7 +103,9 @@ def thread_start_process(
     pstat.current_user = user
 
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func), broadcast_func=broadcast_func)
+    return _run_process_async(
+        pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func), broadcast_func=broadcast_func
+    )
 
 
 def thread_resume_process(

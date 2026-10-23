@@ -191,9 +191,7 @@ def fetch_product_block_export_data(entity_ids: list[str]) -> list[dict]:
         select(ProductBlockTable)
         .options(
             selectinload(ProductBlockTable.resource_types),
-            selectinload(ProductBlockTable.in_use_by_block_relations).selectinload(
-                ProductBlockRelationTable.in_use_by
-            ),
+            selectinload(ProductBlockTable.in_use_by_block_relations).selectinload(ProductBlockRelationTable.in_use_by),
         )
         .filter(ProductBlockTable.product_block_id.in_([UUID(pbid) for pbid in entity_ids]))
     )

@@ -17,19 +17,21 @@ Revises: be3163f7c49d
 Create Date: 2026-05-18 11:49:37.145417
 
 """
+
 import pickle
 
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = 'cab8b6a0ac92'
-down_revision = 'be3163f7c49d'
+revision = "cab8b6a0ac92"
+down_revision = "be3163f7c49d"
 branch_labels = None
 depends_on = None
 
 OLD_PREFIX = "orchestrator."
 NEW_PREFIX = "orchestrator.core."
+
 
 def _rewrite_func_ref(func_ref: str, old: str, new: str) -> str | None:
     """Rewrite a func ref from old prefix to new, returning None if unchanged."""

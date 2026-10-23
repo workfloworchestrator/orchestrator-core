@@ -201,7 +201,10 @@ def test_select_options_where_config_with_entity_id_applies_where(config_cls, ta
     select_result.options.return_value = options_result
     options_result.where.return_value = where_result
 
-    with patch("orchestrator.core.search.indexing.registry.select", return_value=select_result), patch("sqlalchemy.orm.selectinload"):
+    with (
+        patch("orchestrator.core.search.indexing.registry.select", return_value=select_result),
+        patch("sqlalchemy.orm.selectinload"),
+    ):
         result = config.get_all_query(entity_id=VALID_UUID)
 
     options_result.where.assert_called_once()

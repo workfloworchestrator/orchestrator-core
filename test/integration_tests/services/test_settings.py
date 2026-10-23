@@ -69,9 +69,7 @@ def test_generate_engine_global_status(global_lock: bool, running_count: int, ex
     ],
     ids=["lock_true_posts_stop_message", "lock_false_posts_start_message"],
 )
-def test_post_update_to_slack_sends_correct_message(
-    global_lock: bool, expected_action_fragment: str, httpx_mock
-):
+def test_post_update_to_slack_sends_correct_message(global_lock: bool, expected_action_fragment: str, httpx_mock):
     engine_status = MagicMock(spec=EngineSettingsSchema)
     engine_status.global_lock = global_lock
     hook_url = "https://hooks.slack.example/test"

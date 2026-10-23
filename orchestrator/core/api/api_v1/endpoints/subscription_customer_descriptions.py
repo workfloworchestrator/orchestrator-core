@@ -34,24 +34,34 @@ router = APIRouter()
 
 
 @router.post("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-async def save_subscription_customer_description_endpoint(data: SubscriptionDescriptionBaseSchema = Body(...), session: AsyncSession = Depends(get_async_session)) -> None:
+async def save_subscription_customer_description_endpoint(
+    data: SubscriptionDescriptionBaseSchema = Body(...), session: AsyncSession = Depends(get_async_session)
+) -> None:
     await create_subscription_customer_description(data.customer_id, data.subscription_id, data.description, session)
 
 
 @router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 async def update_subscription_customer_description_endpoint(
-    data: UpdateSubscriptionDescriptionSchema = Body(...), session: AsyncSession = Depends(get_async_session),
+    data: UpdateSubscriptionDescriptionSchema = Body(...),
+    session: AsyncSession = Depends(get_async_session),
 ) -> None:
-    description = await get_customer_description_by_customer_subscription(data.customer_id, data.subscription_id, session)
+    description = await get_customer_description_by_customer_subscription(
+        data.customer_id, data.subscription_id, session
+    )
     if description:
         try:
-            await update_subscription_customer_description(description, data.description, session, data.created_at, data.version)
+            await update_subscription_customer_description(
+                description, data.description, session, data.created_at, data.version
+            )
         except StaleDataError as error:
             raise_status(HTTPStatus.BAD_REQUEST, str(error))
 
 
 @router.delete("/{_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-async def delete_subscription_customer_descriptions(_id: UUID, session: AsyncSession = Depends(get_async_session),) -> None:
+async def delete_subscription_customer_descriptions(
+    _id: UUID,
+    session: AsyncSession = Depends(get_async_session),
+) -> None:
     description = await session.get(SubscriptionCustomerDescriptionTable, _id)
     if description:
         await delete_async(SubscriptionCustomerDescriptionTable, _id, session)

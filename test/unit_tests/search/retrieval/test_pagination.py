@@ -231,7 +231,9 @@ async def test_subsequent_page_reuses_cursor_query_id():
     session_mock = MagicMock()
 
     with patch("orchestrator.core.search.query.state.QueryState") as mock_qs:
-        encoded = await encode_next_page_cursor(response, cursor=existing_cursor, query=query_mock, session=session_mock)
+        encoded = await encode_next_page_cursor(
+            response, cursor=existing_cursor, query=query_mock, session=session_mock
+        )
 
     mock_qs.assert_not_called()
 
