@@ -11,11 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from uuid import UUID
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import CompoundSelect, Select, func, select
+from sqlalchemy.orm.strategy_options import _AbstractLoad
 
 from orchestrator.core.db import db
 from orchestrator.core.db.filters import Filter
@@ -47,6 +48,11 @@ from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
+
+
+def _graphql_product_blocks(stmt: Select | CompoundSelect, loaders: Sequence[_AbstractLoad]) -> Iterator[ProductBlock]:
+    for product_block in rows_from_statement(stmt, ProductBlockTable, loaders=loaders):
+        yield ProductBlock.from_pydantic(product_block)
 
 
 @make_async
@@ -86,10 +92,7 @@ def query_product_blocks(
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    graphql_product_blocks = []
-    if is_querying_page_data(info):
-        product_blocks = rows_from_statement(stmt, ProductBlockTable, loaders=query_loaders)
-        graphql_product_blocks = [ProductBlock.from_pydantic(p) for p in product_blocks]
+    graphql_product_blocks = list(_graphql_product_blocks(stmt, query_loaders)) if is_querying_page_data(info) else []
     return to_graphql_result_page(
         graphql_product_blocks, first, after, total, product_block_sort_fields(), product_block_filter_fields()
     )
@@ -99,8 +102,10 @@ def query_product_blocks(
 def _load_product_blocks(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, ProductBlock]:
     query_loaders = get_query_loaders_for_gql_fields(ProductBlockTable, info)
     stmt = select(ProductBlockTable).where(ProductBlockTable.product_block_id.in_(ids))
-    rows = rows_from_statement(stmt, ProductBlockTable, loaders=query_loaders)
-    return {str(row.product_block_id): ProductBlock.from_pydantic(row) for row in rows}
+    return {
+        str(product_block.product_block_id): product_block
+        for product_block in _graphql_product_blocks(stmt, query_loaders)
+    }
 
 
 async def search_product_blocks(

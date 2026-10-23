@@ -33,8 +33,8 @@ from orchestrator.core.graphql.schemas.customer_description import CustomerDescr
 from orchestrator.core.graphql.schemas.helpers import get_original_model
 from orchestrator.core.graphql.schemas.process import ProcessType
 from orchestrator.core.graphql.schemas.product import ProductModelGraphql
-from orchestrator.core.graphql.search_inputs import ResourceSearchInput
-from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+from orchestrator.core.graphql.search_inputs import DeprecatedFilterBy, DeprecatedSortBy, ResourceSearchInput
+from orchestrator.core.graphql.types import GraphqlFilter, OrchestratorInfo
 from orchestrator.core.graphql.utils.get_subscription_product_blocks import (
     ProductBlockInstance,
     get_subscription_product_blocks,
@@ -138,8 +138,8 @@ class SubscriptionInterface:
     async def processes(
         self,
         info: OrchestratorInfo,
-        filter_by: list[GraphqlFilter] | None = None,
-        sort_by: list[GraphqlSort] | None = None,
+        filter_by: DeprecatedFilterBy = None,
+        sort_by: DeprecatedSortBy = None,
         first: int = 10,
         after: int = 0,
         search: ResourceSearchInput | None = None,
@@ -165,8 +165,8 @@ class SubscriptionInterface:
     async def in_use_by_subscriptions(
         self,
         info: OrchestratorInfo,
-        filter_by: list[GraphqlFilter] | None = None,
-        sort_by: list[GraphqlSort] | None = None,
+        filter_by: DeprecatedFilterBy = None,
+        sort_by: DeprecatedSortBy = None,
         first: int = 10,
         after: int = 0,
         in_use_by_filter: SubscriptionRelationFilter | None = None,
@@ -201,8 +201,8 @@ class SubscriptionInterface:
     async def depends_on_subscriptions(
         self,
         info: OrchestratorInfo,
-        filter_by: list[GraphqlFilter] | None = None,
-        sort_by: list[GraphqlSort] | None = None,
+        filter_by: DeprecatedFilterBy = None,
+        sort_by: DeprecatedSortBy = None,
         first: int = 10,
         after: int = 0,
         depends_on_filter: SubscriptionRelationFilter | None = None,

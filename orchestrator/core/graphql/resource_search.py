@@ -18,8 +18,9 @@ Runs the search and pairs its hits with entities the resource resolvers load.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping, Sequence
-from typing import TypeVar, cast
+from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
+from typing import Any, TypeVar, cast
 from uuid import UUID
 
 import structlog
@@ -31,8 +32,9 @@ from orchestrator.core.graphql.pagination import Connection, PageInfo, SearchEdg
 from orchestrator.core.graphql.schemas.search import MatchingFieldType, SearchMetadataType
 from orchestrator.core.graphql.search_inputs import ResourceSearchInput
 from orchestrator.core.graphql.types import OrchestratorInfo
-from orchestrator.core.search.core.exceptions import InvalidCursorError, QueryStateNotFoundError
+from orchestrator.core.search.core.exceptions import QueryStateNotFoundError
 from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.query.exceptions import SEARCH_INPUT_ERRORS
 from orchestrator.core.search.query.page import SearchPage, execute_search_page
 from orchestrator.core.search.query.results import MatchingField, SearchResult
 
@@ -85,7 +87,27 @@ def _client_error(message: str, error_type: ErrorType) -> GraphQLError:
     return GraphQLError(message, extensions={"code": code, EXTENSION_ERROR_TYPE: str(error_type)})
 
 
-async def execute_resource_search(
+@contextmanager
+def search_errors_to_graphql(failure_message: str, **log_context: Any) -> Iterator[None]:
+    """Raise the errors of running a search as GraphQLErrors, shared by every GraphQL search entry point.
+
+    Invalid input and a missing saved query keep their message for the client, as does a GraphQLError raised inside;
+    anything else is logged with `log_context` and reported as `failure_message`.
+    """
+    try:
+        yield
+    except GraphQLError:
+        raise
+    except SEARCH_INPUT_ERRORS as e:
+        raise _client_error(str(e), ErrorType.BAD_REQUEST) from e
+    except QueryStateNotFoundError as e:
+        raise _client_error(str(e), ErrorType.NOT_FOUND) from e
+    except Exception as e:
+        logger.error(failure_message, error=str(e), **log_context)
+        raise GraphQLError(f"{failure_message}: {e}", extensions={"code": "INTERNAL_ERROR"}) from e
+
+
+async def _execute_resource_search(
     info: OrchestratorInfo, entity_type: EntityType, search: ResourceSearchInput, first: int, after: int
 ) -> SearchPage:
     """Run the `search` argument of a list resource and return the ranked hits.
@@ -97,8 +119,8 @@ async def execute_resource_search(
         GraphQLError: When `search` is combined with other arguments, or the search itself fails.
     """
     _reject_non_search_arguments(info)
-    try:
-        page = await execute_search_page(
+    with search_errors_to_graphql("Search failed", entity_type=entity_type):
+        return await execute_search_page(
             info.context.session,
             query=None if search.cursor else search.to_select_query(entity_type, first),
             cursor=search.cursor,
@@ -106,14 +128,6 @@ async def execute_resource_search(
             entity_ids=search.entity_ids,
             offset=after,
         )
-    except (InvalidCursorError, ValueError) as e:
-        raise _client_error(str(e), ErrorType.BAD_REQUEST) from e
-    except QueryStateNotFoundError as e:
-        raise _client_error(str(e), ErrorType.NOT_FOUND) from e
-    except Exception as e:
-        logger.error("Resource search failed", entity_type=entity_type, error=str(e))
-        raise GraphQLError(f"Search failed: {e}", extensions={"code": "INTERNAL_ERROR"}) from e
-    return page
 
 
 def _search_edge(result: SearchResult, node: T) -> SearchEdge[T]:
@@ -125,7 +139,7 @@ def _search_edge(result: SearchResult, node: T) -> SearchEdge[T]:
     )
 
 
-def to_search_connection(
+def _to_search_connection(
     search_page: SearchPage, nodes_by_id: Mapping[str, T], *, has_previous_page: bool
 ) -> Connection[T]:
     """Pair each hit with its loaded entity, keeping the search ranking.
@@ -169,8 +183,8 @@ async def search_resource(
     `load_nodes` gets `info` and the hit ids and returns their GraphQL nodes keyed by id as string; it is not called
     when there are no hits.
     """
-    search_page = await execute_resource_search(info, entity_type, search, first, after)
+    search_page = await _execute_resource_search(info, entity_type, search, first, after)
     entity_ids = [UUID(entity_id) for entity_id in search_page.entity_ids]
     nodes_by_id = await load_nodes(info, entity_ids) if entity_ids else {}
     has_previous_page = bool(after) or search.cursor is not None
-    return to_search_connection(search_page, nodes_by_id, has_previous_page=has_previous_page)
+    return _to_search_connection(search_page, nodes_by_id, has_previous_page=has_previous_page)

@@ -29,7 +29,7 @@ from graphql import GraphQLError
 from sqlalchemy import select
 
 from orchestrator.core.db import SearchQueryTable
-from orchestrator.core.graphql.resource_search import matching_field_to_gql, metadata_to_gql
+from orchestrator.core.graphql.resource_search import matching_field_to_gql, metadata_to_gql, search_errors_to_graphql
 from orchestrator.core.graphql.schemas.search import (
     AggregationPairType,
     ComponentInfoType,
@@ -50,7 +50,6 @@ from orchestrator.core.graphql.schemas.search import (
 )
 from orchestrator.core.graphql.search_inputs import SearchInput
 from orchestrator.core.graphql.types import OrchestratorInfo
-from orchestrator.core.search.core.exceptions import InvalidCursorError, QueryStateNotFoundError
 from orchestrator.core.search.core.types import EntityType, FilterOp, SearchMetadata, UIType
 from orchestrator.core.search.filters.definitions import ValueSchema, generate_definitions
 from orchestrator.core.search.query import QueryState, engine
@@ -191,21 +190,12 @@ async def resolve_search(
         cursor: Opaque pagination cursor from a previous page.
         include_columns: Whether to include response columns in results.
     """
-    try:
+    query = None if cursor else input.to_select_query(entity_type)
+    with search_errors_to_graphql("Search failed", entity_type=entity_type):
         page = await execute_search_page(
-            info.context.session,
-            query=None if cursor else input.to_select_query(entity_type),
-            cursor=cursor,
-            include_columns=include_columns,
+            info.context.session, query=query, cursor=cursor, include_columns=include_columns
         )
         return _search_page_to_connection(page)
-    except (InvalidCursorError, ValueError) as e:
-        raise GraphQLError(str(e), extensions={"code": "VALIDATION_ERROR"}) from e
-    except QueryStateNotFoundError as e:
-        raise GraphQLError(str(e), extensions={"code": "NOT_FOUND"}) from e
-    except Exception as e:
-        logger.error("Search failed", error=str(e))
-        raise GraphQLError(f"Search failed: {e}", extensions={"code": "INTERNAL_ERROR"}) from e
 
 
 async def resolve_search_paths(
@@ -296,7 +286,7 @@ async def resolve_search_query_results(
     except (ValueError, TypeError) as e:
         raise GraphQLError(f"Invalid query_id format: {query_id}", extensions={"code": "VALIDATION_ERROR"}) from e
 
-    try:
+    with search_errors_to_graphql("Failed to fetch query results", query_id=query_id):
         session = info.context.session
 
         stmt = select(SearchQueryTable).filter_by(query_id=query_uuid)
@@ -338,13 +328,6 @@ async def resolve_search_query_results(
                     f"Unsupported query type: {query.query_type}",
                     extensions={"code": "VALIDATION_ERROR"},
                 )
-    except GraphQLError:
-        raise
-    except QueryStateNotFoundError as e:
-        raise GraphQLError(str(e), extensions={"code": "NOT_FOUND"}) from e
-    except Exception as e:
-        logger.error("Failed to fetch query results", query_id=query_id, error=str(e))
-        raise GraphQLError(f"Failed to fetch query results: {e}", extensions={"code": "INTERNAL_ERROR"}) from e
 
 
 async def resolve_search_query(
@@ -359,16 +342,9 @@ async def resolve_search_query(
         query_id: UUID string of the saved query.
         cursor: Optional pagination cursor.
     """
-    try:
+    with search_errors_to_graphql("Search query failed", query_id=query_id):
         page = await execute_search_page(info.context.session, cursor=cursor, query_id=query_id)
         return _search_page_to_connection(page)
-    except (InvalidCursorError, ValueError) as e:
-        raise GraphQLError(str(e), extensions={"code": "VALIDATION_ERROR"}) from e
-    except QueryStateNotFoundError as e:
-        raise GraphQLError(str(e), extensions={"code": "NOT_FOUND"}) from e
-    except Exception as e:
-        logger.error("Search query failed", query_id=query_id, error=str(e))
-        raise GraphQLError(f"Search query failed: {e}", extensions={"code": "INTERNAL_ERROR"}) from e
 
 
 async def resolve_search_query_export(
@@ -386,7 +362,7 @@ async def resolve_search_query_export(
     Returns:
         ExportResponseType with flattened entity records.
     """
-    try:
+    with search_errors_to_graphql("Export failed", query_id=query_id):
         session = info.context.session
 
         query_state = await QueryState.load_from_id(query_id, SelectQuery, session)
@@ -399,10 +375,3 @@ async def resolve_search_query_export(
 
         export_records = await engine.execute_export(export_query, session, query_state.query_embedding)
         return ExportResponseType(page=cast(list[strawberry.scalars.JSON], export_records))
-    except ValueError as e:
-        raise GraphQLError(str(e), extensions={"code": "VALIDATION_ERROR"}) from e
-    except QueryStateNotFoundError as e:
-        raise GraphQLError(str(e), extensions={"code": "NOT_FOUND"}) from e
-    except Exception as e:
-        logger.error("Export failed", query_id=query_id, error=str(e))
-        raise GraphQLError(f"Error executing export: {e}", extensions={"code": "INTERNAL_ERROR"}) from e

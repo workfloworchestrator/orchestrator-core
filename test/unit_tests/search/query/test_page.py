@@ -17,7 +17,7 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.core.search.core.exceptions import InvalidCursorError
+from orchestrator.core.search.core.exceptions import InvalidCursorError, InvalidSearchPageError
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.query.page import execute_search_page
 from orchestrator.core.search.query.queries import SelectQuery
@@ -43,11 +43,13 @@ def _cursor():
         pytest.param({}, "Either query, cursor or query_id must be provided", id="nothing-to-search"),
     ],
 )
-async def test_invalid_paging_raises(kwargs, message):
-    with pytest.raises(ValueError) as exc_info:
+async def test_invalid_page_request_raises(kwargs, message):
+    """Distinct from ValueError, so a caller can tell an unusable page request apart from an invalid query."""
+    with pytest.raises(InvalidSearchPageError) as exc_info:
         await execute_search_page(MagicMock(), **kwargs)
 
     assert str(exc_info.value) == message
+    assert not isinstance(exc_info.value, ValueError)
 
 
 async def test_malformed_cursor_raises():

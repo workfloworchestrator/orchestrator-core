@@ -11,11 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from uuid import UUID
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import CompoundSelect, Select, func, select
+from sqlalchemy.orm.strategy_options import _AbstractLoad
 
 from orchestrator.core.db import db
 from orchestrator.core.db.filters import Filter
@@ -47,6 +48,11 @@ from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
+
+
+def _graphql_workflows(stmt: Select | CompoundSelect, loaders: Sequence[_AbstractLoad]) -> Iterator[Workflow]:
+    for workflow in rows_from_statement(stmt, WorkflowTable, unique=True, loaders=loaders):
+        yield Workflow.from_pydantic(workflow)
 
 
 @make_async
@@ -85,10 +91,7 @@ def query_workflows(
 
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    graphql_workflows = []
-    if is_querying_page_data(info):
-        workflows = rows_from_statement(stmt, WorkflowTable, unique=True, loaders=query_loaders)
-        graphql_workflows = [Workflow.from_pydantic(p) for p in workflows]
+    graphql_workflows = list(_graphql_workflows(stmt, query_loaders)) if is_querying_page_data(info) else []
     return to_graphql_result_page(
         graphql_workflows, first, after, total, workflow_sort_fields(), workflow_filter_fields()
     )
@@ -98,8 +101,7 @@ def query_workflows(
 def _load_workflows(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, Workflow]:
     query_loaders = get_query_loaders_for_gql_fields(WorkflowTable, info)
     stmt = WorkflowTable.select().where(WorkflowTable.workflow_id.in_(ids))
-    rows = rows_from_statement(stmt, WorkflowTable, unique=True, loaders=query_loaders)
-    return {str(row.workflow_id): Workflow.from_pydantic(row) for row in rows}
+    return {str(workflow.workflow_id): workflow for workflow in _graphql_workflows(stmt, query_loaders)}  # type: ignore[attr-defined]
 
 
 async def search_workflows(

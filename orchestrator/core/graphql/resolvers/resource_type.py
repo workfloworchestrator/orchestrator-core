@@ -11,11 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from uuid import UUID
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import CompoundSelect, Select, func, select
+from sqlalchemy.orm.strategy_options import _AbstractLoad
 
 from orchestrator.core.db import db
 from orchestrator.core.db.filters import Filter
@@ -47,6 +48,11 @@ from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
+
+
+def _graphql_resource_types(stmt: Select | CompoundSelect, loaders: Sequence[_AbstractLoad]) -> Iterator[ResourceType]:
+    for resource_type in rows_from_statement(stmt, ResourceTypeTable, loaders=loaders):
+        yield ResourceType.from_pydantic(resource_type)
 
 
 @make_async
@@ -85,10 +91,7 @@ def query_resource_types(
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    graphql_resource_types = []
-    if is_querying_page_data(info):
-        resource_types = rows_from_statement(stmt, ResourceTypeTable, loaders=query_loaders)
-        graphql_resource_types = [ResourceType.from_pydantic(p) for p in resource_types]
+    graphql_resource_types = list(_graphql_resource_types(stmt, query_loaders)) if is_querying_page_data(info) else []
     return to_graphql_result_page(
         graphql_resource_types, first, after, total, resource_type_sort_fields(), resource_type_filter_fields()
     )
@@ -98,8 +101,10 @@ def query_resource_types(
 def _load_resource_types(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, ResourceType]:
     query_loaders = get_query_loaders_for_gql_fields(ResourceTypeTable, info)
     stmt = select(ResourceTypeTable).where(ResourceTypeTable.resource_type_id.in_(ids))
-    rows = rows_from_statement(stmt, ResourceTypeTable, loaders=query_loaders)
-    return {str(row.resource_type_id): ResourceType.from_pydantic(row) for row in rows}
+    return {
+        str(resource_type.resource_type_id): resource_type  # type: ignore[attr-defined]
+        for resource_type in _graphql_resource_types(stmt, query_loaders)
+    }
 
 
 async def search_resource_types(
