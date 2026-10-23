@@ -45,14 +45,14 @@ It is also quite helpful to see how the Product Type is stored in the databaseâ€
         heading_level: 3
 
 ## Registering a product type
-<!-- diataxis: explanation --> 
+<!-- diataxis: explanation -->
 <!-- TODO: link to How-To that guides the user through registering a product type -->
 
 A product type must be registered both in code and in the database.
 This ensures that a subscription (an "instance" of a product type) can be serialized from Python to
 the database, and deserialized when reading from the database into Python.
 
-During orchestrator-core startup, product types registered in code are mapped to the corresponding database 
+During orchestrator-core startup, product types registered in code are mapped to the corresponding database
 registrations based on their unique name.
 The product id is kept in memory for future database queries.
 When a product type is missing its database registration, an error is logged and the application refuses to start.
@@ -62,7 +62,7 @@ This loose coupling makes the same code definitions usable against databases wit
 ### Code registration
 <!-- diataxis: explanation -->
 
-The product type's python definition needs to be registered in the subscription model registry by using the 
+The product type's python definition needs to be registered in the subscription model registry by using the
 `SUBSCRIPTION_MODEL_REGISTRY` dictionary, like is shown here in the [example workflow orchestrator](https://github.com/workfloworchestrator/example-orchestrator):
 
 ```python

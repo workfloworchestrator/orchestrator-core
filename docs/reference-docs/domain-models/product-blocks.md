@@ -9,7 +9,7 @@ reviewed: true
 
 ## Defining a Product Block
 <!-- diataxis: mixed -->
-<!-- TODO: mostly explanation, move generated docs of ProductBlockModel to reference, then link to it --> 
+<!-- TODO: mostly explanation, move generated docs of ProductBlockModel to reference, then link to it -->
 
 !!! warning inline end
     You should only have one root Product Block on your domain model!

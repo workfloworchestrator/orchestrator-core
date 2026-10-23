@@ -1,6 +1,6 @@
 ---
 # tutorial | how-to | reference | explanation | mixed
-diataxis: 
+diataxis:
 reviewed: false
 ---
 
