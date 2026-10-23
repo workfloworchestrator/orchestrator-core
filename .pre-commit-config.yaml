@@ -31,7 +31,7 @@ repos:
       - id: mypy
         name: mypy
         language: system
-        entry: "uv run mypy"
+        entry: "uv run --no-sync mypy"
         types: [python]
         require_serial: true
         verbose: true
@@ -45,7 +45,7 @@ repos:
       - id: vulture
         name: vulture
         language: system
-        entry: "uv run vulture orchestrator vulture_whitelist.py --min-confidence 90"
+        entry: "uv run --no-sync vulture orchestrator vulture_whitelist.py --min-confidence 90"
         types: [python]
         require_serial: true
         pass_filenames: false
