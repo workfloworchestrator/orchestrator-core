@@ -24,6 +24,7 @@ def to_graphql_result_page(
     sort_fields: list[str] | None = None,
     filter_fields: list[str] | None = None,
 ) -> Connection:
+    """One offset page of `items`, which holds up to one extra item to tell whether a next page follows."""
     has_next_page = len(items) > first
 
     page_items = items[:first]

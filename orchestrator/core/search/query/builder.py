@@ -13,6 +13,7 @@
 
 from collections import defaultdict
 from typing import Any, Sequence
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import Select, String, case, cast, func, select
@@ -66,7 +67,7 @@ def create_path_autocomplete_lquery(prefix: str) -> str:
     return f"{prefix}*.*"
 
 
-def build_candidate_query(query: Query) -> Select:
+def build_candidate_query(query: Query, entity_ids: Sequence[UUID] | None = None) -> Select:
     """Build the base query for retrieving candidate entities.
 
     Constructs a `SELECT` statement that retrieves distinct `entity_id` values
@@ -75,6 +76,8 @@ def build_candidate_query(query: Query) -> Select:
 
     Args:
         query: Any query type (SelectQuery, CountQuery, AggregateQuery) containing entity type and optional filters.
+        entity_ids: When given, only these entities are candidates. Set by the server (e.g. the related
+            subscriptions of a relation field), never by the client, so it is not part of the query itself.
 
     Returns:
         Select: The SQLAlchemy `Select` object representing the query.
@@ -85,6 +88,9 @@ def build_candidate_query(query: Query) -> Select:
         .where(AiSearchIndex.entity_type == query.entity_type.value)
         .distinct()
     )
+
+    if entity_ids is not None:
+        stmt = stmt.where(AiSearchIndex.entity_id.in_(entity_ids))
 
     if query.filters is not None:
         entity_id_col = AiSearchIndex.entity_id

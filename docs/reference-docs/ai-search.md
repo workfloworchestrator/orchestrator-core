@@ -162,7 +162,8 @@ All three interfaces run the same engine.
 
 - **REST** under `/api/search` (authenticated): search, field autocomplete, operator definitions,
   and re-running or exporting saved queries.
-- **GraphQL** root fields that mirror the REST endpoints.
+- **GraphQL** root fields that mirror the REST endpoints, plus a `search` argument on the list
+  resources ([GraphQL](graphql.md#searching-list-resources)).
 - **Agent tools** under `/api/agent`, which can also be exposed as read-only [MCP](mcp.md) tools.
 
 ### REST
