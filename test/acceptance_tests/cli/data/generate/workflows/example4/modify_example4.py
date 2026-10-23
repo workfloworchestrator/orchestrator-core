@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import structlog
-from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import CustomerId, Divider
 from orchestrator.core.types import SubscriptionLifecycle
@@ -23,13 +22,7 @@ from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import read_only_field
 
 from products.product_types.example4 import Example4, Example4Provisioning
-
-
-def subscription_description(subscription: SubscriptionModel) -> str:
-    """The suggested pattern is to implement a subscription service that generates a subscription specific
-    description, in case that is not present the description will just be set to the product name.
-    """
-    return f"{subscription.product.name} subscription"
+from products.services.description import description
 
 
 logger = structlog.get_logger(__name__)
@@ -65,7 +58,7 @@ def update_subscription(
 
 @step("Update subscription description")
 def update_subscription_description(subscription: Example4) -> State:
-    subscription.description = subscription_description(subscription)
+    subscription.description = description(subscription)
     return {"subscription": subscription}
 
 

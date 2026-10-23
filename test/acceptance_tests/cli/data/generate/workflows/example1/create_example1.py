@@ -13,7 +13,6 @@
 from typing import Annotated
 
 import structlog
-from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.summary_form import base_summary
 from orchestrator.core.forms.validators import CustomerId, Divider, Label
@@ -25,19 +24,11 @@ from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from products.product_blocks.example1 import AnnotatedInt, ExampleStrEnum1
 from products.product_types.example1 import Example1Inactive, Example1Provisioning
+from products.services.description import description
 from workflows.example1.shared.forms import (
     annotated_int_must_be_unique_validator,
     must_be_unused_to_change_mode_validator,
 )
-
-
-def subscription_description(subscription: SubscriptionModel) -> str:
-    """Generate subscription description.
-
-    The suggested pattern is to implement a subscription service that generates a subscription specific
-    description, in case that is not present the description will just be set to the product name.
-    """
-    return f"{subscription.product.name} subscription"
 
 
 logger = structlog.get_logger(__name__)
@@ -95,7 +86,7 @@ def construct_example1_model(
     example1.example1.always_optional_str = always_optional_str
 
     example1 = Example1Provisioning.from_other_lifecycle(example1, SubscriptionLifecycle.PROVISIONING)
-    example1.description = subscription_description(example1)
+    example1.description = description(example1)
 
     return {
         "subscription": example1,

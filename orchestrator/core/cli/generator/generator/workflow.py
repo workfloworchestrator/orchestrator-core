@@ -25,6 +25,8 @@ from orchestrator.core.cli.generator.generator.helpers import (
     ProdGenContext,
     create_dunder_init_files,
     get_constrained_ints,
+    get_description_service_module,
+    get_description_service_path,
     get_existing_product_blocks,
     get_input_fields,
     get_name_spaced_types_to_import,
@@ -34,6 +36,7 @@ from orchestrator.core.cli.generator.generator.helpers import (
     get_workflow,
     get_workflows_folder,
     get_workflows_module,
+    insert_into_imports,
     merge_fields,
     root_product_block,
 )
@@ -85,6 +88,32 @@ def insert_lazy_workflow_instances(environment: Environment, config: dict, write
         writer(path, import_statement + content)  # will create file if not dryrun
 
 
+def read_description_service(environment: Environment) -> str:
+    """Return the content of the description service, or the rendered generic one when it does not exist yet."""
+    path = get_description_service_path()
+    if path.exists():
+        return path.read_text()
+    return environment.get_template("description.j2").render()
+
+
+def generate_description_service(environment: Environment, config: dict, writer: Callable) -> None:
+    """Add a `description` implementation stub for the product to the shared description service."""
+    import_statement = (
+        f"from {get_product_types_module()}.{config['variable']} import {config['type']}Provisioning\n"
+    )
+    content = read_description_service(environment)
+    if import_statement in content:
+        logger.warning("not re-adding subscription description", product=config["type"])
+        return
+
+    lines = insert_into_imports(content.splitlines(keepends=True), import_statement)
+    registration = environment.get_template("description_register.j2").render(product=config)
+
+    path = get_description_service_path()
+    writer(path, "".join(lines) + registration)
+    create_dunder_init_files(path.parent)
+
+
 def generate_workflows(context: ProdGenContext) -> None:
     config = context["config"]
     environment = context["environment"]
@@ -97,6 +126,7 @@ def generate_workflows(context: ProdGenContext) -> None:
     config = add_optional_ims_config(config)
 
     generate_shared_forms_file(environment, config, writer)
+    generate_description_service(environment, config, writer)
     generate_create_workflow(environment, config, writer)
     generate_modify_workflow(environment, config, writer)
     generate_validate_workflow(environment, config, writer)
@@ -166,6 +196,7 @@ def render_template(environment: Environment, config: dict, template: str, workf
         existing_product_blocks=existing_product_blocks,
         product_blocks_module=get_product_blocks_module(),
         product_types_module=get_product_types_module(),
+        description_service_module=get_description_service_module(),
         workflows_module=get_workflows_module(),
         workflow_validations=workflow_validations if workflow else [],
         use_updated_readonly_field=use_updated_readonly_field,
