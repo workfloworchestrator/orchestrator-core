@@ -27,7 +27,7 @@ class ProductGeneratorSettings(BaseSettings):
 
     # Files that will be updated
     PRODUCT_REGISTRY_PATH: Path = Path("products/__init__.py")
-    SUBSCRIPTION_DESCRIPTION_PATH: Path = Path("products/services/subscription.py")
+    SUBSCRIPTION_DESCRIPTION_PATH: Path = Path("products/services/description.py")
     TRANSLATION_PATH: Path = Path("translations/en-GB.json")
 
 

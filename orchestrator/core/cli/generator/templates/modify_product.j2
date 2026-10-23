@@ -36,6 +36,7 @@ from orchestrator.core.workflows.utils import modify_workflow
 {%- for namespace, type in types_to_import %}
 from {{ namespace }} import {{ type }}
 {%- endfor %}
+from {{ description_service_module }} import description
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}, {{ product.type }}Provisioning
 {% if validation_imports -%}
 from {{workflows_module}}.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
@@ -120,7 +121,7 @@ def update_subscription(
 
 @step("Update subscription description")
 def update_subscription_description(subscription: {{ product.type }}) -> State:
-    subscription.description = subscription_description(subscription)
+    subscription.description = description(subscription)
     return {"subscription": subscription}
 
 

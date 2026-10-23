@@ -138,7 +138,7 @@ Example: Single Dispatch for External System Updates (default function)
 
 ```python
 from functools import singledispatch
-from surf.utils.singledispatch import single_dispatch_base
+from orchestrator.core.utils.singledispatch import single_dispatch_base
 
 @singledispatch
 def update_external_system(model: SubscriptionModel) -> str:

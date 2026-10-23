@@ -249,6 +249,14 @@ def get_product_types_module() -> str:
     return path_to_module(get_product_types_folder())
 
 
+def get_description_service_path() -> Path:
+    return settings.FOLDER_PREFIX / settings.SUBSCRIPTION_DESCRIPTION_PATH
+
+
+def get_description_service_module() -> str:
+    return path_to_module(get_description_service_path().with_suffix(""))
+
+
 def get_product_path(config: dict) -> Path:
     file_name = get_product_file_name(config)
     return get_product_types_folder() / Path(file_name).with_suffix(".py")

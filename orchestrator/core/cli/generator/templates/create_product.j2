@@ -30,6 +30,7 @@ from orchestrator.core.workflows.utils import create_workflow
 {%- for namespace, type in types_to_import %}
 from {{ namespace }} import {{ type }}
 {%- endfor %}
+from {{ description_service_module }} import description
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}Inactive, {{ product.type }}Provisioning
 {%-if validation_imports %}
 from {{workflows_module}}.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
@@ -111,7 +112,7 @@ def construct_{{ product.variable }}_model(
     {%- endfor %}
 
     {{ product.variable }} = {{ product.type }}Provisioning.from_other_lifecycle({{ product.variable }}, SubscriptionLifecycle.PROVISIONING)
-    {{ product.variable }}.description = subscription_description({{ product.variable }})
+    {{ product.variable }}.description = description({{ product.variable }})
 
     return {
         "subscription": {{ product.variable }},

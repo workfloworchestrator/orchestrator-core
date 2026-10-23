@@ -1,0 +1,6 @@
+
+
+@description.register
+def _({{ product.variable }}: {{ product.type }}Provisioning) -> str:
+    # TODO: implement a product specific description
+    return f"{ {{- product.variable }}.product.name} subscription"
