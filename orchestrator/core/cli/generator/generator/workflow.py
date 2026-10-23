@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import re
 from collections.abc import Callable
 from functools import partial, wraps
 from importlib import metadata
@@ -96,22 +97,32 @@ def read_description_service(environment: Environment) -> str:
     return environment.get_template("description.j2").render()
 
 
-def generate_description_service(environment: Environment, config: dict, writer: Callable) -> None:
+def has_description_registration(content: str, config: dict) -> bool:
+    """Return whether the description service already refers to the product's provisioning model.
+
+    The check is on the type name rather than on the generated import line, because the import line may have been
+    reformatted (e.g. `from ... import Node, NodeProvisioning`) after the developer customised the description.
+    """
+    return re.search(rf"\b{config['type']}Provisioning\b", content) is not None
+
+
+def generate_description_service(
+    environment: Environment, config: dict, writer: Callable, dryrun: bool = False
+) -> None:
     """Add a `description` implementation stub for the product to the shared description service."""
-    import_statement = (
-        f"from {get_product_types_module()}.{config['variable']} import {config['type']}Provisioning\n"
-    )
     content = read_description_service(environment)
-    if import_statement in content:
+    if has_description_registration(content, config):
         logger.warning("not re-adding subscription description", product=config["type"])
         return
 
+    import_statement = f"from {get_product_types_module()}.{config['variable']} import {config['type']}Provisioning\n"
     lines = insert_into_imports(content.splitlines(keepends=True), import_statement)
     registration = environment.get_template("description_register.j2").render(product=config)
 
     path = get_description_service_path()
     writer(path, "".join(lines) + registration)
-    create_dunder_init_files(path.parent)
+    if not dryrun:
+        create_dunder_init_files(path.parent)
 
 
 def generate_workflows(context: ProdGenContext) -> None:
@@ -126,7 +137,7 @@ def generate_workflows(context: ProdGenContext) -> None:
     config = add_optional_ims_config(config)
 
     generate_shared_forms_file(environment, config, writer)
-    generate_description_service(environment, config, writer)
+    generate_description_service(environment, config, writer, dryrun=context["dryrun"])
     generate_create_workflow(environment, config, writer)
     generate_modify_workflow(environment, config, writer)
     generate_validate_workflow(environment, config, writer)

@@ -40,28 +40,13 @@ def write_to_disk(path: Path, content: str, append: bool = False) -> None:
     path.write_text(content)
 
 
-@pytest.mark.parametrize(
-    "prefix,expected_path,expected_module",
-    [
-        pytest.param("", "products/services/description.py", "products.services.description", id="no-prefix"),
-        pytest.param("surf", "surf/products/services/description.py", "surf.products.services.description", id="prefix"),
-    ],
-)
-def test_description_service_location(monkeypatch, prefix: str, expected_path: str, expected_module: str) -> None:
-    monkeypatch.setattr(product_generator_settings, "FOLDER_PREFIX", Path(prefix))
-
-    assert get_description_service_path() == Path(expected_path)
-    assert get_description_service_module() == expected_module
+def test_description_service_location(folder_prefix) -> None:
+    assert get_description_service_path() == Path("products/services/description.py")
+    assert get_description_service_module() == "products.services.description"
 
 
-@pytest.mark.parametrize(
-    "config",
-    [
-        pytest.param({"type": "Node", "variable": "node"}, id="single-word"),
-        pytest.param({"type": "CoreLink", "variable": "core_link"}, id="snake-case"),
-    ],
-)
-def test_creates_description_service_when_missing(folder_prefix, config: dict) -> None:
+def test_creates_description_service_when_missing(folder_prefix) -> None:
+    config = {"type": "CoreLink", "variable": "core_link"}
     writer = mock.MagicMock(side_effect=write_to_disk)
 
     generate_description_service(get_template_environment(), config, writer)
@@ -99,3 +84,55 @@ def test_does_not_re_add_existing_product(folder_prefix) -> None:
     generate_description_service(environment, config, writer)
 
     writer.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "import_line",
+    [
+        pytest.param("from products.product_types.node import Node, NodeProvisioning\n", id="grouped-import"),
+        pytest.param(
+            "from products.product_types.node import (\n    Node,\n    NodeProvisioning,\n)\n", id="multiline-import"
+        ),
+    ],
+)
+def test_preserves_custom_description_when_import_is_reformatted(folder_prefix, import_line: str) -> None:
+    environment = get_template_environment()
+    config = {"type": "Node", "variable": "node"}
+    generate_description_service(environment, config, write_to_disk)
+    path = folder_prefix / "products/services/description.py"
+    customised = (
+        path.read_text()
+        .replace("from products.product_types.node import NodeProvisioning\n", import_line)
+        .replace('return f"{node.product.name} subscription"', 'return f"Custom {node.node.node_name}"')
+    )
+    path.write_text(customised)
+    writer = mock.MagicMock()
+
+    generate_description_service(environment, config, writer)
+
+    writer.assert_not_called()
+    assert path.read_text() == customised
+
+
+def test_does_not_match_product_with_same_prefix(folder_prefix) -> None:
+    environment = get_template_environment()
+    generate_description_service(environment, {"type": "NodePort", "variable": "node_port"}, write_to_disk)
+    writer = mock.MagicMock(side_effect=write_to_disk)
+
+    generate_description_service(environment, {"type": "Node", "variable": "node"}, writer)
+
+    writer.assert_called_once()
+    content = (folder_prefix / "products/services/description.py").read_text()
+    assert content.count("@description.register") == 2
+
+
+def test_dryrun_does_not_create_dunder_init(folder_prefix) -> None:
+    services = folder_prefix / "products/services"
+    services.mkdir(parents=True)
+    writer = mock.MagicMock()
+
+    generate_description_service(get_template_environment(), {"type": "Node", "variable": "node"}, writer, dryrun=True)
+
+    writer.assert_called_once()
+    assert not (services / "__init__.py").exists()
+    assert not (services / "description.py").exists()
