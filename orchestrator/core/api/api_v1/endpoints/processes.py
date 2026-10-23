@@ -423,9 +423,7 @@ async def _index_processes(process_id: UUID) -> AsyncGenerator[None, Any]:
     dependencies=[Depends(_index_processes)],
 )
 async def update_process(
-    process_id: UUID,
-    data: ProcessPatchSchema = Body(...),
-    session: AsyncSession = Depends(get_async_session)
+    process_id: UUID, data: ProcessPatchSchema = Body(...), session: AsyncSession = Depends(get_async_session)
 ) -> ProcessTable:
     process = await get_process_async(
         process_id,

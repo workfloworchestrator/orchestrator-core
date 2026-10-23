@@ -147,7 +147,6 @@ class AppSettings(BaseSettings):
         description="Maximum number of results a single export request may return.",
     )
 
-
     @field_validator("CELERY_TARGET_QUEUES")
     @classmethod
     def validate_celery_target_queues(cls, value: dict[Target, str]) -> dict[Target, str]:

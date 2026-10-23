@@ -29,14 +29,9 @@ import importlib.metadata
 
 #: True when the installed APScheduler is 3.x (uses 0=Monday numbering).
 #: False on v4+ (crontab-compatible 0=Sunday numbering — no translation needed).
-APSCHEDULER_V3: bool = (
-    tuple(
-        int(x)
-        for x in importlib.metadata.version("APScheduler").split("-")[0].split(".")
-        if x.isdigit()
-    )
-    < (4,)
-)
+APSCHEDULER_V3: bool = tuple(
+    int(x) for x in importlib.metadata.version("APScheduler").split("-")[0].split(".") if x.isdigit()
+) < (4,)
 
 
 def _day_of_week_shift(n: int) -> int:

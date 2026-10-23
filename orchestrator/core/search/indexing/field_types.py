@@ -48,9 +48,7 @@ def _field_annotations(model_type: type[BaseModel]) -> Iterable[tuple[str, Any]]
             for name, computed_field in getattr(model_type, "__pydantic_computed_fields__", {}).items()
         )
         yield from (
-            (name, field.annotation)
-            for name, field in model_type.model_fields.items()
-            if name not in classified_fields
+            (name, field.annotation) for name, field in model_type.model_fields.items() if name not in classified_fields
         )
         return
 

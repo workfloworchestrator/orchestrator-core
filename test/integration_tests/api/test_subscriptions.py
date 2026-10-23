@@ -264,15 +264,16 @@ def seed():
     db.session.commit()
 
     relation_resource_type_ids = [
-            PORT_SUBSCRIPTION_ID,
-            IP_PREFIX_SUBSCRIPTION_ID,
-            INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
-            PARENT_IP_PREFIX_SUBSCRIPTION_ID,
-            PEER_GROUP_SUBSCRIPTION_ID
-        ]
+        PORT_SUBSCRIPTION_ID,
+        IP_PREFIX_SUBSCRIPTION_ID,
+        INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
+        PARENT_IP_PREFIX_SUBSCRIPTION_ID,
+        PEER_GROUP_SUBSCRIPTION_ID,
+    ]
 
     with extend_list_context(RELATION_RESOURCE_TYPES, relation_resource_type_ids):
         yield ip_prefix_product
+
 
 # seeder to test direct relations using SubscriptionInstanceRelationTable instead of resource type.
 @pytest.fixture
@@ -492,7 +493,7 @@ def seed_with_direct_relations():
         IP_PREFIX_SUBSCRIPTION_ID,
         INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
         PARENT_IP_PREFIX_SUBSCRIPTION_ID,
-        PEER_GROUP_SUBSCRIPTION_ID
+        PEER_GROUP_SUBSCRIPTION_ID,
     ]
 
     with extend_list_context(RELATION_RESOURCE_TYPES, relation_resource_type_ids):

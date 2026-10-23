@@ -160,6 +160,7 @@ def _convert_to_uuid(v: Any) -> UUID:
 
 def _apply_wrapped_type_conversion(value: Any, annotation: Any) -> Any:
     """Apply conversion from primitive types to a wrapped type."""
+
     def convert(value: Any) -> Any:
         return annotation(value) if _can_unwrap(annotation) else value
 
@@ -426,6 +427,7 @@ def _can_unwrap(obj: Any) -> bool:
 
 def _unwrap_state(state: State) -> State:
     """Convert wrapped values in the State back to their primitive types."""
+
     def _unwrap(value: Any) -> Any:
         if _can_unwrap(value):
             return value.unwrap()

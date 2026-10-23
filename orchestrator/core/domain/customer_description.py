@@ -73,9 +73,13 @@ async def update_subscription_customer_description(
 
 
 async def delete_subscription_customer_description_by_customer_subscription(
-    customer_id: str, subscription_id: UUID, session: AsyncSession,
+    customer_id: str,
+    subscription_id: UUID,
+    session: AsyncSession,
 ) -> SubscriptionCustomerDescriptionTable | None:
-    customer_description = await get_customer_description_by_customer_subscription(customer_id, subscription_id, session)
+    customer_description = await get_customer_description_by_customer_subscription(
+        customer_id, subscription_id, session
+    )
     if not customer_description:
         return None
 

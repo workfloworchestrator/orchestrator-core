@@ -173,7 +173,9 @@ async def broadcast_process_update_to_websocket_async(
     await broadcast_invalidate_cache({"type": "processes", "id": "LIST"})
     await broadcast_invalidate_cache({"type": "processes", "id": str(process_id)})
 
-    process = await asyncio.to_thread(db.session.get, ProcessTable, process_id, options=[selectinload(ProcessTable.process_subscriptions)])
+    process = await asyncio.to_thread(
+        db.session.get, ProcessTable, process_id, options=[selectinload(ProcessTable.process_subscriptions)]
+    )
 
     subscription_ids = set()
 

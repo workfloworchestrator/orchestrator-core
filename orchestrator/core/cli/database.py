@@ -264,7 +264,9 @@ def downgrade(
 @app.command()
 def revision(
     message: str | None = typer.Option(None, "--message", "-m", help="The revision message"),
-    version_path: str | None = typer.Option(None, "--version-path", help="Specify specific path from config for version file"),
+    version_path: str | None = typer.Option(
+        None, "--version-path", help="Specify specific path from config for version file"
+    ),
     autogenerate: bool = typer.Option(False, help="Detect schema changes and add migrations"),
     head: str = typer.Option("data@head", help="Determine the head you need to add your migration to."),
 ) -> None:

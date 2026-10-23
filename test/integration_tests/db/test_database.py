@@ -12,6 +12,7 @@
 # limitations under the License.
 
 """Tests for database session management: WrappedSession commit gating, disable_commit nesting, and transactional."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
