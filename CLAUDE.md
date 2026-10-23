@@ -159,3 +159,6 @@ grep -rL '^reviewed: true' docs --include='*.md'         # pages not yet reviewe
 grep -rh '^diataxis:' docs | sort | uniq -c               # page labels
 grep -rh '<!-- diataxis:' docs | sort | uniq -c           # section labels
 ```
+The `diataxis labels (report only)` pre-commit hook runs `scripts/check_diataxis.py`. Its output is controlled by
+the `DIATAXIS_VERBOSITY` environment variable: `0` no output, `1` totals only (default), `2` totals per file,
+`3` every page and section label.
