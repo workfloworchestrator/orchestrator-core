@@ -15,9 +15,11 @@ lists every value.
   `ghcr.io/example/my-orchestrator:1.0.0`, built on the `-celery` base image. `1.0.0` is your
   image's version, not orchestrator-core's: the `FROM` line of your Dockerfile pins orchestrator-core,
   so you choose and upgrade it when you build your image.
-- For Celery workers, a module that creates your Celery app; see
-  [Implementing the worker](../guides/scaling.md#implementing-the-worker). This guide calls it
-  `celery_worker`.
+- For Celery workers, a module that creates your Celery app. The
+  [orchestrator-cookiecutter](https://github.com/workfloworchestrator/orchestrator-cookiecutter)
+  generates this as `celery_worker.py` when you choose the Celery executor; see
+  [Implementing the worker](../guides/scaling.md#implementing-the-worker) for details. This guide
+  calls it `celery_worker`.
 
 ## 1. Valkey
 

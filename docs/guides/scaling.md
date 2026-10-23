@@ -42,8 +42,12 @@ queues) to the orchestrator-worker. The workflows are executed in the orchestrat
 The orchestrator-worker has additional dependencies which can be installed with the `celery` dependency group:
 
 ```shell
-pip install orchestrator-core[celery]
+uv add "orchestrator-core[celery]"
 ```
+
+!!! tip
+    The [orchestrator-cookiecutter](https://github.com/workfloworchestrator/orchestrator-cookiecutter)
+    includes this dependency automatically when you choose the Celery executor.
 
 Celery's task queue enables features like nightly validations by providing a task queue and workers to execute
 workflows that are all started in parallel, which would crash a single-threaded orchestrator-core.
@@ -64,7 +68,7 @@ By default, [Redis](https://redis.io/) is used for the Celery broker and backend
 A Celery worker must start by calling your worker module instead of `main.py`, like so:
 
 ```shell
-celery -A your_orch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks,new_workflows,resume_workflows
+uv run celery -A your_orch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks,new_workflows,resume_workflows
 ```
 
 - `-A` points to this module where the worker class is defined
@@ -175,12 +179,50 @@ For the default threadpool executor, these are exposed to the application by imp
 to ensure the registration calls are made.
 When using the Celery executor, you'll need to do this again for the worker instance(s) to run those registrations.
 
-Below is an example implementation of a Celery worker with Websocket support, which can be updated to your project's needs.
+#### Getting started with Celery
 
-=== "`orchestrator-core` ≥ 5.0"
+The [orchestrator-cookiecutter](https://github.com/workfloworchestrator/orchestrator-cookiecutter)
+can generate a working Celery setup. Choose **Celery** as the executor when prompted.
+The generated `celery_worker.py` is a minimal but functional worker:
+
+```python
+from celery import Celery
+from orchestrator.core import app_settings
+from orchestrator.core.db import init_database
+from orchestrator.core.services.tasks import initialise_celery
+
+import your_orch.products
+import your_orch.workflows  # noqa: F401
+
+init_database(app_settings)
+
+celery = Celery(
+    f"{app_settings.SERVICE_NAME}-worker",
+    broker=str(app_settings.CACHE_URI.get_secret_value()),
+    backend=str(app_settings.CACHE_URI.get_secret_value()),
+    include=["orchestrator.core.services.tasks"],
+)
+
+initialise_celery(celery)
+```
+
+Both `main.py` and `wsgi.py` import this module (`import your_orch.celery_worker`) so the Celery
+app is registered when the API starts. `initialise_celery()` handles all the Celery configuration
+including queue routing and task registration.
+
+The sections below explain how to extend this for production use.
+
+#### Production worker setup
+
+For production deployments that need WebSocket broadcasting, custom SQLAlchemy table registration,
+or fine-grained Celery configuration, you can extend the worker with a custom `Celery` subclass.
+
+Below is an example implementation with WebSocket support:
+
+=== "`orchestrator-core` >= 5.0"
 
     ```python
-    """This module contains functions and classes necessary for celery worker processes.
+    """Celery worker with WebSocket support.
 
     The application flow looks like this when EXECUTOR = "celery" (and websockets are enabled):
 
@@ -287,7 +329,7 @@ Below is an example implementation of a Celery worker with Websocket support, wh
 === "`orchestrator-core` < 5.0"
 
     ```python
-    """This module contains functions and classes necessary for celery worker processes.
+    """Celery worker with WebSocket support.
 
     The application flow looks like this when EXECUTOR = "celery" (and websockets are enabled):
 
@@ -373,25 +415,25 @@ Below is an example implementation of a Celery worker with Websocket support, wh
     )
     ```
 
-Create a file with the above, for example `my_orchestrator/celery_client.py`.
+Create a file with the above, for example `my_orchestrator/celery_worker.py`.
 
 Next, update your `main.py` and `wsgi.py` to include the following imports:
 
-=== "`orchestrator-core` ≥ 5.0"
+=== "`orchestrator-core` >= 5.0"
 
     ```python
     from orchestrator.core.services.tasks import initialise_celery
-    from my_orchestrator.celery_client import celery
+    from my_orchestrator.celery_worker import celery
     ```
 
 === "`orchestrator-core` < 5.0"
 
     ```python
     from orchestrator.services.tasks import initialise_celery
-    from my_orchestrator.celery_client import celery
+    from my_orchestrator.celery_worker import celery
     ```
 
-And finally, ensure both files include `initialize_celery(celery)` in the initialization of the CLI or API app.
+And finally, ensure both files include `initialise_celery(celery)` in the initialization of the CLI or API app.
 
 #### Redis
 
@@ -413,10 +455,10 @@ EXECUTOR="celery" uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
 Start a single worker that listens both on the `tasks` and `workflows` queue (indicated by the `-Q` flag):
 
 ```shell
-celery -A surf.tasks  worker --loglevel=info -Q new_tasks,resume_tasks,new_workflows,resume_workflows
+uv run celery -A your_orch.celery_worker worker --loglevel=info -Q new_tasks,resume_tasks,new_workflows,resume_workflows
 ```
 
-Notice that `-A surf.tasks` indicates the module that contains your `celery.Celery` instance.
+Notice that `-A your_orch.celery_worker` indicates the module that contains your `celery.Celery` instance.
 
 ### Running workers with the Helm chart
 
@@ -452,7 +494,7 @@ do by default, so they simply yield nothing if Flower is unset or unreachable.
 Start Flower pointed at the same broker as your workers, for example:
 
 ```shell
-celery -A surf.tasks flower --port=5555
+uv run celery -A your_orch.celery_worker flower --port=5555
 ```
 
 ### Celery workflow/task flow
