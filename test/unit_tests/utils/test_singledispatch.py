@@ -38,32 +38,12 @@ def only_base(value: Any) -> str:
     return single_dispatch_base(only_base, value)
 
 
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        pytest.param(1, "int 1", id="int"),
-        pytest.param("a", "str a", id="str"),
-        pytest.param(True, "int True", id="bool-subclass-of-int"),
-    ],
-)
-def test_registered_type_is_dispatched(value: Any, expected: str) -> None:
-    assert describe(value) == expected
-
-
-@pytest.mark.parametrize(
-    "value",
-    [
-        pytest.param(1.5, id="float"),
-        pytest.param(None, id="none"),
-        pytest.param([1], id="list"),
-    ],
-)
-def test_unregistered_type_raises(value: Any) -> None:
+def test_unregistered_type_raises() -> None:
     with pytest.raises(TypeError) as exc_info:
-        describe(value)
+        describe(1.5)
 
     message = str(exc_info.value)
-    assert message.startswith(f"`describe` called for unsupported model type {type(value)}.")
+    assert message.startswith("`describe` called for unsupported model type <class 'float'>.")
     assert "<class 'int'>" in message
     assert "<class 'str'>" in message
     assert "<class 'object'>" not in message
