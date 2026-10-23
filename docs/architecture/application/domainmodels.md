@@ -5,7 +5,7 @@ reviewed: true
 ---
 
 # Domain Models
-<!-- diataxis: explanation -->
+<!-- diataxis: mixed -->
 
 Domain Models are designed to help the developer manage complex subscription models and interact with the objects in a
 user-friendly way. They leverage [Pydantic models][pydantic-models] with some extra sauce to, among other things,
@@ -236,7 +236,7 @@ The below example shows a Product model definition for each Subscription lifecyc
 
     ```python hl_lines="7"
     class ServicePortProvisioning(
-        ServicePortInitial, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+        ServicePortInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
     ):
         domain: Domain
         port_speed: PortSpeed
