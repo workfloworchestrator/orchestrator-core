@@ -149,7 +149,7 @@ database, and annotates that its runtime type is UUID.
 It is also `Optional`, just like all other resource types in this class.
 
 It is good practice to be least restrictive in the `Initial` phase of the Subscription lifecycle.
-This allows constructing the empty initial Subscription model and extending it with inputs from the user or 
+This allows constructing the empty initial Subscription model and extending it with inputs from the user or
 by progressing through workflow steps.
 
 #### Product Block Model - Provisioning
@@ -169,13 +169,13 @@ class ServicePortBlockProvisioning(
     node: NodeProductBlock
 ```
 
-This model defines the `Provisioning` phase of the Subscription lifecycle. 
+This model defines the `Provisioning` phase of the Subscription lifecycle.
 You can see that the class extends from the Inactive class and that it repeats all defined resource types.
 
-You can also see that several resource types are no longer `Optional`. 
+You can also see that several resource types are no longer `Optional`.
 This means that the model will raise a `ValidationError` when attempting to store it without all required values.
 
-Defining a Provisioning version of a product block is a way to ensure that a minimum set of information is present 
+Defining a Provisioning version of a product block is a way to ensure that a minimum set of information is present
 before proceeding with steps that, for example, provision other systems.
 
 !!! Tip
@@ -215,7 +215,7 @@ Product models are very similar to Product Block Models in that they adhere to t
 The Product model also contains a Product Block model which is referred to as the **root** Product Block.
 
 One difference with Product Block models is that Product models create `Subscriptions` in the database.
-Additionally, instead of dynamic resource types they contain 
+Additionally, instead of dynamic resource types they contain
 [**fixed inputs**](../../reference-docs/domain-models/model-attributes.md#fixed-inputs).
 
 The below example shows a Product model definition for each Subscription lifecycle.
@@ -228,7 +228,7 @@ The below example shows a Product model definition for each Subscription lifecyc
     ):
         domain: Domain
         port_speed: PortSpeed
-    
+
         port: Optional[ServicePortBlockInactive] = None
     ```
 
@@ -257,7 +257,7 @@ The below example shows a Product model definition for each Subscription lifecyc
     ```
 
 On the **Inactive** tab, the second highlighted line shows a fixed input called `port_speed`.
-This value is both limited to a range of predefined values and immutable once the Subscription is created. 
+This value is both limited to a range of predefined values and immutable once the Subscription is created.
 
 The last highlighted line `port` is the root product block which uses the `ServicePortBlockInactive` type of the same
 lifecycle.
