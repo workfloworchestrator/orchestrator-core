@@ -739,9 +739,10 @@ async def test_broadcast_process_update_async_invalidates_subscription_cache_on_
     process.last_status = terminal_status
     db.session.commit()
 
-    with mock.patch("orchestrator.core.websocket.websocket_manager") as mock_wsm, mock.patch(
-        "orchestrator.core.websocket.invalidate_subscription_cache_by_id"
-    ) as mock_invalidate:
+    with (
+        mock.patch("orchestrator.core.websocket.websocket_manager") as mock_wsm,
+        mock.patch("orchestrator.core.websocket.invalidate_subscription_cache_by_id") as mock_invalidate,
+    ):
         mock_wsm.enabled = True
         mock_wsm.broadcast_data = mock.AsyncMock()
         mock_invalidate.return_value = None
@@ -777,9 +778,10 @@ async def test_broadcast_process_update_async_does_not_invalidate_subscription_c
     process.last_status = non_terminal_status
     db.session.commit()
 
-    with mock.patch("orchestrator.core.websocket.websocket_manager") as mock_wsm, mock.patch(
-        "orchestrator.core.websocket.invalidate_subscription_cache_by_id"
-    ) as mock_invalidate:
+    with (
+        mock.patch("orchestrator.core.websocket.websocket_manager") as mock_wsm,
+        mock.patch("orchestrator.core.websocket.invalidate_subscription_cache_by_id") as mock_invalidate,
+    ):
         mock_wsm.enabled = True
         mock_wsm.broadcast_data = mock.AsyncMock()
 

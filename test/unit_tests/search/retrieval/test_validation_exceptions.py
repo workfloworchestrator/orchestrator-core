@@ -158,7 +158,9 @@ async def test_validate_filter_tree_propagates_exceptions(mock_validate_path, as
         ),
     ],
 )
-async def test_successful_filter_validation(mock_validate_path, field_type, filter_condition, value_kind, async_db_session):
+async def test_successful_filter_validation(
+    mock_validate_path, field_type, filter_condition, value_kind, async_db_session
+):
     """Compatible filter types validate successfully without raising."""
     mock_validate_path.return_value = field_type.value
     path_filter = PathFilter(

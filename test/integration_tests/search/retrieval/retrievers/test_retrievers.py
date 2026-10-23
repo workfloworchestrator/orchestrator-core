@@ -317,7 +317,7 @@ def test_semantic_tiebreak_weight_is_within_its_bounds():
     window = llm_settings.SEARCH_SEMANTIC_CANDIDATE_LIMIT
 
     assert all(weight / (k + 1) <= 1 / ((k + r) * (k + r + 1)) for r in range(1, PERFECT_TEXT_DECIDES_RANKS + 1))
-    assert weight / ((k + window) * (k + window + 1)) > 10 ** -RrfHybridRetriever.SCORE_PRECISION
+    assert weight / ((k + window) * (k + window + 1)) > 10**-RrfHybridRetriever.SCORE_PRECISION
 
 
 def test_rrf_perfect_match_requires_fuzzy_score():

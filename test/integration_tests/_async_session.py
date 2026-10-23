@@ -29,7 +29,7 @@ async def session_joined_async() -> AsyncIterator[AsyncSession]:
     to the already-open sync test connection and joining it via a savepoint keeps this session's
     work inside that same outer transaction, so it rolls back with everything else.
     """
-    async_connection = AsyncConnection(db.wrapped_database.async_engine, sync_connection=db.session.connection()) # type: ignore
+    async_connection = AsyncConnection(db.wrapped_database.async_engine, sync_connection=db.session.connection())  # type: ignore
     async with AsyncSession(
         bind=async_connection,
         expire_on_commit=False,

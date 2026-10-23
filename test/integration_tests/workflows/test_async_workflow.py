@@ -13,6 +13,8 @@
 
 from datetime import timedelta
 
+import pytest
+
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.services import processes
 from orchestrator.core.targets import Target
@@ -22,6 +24,7 @@ from orchestrator.core.workflow import (
     DEFAULT_CALLBACK_ROUTE_KEY,
     AwaitingCallback,
     ProcessStatus,
+    StepImportance,
     begin,
     callback_step,
     done,
@@ -360,8 +363,38 @@ def test_wf_callback_progress_with_multiple_callback_steps(test_client):
         assert DEFAULT_CALLBACK_PROGRESS_KEY not in state
 
 
-def _start_timeout_wf(test_client, timeout):
-    call_ext = callback_step(name="Call ext", action_step=action, validate_step=step1, timeout=timeout)
+def test_callback_step_importance_in_pending_and_awaiting_details(test_client):
+    high_cb = callback_step(
+        "For real", action_step=action_fr, validate_step=validate_state, importance=StepImportance.HIGH
+    )
+    assert high_cb.importance == StepImportance.HIGH
+
+    @workflow(target=Target.CREATE)
+    def importance_wf():
+        return begin >> cb1 >> high_cb >> done
+
+    def for_real_rows(process_id):
+        steps = test_client.get(f"api/processes/{process_id}").json()["steps"]
+        return [(s["status"], s["importance"]) for s in steps if s["name"] == "For real"]
+
+    with WorkflowInstanceForTests(importance_wf, "importance_wf"):
+        response = test_client.post("/api/processes/importance_wf", json=[{}])
+        assert response.status_code == 201
+        process_id = response.json()["id"]
+
+        assert for_real_rows(process_id) == [("pending", "high")]
+
+        callback_route = test_client.get(f"api/processes/{process_id}").json()["current_state"]["callback_route"]
+        assert test_client.post(callback_route, json={"ext_data": "12345"}).status_code == 200
+
+        # The step awaiting its callback is also listed as pending, as that is where the process resumes
+        assert for_real_rows(process_id) == [("awaiting_callback", "high"), ("pending", "high")]
+
+
+def _start_timeout_wf(test_client, timeout, importance=StepImportance.DEFAULT):
+    call_ext = callback_step(
+        name="Call ext", action_step=action, validate_step=step1, timeout=timeout, importance=importance
+    )
 
     @workflow(target=Target.CREATE)
     def timeout_wf():
@@ -443,3 +476,19 @@ def test_fail_awaiting_process_is_noop_when_not_awaiting(test_client):
 
         assert result.iscomplete()
         assert db.session.get(ProcessTable, process_id).last_status == ProcessStatus.COMPLETED
+
+
+@pytest.mark.parametrize("importance", [StepImportance.LOW, StepImportance.HIGH])
+def test_timed_out_callback_preserves_importance(test_client, importance):
+    instance, process_id = _start_timeout_wf(test_client, timeout=300, importance=importance)
+    try:
+        assert db.session.get(ProcessTable, process_id).steps[-1].importance == importance
+        _backdate_await_step(process_id, seconds=600)
+
+        processes.fail_awaiting_process(db.session.get(ProcessTable, process_id))
+
+        failed_step = db.session.get(ProcessTable, process_id).steps[-1]
+        assert failed_step.status == "failed"
+        assert failed_step.importance == importance
+    finally:
+        instance.__exit__(None, None, None)

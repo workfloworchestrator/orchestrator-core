@@ -60,6 +60,7 @@ def enrich_step_details(step: ProcessStepTable, previous_step: ProcessStepTable 
         "executed": step.completed_at.timestamp(),
         "started": step.started_at.timestamp(),
         "completed": step.completed_at.timestamp(),
+        "importance": step.importance,
         "status": step.status,
         "state": step.state,
         "created_by": step.created_by,
@@ -75,7 +76,7 @@ def enrich_process_details(process: ProcessTable, p_stat: ProcessStat) -> dict:
     dict_steps = [enrich_step_details(step, find_previous_step(steps, index)) for index, step in enumerate(steps)]
 
     def step_fn(step: Step) -> dict:
-        return {"name": step.name, "status": "pending"}
+        return {"name": step.name, "status": "pending", "importance": step.importance}
 
     dict_steps += list(map(step_fn, p_stat.log)) if p_stat.log else []
     form = p_stat.log[0].form if p_stat.log else None

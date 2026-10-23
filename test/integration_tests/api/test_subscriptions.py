@@ -45,6 +45,7 @@ from orchestrator.core.targets import Target
 from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.workflow import ProcessStatus, done, init, workflow
+from test.helpers import extend_list_context
 from test.integration_tests.config import (
     IMS_CIRCUIT_ID,
     INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
@@ -262,17 +263,16 @@ def seed():
     db.session.add(invalid_tagged_subscription)
     db.session.commit()
 
-    RELATION_RESOURCE_TYPES.extend(
-        [
-            PORT_SUBSCRIPTION_ID,
-            IP_PREFIX_SUBSCRIPTION_ID,
-            INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
-            PARENT_IP_PREFIX_SUBSCRIPTION_ID,
-            PEER_GROUP_SUBSCRIPTION_ID,
-        ]
-    )
+    relation_resource_type_ids = [
+        PORT_SUBSCRIPTION_ID,
+        IP_PREFIX_SUBSCRIPTION_ID,
+        INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
+        PARENT_IP_PREFIX_SUBSCRIPTION_ID,
+        PEER_GROUP_SUBSCRIPTION_ID,
+    ]
 
-    return ip_prefix_product
+    with extend_list_context(RELATION_RESOURCE_TYPES, relation_resource_type_ids):
+        yield ip_prefix_product
 
 
 # seeder to test direct relations using SubscriptionInstanceRelationTable instead of resource type.
@@ -488,17 +488,16 @@ def seed_with_direct_relations():
     db.session.add(lp_subscription_instance_msp_depends_on)
     db.session.commit()
 
-    RELATION_RESOURCE_TYPES.extend(
-        [
-            PORT_SUBSCRIPTION_ID,
-            IP_PREFIX_SUBSCRIPTION_ID,
-            INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
-            PARENT_IP_PREFIX_SUBSCRIPTION_ID,
-            PEER_GROUP_SUBSCRIPTION_ID,
-        ]
-    )
+    relation_resource_type_ids = [
+        PORT_SUBSCRIPTION_ID,
+        IP_PREFIX_SUBSCRIPTION_ID,
+        INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
+        PARENT_IP_PREFIX_SUBSCRIPTION_ID,
+        PEER_GROUP_SUBSCRIPTION_ID,
+    ]
 
-    return ip_prefix_product
+    with extend_list_context(RELATION_RESOURCE_TYPES, relation_resource_type_ids):
+        yield ip_prefix_product
 
 
 def test_insync_404(seed, test_client):

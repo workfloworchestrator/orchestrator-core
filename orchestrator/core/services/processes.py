@@ -289,6 +289,7 @@ def _get_current_step_to_update(
     There are some special internal keys checked to customise how the step is updated in the database.
     These keys are only used for this purpose and not stored in the database.
     - '__step_name_override' - When this key is present, the value will be used as the ProcessStepTable.name
+    - '__step_importance_override' - When this key is present, the value will be used as the ProcessStepTable.importance
     - '__replace_last_state' - When the value for this key is truthy, the previous state in the db will be overridden
     - '__remove_keys' - Removes the keys in this given list from the state
     """
@@ -304,11 +305,16 @@ def _get_current_step_to_update(
     # Core internal: __step_name_override
     step_name = step_state.pop("__step_name_override", step.name)
 
+    # Core internal: __step_importance_override
+    step_importance = step_state.pop("__step_importance_override", None)
+
     # Core internal: __replace_last_state
     if step_state.pop("__replace_last_state", None) and last_db_step is not None:
         current_step = last_db_step
         current_step.status = process_state.status
         current_step.state = step_state
+        if step_importance is not None:
+            current_step.importance = step_importance
 
     # Core internal: __remove_keys
     try:
@@ -351,6 +357,7 @@ def _get_current_step_to_update(
         current_step = ProcessStepTable(
             process_id=stat.process_id,
             name=step_name,
+            importance=step_importance or step.importance,
             status=process_state.status,
             state=step_state,
             created_by=stat.current_user,

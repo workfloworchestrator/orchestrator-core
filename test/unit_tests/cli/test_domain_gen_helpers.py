@@ -46,6 +46,7 @@ class ContainerBlock(ContainerBlockInactive):
 
 MODELS = {"ContainerBlock": ContainerBlock}
 
+
 @pytest.mark.parametrize(
     "block_type, block_to_find, expected",
     [
