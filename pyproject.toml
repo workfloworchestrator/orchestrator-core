@@ -229,10 +229,6 @@ override-dependencies = [
     "grpcio==1.76.0",  # Force grpcio 1.76.0 for Python 3.14 wheel support
 ]
 
-# TODO: drop before merge; develops against pydantic-forms PR #114 (branch feat/form-page-as-data) until the release.
-[tool.uv.sources]
-pydantic-forms = { git = "https://github.com/workfloworchestrator/pydantic-forms", branch = "feat/form-page-as-data" }
-
 [tool.uv.build-backend]
 module-name = "orchestrator.core"
 module-root = ""
