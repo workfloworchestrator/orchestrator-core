@@ -79,6 +79,8 @@ repos:
         args: [--chart-search-root=chart]
 
   # Reports Diátaxis labels of docs pages and sections (see CLAUDE.md). Always passes for now.
+  # pass_filenames: false so it runs once over all of docs/ instead of once per batch of changed files, which
+  # keeps the reported totals stable across commits. Output is controlled by DIATAXIS_VERBOSITY.
   - repo: local
     hooks:
       - id: check-diataxis
@@ -86,4 +88,5 @@ repos:
         language: system
         entry: uv run python scripts/check_diataxis.py
         files: ^docs/.*\.md$
+        pass_filenames: false
         verbose: true
