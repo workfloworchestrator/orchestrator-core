@@ -253,7 +253,7 @@ norecursedirs = [
     "test/acceptance_tests/cli/data/generate",
 ]
 pythonpath = ["."]
-testpaths = ["test/unit_tests", "orchestrator/core"]
+testpaths = ["test/unit_tests", "orchestrator/core", "scripts/check_diataxis.py"]
 asyncio_mode = "auto"
 consider_namespace_packages = true
 
