@@ -1,10 +1,18 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Parallelization in SURF
+<!-- diataxis: -->
 
 At SURF, parallelization is implemented through a couple of workarounds rather than a dedicated framework. There are two
 distinct patterns: spawning multiple **workflows** in parallel, and running a **step** over many items in a single
 workflow. Both are described below.
 
 ## Parallel workflows
+<!-- diataxis: -->
 
 When a single action needs to be applied to many subscriptions, SURF spawns one child workflow per subscription from a
 parent task. The parent task creates the child processes and then hands them off to the orchestrator to be picked up and
@@ -67,6 +75,7 @@ The created child workflows run independently. There is no callback step that wa
 child workflows to complete; the parent task finishes once the child processes have been started.
 
 ## Parallel steps
+<!-- diataxis: -->
 
 The second pattern is a "foreach"-style step that processes many items within a single workflow. This is used, for
 example, to update all in-use-by subscriptions of a modified subscription. The work is still performed sequentially

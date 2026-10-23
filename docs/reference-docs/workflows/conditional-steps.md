@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Conditional Steps
+<!-- diataxis: -->
 
 `conditional` lets you skip individual workflow steps at runtime based on the
 current workflow state. Unlike [run predicates](run-predicates.md), which prevent a
@@ -12,6 +19,7 @@ When a step is skipped:
 - The workflow continues normally — a skipped step is not a failure
 
 ## How it works
+<!-- diataxis: -->
 
 `conditional(predicate)` takes a callable `(State) -> bool` and returns a
 wrapper callable. That wrapper accepts either a single `Step` or a `StepList`
@@ -24,8 +32,10 @@ means that if an earlier wrapped step modifies the state in a way that changes
 the predicate result, later steps in the same group may behave differently.
 
 ## Usage patterns
+<!-- diataxis: -->
 
 ### Wrapping a single step
+<!-- diataxis: -->
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -98,6 +108,7 @@ the predicate result, later steps in the same group may behave differently.
     ```
 
 ### Wrapping multiple steps
+<!-- diataxis: -->
 
 Pass a `StepList` (built with `begin >> ...`) to guard multiple steps with the
 same predicate. The predicate is re-evaluated for **each** step individually,
@@ -149,6 +160,7 @@ group may be skipped or executed differently:
     ```
 
 ### Predicate depending on a prior step's output
+<!-- diataxis: -->
 
 A step can write a value to the state, and a subsequent `conditional` can read
 it. This pattern is useful when the condition depends on information that must be
@@ -205,6 +217,7 @@ fetched at runtime:
     ```
 
 ### Reusing a conditional across workflows
+<!-- diataxis: -->
 
 `conditional` can be used as a decorator on a named predicate function. The
 resulting wrapper can then be imported and applied to guard different steps in
@@ -308,6 +321,7 @@ duplicated lambda expressions:
     ```
 
 ## API Reference
+<!-- diataxis: -->
 
 ::: orchestrator.core.workflow.conditional
 options:

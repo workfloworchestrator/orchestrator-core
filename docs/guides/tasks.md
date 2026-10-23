@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Scheduling tasks in the Orchestrator
+<!-- diataxis: -->
 
 This document covers the moving parts needed to schedule jobs in the orchestrator.
 
@@ -15,6 +22,7 @@ def some_task() -> StepList:
 Such a workflow will be flagged as a task in the database, and will not have a relation defined connecting it to a specific product.
 
 ## The task file
+<!-- diataxis: -->
 
 Let's step through a more complete example.
 Four things need to happen to register a task:
@@ -25,6 +33,7 @@ Four things need to happen to register a task:
 4. Adding a translation for the frontend (necessary for the task to show in the UI)
 
 ### Task code
+<!-- diataxis: -->
 
 Here is a very bare-bones task file:
 
@@ -98,6 +107,7 @@ LazyWorkflowInstance(".tasks.nightly_sync", "task_sync_from")
 ```
 
 ### The task migration
+<!-- diataxis: -->
 
 Like other workflows, a task needs to be [registered in the database][registering-workflows]
 in addition to being defined in the code.
@@ -152,6 +162,7 @@ However, instead of `create_workflow`, simply use the `create_task` helper inste
     ```
 
 ### Running the task in the UI
+<!-- diataxis: -->
 
 After the migration is applied, the new task will surface in the UI under the Tasks tab.
 It can be manually executed that way.
@@ -169,6 +180,7 @@ Even if the task does not have any form input, an entry will still need to be ma
 ```
 
 ## The schedule file {: .deprecated }
+<!-- diataxis: -->
 
 !!! Warning
     As of [v4.7.0] this is deprecated, and it will be removed in v5.0.0.
@@ -214,6 +226,7 @@ and consistent (similar to how workflows are handled), it’s recommended to pla
 
 
 ## The schedule API
+<!-- diataxis: -->
 
 !!! Info
     In [v4.4.0] we switched from [schedule] package to [apscheduler] to allow schedules to be stored in the DB and retrieve schedule tasks from the API.
@@ -301,6 +314,7 @@ The scheduler automatically loads any schedules that are imported before the sch
     Follow-up ticket to remove deprecated code: [#1276](https://github.com/workfloworchestrator/orchestrator-core/issues/1276)
 
 ## Registering your own schedules from code
+<!-- diataxis: -->
 
 The API is the right tool for schedules that change at runtime. It is the wrong tool at deploy time,
 where there is usually no reachable API and no token — a Helm init container, for instance, that has
@@ -308,6 +322,7 @@ just run the database migrations. For that, register your schedules with `load_s
 function core's own `load-initial-schedule` uses.
 
 ### Declaring the schedules
+<!-- diataxis: -->
 
 Declare them in a `schedules.py` alongside your `main.py`:
 
@@ -344,6 +359,7 @@ The same three trigger types as [the schedule API](#the-schedule-api) are availa
 ```
 
 ### Loading them
+<!-- diataxis: -->
 
 ```python
 # schedules.py (continued)
@@ -403,11 +419,13 @@ reconciles the database against the declaration. Delete the schedule through the
 leave the entry in place until you do.
 
 ## The scheduler
+<!-- diataxis: -->
 
 The scheduler is invoked via `python main.py scheduler`.
 Try `--help` or review the [CLI docs][cli-docs] to learn more.
 
 ### Initial schedules
+<!-- diataxis: -->
 
 From version orchestrator-core >= `4.7.0`, the scheduler uses the database to store schedules instead of hard-coded schedule files.
 Previous versions (orchestrator-core < `4.7.0` had hard-coded schedules. These can be ported to the new system by creating them via the API or CLI.
@@ -419,6 +437,7 @@ python main.py scheduler load-initial-schedule
 
 > Remember, that if you do not explicitly import these, they will not be available to the scheduler.
 ### Manually executing tasks
+<!-- diataxis: -->
 
 When doing development, it is possible to manually make the scheduler run your task even if your Orchestrator instance is not in "scheduler mode."
 
@@ -433,6 +452,7 @@ python main.py scheduler force "c1b6e5e3-d9f0-48f2-bc65-3c9c33fcf561"
 The job id can be found via the GraphQL API or directly in the database.
 
 ### Starting the scheduler
+<!-- diataxis: -->
 
 The scheduler runs as a separate process - it isn't just a feature in the backend that gets toggled on.
 In short, the scheduler is started by calling `python main.py scheduler run`.
@@ -473,6 +493,7 @@ fi
 ```
 
 ### Decorator vs API
+<!-- diataxis: -->
 Tasks can be scheduled using the `@scheduler.scheduled_job()` decorator, but this is not recommended for new schedules because it does not create a Linker Table join between schedules and workflows/tasks.
 Instead, it is recommended to use the API to create schedules, as described above in the [new scheduling system](#the-schedule-api) section.
 

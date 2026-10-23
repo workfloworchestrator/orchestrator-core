@@ -1,10 +1,18 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Testing strategy and writing tests
+<!-- diataxis: -->
 
 This guide covers how to write tests for workflows and domain models using
 orchestrator-core. For setup instructions (services, running tests), see
 [development.md](../contributing/development.md).
 
 ## Test layout — unit vs integration
+<!-- diataxis: -->
 
 The test suite is split into two layers:
 
@@ -28,6 +36,7 @@ Within `test/integration_tests/` the structure mirrors the production tree
 factories.
 
 ### Where to put a new test
+<!-- diataxis: -->
 
 ```mermaid
 flowchart TD
@@ -43,6 +52,7 @@ flowchart TD
 ```
 
 ### Running each layer
+<!-- diataxis: -->
 
 ```shell
 # Unit tests + doctests (no services)
@@ -59,6 +69,7 @@ uv run pytest test/acceptance_tests/search/llm
 ```
 
 ### Provisioning Postgres + Redis
+<!-- diataxis: -->
 
 `test/integration_tests/fixtures/services.py` resolves how the services are
 made available, in this order:
@@ -79,6 +90,7 @@ bundled `docker/pytest-support/docker-compose.yaml` continues to work
 unchanged for contributors who prefer that flow.
 
 ## Test helpers
+<!-- diataxis: -->
 
 Workflow tests use a set of helpers from `test.integration_tests.workflows`:
 
@@ -128,8 +140,10 @@ The `assert_*` helpers for terminal state each raise with a descriptive message 
 `extract_state(result)` unwraps the state dict from a result; `extract_error(result)` pulls the error string from a failed result.
 
 ## Writing a workflow test
+<!-- diataxis: -->
 
 ### Simple workflow (no suspension)
+<!-- diataxis: -->
 
 Mark workflow tests with `@pytest.mark.workflow`. The `responses` HTTP mock fixture is active automatically (see [HTTP mocking](#http-mocking)); include it in the test signature only when you need to register mocks with `responses.add()`:
 
@@ -180,6 +194,7 @@ Mark workflow tests with `@pytest.mark.workflow`. The `responses` HTTP mock fixt
 The `input_data` argument is a list of dicts — one dict per form page in the workflow. Create workflows typically take `[{"product": product_id}, {...field inputs...}]`.
 
 ### Multi-step workflow (with suspension)
+<!-- diataxis: -->
 
 When a workflow suspends at an `inputstep`, assert the suspension, inspect state, then resume with the next form's data:
 
@@ -205,6 +220,7 @@ Pass only the new form's data to `resume_workflow` — it merges into the existi
 Repeat the `assert_suspended` / `resume_workflow` cycle for each suspension point.
 
 ### Testing an ad-hoc workflow
+<!-- diataxis: -->
 
 To test a workflow defined inline (not registered in `ALL_WORKFLOWS`), use `WorkflowInstanceForTests` as a context manager:
 
@@ -251,6 +267,7 @@ To test a workflow defined inline (not registered in `ALL_WORKFLOWS`), use `Work
     ```
 
 ## HTTP mocking
+<!-- diataxis: -->
 
 The `responses` fixture is `autouse=True`, meaning it is active for every test automatically.
 Any HTTP call that is not mocked will raise an exception and fail the test.
@@ -289,6 +306,7 @@ Skipping the `match_querystring` flag on a query-string URL is a common source o
 To opt a specific test out of the responses mock entirely, mark it with `@pytest.mark.noresponses`.
 
 ## Writing subscription fixtures
+<!-- diataxis: -->
 
 When creating a subscription fixture in `conftest.py` for use in workflow tests, always set `insync=True`:
 
@@ -301,10 +319,12 @@ gen_subscription = MyProductInactive.from_product_id(
 Omitting `insync=True` will cause any workflow test consuming that subscription to fail with a message about an active process — the framework thinks the subscription is mid-process and refuses to proceed.
 
 ## Writing domain model tests
+<!-- diataxis: -->
 
 Domain model tests exercise product types and product blocks directly, without running a workflow.
 
 ### Testing default field values
+<!-- diataxis: -->
 
 ```python
 from products.product_types.my_product import MyProductInactive
@@ -315,6 +335,7 @@ def test_my_product_defaults():
 ```
 
 ### Testing save and load
+<!-- diataxis: -->
 
 Define a fixture in `conftest.py` that creates and persists the subscription, then load it from the database in the test:
 
@@ -331,6 +352,7 @@ def test_my_product_save_and_load(my_product_subscription_id):
 ```
 
 ## Testing form generators
+<!-- diataxis: -->
 
 Use `run_form_generator` to test multi-page form logic in isolation, without running a full workflow:
 
@@ -349,6 +371,7 @@ def test_my_form_generator():
 Note that `run_form_generator` intentionally bypasses Pydantic validation — ensure `extra_inputs` matches the expected types as if validation had run.
 
 ## Unit-testing decorated step functions with `orig()`
+<!-- diataxis: -->
 
 Workflow steps are decorated functions: at runtime the orchestrator runs them
 inside a workflow process, threading state through and persisting results.
@@ -371,6 +394,7 @@ def orig(func: Callable) -> Callable:
 ```
 
 ### When to use `orig()`
+<!-- diataxis: -->
 
 Use `orig(step_function)(...)` when you want to test:
 
@@ -395,6 +419,7 @@ def test_compute_new_state_pure_logic():
 ```
 
 ### When NOT to use `orig()`
+<!-- diataxis: -->
 
 `orig()` skips the engine. Do **not** use it when the thing under test is the
 engine's behaviour. Use the workflow runner helpers and place the test in
@@ -408,6 +433,7 @@ engine's behaviour. Use the workflow runner helpers and place the test in
 - Scheduler, process, or Celery interaction
 
 ## Test markers
+<!-- diataxis: -->
 
 | Marker | When to use |
 |--------|-------------|

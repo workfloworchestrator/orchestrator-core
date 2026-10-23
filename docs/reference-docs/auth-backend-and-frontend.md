@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Authentication and authorization
+<!-- diataxis: -->
 
 The `Orchestrator-Core` application incorporates a robust security framework, utilizing OpenID Connect (OIDC) for
 authentication and Open Policy Agent (OPA) for authorization. This flexible system ensures secure access, allowing you
@@ -13,23 +20,28 @@ frontend has authentication enabled it is possible to run a backend without auth
 of frontend authentication and authorization mentioned in a note under frontend authentication.
 
 ## Definitions
+<!-- diataxis: -->
 
 A **frontend application** refers to a web frontend based on the frontend example ui repository: [frontend repo][1]
 A **backend application** refers to an application build using the orchestrator core as a base: [backend repo][2]
 
 ## Without authentication
+<!-- diataxis: -->
 
 Without authentication WFO allows all users access to all resources.
 
 ##### Backend
+<!-- diataxis: -->
 
 `OAUTH2_ACTIVE=false`
 
 ##### Frontend:
+<!-- diataxis: -->
 
 `OAUTH2_ACTIVE=false`
 
 ## With Authentication
+<!-- diataxis: -->
 
 WFO provides authentication based on an OIDC provider. The OIDC provider is presumed to be configured and to provide
 
@@ -39,6 +51,7 @@ WFO provides authentication based on an OIDC provider. The OIDC provider is pres
 - A client secret
 
 #### Frontend
+<!-- diataxis: -->
 
 The WFO frontend uses [NextAuth][3] to handle authentication. Authentication configuration can be found in
 [page/api/auth/\[...nextauth\].ts][4]
@@ -76,6 +89,7 @@ Note: It's possible to add additional oidc providers including some that are pro
 Google, Apple and others. See [NextAuthProviders][5] for more information.
 
 ##### Authorization
+<!-- diataxis: -->
 
 Authorization on the frontend can be used to determine if a page, action or navigation item is shown to a user. For
 this it uses an `isAllowedHandler` function can be passed into the `WfoAuth` component that wraps the page in `_app.tsx`
@@ -136,6 +150,7 @@ make can still be made through curl calls for example. Additional authorization 
 on the backend.
 
 ### Backend
+<!-- diataxis: -->
 
 **ENV variables**
 These variables need to be set for authentication to work on the backend
@@ -159,6 +174,7 @@ With the variables provided, requests to endpoints will return 403 error codes f
 error codes for users that are not authorized to do a call.
 
 #### Customization
+<!-- diataxis: -->
 
 `AuthManager` serves as the central unit for managing both `authentication` and `authorization` mechanisms.
 While it defaults to using `OIDCAuth` for authentication, `OPAAuthorization` for http authorization and
@@ -201,6 +217,7 @@ WFO will return a generic 403 for both `authorization` and `graphql_authorizatio
 their own `HTTPException` with a custom `detail=` parameter to return additional context.
 
 ### Customizing
+<!-- diataxis: -->
 
 When initializing the app we have the option to register custom authentication and authorization methods and override
 the default auth(n|z) logic.
@@ -270,6 +287,7 @@ Graphql Authorization decisions can be made based on request properties and user
 workflows.
 
 ### Example
+<!-- diataxis: -->
 
 Below is an example illustrating how to override the default configurations:
 
@@ -372,6 +390,7 @@ Below is an example illustrating how to override the default configurations:
     ```
 
 ## Authorization and Workflows {: .beta }
+<!-- diataxis: -->
 
 !!! Warning
     Role-based access control for workflows is currently in beta.
@@ -386,6 +405,7 @@ See `orchestrator.core.utils.auth.AuthContext` as a reference for what data is a
 A table (below) is available for comparing possible configuration states with the policy that will be enforced.
 
 ### `@workflow`
+<!-- diataxis: -->
 
 The `@workflow` decorator accepts the optional parameters `authorize_callback: Authorizer` and `retry_auth_callback: Authorizer`.
 
@@ -405,6 +425,7 @@ Examples:
 - `authorize_callback=None, retry_auth_callback=B`: any user can start the workflow, but only users authorized by B may retry on failure.
 
 ### `@inputstep`
+<!-- diataxis: -->
 
 The `@inputstep` decorator accepts the optional parameters `resume_auth_callback: Authorizer` and `retry_auth_callback: Authorizer`.
 
@@ -423,6 +444,7 @@ In summary:
 - Subsequent input steps can do the same, but any None will not overwrite a previous not-None.
 
 ### Policy resolutions
+<!-- diataxis: -->
 
 Below is an exhaustive table of how policies (implemented as callbacks `A`, `B`, `C`, and `D`)
 are prioritized in different workflow and inputstep configurations.
@@ -635,6 +657,7 @@ For brevity, the `_callback` parameter suffix has been omitted.
 </table>
 
 ### Authorization for internal workflows
+<!-- diataxis: -->
 
 Users of Workflow Orchestrator can't directly access the `@workflow` decorators of tasks and workflows defined within `orchestrator-core`.
 However, authorization callbacks can still be passed via the `OrchestratorCore` class when initializing your WFO application.
@@ -668,6 +691,7 @@ If these callbacks are not registered, these workflows can be started and retrie
 For more on application startup, see the [Settings Overview page][settings-overview].
 
 ### Examples
+<!-- diataxis: -->
 
 Assume we have the following function that can be used to create callbacks:
 
@@ -710,6 +734,7 @@ Assume we have the following function that can be used to create callbacks:
 We can now construct a variety of authorization policies.
 
 #### Rubber Stamp Model
+<!-- diataxis: -->
 
 !!! example
     Suppose we have a workflow W that needs to pause on inputstep `approval` for approval from finance. Ops (and only
@@ -727,6 +752,7 @@ We can now construct a variety of authorization policies.
     ```
 
 #### Hand-off Model
+<!-- diataxis: -->
 
 !!! example
     Suppose we have two teams, Dev and Platform, and a long workflow W that should be handed off to Platform at step
@@ -746,6 +772,7 @@ We can now construct a variety of authorization policies.
     Notice that default behaviors let us ignore `retry_auth_callback` arguments in both decorators.
 
 #### Restricted Retries Model
+<!-- diataxis: -->
 
 !!! example
     Suppose we have a workflow that anyone can run, but with steps that should only be retried by users with certain

@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Terminology
+<!-- diataxis: -->
 
 The data and business rules of the products and product blocks are modeled in Workflow Orchestrator domain models. A
 product is a collection of one or more product blocks, and zero or more fixed inputs. Fixed inputs are customer-facing

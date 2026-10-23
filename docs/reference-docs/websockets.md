@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Websockets
+<!-- diataxis: -->
 
 Orchestrator provides a websocket interface through which the frontend can receive real-time updates. This includes:
 
@@ -8,6 +15,7 @@ Orchestrator provides a websocket interface through which the frontend can recei
 
 
 ## Implementation
+<!-- diataxis: -->
 
 To function properly in a scalable architecture, the websocket implementation consists of multiple layers.
 
@@ -38,6 +46,7 @@ Process
 ```
 
 ### ProcessDataBroadcastThread
+<!-- diataxis: -->
 
 **Note**: this section is only relevant when the orchestrator is configured with `EXECUTOR="threadpool"`.
 
@@ -51,11 +60,13 @@ The API endpoints which start/resume/abort a process, call `api_broadcast_proces
 that can be used to submit process updates into a `threading.Queue` on which `ProcessDataBroadcastThread` listens.
 
 ## Channel overview
+<!-- diataxis: -->
 
 As mentioned in Implementation, messages are organized into channels that clients can listen to. Each channel has its
 own use case and specific message format.
 
 ### Events
+<!-- diataxis: -->
 
 The `events` channel is designed for the
 [Orchestrator UI v2](https://github.com/workfloworchestrator/example-orchestrator-ui). Events are notifications to the
@@ -98,12 +109,14 @@ Example of a complete message:
 ```
 
 ### Engine settings (deprecated)
+<!-- diataxis: -->
 
 The `engine-settings` channel was designed for the now deprecated [Orchestrator UI v1](https://github.com/workfloworchestrator/orchestrator-core-gui).
 
 The API endpoint for this channel is `/api/settings/ws-status/` .
 
 ### Processes (deprecated)
+<!-- diataxis: -->
 
 The `processes` channel was designed for the now deprecated [Orchestrator UI v1](https://github.com/workfloworchestrator/orchestrator-core-gui).
 It sent process list/detail data to the client which it would use to directly update the frontend.

@@ -1,10 +1,19 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Model Attributes
+<!-- diataxis: -->
 
 ## Overview
+<!-- diataxis: -->
 
 For understanding the various attributes that can live on a domain model, let's look again at the example `Node` product and the `NodeBlock` product block from the [example workflow orchestrator](https://github.com/workfloworchestrator/example-orchestrator):
 
 ### `Node` Product Type
+<!-- diataxis: -->
 
 ???+ example "Example: `example-orchestrator/products/product_types/node.py`"
     ```python linenums="1"
@@ -12,6 +21,7 @@ For understanding the various attributes that can live on a domain model, let's 
     ```
 
 ### `NodeBlock` Product Block
+<!-- diataxis: -->
 
 ???+ example "Example: `example-orchestrator/products/product_blocks/node.py`"
     ```python linenums="1"
@@ -19,6 +29,7 @@ For understanding the various attributes that can live on a domain model, let's 
     ```
 
 ## Resource Types
+<!-- diataxis: -->
 
 A resource type is simply an attribute on a product block's python class. These are used to store values on a domain model that are *__mutable__* and will be changed over the lifecycle of the product. These are type-annotated so that they can be safely serialized and de-serialized from the database and so that pydantic can validate what you store on your domain model. When these attributes are added to a domain model, the appropriate database table must be populated via a migration. This can be handled automatically for you by [the `migrate-domain-models` command in the WFO CLI](../cli.md#migrate-domain-models). To better understand how this looks from a database standpoint, you can see the database table that needs to be populated here:
 
@@ -40,6 +51,7 @@ Finally, when a domain model is populated, the values that you put onto the subs
         heading_level: 3
 
 ## Fixed Inputs
+<!-- diataxis: -->
 
 Fixed inputs are an *__immutable__* attribute that will not be changed over the lifecycle of the product. These are attributes with a hard-coded value that live on the root of the Product Type class definition. Fixed Inputs *__only__* live on Product Types, *__not__* Product Blocks. To better understand how this looks from a database standpoint, you can see the database table that needs to be populated here:
 

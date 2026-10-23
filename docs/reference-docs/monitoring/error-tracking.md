@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Error tracking
+<!-- diataxis: -->
 
 The ``orchestrator-core`` supports [Sentry](https://docs.sentry.io/product/) for
 error tracking and performance monitoring. Sentry is an application monitoring
@@ -132,6 +139,7 @@ def debug_sentry():
     Make sure your environment variable ``ENVIRONMENT`` is **NOT** set to ``local`` when testing the Sentry integration.
 
 ## `before_send`
+<!-- diataxis: -->
 
 You can define a `before_send` function to perform client-side
 event [filtering](https://docs.sentry.io/platforms/python/configuration/filtering/)

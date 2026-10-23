@@ -1,14 +1,23 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Architecture; TLDR
+<!-- diataxis: -->
 
 The architecture of how the orchestrator-core is setup can be split in two sections. The orchestration philosophy of how
 workflows are setup and run, and how the application can be used to define products that can be subscribed to by customers.
 
 ## Application architecture
+<!-- diataxis: -->
 
 The Application extends a FastAPI application and therefore can make use of all the awesome features of FastAPI, pydantic
 and asyncio python.
 
 ## Step Engine
+<!-- diataxis: -->
 At its core the Orchestrator workflow engine will execute a list of functions in order and store the result of each
 function to the database. The Orchestrator is able to execute any list of functions that the user envisions so long as they
 return a dictionary and/or consume variables stored in keys under that dictionary.
@@ -29,6 +38,7 @@ The `@workflow` decorator converts what the function returns into a `StepList` w
 If and when the step functions raise an exception, the workflow will fail at that step and allow the user to retry.
 
 ## Products and Subscriptions
+<!-- diataxis: -->
 The second part of the orchestrator is a product database that allows a developer to define a collection of logically grouped
 resources, that when filled in create a Subscription, given to a customer. The description of a product is done in the
 `Product`, `FixedInput`, `ProductBlock` and `ResourceType` tables. When a workflow creates a subscription for a customer it creates

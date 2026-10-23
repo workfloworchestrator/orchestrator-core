@@ -1,10 +1,18 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # MCP Server
+<!-- diataxis: -->
 
 The `orchestrator-core` ships with an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that exposes a curated subset of REST operations as **tools** for LLM agents. It is mounted on the FastAPI app at `/mcp` and shares the same authentication/authorization chain as the rest of the API.
 
 The server is built on top of [`fastmcp`](https://gofastmcp.com/) and is **auto-generated from the FastAPI routes** — there is no separate tool registry to maintain. Tagging a route is the only thing needed to surface it.
 
 ## Enabling
+<!-- diataxis: -->
 
 The MCP sub-app is opt-in:
 
@@ -25,6 +33,7 @@ When enabled, `OrchestratorCore.__init__` mounts the sub-app at `/mcp` and compo
 Transport: **streamable HTTP** (`/mcp/`). Configure your MCP client (e.g. Claude Desktop, an agent framework) to talk to that URL.
 
 ## Usage
+<!-- diataxis: -->
 
 Once enabled, any MCP client can connect to `https://<your-orchestrator>/mcp/` and call the generated tools.
 
@@ -65,6 +74,7 @@ Tool names map 1:1 to the route's `operation_id`; tool descriptions come from th
 The page data is built by `orchestrator.core.forms.spec.form_fields` from the page's model class; the walk is `orchestrator.core.forms.walk.walk_form`.
 
 ## Extending
+<!-- diataxis: -->
 
 To expose a new tool, add a FastAPI route tagged with `AgentTag.EXPOSED`. The route is then picked up automatically on the next app start — no MCP-specific glue code required.
 
@@ -101,6 +111,7 @@ Guidelines:
 Routes without `AgentTag.EXPOSED` are excluded from the MCP surface, regardless of whether they are public REST endpoints.
 
 ## Tool annotations
+<!-- diataxis: -->
 
 Every generated tool carries [MCP `ToolAnnotations`](https://modelcontextprotocol.io/) so clients can reason about safety (e.g. auto-approve reads). They are stamped by `orchestrator.core.mcp.server._annotate` (the fastmcp `mcp_component_fn` hook), derived from each route's HTTP method plus its `AgentTag`s:
 
@@ -113,6 +124,7 @@ Every generated tool carries [MCP `ToolAnnotations`](https://modelcontextprotoco
 The curated read tools in `mcp_tools.py` are `POST` routes, so they must be tagged `AgentTag.READONLY` to be marked safe; an irreversible action such as `abort_workflow_process` is tagged `AgentTag.DESTRUCTIVE`.
 
 ## Implementation
+<!-- diataxis: -->
 
 The mount logic lives in `orchestrator/core/mcp/server.py`:
 

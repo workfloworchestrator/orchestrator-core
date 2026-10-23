@@ -1,6 +1,14 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Workflows
+<!-- diataxis: -->
 
 ## Creating a workflow
+<!-- diataxis: -->
 
 A **workflow** is the combination of:
 
@@ -25,6 +33,7 @@ Under the hood they all use a [workflow] decorator which can be used for tasks t
 The decorated function must return a chain of steps using the `>>` operator to define their execution order.
 
 ### Minimal create workflow example
+<!-- diataxis: -->
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -64,6 +73,7 @@ Each step should be defined using the `@step` decorator and can access and updat
 ---
 
 ### How workflow steps work
+<!-- diataxis: -->
 
 Information between workflow steps is passed using `State`, which is nothing more than a collection of key/value pairs.
 In Python the state is represented by a `Dict`, with string keys and arbitrary values.
@@ -113,6 +123,7 @@ For `@modify_workflow`, `@validate_workflow` and `@terminate_workflow` the `subs
 Information about all usable step decorators can be found on [the architecture page on workflows](../architecture/application/workflow.md#workflow-steps).
 
 ## Register workflows
+<!-- diataxis: -->
 
 To make workflows available in the orchestrator, they must be registered in two stages:
 
@@ -123,6 +134,7 @@ To make workflows available in the orchestrator, they must be registered in two 
 We’ll start with the code registration, followed by options for generating the database migration.
 
 ### Step 1: Register workflow functions in code
+<!-- diataxis: -->
 
 Workflow functions must be registered by creating a `LazyWorkflowInstance`, which maps a workflow function to the Python module where it's defined.
 
@@ -153,6 +165,7 @@ To ensure the workflows are discovered at runtime:
     For inspiration look at an example implementation of the [lazy workflow instances]
 
 ### Step 2: Register workflows in the database
+<!-- diataxis: -->
 
 After registering workflows in code, you need to add them to the database by mapping them to their `product_type`.
 There are three ways to do this:
@@ -162,6 +175,7 @@ There are three ways to do this:
 - [Manual](#manual)
 
 #### Migrate workflows generator script
+<!-- diataxis: -->
 
 Similar to `db migrate-domain-models`, the orchestrator command line interface offers the `db migrate-workflows` command
 that walks you through a menu to create a database migration file based on the difference between the registered workflows in the code and the database.
@@ -182,6 +196,7 @@ python main.py db upgrade heads
 ```
 
 #### Copy the example workflows migration
+<!-- diataxis: -->
 
 You can copy a predefined migration file from the example repository:
 
@@ -199,6 +214,7 @@ python main.py db upgrade heads
 ```
 
 #### Manual
+<!-- diataxis: -->
 
 Create a new empty database migration with the following command:
 
@@ -291,8 +307,10 @@ python main.py db upgrade heads
 
 
 ## More workflow examples
+<!-- diataxis: -->
 
 ### Validate
+<!-- diataxis: -->
 
 Validate workflows run integrity checks on an existing subscription.
 Checking the state of associated data in an external system for example.
@@ -331,6 +349,7 @@ def check_nso(subscription: NodeEnrollment, node_name: str) -> State:
 ```
 
 ### Modify
+<!-- diataxis: -->
 
 The `Modify` workflow is similar to a `Validate` workflow, but uses different migration parameters appropriate to its `Target.MODIFY` context.
 
@@ -362,6 +381,7 @@ def update_subscription_and_description(subscription: NodeEnrollmentProvisioning
 These also have the `subscription` passed in in the initial step as outlined above.
 
 ### Terminate
+<!-- diataxis: -->
 
 A Terminate workflow is used to cleanly remove a subscription and undo any changes made during its lifecycle.
 
