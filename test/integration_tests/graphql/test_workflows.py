@@ -20,10 +20,10 @@ import pytest
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core import app_settings, workflow
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.workflow import done, init
 from test.integration_tests.config import GRAPHQL_ENDPOINT
 from test.integration_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
-from test.integration_tests.workflows import WorkflowInstanceForTests
 
 
 @pytest.fixture(autouse=True)

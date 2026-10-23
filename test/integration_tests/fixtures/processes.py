@@ -23,11 +23,11 @@ from sqlalchemy import delete, select
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.core.db.models import WorkflowTable
+from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.workflow import done, init, inputstep, step, workflow
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, UUIDstr
 from pydantic_forms.validators import Choice
-from test.integration_tests.workflows import WorkflowInstanceForTests
 
 
 @pytest.fixture

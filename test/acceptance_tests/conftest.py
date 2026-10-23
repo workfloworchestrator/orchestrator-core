@@ -15,4 +15,4 @@
 # whole acceptance tree. Lifted here from the celery and search/llm child
 # conftests because pytest only allows pytest_plugins in a single
 # (non-descendant) conftest.
-pytest_plugins = ["test.integration_tests._fixtures"]
+pytest_plugins = ["orchestrator.core.testing.fixtures", "test.integration_tests._fixtures"]

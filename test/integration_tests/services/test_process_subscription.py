@@ -22,11 +22,7 @@ from nwastdlib import const
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessSubscriptionTable, db
 from orchestrator.core.targets import Target
-from orchestrator.core.workflow import done, init, inputstep, step, workflow
-from orchestrator.core.workflows.steps import store_process_subscription
-from pydantic_forms.core import FormPage
-from pydantic_forms.types import State, UUIDstr
-from test.integration_tests.workflows import (
+from orchestrator.core.testing import (
     WorkflowInstanceForTests,
     assert_complete,
     assert_suspended,
@@ -34,6 +30,10 @@ from test.integration_tests.workflows import (
     resume_workflow,
     run_workflow,
 )
+from orchestrator.core.workflow import done, init, inputstep, step, workflow
+from orchestrator.core.workflows.steps import store_process_subscription
+from pydantic_forms.core import FormPage
+from pydantic_forms.types import State, UUIDstr
 
 CUSTOMER_ID: str = "f962d204-816a-4d7d-862a-3b4b4a42021a"
 

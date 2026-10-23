@@ -11,59 +11,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Integration-test conftest.
+"""Integration-test fixtures specific to orchestrator-core.
 
-Owns every fixture that requires Postgres, Redis, FastAPI app bootstrap, the
-scheduler or the Celery broker. ``test/unit_tests/conftest.py`` is intentionally
+The database, app and test client fixtures come from the :mod:`orchestrator.core.testing.fixtures` plugin, the
+same one downstream orchestrators use. This module adds the hooks, products, subscriptions, scheduler and Celery
+fixtures that only orchestrator-core's own tests need. ``test/unit_tests/conftest.py`` is intentionally
 boring; it does not import anything from this module.
-
-Service endpoints are resolved by :func:`provide_services` (env vars first,
-testcontainers fallback). The resolution runs at module import — *before* any
-``orchestrator.*`` import — so that pydantic-settings reads the correct
-``DATABASE_URI`` / ``CACHE_URI`` and module-level cache clients in
-``orchestrator.core.schedules.service`` and ``orchestrator.core.utils.redis``
-bind to the right Redis instance.
 """
-
-# isort: off
-# Resolve Postgres + Redis BEFORE importing any orchestrator module.
-# ``_session_setup`` imports ``provide_services`` and enters its context at
-# module load, exporting ``DATABASE_URI`` / ``CACHE_URI`` into ``os.environ``
-# for the testcontainers fallback (no-op in env-var mode). ``app_settings`` is
-# constructed during the orchestrator imports below, so it picks up the
-# correct values regardless of which mode is active. Do not let import sorters
-# move this past the ``orchestrator.*`` imports — the ordering is load-bearing.
-from test.integration_tests._session_setup import SERVICES as _INTEGRATION_SERVICES
-from test.integration_tests._session_setup import SERVICES_STACK as _SERVICES_STACK
-
-# isort: on
 
 import contextlib
 import datetime
 import os
-import typing
 import uuid
-from contextlib import closing, contextmanager
-from copy import copy
-from typing import Any, cast
-from unittest.mock import patch
+from contextlib import contextmanager
 from uuid import uuid4
 
 import pytest
 import redis
-import requests
 import structlog
-from alembic import command
-from alembic.config import Config
 from celery import Celery
-from sqlalchemy import create_engine, select, text
-from sqlalchemy.engine.url import make_url
-from sqlalchemy.orm.scoping import scoped_session
-from sqlalchemy.orm.session import close_all_sessions, sessionmaker
-from starlette.testclient import TestClient
-from urllib3_mock import Responses
+from sqlalchemy import select, text
 
-from orchestrator.core import OrchestratorCore
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import (
     ProcessSubscriptionTable,
@@ -75,9 +43,7 @@ from orchestrator.core.db import (
     SubscriptionMetadataTable,
     WorkflowTable,
     db,
-    warn_db_uri_scheme,
 )
-from orchestrator.core.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.core.db.models import WorkflowApschedulerJob
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.core.domain.base import ProductBlockModel
@@ -92,12 +58,13 @@ from orchestrator.core.services.tasks import (
     register_custom_serializer,
 )
 from orchestrator.core.services.workflows import get_workflow_by_name
-from orchestrator.core.settings import AppSettings, SecretPostgresDsn, app_settings
+from orchestrator.core.settings import AppSettings, app_settings
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.utils.json import json_dumps
 from orchestrator.core.utils.redis_client import create_redis_client
 from orchestrator.core.workflow import ProcessStatus
+from test.integration_tests._async_session import session_joined_async
 from test.integration_tests.fixtures.processes import (  # noqa: F401
     mocked_processes,
     mocked_processes_resumeall,
@@ -193,12 +160,10 @@ from test.integration_tests.fixtures.products.resource_types import (  # noqa: F
     resource_type_list,
     resource_type_str,
 )
-from test.integration_tests.fixtures.services import patch_app_settings
 from test.integration_tests.fixtures.workflows import (  # noqa: F401
     sample_workflow,
     sample_workflow_with_suspend,
 )
-from test.integration_tests.workflows import WorkflowInstanceForTests
 from test.integration_tests.workflows.shared.test_validate_subscriptions import validation_workflow
 
 logger = structlog.getLogger(__name__)
@@ -221,286 +186,16 @@ def pytest_addoption(parser):
     )
 
 
-def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001 — pytest hook signature
-    """Tear down testcontainers (no-op in env-var mode) at session end."""
-    _SERVICES_STACK.close()
-
-
 @pytest.fixture(scope="session")
-def integration_services():
-    """Expose the session-wide ``ServiceURIs`` for tests that need them.
-
-    Resolution happened at conftest import time (see ``_session_setup``); this
-    fixture is a thin pytest-friendly wrapper. ``app_settings`` is also patched
-    defensively here in case ``orchestrator.core.settings`` was imported before
-    ``_session_setup`` ran.
-    """
-    patch_app_settings(_INTEGRATION_SERVICES)
-    return _INTEGRATION_SERVICES
-
-
-def run_migrations(db_uri: str) -> None:
-    """Configure the alembic context and run the migrations.
-
-    Each test will start with a clean database. This a heavy operation but ensures that our database is clean and
-    tests run within their own context.
-
-    Args:
-        db_uri: The database uri configuration to run the migration on.
-
-    Returns:
-        None
-
-    """
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)))
-    os.environ["DATABASE_URI"] = db_uri
-    app_settings.DATABASE_URI = SecretPostgresDsn(db_uri)  # type: ignore
-    alembic_cfg = Config(file_=os.path.join(path, "../../orchestrator/core/migrations/alembic.ini"))
-    alembic_cfg.set_main_option("script_location", os.path.join(path, "../../orchestrator/core/migrations"))
-    alembic_cfg.set_main_option(
-        "version_locations",
-        f"{os.path.join(path, '../../orchestrator/core/migrations/versions/schema')}",
-    )
-    alembic_cfg.set_main_option("sqlalchemy.url", db_uri)
-    command.upgrade(alembic_cfg, "heads")
-
-
-def make_db_uri(worker_id, base_uri):
-    warn_db_uri_scheme(base_uri)
-
-    if worker_id == "master":
-        # pytest is being run without any workers
-        print(f"No workers, final DATABASE_URI is {base_uri!r}")
-        return base_uri
-
-    url = make_url(base_uri)
-    if hasattr(url, "set"):
-        url = url.set(database=f"{url.database}-{worker_id}")
-    else:
-        url.database = f"{url.database}-{worker_id}"
-
-    worker_database_uri = url.render_as_string(hide_password=False)
-    print(f"Final DATABASE_URI for worker {worker_id!r} is {worker_database_uri!r}")
-    return worker_database_uri
-
-
-@pytest.fixture(scope="session")
-def db_uri(worker_id, integration_services):
-    """Ensure each pytest thread has its database.
-
-    When running tests with the -j option make sure each test worker is isolated within its own database.
-
-    Args:
-        worker_id: the worker id
-        integration_services: resolved Postgres + Redis URIs (env or testcontainers).
-
-    Returns:
-        Database uri to be used in the test thread
-
-    """
-    session_db_uri = make_db_uri(worker_id, integration_services.database_uri)
-
-    with patch.object(app_settings, "DATABASE_URI", SecretPostgresDsn(session_db_uri)):
-        yield session_db_uri
-
-
-@pytest.fixture(scope="session")
-def database(db_uri):
-    """Create database and run migrations and cleanup afterward.
-
-    Args:
-        db_uri: fixture for providing the application context and an initialized database. Although specifying this
-            as an explicit parameter is redundant due to `fastapi_app`'s autouse setting, we have made the dependency
-            explicit here for the purpose of documentation.
-
-    """
-    db.update(Database(db_uri))
-    url = make_url(db_uri)
-    db_to_create = url.database
-    if hasattr(url, "set"):
-        url = url.set(database="postgres")
-    else:
-        url.database = "postgres"
-    engine = create_engine(url, isolation_level="AUTOCOMMIT")
-    with closing(engine.connect()) as conn:
-        conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
-        conn.execute(
-            text(f'CREATE DATABASE "{db_to_create}" LOCALE_PROVIDER icu ICU_LOCALE "en-US" TEMPLATE template0;')
-        )
-
-    run_migrations(db_uri)
-    db.wrapped_database.engine = create_engine(db_uri, **ENGINE_ARGUMENTS)
-
-    try:
-        yield
-    finally:
-        # Close all SQLAlchemy sessions
-        db.wrapped_database.engine.dispose()
-        close_all_sessions()
-
-        # Force disconnect all sessions from the database
-        with closing(engine.connect()) as conn:
-            conn.execute(
-                text(
-                    "SELECT pg_terminate_backend(pid)"
-                    " FROM pg_stat_activity"
-                    " WHERE datname = :dbname"
-                    " AND pid <> pg_backend_pid()"
-                ),
-                {"dbname": db_to_create},
-            )
-            # Now try to drop the database
-            conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
+def joined_async_session():
+    """Join the per-test transaction, and fail on ORM loads an ``AsyncSession`` could not have performed."""
+    return session_joined_async
 
 
 @pytest.fixture(scope="session")
 def load_scheduled_tasks(database):
     with get_scheduler():
         pass
-
-
-@pytest.fixture(autouse=True)
-def responses(request):
-    if request.node.get_closest_marker("noresponses"):
-        yield None
-        return
-    responses_mock = Responses("requests.packages.urllib3")
-    with responses_mock:
-        yield responses_mock
-
-
-@pytest.fixture(autouse=True)
-def db_session(database):
-    """Ensure tests are run in a transaction with automatic rollback.
-
-    This implementation creates a connection and transaction before yielding to the test function. Any transactions
-    started and committed from within the test will be tied to this outer transaction. From the test function's
-    perspective it looks like everything will indeed be committed; allowing for queries on the database to be
-    performed to see if functions under test have persisted their changes to the database correctly. However once
-    the test function returns this fixture will clean everything up by rolling back the outer transaction; leaving the
-    database in a known state (=empty except what migrations have added as the initial state).
-
-    Args:
-        database: fixture for providing an initialized database.
-
-    """
-    with closing(db.wrapped_database.engine.connect()) as test_connection:
-        db.wrapped_database.session_factory = sessionmaker(**SESSION_ARGUMENTS, bind=test_connection)
-        db.wrapped_database.scoped_session = scoped_session(db.session_factory, db._scopefunc)
-        BaseModel.set_query(cast(SearchQuery, db.wrapped_database.scoped_session.query_property()))
-
-        trans = test_connection.begin()
-        try:
-            yield
-        finally:
-            # Ensure all connections are closed
-            try:
-                close_all_sessions()
-            except Exception:
-                logger.exception("Closing wrapped db connections failed, test teardown may fail")
-            if not trans._deactivated_from_connection:
-                trans.rollback()
-
-
-@contextmanager
-def make_orchestrator_app():
-    from oauth2_lib.settings import oauth2lib_settings
-    from orchestrator.core.forms.scheduler_form import configure_schedule_form
-    from pydantic_forms.core.shared import register_form
-
-    register_form("configure_schedule", configure_schedule_form)
-
-    with (
-        patch.multiple(
-            oauth2lib_settings,
-            OAUTH2_ACTIVE=False,
-            ENVIRONMENT_IGNORE_MUTATION_DISABLED=["local", "TESTING"],
-        ),
-        patch.multiple(
-            app_settings,
-            ENABLE_PROMETHEUS_METRICS_ENDPOINT=True,
-            ENVIRONMENT="TESTING",
-        ),
-    ):
-        app = OrchestratorCore(base_settings=app_settings)
-        app.broadcast_thread.start()
-
-        try:
-            yield app
-        finally:
-            app.worker_status_monitor.stop()
-            app.broadcast_thread.stop()
-
-
-@pytest.fixture(scope="session", autouse=True)
-def fastapi_app(database, db_uri):
-    with make_orchestrator_app() as app:
-        yield app
-
-
-@pytest.fixture
-def fastapi_app_graphql(fastapi_app):
-    """Patches the session-level fastapi_app to be used for graphql queries."""
-
-    # Keep references to the fastapi routes and graphql router objects prior to registering
-    original_routes = copy(fastapi_app.router.routes)
-    original_router = fastapi_app.graphql_router
-
-    # Register the graphql router; this needs to be done for every testcase.
-    # This is because the product fixtures (e.g. generic_product_type_1) are function-level fixtures which change the
-    # definitions in SUBSCRIPTION_MODEL_REGISTRY.
-    # These models need to be updated in the graphql schema.
-    fastapi_app.register_graphql()
-
-    yield fastapi_app
-
-    # Restore old routes and router object
-    fastapi_app.router.routes = original_routes
-    fastapi_app.graphql_router = original_router
-
-
-class JsonTestClient(TestClient):
-    def request(
-        self,
-        method: str,
-        url: str,
-        data: Any | None = None,
-        headers: typing.MutableMapping[str, str] | None = None,
-        json: typing.Any = None,
-        **kwargs: Any,
-    ) -> requests.Response:
-        if json is not None:
-            if headers is None:
-                headers = {}
-            data = json_dumps(json).encode()
-            headers["Content-Type"] = "application/json"
-
-        return super().request(method, url, data=data, headers=headers, **kwargs)
-
-
-@pytest.fixture(scope="session")
-def test_client(fastapi_app):
-    """Client to test REST calls."""
-    return JsonTestClient(fastapi_app)
-
-
-@pytest.fixture
-def test_client_graphql(fastapi_app_graphql, db_session):
-    """Client to test GraphQL queries.
-
-    GraphQL resolvers call ``db.async_session()`` directly. Patch it so
-    they land on the sync per‑test transaction opened by ``db_session``
-    (just like the async‑endpoint REST test‑client does via
-    ``dependency_overrides`` on ``get_async_session``).
-    """
-    from test.integration_tests._async_session import session_joined_async
-
-    original = db.async_session
-    db.async_session = session_joined_async
-    try:
-        yield JsonTestClient(fastapi_app_graphql)
-    finally:
-        db.async_session = original
 
 
 @pytest.fixture

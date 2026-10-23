@@ -22,8 +22,8 @@ from inline_snapshot import snapshot
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.db.models import WorkflowApschedulerJob, WorkflowTable
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.workflow import done, init, workflow
-from test.integration_tests.workflows import WorkflowInstanceForTests
 
 
 async def _allow(_: OIDCUserModel | None = None) -> bool:

@@ -34,6 +34,7 @@ from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing import tasks as indexing_tasks
 from orchestrator.core.services.processes import abort_process, fail_awaiting_process, start_process
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import WorkflowInstanceForTests, assert_aborted
 from orchestrator.core.utils.datetime import nowtz
 from orchestrator.core.workflow import ProcessStatus, callback_step, done, init, inputstep, step, workflow
 from orchestrator.core.workflows.steps import (
@@ -44,7 +45,6 @@ from orchestrator.core.workflows.steps import (
 )
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import UUIDstr
-from test.integration_tests.workflows import WorkflowInstanceForTests, assert_aborted
 
 pytestmark = pytest.mark.search
 

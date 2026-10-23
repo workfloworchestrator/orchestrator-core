@@ -25,6 +25,19 @@ from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import db
 from orchestrator.core.services.processes import SYSTEM_USER
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import (
+    WorkflowInstanceForTests,
+    assert_aborted,
+    assert_complete,
+    assert_failed,
+    assert_state,
+    assert_success,
+    assert_suspended,
+    assert_waiting,
+    extract_error,
+    resume_workflow,
+    run_workflow,
+)
 from orchestrator.core.utils.errors import error_state_to_dict
 from orchestrator.core.workflow import (
     Abort,
@@ -56,19 +69,6 @@ from orchestrator.core.workflow import (
 from orchestrator.core.workflow import _purestep as purestep
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from test.integration_tests.workflows import (
-    WorkflowInstanceForTests,
-    assert_aborted,
-    assert_complete,
-    assert_failed,
-    assert_state,
-    assert_success,
-    assert_suspended,
-    assert_waiting,
-    extract_error,
-    resume_workflow,
-    run_workflow,
-)
 
 
 @step("Step 1")

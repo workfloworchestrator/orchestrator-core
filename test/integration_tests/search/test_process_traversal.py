@@ -28,10 +28,10 @@ from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 from orchestrator.core.services.processes import start_process
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.workflow import done, init, workflow
 from orchestrator.core.workflows.steps import store_process_subscription
 from pydantic_forms.core import FormPage
-from test.integration_tests.workflows import WorkflowInstanceForTests
 
 
 def test_traverse_process_with_real_subscription(generic_subscription_1):
