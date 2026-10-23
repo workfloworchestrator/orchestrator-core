@@ -19,7 +19,7 @@ changelog:
       - dev-only
       # dev-dependencies is set by Renovate (renovate.json) on bumps of
       # [dependency-groups] entries. It is deliberately NOT a labeler.yml label:
-      # sync-labels would strip it again, since pyproject.toml is not dev-only.
+      # pyproject.toml is not dev-only, so no path rule can derive it.
       - dev-dependencies
   categories:
     # Breaking Changes is deliberately first. A breaking change is often also a

@@ -26,12 +26,15 @@ jobs:
   label:
     runs-on: ubuntu-slim
     steps:
-      # `sync-labels: true` means the labeler both adds and REMOVES labels — but
-      # ONLY the ones it can derive from changed paths (see .github/labeler.yml:
-      # kind/documentation, kind/test, kind/ci, kind/build, area/search,
-      # dev-only).
+      # `sync-labels: false` means the labeler only ADDS the labels it can derive
+      # from changed paths (see .github/labeler.yml: kind/documentation,
+      # kind/test, kind/ci, kind/build, area/search, dev-only) and never removes
+      # labels. That lets an author keep one of these by hand on a PR where the
+      # path rule doesn't match (e.g. kind/documentation on a docs PR that also
+      # touches a docstring). The flip side: a path label that stops matching
+      # after later commits is NOT removed automatically, so remove it by hand.
       #
-      # It deliberately does NOT touch the type labels that require developer
+      # It deliberately does NOT set the type labels that require developer
       # judgement (kind/feature, kind/bug, kind/refactor, kind/security, ...) or
       # skip-changelog. Those cannot be inferred from file paths — they are the
       # author's/reviewer's call — so they are set by hand and left untouched
@@ -41,7 +44,7 @@ jobs:
         uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          sync-labels: true
+          sync-labels: false
 
   require-release-label:
     # Run after the labeler so path-based labels are already applied, and even
