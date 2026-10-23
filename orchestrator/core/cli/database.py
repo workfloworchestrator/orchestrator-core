@@ -159,10 +159,12 @@ def merge(
 ) -> None:
     """Merge database revisions.
 
-    It is possible when using multiple git branches in your WFO development lifecycle to have
-    multiple Alembic heads emerge. This command will allow you to merge those two (or more)
-    heads to resolve the issue. You also might need to run this after updating your version
-    of orchestrator-core if there have been schema changes.
+    It is possible when using multiple git branches in your WFO development lifecycle that two
+    migrations end up with the same `down_revision`, giving a branch (`data` or `schema`) more
+    than one head. This command creates a merge revision that joins those heads again. Note that
+    one `schema` head and one `data` head is the normal situation and should not be merged.
+
+    You also might need to run this after updating your version of orchestrator-core if there have been schema changes.
 
     [Read More Here](https://alembic.sqlalchemy.org/en/latest/branches.html#merging-branches)
 

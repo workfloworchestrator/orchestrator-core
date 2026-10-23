@@ -40,4 +40,7 @@ Only a single head is supported. The script directory has multiple heads (due br
 manually editing the revision files to form a linear sequence. Run `alembic branches` to see the divergence(s).
 ```
 
-Thankfully alembic is great at handling this and you can use the WFO CLI `db merge` command to resolve this, [documented in depth here.](cli.md#orchestrator.core.cli.database.merge)
+This means that two migrations share the same `down_revision`. You can resolve this with the WFO CLI `db merge`
+command, [documented in depth here](cli.md#orchestrator.core.cli.database.merge), or by re-parenting one of the
+migrations. See [Managing Diverging Database Migrations](../guides/database-migrations.md) for how the `schema` and
+`data` branches are organised, when to use which approach, and how to prevent divergence.

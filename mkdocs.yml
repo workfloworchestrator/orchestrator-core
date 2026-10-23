@@ -154,6 +154,7 @@ nav:
       - Scaling the Orchestrator: guides/scaling.md
       - Pausing the Orchestrator: guides/pause-and-resume.md
       - Generating a Config File: guides/generate-config-file.md
+      - Managing Diverging Database Migrations: guides/database-migrations.md
       - Upgrade Guides:
           - v2.x: guides/upgrading/2.0.md
           - v3.x: guides/upgrading/3.0.md
