@@ -47,6 +47,17 @@ FENCE = re.compile(r"^\s*(```|~~~)")
 
 
 def status(kind: str | None) -> str:
+    """Return a fixed-width OK/FAIL report for one label.
+
+    >>> status("tutorial")
+    'OK   (tutorial)'
+    >>> status(None)
+    'FAIL (missing)'
+    >>> status("")
+    'FAIL (empty)'
+    >>> status("bogus")
+    "FAIL (invalid: 'bogus')"
+    """
     if kind is None:
         return "FAIL (missing)"
     if not kind:
@@ -57,7 +68,15 @@ def status(kind: str | None) -> str:
 
 
 def split_front_matter(lines: list[str]) -> tuple[list[str], int]:
-    """Return the front matter lines and the index of the first body line."""
+    """Return the front matter lines and the index of the first body line.
+
+    >>> split_front_matter(["---", "diataxis: how-to", "---", "# Title"])
+    (['diataxis: how-to'], 3)
+    >>> split_front_matter(["# Title"])
+    ([], 0)
+    >>> split_front_matter(["---", "diataxis: how-to"])  # unterminated front matter
+    ([], 0)
+    """
     if not lines or lines[0].strip() != "---":
         return [], 0
     end = next((i for i, line in enumerate(lines[1:], start=1) if line.strip() == "---"), None)
@@ -65,7 +84,13 @@ def split_front_matter(lines: list[str]) -> tuple[list[str], int]:
 
 
 def headings(lines: list[str], start: int) -> Iterator[tuple[int, str, str | None]]:
-    """Yield (line number, heading, section kind) for each heading outside code fences."""
+    """Yield (line number, heading, section kind) for each heading outside code fences.
+
+    >>> list(headings(["# A", "<!-- diataxis: tutorial -->", "## B"], 0))
+    [(1, '# A', 'tutorial'), (3, '## B', None)]
+    >>> list(headings(["```", "# not a heading", "```"], 0))
+    []
+    """
     in_fence = False
     for i in range(start, len(lines)):
         line = lines[i]
