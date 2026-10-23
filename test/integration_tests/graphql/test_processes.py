@@ -179,25 +179,25 @@ def get_processes_state_updates_and_delta(
     filter_by: list[dict[str, str]] | None = None,
     sort_by: list[dict[str, str]] | None = None,
     query_string: str | None = None,
+    step_fields: str = "stateDelta status",
 ) -> bytes:
-    query = """
-query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!], $query: String) {
-  processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy, query: $query) {
-    page {
-      steps {
-        stateDelta
-        status
-      }
-    }
-    pageInfo {
+    query = f"""
+query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!], $query: String) {{
+  processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy, query: $query) {{
+    page {{
+      steps {{
+        {step_fields}
+      }}
+    }}
+    pageInfo {{
       startCursor
       totalItems
       hasPreviousPage
       endCursor
       hasNextPage
-    }
-  }
-}
+    }}
+  }}
+}}
     """
     return json.dumps(
         {
@@ -680,3 +680,24 @@ def test_processes_state_updates_and_delta(
             {"stateDelta": None, "status": "pending"},
         ]
     ]
+
+
+def test_processes_step_importance(test_client_graphql, mocked_processes, mocked_processes_resumeall):
+    # when
+
+    process_pid = str(mocked_processes[0])
+    data = get_processes_state_updates_and_delta(
+        filter_by=[{"field": "processId", "value": process_pid}], step_fields="status importance"
+    )
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    assert "errors" not in result
+    steps = result["data"]["processes"]["page"][0]["steps"]
+
+    # Steps without an explicit importance, executed and pending, default to "default"
+    assert steps
+    assert {step["importance"] for step in steps} == {"default"}

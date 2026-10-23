@@ -79,11 +79,18 @@ DEFAULT_CALLBACK_PROGRESS_KEY = "callback_progress"  # noqa: S105
 CALLBACK_TIMEOUT_KEY = "__callback_timeout"
 
 
+class StepImportance(strEnum):
+    DEFAULT = "default"
+    LOW = "low"
+    HIGH = "high"
+
+
 @runtime_checkable
 class Step(Protocol):
     __name__: str
     __qualname__: str
     name: str
+    importance: StepImportance = StepImportance.DEFAULT
     form: InputFormGenerator | None
     assignee: Assignee | None
     resume_auth_callback: Authorizer | None = None
@@ -145,6 +152,7 @@ def make_step_function(
     assignee: Assignee | None = Assignee.SYSTEM,
     resume_auth_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
+    importance: StepImportance = StepImportance.DEFAULT,
 ) -> Step:
     step_func = cast(Step, f)
 
@@ -153,6 +161,7 @@ def make_step_function(
     step_func.assignee = assignee
     step_func.resume_auth_callback = resume_auth_callback
     step_func.retry_auth_callback = retry_auth_callback
+    step_func.importance = importance
     return step_func
 
 
@@ -279,10 +288,15 @@ def make_workflow(
 
 
 def step(
-    name: str,
-    retry_auth_callback: Authorizer | None = None,
+    name: str, retry_auth_callback: Authorizer | None = None, importance: StepImportance = StepImportance.DEFAULT
 ) -> Callable[[StepFunc], Step]:
-    """Mark a function as a workflow step."""
+    """Mark a function as a workflow step.
+
+    Args:
+        name: Step name shown in the process detail.
+        retry_auth_callback: Authorizer deciding who may retry this step after a failure.
+        importance: Stored with the process step and exposed through the API. Does not affect execution.
+    """
 
     def decorator(func: StepFunc) -> Step:
         @functools.wraps(func)
@@ -304,6 +318,7 @@ def step(
         return make_step_function(
             wrapper,
             name,
+            importance=importance,
             retry_auth_callback=retry_auth_callback,
         )
 
@@ -311,8 +326,7 @@ def step(
 
 
 def retrystep(
-    name: str,
-    retry_auth_callback: Authorizer | None = None,
+    name: str, retry_auth_callback: Authorizer | None = None, importance: StepImportance = StepImportance.DEFAULT
 ) -> Callable[[StepFunc], Step]:
     """Mark a function as a retryable workflow step.
 
@@ -339,6 +353,7 @@ def retrystep(
         return make_step_function(
             wrapper,
             name,
+            importance=importance,
             retry_auth_callback=retry_auth_callback,
         )
 
@@ -350,6 +365,7 @@ def inputstep(
     assignee: Assignee,
     resume_auth_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
+    importance: StepImportance = StepImportance.DEFAULT,
 ) -> Callable[[InputStepFunc], Step]:
     """Add user input step to workflow.
 
@@ -386,6 +402,7 @@ def inputstep(
             name,
             wrapper,
             assignee,
+            importance=importance,
             resume_auth_callback=resume_auth_callback,
             retry_auth_callback=retry_auth_callback,
         )
@@ -407,7 +424,11 @@ def _extend_step_group_steps(name: str, steps: StepList) -> StepList:
 
 
 def step_group(
-    name: str, steps: StepList, extract_form: bool = True, retry_auth_callback: Authorizer | None = None
+    name: str,
+    steps: StepList,
+    extract_form: bool = True,
+    retry_auth_callback: Authorizer | None = None,
+    importance: StepImportance = StepImportance.DEFAULT,
 ) -> Step:
     """Add a group of steps to the workflow as a single step.
 
@@ -422,6 +443,8 @@ def step_group(
         steps: The sub steps in the step group
         extract_form: Whether to attach the first form of the sub steps to the step group
         retry_auth_callback: Callback to determine if user is authorized to retry this group on failure
+        importance: Importance of the group. The sub steps all log into the group's single process step row, so
+            this, not the sub steps' own importance, is what clients see.
     """
 
     steps = _extend_step_group_steps(name, steps)
@@ -436,7 +459,12 @@ def step_group(
             step_list = steps
 
         def dblogstep(step_: Step, p: Process) -> Process:
-            p = p.map(lambda s: s | {"__sub_step": step_.name, "__step_name_override": name})
+            p = p.map(
+                lambda s: (
+                    s
+                    | {"__sub_step": step_.name, "__step_name_override": name, "__step_importance_override": importance}
+                )
+            )
             # If this is not the first step to be executed, replace previous state
             if step_list[0] != step_ or "__sub_step" in initial_state:
                 p = p.map(lambda s: s | {"__replace_last_state": True})
@@ -452,7 +480,7 @@ def step_group(
 
     # Make sure we return a form is a sub step has a form
     form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
-    return make_step_function(func, name, form, retry_auth_callback=retry_auth_callback)
+    return make_step_function(func, name, form, retry_auth_callback=retry_auth_callback, importance=importance)
 
 
 def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
@@ -465,7 +493,11 @@ def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
     return stepfunc
 
 
-def _awaitstep(name: str, result_key: str | None = None, timeout: int | None = None) -> Step:
+def _awaitstep(
+    name: str,
+    result_key: str | None = None,
+    timeout: int | None = None,
+) -> Step:
     extra_state: State = {}
     if result_key:
         extra_state["__callback_result_key"] = result_key
@@ -485,6 +517,7 @@ def callback_step(
     result_key: str | None = None,
     callback_route_key: str = DEFAULT_CALLBACK_ROUTE_KEY,
     timeout: int | None = None,
+    importance: StepImportance = StepImportance.DEFAULT,
 ) -> Step:
     """Creates an asynchronous callback step.
 
@@ -501,20 +534,28 @@ def callback_step(
     still in AWAITING_CALLBACK after that many seconds (measured from when the await started) is transitioned to FAILED
     by the ``task_validate_awaiting_callbacks`` scheduled task, so it can be retried or aborted through the normal
     flows. The timeout is a minimum: enforcement resolution equals that task's run interval (30 seconds by default).
+
+
+    ``importance`` is applied to the returned step group, and so to its process step row, both while pending and
+    while awaiting the callback.
     """
     create_endpoint_step = step(f"{name} - Create endpoint")(_create_endpoint_step(key=callback_route_key))
     await_step = _awaitstep(f"{name} - Await callback", result_key=result_key, timeout=timeout)
     cleanup_step = step(f"{name} - Cleanup callback step")(lambda: {"__remove_keys": [CALLBACK_TOKEN_KEY]})
     return step_group(
-        name=name, steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step >> cleanup_step
+        name=name,
+        steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step >> cleanup_step,
+        importance=importance,
     )
 
 
-def _purestep(name: str) -> Callable[[StepToProcessFunc], StepList]:
+def _purestep(
+    name: str, importance: StepImportance = StepImportance.DEFAULT
+) -> Callable[[StepToProcessFunc], StepList]:
     """Part of workflow "DSL" to map a `state -> Process state` function into a workflow step."""
 
     def _purestep(f: StepToProcessFunc) -> StepList:
-        return StepList([make_step_function(f, name)])
+        return StepList([make_step_function(f, name, importance=importance)])
 
     return _purestep
 
@@ -543,7 +584,7 @@ def conditional(p: Callable[[State], bool]) -> Callable[..., StepList]:
             def wrapper(state: State) -> Process:
                 return step(state) if p(state) else Skipped(state)
 
-            return make_step_function(wrapper, step.name, step.form, step.assignee)
+            return make_step_function(wrapper, step.name, step.form, step.assignee, importance=step.importance)
 
         return steps.map(wrap)
 
@@ -564,7 +605,7 @@ def steplens(get: Callable[[State], State], set: Callable[[State], Callable[[Sta
                 return result
             return result.map(set(state))
 
-        return make_step_function(wrapper, step.name, step.form, step.assignee)
+        return make_step_function(wrapper, step.name, step.form, step.assignee, importance=step.importance)
 
     return wrap
 
