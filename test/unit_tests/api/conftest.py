@@ -34,6 +34,7 @@ from starlette.testclient import TestClient
 
 from orchestrator.core.app import OrchestratorCore
 from orchestrator.core.db import get_async_session
+from orchestrator.core.settings import app_settings
 
 
 @contextmanager
@@ -45,9 +46,11 @@ def _noop_database_scope(**kwargs):
 def fastapi_app():
     from orchestrator.core.db import db as orchestrator_db
 
+    # Optional routers are mounted too, so the endpoint guardrails cover them.
     with (
         patch("orchestrator.core.app.init_database"),
         patch.object(orchestrator_db, "database_scope", _noop_database_scope),
+        patch.object(app_settings, "WORKFLOW_DESIGNER_ENABLED", True),
     ):
         yield OrchestratorCore()
 

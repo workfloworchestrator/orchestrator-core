@@ -42,7 +42,7 @@ authorizers = get_authorizers()
 @step("Check all workflows in database")
 def check_all_workflows_are_in_db() -> State:
     all_workflows_in_db = {k.name for k in get_workflows()}
-    all_workflows = {k for k in orchestrator.core.workflows.ALL_WORKFLOWS.keys()}  # noqa: C416
+    all_workflows = orchestrator.core.workflows.all_workflow_names()
     not_in_db = all_workflows - all_workflows_in_db
     not_in_lwi = all_workflows_in_db - all_workflows
     if not_in_db or not_in_lwi:

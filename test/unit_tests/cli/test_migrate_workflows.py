@@ -210,3 +210,35 @@ def test_create_workflows_migration_wizard_finish_returns_state_lists(mock__prom
 
     assert to_add == []
     assert to_delete == []
+
+
+def test_create_workflows_migration_wizard_never_offers_source_workflows_for_deletion():
+    """Workflows provided by a workflow source have no LazyWorkflowInstance but must not count as dangling."""
+    offered: dict[str, list[str]] = {}
+    product = SimpleNamespace(product_type="Generic")
+    rows = [
+        SimpleNamespace(name=name, target="SYSTEM", description="d", is_task=False, products=[product])
+        for name in ("designed_wf", "stale_wf")
+    ]
+    source = SimpleNamespace(get=lambda name: None, names=lambda: set(), owned_names=lambda: {"designed_wf"})
+
+    def menu(options, **_kw):
+        dangling = dict(options)["Delete unregistered workflows from database"]
+        with mock.patch.object(
+            migrate_workflows,
+            "delete_dangling_workflows",
+            side_effect=lambda workflows, s: offered.update(dangling=workflows) or s,
+        ):
+            dangling({"workflows_to_add": [], "workflows_to_delete": []})
+        return _make_wizard_exit(abort=True)
+
+    fake_db = SimpleNamespace(session=SimpleNamespace(scalars=lambda *_args, **_kwargs: rows))
+    with (
+        mock.patch.object(migrate_workflows, "db", fake_db),
+        mock.patch.object(migrate_workflows.orchestrator.core.workflows, "ALL_WORKFLOWS", {}),
+        mock.patch.object(migrate_workflows.orchestrator.core.workflows, "WORKFLOW_SOURCES", [source]),
+        mock.patch.object(migrate_workflows, "_prompt_user_menu", side_effect=menu),
+    ):
+        migrate_workflows.create_workflows_migration_wizard()
+
+    assert [workflow.name for workflow in offered["dangling"]] == ["stale_wf"]

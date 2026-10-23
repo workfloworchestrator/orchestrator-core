@@ -150,7 +150,13 @@ def create_tasks_migration_wizard() -> tuple[list[dict], list[dict]]:
         - list of task items to add in the migration
         - list of task items to delete in the migration
     """
-    database_tasks = {task.name: task for task in list(db.session.scalars(select(WorkflowTable))) if task.is_task}
+    # Tasks provided by a workflow source (e.g. designed in the GUI) live only in the database; never offer to delete them.
+    source_tasks = orchestrator.core.workflows.source_owned_workflow_names()
+    database_tasks = {
+        task.name: task
+        for task in db.session.scalars(select(WorkflowTable))
+        if task.is_task and task.name not in source_tasks
+    }
     registered_wf_instances = {
         task: cast(Workflow, get_workflow(task)) for task in orchestrator.core.workflows.ALL_WORKFLOWS.keys()
     }

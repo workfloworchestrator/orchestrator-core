@@ -44,17 +44,21 @@ class Workflow:
 
     @strawberry.field(description="Return all steps for this workflow")  # type: ignore
     def steps(self) -> list[Step]:
-        return [Step(name=step.name, assignee=step.assignee) for step in get_workflow(self.name).steps]  # type: ignore
+        # A row whose workflow can no longer be resolved must not break listing all other workflows.
+        if not (workflow := get_workflow(self.name)):  # type: ignore[attr-defined]
+            return []
+        return [Step(name=step.name, assignee=step.assignee) for step in workflow.steps]
 
     @strawberry.field(description="Return whether the currently logged-in used is allowed to start this workflow")  # type: ignore
     async def is_allowed(self, info: OrchestratorInfo) -> bool:
         oidc_user = await info.context.get_current_user
         workflow_table = get_original_model(self, WorkflowTable)
-        workflow = get_workflow(workflow_table.name)
+        if not (workflow := get_workflow(workflow_table.name)):
+            return False
         context = AuthContext(
             workflow=workflow,
             user=oidc_user,
             action="start_workflow",
         )
 
-        return await workflow.authorize_callback(context)  # type: ignore
+        return await workflow.authorize_callback(context)
