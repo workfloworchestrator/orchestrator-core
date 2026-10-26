@@ -133,7 +133,9 @@ UPDATE_BASE = {"scheduled_type": "update", "schedule_id": str(SCHEDULE_ID)}
         ),
     ],
 )
-def test_job_options_only_contains_set_options(model: type[APSchedulerJobOptions], base: dict, options: dict, expected: dict) -> None:
+def test_job_options_only_contains_set_options(
+    model: type[APSchedulerJobOptions], base: dict, options: dict, expected: dict
+) -> None:
     job = model.model_validate({**base, "trigger": "interval", "trigger_kwargs": {"hours": 1}, **options})
     assert job.job_options() == expected
 

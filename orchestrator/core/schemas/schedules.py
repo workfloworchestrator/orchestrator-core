@@ -67,11 +67,14 @@ class APSchedulerJobOptions(BaseModel):
         None,
         description=(
             "Seconds after the trigger time that the job may still start. A job picked up later is skipped as "
-            "missed. APScheduler defaults to 1 second."),
-        examples=[60, 300],)
+            "missed. APScheduler defaults to 1 second."
+        ),
+        examples=[60, 300],
+    )
     coalesce: bool | None = Field(
         None,
-        description="Run a job that missed several trigger times only once, instead of once per missed time",)
+        description="Run a job that missed several trigger times only once, instead of once per missed time",
+    )
 
     def job_options(self) -> dict[str, Any]:
         """Return the options that are set, as keyword arguments for ``add_job()`` or ``Job.modify()``."""
