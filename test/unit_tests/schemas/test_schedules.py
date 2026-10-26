@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from orchestrator.core.schemas.schedules import (
     APSchedulerJobCreate,
     APSchedulerJobDelete,
+    APSchedulerJobOptions,
     APSchedulerJobUpdate,
     APSJobAdapter,
 )
@@ -132,7 +133,7 @@ UPDATE_BASE = {"scheduled_type": "update", "schedule_id": str(SCHEDULE_ID)}
         ),
     ],
 )
-def test_job_options_only_contains_set_options(model: type, base: dict, options: dict, expected: dict) -> None:
+def test_job_options_only_contains_set_options(model: type[APSchedulerJobOptions], base: dict, options: dict, expected: dict) -> None:
     job = model.model_validate({**base, "trigger": "interval", "trigger_kwargs": {"hours": 1}, **options})
     assert job.job_options() == expected
 
@@ -148,7 +149,7 @@ def test_job_options_only_contains_set_options(model: type, base: dict, options:
         pytest.param({"coalesce": "sometimes"}, id="coalesce-not-a-bool"),
     ],
 )
-def test_job_options_reject_invalid_values(model: type, base: dict, options: dict) -> None:
+def test_job_options_reject_invalid_values(model: type[APSchedulerJobOptions], base: dict, options: dict) -> None:
     with pytest.raises(ValidationError):
         model.model_validate({**base, "trigger": "interval", **options})
 

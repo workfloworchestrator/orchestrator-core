@@ -59,6 +59,7 @@ class APSchedulerJob(BaseModel):
 
 class APSchedulerJobOptions(BaseModel):
     """APScheduler job options; a field left at None is not passed to APScheduler, which keeps its current value.
+
     On create, that is the scheduler's job default; on update, the value the job already has.
     """
 

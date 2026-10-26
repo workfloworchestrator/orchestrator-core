@@ -15,9 +15,10 @@
 
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, MutableMapping
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from typing import Any
 from unittest import mock
 from uuid import uuid4
 
@@ -145,8 +146,9 @@ def test_log_missed_job_logs_an_error_with_schedule_details(job, expected):
     ]
 
 
-def run_simultaneous_jobs(threads: int, **options) -> tuple[list[str], list[str], list[dict]]:
+def run_simultaneous_jobs(threads: int, **options) -> tuple[list[str], list[str], list[MutableMapping[str, Any]]]:
     """Schedule JOB_COUNT jobs on the same trigger time through _add_scheduled_task and wait until all are handled.
+
     Returns:
         The ids of the jobs that ran, the ids of the jobs that were missed, and the logs of log_missed_job.
     """
