@@ -134,7 +134,7 @@ If you decide to override the queue names in this configuration, you must also u
 ### Dedicated queues per workflow target
 <!-- diataxis: -->
 
-The four default queues separate tasks from workflows, but they cannot isolate a *class* of
+The four default queues separate tasks from workflows, but they cannot isolate a _class_ of
 workflows whose volume or duration profile differs from interactive work. A typical example is a
 nightly job that fans out hundreds of `Target.RECONCILE` workflows: these are not tasks
 (`is_task=False`), so they land on `new_workflows`/`resume_workflows`, where they compete with
@@ -157,7 +157,7 @@ celery -A your_orch.celery_worker worker -E -l INFO -Q reconcile
 Notes on the semantics:
 
 - **Task names are unchanged.** A routed reconcile start is still a `tasks.new_workflow` message
-  that merely travels via the `reconcile` queue. Queue = *where*, task name = *what*; Flower and
+  that merely travels via the `reconcile` queue. Queue = _where_, task name = _what_; Flower and
   event-based monitoring keep reporting accurate task types, and any worker can execute the
   routed messages.
 - **Start and resume share the mapped queue**, keeping the whole workload class off the shared
@@ -233,7 +233,7 @@ or fine-grained Celery configuration, you can extend the worker with a custom `C
 
 Below is an example implementation with WebSocket support:
 
-=== "`orchestrator-core` >= 5.0"
+=== "`orchestrator-core` ≥ 5.0"
 
     ```python
     """Celery worker with WebSocket support.
@@ -433,7 +433,7 @@ Create a file with the above, for example `my_orchestrator/celery_worker.py`.
 
 Next, update your `main.py` and `wsgi.py` to include the following imports:
 
-=== "`orchestrator-core` >= 5.0"
+=== "`orchestrator-core` ≥ 5.0"
 
     ```python
     from orchestrator.core.services.tasks import initialise_celery

@@ -92,7 +92,7 @@ no need to run `db init`. `main.py` lives in the package directory (e.g. `my_orc
 <div class="termy">
 
 ```shell
-uv run main.py db upgrade heads
+cd my_orchestrator && uv run main.py db upgrade heads
 ```
 
 </div>
@@ -103,7 +103,7 @@ uv run main.py db upgrade heads
 <div class="termy">
 
 ```shell
-uv run uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
+uv run uvicorn --reload --host 127.0.0.1 --port 8080 my_orchestrator.wsgi:app
 ```
 
 </div>
@@ -172,6 +172,7 @@ my-orchestrator/
         uv init my-orchestrator
         cd my-orchestrator
         uv add orchestrator-core
+        source .venv/bin/activate
         ```
 
     === "pip"
@@ -214,7 +215,7 @@ docker exec -it temp-orch-db su - postgres -c 'createuser -sP nwa && createdb or
 Create a `main.py` file.
 This provides the CLI entrypoint to your Orchestrator.
 
-=== "`orchestrator-core` >= 5.0"
+=== "`orchestrator-core` ≥ 5.0"
 
     ```python
     import typer
@@ -255,7 +256,7 @@ This provides the CLI entrypoint to your Orchestrator.
 Create a `wsgi.py` file.
 This will be used to run the Orchestrator API.
 
-=== "`orchestrator-core` >= 5.0"
+=== "`orchestrator-core` ≥ 5.0"
 
     ```python
     from orchestrator.core import OrchestratorCore
