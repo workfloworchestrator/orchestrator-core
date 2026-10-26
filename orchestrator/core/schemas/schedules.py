@@ -17,7 +17,7 @@ from apscheduler.triggers.base import BaseTrigger
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from pydantic import BaseModel, Field, TypeAdapter, model_validator
+from pydantic import BaseModel, Field, PositiveInt, TypeAdapter, model_validator
 
 from orchestrator.core.workflow import default_user_inputs
 from pydantic_forms.types import State
@@ -57,7 +57,27 @@ class APSchedulerJob(BaseModel):
     scheduled_type: Literal["create", "update", "delete"] = Field(..., description="Discriminator for job type")
 
 
-class APSchedulerJobCreate(APSchedulerJob):
+class APSchedulerJobOptions(BaseModel):
+    """APScheduler job options; a field left at None is not passed to APScheduler, which keeps its current value.
+    On create, that is the scheduler's job default; on update, the value the job already has.
+    """
+
+    misfire_grace_time: PositiveInt | None = Field(
+        None,
+        description=(
+            "Seconds after the trigger time that the job may still start. A job picked up later is skipped as "
+            "missed. APScheduler defaults to 1 second."),
+        examples=[60, 300],)
+    coalesce: bool | None = Field(
+        None,
+        description="Run a job that missed several trigger times only once, instead of once per missed time",)
+
+    def job_options(self) -> dict[str, Any]:
+        """Return the options that are set, as keyword arguments for ``add_job()`` or ``Job.modify()``."""
+        return self.model_dump(include=set(APSchedulerJobOptions.model_fields), exclude_none=True)
+
+
+class APSchedulerJobCreate(APSchedulerJobOptions, APSchedulerJob):
     name: str | None = Field(None, description="Human readable name e.g. 'My Process'")
     workflow_name: str = Field(..., description="Name of the workflow to run e.g. 'my_workflow_name'")
     workflow_id: UUID = Field(..., description="UUID of the workflow associated with this scheduled task")
@@ -78,7 +98,7 @@ class APSchedulerJobCreate(APSchedulerJob):
         return self
 
 
-class APSchedulerJobUpdate(APSchedulerJob):
+class APSchedulerJobUpdate(APSchedulerJobOptions, APSchedulerJob):
     name: str | None = Field(None, description="Human readable name e.g. 'My Process'")
     schedule_id: UUID = Field(..., description="UUID of the scheduled task")
 

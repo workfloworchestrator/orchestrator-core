@@ -16,7 +16,7 @@ import string
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, Secret, SecretStr, field_validator
+from pydantic import Field, NonNegativeInt, PositiveInt, PostgresDsn, RedisDsn, Secret, SecretStr, field_validator
 from pydantic.main import BaseModel
 from pydantic_settings import BaseSettings
 
@@ -121,6 +121,13 @@ class AppSettings(BaseSettings):
     DEFAULT_CUSTOMER_SHORTCODE: str = "default-cust"
     DEFAULT_CUSTOMER_IDENTIFIER: str = "59289a57-70fb-4ff5-9c93-10fe67b12434"
     TASK_LOG_RETENTION_DAYS: int = 3
+    SCHEDULER_EXECUTOR_THREADS: PositiveInt = Field(
+        1,
+        description=(
+            "Number of threads the scheduler uses to start due schedules. With one thread, schedules that share a "
+            "trigger time start one after the other, and those picked up after their misfire_grace_time are skipped"
+        ),
+    )
     ENABLE_GRAPHQL_DEPRECATION_CHECKER: bool = True
     ENABLE_GRAPHQL_PROFILING_EXTENSION: bool = False
     ENABLE_GRAPHQL_STATS_EXTENSION: bool = False

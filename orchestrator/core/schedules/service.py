@@ -308,6 +308,7 @@ def _add_scheduled_task(payload: APSchedulerJobCreate, scheduler_connection: Bas
         id=schedule_id,
         name=payload.name or workflow_description,
         kwargs={"workflow_name": payload.workflow_name, "user_inputs": payload.user_inputs},
+        **payload.job_options(),
         **(payload.trigger_kwargs or {}),
     )
 
@@ -325,7 +326,7 @@ def _build_trigger_on_update(trigger_name: str | None, trigger_kwargs: dict) -> 
 def _update_scheduled_task(payload: APSchedulerJobUpdate, scheduler_connection: BaseScheduler) -> None:
     """Update an existing scheduled task in the scheduler.
 
-    Only allow update of name and trigger
+    Only allow update of name, trigger and the job options (misfire_grace_time, coalesce)
     Job id must be that of an existing job
     Do not insert in linker table - it should already exist.
 
@@ -341,7 +342,7 @@ def _update_scheduled_task(payload: APSchedulerJobUpdate, scheduler_connection: 
         raise ValueError(f"Schedule Job with id {schedule_id} does not exist.")
 
     trigger = _build_trigger_on_update(payload.trigger, payload.trigger_kwargs or {})
-    modify_kwargs = {}
+    modify_kwargs = payload.job_options()
 
     if trigger:
         job = job.reschedule(trigger=trigger)
