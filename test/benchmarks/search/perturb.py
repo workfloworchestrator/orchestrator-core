@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from enum import Enum
 from random import Random
 
-from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, LOCATION, Corpus, CorpusEntity
+from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, LOCATION, Corpus
 
 # Fewer characters than this leave nothing to find after a perturbation.
 MIN_LENGTH = 5
@@ -111,7 +111,8 @@ def generate_queries(corpus: Corpus, per_category: int, seed: int) -> list[Label
     """`per_category` queries for each generated category, made from entities drawn with `seed`.
 
     A query is dropped if the perturbed text is shorter than `MIN_LENGTH`. Queries whose facts are shared by several
-    entities (a customer at a location) expect all of them.
+    entities (a customer at a location) expect all of them, counting the values an entity only `carries` (a light path
+    with its far end at the location, another service's far-end port with the queried identifier).
     """
     rng = Random(seed)  # noqa: S311 - reproducible, not secret
     sampled = rng.sample(corpus.entities, min(per_category, len(corpus.entities)))
@@ -121,10 +122,8 @@ def generate_queries(corpus: Corpus, per_category: int, seed: int) -> list[Label
             text = perturb(" ".join(entity.facts[fact] for fact in facts), rng)
             if len(text) < MIN_LENGTH:
                 continue
-            expected = tuple(e.key for e in corpus.entities if _values(e, facts) == _values(entity, facts))
+            expected = tuple(
+                e.key for e in corpus.entities if all(entity.facts[fact] in e.values(fact) for fact in facts)
+            )
             queries.append(LabelledQuery(text=text, category=category, expected=expected))
     return queries
-
-
-def _values(entity: CorpusEntity, facts: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(entity.facts[fact] for fact in facts)

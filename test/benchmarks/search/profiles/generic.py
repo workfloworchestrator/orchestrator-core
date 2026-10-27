@@ -153,11 +153,20 @@ def _service(
         model=model,
         facts={
             DESCRIPTION: description,
-            IDENTIFIER: f"{first.node.node_name} {first.port_name}",
+            IDENTIFIER: _identifier(first),
             CUSTOMER: customer,
             LOCATION: first.node.location,
         },
+        # A service is also found by its far end, so a query for that is right to return it.
+        carries={
+            IDENTIFIER: frozenset(_identifier(port) for port in ports),
+            LOCATION: frozenset(port.node.location for port in ports),
+        },
     )
+
+
+def _identifier(port: ServicePort) -> str:
+    return f"{port.node.node_name} {port.port_name}"
 
 
 def _anchor_models(profile: "GenericProfile") -> list[NetworkService]:

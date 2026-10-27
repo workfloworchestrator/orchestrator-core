@@ -22,7 +22,7 @@ production subscriptions: nested blocks, lists and many fields at different dept
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from random import Random
 from typing import Protocol
 from uuid import UUID
@@ -50,12 +50,21 @@ class CorpusEntity:
         entity_id: The id the entity is indexed under, and the id search results are scored by.
         model: What gets indexed, traversed like a subscription model.
         facts: Texts the entity can be searched by, keyed by `DESCRIPTION`, `IDENTIFIER`, `CUSTOMER` and `LOCATION`.
+            One value per fact: what a query is made from.
+        carries: Further values of a fact the entity holds and is a right answer for, such as the identifier and
+            location of a service's far end. Queries are not made from them; they only complete the labels.
     """
 
     key: str
     entity_id: UUID
     model: BaseModel
     facts: Mapping[str, str]
+    carries: Mapping[str, frozenset[str]] = field(default_factory=dict)
+
+    def values(self, fact: str) -> frozenset[str]:
+        """Every value of `fact` the entity carries: its own in `facts` plus those in `carries`."""
+        own = frozenset([self.facts[fact]]) if fact in self.facts else frozenset()
+        return own | self.carries.get(fact, frozenset())
 
 
 class Profile(Protocol):
