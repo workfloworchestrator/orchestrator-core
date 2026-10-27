@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from enum import Enum
 from random import Random
 
-from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, LOCATION, Corpus
+from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, Corpus
 
 # Fewer characters than this leave nothing to find after a perturbation.
 MIN_LENGTH = 5
@@ -58,8 +58,14 @@ class LabelledQuery:
 
 
 def typo(text: str, rng: Random) -> str:
-    """Swap two neighbouring letters, or drop one, inside the first word of at least 4 letters."""
-    positions = [m.start() + i for m in re.finditer(r"[A-Za-z]{4,}", text) for i in range(1, len(m.group()) - 1)]
+    """Swap two different neighbouring letters inside one of the words of at least 4 letters."""
+    positions = [
+        m.start() + i
+        for m in re.finditer(r"[A-Za-z]{4,}", text)
+        for i in range(1, len(m.group()) - 1)
+        # Swapping the "tt" of Rotterdam would leave it unchanged.
+        if m.group()[i] != m.group()[i + 1]
+    ]
     position = rng.choice(positions)
     return text[:position] + text[position + 1] + text[position] + text[position + 2 :]
 
@@ -89,7 +95,9 @@ def exact(text: str, rng: Random) -> str:  # noqa: ARG001
 GENERATORS: Mapping[Category, tuple[str, Callable[[str, Random], str]]] = {
     Category.EXACT: (DESCRIPTION, exact),
     Category.PREFIX: (DESCRIPTION, prefix),
-    Category.TYPO: (LOCATION, typo),
+    # The description, as a user mistypes one word of a longer query: a lone mistyped city is not a typo query but a
+    # location lookup that the `<%` threshold rejects, and it would expect hundreds of entities.
+    Category.TYPO: (DESCRIPTION, typo),
     Category.REORDER: (DESCRIPTION, reorder),
     Category.CASE_PUNCTUATION: (IDENTIFIER, case_punctuation),
     Category.IDENTIFIER: (IDENTIFIER, exact),

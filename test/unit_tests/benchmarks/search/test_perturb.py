@@ -44,6 +44,29 @@ def test_typo_keeps_the_letters():
     assert sorted(result) == sorted("Amsterdam")
 
 
+def test_typo_changes_one_word_of_a_description():
+    text = "Almere Port alm-rt09 et-0/0/1 for Silverline Museum"
+    result = typo(text, Random(1))
+
+    changed = [(a, b) for a, b in zip(text.split(), result.split()) if a != b]
+    assert len(changed) == 1
+    assert sorted(changed[0][0]) == sorted(changed[0][1])
+
+
+def test_generated_typo_queries_expect_one_entity():
+    corpus = build_corpus(GenericProfile(), 1, 100)
+
+    typos = [query for query in generate_queries(corpus, 10, 1) if query.category == Category.TYPO]
+    assert typos
+    assert all(len(query.expected) == 1 for query in typos)
+    assert all(query.text != corpus.by_key[query.expected[0]].facts["description"] for query in typos)
+
+
+@pytest.mark.parametrize("text", ["Rotterdam", "Silverline Museum", "Greenfield"])
+def test_typo_never_swaps_equal_letters(text):
+    assert all(typo(text, Random(seed)) != text for seed in range(20))
+
+
 def test_typo_without_a_long_word_raises():
     with pytest.raises(IndexError):
         typo("ab cd", Random(1))
