@@ -67,6 +67,19 @@ def test_typo_never_swaps_equal_letters(text):
     assert all(typo(text, Random(seed)) != text for seed in range(20))
 
 
+def test_generated_multi_field_queries_join_customer_and_location_and_expect_every_match():
+    corpus = build_corpus(GenericProfile(), 1, 100)
+
+    queries = [q for q in generate_queries(corpus, 10, 1) if q.category == Category.MULTI_FIELD]
+    assert queries
+    for query in queries:
+        customer, location = (corpus.by_key[query.expected[0]].facts[fact] for fact in ("customer", "location"))
+        assert query.text == f"{customer} {location}"
+        assert set(query.expected) == {
+            e.key for e in corpus.entities if e.facts["customer"] == customer and e.facts["location"] == location
+        }
+
+
 def test_typo_without_a_long_word_raises():
     with pytest.raises(IndexError):
         typo("ab cd", Random(1))

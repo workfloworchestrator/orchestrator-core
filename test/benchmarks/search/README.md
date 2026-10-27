@@ -14,7 +14,7 @@ correct. Performance is the `EXPLAIN (ANALYZE, BUFFERS)` plan of each query, nev
 2. The corpus is indexed through the real `Indexer` into `ai_search_index`, in a database built by the real Alembic
    migrations (the integration test fixtures, `pgvector/pgvector:pg15` and `pg17` in CI).
 3. Queries: ~30 hand-written ones (`queries/handwritten.yaml`, each with a note on the intended behaviour) plus
-   generated ones (`perturb.py`: typo, prefix, reorder, case/punctuation, exact, identifier, customer). They run
+   generated ones (`perturb.py`: typo, prefix, reorder, case/punctuation, exact, identifier, customer plus location). They run
    through `execute_search` with `retriever=fuzzy`.
 4. Metrics per category (`metrics.py`): MRR, Success@1, Recall@10, and the false-positive rate of `negative` queries.
    Recall@10 is the share of what fits in 10 results, so a query that matches hundreds of entities can reach 1.0.

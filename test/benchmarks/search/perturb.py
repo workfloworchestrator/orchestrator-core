@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from enum import Enum
 from random import Random
 
-from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, Corpus
+from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, LOCATION, Corpus, CorpusEntity
 
 # Fewer characters than this leave nothing to find after a perturbation.
 MIN_LENGTH = 5
@@ -91,34 +91,40 @@ def exact(text: str, rng: Random) -> str:  # noqa: ARG001
     return text
 
 
-# Which fact each category perturbs, and how. A category is only generated for entities that have the fact.
-GENERATORS: Mapping[Category, tuple[str, Callable[[str, Random], str]]] = {
-    Category.EXACT: (DESCRIPTION, exact),
-    Category.PREFIX: (DESCRIPTION, prefix),
+# Which facts each category joins and perturbs, and how. A category is only generated for entities that have them.
+GENERATORS: Mapping[Category, tuple[tuple[str, ...], Callable[[str, Random], str]]] = {
+    Category.EXACT: ((DESCRIPTION,), exact),
+    Category.PREFIX: ((DESCRIPTION,), prefix),
     # The description, as a user mistypes one word of a longer query: a lone mistyped city is not a typo query but a
     # location lookup that the `<%` threshold rejects, and it would expect hundreds of entities.
-    Category.TYPO: (DESCRIPTION, typo),
-    Category.REORDER: (DESCRIPTION, reorder),
-    Category.CASE_PUNCTUATION: (IDENTIFIER, case_punctuation),
-    Category.IDENTIFIER: (IDENTIFIER, exact),
-    Category.MULTI_FIELD: (CUSTOMER, exact),
+    Category.TYPO: ((DESCRIPTION,), typo),
+    Category.REORDER: ((DESCRIPTION,), reorder),
+    Category.CASE_PUNCTUATION: ((IDENTIFIER,), case_punctuation),
+    Category.IDENTIFIER: ((IDENTIFIER,), exact),
+    # Two facts from different blocks of the entity: together they say more than either alone, and every entity that
+    # carries both is a valid answer.
+    Category.MULTI_FIELD: ((CUSTOMER, LOCATION), exact),
 }
 
 
 def generate_queries(corpus: Corpus, per_category: int, seed: int) -> list[LabelledQuery]:
     """`per_category` queries for each generated category, made from entities drawn with `seed`.
 
-    A query is dropped if the perturbed text is no longer than `MIN_LENGTH`. Queries whose text is shared by several
-    entities (a customer, a location) expect all of them.
+    A query is dropped if the perturbed text is shorter than `MIN_LENGTH`. Queries whose facts are shared by several
+    entities (a customer at a location) expect all of them.
     """
     rng = Random(seed)  # noqa: S311 - reproducible, not secret
     sampled = rng.sample(corpus.entities, min(per_category, len(corpus.entities)))
     queries = []
-    for category, (fact, perturb) in GENERATORS.items():
+    for category, (facts, perturb) in GENERATORS.items():
         for entity in sampled:
-            text = perturb(entity.facts[fact], rng)
+            text = perturb(" ".join(entity.facts[fact] for fact in facts), rng)
             if len(text) < MIN_LENGTH:
                 continue
-            expected = tuple(e.key for e in corpus.entities if e.facts[fact] == entity.facts[fact])
+            expected = tuple(e.key for e in corpus.entities if _values(e, facts) == _values(entity, facts))
             queries.append(LabelledQuery(text=text, category=category, expected=expected))
     return queries
+
+
+def _values(entity: CorpusEntity, facts: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(entity.facts[fact] for fact in facts)
