@@ -32,3 +32,21 @@ The `docker-compose.yml` starts:
 
 Follow the [README.md](https://github.com/workfloworchestrator/example-orchestrator/blob/master/README.md)
 to start it.
+
+## Cookiecutter projects
+
+If you generated your project with the
+[orchestrator-cookiecutter](https://github.com/workfloworchestrator/orchestrator-cookiecutter)
+and chose to include Docker, a `docker-compose.yml` was generated with:
+
+* **Postgres** (`pgvector/pgvector:pg17`) on port 5432
+* **Redis** (if you chose the Celery executor) on port 6379
+
+Start them with:
+
+```shell
+docker compose up -d
+```
+
+This runs only the dependencies (database and broker), not the orchestrator itself — it is for local
+development. To containerise the orchestrator, see [Building an image](container-image.md).

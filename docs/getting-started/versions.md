@@ -14,7 +14,8 @@ The orchestrator backend has the following requirements
 
 For the backend you need the following packages:
 
-* Python >= 3.11
+* Python >= 3.11 (the [orchestrator-cookiecutter](https://github.com/workfloworchestrator/orchestrator-cookiecutter)
+  generates projects for Python 3.13)
 * Postgres >= 15, with the [pgvector](https://github.com/pgvector/pgvector) extension available
   (e.g. the `pgvector/pgvector` images)
 

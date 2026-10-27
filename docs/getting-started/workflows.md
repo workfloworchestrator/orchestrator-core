@@ -125,6 +125,12 @@ Information about all usable step decorators can be found on [the architecture p
 ## Register workflows
 <!-- diataxis: -->
 
+!!! tip
+    If you used the [orchestrator-cookiecutter](https://github.com/workfloworchestrator/orchestrator-cookiecutter),
+    `workflows/__init__.py` already contains commented-out examples of `LazyWorkflowInstance`
+    registrations, and `__init__.py` already imports the `workflows` module. Uncomment and adapt
+    the examples for your own workflows.
+
 To make workflows available in the orchestrator, they must be registered in two stages:
 
 1. In code — by defining them as workflow functions and registering them via `LazyWorkflowInstance`.
