@@ -14,7 +14,6 @@
 import asyncio
 from http import HTTPStatus
 from threading import Event
-from time import sleep
 from unittest import mock
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -69,6 +68,7 @@ from orchestrator.core.workflow import (
 from orchestrator.core.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core.translations import translations
 from pydantic_forms.exceptions import FormValidationError
+from test.integration_tests.conftest import wait_for_running_jobs_count
 from test.integration_tests.fixtures.workflows import initial_input_form, step1, step2
 from test.integration_tests.workflows import WorkflowInstanceForTests, run_workflow, store_workflow
 
@@ -1009,15 +1009,13 @@ def test_run_process_async_success(fastapi_app, monkeypatch):
     # Disable Testing setting since we want to run async
     monkeypatch.setattr(app_settings, "TESTING", False)
     _run_process_async(process_id, run_func)
-    sleep(0.01)
 
-    fastapi_app.worker_status_monitor._refresh_once()
+    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=1)
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 1
 
     event.set()
-    sleep(1)
 
-    fastapi_app.worker_status_monitor._refresh_once()
+    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=0)
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 0
 
 
@@ -1033,15 +1031,13 @@ def test_run_process_async_exception(mock_db_log_process_ex, fastapi_app, monkey
     # Disable Testing setting since we want to run async
     monkeypatch.setattr(app_settings, "TESTING", False)
     _run_process_async(process_id, run_func)
-    sleep(0.1)
 
-    fastapi_app.worker_status_monitor._refresh_once()
+    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=1)
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 1
 
     event.set()
-    sleep(0.1)
 
-    fastapi_app.worker_status_monitor._refresh_once()
+    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=0)
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 0
 
     mock_db_log_process_ex.assert_called_once_with(process_id, mock.ANY)
