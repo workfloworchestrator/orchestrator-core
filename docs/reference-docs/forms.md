@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Pydantic Forms
+<!-- diataxis: -->
 
 In the orchestrator core, the forms a user will use in the web UI are created by defining your form input elements as a class that is a subclass of the `FormPage` class in the core.
 This allows you to write your form data for your WFO instance as simple python classes, but still have a useful form rendered in the frontend Web UI.
@@ -7,8 +14,10 @@ One benefit of this model is that it lets WFO developers not have to understand 
 It's definitely worth poking around in that module to see the various input types the core library exposes.
 
 ## Form Examples
+<!-- diataxis: -->
 
 ### Importing Form Elements
+<!-- diataxis: -->
 
 To use the pydantic forms, you must import the `FormPage` class:
 
@@ -41,6 +50,7 @@ Additionally, the validators module exposes validators that also function as "in
 You can, of course, define you own validators as well simply by using pydantic validators, as described in the [pydantic documentation.](https://docs.pydantic.dev/latest/concepts/validators/)
 
 ### Writing Forms
+<!-- diataxis: -->
 
 Writing forms is quite straight forward, here is a relatively simple input form:
 
@@ -72,6 +82,7 @@ user_input = yield CreateNodeEnrollmentForm
 The only real data gathered with this form are `customer_id`, which is read-only, so the user cannot modify it, and the form exposes a list of devices pulled from a network inventory system for the user to choose from.
 
 #### Choice Widgets
+<!-- diataxis: -->
 
 Of note: `min_items` and `max_items` do not refer to the number of elements in the list. This UI construct allows for an arbitrary number of choices to be made. There are `+` and `-` options exposed in the UI allowing for multiple choices selected by the user. So `min 1 / max 1` tells the UI to display one pull down list of choices one of which must be selected, and additional choices can not be added.
 
@@ -86,6 +97,7 @@ eq_name = user_input.select_node_choice[0]
 The `zip()` maneuver takes the list and makes it into a dict with the same keys and values so that the display text doesn't have to be the same as the value returned.
 
 #### Accept Actions
+<!-- diataxis: -->
 
 Confirming actions is a common bit of functionality. This bit of code displays a read only payload from an external system, lets the user check that value and then approve that the payload is correct as a form of a dry run:
 
@@ -124,6 +136,7 @@ Confirming actions is a common bit of functionality. This bit of code displays a
     ```
 
 #### Generic Python Types
+<!-- diataxis: -->
 
 It is possible to mix generic python types in the with the defined validation fields:
 
@@ -142,6 +155,7 @@ class CreateLightPathForm(FormPage):
 ```
 
 #### Multi-step Form Input
+<!-- diataxis: -->
 
 To do a multi-step form in your workflow, you simply yield multiple times and then combine the results at the end:
 
@@ -177,6 +191,7 @@ modify workflows, what they looked like before). See [Summary Forms](workflows/s
 for `orchestrator.core.forms.summary_form`, a toolkit for building this summary page.
 
 ### Custom Form Fields
+<!-- diataxis: -->
 
 !!! info
     The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
@@ -190,6 +205,7 @@ as an example I will create a custom field with name field and group select fiel
 
 
 #### Pydantic Type/Class In Backend
+<!-- diataxis: -->
 
 !!! info
     The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
@@ -248,6 +264,7 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
 ```
 
 #### Auto Field Loader
+<!-- diataxis: -->
 
 !!! info
     The following documentation is out of date after the migration from `uniforms` to `pydantic-forms`.
@@ -284,6 +301,7 @@ export function autoFieldFunction(props: GuaranteedProps<unknown> & Record<strin
 ```
 
 #### Custom Field Example
+<!-- diataxis: -->
 
 example custom field to select a user by group.
 

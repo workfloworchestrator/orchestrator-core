@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Generating a Config File
+<!-- diataxis: -->
 
 This guide describes the YAML product configuration file format used by the
 `python main.py generate` commands (`generate product-blocks`, `generate products`,
@@ -67,6 +74,7 @@ workflows:
 Next we will describe the different sections in more detail:
 
 ## Global `config` section
+<!-- diataxis: -->
 
 This section sets some global configuration, applicable for most workflows.
 
@@ -79,6 +87,7 @@ config:
   create and modify workflows, default is `false`.
 
 ## Product type definition
+<!-- diataxis: -->
 
 ```yaml
 name: node
@@ -98,6 +107,7 @@ Every product type is described using the following fields:
 - `description`: descriptive text for the product type
 
 ## `fixed_inputs` section
+<!-- diataxis: -->
 
 In this section we define a list of fixed inputs for a product.
 
@@ -130,6 +140,7 @@ Node will
 be generated: "Cisco 10", "Cisco 20", "Cisco 40", "Nokia 10", "Nokia 20" and "Nokia 40".
 
 ## `product_blocks` section
+<!-- diataxis: -->
 
 ```yaml
 product_blocks:
@@ -151,6 +162,7 @@ The use of `name`, `type`, `tag` and `description` in the product block definiti
 to the product definition above. The `fields` describe the product block resource types.
 
 ## Product block fields
+<!-- diataxis: -->
 
 ```yaml
 - name: port_mode
@@ -184,6 +196,7 @@ Resource types are described by the following:
 - `type`: see explanation below
 
 ## Resource type types
+<!-- diataxis: -->
 
 The following types are supported when specifying resource types:
 
@@ -220,6 +233,7 @@ The following types are supported when specifying resource types:
   ```
 
 ## Workflows
+<!-- diataxis: -->
 
 ```yaml
 - name: create

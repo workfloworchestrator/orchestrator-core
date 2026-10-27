@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Introduction
+<!-- diataxis: -->
 
 Growing numbers of National Research and Education Networks (NREN) are interested in automating and orchestrating their
 network portfolio. However, individual NRENs may be at different levels of engagement, ranging from interested but with

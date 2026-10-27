@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Importing Existing Subscriptions
+<!-- diataxis: -->
 When adding new products to Workflow Orchestrator, these products can rely on existing estate in the network that first
 needs to be added to the service database. This page describes a procedure that can be used to have a separate creation
 and import workflow for one product.
@@ -8,6 +15,7 @@ possible to have for example two workflows `create_node` and `import_node`. It i
 product type, that relies on the same product block.
 
 ## Using Separate Product Types
+<!-- diataxis: -->
 In the code example below, an example is given for a `Node` product type that needs to be imported into Orchestrator.
 
 ```python
@@ -82,6 +90,7 @@ external provisioning systems can be skipped, resulting in a creation workflow t
     ```
 
 ## Importing Products
+<!-- diataxis: -->
 With the `ImportedNode` part of the service database, we need a modification workflow to take the imported product to a
 `Node` subscription. This is done using a modification workflow `import_node` that is added to the `ImportedNode`
 product.

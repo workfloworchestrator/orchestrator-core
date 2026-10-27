@@ -50,7 +50,7 @@ jobs:
       - name: Run unit tests + doctests (no Postgres, no Redis)
         run: |
           unset DATABASE_URI CACHE_URI
-          uv run pytest test/unit_tests orchestrator/core \
+          uv run pytest test/unit_tests orchestrator/core scripts/check_diataxis.py \
             --cov-branch --cov=orchestrator --cov-report=xml \
             --ignore=orchestrator/core/devtools \
             --ignore=examples --ignore=docs \
