@@ -65,6 +65,24 @@ def test_client(fastapi_app, db_session):
         fastapi_app.dependency_overrides.pop(get_async_session, None)
 
 
+@pytest.fixture(autouse=True)
+def refresh_worker_status_monitor(fastapi_app):
+    """Force a fresh running-process count before every integration test.
+
+    ``WorkerStatusMonitor`` caches the running-process count and only refreshes it from a
+    background thread every ``WORKER_STATUS_INTERVAL`` seconds. Because the monitor is a
+    process-wide singleton and ``fastapi_app`` is session-scoped, a count cached during a
+    previous test on the same xdist worker can linger for up to that interval. Tests that assert
+    on the count, or on the ``PAUSED``/``PAUSING`` status derived from it, would then read a
+    stale value. Refreshing here keeps those assertions deterministic. See #2039.
+
+    Tests that change the count within the test itself (by starting a background job) must
+    refresh again after the change; ``test.helpers.poll_until`` is provided for that.
+    """
+    fastapi_app.worker_status_monitor._refresh_once()
+    return fastapi_app.worker_status_monitor
+
+
 @pytest.fixture()
 async def async_session(fastapi_app, db_session):
     """Test client whose async endpoints share the per-test transaction.

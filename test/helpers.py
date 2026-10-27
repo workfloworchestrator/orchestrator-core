@@ -12,11 +12,16 @@
 # limitations under the License.
 
 import json
+import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from copy import deepcopy
+from typing import TypeVar
 from unittest import mock
 
 from deepdiff import DeepDiff
+
+T = TypeVar("T")
 
 
 def assert_no_diff(expected, actual, exclude_paths=None):
@@ -59,3 +64,44 @@ def extend_list_context(target_list: list, items: list):
         yield target_list
     finally:
         target_list[:] = target_list_copy
+
+
+def poll_until(
+    read: Callable[[], T],
+    predicate: Callable[[T], bool],
+    *,
+    before: Callable[[], None] | None = None,
+    timeout: float = 5.0,
+    interval: float = 0.01,
+) -> T:
+    """Repeatedly read a value until ``predicate`` accepts it, or the timeout elapses.
+
+    Used by integration tests that assert on the ``WorkerStatusMonitor`` cache. That cache is
+    refreshed by a background thread only every ``WORKER_STATUS_INTERVAL`` seconds, so a value
+    can be stale for up to that interval after a background job finished. Polling (optionally
+    forcing a refresh via ``before`` on each iteration) makes such tests deterministic instead
+    of relying on a fixed ``time.sleep()``.
+
+    Args:
+        read: Returns the current value.
+        predicate: Returns True once the value is acceptable.
+        before: Optional side effect (e.g. forcing a monitor refresh) run before each read.
+        timeout: Maximum time to keep polling, in seconds.
+        interval: Time to sleep between attempts, in seconds.
+
+    Returns:
+        The last value read, which satisfies ``predicate``.
+
+    Raises:
+        AssertionError: If the timeout elapses without ``predicate`` accepting a value.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        if before is not None:
+            before()
+        value = read()
+        if predicate(value):
+            return value
+        if time.monotonic() >= deadline:
+            raise AssertionError(f"Timed out after {timeout}s waiting for condition, last value: {value!r}")
+        time.sleep(interval)
