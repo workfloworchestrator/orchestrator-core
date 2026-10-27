@@ -54,4 +54,6 @@ disappears in an average. Commit the files for every Postgres version CI runs (`
 ## Your own profile
 
 Implement `Profile` from `corpus.py` (`anchors()` and `generate(rng, count)`), keeping hand-written queries in your own
-YAML file loaded with `load_handwritten(corpus, path)`. Anchors must not depend on the seed.
+YAML file loaded with `load_handwritten(corpus, path)`. Anchors must not depend on the seed, and `generate` must keep
+the facts a hand-written query relies on free of generated entities (the generic profile reserves the anchors' node
+names and customer-family/location pairs), or the label is incomplete and the metrics measure tie-breaking.

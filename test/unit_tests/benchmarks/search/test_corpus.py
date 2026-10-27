@@ -13,7 +13,7 @@
 
 import pytest
 
-from test.benchmarks.search.corpus import IDENTIFIER, Corpus, CorpusEntity, build_corpus
+from test.benchmarks.search.corpus import CUSTOMER, IDENTIFIER, Corpus, CorpusEntity, build_corpus
 from test.benchmarks.search.profiles.generic import GenericProfile
 
 
@@ -43,6 +43,24 @@ def test_generated_identifiers_are_unique_and_clear_of_anchors():
     identifiers = [entity.facts[IDENTIFIER] for entity in corpus.entities]
 
     assert len(set(identifiers)) == len(identifiers)
+
+
+def test_generated_entities_stay_clear_of_anchor_nodes_and_customer_locations():
+    profile = GenericProfile()
+    corpus = build_corpus(profile, 1, 500)
+    generated = [entity for entity in corpus.entities if entity.key.startswith("gen-")]
+    nodes = {port.node.node_name for entity in generated for port in entity.model.ports}
+    pairs = {
+        (entity.facts[CUSTOMER].split()[0], port.node.location) for entity in generated for port in entity.model.ports
+    }
+
+    assert generated
+    assert not nodes & profile.reserved_nodes()
+    assert not pairs & profile.reserved_pairs()
+
+
+def test_reserved_nodes_hold_the_anchors_and_their_prefix_neighbours():
+    assert {"ams-rt01", "ams-rt10", "ams-rt11", "ams-rt12", "rtd-rt07"} <= GenericProfile().reserved_nodes()
 
 
 def test_corpus_has_near_miss_anchors():

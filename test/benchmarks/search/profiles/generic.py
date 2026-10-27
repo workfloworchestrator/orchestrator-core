@@ -65,6 +65,9 @@ PORT_NAMES = ["et-0/0/{n}", "xe-1/2/{n}", "ge-0/1/{n}", "et-3/0/{n}"]
 SPEEDS = [1000, 10000, 100000]
 NODE_ROLE = "rt"
 PORTS_PER_CARD = 8
+# Node names kept free of generated entities besides the anchors' own, so that the hand-written prefix query
+# `ams-rt1` has a closed set of answers: the anchors ams-rt01 and ams-rt10.
+NEIGHBOUR_NODES = frozenset({"ams-rt11", "ams-rt12"})
 # Draws without a fresh identifier in a row after which the profile is full.
 MAX_ATTEMPTS = 200
 
@@ -111,6 +114,10 @@ def _node_name(code: str, number: int) -> str:
     return f"{code}-{NODE_ROLE}{number:02d}"
 
 
+def _family(customer: str) -> str:
+    return customer.split()[0]
+
+
 def _service(
     key: str,
     entity_id: UUID,
@@ -153,6 +160,10 @@ def _service(
     )
 
 
+def _anchor_models(profile: "GenericProfile") -> list[NetworkService]:
+    return [anchor.model for anchor in profile.anchors() if isinstance(anchor.model, NetworkService)]
+
+
 class GenericProfile:
     """Generic network services with deliberate near-miss groups."""
 
@@ -187,6 +198,24 @@ class GenericProfile:
             anchor("rmd-rt01", "L2VPN", "Silverline Archives", [("Roermond", "rmd", 1, "ge-0/1/3", 411)]),
         ]
 
+    def reserved_nodes(self) -> frozenset[str]:
+        """Node names only anchors carry, so that a query for one has a closed set of answers."""
+        return (
+            frozenset(port.node.node_name for anchor in _anchor_models(self) for port in anchor.ports) | NEIGHBOUR_NODES
+        )
+
+    def reserved_pairs(self) -> frozenset[tuple[str, str]]:
+        """(customer family, location) pairs only anchors carry: `bluefin amsterdam` must mean one anchor.
+
+        A family is a customer's first word, as the near-miss customers (Bluefin University, Bluefin Hospital) share
+        it and a query names the family as often as the full customer.
+        """
+        return frozenset(
+            (_family(anchor.customer.name), port.node.location)
+            for anchor in _anchor_models(self)
+            for port in anchor.ports
+        )
+
     def generate(self, rng: Random, count: int) -> Sequence[CorpusEntity]:
         used = {anchor.facts[IDENTIFIER] for anchor in self.anchors()}
         entities = list(islice(self._generate(rng, used), count))
@@ -195,7 +224,8 @@ class GenericProfile:
         return entities
 
     def _generate(self, rng: Random, used: set[str]) -> Iterator[CorpusEntity]:
-        """Entities until `MAX_ATTEMPTS` draws in a row found no unused identifier."""
+        """Entities until `MAX_ATTEMPTS` draws in a row clashed with an anchor or an earlier entity."""
+        nodes, pairs = self.reserved_nodes(), self.reserved_pairs()
         misses = 0
         for index in counter():
             if misses >= MAX_ATTEMPTS:
@@ -204,17 +234,23 @@ class GenericProfile:
             # Node numbers cluster, so that neighbours such as rt01 and rt10 exist for most locations.
             number = rng.randint(1, 12)
             port_name = rng.choice(PORT_NAMES).format(n=rng.randint(0, PORTS_PER_CARD - 1))
-            identifier = f"{_node_name(code, number)} {port_name}"
-            if identifier in used:
-                misses += 1
-                continue
-            misses = 0
-            used.add(identifier)
             product = rng.choice(PRODUCTS)
+            customer = rng.choice(CUSTOMERS)
             ends = [(city, code, number, port_name, rng.randint(100, 4000))]
             if product in ("Light Path", "L2VPN"):
                 far_city, far_code = rng.choice(LOCATIONS)
                 ends.append((far_city, far_code, rng.randint(1, 12), rng.choice(PORT_NAMES).format(n=1), ends[0][4]))
+            identifier = f"{_node_name(code, number)} {port_name}"
+            clashes = (
+                identifier in used
+                or any(_node_name(end_code, end_number) in nodes for _, end_code, end_number, _, _ in ends)
+                or any((_family(customer), end_city) in pairs for end_city, _, _, _, _ in ends)
+            )
+            if clashes:
+                misses += 1
+                continue
+            misses = 0
+            used.add(identifier)
             ip = (
                 IpBlock(prefix=f"198.51.{rng.randint(0, 255)}.0/24", peer_asn=rng.randint(64512, 65534))
                 if product == "IP Peering"
@@ -224,7 +260,7 @@ class GenericProfile:
                 f"gen-{index}",
                 UUID(int=rng.getrandbits(128), version=4),
                 product,
-                rng.choice(CUSTOMERS),
+                customer,
                 ends,
                 ip,
             )

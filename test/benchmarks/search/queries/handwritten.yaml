@@ -1,8 +1,11 @@
 # Hand-written queries: where the intended search behaviour is decided, not derived.
 #
 # `expected` holds keys of the generic profile's anchor entities (see profiles/generic.py). Every query is written so
-# that no generated entity can compete for the label: generated identifiers never equal an anchor's, ASNs stay below
-# 64512, and anchor prefixes (192.0.2.0/24) lie outside the generated 198.51.x.0/24.
+# that no generated entity can compete for the label: the profile reserves the anchors' node names (plus ams-rt11 and
+# ams-rt12, so `ams-rt1` means ams-rt01 or ams-rt10) and their customer-family/location pairs (no generated Bluefin
+# in Amsterdam, no Silverline in Rotterdam or Roermond, ...), generated ASNs stay above 64511, and anchor prefixes
+# (192.0.2.0/24) lie outside the generated 198.51.x.0/24. A query of a bare location or product would still match
+# hundreds of generated entities, so each names a node or a customer family too.
 #
 #   ams-rt01  Amsterdam Port ams-rt01 et-0/0/1 for Northwind Research          vlan 101
 #   ams-rt10  Amsterdam Port ams-rt10 et-0/0/1 for Bluefin University          vlan 102
@@ -73,10 +76,10 @@
   category: typo
   expected: [rtd-rt01]
   note: Transposed city, and a customer prefix shared by two services; Rotterdam picks the museum.
-- query: "roermnod"
+- query: "roermnod silverline"
   category: typo
   expected: [rmd-rt01]
-  note: Must not be answered by Rotterdam services.
+  note: Transposed city; Silverline runs services in Rotterdam and Roermond, and must not be answered by Rotterdam.
 - query: "amstelven redwood"
   category: typo
   expected: [asv-rt01]
@@ -87,10 +90,10 @@
   category: prefix
   expected: [ams-rt01, ams-rt10]
   note: Ambiguous on purpose; both neighbours are valid and one of them must be on top.
-- query: "utrecht ip peer"
+- query: "utrecht ip peer utr-rt02"
   category: prefix
   expected: [northwind-peering]
-  note: A cut-off product name.
+  note: A cut-off product name, with the node to single out one of the Utrecht peerings.
 
 # --- multi_field: a customer and a location say more than either alone
 - query: "northwind amsterdam light"
@@ -111,10 +114,10 @@
   category: case_punctuation
   expected: [ams-rt10]
   note: Separators and case dropped from the node and port name.
-- query: "ge-0-1-3 silverline museum"
+- query: "ge-0-1-3 silverline museum rotterdam"
   category: case_punctuation
   expected: [rtd-rt01]
-  note: A port name with the wrong separator, with the customer to tell the two L2VPNs apart.
+  note: A port name with the wrong separator, with customer and city to tell the two L2VPNs apart.
 
 # --- reorder
 - query: "northwind research peering utrecht"
