@@ -138,7 +138,8 @@ def _load_processes(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, Pr
     return {str(process.process_id): process for process in _graphql_processes(info, stmt, query_loaders)}
 
 
-async def search_processes(
+# Todo: move into resolve_processes once the deprecated query_processes is removed, see #2074
+async def _search_processes(
     info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
 ) -> Connection[ProcessType]:
     return await search_resource(info, EntityType.PROCESS, search, _load_processes, first=first, after=after)
@@ -154,5 +155,5 @@ async def resolve_processes(
     search: ResourceSearchInput | None = None,
 ) -> Connection[ProcessType]:
     if search is not None:
-        return await search_processes(info, search, first, after)
+        return await _search_processes(info, search, first, after)
     return await query_processes(info, filter_by, sort_by, first, after, query)

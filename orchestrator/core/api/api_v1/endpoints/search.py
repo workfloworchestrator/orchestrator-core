@@ -31,7 +31,7 @@ from orchestrator.core.schemas.search import (
     SearchResultsSchema,
 )
 from orchestrator.core.schemas.search_requests import SearchExportRequest, SearchRequest
-from orchestrator.core.search.core.exceptions import QueryStateNotFoundError
+from orchestrator.core.search.core.exceptions import InvalidSearchPageError, QueryStateNotFoundError
 from orchestrator.core.search.core.types import EntityType, UIType
 from orchestrator.core.search.filters.definitions import TypeDefinition, generate_definitions
 from orchestrator.core.search.query import QueryState, engine
@@ -53,13 +53,16 @@ logger = structlog.get_logger(__name__)
 def search_errors_to_http(failure_message: str, **log_context: Any) -> Iterator[None]:
     """Raise the errors of running a search as HTTPExceptions, shared by every search endpoint.
 
-    Invalid input is a 422 and a missing saved query a 404, both keeping their message; an HTTPException raised inside
-    passes through, anything else is logged with `log_context` and reported as a 500 with `failure_message`.
+    Invalid input is a 422, a request that names nothing to search a 400 and a missing saved query a 404, all keeping
+    their message; an HTTPException raised inside passes through, anything else is logged with `log_context` and
+    reported as a 500 with `failure_message`.
     """
     try:
         yield
     except HTTPException:
         raise
+    except InvalidSearchPageError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except SEARCH_INPUT_ERRORS as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     except QueryStateNotFoundError as e:
@@ -91,7 +94,6 @@ async def _perform_search_and_fetch(
         Search results with entity_id, score, and matching_field.
     """
     with search_errors_to_http("Search failed", entity_type=entity_type, query_id=query_id):
-        await validate_structured_order_by_element(entity_type, request, session)
         query = request.to_query(entity_type) if request and entity_type and not cursor and not query_id else None
         page = await execute_search_page(
             session, query=query, cursor=cursor, query_id=query_id, include_columns=include_columns
@@ -232,8 +234,8 @@ async def export_search(
     more results exist than were exported, but no cursor is returned.
     """
     entity_type = EXPORT_ENTITY_TYPES[entity]
-    await validate_structured_order_by_element(entity_type, request, session)
     query = request.to_query(entity_type)
+    await validate_structured_order_by_element(entity_type, query, session)
 
     search_response = await engine.execute_search(query, session)
 

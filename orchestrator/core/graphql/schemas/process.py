@@ -140,11 +140,5 @@ class ProcessType:
                 GraphqlFilter(field="subscriptionId", value="|".join(map(str, subscription_ids)))
             ]
 
-        return await resolve_subscriptions(
-            info,
-            old_filters,
-            sort_by,
-            first,
-            after,
-            search=search.within(subscription_ids) if search else None,
-        )
+        subscription_search = search.within(subscription_ids) if search else None
+        return await resolve_subscriptions(info, old_filters, sort_by, first, after, search=subscription_search)

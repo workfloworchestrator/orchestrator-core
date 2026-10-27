@@ -108,7 +108,8 @@ def _load_product_blocks(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[st
     }
 
 
-async def search_product_blocks(
+# Todo: move into resolve_product_blocks once the deprecated query_product_blocks is removed, see #2074
+async def _search_product_blocks(
     info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
 ) -> Connection[ProductBlock]:
     return await search_resource(info, EntityType.PRODUCT_BLOCK, search, _load_product_blocks, first=first, after=after)
@@ -124,5 +125,5 @@ async def resolve_product_blocks(
     search: ResourceSearchInput | None = None,
 ) -> Connection[ProductBlock]:
     if search is not None:
-        return await search_product_blocks(info, search, first, after)
+        return await _search_product_blocks(info, search, first, after)
     return await query_product_blocks(info, filter_by, sort_by, first, after, query)

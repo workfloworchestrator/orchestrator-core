@@ -1294,43 +1294,107 @@ accept a `search` argument that runs the [AI / Hybrid Search](ai-search.md) engi
 `search` replaces the deprecated `filterBy`, `sortBy` and `query` arguments. Combining them with `search` returns a
 validation error.
 
+A search is either **structured** or a **text search**, depending on whether it has `query` text. Both return the
+results in `searchEdges` with each match's `score` and `matchingFields`; `page` has the same entities without the
+match data.
+
+Unlike the separate `search` query, the `search` argument does not use `responseColumns`. Select the fields you need
+from the resource type under `node`.
+
+### Structured search
+
+Without `query` text, the search only filters. Every result has a `score` of `1`, and the results are ordered by
+`orderBy`, or by entity id without it.
+
+| Field            | Description                                                                                       |
+|------------------|---------------------------------------------------------------------------------------------------|
+| `filters`        | Conditions on indexed fields, combined with `AND`/`OR` and nestable in `groups`. `searchPaths` lists the field paths and their `valueKind`, `searchDefinitions` the operators per `valueKind`. |
+| `elasticFilters` | Filters in Elasticsearch DSL, as produced by react-querybuilder. Use this or `filters`, not both. |
+| `orderBy`        | Order by an indexed field: `{ element, direction }`. Rejected together with `query`.           |
+| `entityIds`      | Only return these entities. It is not saved with the search, so pass it again with every `cursor`. |
+| `cursor`         | `nextPageCursor` from the previous page. Resumes that search and ignores the other fields except `entityIds`. |
+
 ```graphql
 query {
   subscriptions(
     first: 20
+    after: 40 # offset paging works for structured search only; use either `after` or `search.cursor`
     search: {
-      query: "amsterdam"
-      filters: { filters: [{ path: "subscription.status", condition: { op: EQ, value: "active" }, valueKind: STRING }] }
+      # active subscriptions that started in 2025 AND whose product name is like "%Product A%" or "%Product B%"
+      filters: {
+        op: AND # how `filters` and `groups` are combined; AND is the default
+        filters: [
+          { path: "subscription.status", condition: { op: EQ, value: "active" }, valueKind: STRING }
+          {
+            path: "subscription.start_date"
+            # range ops take rangeStart/rangeEnd instead of value; dates use a half-open range
+            condition: { op: BETWEEN, rangeStart: "2025-01-01", rangeEnd: "2026-01-01" }
+            valueKind: DATETIME # picks how the value is parsed; take it from searchPaths
+          }
+        ]
+        groups: [
+          {
+            op: OR # a nested group, combined with the filters above by the outer AND
+            filters: [
+              { path: "subscription.product.name", condition: { op: LIKE, value: "%Product A%" }, valueKind: STRING }
+              { path: "subscription.product.name", condition: { op: LIKE, value: "%Product B%" }, valueKind: STRING }
+            ]
+          }
+        ]
+      }
+      # instead of `filters`, the same tree from react-querybuilder:
+      # elasticFilters: { bool: { must: [{ term: { "subscription.status": "active" } }] } }
+      orderBy: { element: "subscription.start_date", direction: DESC } # must be an indexed path
+      entityIds: ["6c8f1b84-...", "a07e3d1c-..."] # optional: restrict the search to these subscriptions
     }
   ) {
-    searchEdges {
-      score
-      perfectMatch
-      matchingFields { text path highlightIndices }
-      node { subscriptionId description }
-    }
-    searchMetadata { searchType description }
+    searchEdges { score node { subscriptionId description startDate } } # score is always 1 here
     pageInfo { hasNextPage totalItems }
     nextPageCursor
   }
 }
 ```
 
-`ResourceSearchInput` fields:
+### Text search
 
-| Field            | Description                                                                                   |
-|------------------|-----------------------------------------------------------------------------------------------|
-| `query`          | Search text. Without it, the search is a structured search on the filters only.              |
-| `filters`        | Filter tree of path conditions (see `searchPaths` and `searchDefinitions`).                   |
+With `query` text, the engine finds the matching entities and ranks them by relevance, highest `score` first. The
+filters still narrow the candidates; `orderBy` is rejected.
+
+| Field            | Description                                                                                       |
+|------------------|---------------------------------------------------------------------------------------------------|
+| `query`          | Search text.                                                                                      |
+| `retriever`      | Force a retriever (`FUZZY`, `SEMANTIC` or `HYBRID`) instead of letting the engine choose one, see [Searching](ai-search.md#searching-read-path). |
+| `filters`        | Conditions on indexed fields, combined with `AND`/`OR` and nestable in `groups`. `searchPaths` lists the field paths and their `valueKind`, `searchDefinitions` the operators per `valueKind`. |
 | `elasticFilters` | Filters in Elasticsearch DSL, as produced by react-querybuilder. Use this or `filters`, not both. |
-| `retriever`      | Force a retriever instead of letting the engine choose one.                                   |
-| `orderBy`        | Order a structured search by a field: `{ element, direction }`.                               |
-| `cursor`         | `nextPageCursor` from the previous page. Resumes that search and ignores the other fields except `entityIds`. |
 | `entityIds`      | Only return these entities. It is not saved with the search, so pass it again with every `cursor`. |
+| `cursor`         | `nextPageCursor` from the previous page. Resumes that search and ignores the other fields except `entityIds`. |
 
-Results are returned in `searchEdges`, ranked, with each match's `score` and `matchingFields`. A structured search
-(filters without `query` text) gives every result a `score` of `1` and is ordered by `orderBy` instead. `page` has
-the same entities without the match data.
+```graphql
+query {
+  subscriptions(
+    first: 20 # `after` is rejected for text search; page with `search.cursor`
+    search: {
+      query: "example description" # fuzzy-matched and, with an embedding, ranked semantically too
+      retriever: HYBRID # optional: the engine already picks HYBRID for this text, FUZZY for a UUID
+      # filters narrow the candidates before ranking, exactly as in a structured search
+      filters: { filters: [{ path: "subscription.status", condition: { op: EQ, value: "active" }, valueKind: STRING }] }
+      entityIds: ["6c8f1b84-...", "a07e3d1c-..."] # optional: restrict the search to these subscriptions
+      # next page: pass the previous nextPageCursor (plus entityIds, if used); the other fields are then ignored
+      # cursor: "eyJzZWFyY2hfaWQiOi..."
+    }
+  ) {
+    searchEdges {
+      score # relevance, highest first
+      perfectMatch # 1 when a field (nearly) exactly matches the text; those rank above the rest
+      matchingFields { text path highlightIndices } # the fields that matched, with the spans to highlight
+      node { subscriptionId description }
+    }
+    searchMetadata { searchType description } # the retriever that ran
+    pageInfo { hasNextPage totalItems }
+    nextPageCursor
+  }
+}
+```
 
 ### Pagination
 

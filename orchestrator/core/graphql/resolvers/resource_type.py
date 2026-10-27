@@ -107,7 +107,8 @@ def _load_resource_types(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[st
     }
 
 
-async def search_resource_types(
+# Todo: move into resolve_resource_types once the deprecated query_resource_types is removed, see #2074
+async def _search_resource_types(
     info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
 ) -> Connection[ResourceType]:
     return await search_resource(info, EntityType.RESOURCE_TYPE, search, _load_resource_types, first=first, after=after)
@@ -123,5 +124,5 @@ async def resolve_resource_types(
     search: ResourceSearchInput | None = None,
 ) -> Connection[ResourceType]:
     if search is not None:
-        return await search_resource_types(info, search, first, after)
+        return await _search_resource_types(info, search, first, after)
     return await query_resource_types(info, filter_by, sort_by, first, after, query)

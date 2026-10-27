@@ -28,6 +28,7 @@ from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.queries import SelectQuery
 from orchestrator.core.search.query.results import SearchResponse
 from orchestrator.core.search.query.state import QueryState
+from orchestrator.core.search.query.validation import validate_structured_order_by_element
 from orchestrator.core.search.retrieval.pagination import PageCursor, encode_next_page_cursor
 from orchestrator.core.search.retrieval.retrievers import Retriever
 
@@ -58,6 +59,7 @@ async def _load_query_state(
     if query_id:
         return await QueryState.load_from_id(query_id, SelectQuery, session)
     if query:
+        await validate_structured_order_by_element(query.entity_type, query, session)
         return QueryState(query=query, query_embedding=None)
     raise InvalidSearchPageError("Either query, cursor or query_id must be provided")
 
@@ -87,6 +89,7 @@ async def execute_search_page(
         QueryStateNotFoundError: When the saved query does not exist.
         InvalidSearchPageError: When none of query, cursor or query_id is given, or `offset` is used with a cursor or
             a non-structured search.
+        InvalidOrderByElementError: When the query orders by a path that is not indexed for its entity type.
         ValueError: When the query is invalid.
     """
     if offset and cursor:

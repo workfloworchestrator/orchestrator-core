@@ -30,7 +30,9 @@ class Connection(Generic[GenericType]):
 
     page_info: "PageInfo"
     page: list["GenericType"] = strawberry.field(default_factory=list)
-    # Without `search` the edges are empty
+    # Search fields live on every Connection so existing type names (and client fragments) keep working.
+    # They are only filled when the resource is queried with `search`; connections without a `search`
+    # argument (e.g. customers, scheduledTasks) always return them empty.
     search_edges: list["SearchEdge[GenericType]"] = strawberry.field(default_factory=list)
     search_metadata: SearchMetadataType | None = None
     next_page_cursor: str | None = strawberry.field(

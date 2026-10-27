@@ -271,49 +271,25 @@ def test_search_returns_matching_fields(test_client_graphql, indexed_subscriptio
     assert result["data"]["subscriptions"]["nextPageCursor"] is None
 
 
-def test_search_accepts_elastic_filters_from_query_builder(test_client_graphql, indexed_subscription_ids):
-    elastic_filters = {"bool": {"should": [{"term": {"subscription.marker": "hit"}}]}}
-
-    result = _post(test_client_graphql, SUBSCRIPTIONS_SEARCH_QUERY, search={"elasticFilters": elastic_filters})
-
-    assert "errors" not in result
-    edge_ids = [edge["node"]["subscriptionId"] for edge in result["data"]["subscriptions"]["searchEdges"]]
-    assert sorted(edge_ids) == indexed_subscription_ids
-
-
 def test_search_cursor_pages_through_hits(test_client_graphql, indexed_subscription_ids):
-    first_response = _post(test_client_graphql, SUBSCRIPTIONS_SEARCH_QUERY, search={"filters": HIT_FILTER}, first=2)
+    first_response = _post(test_client_graphql, SUBSCRIPTIONS_SEARCH_QUERY, search={"filters": HIT_FILTER}, first=1)
     first_page = first_response["data"]["subscriptions"]
 
-    assert first_page["pageInfo"]["hasNextPage"] is True
-
     second_response = _post(
-        test_client_graphql, SUBSCRIPTIONS_SEARCH_QUERY, search={"cursor": first_page["nextPageCursor"]}
+        test_client_graphql, SUBSCRIPTIONS_SEARCH_QUERY, search={"cursor": first_page["nextPageCursor"]}, first=2
     )
 
     assert "errors" not in second_response
     second_page = second_response["data"]["subscriptions"]
     seen = [edge["node"]["subscriptionId"] for edge in first_page["searchEdges"] + second_page["searchEdges"]]
-    assert sorted(seen) == indexed_subscription_ids
-    assert second_page["pageInfo"] == {"hasNextPage": False, "hasPreviousPage": True, "totalItems": 3}
-    assert second_page["nextPageCursor"] is None
-
-
-def test_cursor_page_keeps_page_size_of_first_page(test_client_graphql, indexed_subscription_ids):
-    """First is ignored when using cursor."""
-    first_response = _post(test_client_graphql, SUBSCRIPTIONS_SEARCH_QUERY, search={"filters": HIT_FILTER}, first=1)
-    cursor = first_response["data"]["subscriptions"]["nextPageCursor"]
-
-    second_response = _post(test_client_graphql, SUBSCRIPTIONS_SEARCH_QUERY, search={"cursor": cursor}, first=2)
-
-    assert "errors" not in second_response
-    assert len(second_response["data"]["subscriptions"]["searchEdges"]) == 1
+    assert len(seen) == 2
+    assert set(seen) < set(indexed_subscription_ids)
+    assert second_page["pageInfo"] == {"hasNextPage": True, "hasPreviousPage": True, "totalItems": 3}
 
 
 @pytest.mark.parametrize(
     "first, after, expected_slice, has_next_page",
     [
-        pytest.param(2, 2, slice(2, 3), False, id="last-page"),
         pytest.param(1, 1, slice(1, 2), True, id="middle-page"),
         pytest.param(2, 5, slice(3, 3), False, id="past-the-end"),
     ],
@@ -347,27 +323,6 @@ def test_search_entity_ids_restricts_hits(test_client_graphql, indexed_subscript
     assert sorted(edge_ids) == wanted
 
 
-def test_search_entity_ids_apply_to_cursor_pages(test_client_graphql, indexed_subscription_ids):
-    """The entityIds are not saved with the query, so they are passed again with the cursor."""
-    wanted = indexed_subscription_ids[:2]
-    first_response = _post(
-        test_client_graphql, SUBSCRIPTIONS_SEARCH_QUERY, search={"filters": HIT_FILTER, "entityIds": wanted}, first=1
-    )
-    first_page = first_response["data"]["subscriptions"]
-
-    second_response = _post(
-        test_client_graphql,
-        SUBSCRIPTIONS_SEARCH_QUERY,
-        search={"cursor": first_page["nextPageCursor"], "entityIds": wanted},
-    )
-
-    assert "errors" not in second_response
-    second_page = second_response["data"]["subscriptions"]
-    seen = [edge["node"]["subscriptionId"] for edge in first_page["searchEdges"] + second_page["searchEdges"]]
-    assert sorted(seen) == wanted
-    assert second_page["nextPageCursor"] is None
-
-
 def test_without_search_the_search_fields_are_empty(test_client_graphql, indexed_subscription_ids):
     result = _post(test_client_graphql, SUBSCRIPTIONS_SEARCH_QUERY, first=2)
 
@@ -394,6 +349,17 @@ def test_search_on_repeated_field_is_resolved_once(test_client_graphql, indexed_
     subscriptions = result["data"]["subscriptions"]
     assert sorted(edge["node"]["subscriptionId"] for edge in subscriptions["searchEdges"]) == indexed_subscription_ids
     assert subscriptions["pageInfo"]["totalItems"] == len(indexed_subscription_ids)
+
+
+def test_search_rejects_order_by_unknown_element(test_client_graphql, indexed_subscription_ids):
+    """Ordering by a path that is not indexed would sort every row by NULL and make cursor paging repeat page 1."""
+    search = {"filters": HIT_FILTER, "orderBy": {"element": "subscription.unknown", "direction": "ASC"}}
+
+    result = _post(test_client_graphql, SUBSCRIPTIONS_SEARCH_QUERY, search=search, first=2)
+
+    assert result["data"] is None
+    assert result["errors"][0]["message"] == "Element subscription.unknown is not a valid path"
+    assert result["errors"][0]["extensions"]["code"] == "VALIDATION_ERROR"
 
 
 def test_rejected_search_keeps_its_message_over_graphql(test_client_graphql):

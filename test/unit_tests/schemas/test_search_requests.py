@@ -25,6 +25,7 @@ from orchestrator.core.schemas.search_requests import SearchExportRequest, Searc
 from orchestrator.core.search.core.types import EntityType, RetrieverType, UIType
 from orchestrator.core.search.filters.base import PathFilter
 from orchestrator.core.search.indexing.field_types import clear_field_type_cache
+from orchestrator.core.search.query.exceptions import QueryValidationError
 from orchestrator.core.search.query.mixins import StructuredOrderBy
 from orchestrator.core.search.query.queries import BaseQuery, ExportQuery, SelectQuery
 
@@ -86,8 +87,10 @@ def test_to_query_returns_matching_query_class(request_cls, expected_query_cls) 
 
 @pytest.mark.parametrize("request_cls", [SearchRequest, SearchExportRequest])
 def test_order_by_with_query_raises(request_cls) -> None:
-    with pytest.raises(ValidationError, match="order_by can only be set when query is empty"):
-        request_cls(query="hello", order_by=StructuredOrderBy(element="name"))
+    request = request_cls(query="hello", order_by=StructuredOrderBy(element="name"))
+
+    with pytest.raises(QueryValidationError, match="order_by can only be set when query is empty"):
+        request.to_query(EntityType.SUBSCRIPTION)
 
 
 def test_order_by_without_query_succeeds() -> None:

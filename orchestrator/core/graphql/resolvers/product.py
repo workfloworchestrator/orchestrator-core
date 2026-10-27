@@ -97,7 +97,8 @@ def _load_products(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, Pro
     return {str(product.product_id): product for product in _graphql_products(stmt, query_loaders)}
 
 
-async def search_products(
+# Todo: move into resolve_products once the deprecated query_products is removed, see #2074
+async def _search_products(
     info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
 ) -> Connection[ProductType]:
     return await search_resource(info, EntityType.PRODUCT, search, _load_products, first=first, after=after)
@@ -113,5 +114,5 @@ async def resolve_products(
     search: ResourceSearchInput | None = None,
 ) -> Connection[ProductType]:
     if search is not None:
-        return await search_products(info, search, first, after)
+        return await _search_products(info, search, first, after)
     return await query_products(info, filter_by, sort_by, first, after, query)

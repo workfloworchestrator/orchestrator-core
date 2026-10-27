@@ -134,12 +134,6 @@ async def _load_subscriptions(
     return {str(subscription.subscription_id): subscription for subscription in graphql_subscriptions}
 
 
-async def search_subscriptions(
-    info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
-) -> Connection[SubscriptionInterface]:
-    return await search_resource(info, EntityType.SUBSCRIPTION, search, _load_subscriptions, first=first, after=after)
-
-
 async def query_subscriptions(
     info: OrchestratorInfo,
     filter_by: list[GraphqlFilter] | None,
@@ -191,6 +185,13 @@ async def query_subscriptions(
     )
 
 
+# Todo: move into resolve_subscriptions once the deprecated query_subscriptions is removed, see #2074
+async def _search_subscriptions(
+    info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
+) -> Connection[SubscriptionInterface]:
+    return await search_resource(info, EntityType.SUBSCRIPTION, search, _load_subscriptions, first=first, after=after)
+
+
 async def resolve_subscriptions(
     info: OrchestratorInfo,
     filter_by: DeprecatedFilterBy = None,
@@ -201,5 +202,5 @@ async def resolve_subscriptions(
     search: ResourceSearchInput | None = None,
 ) -> Connection[SubscriptionInterface]:
     if search is not None:
-        return await search_subscriptions(info, search, first, after)
+        return await _search_subscriptions(info, search, first, after)
     return await query_subscriptions(info, filter_by, sort_by, first, after, query)

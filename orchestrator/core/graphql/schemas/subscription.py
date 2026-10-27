@@ -152,14 +152,8 @@ class SubscriptionInterface:
         stmt = select(ProcessSubscriptionTable.process_id).where(
             ProcessSubscriptionTable.subscription_id == self.subscription_id
         )
-        return await resolve_processes(
-            info,
-            old_filters,
-            sort_by,
-            first,
-            after,
-            search=search.within(list(db.session.scalars(stmt))) if search else None,
-        )
+        process_search = search.within(list(db.session.scalars(stmt))) if search else None
+        return await resolve_processes(info, old_filters, sort_by, first, after, search=process_search)
 
     @authenticated_field(description="Returns list of subscriptions that use this subscription")  # type: ignore
     async def in_use_by_subscriptions(
@@ -188,14 +182,8 @@ class SubscriptionInterface:
                 GraphqlFilter(field="subscriptionId", value="|".join(map(str, subscription_ids)))
             ]
 
-        return await resolve_subscriptions(
-            info,
-            old_filters,
-            sort_by,
-            first,
-            after,
-            search=search.within(subscription_ids) if search else None,
-        )
+        subscription_search = search.within(subscription_ids) if search else None
+        return await resolve_subscriptions(info, old_filters, sort_by, first, after, search=subscription_search)
 
     @authenticated_field(description="Returns list of subscriptions that this subscription depends on")  # type: ignore
     async def depends_on_subscriptions(
@@ -224,14 +212,8 @@ class SubscriptionInterface:
                 GraphqlFilter(field="subscriptionId", value="|".join(map(str, subscription_ids)))
             ]
 
-        return await resolve_subscriptions(
-            info,
-            old_filters,
-            sort_by,
-            first,
-            after,
-            search=search.within(subscription_ids) if search else None,
-        )
+        subscription_search = search.within(subscription_ids) if search else None
+        return await resolve_subscriptions(info, old_filters, sort_by, first, after, search=subscription_search)
 
     @strawberry.field(description="Returns the date and time of the last validation workflow run for a subscription")  # type: ignore
     async def last_validated_at(self, info: OrchestratorInfo) -> datetime | None:

@@ -61,7 +61,18 @@ class BaseQuery(BaseModel):
         return cls.model_validate(data)
 
 
-class SelectQuery(BaseQuery, SearchMixin, StructuredOrderByMixin):
+class _BaseSelectQuery(BaseQuery, SearchMixin, StructuredOrderByMixin):
+    """Fields and rules shared by the select and export queries."""
+
+    @model_validator(mode="after")
+    def validate_order_by_requires_structured_search(self) -> Self:
+        # Text search ranks by relevance, so the order would be silently dropped.
+        if self.order_by and self.query_text:
+            raise ValueError("order_by can only be set when query is empty")
+        return self
+
+
+class SelectQuery(_BaseSelectQuery):
     """Query for SELECT operations.
 
     Composes BaseQuery with SearchMixin for text search, with strict result limits.
@@ -78,7 +89,7 @@ class SelectQuery(BaseQuery, SearchMixin, StructuredOrderByMixin):
     )
 
 
-class ExportQuery(BaseQuery, SearchMixin, StructuredOrderByMixin):
+class ExportQuery(_BaseSelectQuery):
     """Query for EXPORT operations .
 
     Similar to SelectQuery but with higher limits for bulk exports.

@@ -190,10 +190,12 @@ async def resolve_search(
         cursor: Opaque pagination cursor from a previous page.
         include_columns: Whether to include response columns in results.
     """
-    query = None if cursor else input.to_select_query(entity_type)
     with search_errors_to_graphql("Search failed", entity_type=entity_type):
         page = await execute_search_page(
-            info.context.session, query=query, cursor=cursor, include_columns=include_columns
+            info.context.session,
+            query=None if cursor else input.to_select_query(entity_type),
+            cursor=cursor,
+            include_columns=include_columns,
         )
         return _search_page_to_connection(page)
 

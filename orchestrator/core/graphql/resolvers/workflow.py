@@ -104,7 +104,8 @@ def _load_workflows(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, Wo
     return {str(workflow.workflow_id): workflow for workflow in _graphql_workflows(stmt, query_loaders)}  # type: ignore[attr-defined]
 
 
-async def search_workflows(
+# Todo: move into resolve_workflows once the deprecated query_workflows is removed, see #2074
+async def _search_workflows(
     info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
 ) -> Connection[Workflow]:
     return await search_resource(info, EntityType.WORKFLOW, search, _load_workflows, first=first, after=after)
@@ -120,5 +121,5 @@ async def resolve_workflows(
     search: ResourceSearchInput | None = None,
 ) -> Connection[Workflow]:
     if search is not None:
-        return await search_workflows(info, search, first, after)
+        return await _search_workflows(info, search, first, after)
     return await query_workflows(info, filter_by, sort_by, first, after, query)

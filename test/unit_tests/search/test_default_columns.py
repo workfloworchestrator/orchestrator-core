@@ -42,9 +42,7 @@ async def test_include_columns_toggle(include_columns, input_cols, expected_cols
     request = SearchRequest(**kwargs)
     mock_response = MagicMock(results=[], metadata=SearchMetadata.empty())
 
-    with patch(
-        "orchestrator.core.search.query.page.engine.execute_search", new_callable=AsyncMock
-    ) as mock_execute:
+    with patch("orchestrator.core.search.query.page.engine.execute_search", new_callable=AsyncMock) as mock_execute:
         mock_execute.return_value = mock_response
         await _perform_search_and_fetch(AsyncMock(), EntityType.SUBSCRIPTION, request, include_columns=include_columns)
 

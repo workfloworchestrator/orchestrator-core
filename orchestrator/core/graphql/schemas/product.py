@@ -90,14 +90,8 @@ class ProductType:
             old_filters = (filter_by or []) + [GraphqlFilter(field="productId", value=str(self.product_id))]
 
         stmt = select(SubscriptionTable.subscription_id).where(SubscriptionTable.product_id == self.product_id)
-        return await resolve_subscriptions(
-            info,
-            old_filters,
-            sort_by,
-            first,
-            after,
-            search=search.within(list(db.session.scalars(stmt))) if search else None,
-        )
+        subscription_search = search.within(list(db.session.scalars(stmt))) if search else None
+        return await resolve_subscriptions(info, old_filters, sort_by, first, after, search=subscription_search)
 
     @strawberry.field(description="Returns list of all nested productblock names")  # type: ignore
     async def all_product_block_names(self) -> list[str]:

@@ -30,9 +30,7 @@ from orchestrator.core.search.query.exceptions import PathNotFoundError
         pytest.param(
             InvalidCursorError("Invalid pagination cursor"), HTTPStatus.UNPROCESSABLE_ENTITY, None, id="cursor"
         ),
-        pytest.param(
-            InvalidSearchPageError("Missing input"), HTTPStatus.UNPROCESSABLE_ENTITY, None, id="missing-input"
-        ),
+        pytest.param(InvalidSearchPageError("Missing input"), HTTPStatus.BAD_REQUEST, None, id="missing-input"),
         pytest.param(PathNotFoundError("subscription.x"), HTTPStatus.UNPROCESSABLE_ENTITY, None, id="query-validation"),
         pytest.param(ValueError("Invalid query"), HTTPStatus.UNPROCESSABLE_ENTITY, None, id="value-error"),
         pytest.param(QueryStateNotFoundError("Query not found"), HTTPStatus.NOT_FOUND, None, id="query-not-found"),
