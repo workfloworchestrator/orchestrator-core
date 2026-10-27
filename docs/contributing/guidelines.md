@@ -70,6 +70,20 @@ causing state bleed. Each task now gets its own session.
 
 The `(#PR-number)` suffix is appended automatically by GitHub on squash merge — do not add it by hand.
 
+## Draft pull requests
+
+Open every pull request as a **draft** (`gh pr create --draft`, or *Create draft pull request* in the GitHub UI).
+CI runs on drafts as usual, so you can share the diff and iterate freely.
+
+Click *Ready for review* once the PR is complete. Automated [Greptile](https://www.greptile.com) reviews come from a limited monthly budget of free open-source credits, so they are rationed:
+
+- If you have write access to the repository, marking the PR ready triggers one Greptile review. Later pushes are not reviewed automatically.
+- To request another review after addressing feedback, add the `greptile-review` label. Each PR has a limited review budget; once it is spent, a core maintainer can still force another review with the same label.
+- PRs from contributors without write access are not reviewed automatically; a maintainer adds `greptile-review` when a review is useful.
+- For complex or risky changes, a core maintainer can add the `greptile-review-trex` label to trigger an in-depth review.
+
+Please don't trigger reviews by commenting `@greptileai`, as that bypasses the per-PR budget.
+
 ## Pre-commit hooks
 
 We use [prek](https://prek.j178.dev/) to run the pre-commit hooks to ensure that the code is formatted correctly and that the tests pass.

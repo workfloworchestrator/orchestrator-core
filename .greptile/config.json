@@ -1,0 +1,6 @@
+{
+  "autoReview": ["open"],
+  "triggerOnDrafts": false,
+  "labels": ["greptile/run"],
+  "excludeAuthors": ["renovate[bot]", "dependabot[bot]", "github-actions[bot]"]
+}

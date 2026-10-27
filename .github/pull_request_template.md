@@ -1,6 +1,11 @@
 ## Summary
 <!-- A summary of your changes -->
 
+<!--
+Open this PR as a draft and mark it "Ready for review" when it is complete; that triggers the
+one automated Greptile review. Add the `greptile-review` label to request another review. See CONTRIBUTING.
+-->
+
 ## Related Issues
 Fixes # (issue number)
 
