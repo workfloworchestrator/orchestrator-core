@@ -190,11 +190,13 @@ def test_long_running_pause(test_client, fastapi_app, long_running_workflow, mon
     # Let it run until the first lock step is started
     step_waiting.get(timeout=10)
 
+    # The worker is blocked inside the step, so exactly one job is active: refresh the monitor and
+    # assert the PAUSING transition deterministically (#2039).
+    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=1)
     response = test_client.put("/api/settings/status", json={"global_lock": True})
     assert response.json()["global_lock"] is True
-    # Worker-based counting: worker may still be executing, so could be 0 or 1
-    assert response.json()["running_processes"] in [0, 1]
-    assert response.json()["global_status"] in ["PAUSING", "PAUSED"]
+    assert response.json()["running_processes"] == 1  # Worker still executing the locked step
+    assert response.json()["global_status"] == "PAUSING"
 
     # Let it run until completing the first lock step
     with test_condition:

@@ -1004,7 +1004,9 @@ def test_run_process_async_success(fastapi_app, monkeypatch):
     event = Event()
 
     def run_func():
-        return Success(event.wait(1))
+        # Block until the test sets the event (bounded so a failed test cannot hang the interpreter);
+        # a fixed wait(1) can finish before the count is observed on a busy runner (#2039).
+        return Success(event.wait(30))
 
     # Disable Testing setting since we want to run async
     monkeypatch.setattr(app_settings, "TESTING", False)
@@ -1025,7 +1027,7 @@ def test_run_process_async_exception(mock_db_log_process_ex, fastapi_app, monkey
     event = Event()
 
     def run_func():
-        event.wait(1)
+        event.wait(30)
         raise ValueError("Failed")
 
     # Disable Testing setting since we want to run async
