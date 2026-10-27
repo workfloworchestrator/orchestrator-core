@@ -234,6 +234,7 @@ class ResourceSearchInput(BaseSearchInput):
 
 
 # Arguments of the list resources that accept `search`; filterBy, sortBy and query are replaced by it.
+# Todo: remove deprecation later with #2074
 DeprecatedFilterBy = Annotated[
     list[GraphqlFilter] | None, strawberry.argument(deprecation_reason="Use search.filters instead")
 ]

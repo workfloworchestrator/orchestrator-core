@@ -144,7 +144,7 @@ class SubscriptionInterface:
         after: int = 0,
         search: ResourceSearchInput | None = None,
     ) -> Connection[ProcessType]:
-        # Todo: remove with later version.
+        # Todo: remove deprecation later with #2074
         old_filters = filter_by or []
         if not search:
             old_filters = (filter_by or []) + [GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))]
@@ -181,7 +181,7 @@ class SubscriptionInterface:
         if not subscription_ids:
             return EMPTY_PAGE
 
-        # Todo: remove with later version.
+        # Todo: remove deprecation later with #2074
         old_filters = filter_by or []
         if not search:
             old_filters = (filter_by or []) + [
@@ -217,7 +217,7 @@ class SubscriptionInterface:
         if not subscription_ids:
             return EMPTY_PAGE
 
-        # Todo: remove with later version.
+        # Todo: remove deprecation later with #2074
         old_filters = filter_by or []
         if not search:
             old_filters = (filter_by or []) + [

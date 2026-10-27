@@ -84,7 +84,7 @@ class ProductType:
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
 
-        # Todo: remove with later version.
+        # Todo: remove deprecation later with #2074
         old_filters = filter_by or []
         if not search:
             old_filters = (filter_by or []) + [GraphqlFilter(field="productId", value=str(self.product_id))]

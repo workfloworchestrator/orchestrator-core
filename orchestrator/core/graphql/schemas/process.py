@@ -133,7 +133,7 @@ class ProcessType:
         if not subscription_ids:
             return EMPTY_PAGE
 
-        # Todo: remove with later version.
+        # Todo: remove deprecation later with #2074
         old_filters = filter_by or []
         if not search:
             old_filters = (filter_by or []) + [
