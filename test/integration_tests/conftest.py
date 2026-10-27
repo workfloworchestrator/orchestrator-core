@@ -24,7 +24,7 @@ pytest_plugins = ["test.integration_tests._fixtures"]
 # Re-export non-fixture symbols (constants, classes, plain helpers) that
 # individual test files import by name. Fixtures and hooks are NOT
 # re-exported — they reach tests through the plugin loaded above.
-from collections.abc import AsyncIterator  # noqa: E402
+from collections.abc import AsyncIterator, Iterator  # noqa: E402
 
 import pytest  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
@@ -49,7 +49,7 @@ __all__ = [
 
 
 @pytest.fixture(autouse=True)
-def idle_worker_status_monitor(fastapi_app) -> None:
+def idle_worker_status_monitor(fastapi_app) -> Iterator[None]:
     """Start every test with no running jobs and a fresh WorkerStatusMonitor cache (#2039).
 
     The monitor is a process-wide singleton whose cache is shared by every test on the same xdist
