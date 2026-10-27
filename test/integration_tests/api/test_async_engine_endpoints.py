@@ -55,13 +55,13 @@ from orchestrator.core.db.models import (
 )
 from orchestrator.core.domain.lifecycle import ProductLifecycle
 from orchestrator.core.targets import Target
+from orchestrator.core.testing.fixtures import JsonTestClient
 from orchestrator.core.workflow import (
     CALLBACK_TOKEN_KEY,
     DEFAULT_CALLBACK_PROGRESS_KEY,
     ProcessStatus,
     StepStatus,
 )
-from test.integration_tests._fixtures import JsonTestClient
 
 WORKFLOW_NAME = "test_async_engine_endpoints_workflow"
 CALLBACK_WORKFLOW_NAME = "test_async_engine_endpoints_callback_workflow"

@@ -42,6 +42,7 @@ from orchestrator.core.services.subscriptions import (
     unsync,
 )
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.workflow import ProcessStatus, done, init, workflow
@@ -55,7 +56,6 @@ from test.integration_tests.config import (
     PORT_SUBSCRIPTION_ID,
 )
 from test.integration_tests.conftest import do_refresh_subscriptions_search_view
-from test.integration_tests.workflows import WorkflowInstanceForTests
 
 SERVICE_SUBSCRIPTION_ID = str(uuid4())
 PORT_A_SUBSCRIPTION_ID = str(uuid4())

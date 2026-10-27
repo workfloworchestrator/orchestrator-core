@@ -18,6 +18,14 @@ import pytest
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.services import processes
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import (
+    WorkflowInstanceForTests,
+    assert_awaiting_callback,
+    assert_complete,
+    assert_state,
+    run_workflow,
+)
+from orchestrator.core.testing.workflows import _store_step
 from orchestrator.core.utils.datetime import nowtz
 from orchestrator.core.workflow import (
     DEFAULT_CALLBACK_PROGRESS_KEY,
@@ -31,14 +39,6 @@ from orchestrator.core.workflow import (
     runwf,
     step,
     workflow,
-)
-from test.integration_tests.workflows import (
-    WorkflowInstanceForTests,
-    _store_step,
-    assert_awaiting_callback,
-    assert_complete,
-    assert_state,
-    run_workflow,
 )
 
 

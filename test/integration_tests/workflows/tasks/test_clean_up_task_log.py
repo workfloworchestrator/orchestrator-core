@@ -20,9 +20,9 @@ from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db import ProcessStepTable, ProcessTable, WorkflowTable, db
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import assert_complete, assert_state, extract_state, run_workflow
 from orchestrator.core.utils.datetime import nowtz
 from orchestrator.core.workflow import ProcessStatus
-from test.integration_tests.workflows import assert_complete, assert_state, extract_state, run_workflow
 
 
 @pytest.fixture

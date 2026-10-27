@@ -42,6 +42,7 @@ from orchestrator.core.services.settings import get_engine_settings_table
 from orchestrator.core.services.tasks import RESUME_WORKFLOW
 from orchestrator.core.settings import app_settings
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.workflow import (
     CALLBACK_TOKEN_KEY,
@@ -61,7 +62,6 @@ from orchestrator.core.workflows.tasks.cleanup_tasks_log import task_clean_up_ta
 from pydantic_forms.core import FormPage
 from test.helpers import URL_STR_TYPE
 from test.integration_tests.conftest import wait_for_running_jobs_count
-from test.integration_tests.workflows import WorkflowInstanceForTests
 
 test_condition = Condition()
 # Signalled by long_running_step right before it starts waiting on test_condition, so tests can

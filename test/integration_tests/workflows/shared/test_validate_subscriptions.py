@@ -16,16 +16,16 @@ from unittest import mock
 import pytest
 
 from orchestrator.core.db import SubscriptionTable, db
-from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.core.workflows.utils import validate_workflow
-from pydantic_forms.exceptions import FormValidationError
-from test.integration_tests.workflows import (
+from orchestrator.core.testing import (
     WorkflowInstanceForTests,
     assert_complete,
     assert_failed,
     extract_error,
     run_workflow,
 )
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.utils import validate_workflow
+from pydantic_forms.exceptions import FormValidationError
 
 
 @validate_workflow()
@@ -68,4 +68,4 @@ def test_failed_validation(generic_subscription_1: str) -> None:
                 "failing_validation_workflow", {"subscription_id": generic_subscription_1}
             )
             assert_failed(result)
-            assert "Failed" in extract_error(result)
+            assert "Failed" in (extract_error(result) or "")

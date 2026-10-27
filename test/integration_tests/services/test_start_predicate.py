@@ -20,11 +20,11 @@ from sqlalchemy import func, select
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.services.processes import create_process
 from orchestrator.core.targets import Target
+from orchestrator.core.testing import WorkflowInstanceForTests, assert_complete, run_workflow
 from orchestrator.core.utils.errors import StartPredicateError
 from orchestrator.core.workflow import RunPredicateFail, RunPredicatePass, begin, done, step, workflow
 from test.integration_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
 from test.integration_tests.graphql.mutations.helpers import mutation_authorization
-from test.integration_tests.workflows import WorkflowInstanceForTests, assert_complete, run_workflow
 
 
 def get_start_process_mutation(name: str, payload: dict) -> bytes:

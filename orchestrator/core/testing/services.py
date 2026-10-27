@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Service provider for integration tests.
+"""Service provider for tests that need Postgres and Redis.
 
 Resolves how Postgres and Redis are made available to integration tests in this
 order:
@@ -27,16 +27,14 @@ order:
 Partial environment configuration (only one of the two URIs set) is rejected so
 the test setup never silently mixes a real service with an ephemeral one.
 
-This module is imported from ``test/integration_tests/conftest.py`` *before*
-any ``orchestrator.*`` import so that ``DATABASE_URI`` and ``CACHE_URI`` are set
-in ``os.environ`` before pydantic-settings constructs ``app_settings`` and
-before modules like ``orchestrator.core.schedules.service`` capture
-``app_settings.CACHE_URI`` at import time.
+Importing any ``orchestrator.core`` module constructs ``app_settings`` and the module-level Redis clients, so they
+are created before the services are resolved. :func:`patch_app_settings` points both at the resolved services.
 """
 
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -74,9 +72,9 @@ def _missing_services_message(missing: list[str]) -> str:
         "(bring-your-own services, used by CI and the docker-compose flow).\n"
         "  - Unset both DATABASE_URI and CACHE_URI; the test runner will start\n"
         "    ephemeral Postgres+Redis containers via testcontainers, which\n"
-        "    requires Docker to be running and the dev dependency group to be\n"
-        "    installed (``uv sync --group dev``).\n"
-        "See docs/guides/testing.md for details."
+        "    requires Docker to be running and the testcontainers package to be\n"
+        "    installed.\n"
+        "See https://workfloworchestrator.org/orchestrator-core/guides/testing/ for details."
     )
 
 
@@ -183,20 +181,35 @@ def provide_services() -> Iterator[ServiceURIs]:
                 os.environ.pop("CACHE_URI", None)
 
 
+# Module-level Redis clients created from ``app_settings.CACHE_URI`` at import time: (module, attribute, is_async)
+MODULE_REDIS_CLIENTS: tuple[tuple[str, str, bool], ...] = (
+    ("orchestrator.core.utils.redis", "cache", False),
+    ("orchestrator.core.schedules.service", "redis_connection", False),
+    ("orchestrator.core.schedules.service", "redis_connection_async", True),
+)
+
+
+def rebind_redis_clients(cache_uri: str) -> None:
+    """Replace the module-level Redis clients of already imported modules with clients for ``cache_uri``.
+
+    Modules that are imported later create their clients from ``app_settings.CACHE_URI`` themselves.
+    """
+    from orchestrator.core.utils.redis_client import create_redis_asyncio_client, create_redis_client
+
+    for module_name, attribute, is_async in MODULE_REDIS_CLIENTS:
+        if module := sys.modules.get(module_name):
+            factory = create_redis_asyncio_client if is_async else create_redis_client
+            setattr(module, attribute, factory(cache_uri))
+
+
 def patch_app_settings(uris: ServiceURIs) -> None:
-    """Force ``app_settings`` to point at the resolved service URIs.
+    """Point ``app_settings`` and the module-level Redis clients at the resolved service URIs.
 
-    This is a defensive helper for cases where ``orchestrator.core.settings``
-    has already been imported (and ``app_settings`` constructed) before
-    :func:`provide_services` ran. Updating ``app_settings`` here keeps cache
-    callers like ``orchestrator.core.schedules.service`` consistent with the
-    environment.
-
-    Importing this module does not import ``orchestrator``; the import is
-    deferred so :func:`provide_services` can run before any ``orchestrator``
-    module is loaded.
+    ``app_settings`` and the Redis clients in modules like ``orchestrator.core.schedules.service`` are created when
+    ``orchestrator.core`` is imported, which is before the services are resolved.
     """
     from orchestrator.core.settings import SecretPostgresDsn, SecretRedisDsn, app_settings
 
     app_settings.DATABASE_URI = SecretPostgresDsn(uris.database_uri)  # type: ignore[arg-type]
     app_settings.CACHE_URI = SecretRedisDsn(uris.cache_uri)  # type: ignore[arg-type]
+    rebind_redis_clients(uris.cache_uri)
