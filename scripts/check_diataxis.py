@@ -29,10 +29,14 @@ The amount of output is controlled by the DIATAXIS_VERBOSITY environment variabl
 """
 
 import os
-import re
 import sys
-from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
+
+import yaml
+from markdown_it import MarkdownIt
+from markdown_it.token import Token
+from mdit_py_plugins.front_matter import front_matter_plugin
 
 KINDS = {"tutorial", "how-to", "reference", "explanation", "mixed"}
 
@@ -40,10 +44,11 @@ VERBOSITY_ENV = "DIATAXIS_VERBOSITY"
 DEFAULT_VERBOSITY = 1
 MAX_VERBOSITY = 3
 
-FRONT_MATTER_KEY = re.compile(r"^diataxis:\s*(?P<kind>\S*)\s*$")
-HEADING = re.compile(r"^#{1,6}\s+\S")
-SECTION_COMMENT = re.compile(r"^<!--\s*diataxis:\s*(?P<kind>.*?)\s*-->\s*$")
-FENCE = re.compile(r"^\s*(```|~~~)")
+COMMENT_PREFIX = "<!--"
+COMMENT_SUFFIX = "-->"
+COMMENT_KEY = "diataxis:"
+
+MARKDOWN = MarkdownIt("commonmark").use(front_matter_plugin)
 
 
 def status(kind: str | None) -> str:
@@ -67,50 +72,83 @@ def status(kind: str | None) -> str:
     return f"OK   ({kind})"
 
 
-def split_front_matter(lines: list[str]) -> tuple[list[str], int]:
-    """Return the front matter lines and the index of the first body line.
+def page_kind(tokens: list[Token]) -> str | None:
+    r"""Return the `diataxis` value from the YAML front matter, '' if it's empty, or None if it's missing.
 
-    >>> split_front_matter(["---", "diataxis: how-to", "---", "# Title"])
-    (['diataxis: how-to'], 3)
-    >>> split_front_matter(["# Title"])
-    ([], 0)
-    >>> split_front_matter(["---", "diataxis: how-to"])  # unterminated front matter
-    ([], 0)
+    >>> page_kind(MARKDOWN.parse("---\ndiataxis: how-to\nhide:\n  - toc\n---\n# Title\n"))
+    'how-to'
+    >>> page_kind(MARKDOWN.parse("---\n# tutorial | how-to\ndiataxis:\n---\n"))
+    ''
+    >>> page_kind(MARKDOWN.parse("# Title\n")) is None
+    True
+    >>> page_kind(MARKDOWN.parse("---\nhide: [toc\n---\n")) is None  # invalid YAML
+    True
     """
-    if not lines or lines[0].strip() != "---":
-        return [], 0
-    end = next((i for i, line in enumerate(lines[1:], start=1) if line.strip() == "---"), None)
-    return (lines[1:end], end + 1) if end is not None else ([], 0)
+    front_matter = next((token.content for token in tokens if token.type == "front_matter"), "")
+    try:
+        meta: Any = yaml.safe_load(front_matter)
+    except yaml.YAMLError:
+        return None
+    if not isinstance(meta, dict) or "diataxis" not in meta:
+        return None
+    return "" if meta["diataxis"] is None else str(meta["diataxis"])
 
 
-def headings(lines: list[str], start: int) -> Iterator[tuple[int, str, str | None]]:
-    """Yield (line number, heading, section kind) for each heading outside code fences.
+def section_kind(token: Token | None) -> str | None:
+    r"""Return the kind from a `<!-- diataxis: ... -->` HTML block token, or None if it isn't one.
 
-    >>> list(headings(["# A", "<!-- diataxis: tutorial -->", "## B"], 0))
-    [(1, '# A', 'tutorial'), (3, '## B', None)]
-    >>> list(headings(["```", "# not a heading", "```"], 0))
+    >>> section_kind(MARKDOWN.parse("<!-- diataxis: tutorial -->\n")[0])
+    'tutorial'
+    >>> section_kind(MARKDOWN.parse("<!-- diataxis: -->\n")[0])
+    ''
+    >>> section_kind(MARKDOWN.parse("<!-- something else -->\n")[0]) is None
+    True
+    >>> section_kind(None) is None
+    True
+    """
+    if token is None or token.type != "html_block":
+        return None
+    text = token.content.strip()
+    if not (text.startswith(COMMENT_PREFIX) and text.endswith(COMMENT_SUFFIX)):
+        return None
+    body = text.removeprefix(COMMENT_PREFIX).removesuffix(COMMENT_SUFFIX).strip()
+    return body.removeprefix(COMMENT_KEY).strip() if body.startswith(COMMENT_KEY) else None
+
+
+def headings(tokens: list[Token]) -> list[tuple[int, str, str | None]]:
+    r"""Return (line number, heading, section kind) for each top-level heading.
+
+    Headings nested in blockquotes, lists or (CommonMark-indented) admonition and tab bodies belong to the enclosing
+    section, so only headings at nesting level 0 count. The label must be on the line directly after the heading.
+
+    >>> headings(MARKDOWN.parse("# A\n<!-- diataxis: tutorial -->\n\n## B\n"))
+    [(1, '# A', 'tutorial'), (4, '## B', None)]
+    >>> headings(MARKDOWN.parse("# A\n\n<!-- diataxis: tutorial -->\n"))  # not directly after the heading
+    [(1, '# A', None)]
+    >>> headings(MARKDOWN.parse("```\n# not a heading\n```\n> ## quoted\n"))
     []
+    >>> headings(MARKDOWN.parse("Setext\n======\n<!-- diataxis: how-to -->\n"))
+    [(1, '# Setext', 'how-to')]
     """
-    in_fence = False
-    for i in range(start, len(lines)):
-        line = lines[i]
-        if FENCE.match(line):
-            in_fence = not in_fence
-        elif not in_fence and HEADING.match(line):
-            match = SECTION_COMMENT.match(lines[i + 1]) if i + 1 < len(lines) else None
-            yield i + 1, line.strip(), match["kind"] if match else None
+    return [
+        (
+            start + 1,
+            f"{'#' * int(token.tag[1:])} {tokens[i + 1].content}",
+            section_kind(label) if label is not None and label.map and label.map[0] == end else None,
+        )
+        for i, token in enumerate(tokens)
+        if token.type == "heading_open" and token.level == 0 and token.map
+        for start, end in [token.map]
+        for label in [tokens[i + 3] if i + 3 < len(tokens) else None]
+    ]
 
 
 def check_file(path: Path) -> list[tuple[str, int | None, str]]:
     """Return (status, line number, heading) for the page label and every section label."""
-    lines = path.read_text(encoding="utf-8").splitlines()
-    front_matter, body_start = split_front_matter(lines)
-    page_kind = next((m["kind"] for line in front_matter if (m := FRONT_MATTER_KEY.match(line))), None)
-
-    results: list[tuple[str, int | None, str]] = [(status(page_kind), None, "")]
-    for lineno, heading, kind in headings(lines, body_start):
-        results.append((status(kind), lineno, heading))
-    return results
+    tokens = MARKDOWN.parse(path.read_text(encoding="utf-8"))
+    return [(status(page_kind(tokens)), None, "")] + [
+        (status(kind), lineno, heading) for lineno, heading, kind in headings(tokens)
+    ]
 
 
 def verbosity() -> int:

@@ -122,6 +122,7 @@ dev = [
     "pytest-httpx>=0.29.0",
     "pytest-timeout>=2.3.1",
     "pytest-xdist>=3.7.0",
+    "pyyaml>=6.0.3",
     "requests-mock>=1.12.1",
     "ruff>=0.15.11",
     "sqlalchemy[mypy]>=2.0.41",
