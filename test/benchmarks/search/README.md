@@ -4,7 +4,7 @@ Measures whether a change to the text search (the fuzzy retriever) makes results
 Postgres. Semantic and hybrid retrieval are out of scope: they depend on the embedding model and its size.
 
 Accuracy is scored against *labels*, not against recorded output of the engine, so a wrong result is not locked in as
-correct. Performance is the `EXPLAIN (ANALYZE, BUFFERS)` plan of each query, never wall time.
+correct. A label is the answer key of a query: the entities it should find (`expected`). Performance is the `EXPLAIN (ANALYZE, BUFFERS)` plan of each query, never wall time.
 
 ## How it works
 
@@ -21,6 +21,43 @@ correct. Performance is the `EXPLAIN (ANALYZE, BUFFERS)` plan of each query, nev
 5. Plan metrics per query (`test.integration_tests.search.performance._plans`): cost, blocks, rows, loops, filtered
    rows and function calls, plus a check that the trigram index is used and `ai_search_index` is never sequentially
    scanned.
+
+## Anchors
+
+A label is only right if it lists *every* correct answer. Among 3000 random entities, a generated "Bluefin, Amsterdam"
+would be a correct answer to `bluefin amsterdam` that the YAML does not know about, and finding it would score as a
+miss.
+
+Anchors avoid that: a few hand-designed entities (`anchors()` in the profile) that are always in the corpus, whatever
+the seed. Hand-written queries refer to them by key (`expected: [ams-rt10]`), and the generator never produces an
+entity that competes with them. Anchors are near-misses of each other (`ams-rt01` against `ams-rt10`, Amsterdam
+against Amstelveen), so each query tests one specific distinction. The list is at the top of
+`queries/handwritten.yaml`.
+
+## Query categories
+
+| category           | the query is...                                                  | example                                   |
+| ------------------ | ---------------------------------------------------------------- | ----------------------------------------- |
+| `exact`            | an entity's full description, unchanged                          | `Amsterdam Port ams-rt01 et-0/0/1 for ...` |
+| `prefix`           | the description cut off at 60-80%                                | `Amsterdam Port ams-rt01 et-0/0/1 for No` |
+| `typo`             | the description with two neighbouring letters swapped            | `Amsterdma Port ams-rt01 ...`             |
+| `reorder`          | the description's words shuffled                                 | `Port Northwind ams-rt01 Amsterdam ...`   |
+| `case_punctuation` | a node and port in upper case, or without `-` and `/`            | `AMS RT10 ET 0 0 1`                       |
+| `identifier`       | a node and port name, IP prefix, ASN or (partial) UUID           | `ams-rt01 et-0/0/1`                       |
+| `multi_field`      | a customer plus a location, from different blocks of the entity | `Bluefin University Amsterdam`            |
+| `negative`         | text that should find nothing (hand-written only)                | `zxqv blorp`                              |
+
+## Reading the accuracy table
+
+All scores run from 0 to 1, averaged over the queries of a category.
+
+- **MRR**: how high the first right answer ranks. 1 at rank 1, 0.5 at rank 2, 0.33 at rank 3, 0 when not found.
+- **Success@1**: the share of queries with a right answer on top. Rank 2 counts as a miss.
+- **Recall@10**: the share of right answers in the top 10, capped at 10. Is it found at all?
+- **false positives**: the share of `negative` queries that returned anything. Lower is better.
+
+High Recall@10 with low Success@1 means search finds the answer but ranks it too low. Plan metrics are explained in
+the legend of `baseline/plans.*.md`.
 
 ## Reproducibility
 
