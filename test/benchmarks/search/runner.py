@@ -17,6 +17,7 @@ Accuracy is scored per category against the labels; performance is the plan of e
 time. See `test.integration_tests.search.performance._plans` for what the plan metrics mean and why they are stable.
 """
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
 
 from more_itertools import one
@@ -30,7 +31,7 @@ from orchestrator.core.search.query.engine import execute_search
 from orchestrator.core.search.query.queries import SelectQuery
 from test.benchmarks.search.corpus import CORPUS_ENTITY_CONFIG, Corpus
 from test.benchmarks.search.metrics import CategoryMetrics, QueryResult, metrics_per_category
-from test.benchmarks.search.perturb import LabelledQuery
+from test.benchmarks.search.perturb import Category, LabelledQuery
 from test.integration_tests.search.performance._plans import (
     GIST_INDEX,
     PLAN_SETTINGS,
@@ -146,8 +147,13 @@ def accuracy_by_category(results: Sequence[QueryResult]) -> Mapping[str, Categor
 
 
 def plan_scenarios(queries: Sequence[LabelledQuery], plans: Sequence[Mapping]) -> dict[str, list[dict]]:
-    """The plan metrics per query, named by category and position so that a changed query stands out."""
-    return {
-        f"{query.category.value}-{position}": [plan_metrics(plan)]
-        for position, (query, plan) in enumerate(zip(queries, plans), start=1)
-    }
+    """The plan metrics per query, named by category and position within it.
+
+    A query added to one category renames the rows of that category only, and a changed query stands out.
+    """
+    positions: Counter[Category] = Counter()
+    scenarios = {}
+    for query, plan in zip(queries, plans):
+        positions[query.category] += 1
+        scenarios[f"{query.category.value}-{positions[query.category]}"] = [plan_metrics(plan)]
+    return scenarios
