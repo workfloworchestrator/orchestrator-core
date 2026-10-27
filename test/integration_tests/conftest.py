@@ -36,6 +36,7 @@ from test.integration_tests._fixtures import (  # noqa: E402
     JsonTestClient,
     TestOrchestratorCelery,
     do_refresh_subscriptions_search_view,
+    wait_for_no_active_threadpool_jobs,
     wait_for_running_jobs_count,
 )
 
@@ -53,9 +54,15 @@ def idle_worker_status_monitor(fastapi_app) -> None:
 
     The monitor is a process-wide singleton whose cache is shared by every test on the same xdist
     worker. Waiting for the count to reach zero (instead of only refreshing) also covers a job from
-    the previous test that is still finishing, and surfaces a genuinely leaked job as a clear timeout.
+    the previous test that is still finishing.
+
+    In teardown, a job that never finishes is reset (after a short grace period) so the leak fails
+    the test that caused it instead of every later test on this worker.
     """
     wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=0)
+    yield
+    if (leaked := wait_for_no_active_threadpool_jobs()) != 0:
+        pytest.fail(f"{leaked} threadpool job(s) still running at teardown (#2039)")
 
 
 @pytest.fixture(autouse=True)

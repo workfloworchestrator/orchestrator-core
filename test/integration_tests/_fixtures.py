@@ -427,7 +427,13 @@ def make_orchestrator_app():
             WORKER_STATUS_INTERVAL=3600,
         ),
     ):
+        # get_worker_status_monitor() reuses a still-alive singleton, so a monitor created earlier in
+        # this process (e.g. by a unit test) would keep its own interval. Stop it so the app builds a
+        # fresh one that picks up the patched interval.
+        _stop_existing_worker_status_monitor()
+
         app = OrchestratorCore(base_settings=app_settings)
+        assert app.worker_status_monitor.update_interval == 3600
         app.broadcast_thread.start()
 
         try:
@@ -435,6 +441,56 @@ def make_orchestrator_app():
         finally:
             app.worker_status_monitor.stop()
             app.broadcast_thread.stop()
+
+
+def _stop_existing_worker_status_monitor() -> None:
+    """Stop a WorkerStatusMonitor left running by an earlier app in this process.
+
+    ``get_worker_status_monitor()`` reuses the global singleton while it is alive, so without this a
+    newly built app would inherit the interval from whatever created the monitor first (#2039).
+    """
+    import orchestrator.core.services.worker_status_monitor as worker_status_monitor
+
+    monitor = worker_status_monitor._monitor
+    if monitor is not None and monitor.is_alive():
+        monitor.stop()
+
+
+def reset_active_threadpool_jobs() -> None:
+    """Reset the threadpool active-job counter to zero.
+
+    Used in teardown when a test leaked a job that never finished, so the leaked count does not fail
+    every later test on the same xdist worker (#2039).
+    """
+    import orchestrator.core.services.processes as processes
+
+    with processes._active_jobs_lock:
+        processes._active_threadpool_jobs = 0
+
+
+def wait_for_no_active_threadpool_jobs(timeout: float = 5.0, interval: float = 0.05) -> int:
+    """Wait for in-flight threadpool jobs to finish, returning the number still active.
+
+    Jobs that are merely finishing (rather than stuck) decrement the counter shortly after a test
+    ends. Only a job that never returns survives the timeout, in which case the counter is reset so
+    the leak does not fail every later test on the same xdist worker (#2039).
+
+    Args:
+        timeout: Maximum number of seconds to wait for jobs to finish.
+        interval: Number of seconds to sleep between checks.
+
+    Returns:
+        The number of jobs still active after waiting (0 when none leaked).
+    """
+    import orchestrator.core.services.processes as processes
+
+    deadline = time.monotonic() + timeout
+    while (remaining := processes.get_active_threadpool_jobs_count()) != 0 and time.monotonic() < deadline:
+        time.sleep(interval)
+
+    if remaining != 0:
+        reset_active_threadpool_jobs()
+    return remaining
 
 
 def wait_for_running_jobs_count(
