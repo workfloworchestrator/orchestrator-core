@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import time
 import uuid
 from http import HTTPStatus
 from queue import Queue
@@ -60,7 +59,7 @@ from orchestrator.core.workflow import (
 )
 from orchestrator.core.workflows.tasks.cleanup_tasks_log import task_clean_up_tasks
 from pydantic_forms.core import FormPage
-from test.helpers import URL_STR_TYPE
+from test.helpers import URL_STR_TYPE, poll_until
 from test.integration_tests.workflows import WorkflowInstanceForTests
 
 test_condition = Condition()
@@ -174,7 +173,7 @@ def test_delete_process_404(test_client, started_process):
 
 
 @pytest.mark.timeout(30)
-def test_long_running_pause(test_client, long_running_workflow, monkeypatch):
+def test_long_running_pause(test_client, fastapi_app, long_running_workflow, monkeypatch):
     monkeypatch.setattr(app_settings, "TESTING", False)
     # Start the workflow
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{}])
@@ -199,11 +198,20 @@ def test_long_running_pause(test_client, long_running_workflow, monkeypatch):
     # Let it run until completing the first lock step
     with test_condition:
         test_condition.notify_all()
-    # FIXME: flaky, running_processes is read from the WorkerStatusMonitor cache which refreshes every 5s (#2039)
-    time.sleep(1)
 
     # Check status after pausing.
-    # Worker-based counting: worker has stopped executing, so count is 0
+    # Wait until the worker has actually stopped executing, instead of guessing with a fixed
+    # sleep. We must not call the HTTP API while the background worker is still committing on the
+    # shared test connection (that corrupts the per-test transaction), so poll the monitor's
+    # in-memory count directly: running_processes comes from that cache, and a background thread
+    # refreshes it only every WORKER_STATUS_INTERVAL seconds, hence the forced refresh (#2039).
+    poll_until(
+        read=fastapi_app.worker_status_monitor.get_running_jobs_count,
+        predicate=lambda count: count == 0,
+        before=fastapi_app.worker_status_monitor._refresh_once,
+        timeout=10,
+    )
+
     response = test_client.get("/api/settings/status")
     assert response.json()["global_lock"] is True
     assert response.json()["running_processes"] == 0  # No workers executing
@@ -228,7 +236,16 @@ def test_long_running_pause(test_client, long_running_workflow, monkeypatch):
     # Let it finish after second lock step
     with test_condition:
         test_condition.notify_all()
-    time.sleep(1)
+
+    # Wait for the worker to finish the process rather than guessing with a fixed sleep. As above,
+    # poll the in-memory monitor count to avoid touching the shared test connection while the
+    # background worker is still committing.
+    poll_until(
+        read=fastapi_app.worker_status_monitor.get_running_jobs_count,
+        predicate=lambda count: count == 0,
+        before=fastapi_app.worker_status_monitor._refresh_once,
+        timeout=10,
+    )
 
     response = test_client.get(f"api/processes/{process_id}")
     assert HTTPStatus.OK == response.status_code

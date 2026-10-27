@@ -95,7 +95,8 @@ def test_settings_query(test_client_graphql):
     worker_status = settings_data["workerStatus"]
 
     assert settings_data["cacheNames"] == {"all": "All caches"}
-    # FIXME: flaky, runningProcesses is read from the WorkerStatusMonitor cache which refreshes every 5s (#2039)
+    # runningProcesses is read from the WorkerStatusMonitor cache, which the autouse
+    # refresh_worker_status_monitor fixture refreshes before this test runs (#2039).
     assert settings_data["engineSettings"] == {"globalLock": False, "globalStatus": "RUNNING", "runningProcesses": 0}
     assert worker_status["executorType"] == "threadpool"
     assert worker_status["numberOfQueuedJobs"] == 0
@@ -165,7 +166,8 @@ def test_mutate_engine_global_settings(test_client_graphql):
 
     status_data = result["data"]["updateStatus"]
     assert status_data["__typename"] == "EngineSettingsType"
-    # FIXME: flaky, globalStatus depends on the WorkerStatusMonitor cache which refreshes every 5s (#2039)
+    # globalStatus depends on the WorkerStatusMonitor cache, which the autouse
+    # refresh_worker_status_monitor fixture refreshes before this test runs (#2039).
     assert status_data["globalStatus"] == "PAUSED"
     assert status_data["globalLock"] is True
 

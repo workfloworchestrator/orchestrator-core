@@ -33,7 +33,7 @@ wfo_active_process_count 0.0
 
 
 @pytest.fixture(autouse=True, scope="function")
-def assume_empty_metrics_at_start(test_client) -> None:
+def assume_empty_metrics_at_start(test_client, refresh_worker_status_monitor) -> None:
     """Assert that at the start of every unit test in this module, the metrics endpoint only contains empty data."""
     response = test_client.get("/api/metrics")
     assert HTTPStatus.OK == response.status_code
