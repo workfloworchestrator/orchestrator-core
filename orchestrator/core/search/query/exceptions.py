@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from orchestrator.core.search.core.exceptions import InvalidCursorError, InvalidSearchPageError
 from orchestrator.core.search.core.types import FilterOp
 
 
@@ -18,6 +19,11 @@ class QueryValidationError(Exception):
     """Base exception for all query validation errors."""
 
     pass
+
+
+# Errors in what the client sent, which every search endpoint reports back as a validation error. ValueError covers
+# pydantic's ValidationError and the input checks that build a query.
+SEARCH_INPUT_ERRORS = (InvalidCursorError, InvalidSearchPageError, QueryValidationError, ValueError)
 
 
 class InvalidLtreePatternError(QueryValidationError):

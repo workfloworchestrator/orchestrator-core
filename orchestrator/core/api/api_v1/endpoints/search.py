@@ -11,7 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from enum import Enum
+from typing import Any
 from uuid import UUID
 
 import structlog
@@ -28,22 +31,45 @@ from orchestrator.core.schemas.search import (
     SearchResultsSchema,
 )
 from orchestrator.core.schemas.search_requests import SearchExportRequest, SearchRequest
-from orchestrator.core.search.core.exceptions import InvalidCursorError, QueryStateNotFoundError
+from orchestrator.core.search.core.exceptions import InvalidSearchPageError, QueryStateNotFoundError
 from orchestrator.core.search.core.types import EntityType, UIType
 from orchestrator.core.search.filters.definitions import TypeDefinition, generate_definitions
 from orchestrator.core.search.query import QueryState, engine
 from orchestrator.core.search.query.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
-from orchestrator.core.search.query.exceptions import QueryValidationError
+from orchestrator.core.search.query.exceptions import SEARCH_INPUT_ERRORS
+from orchestrator.core.search.query.page import execute_search_page
 from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, QueryAdapter, SelectQuery
 from orchestrator.core.search.query.results import QueryResultsResponse, ResultRow, SearchResult, VisualizationType
 from orchestrator.core.search.query.validation import (
     is_lquery_syntactically_valid,
     validate_structured_order_by_element,
 )
-from orchestrator.core.search.retrieval.pagination import PageCursor, encode_next_page_cursor
 
 router = APIRouter()
 logger = structlog.get_logger(__name__)
+
+
+@contextmanager
+def search_errors_to_http(failure_message: str, **log_context: Any) -> Iterator[None]:
+    """Raise the errors of running a search as HTTPExceptions, shared by every search endpoint.
+
+    Invalid input is a 422, a request that names nothing to search a 400 and a missing saved query a 404, all keeping
+    their message; an HTTPException raised inside passes through, anything else is logged with `log_context` and
+    reported as a 500 with `failure_message`.
+    """
+    try:
+        yield
+    except HTTPException:
+        raise
+    except InvalidSearchPageError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    except SEARCH_INPUT_ERRORS as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
+    except QueryStateNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except Exception as e:
+        logger.error(failure_message, error=str(e), **log_context)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"{failure_message}: {e}") from e
 
 
 async def _perform_search_and_fetch(
@@ -67,42 +93,18 @@ async def _perform_search_and_fetch(
     Returns:
         Search results with entity_id, score, and matching_field.
     """
-    try:
-        await validate_structured_order_by_element(entity_type, request, session)
-
-        page_cursor: PageCursor | None = None
-        query: SelectQuery
-
-        if cursor:
-            page_cursor = PageCursor.decode(cursor)
-            query_state = await QueryState.load_from_id(page_cursor.query_id, SelectQuery, session)
-            query = query_state.query
-
-        elif query_id:
-            query_state = await QueryState.load_from_id(query_id, SelectQuery, session)
-            query = query_state.query
-
-        elif request and entity_type:
-            query = request.to_query(entity_type)
-            query_state = QueryState(query=query, query_embedding=None)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Either (request + entity_type), cursor, or query_id must be provided",
-            )
-
-        if not include_columns:
-            query = query.model_copy(update={"response_columns": []})
-
-        search_response = await engine.execute_search(query, session, page_cursor, query_state.query_embedding)
+    with search_errors_to_http("Search failed", entity_type=entity_type, query_id=query_id):
+        query = request.to_query(entity_type) if request and entity_type and not cursor and not query_id else None
+        page = await execute_search_page(
+            session, query=query, cursor=cursor, query_id=query_id, include_columns=include_columns
+        )
+        search_response = page.response
         if not search_response.results:
             return SearchResultsSchema(search_metadata=search_response.metadata)
 
-        next_page_cursor = await encode_next_page_cursor(search_response, page_cursor, query, session)
-        has_next_page = next_page_cursor is not None
         page_info = PageInfoSchema(
-            has_next_page=has_next_page,
-            next_page_cursor=next_page_cursor,
+            has_next_page=page.next_page_cursor is not None,
+            next_page_cursor=page.next_page_cursor,
         )
 
         cursor_info = None
@@ -118,15 +120,6 @@ async def _perform_search_and_fetch(
             page_info=page_info,
             search_metadata=search_response.metadata,
             cursor=cursor_info,
-        )
-    except (InvalidCursorError, QueryValidationError, ValueError) as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-    except QueryStateNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Search failed: {str(e)}",
         )
 
 
@@ -241,8 +234,8 @@ async def export_search(
     more results exist than were exported, but no cursor is returned.
     """
     entity_type = EXPORT_ENTITY_TYPES[entity]
-    await validate_structured_order_by_element(entity_type, request, session)
     query = request.to_query(entity_type)
+    await validate_structured_order_by_element(entity_type, query, session)
 
     search_response = await engine.execute_search(query, session)
 
@@ -314,7 +307,7 @@ async def get_query_results(query_id: UUID, session: AsyncSession = Depends(get_
     Detects query type from stored parameters and executes accordingly,
     always returning QueryResultsResponse for consistent client rendering.
     """
-    try:
+    with search_errors_to_http("Failed to fetch query results", query_id=query_id):
         stmt = select(SearchQueryTable).filter_by(query_id=query_id)
         result = await session.execute(stmt)
         row = result.scalar_one_or_none()
@@ -350,16 +343,6 @@ async def get_query_results(query_id: UUID, session: AsyncSession = Depends(get_
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unsupported query type: {query.query_type}",
-        )
-    except QueryStateNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Failed to fetch query results", query_id=query_id, error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch query results: {str(e)}",
         )
 
 
@@ -398,7 +381,7 @@ async def export_by_query_id(query_id: str, session: AsyncSession = Depends(get_
     Raises:
         HTTPException: 404 if query not found, 400 if invalid data
     """
-    try:
+    with search_errors_to_http("Export failed", query_id=query_id):
         # Load SelectQuery from the database (what gets saved during search)
         query_state = await QueryState.load_from_id(query_id, SelectQuery, session)
 
@@ -411,13 +394,3 @@ async def export_by_query_id(query_id: str, session: AsyncSession = Depends(get_
 
         export_records = await engine.execute_export(export_query, session, query_state.query_embedding)
         return ExportResponse(page=export_records)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-    except QueryStateNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    except Exception as e:
-        logger.error(e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error executing export: {str(e)}",
-        )

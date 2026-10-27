@@ -40,3 +40,9 @@ class QueryStateNotFoundError(SearchUtilsError):
     """Raised when a query state cannot be found in the database."""
 
     pass
+
+
+class InvalidSearchPageError(SearchUtilsError):
+    """Raised when a search page is requested without a query, cursor or query id, or with paging that can't apply."""
+
+    pass

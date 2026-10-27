@@ -14,6 +14,8 @@ from typing import Any, Generic, TypeVar
 
 import strawberry
 
+from orchestrator.core.graphql.schemas.search import MatchingFieldType, SearchMetadataType
+
 GenericType = TypeVar("GenericType")
 
 
@@ -27,7 +29,16 @@ class Connection(Generic[GenericType]):
     """
 
     page_info: "PageInfo"
-    page: list["GenericType"]
+    page: list["GenericType"] = strawberry.field(default_factory=list)
+    # Search fields live on every Connection so existing type names (and client fragments) keep working.
+    # They are only filled when the resource is queried with `search`; connections without a `search`
+    # argument (e.g. customers, scheduledTasks) always return them empty.
+    search_edges: list["SearchEdge[GenericType]"] = strawberry.field(default_factory=list)
+    search_metadata: SearchMetadataType | None = None
+    next_page_cursor: str | None = strawberry.field(
+        default=None,
+        description="Set when more hits follow; pass as search.cursor for the next page",
+    )
 
 
 @strawberry.federation.type(
@@ -61,8 +72,20 @@ class Edge(Generic[GenericType]):
     cursor: str
 
 
+@strawberry.type(description="A search hit: the matched entity and how it matched the search")
+class SearchEdge(Generic[GenericType]):
+    """Search hit wrapping its entity.
+
+    Score and match data live here, not on the entity type, which non-search queries share.
+    """
+
+    node: GenericType
+    score: float
+    perfect_match: int
+    matching_fields: list[MatchingFieldType]
+
+
 EMPTY_PAGE: Connection[Any] = Connection(
-    page=[],
     page_info=PageInfo(
         has_previous_page=False,
         has_next_page=False,

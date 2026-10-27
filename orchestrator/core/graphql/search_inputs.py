@@ -19,11 +19,20 @@ into a single FilterConditionInput with optional fields and dispatch to the
 correct Pydantic model via to_pydantic().
 
 SearchInput.to_select_query(entity_type) builds a SelectQuery; entity_type is
-supplied by the resolver rather than stored as a GraphQL field.
+supplied by the resolver rather than stored as a GraphQL field. ResourceSearchInput
+is the `search` argument of list resources, its page size is the resource's `first`.
 """
 
-import strawberry
+from collections.abc import Sequence
+from dataclasses import replace
+from typing import Annotated
+from uuid import UUID
 
+import strawberry
+from pydantic import TypeAdapter
+from strawberry.scalars import JSON
+
+from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort
 from orchestrator.core.search.core.types import (
     BooleanOperator,
     EntityType,
@@ -38,8 +47,10 @@ from orchestrator.core.search.filters.base import (
     StringFilter,
 )
 from orchestrator.core.search.filters.date_filters import DateRange, DateRangeFilter, DateValueFilter
+from orchestrator.core.search.filters.elastic_dsl import ElasticQuery, elastic_to_filter_tree
 from orchestrator.core.search.filters.ltree_filters import LtreeFilter
 from orchestrator.core.search.filters.numeric_filter import NumericRange, NumericRangeFilter, NumericValueFilter
+from orchestrator.core.search.indexing.field_types import resolve_field_value_kind
 from orchestrator.core.search.query.mixins import OrderDirection, StructuredOrderBy
 from orchestrator.core.search.query.queries import SelectQuery
 
@@ -143,22 +154,95 @@ class StructuredOrderByInput:
         return StructuredOrderBy(element=self.element, direction=self.direction)
 
 
-@strawberry.input(description="Top-level search input for GraphQL queries.")
-class SearchInput:
+@strawberry.input(description="Search criteria shared by the search query and the list resources.")
+class BaseSearchInput:
     query: str | None = None
     filters: FilterTreeInput | None = None
-    limit: int = 10
+    elastic_filters: JSON | None = strawberry.field(
+        default=None,
+        description=(
+            "Filters in Elasticsearch DSL, as produced by react-querybuilder's formatQuery(query, 'elasticsearch');"
+            " an alternative to filters."
+        ),
+    )
     retriever: RetrieverTypeEnum | None = None  # type: ignore[valid-type]
     order_by: StructuredOrderByInput | None = None
-    response_columns: list[str] | None = None
 
-    def to_select_query(self, entity_type: EntityType) -> SelectQuery:
+    def to_select_query(self, entity_type: EntityType, limit: int) -> SelectQuery:
         return SelectQuery(
             entity_type=entity_type,
             query_text=self.query,
-            filters=self.filters.to_pydantic() if self.filters else None,
-            limit=self.limit,
+            filters=self._filter_tree(entity_type),
+            limit=limit,
             retriever=self.retriever,
             order_by=self.order_by.to_pydantic() if self.order_by else None,
-            response_columns=self.response_columns,
         )
+
+    def _filter_tree(self, entity_type: EntityType) -> FilterTree | None:
+        if self.filters and self.elastic_filters is not None:
+            raise ValueError("Pass either filters or elasticFilters, not both")
+        if self.filters:
+            return self.filters.to_pydantic()
+        if self.elastic_filters is None:
+            return None
+        # GraphQL input types can't be unions, so the DSL arrives as JSON and is validated here.
+        es_query: ElasticQuery = TypeAdapter(ElasticQuery).validate_python(self.elastic_filters)
+        return elastic_to_filter_tree(
+            es_query, value_kind_resolver=lambda path, _value: resolve_field_value_kind(entity_type, path)
+        )
+
+
+@strawberry.input(description="Top-level search input for GraphQL queries.")
+class SearchInput(BaseSearchInput):
+    limit: int = 10
+    response_columns: list[str] | None = None
+
+    def to_select_query(self, entity_type: EntityType, limit: int | None = None) -> SelectQuery:
+        query = super().to_select_query(entity_type, self.limit if limit is None else limit)
+        return query.model_copy(update={"response_columns": self.response_columns})
+
+
+@strawberry.input(
+    description="Search on a list resource; replaces its filterBy, sortBy and query. Filters without query text run a"
+    " structured search, query text runs a fuzzy, semantic or hybrid search. Page with first and after (structured"
+    " search only), or with cursor."
+)
+class ResourceSearchInput(BaseSearchInput):
+    cursor: str | None = strawberry.field(
+        default=None,
+        description=(
+            "nextPageCursor of the previous page; resumes that search, so the other search fields except entityIds"
+            " are ignored."
+        ),
+    )
+    entity_ids: list[UUID] | None = strawberry.field(
+        default=None,
+        description=(
+            "Only return these entities. Not stored with the search, so pass it again with every cursor; on a"
+            " relation field it narrows within the related entities."
+        ),
+    )
+
+    def within(self, allowed_ids: Sequence[UUID] | None) -> "ResourceSearchInput":
+        """This search narrowed to `allowed_ids`, e.g. a relation's ids; the client can narrow it, never widen it."""
+        if allowed_ids is None:
+            return self
+        if self.entity_ids is None:
+            return replace(self, entity_ids=list(allowed_ids))
+        allowed = set(allowed_ids)
+        return replace(self, entity_ids=[entity_id for entity_id in self.entity_ids if entity_id in allowed])
+
+
+# Arguments of the list resources that accept `search`; filterBy, sortBy and query are replaced by it.
+# Todo: remove deprecation later with #2074
+DeprecatedFilterBy = Annotated[
+    list[GraphqlFilter] | None, strawberry.argument(deprecation_reason="Use search.filters instead")
+]
+DeprecatedSortBy = Annotated[
+    list[GraphqlSort] | None, strawberry.argument(deprecation_reason="Use search.orderBy instead")
+]
+DeprecatedQuery = Annotated[str | None, strawberry.argument(deprecation_reason="Use search.query instead")]
+First = Annotated[int, strawberry.argument(description="Page size")]
+After = Annotated[
+    int, strawberry.argument(description="Number of items to skip; with search only for structured search")
+]

@@ -187,7 +187,52 @@ Here is an example for when instead of overriding the customers resolver, you in
 (know that not storing any customer data in the Orchestrator will make filtering and sorting unavailable and very
 tricky to implement):
 
-=== "`orchestrator-core` ≥ 5.0"
+=== "`orchestrator-core` ≥ 5.6"
+
+    ```python
+    import strawberry
+    from sqlalchemy import select
+
+    from oauth2_lib.strawberry import authenticated_field
+    from orchestrator.core.db import SubscriptionTable, db
+    from orchestrator.core.graphql.pagination import Connection
+    from orchestrator.core.graphql.schemas.subscription import SubscriptionInterface
+    from orchestrator.core.graphql.search_inputs import ResourceSearchInput
+    from orchestrator.core.graphql.types import OrchestratorInfo
+
+
+    @strawberry.federation.type(description="Customer", keys=["customer_id"])
+    class Customer:
+        customer_id: str
+
+        @classmethod
+        async def resolve_reference(cls, customer_id: str) -> "Customer":  # noqa: N803
+            return Customer(customer_id=customer_id)
+
+        @authenticated_field(description="Returns subscriptions of a customer")  # type: ignore
+        async def subscriptions(
+            self,
+            info: OrchestratorInfo,
+            first: int = 10,
+            after: int = 0,
+            search: ResourceSearchInput | None = None,
+        ) -> Connection[SubscriptionInterface]:
+            from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
+
+            stmt = select(SubscriptionTable.subscription_id).where(SubscriptionTable.customer_id == self.customer_id)
+            subscription_ids = list(db.session.scalars(stmt))
+            # `within` narrows the client's search to this customer's subscriptions; it can never widen it.
+            customer_search = (search or ResourceSearchInput()).within(subscription_ids)
+            return await resolve_subscriptions(info, first=first, after=after, search=customer_search)
+
+    UPDATED_GRAPHQL_MODELS = DEFAULT_GRAPHQL_MODELS | {
+        "Customer": Customer,
+    }
+
+    app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
+    ```
+
+=== "`orchestrator-core` 5.0 – 5.5"
 
     ```python
     import strawberry
@@ -839,7 +884,63 @@ Below, I present an example illustrating how to override the `CustomerType` and 
 
 Here's a generic override for the `CustomerType` that introduces a new `subscriptions` relation:
 
-=== "`orchestrator-core` ≥ 5.0"
+=== "`orchestrator-core` ≥ 5.6"
+
+    ```python
+    from typing import Annotated
+
+    import strawberry
+    from sqlalchemy import select
+
+    from oauth2_lib.strawberry import authenticated_field
+    from orchestrator.core.db import SubscriptionTable, db
+    from orchestrator.core.graphql.pagination import Connection
+    from orchestrator.core.graphql.schemas.customer import CustomerType
+    from orchestrator.core.graphql.schemas.subscription import (
+        SubscriptionInterface,
+    )  # noqa: F401
+    from orchestrator.core.graphql.search_inputs import ResourceSearchInput
+    from orchestrator.core.graphql.types import OrchestratorInfo
+    from orchestrator.core.graphql.utils.override_class import override_class
+
+    # Type annotation for better readability rather than having this directly as a return type
+    SubscriptionInterfaceType = Connection[
+        Annotated[
+            "SubscriptionInterface",
+            strawberry.lazy("orchestrator.core.graphql.schemas.subscription"),
+        ]
+    ]
+
+
+    # Resolver for fetching subscriptions of a customer
+    async def resolve_subscriptions(
+        root: CustomerType,
+        info: OrchestratorInfo,
+        first: int = 10,
+        after: int = 0,
+        search: ResourceSearchInput | None = None,
+    ) -> SubscriptionInterfaceType:
+        from orchestrator.core.graphql.resolvers.subscription import resolve_subscriptions
+
+        stmt = select(SubscriptionTable.subscription_id).where(SubscriptionTable.customer_id == root.customer_id)
+        subscription_ids = list(db.session.scalars(stmt))
+        # `within` narrows the client's search to this customer's subscriptions; it can never widen it.
+        customer_search = (search or ResourceSearchInput()).within(subscription_ids)
+        return await resolve_subscriptions(info, first=first, after=after, search=customer_search)
+
+
+    # Create an authenticated field for customer subscriptions
+    customer_subscriptions_field = authenticated_field(
+        resolver=resolve_subscriptions, description="Returns subscriptions of a customer"
+    )
+    # Assign a new name to the Strawberry field; this name will add the 'subscriptions' field in the class
+    customer_subscriptions_field.name = "subscriptions"
+
+    # Override the CustomerType with the new 'subscriptions' field
+    override_class(CustomerType, [customer_subscriptions_field])
+    ```
+
+=== "`orchestrator-core` 5.0 – 5.5"
 
     ```python
     from typing import Annotated
@@ -1171,10 +1272,136 @@ custom_subscription_interface = override_class(SubscriptionInterface, [customer_
 ### Behavior of filterBy
 <!-- diataxis: -->
 
+!!! warning "Deprecated"
+
+    `filterBy`, `sortBy` and `query` are deprecated on the list resources, as are `filterBy` and `sortBy` on the
+    relation fields. Use the `search` argument instead, see [Searching list resources](#searching-list-resources).
+    `FILTER_BY_MODE` only applies to `filterBy`.
+
 By default, string matching is configured for exact matches, i.e a search for `10` will return ONLY `10`
 and won't include `10G` or `100G`.
 Searching can also be configured for partial matching as well, where a search for `10` would include `10G` and `100G`.
 
 This can be controlled by setting the variable `FILTER_BY_MODE` can be set to a value of `exact` or `partial` as needed.
+
+## Searching list resources
+
+The list resources `subscriptions`, `processes`, `products`, `productBlocks`, `workflows` and `resourceTypes`
+accept a `search` argument that runs the [AI / Hybrid Search](ai-search.md) engine. So do the relation fields
+`subscription.processes`, `subscription.inUseBySubscriptions`, `subscription.dependsOnSubscriptions` and
+`process.subscriptions`. There, the search only returns the related entities.
+
+`search` replaces the deprecated `filterBy`, `sortBy` and `query` arguments. Combining them with `search` returns a
+validation error.
+
+A search is either **structured** or a **text search**, depending on whether it has `query` text. Both return the
+results in `searchEdges` with each match's `score` and `matchingFields`; `page` has the same entities without the
+match data.
+
+Unlike the separate `search` query, the `search` argument does not use `responseColumns`. Select the fields you need
+from the resource type under `node`.
+
+### Structured search
+
+Without `query` text, the search only filters. Every result has a `score` of `1`, and the results are ordered by
+`orderBy`, or by entity id without it.
+
+| Field            | Description                                                                                       |
+|------------------|---------------------------------------------------------------------------------------------------|
+| `filters`        | Conditions on indexed fields, combined with `AND`/`OR` and nestable in `groups`. `searchPaths` lists the field paths and their `valueKind`, `searchDefinitions` the operators per `valueKind`. |
+| `elasticFilters` | Filters in Elasticsearch DSL, as produced by react-querybuilder. Use this or `filters`, not both. |
+| `orderBy`        | Order by an indexed field: `{ element, direction }`. Rejected together with `query`.           |
+| `entityIds`      | Only return these entities. It is not saved with the search, so pass it again with every `cursor`. |
+| `cursor`         | `nextPageCursor` from the previous page. Resumes that search and ignores the other fields except `entityIds`. |
+
+```graphql
+query {
+  subscriptions(
+    first: 20
+    after: 40 # offset paging works for structured search only; use either `after` or `search.cursor`
+    search: {
+      # active subscriptions that started in 2025 AND whose product name is like "%Product A%" or "%Product B%"
+      filters: {
+        op: AND # how `filters` and `groups` are combined; AND is the default
+        filters: [
+          { path: "subscription.status", condition: { op: EQ, value: "active" }, valueKind: STRING }
+          {
+            path: "subscription.start_date"
+            # range ops take rangeStart/rangeEnd instead of value; dates use a half-open range
+            condition: { op: BETWEEN, rangeStart: "2025-01-01", rangeEnd: "2026-01-01" }
+            valueKind: DATETIME # picks how the value is parsed; take it from searchPaths
+          }
+        ]
+        groups: [
+          {
+            op: OR # a nested group, combined with the filters above by the outer AND
+            filters: [
+              { path: "subscription.product.name", condition: { op: LIKE, value: "%Product A%" }, valueKind: STRING }
+              { path: "subscription.product.name", condition: { op: LIKE, value: "%Product B%" }, valueKind: STRING }
+            ]
+          }
+        ]
+      }
+      # instead of `filters`, the same tree from react-querybuilder:
+      # elasticFilters: { bool: { must: [{ term: { "subscription.status": "active" } }] } }
+      orderBy: { element: "subscription.start_date", direction: DESC } # must be an indexed path
+      entityIds: ["6c8f1b84-...", "a07e3d1c-..."] # optional: restrict the search to these subscriptions
+    }
+  ) {
+    searchEdges { score node { subscriptionId description startDate } } # score is always 1 here
+    pageInfo { hasNextPage totalItems }
+    nextPageCursor
+  }
+}
+```
+
+### Text search
+
+With `query` text, the engine finds the matching entities and ranks them by relevance, highest `score` first. The
+filters still narrow the candidates; `orderBy` is rejected.
+
+| Field            | Description                                                                                       |
+|------------------|---------------------------------------------------------------------------------------------------|
+| `query`          | Search text.                                                                                      |
+| `retriever`      | Force a retriever (`FUZZY`, `SEMANTIC` or `HYBRID`) instead of letting the engine choose one, see [Searching](ai-search.md#searching-read-path). |
+| `filters`        | Conditions on indexed fields, combined with `AND`/`OR` and nestable in `groups`. `searchPaths` lists the field paths and their `valueKind`, `searchDefinitions` the operators per `valueKind`. |
+| `elasticFilters` | Filters in Elasticsearch DSL, as produced by react-querybuilder. Use this or `filters`, not both. |
+| `entityIds`      | Only return these entities. It is not saved with the search, so pass it again with every `cursor`. |
+| `cursor`         | `nextPageCursor` from the previous page. Resumes that search and ignores the other fields except `entityIds`. |
+
+```graphql
+query {
+  subscriptions(
+    first: 20 # `after` is rejected for text search; page with `search.cursor`
+    search: {
+      query: "example description" # fuzzy-matched and, with an embedding, ranked semantically too
+      retriever: HYBRID # optional: the engine already picks HYBRID for this text, FUZZY for a UUID
+      # filters narrow the candidates before ranking, exactly as in a structured search
+      filters: { filters: [{ path: "subscription.status", condition: { op: EQ, value: "active" }, valueKind: STRING }] }
+      entityIds: ["6c8f1b84-...", "a07e3d1c-..."] # optional: restrict the search to these subscriptions
+      # next page: pass the previous nextPageCursor (plus entityIds, if used); the other fields are then ignored
+      # cursor: "eyJzZWFyY2hfaWQiOi..."
+    }
+  ) {
+    searchEdges {
+      score # relevance, highest first
+      perfectMatch # 1 when a field (nearly) exactly matches the text; those rank above the rest
+      matchingFields { text path highlightIndices } # the fields that matched, with the spans to highlight
+      node { subscriptionId description }
+    }
+    searchMetadata { searchType description } # the retriever that ran
+    pageInfo { hasNextPage totalItems }
+    nextPageCursor
+  }
+}
+```
+
+### Pagination
+
+`first` sets the page size. To get the next page, either:
+
+- pass `nextPageCursor` as `search.cursor`. This works for every search type and stays stable while the data changes.
+- pass `after` as an offset. This only works for structured search (filters without `query` text), and cannot be
+  combined with a cursor.
 
 [example-orchestrator]: https://github.com/workfloworchestrator/example-orchestrator/blob/master/README.md#federation

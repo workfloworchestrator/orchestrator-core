@@ -29,7 +29,7 @@ from orchestrator.core.search.aggregations import (
 from orchestrator.core.search.core.types import EntityType, QueryOperation
 from orchestrator.core.search.filters import FilterTree
 from orchestrator.core.search.query.builder import build_aggregation_query, build_candidate_query
-from orchestrator.core.search.query.mixins import OrderBy, OrderDirection
+from orchestrator.core.search.query.mixins import OrderBy, OrderDirection, StructuredOrderBy
 from orchestrator.core.search.query.queries import (
     AggregateQuery,
     BaseQuery,
@@ -254,6 +254,24 @@ def test_aggregate_query_multiple_temporal_groupings(
             ),
             "order_by requires at least one grouping field",
             id="order_by-needs-grouping",
+        ),
+        pytest.param(
+            lambda: SelectQuery(
+                entity_type=EntityType.SUBSCRIPTION,
+                query_text="example",
+                order_by=StructuredOrderBy(element="subscription.start_date"),
+            ),
+            "order_by can only be set when query is empty",
+            id="select-order_by-with-query-text",
+        ),
+        pytest.param(
+            lambda: ExportQuery(
+                entity_type=EntityType.SUBSCRIPTION,
+                query_text="example",
+                order_by=StructuredOrderBy(element="subscription.start_date"),
+            ),
+            "order_by can only be set when query is empty",
+            id="export-order_by-with-query-text",
         ),
         pytest.param(
             lambda: AggregateQuery(

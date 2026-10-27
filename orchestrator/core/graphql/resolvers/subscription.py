@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import Sequence
 from typing import cast
 from uuid import UUID
 
@@ -36,8 +37,17 @@ from orchestrator.core.db.sorting.subscription import (
     subscription_sort_fields,
 )
 from orchestrator.core.graphql.pagination import Connection
+from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.product import ProductModelGraphql
 from orchestrator.core.graphql.schemas.subscription import SubscriptionInterface
+from orchestrator.core.graphql.search_inputs import (
+    After,
+    DeprecatedFilterBy,
+    DeprecatedQuery,
+    DeprecatedSortBy,
+    First,
+    ResourceSearchInput,
+)
 from orchestrator.core.graphql.types import (
     GraphqlFilter,
     GraphqlSort,
@@ -49,6 +59,7 @@ from orchestrator.core.graphql.utils import (
     is_querying_page_data,
     to_graphql_result_page,
 )
+from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.utils.get_subscription_dict import get_subscription_dict
 
 logger = structlog.get_logger(__name__)
@@ -107,14 +118,31 @@ async def resolve_subscription(info: OrchestratorInfo, id: UUID) -> Subscription
     return None
 
 
-async def resolve_subscriptions(
+async def _load_subscriptions(
+    info: OrchestratorInfo, subscription_ids: Sequence[UUID]
+) -> dict[str, SubscriptionInterface]:
+    stmt = (
+        select(SubscriptionTable)
+        .join(ProductTable)
+        .options(contains_eager(SubscriptionTable.product))
+        .where(SubscriptionTable.subscription_id.in_(subscription_ids))
+    )
+    subscriptions = (await run_in_threadpool(db.session.scalars, stmt)).all()
+    graphql_subscriptions = cast(
+        list[SubscriptionInterface], await gather_nice(format_subscription(info, s) for s in subscriptions)
+    )
+    return {str(subscription.subscription_id): subscription for subscription in graphql_subscriptions}
+
+
+async def query_subscriptions(
     info: OrchestratorInfo,
-    filter_by: list[GraphqlFilter] | None = None,
-    sort_by: list[GraphqlSort] | None = None,
-    first: int = 10,
-    after: int = 0,
-    query: str | None = None,
+    filter_by: list[GraphqlFilter] | None,
+    sort_by: list[GraphqlSort] | None,
+    first: int,
+    after: int,
+    query: str | None,
 ) -> Connection[SubscriptionInterface]:
+    """List subscriptions with the legacy filterBy/sortBy/query arguments and offset paging."""
     _error_handler = create_resolver_error_handler(info)
 
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
@@ -155,3 +183,24 @@ async def resolve_subscriptions(
     return to_graphql_result_page(
         graphql_subscriptions, first, after, total, subscription_sort_fields(), subscription_filter_fields()
     )
+
+
+# Todo: move into resolve_subscriptions once the deprecated query_subscriptions is removed, see #2074
+async def _search_subscriptions(
+    info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
+) -> Connection[SubscriptionInterface]:
+    return await search_resource(info, EntityType.SUBSCRIPTION, search, _load_subscriptions, first=first, after=after)
+
+
+async def resolve_subscriptions(
+    info: OrchestratorInfo,
+    filter_by: DeprecatedFilterBy = None,
+    sort_by: DeprecatedSortBy = None,
+    first: First = 10,
+    after: After = 0,
+    query: DeprecatedQuery = None,
+    search: ResourceSearchInput | None = None,
+) -> Connection[SubscriptionInterface]:
+    if search is not None:
+        return await _search_subscriptions(info, search, first, after)
+    return await query_subscriptions(info, filter_by, sort_by, first, after, query)

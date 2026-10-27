@@ -11,10 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from typing import Self
-
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.core.search.core.types import EntityType, RetrieverType
 from orchestrator.core.search.filters import ElasticQuery, FilterTree, elastic_to_filter_tree
@@ -64,12 +61,6 @@ class BaseSearchRequest(BaseModel):
                 value_kind_resolver=lambda path, _value: resolve_field_value_kind(entity_type, path),
             )
         return filters
-
-    @model_validator(mode="after")
-    def validate_order_by_not_compatible_with_query(self) -> Self:
-        if self.order_by and self.query:
-            raise ValueError("order_by can only be set when query is empty")
-        return self
 
 
 class SearchRequest(BaseSearchRequest):

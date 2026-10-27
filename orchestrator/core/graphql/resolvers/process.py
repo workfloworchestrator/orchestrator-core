@@ -10,12 +10,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import Iterator, Sequence
 from uuid import UUID
 
 import structlog
 from pydantic.alias_generators import to_camel as to_lower_camel
-from sqlalchemy import func, select
+from sqlalchemy import CompoundSelect, Select, func, select
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.strategy_options import _AbstractLoad
 
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.db.filters import Filter
@@ -26,7 +28,16 @@ from orchestrator.core.db.sorting import Sort
 from orchestrator.core.db.sorting.process import process_sort_fields, sort_processes
 from orchestrator.core.graphql.pagination import Connection
 from orchestrator.core.graphql.resolvers.helpers import make_async, rows_from_statement
+from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.process import ProcessType
+from orchestrator.core.graphql.search_inputs import (
+    After,
+    DeprecatedFilterBy,
+    DeprecatedQuery,
+    DeprecatedSortBy,
+    First,
+    ResourceSearchInput,
+)
 from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.core.graphql.utils import (
     create_resolver_error_handler,
@@ -36,6 +47,7 @@ from orchestrator.core.graphql.utils import (
 )
 from orchestrator.core.graphql.utils.get_query_loaders import get_query_loaders_for_gql_fields
 from orchestrator.core.schemas.process import ProcessSchema
+from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.services.processes import load_process
 from orchestrator.core.utils.enrich_process import enrich_process
 from orchestrator.core.utils.search_query import create_sqlalchemy_select
@@ -48,11 +60,26 @@ simple_props = tuple([to_lower_camel(key) for key in ProcessType.__annotations__
 
 _is_process_detailed = is_query_detailed(simple_props)
 
+# Hardcoded loaders required for _enrich_process
+_DEFAULT_PROCESS_LOADERS = [
+    selectinload(ProcessTable.process_subscriptions)
+    .selectinload(ProcessSubscriptionTable.subscription)
+    .joinedload(SubscriptionTable.product)
+]
+
 
 def _enrich_process(process: ProcessTable, with_details: bool = False) -> ProcessSchema:
     pstat = load_process(process) if with_details else None
     process_data = enrich_process(process, pstat)
     return ProcessSchema(**process_data)
+
+
+def _graphql_processes(
+    info: OrchestratorInfo, stmt: Select | CompoundSelect, loaders: Sequence[_AbstractLoad]
+) -> Iterator[ProcessType]:
+    is_detailed = _is_process_detailed(info)
+    for process in rows_from_statement(stmt, ProcessTable, loaders=loaders):
+        yield ProcessType.from_pydantic(_enrich_process(process, is_detailed))
 
 
 @make_async
@@ -66,7 +93,7 @@ def resolve_process(info: OrchestratorInfo, process_id: UUID) -> ProcessType | N
 
 
 @make_async
-def resolve_processes(
+def query_processes(
     info: OrchestratorInfo,
     filter_by: list[GraphqlFilter] | None = None,
     sort_by: list[GraphqlSort] | None = None,
@@ -74,18 +101,13 @@ def resolve_processes(
     after: int = 0,
     query: str | None = None,
 ) -> Connection[ProcessType]:
+    """List processes with the legacy filterBy/sortBy/query arguments and offset paging."""
     _error_handler = create_resolver_error_handler(info)
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
     logger.debug("resolve_processes() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
-    # Hardcoded loaders required for _enrich_process
-    default_loaders = [
-        selectinload(ProcessTable.process_subscriptions)
-        .selectinload(ProcessSubscriptionTable.subscription)
-        .joinedload(SubscriptionTable.product)
-    ]
-    query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info) or default_loaders
+    query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info) or _DEFAULT_PROCESS_LOADERS
     select_stmt = select(ProcessTable).options(*query_loaders)
     select_stmt = filter_processes(select_stmt, pydantic_filter_by, _error_handler)
     if query is not None:
@@ -103,11 +125,35 @@ def resolve_processes(
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    graphql_processes = []
-    if is_querying_page_data(info):
-        processes = rows_from_statement(stmt, ProcessTable, loaders=query_loaders)
-        is_detailed = _is_process_detailed(info)
-        graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]
+    graphql_processes = list(_graphql_processes(info, stmt, query_loaders)) if is_querying_page_data(info) else []
     return to_graphql_result_page(
         graphql_processes, first, after, total, process_sort_fields(), process_filter_fields()
     )
+
+
+@make_async
+def _load_processes(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, ProcessType]:
+    query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info) or _DEFAULT_PROCESS_LOADERS
+    stmt = select(ProcessTable).where(ProcessTable.process_id.in_(ids))
+    return {str(process.process_id): process for process in _graphql_processes(info, stmt, query_loaders)}
+
+
+# Todo: move into resolve_processes once the deprecated query_processes is removed, see #2074
+async def _search_processes(
+    info: OrchestratorInfo, search: ResourceSearchInput, first: int, after: int
+) -> Connection[ProcessType]:
+    return await search_resource(info, EntityType.PROCESS, search, _load_processes, first=first, after=after)
+
+
+async def resolve_processes(
+    info: OrchestratorInfo,
+    filter_by: DeprecatedFilterBy = None,
+    sort_by: DeprecatedSortBy = None,
+    first: First = 10,
+    after: After = 0,
+    query: DeprecatedQuery = None,
+    search: ResourceSearchInput | None = None,
+) -> Connection[ProcessType]:
+    if search is not None:
+        return await _search_processes(info, search, first, after)
+    return await query_processes(info, filter_by, sort_by, first, after, query)

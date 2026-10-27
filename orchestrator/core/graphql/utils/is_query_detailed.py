@@ -11,20 +11,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 
-from more_itertools import flatten, one
+from more_itertools import flatten
 from strawberry.types.nodes import FragmentSpread, InlineFragment, SelectedField, Selection
 
 from orchestrator.core.graphql.types import OrchestratorInfo
 
 
-def get_selected_field_selections(selected_field: Selection, name: str) -> list[Selection]:
-    def is_named_field(selection: Selection, field_name: str) -> bool:
-        return isinstance(selection, SelectedField) and selection.name == field_name
+def _named_fields(selected_field: Selection, name: str) -> Iterator[SelectedField]:
+    """Every selection of field `name`, including those inside fragments.
 
-    page_field = [selection for selection in selected_field.selections if is_named_field(selection, name)]
-    return one(page_field).selections if page_field else []
+    A client may select one field several times under different aliases, or through a named or inline fragment
+    (`...hits`), which wraps the field in a FragmentSpread or InlineFragment instead of listing it directly.
+    """
+    for selection in selected_field.selections:
+        if isinstance(selection, SelectedField) and selection.name == name:
+            yield selection
+        elif isinstance(selection, FragmentSpread | InlineFragment):
+            yield from _named_fields(selection, name)
+
+
+def get_selected_field_selections(selected_field: Selection, name: str) -> list[Selection]:
+    return list(flatten(field.selections for field in _named_fields(selected_field, name)))
+
+
+def _entity_selections(selected_field: Selection) -> list[Selection]:
+    """Fields selected on the entities a field returns.
+
+    A connection returns its entities under `page` and, for a search, under `searchEdges { node }`; both lists
+    are loaded from the same rows, so a detail requested in either one applies to all of them. A field that is
+    not a connection (e.g. `subscription(id)`) selects the entity's fields directly.
+    """
+    pages = list(_named_fields(selected_field, "page"))
+    search_edges = list(_named_fields(selected_field, "searchEdges"))
+    if not pages and not search_edges:
+        return list(selected_field.selections)
+    return [
+        *flatten(page.selections for page in pages),
+        *flatten(get_selected_field_selections(edges, "node") for edges in search_edges),
+    ]
 
 
 def is_query_detailed(basic_fields: tuple, type_conditions: tuple | None = None) -> Callable[[OrchestratorInfo], bool]:
@@ -50,9 +76,7 @@ def is_query_detailed(basic_fields: tuple, type_conditions: tuple | None = None)
                 return any(has_details(s) for s in selection.selections)
             return selection.name not in basic_fields
 
-        fields = flatten(
-            (get_selected_field_selections(field, "page") or field.selections) for field in info.selected_fields
-        )
+        fields = flatten(_entity_selections(field) for field in info.selected_fields)
         return any(has_details(selection) for selection in fields if selection)
 
     return _is_model_info_detailed
