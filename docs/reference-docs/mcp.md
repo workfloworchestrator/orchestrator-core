@@ -1,10 +1,18 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # MCP Server
+<!-- diataxis: -->
 
 The `orchestrator-core` ships with an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that exposes a curated subset of REST operations as **tools** for LLM agents. It is mounted on the FastAPI app at `/mcp` and shares the same authentication/authorization chain as the rest of the API.
 
 The server is built on top of [`fastmcp`](https://gofastmcp.com/) and is **auto-generated from the FastAPI routes** — there is no separate tool registry to maintain. Tagging a route is the only thing needed to surface it.
 
 ## Enabling
+<!-- diataxis: -->
 
 The MCP sub-app is opt-in:
 
@@ -25,6 +33,7 @@ When enabled, `OrchestratorCore.__init__` mounts the sub-app at `/mcp` and compo
 Transport: **streamable HTTP** (`/mcp/`). Configure your MCP client (e.g. Claude Desktop, an agent framework) to talk to that URL.
 
 ## Usage
+<!-- diataxis: -->
 
 Once enabled, any MCP client can connect to `https://<your-orchestrator>/mcp/` and call the generated tools.
 
@@ -58,13 +67,14 @@ Tool names map 1:1 to the route's `operation_id`; tool descriptions come from th
 
 ## Workflow form pages for agents
 
-`get_workflow_form` walks a workflow's form page by page. Each result describes one page as `fields`: data an agent can fill without undoing widget hints. The browser's JSON Schema of the same page is still sent as `schema`, but that field is deprecated and will be removed in the next major release; pass `include_schema: false` to leave it out. Per field: `name`, `title`, `kind` (`string`, `integer`, `number`, `boolean`, `list`, `object`, `any`), `required`, `default`, `nullable`, `options` (the `value` to submit and the `label` a person sees; `[]` when a choice has no option today), `item` and `unique_items` for a list, `constraints` (every limit the value is validated against, by pydantic's `Field` keyword: `min_length` / `max_length` for the characters of a string or the items of a list, `pattern`, `ge` / `gt` / `le` / `lt`, `multiple_of`, ...), `fields` for a nested object, `format` (the form's marker: `accept`, `productId`, `customerId`, `subscription`, `summary`, ...), and `read_only` / `display_only` for fields that are shown and not submitted (`data` carries what a display field shows, such as a summary table).
+`get_workflow_form` walks a workflow's form page by page. Each result describes one page as `schema`: the page's JSON Schema as one self-contained document, the same schema the browser renders but with every `$ref` replaced by its definition (a model that contains itself keeps its `$ref` and its entry under `$defs`). Read `properties` and `required` for what to submit. A property's `title` and `description` are the field's label and help text as the frontend shows them, from core's form translations in the `language` asked (default `en-GB`); a field without one keeps the schema's own title. A property with `readOnly: true` (a label, a divider, a summary table, a subscription shown for context) is shown to a person and takes no value: submit nothing for it. `enum` lists the values a property takes and, where a value has a label that differs from it, `options` maps value to label: submit the value. `format: "accept"` is a confirmation and takes `"ACCEPTED"`. A nullable property is an `anyOf` with `{"type": "null"}`. The form's widget hints (`format`, `uniforms` / `extraProperties`) are in the schema as the browser gets them; the products a `productId` field allows, for instance, are under `uniforms.productIds`.
 
-`status` says what to do next: `next` (fill the page and call again with it appended to `page_inputs`), `complete` (call `create_workflow` with the same `page_inputs`) or `rejected`. A page that does not validate is reported as a tool error by default; with `verdict: "result"` it comes back as a result with `status: "rejected"`, `errors` (`loc`, `msg`, `type`, as the UI shows them) and the page's `fields`, so the caller can correct the values named and resubmit that page. `create_workflow` validates the pages again, so nothing starts on an ignored verdict.
+`status` says what to do next: `next` (fill the page and call again with it appended to `page_inputs`), `complete` (call `create_workflow` with the same `page_inputs`) or `rejected`. A page that does not validate is reported as a tool error by default; with `verdict: "result"` it comes back as a result with `status: "rejected"`, `errors` (`loc`, `msg`, `type`) and the page's `schema`, so the caller can correct the values named and resubmit that page. `create_workflow` validates the pages again, so nothing starts on an ignored verdict.
 
-The page data is built by `orchestrator.core.forms.spec.form_fields` from the page's model class; the walk is `orchestrator.core.forms.walk.walk_form`.
+The walk and the schema are pydantic-forms': `pydantic_forms.core.walk_form` gives the next page, the result or the rejected page; `pydantic_forms.core.page_schema(page, inline_refs=True)` renders the page; `pydantic_forms.core.form_errors` turns a rejection into `errors`. Core keeps no copy of them.
 
 ## Extending
+<!-- diataxis: -->
 
 To expose a new tool, add a FastAPI route tagged with `AgentTag.EXPOSED`. The route is then picked up automatically on the next app start — no MCP-specific glue code required.
 
@@ -101,6 +111,7 @@ Guidelines:
 Routes without `AgentTag.EXPOSED` are excluded from the MCP surface, regardless of whether they are public REST endpoints.
 
 ## Tool annotations
+<!-- diataxis: -->
 
 Every generated tool carries [MCP `ToolAnnotations`](https://modelcontextprotocol.io/) so clients can reason about safety (e.g. auto-approve reads). They are stamped by `orchestrator.core.mcp.server._annotate` (the fastmcp `mcp_component_fn` hook), derived from each route's HTTP method plus its `AgentTag`s:
 
@@ -113,6 +124,7 @@ Every generated tool carries [MCP `ToolAnnotations`](https://modelcontextprotoco
 The curated read tools in `mcp_tools.py` are `POST` routes, so they must be tagged `AgentTag.READONLY` to be marked safe; an irreversible action such as `abort_workflow_process` is tagged `AgentTag.DESTRUCTIVE`.
 
 ## Implementation
+<!-- diataxis: -->
 
 The mount logic lives in `orchestrator/core/mcp/server.py`:
 

@@ -1,8 +1,16 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Run Predicates
+<!-- diataxis: -->
 
 Run predicates allow you to conditionally prevent a workflow from starting. A predicate is a callable attached to a workflow via its decorator. It is evaluated before the process is created in the database. If the predicate rejects the workflow, a `StartPredicateError` is raised and no database row is created.
 
 ## How it works
+<!-- diataxis: -->
 
 When `create_process()` is called (via the REST API, GraphQL, a scheduler, or `start_process()` directly), the following happens:
 
@@ -21,6 +29,7 @@ The error is then handled by each caller:
 | Scheduler | Logs an info message and skips the run |
 
 ## PredicateContext
+<!-- diataxis: -->
 
 Every predicate receives a `PredicateContext` as its first argument. This is a frozen data class with:
 
@@ -32,6 +41,7 @@ Every predicate receives a `PredicateContext` as its first argument. This is a f
 You can use the context or ignore it depending on your needs.
 
 ## Defining a predicate
+<!-- diataxis: -->
 
 A predicate is any callable that accepts a `PredicateContext` and returns a `RunPredicateResult` (a union of `RunPredicatePass` and `RunPredicateFail`):
 
@@ -39,6 +49,7 @@ A predicate is any callable that accepts a `PredicateContext` and returns a `Run
 - `RunPredicateFail("reason")` - block the workflow, with an explanation
 
 ### Simple function
+<!-- diataxis: -->
 
 === "`orchestrator-core` ≥ 5.0"
 
@@ -75,6 +86,7 @@ A predicate is any callable that accepts a `PredicateContext` and returns a `Run
     ```
 
 ### Lambda
+<!-- diataxis: -->
 
 ```python
 @workflow("Quick task", run_predicate=lambda ctx: RunPredicatePass())
@@ -83,6 +95,7 @@ def quick_task():
 ```
 
 ## Supported decorators
+<!-- diataxis: -->
 
 `run_predicate` is available on all workflow decorators:
 
@@ -95,5 +108,6 @@ def quick_task():
 - `@reconcile_workflow`
 
 ## Default behavior
+<!-- diataxis: -->
 
 The default is `run_predicate=None`, which means no predicate is evaluated and the workflow starts unconditionally. Existing workflows are unaffected.

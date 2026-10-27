@@ -226,6 +226,7 @@ def _store_step(step_log: StepLog) -> Callable[[ProcessStat, Step, Process], Pro
 
         state = process.unwrap()
         state.pop("__step_name_override", None)
+        state.pop("__step_importance_override", None)
         for k in state.get("__remove_keys", []) + ["__remove_keys"]:
             state.pop(k, None)
         if state.pop("__replace_last_state", None):

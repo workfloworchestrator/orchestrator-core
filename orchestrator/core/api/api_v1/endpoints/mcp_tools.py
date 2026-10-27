@@ -55,7 +55,6 @@ import structlog
 from fastapi.param_functions import Body, Depends
 from fastapi.routing import APIRouter
 from pydantic import ValidationError
-from pydantic_core import ErrorDetails
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, raiseload
@@ -85,8 +84,6 @@ from orchestrator.core.schemas.mcp_search import (
     SearchToolResultItem,
 )
 from orchestrator.core.schemas.mcp_tools import (
-    FormField,
-    FormFieldError,
     GetWorkflowFormRequest,
     ListRecentProcessesRequest,
     ListSubscriptionsRequest,
@@ -120,11 +117,12 @@ from orchestrator.core.search.query.validation import (
 )
 from orchestrator.core.services.processes import get_process_async, load_process
 from orchestrator.core.services.subscriptions import get_subscription_async, subscription_workflows
+from orchestrator.core.services.translations import form_field_labels, label_schema
 from orchestrator.core.services.workflows import get_workflows_async
 from orchestrator.core.utils.enrich_process import enrich_process
 from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.workflows import get_workflow
-from pydantic_forms.core.shared import GenerateFormJsonSchema
+from pydantic_forms.core import Complete, FormFieldError, NextPage, Rejected, form_errors, page_schema, walk_form
 from pydantic_forms.types import InputForm
 
 logger = structlog.get_logger(__name__)
@@ -166,23 +164,25 @@ async def list_workflows_endpoint(
     openapi_extra=READONLY_TOOL,
 )
 async def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> WorkflowFormPage:
-    """Get a workflow's input form page by page, as data to fill.
+    """Get a workflow's input form page by page, each page as a JSON Schema to fill.
 
     Forms are multi-page and a later page depends on the answers before it, so walk them: call with the
     pages filled so far in ``page_inputs`` (``[]`` first) until ``status`` is ``"complete"``, then call
-    ``create_workflow`` with the same ``page_inputs``. Each result is one page. ``fields`` says per field
-    what it takes: its ``kind``, whether it is ``required``, the ``options`` to pick from (submit an
-    option's ``value``), the bounds of a list, the ``fields`` of a nested object. Fields marked
-    ``display_only`` or ``read_only`` are shown to a person and not submitted. ``schema``, the browser's JSON
-    Schema of the same page, is deprecated: pass ``include_schema=false`` to leave it out.
+    ``create_workflow`` with the same ``page_inputs``. Each result is one page; its ``schema`` is standard
+    JSON Schema with every reference inlined, so ``properties`` and ``required`` say what to submit. A
+    property with ``readOnly: true`` is shown to a person and takes no value: submit nothing for it. ``enum``
+    lists the values a property takes; where a value has a label, ``options`` maps value to label: submit
+    the value. ``format: "accept"`` is a confirmation: submit ``"ACCEPTED"``. A nullable property is an
+    ``anyOf`` with ``{"type": "null"}``.
 
     A page that does not validate is a tool error, or with ``verdict="result"`` a result with
-    ``status: "rejected"`` and ``errors`` naming the values to fix: resubmit that page corrected.
-    """
-    # Lazy-import to avoid a circular import (``orchestrator.core.forms`` reaches ``orchestrator.core.workflow``)
-    from orchestrator.core.forms.spec import form_fields
-    from orchestrator.core.forms.walk import Complete, NextPage, Rejected, walk_form
+    ``status: "rejected"``, ``errors`` (``loc``, ``msg``, ``type``) naming the values to fix, and that page's
+    ``schema``: resubmit the page corrected. ``create_workflow`` validates the pages again.
 
+    A property's ``title`` and ``description`` are the field's label and help text as the frontend shows them,
+    from core's form translations in ``language`` (default ``en-GB``); a field without one keeps the schema's
+    own title.
+    """
     wf = get_workflow(params.workflow_key)
     if not wf:
         raise_status(HTTPStatus.NOT_FOUND, f"Workflow '{params.workflow_key}' does not exist")
@@ -194,31 +194,30 @@ async def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> Workflow
         case Complete():
             return WorkflowFormPage(page=len(user_inputs), complete=True, status="complete")
         case NextPage(model=model, index=index):
-            return _form_page(model, index, "next", form_fields(model), params.include_schema)
+            return _form_page(model, index, "next", language=params.language)
         case Rejected(model=model, index=index, error=error):
             if params.verdict == "error":
                 raise error
-            return _form_page(model, index, "rejected", form_fields(model), params.include_schema, error.errors)
+            return _form_page(model, index, "rejected", form_errors(error), language=params.language)
 
 
 def _form_page(
     model: InputForm,
     index: int,
     status: Literal["next", "rejected"],
-    fields: list[FormField],
-    include_schema: bool,
-    errors: Sequence[ErrorDetails] = (),
+    errors: Sequence[FormFieldError] = (),
+    *,
+    language: str,
 ) -> WorkflowFormPage:
-    """One page of the walk as data, with the browser's schema while callers still read it."""
+    """One page of the walk: its schema as one self-contained document, labelled as the frontend shows it, and the verdict when it was rejected."""
     title = model.model_config.get("title")
     return WorkflowFormPage(
         page=index,
         complete=False,
         status=status,
         title=None if title in (None, "unknown") else title,  # "unknown" is pydantic-forms' placeholder
-        schema=model.model_json_schema(schema_generator=GenerateFormJsonSchema) if include_schema else None,
-        fields=fields,
-        errors=[FormFieldError(loc=list(e["loc"]), msg=e["msg"], type=e["type"]) for e in errors],
+        schema=label_schema(page_schema(model, inline_refs=True), form_field_labels(language)),
+        errors=list(errors),
     )
 
 

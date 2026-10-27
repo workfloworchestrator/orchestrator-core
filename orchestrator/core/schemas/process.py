@@ -22,7 +22,7 @@ from orchestrator.core.db.models import NOTE_LENGTH
 from orchestrator.core.schemas.base import OrchestratorBaseModel
 from orchestrator.core.schemas.subscription import SubscriptionSchema
 from orchestrator.core.targets import Target
-from orchestrator.core.workflow import ProcessStatus
+from orchestrator.core.workflow import ProcessStatus, StepImportance
 
 
 class ProcessIdSchema(OrchestratorBaseModel):
@@ -56,6 +56,7 @@ class ProcessStepSchema(OrchestratorBaseModel):
     started: datetime | None = None
     completed: datetime | None = None
     commit_hash: str | None = None
+    importance: StepImportance = StepImportance.DEFAULT
     state: dict[str, Any] | None = None
     state_delta: dict[str, Any] | None = None
 

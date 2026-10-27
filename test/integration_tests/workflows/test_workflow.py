@@ -47,6 +47,7 @@ from orchestrator.core.workflow import (
     ProcessStat,
     Skipped,
     Step,
+    StepImportance,
     StepLogFunc,
     StepStatus,
     Success,
@@ -64,6 +65,7 @@ from orchestrator.core.workflow import (
     runwf,
     step,
     step_group,
+    steplens,
     workflow,
 )
 from orchestrator.core.workflow import _purestep as purestep
@@ -513,6 +515,7 @@ def store(log) -> StepLogFunc:
     def _store(_: ProcessStat, step_: Step, process: Process):
         state = process.unwrap()
         step_name = state.pop("__step_name_override", step_.name)
+        state.pop("__step_importance_override", None)
         keys_to_remove = state.get("__remove_keys", []) + ["__remove_keys"]
         for k in keys_to_remove:
             state.pop(k, None)
@@ -740,3 +743,74 @@ def test_get_steps_to_evaluate_for_rbac(given_steps, num_remaining_steps, expect
 
     actual_steps = get_steps_to_evaluate_for_rbac(pstat)
     assert actual_steps == expected_steps_to_evaluate
+
+
+IMPORTANCE_STEP_FACTORIES = [
+    pytest.param(lambda **kw: step("Imp step", **kw)(lambda: {}), id="step"),
+    pytest.param(lambda **kw: retrystep("Imp retrystep", **kw)(lambda: {}), id="retrystep"),
+    pytest.param(
+        lambda **kw: inputstep("Imp inputstep", assignee=Assignee.SYSTEM, **kw)(lambda: FormPage), id="inputstep"
+    ),
+    pytest.param(lambda **kw: purestep("Imp purestep", **kw)(Success)[0], id="purestep"),
+    pytest.param(lambda **kw: step_group("Imp group", begin >> step1, **kw), id="step_group"),
+]
+
+
+@pytest.mark.parametrize("importance", list(StepImportance))
+@pytest.mark.parametrize("factory", IMPORTANCE_STEP_FACTORIES)
+def test_step_importance_is_set_explicitly(factory, importance):
+    assert factory(importance=importance).importance == importance
+
+
+@pytest.mark.parametrize("importance", list(StepImportance))
+@pytest.mark.parametrize(
+    "wrap",
+    [
+        pytest.param(
+            conditional(lambda _: True),
+            id="conditional",
+        ),
+        pytest.param(
+            steplens(lambda s: s, lambda _: lambda result: result),
+            id="steplens",
+        ),
+    ],
+)
+def test_step_wrappers_preserve_importance(wrap, importance):
+    original = step("Wrapped", importance=importance)(lambda: {})
+    wrapped = wrap(original)
+
+    if isinstance(wrapped, (list, tuple)):
+        wrapped = wrapped[0]
+
+    assert wrapped.importance == importance
+
+
+@pytest.mark.parametrize("importance", [StepImportance.LOW, StepImportance.HIGH])
+def test_step_group_marks_every_sub_step_with_group_importance(importance):
+    @step("Sub step A")
+    def sub_a():
+        return {}
+
+    @step("Sub step B")
+    def sub_b():
+        return {}
+
+    group = step_group("Group", begin >> sub_a >> sub_b, importance=importance)
+    wf = workflow()(lambda: init >> group >> done)
+
+    logged = []
+
+    def store(_, __, process):
+        state = process.unwrap()
+        if "__sub_step" in state:
+            logged.append((state["__sub_step"], state.get("__step_importance_override")))
+        return process
+
+    result = runwf(create_new_process_stat(wf, {}), store)
+
+    assert_complete(result)
+
+    recorded_steps = {name for name, _ in logged}
+    assert {"Sub step A", "Sub step B"} <= recorded_steps
+    assert all(override == importance for _, override in logged)

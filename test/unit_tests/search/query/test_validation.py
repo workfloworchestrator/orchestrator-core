@@ -293,7 +293,9 @@ async def test_validate_grouping_fields_empty_list_passes(mock_vfp: AsyncMock, a
 
 
 @patch("orchestrator.core.search.query.validation.get_existing_paths")
-async def test_validate_grouping_fields_single_path_not_found_raises(mock_get_existing_paths: AsyncMock, async_db_session):
+async def test_validate_grouping_fields_single_path_not_found_raises(
+    mock_get_existing_paths: AsyncMock, async_db_session
+):
     mock_get_existing_paths.return_value = set()
     with pytest.raises(PathNotFoundError):
         await validate_grouping_fields(["subscription.nonexistent"], async_db_session)
@@ -322,16 +324,24 @@ async def test_validate_order_by_fields_empty_list_passes(async_db_session):
 
 
 @patch("orchestrator.core.search.query.validation.get_existing_paths")
-async def test_validate_order_by_fields_path_with_dot_found_passes(mock_get_existing_paths: AsyncMock, async_db_session):
+async def test_validate_order_by_fields_path_with_dot_found_passes(
+    mock_get_existing_paths: AsyncMock, async_db_session
+):
     mock_get_existing_paths.return_value = {"subscription.status"}
-    await validate_order_by_fields([OrderBy(field="subscription.status", direction=OrderDirection.ASC)], async_db_session)
+    await validate_order_by_fields(
+        [OrderBy(field="subscription.status", direction=OrderDirection.ASC)], async_db_session
+    )
 
 
 @patch("orchestrator.core.search.query.validation.get_existing_paths")
-async def test_validate_order_by_fields_path_with_dot_not_found_raises(mock_get_existing_paths: AsyncMock, async_db_session):
+async def test_validate_order_by_fields_path_with_dot_not_found_raises(
+    mock_get_existing_paths: AsyncMock, async_db_session
+):
     mock_get_existing_paths.return_value = set()
     with pytest.raises(PathNotFoundError):
-        await validate_order_by_fields([OrderBy(field="subscription.missing", direction=OrderDirection.DESC)], async_db_session)
+        await validate_order_by_fields(
+            [OrderBy(field="subscription.missing", direction=OrderDirection.DESC)], async_db_session
+        )
 
 
 @patch("orchestrator.core.search.query.validation.validate_filter_path")

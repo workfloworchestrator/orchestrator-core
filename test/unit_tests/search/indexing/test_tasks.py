@@ -238,8 +238,6 @@ def test_run_indexing_show_progress_false_skips_entity_count():
     mock_count.assert_not_called()
 
 
-
-
 # ---------------------------------------------------------------------------
 # run_indexing_for_all_entities
 # ---------------------------------------------------------------------------

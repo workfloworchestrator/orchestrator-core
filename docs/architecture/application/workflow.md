@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # What is a workflow and how does it work?
+<!-- diataxis: -->
 
 The workflow engine is the core of the software, it has been created to execute a number of functions.
 
@@ -8,11 +15,13 @@ The workflow engine is the core of the software, it has been created to execute 
 - Atomically execute workflow functions.
 
 ## Best Practices
+<!-- diataxis: -->
 
 The orchestrator will always attempt to be as robust as possible when executing workflow steps.
 However, it is always up to the developer to implement the best practices as well as they can.
 
 ### Safeguards in the orchestrator;
+<!-- diataxis: -->
 
 - **Atomic Step Execution**: Each step is treated as an atomic unit.
   If a step fails, no partial changes are committed to the database.
@@ -24,6 +33,7 @@ However, it is always up to the developer to implement the best practices as wel
 
 
 ### Coding gotchas
+<!-- diataxis: -->
 
 - The orchestrator is best suited to be used as a data manipulator, not as a data transporter.
   - Use the State log as a log of work, not a log of data.
@@ -35,6 +45,7 @@ However, it is always up to the developer to implement the best practices as wel
 
 
 ## Workflows
+<!-- diataxis: -->
 
 > [explanation to create a workflow in code](../../getting-started/workflows.md)
 
@@ -55,6 +66,7 @@ There are two high-level kinds of workflows:
 Workflows and tasks need to be registered in the database and initialized as a `LazyWorkflowInstance` to work, see [registering workflows] for more info.
 
 ### Subscription Workflow Types
+<!-- diataxis: -->
 
 Workflows are categorized based on the operations they perform on a subscription:
 
@@ -78,6 +90,7 @@ Workflows are categorized based on the operations they perform on a subscription
 
 
 ### Default Workflows
+<!-- diataxis: -->
 
 Registering a default workflow attaches a given workflow to all Products.
 To ensure this, modify the `DEFAULT_PRODUCT_WORKFLOWS` environment variable and add the workflow the database with a migration.
@@ -87,21 +100,25 @@ By default, `DEFAULT_PRODUCT_WORKFLOWS` is set to `['modify_note']`.
 More about registering workflows can be found [here][registering-workflows].
 
 ### Tasks
+<!-- diataxis: -->
 
 Tasks are workflows that aren't associated with any subscriptions, and can be run by the Orchestrator's scheduler.
 Learn about tasks and scheduling [here][tasks-and-scheduling].
 
 ## Workflow Steps
+<!-- diataxis: -->
 
 Workflows are composed of one or more **steps**, where each step is executed sequentially by the workflow engine and are the fundamental building blocks of workflows.
 
 ### Step Characteristics
+<!-- diataxis: -->
 
 - **Atomicity**: Each step is atomic, either it fully completes or has no effect. This ensures data consistency and reliable state transitions.
 - **Idempotency**: Steps should be designed to be safely repeatable without causing unintended side effects.
 - **Traceability**: By breaking workflows into fine-grained steps, the orchestrator maintains clear audit trails and simplifies error handling and retries.
 
 ### Types of Steps
+<!-- diataxis: -->
 
 The orchestrator supports several kinds of steps to cover different use cases:
 
@@ -126,6 +143,7 @@ For a practical example of how to define reusable workflow steps—and how to le
 
 
 ### Execution parameters
+<!-- diataxis: -->
 
 You can fine-tune workflow execution behaviour using a set of configuration parameters.
 The recommended location to define or override these is in `workflows/__init__.py`.

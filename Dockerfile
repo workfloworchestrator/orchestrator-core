@@ -1,16 +1,18 @@
 # Pin uv to a specific version so builds are reproducible
 FROM ghcr.io/astral-sh/uv:0.13.4 AS uv_image
+FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:0.13.4 AS uv_build_image
 
 ###############
 ### Build stage
-FROM python:3.13-slim AS build
+# The wheel is pure Python, so build it once natively instead of under QEMU per platform.
+FROM --platform=$BUILDPLATFORM python:3.13-slim AS build
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git build-essential \
     && rm -rf /var/lib/apt/lists/*
 COPY . .
 
-RUN --mount=from=uv_image,source=/uv,target=/bin/uv \
+RUN --mount=from=uv_build_image,source=/uv,target=/bin/uv \
     uv build --wheel --out-dir dist
 
 ###############

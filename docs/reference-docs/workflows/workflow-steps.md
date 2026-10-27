@@ -1,8 +1,16 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Workflow Steps
+<!-- diataxis: -->
 
 Workflows are what actually takes a product definition and populates your domain models. To read more about the architectural design of workflows check out [the architecture page on workflows.](../../architecture/application/workflow.md) To see more details about the types of steps that are available for use, read on to the next section.
 
 ## Step Types
+<!-- diataxis: -->
 
 ::: orchestrator.core.workflow
     options:
@@ -15,11 +23,68 @@ Workflows are what actually takes a product definition and populates your domain
         - callbackstep
         - conditional
 
+## Step Importance
+
+!!! info "Available since `orchestrator-core` 5.6"
+
+Every step carries an `importance` value, which the orchestrator stores on each process step when it runs and exposes
+through the REST and GraphQL process APIs. The engine itself does not change its behaviour based on importance; it is
+metadata that consumers of the process APIs can use. The main use case today is the orchestrator UI, which uses the
+importance of a step to decide how much of that step to show in the process detail page. See the
+[orchestrator-ui-library docs](https://workfloworchestrator.org/orchestrator-ui-library/) for how the UI maps importance
+to its rendering of steps.
+
+The value is a member of `StepImportance`: `low`, `default` or `high`. Every step is `default` unless specified,
+including the built-in `Start`, `Done` and `Abort` steps.
+
+In practice: mark a step `high` when an operator should see its result without clicking (for example the step that
+pushes configuration to the network), and `low` for housekeeping steps that only add noise, such as cleaning up
+temporary state.
+
+### Setting the importance
+
+Pass it as a keyword to `@step`, `@retrystep`, `@inputstep`, `callback_step` or `step_group`:
+
+=== "`orchestrator-core` ≥ 5.6"
+
+    ```python
+    from orchestrator.core.workflow import StepImportance, step
+
+
+    @step("Deploy to network", importance=StepImportance.HIGH)
+    def deploy_to_network(subscription: SubscriptionModel) -> State:
+        ...
+    ```
+
+=== "`orchestrator-core` < 5.6"
+
+    The `importance` keyword does not exist in these versions; steps have no importance.
+
+    ```python
+    from orchestrator.core.workflow import step
+
+
+    @step("Deploy to network")
+    def deploy_to_network(subscription: SubscriptionModel) -> State:
+        ...
+    ```
+
+For `callback_step`, importance applies to the whole group's single process step row, including while awaiting a
+callback. `step_group` also accepts `importance`; its value, not its children's values, is stored on the shared row.
+Steps wrapped by `conditional` or `steplens` keep the importance of the step they wrap.
+
+Importance is stored when a step runs. Pending steps (steps not yet executed) report the importance from the current
+step definition, executed steps report the value that was stored when the step ran. Changing the importance of a step
+therefore only takes effect for new workflow runs; steps that already ran in existing processes keep the value they
+were stored with.
+
 ## Database Implications
+<!-- diataxis: -->
 
 Because a workflow is tied to a product type, this means that you will need a new database migration when adding new workflows. Thankfully, the CLI tool will help you with this! Check out the [CLI docs for `db migrate-workflows`](../cli.md#orchestrator.core.cli.database.migrate_workflows) for more information.
 
 ## Building a Step Function Signature
+<!-- diataxis: -->
 
 One important detail that is very helpful to understand is how your Step Function's python function signature is used to deserialize objects from the database into something you can use in your workflow python code. The WFO achieves this by introspecting the step function signature for the type hints you've defined and then tries to populate the appropriate objects for you. To understand the details of how this works, look at this method:
 
@@ -29,6 +94,7 @@ One important detail that is very helpful to understand is how your Step Functio
 
 
 ## Reusable Workflow Steps
+<!-- diataxis: -->
 
 When designing workflows it is good practice to make steps reusable.
 With a single product definition, you can build reusable steps for both `CREATE` and `MODIFY` workflows.
@@ -42,6 +108,7 @@ This makes your steps cleaner, easier to reuse across multiple workflows and mor
 
 
 ### Generic Workflow Steps
+<!-- diataxis: -->
 
 You can define a generic step when the logic should be shared across multiple workflows or products.
 Here's an example of a reusable workflow step that updates an external system based on the product type:
@@ -65,6 +132,7 @@ While this approach works, the switch logic (via `match` or `if isinstance()`) c
 This is where `@singledispatch` can help.
 
 ### Using `@singledispatch` for Cleaner Re-usability
+<!-- diataxis: -->
 
 In the example above, each product requires slightly different logic for building the payload.
 Rather than branching on type manually, you can delegate this responsibility to Python's `@singledispatch`.

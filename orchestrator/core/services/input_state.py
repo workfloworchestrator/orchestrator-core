@@ -52,6 +52,7 @@ def retrieve_input_state(process_id: UUID, input_type: InputType, raise_exceptio
         raise ValueError(f"No input state for pid: {process_id}")
     return InputStateTable(input_state={})
 
+
 def store_input_state(
     process_id: UUID,
     input_state: dict[str, Any] | list[dict[str, Any]],
@@ -73,7 +74,9 @@ def store_input_state(
         case _:
             raise TypeError(f"Cannot store input state of type {type(input_state)}")
 
-    logger.debug("Store input state", process_id=process_id, input_state_resolved=input_state_resolved, input_type=input_type)
+    logger.debug(
+        "Store input state", process_id=process_id, input_state_resolved=input_state_resolved, input_type=input_type
+    )
     db.session.add(
         InputStateTable(
             process_id=process_id,

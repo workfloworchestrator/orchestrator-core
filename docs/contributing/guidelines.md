@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Contributing
+<!-- diataxis: -->
 
 The WFO program welcomes any contributions from any party.
 However, please take into account the following.
@@ -18,10 +25,12 @@ Contributions that do not meet these requirements may be rejected.
 If you have any questions, please  [Contact](https://workfloworchestrator.org/contact/) us.
 
 ## Documentation
+<!-- diataxis: -->
 
 We use [**MKDOCS**](https://www.mkdocs.org) as a documentation tool. Please create a PR if you have any additions or contributions to make. All docs can be written in MD or html. Full guidelines on how to set this up can be found [here](development.md).
 
 ## Branch naming
+<!-- diataxis: -->
 
 Use the pattern `<type>/<issue-number>-<short-slug>`:
 
@@ -41,6 +50,7 @@ refactor/4725-isinstance-to-match-case
 ```
 
 ## Commit messages
+<!-- diataxis: -->
 
 Write commit messages in the **imperative mood**, sentence case, with no trailing period. Aim to keep the subject line under 72 characters.
 
@@ -70,7 +80,22 @@ causing state bleed. Each task now gets its own session.
 
 The `(#PR-number)` suffix is appended automatically by GitHub on squash merge — do not add it by hand.
 
+## Draft pull requests
+
+Open every pull request as a **draft** (`gh pr create --draft`, or *Create draft pull request* in the GitHub UI).
+CI runs on drafts as usual, so you can share the diff and iterate freely.
+
+Click *Ready for review* once the PR is complete. Automated [Greptile](https://www.greptile.com) reviews come from a limited monthly budget of free open-source credits, so they are rationed:
+
+- If you have write access to the repository, marking the PR ready triggers one Greptile review. Later pushes are not reviewed automatically.
+- To request another review after addressing feedback, add the `greptile-review` label. Each PR has a limited review budget; once it is spent, a core maintainer can still force another review with the same label.
+- PRs from contributors without write access are not reviewed automatically; a maintainer adds `greptile-review` when a review is useful.
+- For complex or risky changes, a core maintainer can add the `greptile-review-trex` label to trigger an in-depth review.
+
+Please don't trigger reviews by commenting `@greptileai`, as that bypasses the per-PR budget.
+
 ## Pre-commit hooks
+<!-- diataxis: -->
 
 We use [prek](https://prek.j178.dev/) to run the pre-commit hooks to ensure that the code is formatted correctly and that the tests pass.
 To install the hooks, run the following command:
@@ -86,6 +111,7 @@ uv run prek run --all-files
 ```
 
 ## Updating AI context (CLAUDE.md)
+<!-- diataxis: -->
 
 The repository includes a `CLAUDE.md` file at its root. This file is read by AI coding assistants (such as Claude Code) to understand the project's conventions without repeated explanation. It covers build commands, code style rules, key directory layout, test markers, and commit message guidance.
 
@@ -100,11 +126,13 @@ The PR checklist asks you to keep it current. Update (or have Claude update) `CL
 You do not need to update it for normal feature work, bug fixes, or dependency bumps.
 
 ## Orchestrator release
+<!-- diataxis: -->
 
 The `orchestrator-core` has no release schedule but is actively used and maintained by the workflow orchestrator group.
 Creating a new release is done by the developers of the project and the procedure is as follows.
 
 ### Release candidates
+<!-- diataxis: -->
 
 When creating new features they can be released in so-called `pre-releases` on github.
 Depending on the feature type the developer will need to run `uv version --bump (major|minor|patch) --bump rc` to create
@@ -118,6 +146,7 @@ use the checkbox "pre-release."
 The code will be pushed to pypi.
 
 ### Stable releases
+<!-- diataxis: -->
 
 Stable releases follow the same procedure as described above and can be either created from a release candidate by
 running `uv version --bump stable`, which drops the `rc` suffix (`5.3.0rc2` -> `5.3.0`), or directly from a stable

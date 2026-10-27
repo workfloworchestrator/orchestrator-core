@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Workflows
+<!-- diataxis: -->
 
 Workflows are what actually takes a product definition and populates your domain models.
 To read more about the architectural design of workflows check out [the architecture page on workflows.](../../architecture/application/workflow.md)
@@ -27,6 +34,7 @@ To see more details about the workflow lifecycle states and functions, read on t
 
 
 ## Workflow helpers to register them in DB
+<!-- diataxis: -->
 ::: orchestrator.core.migrations.helpers
     options:
         heading_level: 3

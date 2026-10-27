@@ -1,10 +1,18 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Packaging
+<!-- diataxis: -->
 
 For the distribution of the `orchestrator-core`, from version `5.0.0` onward we make use of a namespace package.
 Namespace packages are a way to allow a single package name to be split across multiple, independent distributions.
 More information on this can be found in the [PEP 420](https://peps.python.org/pep-0420/).
 
 ## Why
+<!-- diataxis: -->
 
 With the addition of new features to the Orchestrator core, we have reached a point where some new functionality may
 be useful to only a subset of the users of Workflow Orchestrator. This increases the footprint and complexity of the
@@ -15,6 +23,7 @@ For this reason, we want to support a modular approach to the namespace of modul
 one large monolithic codebase that becomes hard to maintain.
 
 ## How this enables a pluggable Orchestrator
+<!-- diataxis: -->
 
 With the namespacing approach to packaging the Workflow Orchestrator, only the necessary features are provided in the
 module installed by `orchestrator-core`. This package will then only claim the namespace under the module

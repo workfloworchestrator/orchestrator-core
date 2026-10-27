@@ -58,7 +58,6 @@ def test_set_process_status_running_errors_if_already_running(mock_db):
         _set_process_status_running(uuid4())
 
 
-
 @mock.patch("orchestrator.core.services.executors.threadpool.db")
 def test_set_process_status_running_errors_if_not_found(mock_db):
     mock_result = MagicMock()
@@ -69,7 +68,6 @@ def test_set_process_status_running_errors_if_not_found(mock_db):
 
     with pytest.raises(Exception, match=f"Process not found: {process_id}"):
         _set_process_status_running(process_id)
-
 
 
 @mock.patch("orchestrator.core.services.executors.threadpool._set_process_status_running")

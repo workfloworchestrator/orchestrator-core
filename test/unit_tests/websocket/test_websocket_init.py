@@ -250,9 +250,10 @@ def test_broadcast_process_update_sync(mock_anyio, enabled: bool):
 )
 @pytest.mark.asyncio
 async def test_broadcast_process_update_async(enabled: bool, expected_call_count: int):
-    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm, patch(
-        "orchestrator.core.websocket.db"
-    ) as mock_db:
+    with (
+        patch("orchestrator.core.websocket.websocket_manager") as mock_wsm,
+        patch("orchestrator.core.websocket.db") as mock_db,
+    ):
         mock_wsm.enabled = enabled
         mock_wsm.broadcast_data = AsyncMock()
         mock_db.database_scope.return_value.__enter__ = MagicMock(return_value=None)

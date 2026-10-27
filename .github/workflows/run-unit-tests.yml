@@ -28,7 +28,7 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.13.1"
+          version: "0.13.3"
           python-version: ${{ matrix.python-version }}
 
       - name: Install the project
@@ -50,7 +50,7 @@ jobs:
       - name: Run unit tests + doctests (no Postgres, no Redis)
         run: |
           unset DATABASE_URI CACHE_URI
-          uv run pytest test/unit_tests orchestrator/core \
+          uv run pytest test/unit_tests orchestrator/core scripts/check_diataxis.py \
             --cov-branch --cov=orchestrator --cov-report=xml \
             --ignore=orchestrator/core/devtools \
             --ignore=examples --ignore=docs \

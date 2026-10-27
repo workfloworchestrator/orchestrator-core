@@ -1,8 +1,16 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # app.py
+<!-- diataxis: -->
 
 The app.py module is used in `orchestrator-core` for actually running the entire WFO FastAPI backend and the CLI.
 
 ## FastAPI Backend
+<!-- diataxis: -->
 
 The code for the WFO's Fast API backend is very well documented, so look through the functions used in this module here:
 
@@ -17,6 +25,7 @@ A great example of how to use the functions available in app.py with your own `m
 ```
 
 ## CLI App
+<!-- diataxis: -->
 
 The orchestrator core also has a CLI application that is documented in [detail here](../cli.md). You can bring this into your `main.py` file so that you can run the orchestrator CLI for development like so:
 

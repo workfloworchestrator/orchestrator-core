@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Backfilling Existing Subscriptions
+<!-- diataxis: -->
 When updating a product block that already exists in your orchestrator, it could be the case that new attributes are
 added or removed. When removing resource types from a `ProductBlock`, the `migrate-domain-models` command is able to
 pick up on this change, and generates a migration that removes these resource types from your database completely.
@@ -7,6 +14,7 @@ However, when adding a new resource type to a `ProductBlock`, pre-existing produ
 database are not backfilled. For this, another SQL transaction must be added to the generated migration file.
 
 ## Generating a Database Migration
+<!-- diataxis: -->
 After the new resource type is added to the product block, the generated migration file should already contain at least the following two transactions:
 
 ```python
@@ -25,6 +33,7 @@ subscriptions that already exist in the database already are sites that contain 
 make sense to backfill the value `True` into all subscriptions that already exist.
 
 ## Adapting the Generated Database Migration
+<!-- diataxis: -->
 To implement this backfilling mechanism, only one SQL statement needs to be added to the migration, given below.
 
 ```python

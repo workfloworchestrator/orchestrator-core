@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Optional modules
+<!-- diataxis: -->
 
 For the development of optional modules of the Workflow Orchestrator, like `orchestrator-optical`, a submodule in the
 `orchestrator.*` namespace can be claimed. As the name already suggests, this package will install the module in
@@ -9,6 +16,7 @@ To be able to provide this kind of interoperability, we rely on the fact that **
 [implicit namespace package](https://peps.python.org/pep-0420/).
 
 ## Contributing new modules
+<!-- diataxis: -->
 
 For the introduction of newly developed optional modules that enrich the Workflow Orchestrator, we would like to ask you to use the template repository provided [here](https://github.com/workfloworchestrator/orchestrator-plugin).
 

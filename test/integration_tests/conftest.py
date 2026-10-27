@@ -24,6 +24,7 @@ pytest_plugins = ["orchestrator.core.testing.fixtures", "test.integration_tests.
 # Re-export non-fixture symbols (constants, classes, plain helpers) that
 # individual test files import by name. Fixtures and hooks are NOT
 # re-exported — they reach tests through the plugin loaded above.
+from collections.abc import Iterator  # noqa: E402
 
 import pytest  # noqa: E402
 
@@ -32,13 +33,33 @@ from test.integration_tests._fixtures import (  # noqa: E402
     CUSTOMER_ID,
     TestOrchestratorCelery,
     do_refresh_subscriptions_search_view,
+    wait_for_no_active_threadpool_jobs,
+    wait_for_running_jobs_count,
 )
 
 __all__ = [
     "CUSTOMER_ID",
     "TestOrchestratorCelery",
     "do_refresh_subscriptions_search_view",
+    "wait_for_running_jobs_count",
 ]
+
+
+@pytest.fixture(autouse=True)
+def idle_worker_status_monitor(fastapi_app) -> Iterator[None]:
+    """Start every test with no running jobs and a fresh WorkerStatusMonitor cache (#2039).
+
+    The monitor is a process-wide singleton whose cache is shared by every test on the same xdist
+    worker. Waiting for the count to reach zero (instead of only refreshing) also covers a job from
+    the previous test that is still finishing.
+
+    In teardown, a job that never finishes is reset (after a short grace period) so the leak fails
+    the test that caused it instead of every later test on this worker.
+    """
+    wait_for_running_jobs_count(expected=0)
+    yield
+    if (leaked := wait_for_no_active_threadpool_jobs()) != 0:
+        pytest.fail(f"{leaked} threadpool job(s) still running at teardown (#2039)")
 
 
 @pytest.fixture()

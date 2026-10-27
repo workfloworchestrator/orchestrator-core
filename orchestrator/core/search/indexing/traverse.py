@@ -47,9 +47,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)
 
-DatabaseEntity = (
-    SubscriptionTable | ProductTable | ProcessTable | WorkflowTable | ProductBlockTable | ResourceTypeTable
-)
+DatabaseEntity = SubscriptionTable | ProductTable | ProcessTable | WorkflowTable | ProductBlockTable | ResourceTypeTable
 
 
 class BaseTraverser(ABC):

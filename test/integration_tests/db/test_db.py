@@ -91,9 +91,7 @@ def test_transactional_no_commit():
     )
     logger.assert_has_calls(
         [
-            mock.call.warning(
-                MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED
-            ),
+            mock.call.warning(MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED),
         ]
     )
 
@@ -136,8 +134,7 @@ def test_transactional_no_commit_second_thread():
     )
     logger.assert_has_calls(
         [
-            mock.call.warning(MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED
-            ),
+            mock.call.warning(MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED),
         ]
     )
 

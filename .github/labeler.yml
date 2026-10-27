@@ -8,8 +8,9 @@
 # CI or build changes. A PR that also touches library code gets none of them and
 # needs a type label (kind/feature, kind/bug, ...) set by hand. With "any file"
 # matching, nearly every code PR got kind/test, which satisfied the release-label
-# check and listed features under "Tests". Because sync-labels is on, setting one
-# of these by hand on a mixed PR doesn't stick: the labeler removes it again.
+# check and listed features under "Tests". sync-labels is off, so these labels can
+# also be set by hand on a mixed PR, and are not removed automatically when a PR
+# stops matching — remove a stale one by hand.
 #
 # Multiple patterns are written as ONE brace-expanded glob; see dev-only below
 # for why a YAML list doesn't work with `any-glob-to-all-files`.
@@ -44,8 +45,9 @@ area/search:
 
 # Applied only when EVERY changed file is development-only, i.e. nothing that
 # ends up in the published package. Excluded from the release notes in
-# .github/release.yml. Unlike skip-changelog this label is path-managed:
-# sync-labels removes it again as soon as a PR touches any other file.
+# .github/release.yml. Because sync-labels is off it is NOT removed when a PR
+# later touches other files: remove it by hand then, or the PR is left out of the
+# release notes.
 #
 # The patterns are ONE brace-expanded glob on purpose. `any-glob-to-all-files`
 # requires a single glob to match every changed file; with a YAML list of

@@ -163,8 +163,16 @@ def make_orchestrator_app() -> Iterator[OrchestratorCore]:
             app_settings,
             ENABLE_PROMETHEUS_METRICS_ENDPOINT=True,
             ENVIRONMENT="TESTING",
+            # The monitor refreshes once at startup and then sits idle for an hour, so the background
+            # thread cannot overwrite a freshly refreshed value with a stale one mid-test (#2039).
+            WORKER_STATUS_INTERVAL=3600,
         ),
     ):
+        # get_worker_status_monitor() reuses a still-alive singleton, so a monitor created earlier in
+        # this process (e.g. by a unit test) would keep its own interval. Stop it so the app builds a
+        # fresh one that picks up the patched interval.
+        _stop_existing_worker_status_monitor()
+
         app = OrchestratorCore(base_settings=app_settings)
         if app.broadcast_thread:
             app.broadcast_thread.start()
@@ -175,6 +183,19 @@ def make_orchestrator_app() -> Iterator[OrchestratorCore]:
             app.worker_status_monitor.stop()
             if app.broadcast_thread:
                 app.broadcast_thread.stop()
+
+
+def _stop_existing_worker_status_monitor() -> None:
+    """Stop a WorkerStatusMonitor left running by an earlier app in this process.
+
+    ``get_worker_status_monitor()`` reuses the global singleton while it is alive, so without this a
+    newly built app would inherit the interval from whatever created the monitor first (#2039).
+    """
+    import orchestrator.core.services.worker_status_monitor as worker_status_monitor
+
+    monitor = worker_status_monitor._monitor
+    if monitor is not None and monitor.is_alive():
+        monitor.stop()
 
 
 def _wrapped_database() -> Database:

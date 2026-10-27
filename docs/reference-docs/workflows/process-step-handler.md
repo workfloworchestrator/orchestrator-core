@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Custom Process Step Handler
+<!-- diataxis: -->
 
 !!! info "Added in version 5.4"
 

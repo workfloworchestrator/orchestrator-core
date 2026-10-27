@@ -1,8 +1,16 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Database
+<!-- diataxis: -->
 
 For most operation database interactions, you will want to use the CLI tool, which is documented in depth [here](cli.md#db). The rest of this page documents other unique things that you should know about the database in the WFO.
 
 ## Architecture
+<!-- diataxis: -->
 
 The WFO database is built on top of the [SQLAlchemy](https://www.sqlalchemy.org/) ORM, and we use
 [Alembic](https://alembic.sqlalchemy.org/en/latest/) for building database migrations. If you aren't familiar with
@@ -15,11 +23,13 @@ database components work. The database models we use for the orchestrator-core l
     ```
 
 ## Setting Up the Database Initially
+<!-- diataxis: -->
 
 With a blank WFO instance, to setup the database properly, you simply need to run the `init` CLI command. More docs on
 how to use that command can be found [here.](cli.md#orchestrator.core.cli.database.init)
 
 ## Saving a Transaction in Your Workflow
+<!-- diataxis: -->
 
 An important thing to understand about interacting with the database inside of workflow steps is that saving to the
 database in disabled during the workflow step. When a subscription is returned at the end of a step, then all of the
@@ -31,6 +41,7 @@ the SQLAlchemy `Session` object:
         heading_level: 3
 
 ## Multiple Heads
+<!-- diataxis: -->
 
 When you have multiple features in flight at a time with your WFO development process, you might come across this error
 when starting up your WFO instance, especially after performing `git` merges:
@@ -40,4 +51,7 @@ Only a single head is supported. The script directory has multiple heads (due br
 manually editing the revision files to form a linear sequence. Run `alembic branches` to see the divergence(s).
 ```
 
-Thankfully alembic is great at handling this and you can use the WFO CLI `db merge` command to resolve this, [documented in depth here.](cli.md#orchestrator.core.cli.database.merge)
+This means that two migrations share the same `down_revision`. You can resolve this with the WFO CLI `db merge`
+command, [documented in depth here](cli.md#orchestrator.core.cli.database.merge), or by re-parenting one of the
+migrations. See [Managing Diverging Database Migrations](../guides/database-migrations.md) for how the `schema` and
+`data` branches are organised, when to use which approach, and how to prevent divergence.

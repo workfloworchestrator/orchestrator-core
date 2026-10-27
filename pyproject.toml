@@ -1,7 +1,7 @@
 [project]
 name = "orchestrator-core"
 description = "This is the orchestrator workflow engine."
-version = "5.6.0a1"
+version = "5.6.0a2"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -42,7 +42,7 @@ dependencies = [
     "click==8.*",
     "deepmerge==3.0.1",
     "deprecated>=1.2.18",
-    "fastapi~=0.143.0",
+    "fastapi~=0.150.0",
     "fastapi-etag==0.4.0",
     "httpx>=0.28.0,<1.0",
     "itsdangerous>=2.2.0",
@@ -54,7 +54,7 @@ dependencies = [
     "pgvector>=0.4.1",
     "prometheus-client==0.25.0",
     "psycopg[binary]>=3.3.3",
-    "pydantic-forms>=2.4.0",
+    "pydantic-forms>=2.9.0",
     "pydantic-settings~=2.16.0",
     "pydantic[email]~=2.13.0",
     "python-dateutil==2.9.0.post0",
@@ -116,6 +116,8 @@ dev = [
     "dirty-equals>=0.9.0",
     "inline-snapshot>=0.32.4",
     "jsonref>=1.1.0",
+    "markdown-it-py>=4.2.0",
+    "mdit-py-plugins>=0.6.1",
     "mypy>=2.4,<2.5",
     "mypy-extensions>=1.1.0",
     "prek>=0.5.5",
@@ -129,6 +131,7 @@ dev = [
     "pytest-httpx>=0.29.0",
     "pytest-timeout>=2.3.1",
     "pytest-xdist>=3.7.0",
+    "pyyaml>=6.0.3",
     "requests-mock>=1.12.1",
     "ruff>=0.15.11",
     "sqlalchemy[mypy]>=2.0.41",
@@ -155,7 +158,7 @@ dev = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.12,<0.13"]
+requires = ["uv_build>=0.13,<0.14"]
 build-backend = "uv_build"
 
 [tool.ruff]
@@ -211,6 +214,7 @@ ban-relative-imports = "all"
 "test/acceptance_tests/search/llm/scripts/*" = ["ASYNC"]
 "orchestrator/core/search/llm_migration.py" = ["S608"]
 "test/*" = ["S101", "B033", "N816", "N802", "T201"]
+"scripts/check_diataxis.py" = ["T201"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -260,7 +264,7 @@ norecursedirs = [
     "test/acceptance_tests/cli/data/generate",
 ]
 pythonpath = ["."]
-testpaths = ["test/unit_tests", "orchestrator/core"]
+testpaths = ["test/unit_tests", "orchestrator/core", "scripts/check_diataxis.py"]
 asyncio_mode = "auto"
 consider_namespace_packages = true
 
@@ -302,7 +306,7 @@ markers = [
 ]
 
 [tool.mypy]
-exclude = "(venv|test/acceptance_tests/cli/data/generate|orchestrator/core/vendor|vulture_whitelist.py)"
+exclude = "(venv|test/acceptance_tests/cli/data/generate|orchestrator/core/vendor|scripts/vulture_whitelist.py)"
 ignore_missing_imports = true
 disallow_untyped_calls = true
 disallow_untyped_defs = true

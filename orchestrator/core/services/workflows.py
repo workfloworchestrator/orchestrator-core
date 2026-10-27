@@ -32,6 +32,7 @@ from orchestrator.core.workflows import get_workflow
 
 logger = structlog.get_logger(__name__)
 
+
 def _get_steps(workflow: WorkflowTable) -> list[StepSchema]:
     if registered_workflow := get_workflow(workflow.name):
         return [StepSchema(name=step.name) for step in registered_workflow.steps]
@@ -99,13 +100,14 @@ def get_validation_product_workflows_for_subscription(
     return [workflow.name for workflow in subscription.product.workflows if workflow.target == Target.VALIDATE]
 
 
-
 class SubscriptionValidations(NamedTuple):
     """Object containing a subscription's validation workflows and some metadata."""
+
     subscription_id: UUID
     subscription_status: str
     product_type: str
     workflows: list[str]
+
 
 def get_subscription_validations(subscriptions: list[SubscriptionTable]) -> list[SubscriptionValidations]:
 
@@ -125,6 +127,7 @@ def get_subscription_validations(subscriptions: list[SubscriptionTable]) -> list
                 product_type=subscription.product.product_type,
                 workflows=validation_product_workflows,
             )
+
     return list(generate())
 
 
@@ -146,7 +149,7 @@ def start_subscription_validations(
 
         usable_when = system_usable_when + validate_usable_when
         if info.subscription_status in usable_when and (
-                product_type_filter is None or info.product_type == product_type_filter
+            product_type_filter is None or info.product_type == product_type_filter
         ):
             json = [{"subscription_id": str(info.subscription_id)}]
 

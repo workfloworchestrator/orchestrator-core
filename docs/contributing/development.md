@@ -1,16 +1,26 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Setting up a development environment
+<!-- diataxis: -->
 
 To add features to the repository follow the following procedure to setup a working development environment.
 
 ## Installation
+<!-- diataxis: -->
 
 Install the project and its dependencies to develop on the code.
 
 ### Step 1 - install uv
+<!-- diataxis: -->
 
 Follow the [installing uv](https://docs.astral.sh/uv/getting-started/installation/) instructions.
 
 ### Step 2 - install project and dependencies
+<!-- diataxis: -->
 
 ```shell
 uv sync --all-groups --all-extras
@@ -25,6 +35,7 @@ We'll use the latter form throughout this documentation.
 More details in [About UV](#about-uv).
 
 ## Running tests
+<!-- diataxis: -->
 
 The test suite is split across four pytest invocations. See the
 [testing guide](../guides/testing.md) for the full picture; the short version:
@@ -42,6 +53,7 @@ The Celery and LLM suites run as their own GitHub Actions workflows
 command above is what `run-tests.yml` runs.
 
 ### Run unit tests (no services required)
+<!-- diataxis: -->
 
 ```shell
 uv run pytest
@@ -52,6 +64,7 @@ This runs every test under `test/unit_tests/` plus the doctests in
 day-to-day development.
 
 ### Run integration tests
+<!-- diataxis: -->
 
 Integration tests need Postgres and Redis. Pick whichever provisioning style
 fits your workflow.
@@ -132,6 +145,7 @@ When you bring your own services (Option B), `TEST_POSTGRES_IMAGE` has no
 effect — the version is whatever your `DATABASE_URI` points at.
 
 ### Run the Celery acceptance tests
+<!-- diataxis: -->
 
 The Celery suite uses the same `CACHE_URI` rules — the snippet below assumes
 password-less Redis. For the docker-compose stack use
@@ -144,6 +158,7 @@ uv run pytest test/acceptance_tests/celery
 ```
 
 ### Run the LLM/embedding acceptance tests
+<!-- diataxis: -->
 
 Same `CACHE_URI` rules as above. The snippet assumes password-less Redis.
 
@@ -159,6 +174,7 @@ in the orchestrator-core.
 
 
 ## Adding to the documentation
+<!-- diataxis: -->
 
 Documentation for the Orchestrator is written by using [Mkdocs](https://www.mkdocs.org/).
 To contribute to them follow the instructions above to `step 2`, you can then develop them locally by running:
@@ -170,6 +186,7 @@ uv run mkdocs serve
 This should make the docs available on your local machine here: [http://127.0.0.1:8000/orchestrator-core/](http://127.0.0.1:8000/orchestrator-core/)
 
 ## Changing the Core database schema
+<!-- diataxis: -->
 
 When you would like to change the core database schema, first ensure you have the following:
 
@@ -211,12 +228,14 @@ alembic downgrade 161918133bec
 
 
 ## About UV
+<!-- diataxis: -->
 
 uv is a very fast replacement for pip and flit which also adds a lot of functionality.
 This section explains a few concepts relevant to know when developing on the orchestrator-core.
 For a full overview consult the [uv documentation](https://docs.astral.sh/uv/).
 
 ### Adding and removing dependencies
+<!-- diataxis: -->
 
 Instead of manually editing `pyproject.toml` you can use `uv add`.
 
@@ -247,12 +266,14 @@ uv remove django
 
 
 ### Python interpreter
+<!-- diataxis: -->
 
 uv will create the venv with the latest python version supported by orchestrator-core.
 If that version is not found on your machine, it is automatically downloaded.
 Check the output of `uv help python` how to change this behavior.
 
 ### uv sync
+<!-- diataxis: -->
 
 The `uv sync` syncs your environment (`.venv`) based on the options you give it and what's configured in `pyproject.toml`.
 
@@ -275,6 +296,7 @@ uv sync --group docs
 uv removes anything not specified in the command or `pyproject.toml` to ensure a clean and reproducible environment.
 
 ### Upgrade dependencies
+<!-- diataxis: -->
 
 To upgrade all dependencies in the lockfile to the latest version (taking version constraints from `pyproject.toml` into account), run the sync command with `--upgrade`:
 
@@ -285,6 +307,7 @@ uv sync --all-groups --all-extras --upgrade
 The github project has Renovate enabled which can create PRs for dependency upgrades.
 
 ### What is uv.lock for?
+<!-- diataxis: -->
 
 The lockfile is used for development and testing of the orchestrator-core.
 It captures the exact set of dependencies used to create the local environment.
@@ -299,8 +322,10 @@ In that case only the broad requirements from `pyproject.toml` apply.
 More information on the [uv website](https://docs.astral.sh/uv/concepts/projects/layout/#the-lockfile).
 
 ## Useful settings
+<!-- diataxis: -->
 
 ### SQLAlchemy logging
+<!-- diataxis: -->
 
 WFO uses [SQLAlchemy](https://www.sqlalchemy.org/) for its ORM and DB connection management capabilities.
 
@@ -315,6 +340,7 @@ Set it to `DEBUG` for even more information.
 **Both INFO and DEBUG generate a *lot* of logging! It is not recommended to use this in production.**
 
 ### GraphQL query statistics
+<!-- diataxis: -->
 
 To get basic statistics per executed GraphQL Query, set the following environment variable:
 
@@ -343,6 +369,7 @@ The following should be noted:
 
 
 ### GraphQL query profiling
+<!-- diataxis: -->
 
 It is possible to profile GraphQL queries by enabling the [PyInstrument](https://github.com/joerick/pyinstrument) extension:
 

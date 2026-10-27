@@ -1,6 +1,14 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Prepare source folder
+<!-- diataxis: -->
 
 ## Folder layout
+<!-- diataxis: -->
 
 The suggested folder layout of your own orchestrator implementation is as
 follows:
@@ -23,6 +31,7 @@ Some of the orchestrator-core functionality relies on the source folder being a
 valid Git repository.
 
 ### Migrations folder and local Alembic head
+<!-- diataxis: -->
 
 The `migrations` folder is created when running `python main.py db init`.
 This folder is used to store the local Alembic database migrations.
@@ -106,12 +115,14 @@ c112305b07d3 -> a76b9185b334 (schema), Add generic workflows to core.
 ```
 
 ### Products, workflows and translations folders
+<!-- diataxis: -->
 
 The `products`, `workflows` and `translations` folders are either created by
 hand, or when the `python main.py generate --help` commands are used in
 combination with product templates, will be created automatically.
 
 #### Translations folder
+<!-- diataxis: -->
 
 The `translations` folder holds locale files consumed by the orchestrator UI.
 Each file is named after a language tag in the form `language-REGION.json`, e.g. `en-GB.json`.
@@ -149,6 +160,7 @@ A minimal example:
 ```
 
 ##### Merging with core translations
+<!-- diataxis: -->
 
 orchestrator-core ships its own locale files for built-in workflows and form
 fields (e.g. `task_clean_up_tasks`, `note`).  At runtime, `generate_translations`
@@ -166,6 +178,7 @@ GET /api/v1/translations/{language}
 where `{language}` is a `language-REGION` tag (e.g. `en-GB`).
 
 ##### Pointing the orchestrator at your translations folder
+<!-- diataxis: -->
 
 Set `TRANSLATIONS_DIR` in your application settings to the directory that
 contains your locale files:
@@ -179,6 +192,7 @@ If `TRANSLATIONS_DIR` is `None` (the default) only the core translations are
 served.
 
 ##### Generating translations with the CLI
+<!-- diataxis: -->
 
 When you scaffold a new product with `python main.py generate`, the generator
 automatically writes four workflow keys to `translations/en-GB.json`.  The
@@ -195,6 +209,7 @@ variable (default: `translations/en-GB.json`):
 If the file does not exist yet, the generator creates it.
 
 ##### Translation validation
+<!-- diataxis: -->
 
 The built-in `task_validate_products` task checks that every workflow
 registered in the orchestrator has a corresponding key in the `workflow`

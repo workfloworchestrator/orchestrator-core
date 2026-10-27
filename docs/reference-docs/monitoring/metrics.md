@@ -1,4 +1,11 @@
+---
+# tutorial | how-to | reference | explanation | mixed
+diataxis:
+reviewed: false
+---
+
 # Collecting Metrics
+<!-- diataxis: -->
 
 The ``orchestrator-core`` is capable of exporting metrics on an API endpoint that is compatible with
 [Prometheus](https://prometheus.io). Prometheus is a time-series database that can be used to collect metrics over time,
@@ -41,6 +48,7 @@ An example Grafana dashboard that uses these metrics is given in the code reposi
 `/api/settings/worker-status` endpoint.
 
 ### Flower worker metrics
+<!-- diataxis: -->
 
 If you run [Flower](https://flower.readthedocs.io/en/latest/) alongside your Celery workers (see
 [Monitoring Celery with Flower](../../guides/scaling.md#monitoring-celery-with-flower)), `WorkerCollector`
@@ -61,6 +69,7 @@ flower_worker_prefetched_tasks{task="orchestrator.workflow.run_workflow",worker=
 ```
 
 ## Adding custom metrics
+<!-- diataxis: -->
 
 It's possible to add more metric collectors to your orchestrator, if there are organization-specific metrics you want
 to keep track of. This is done by implementing extra metrics from the ``prometheus_client`` library, documentation on

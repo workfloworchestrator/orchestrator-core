@@ -12,6 +12,8 @@
 # limitations under the License.
 
 import json
+from contextlib import contextmanager
+from copy import deepcopy
 from unittest import mock
 
 from deepdiff import DeepDiff
@@ -43,3 +45,17 @@ URL_MISSING = {"url": mock.ANY}
 URL_STR_TYPE = {"url": mock.ANY}
 URL_PARSING = {"url": mock.ANY}
 URL_VALUE = {"url": mock.ANY}
+
+
+@contextmanager  # noqa: F821
+def extend_list_context(target_list: list, items: list):
+    """Extend the target_list with the given items for the duration of the context.
+
+    After leaving the context the target_list is restored to whatever content it had before.
+    """
+    try:
+        target_list_copy = deepcopy(target_list)
+        target_list.extend(items)
+        yield target_list
+    finally:
+        target_list[:] = target_list_copy

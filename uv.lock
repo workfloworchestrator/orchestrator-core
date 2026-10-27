@@ -1204,7 +1204,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.143.0"
+version = "0.150.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -1214,9 +1214,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0b/d7/6a8753ab6c1d432dc53703c3e1b92974a94531b7d047c32bbaae461ea844/fastapi-0.143.0.tar.gz", hash = "sha256:1acffe48206a80917cf7dac21992b5c44b25384e8902bf745c1fd9dabcf6c51f", size = 468391, upload-time = "2026-10-08T12:29:46.54Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/35/ae/3c8fe5ea133a13dbdb0c84e586087aa811f311cb11b00efdb11c364793e6/fastapi-0.150.0.tar.gz", hash = "sha256:97583806e6de1b6fc299866bdb88730fa311ff640829af876c9e847f4c3a3b29", size = 483799, upload-time = "2026-10-19T22:39:44.108Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bd/f4/27e386913417ad32aae42bba48b0c0cce40e9ff2fba1a871ca2702c37324/fastapi-0.143.0-py3-none-any.whl", hash = "sha256:3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d", size = 144665, upload-time = "2026-10-08T12:29:44.853Z" },
+    { url = "https://files.pythonhosted.org/packages/14/41/7c472e281c147dae4f1dd4a85d9a1b7f6ce8b919e4053f14c83abb1488c7/fastapi-0.150.0-py3-none-any.whl", hash = "sha256:e566bc3f1347cfacf61f2f9ea1d7ab4576fbcff02eb9747c2807b8ced16d9e9a", size = 145281, upload-time = "2026-10-19T22:39:42.71Z" },
 ]
 
 [[package]]
@@ -2293,6 +2293,18 @@ wheels = [
 ]
 
 [[package]]
+name = "mdit-py-plugins"
+version = "0.6.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/59/fc/f8d0863f8862f25602c0404d75568e89fb6b4109804645e5cdfb1be5cf56/mdit_py_plugins-0.6.1.tar.gz", hash = "sha256:a2bca0f039f39dbd35fb74ae1b5f998608c437463371f0ff7f49a19a17a114d0", size = 56114, upload-time = "2026-05-13T09:03:38.91Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/69/6da5581c6a7fede7dc261bf4e67d6adca4196f176b43288b55b3db395b6e/mdit_py_plugins-0.6.1-py3-none-any.whl", hash = "sha256:214c82fb2ac524472ab6a5bcab1de80f73b50443e187f401bfd77efbc7c6481d", size = 66663, upload-time = "2026-05-13T09:03:37.76Z" },
+]
+
+[[package]]
 name = "mdurl"
 version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2781,7 +2793,7 @@ wheels = [
 
 [[package]]
 name = "orchestrator-core"
-version = "5.6.0a1"
+version = "5.6.0a2"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
@@ -2844,6 +2856,8 @@ dev = [
     { name = "dirty-equals" },
     { name = "inline-snapshot" },
     { name = "jsonref" },
+    { name = "markdown-it-py" },
+    { name = "mdit-py-plugins" },
     { name = "mypy" },
     { name = "mypy-extensions" },
     { name = "prek" },
@@ -2857,6 +2871,7 @@ dev = [
     { name = "pytest-httpx" },
     { name = "pytest-timeout" },
     { name = "pytest-xdist" },
+    { name = "pyyaml" },
     { name = "requests-mock" },
     { name = "ruff" },
     { name = "sqlalchemy", extra = ["mypy"] },
@@ -2904,7 +2919,7 @@ requires-dist = [
     { name = "click", specifier = "==8.*" },
     { name = "deepmerge", specifier = "==3.0.1" },
     { name = "deprecated", specifier = ">=1.2.18" },
-    { name = "fastapi", specifier = "~=0.143.0" },
+    { name = "fastapi", specifier = "~=0.150.0" },
     { name = "fastapi-etag", specifier = "==0.4.0" },
     { name = "fastmcp", marker = "extra == 'mcp'", specifier = ">=2.0.0" },
     { name = "httpx", specifier = ">=0.28.0,<1.0" },
@@ -2919,7 +2934,7 @@ requires-dist = [
     { name = "prometheus-client", specifier = "==0.25.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.3" },
     { name = "pydantic", extras = ["email"], specifier = "~=2.13.0" },
-    { name = "pydantic-forms", specifier = ">=2.4.0" },
+    { name = "pydantic-forms", specifier = ">=2.9.0" },
     { name = "pydantic-settings", specifier = "~=2.16.0" },
     { name = "pytest", marker = "extra == 'testing'", specifier = ">=8.0" },
     { name = "pydantic-settings", specifier = "~=2.16.0" },
@@ -2950,6 +2965,8 @@ dev = [
     { name = "dirty-equals", specifier = ">=0.9.0" },
     { name = "inline-snapshot", specifier = ">=0.32.4" },
     { name = "jsonref", specifier = ">=1.1.0" },
+    { name = "markdown-it-py", specifier = ">=4.2.0" },
+    { name = "mdit-py-plugins", specifier = ">=0.6.1" },
     { name = "mypy", specifier = ">=2.4,<2.5" },
     { name = "mypy-extensions", specifier = ">=1.1.0" },
     { name = "prek", specifier = ">=0.5.5" },
@@ -2963,6 +2980,7 @@ dev = [
     { name = "pytest-httpx", specifier = ">=0.29.0" },
     { name = "pytest-timeout", specifier = ">=2.3.1" },
     { name = "pytest-xdist", specifier = ">=3.7.0" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests-mock", specifier = ">=1.12.1" },
     { name = "ruff", specifier = ">=0.15.11" },
     { name = "sqlalchemy", extras = ["mypy"], specifier = ">=2.0.41" },
@@ -3616,16 +3634,16 @@ wheels = [
 
 [[package]]
 name = "pydantic-forms"
-version = "2.6.0"
+version = "2.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "more-itertools" },
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-i18n" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f0/be/753f1658c50ea70d9e84d8d466891934f4a6e2ee9511c2e6a8e2a05a6307/pydantic_forms-2.6.0.tar.gz", hash = "sha256:23ada2cc04d02c14664d9d51101124be034e62e9b55e6c5ff21c0ee34b0b0bb1", size = 40965, upload-time = "2026-08-04T13:29:06.361Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/f4/1214de8639bd5d497932ce4a832d3a94f58c3cc229c13f0d36b4f8b90adf/pydantic_forms-2.9.0.tar.gz", hash = "sha256:f52030ca679fdb2dea93773a7638068497eaea49c29f9f8131c855dc7ba7e4df", size = 61532, upload-time = "2026-10-19T14:33:24.119Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8c/70/8c7ef6fc7fbd8bd9ecdfee15ec85ff6e047168d3f9c9350b9b5be5ff779a/pydantic_forms-2.6.0-py3-none-any.whl", hash = "sha256:dcfd64946f78c091cd506fcd922e78b532400bc3a837032d5d3fda6dcddf4c3a", size = 48713, upload-time = "2026-08-04T13:29:05.151Z" },
+    { url = "https://files.pythonhosted.org/packages/86/33/7f48babebebf617be025e69f7ba67a7b193f9d618d5d52cfb7fca5c96aea/pydantic_forms-2.9.0-py3-none-any.whl", hash = "sha256:eb435418cd12bbaec567f4b964814aa23da927ed2fa353e94049db2e577d02e9", size = 56984, upload-time = "2026-10-19T14:33:22.872Z" },
 ]
 
 [[package]]

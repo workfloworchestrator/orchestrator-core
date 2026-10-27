@@ -22,6 +22,7 @@ boring; it does not import anything from this module.
 import contextlib
 import datetime
 import os
+import time
 import uuid
 from contextlib import contextmanager
 from uuid import uuid4
@@ -57,6 +58,7 @@ from orchestrator.core.services.tasks import (
     initialise_celery,
     register_custom_serializer,
 )
+from orchestrator.core.services.worker_status_monitor import get_worker_status_monitor
 from orchestrator.core.services.workflows import get_workflow_by_name
 from orchestrator.core.settings import AppSettings, app_settings
 from orchestrator.core.targets import Target
@@ -196,6 +198,72 @@ def joined_async_session():
 def load_scheduled_tasks(database):
     with get_scheduler():
         pass
+
+
+def reset_active_threadpool_jobs() -> None:
+    """Reset the threadpool active-job counter to zero.
+
+    Used in teardown when a test leaked a job that never finished, so the leaked count does not fail
+    every later test on the same xdist worker (#2039).
+    """
+    import orchestrator.core.services.processes as processes
+
+    with processes._active_jobs_lock:
+        processes._active_threadpool_jobs = 0
+
+
+def wait_for_no_active_threadpool_jobs(timeout: float = 5.0, interval: float = 0.05) -> int:
+    """Wait for in-flight threadpool jobs to finish, returning the number still active.
+
+    Jobs that are merely finishing (rather than stuck) decrement the counter shortly after a test
+    ends. Only a job that never returns survives the timeout, in which case the counter is reset so
+    the leak does not fail every later test on the same xdist worker (#2039).
+
+    Args:
+        timeout: Maximum number of seconds to wait for jobs to finish.
+        interval: Number of seconds to sleep between checks.
+
+    Returns:
+        The number of jobs still active after waiting (0 when none leaked).
+    """
+    import orchestrator.core.services.processes as processes
+
+    deadline = time.monotonic() + timeout
+    while (remaining := processes.get_active_threadpool_jobs_count()) != 0 and time.monotonic() < deadline:
+        time.sleep(interval)
+
+    if remaining != 0:
+        reset_active_threadpool_jobs()
+    return remaining
+
+
+def wait_for_running_jobs_count(expected: int = 0, timeout: float = 10.0, interval: float = 0.05) -> None:
+    """Refresh the monitor until its running jobs count equals ``expected``, or fail after ``timeout``.
+
+    The monitor caches the running jobs count and only refreshes it periodically. Tests that assert on
+    the count would otherwise read a stale value left behind by a previous test's background job (#2039).
+
+    The monitor is resolved through ``get_worker_status_monitor()``, the same accessor the API and
+    metrics use, so the helper always refreshes the monitor that production reads from.
+
+    Args:
+        expected: The count to wait for.
+        timeout: Maximum number of seconds to wait.
+        interval: Number of seconds to sleep between refreshes.
+
+    Raises:
+        AssertionError: If the count does not reach ``expected`` within ``timeout``.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        monitor = get_worker_status_monitor()
+        monitor._refresh_once()
+        count = monitor.get_running_jobs_count()
+        if count == expected:
+            return
+        if time.monotonic() >= deadline:
+            raise AssertionError(f"running jobs count is {count}, expected {expected} after {timeout}s")
+        time.sleep(interval)
 
 
 @pytest.fixture
