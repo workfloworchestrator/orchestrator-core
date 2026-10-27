@@ -12,6 +12,8 @@ name: Tests
 #   5) ``llm-acceptance-tests`` runs the LLM/embedding acceptance suite
 #      (reusable ``run-llm-acceptance-tests.yml``). Tests use mocked
 #      embeddings, so it runs on fork PRs too.
+#   6) ``search-benchmark`` runs the search accuracy and query-plan benchmark
+#      against its committed baselines (reusable ``run-search-benchmark.yml``).
 #
 # Each downstream job ``needs: unit-tests`` so unit tests run exactly once
 # per PR and downstream jobs only execute when units are green.
@@ -123,6 +125,12 @@ jobs:
     name: LLM/embedding acceptance tests
     needs: unit-tests
     uses: ./.github/workflows/run-llm-acceptance-tests.yml
+    secrets: inherit
+
+  search-benchmark:
+    name: Search benchmark
+    needs: unit-tests
+    uses: ./.github/workflows/run-search-benchmark.yml
     secrets: inherit
 
   linting-tests:

@@ -1,0 +1,137 @@
+# Hand-written queries: where the intended search behaviour is decided, not derived.
+#
+# `expected` holds keys of the generic profile's anchor entities (see profiles/generic.py). Every query is written so
+# that no generated entity can compete for the label: generated identifiers never equal an anchor's, ASNs stay below
+# 64512, and anchor prefixes (192.0.2.0/24) lie outside the generated 198.51.x.0/24.
+#
+#   ams-rt01  Amsterdam Port ams-rt01 et-0/0/1 for Northwind Research          vlan 101
+#   ams-rt10  Amsterdam Port ams-rt10 et-0/0/1 for Bluefin University          vlan 102
+#   asv-rt01  Amstelveen Port asv-rt01 et-0/0/1 for Redwood Institute          vlan 103
+#   northwind-lightpath  Amsterdam Light Path ams-rt07 xe-1/2/4 for Northwind Research, other end rtd-rt07  vlan 210
+#   northwind-peering    Utrecht IP Peering utr-rt02 et-3/0/2 for Northwind Research, 192.0.2.0/24, AS64500
+#   rtd-rt01  Rotterdam L2VPN rtd-rt01 ge-0/1/3 for Silverline Museum         vlan 410
+#   rmd-rt01  Roermond L2VPN rmd-rt01 ge-0/1/3 for Silverline Archives        vlan 411
+
+# --- identifier: near-miss node names, the ranking between neighbours
+- query: "ams-rt01"
+  category: identifier
+  expected: [ams-rt01]
+  note: Exact node name; ams-rt10 differs by two characters and must not outrank it.
+- query: "ams-rt10"
+  category: identifier
+  expected: [ams-rt10]
+  note: The mirror of ams-rt01.
+- query: "asv-rt01"
+  category: identifier
+  expected: [asv-rt01]
+  note: Same node number as ams-rt01 at another location; the location code decides.
+- query: "ams-rt07 xe-1/2/4"
+  category: identifier
+  expected: [northwind-lightpath]
+  note: Node and port together identify one service.
+- query: "rtd-rt01"
+  category: identifier
+  expected: [rtd-rt01]
+  note: Must not be answered by the light path whose far end is rtd-rt07.
+- query: "rmd-rt01"
+  category: identifier
+  expected: [rmd-rt01]
+  note: One letter from rtd-rt01 at the location code.
+- query: "utr-rt02"
+  category: identifier
+  expected: [northwind-peering]
+  note: A node on a nested port that is not in the description's first words.
+- query: "192.0.2.0/24"
+  category: identifier
+  expected: [northwind-peering]
+  note: An IP prefix is an identifier, found by its exact text.
+- query: "64500"
+  category: identifier
+  expected: [northwind-peering]
+  note: A bare number that is only a peer ASN.
+
+# --- identifier: partial ids (blind spot of the perturbations)
+- query: "{id:ams-rt01}"
+  category: identifier
+  expected: [ams-rt01]
+  note: A full UUID finds its entity.
+- query: "{id8:ams-rt10}"
+  category: identifier
+  expected: [ams-rt10]
+  note: The first block of a UUID, as copied from a log line.
+- query: "{id8:rmd-rt01}"
+  category: identifier
+  expected: [rmd-rt01]
+  note: A partial UUID must find its entity and not the entity whose text merely resembles it.
+
+# --- typo
+- query: "amstredam ams-rt01"
+  category: typo
+  expected: [ams-rt01]
+  note: A transposed city plus the exact node; the node settles which Amsterdam port.
+- query: "rotterdma silverline"
+  category: typo
+  expected: [rtd-rt01]
+  note: Transposed city, and a customer prefix shared by two services; Rotterdam picks the museum.
+- query: "roermnod"
+  category: typo
+  expected: [rmd-rt01]
+  note: Must not be answered by Rotterdam services.
+- query: "amstelven redwood"
+  category: typo
+  expected: [asv-rt01]
+  note: A dropped letter in Amstelveen must not turn into Amsterdam.
+
+# --- prefix
+- query: "amsterdam port ams-rt1"
+  category: prefix
+  expected: [ams-rt01, ams-rt10]
+  note: Ambiguous on purpose; both neighbours are valid and one of them must be on top.
+- query: "utrecht ip peer"
+  category: prefix
+  expected: [northwind-peering]
+  note: A cut-off product name.
+
+# --- multi_field: a customer and a location say more than either alone
+- query: "northwind amsterdam light"
+  category: multi_field
+  expected: [northwind-lightpath]
+  note: Customer, location and product together; the customer's port in Amsterdam must rank below the light path.
+- query: "bluefin amsterdam"
+  category: multi_field
+  expected: [ams-rt10]
+  note: Customer disambiguates between the Amsterdam ports.
+- query: "redwood amstelveen"
+  category: multi_field
+  expected: [asv-rt01]
+  note: Customer and location both name the same service.
+
+# --- case_punctuation
+- query: "AMS RT10 ET 0 0 1"
+  category: case_punctuation
+  expected: [ams-rt10]
+  note: Separators and case dropped from the node and port name.
+- query: "ge-0-1-3 silverline museum"
+  category: case_punctuation
+  expected: [rtd-rt01]
+  note: A port name with the wrong separator, with the customer to tell the two L2VPNs apart.
+
+# --- reorder
+- query: "northwind research peering utrecht"
+  category: reorder
+  expected: [northwind-peering]
+  note: Words in another order than the description.
+
+# --- negative
+- query: "zxqv blorp"
+  category: negative
+  note: Gibberish with no trigram in common with anything.
+- query: "quantum entanglement router"
+  category: negative
+  note: Real words that do not occur in the corpus.
+- query: "10.99.99.0/24"
+  category: negative
+  note: An IP prefix that is not indexed; digits and dots alone must not match.
+- query: "00000000-0000-4000-8000-00000000dead"
+  category: negative
+  note: A well-formed UUID of no entity must not match the entities with similar ids.

@@ -1,0 +1,67 @@
+# Copyright 2019-2026 ESnet, GÉANT, SURF.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# Search accuracy and query-plan benchmark. Fails when a change moves a metric of the committed baseline.
+
+name: Search benchmark
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged
+
+jobs:
+  container_job:
+    name: Search benchmark Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
+    runs-on: ubuntu-26.04
+    strategy:
+      matrix:
+        python-version: ["3.14"]
+        postgres-version: ["15", "17"]
+      fail-fast: false
+    container: ubuntu:latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg${{ matrix.postgres-version }}
+        env:
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_USER: nwa
+          POSTGRES_DB: orchestrator-core-test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.13.3"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install project and dependencies
+        run: |
+          uv sync --all-extras --dev
+
+      - name: Run the search benchmark
+        env:
+          CACHE_URI: redis://redis
+          DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
+          ENVIRONMENT: TESTING
+          PYTHONPATH: .
+          REDIS_HOST: redis
+        run: |
+          uv run pytest test/benchmarks/search -v -rs
