@@ -1,9 +1,3 @@
-document.querySelectorAll(".use-termynal").forEach(node => {
-    node.style.display = "block";
-    new Termynal(node, {
-        lineDelay: 500
-    });
-});
 const progressLiteralStart = "---> 100%";
 const promptLiteralStart = "$ ";
 const customPromptLiteralStart = "# ";
@@ -101,5 +95,17 @@ function loadVisibleTermynals() {
     });
 }
 window.addEventListener("scroll", loadVisibleTermynals);
-createTermynals();
-loadVisibleTermynals();
+
+// navigation.instant swaps pages in without reloading the scripts, so (re)build the
+// terminals on every page load instead of only once.
+document$.subscribe(() => {
+    termynals = [];
+    document.querySelectorAll(".use-termynal").forEach(node => {
+        node.style.display = "block";
+        new Termynal(node, {
+            lineDelay: 500
+        });
+    });
+    createTermynals();
+    loadVisibleTermynals();
+});
