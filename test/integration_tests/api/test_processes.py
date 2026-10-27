@@ -174,7 +174,7 @@ def test_delete_process_404(test_client, started_process):
 
 
 @pytest.mark.timeout(30)
-def test_long_running_pause(test_client, fastapi_app, long_running_workflow, monkeypatch):
+def test_long_running_pause(test_client, long_running_workflow, monkeypatch):
     monkeypatch.setattr(app_settings, "TESTING", False)
     # Start the workflow
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{}])
@@ -192,7 +192,7 @@ def test_long_running_pause(test_client, fastapi_app, long_running_workflow, mon
 
     # The worker is blocked inside the step, so exactly one job is active: refresh the monitor and
     # assert the PAUSING transition deterministically (#2039).
-    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=1)
+    wait_for_running_jobs_count(expected=1)
     response = test_client.put("/api/settings/status", json={"global_lock": True})
     assert response.json()["global_lock"] is True
     assert response.json()["running_processes"] == 1  # Worker still executing the locked step
@@ -203,7 +203,7 @@ def test_long_running_pause(test_client, fastapi_app, long_running_workflow, mon
         test_condition.notify_all()
     # The worker returns from the job after the lock step and _ActiveJobTracker decrements the count;
     # poll the monitor instead of sleeping past the (now idle) refresh interval (#2039).
-    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=0)
+    wait_for_running_jobs_count(expected=0)
 
     # Check status after pausing.
     # Worker-based counting: worker has stopped executing, so count is 0
@@ -221,8 +221,9 @@ def test_long_running_pause(test_client, fastapi_app, long_running_workflow, mon
     # Unlock the engine to resume execution
     response = test_client.put("/api/settings/status", json={"global_lock": False})
     assert response.json()["global_lock"] is False
-    # Worker-based counting: monitor updates periodically, so may not reflect worker immediately
-    assert response.json()["running_processes"] in [0, 1]
+    # The cache was refreshed to 0 above and is not refreshed again before this response, so the
+    # engine has not picked up the pending process yet (#2039).
+    assert response.json()["running_processes"] == 0
     assert response.json()["global_status"] == "RUNNING"
 
     # Let it continue executing until the second lock step is started
@@ -231,7 +232,7 @@ def test_long_running_pause(test_client, fastapi_app, long_running_workflow, mon
     # Let it finish after second lock step
     with test_condition:
         test_condition.notify_all()
-    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=0)
+    wait_for_running_jobs_count(expected=0)
 
     response = test_client.get(f"api/processes/{process_id}")
     assert HTTPStatus.OK == response.status_code

@@ -92,7 +92,7 @@ from orchestrator.core.services.tasks import (
     initialise_celery,
     register_custom_serializer,
 )
-from orchestrator.core.services.worker_status_monitor import WorkerStatusMonitor
+from orchestrator.core.services.worker_status_monitor import get_worker_status_monitor
 from orchestrator.core.services.workflows import get_workflow_by_name
 from orchestrator.core.settings import AppSettings, SecretPostgresDsn, app_settings
 from orchestrator.core.targets import Target
@@ -493,16 +493,16 @@ def wait_for_no_active_threadpool_jobs(timeout: float = 5.0, interval: float = 0
     return remaining
 
 
-def wait_for_running_jobs_count(
-    monitor: WorkerStatusMonitor, expected: int = 0, timeout: float = 10.0, interval: float = 0.05
-) -> None:
+def wait_for_running_jobs_count(expected: int = 0, timeout: float = 10.0, interval: float = 0.05) -> None:
     """Refresh the monitor until its running jobs count equals ``expected``, or fail after ``timeout``.
 
     The monitor caches the running jobs count and only refreshes it periodically. Tests that assert on
     the count would otherwise read a stale value left behind by a previous test's background job (#2039).
 
+    The monitor is resolved through ``get_worker_status_monitor()``, the same accessor the API and
+    metrics use, so the helper always refreshes the monitor that production reads from.
+
     Args:
-        monitor: The WorkerStatusMonitor to refresh.
         expected: The count to wait for.
         timeout: Maximum number of seconds to wait.
         interval: Number of seconds to sleep between refreshes.
@@ -512,6 +512,7 @@ def wait_for_running_jobs_count(
     """
     deadline = time.monotonic() + timeout
     while True:
+        monitor = get_worker_status_monitor()
         monitor._refresh_once()
         count = monitor.get_running_jobs_count()
         if count == expected:

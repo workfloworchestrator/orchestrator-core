@@ -999,7 +999,7 @@ def test_db_log_process_ex(simple_workflow):
     assert p.last_status == "failed"
 
 
-def test_run_process_async_success(fastapi_app, monkeypatch):
+def test_run_process_async_success(monkeypatch):
     process_id = uuid4()
     event = Event()
 
@@ -1012,17 +1012,17 @@ def test_run_process_async_success(fastapi_app, monkeypatch):
     monkeypatch.setattr(app_settings, "TESTING", False)
     _run_process_async(process_id, run_func)
 
-    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=1)
+    wait_for_running_jobs_count(expected=1)
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 1
 
     event.set()
 
-    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=0)
+    wait_for_running_jobs_count(expected=0)
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 0
 
 
 @mock.patch("orchestrator.core.services.processes._db_log_process_ex")
-def test_run_process_async_exception(mock_db_log_process_ex, fastapi_app, monkeypatch):
+def test_run_process_async_exception(mock_db_log_process_ex, monkeypatch):
     process_id = uuid4()
     event = Event()
 
@@ -1034,12 +1034,12 @@ def test_run_process_async_exception(mock_db_log_process_ex, fastapi_app, monkey
     monkeypatch.setattr(app_settings, "TESTING", False)
     _run_process_async(process_id, run_func)
 
-    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=1)
+    wait_for_running_jobs_count(expected=1)
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 1
 
     event.set()
 
-    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=0)
+    wait_for_running_jobs_count(expected=0)
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 0
 
     mock_db_log_process_ex.assert_called_once_with(process_id, mock.ANY)

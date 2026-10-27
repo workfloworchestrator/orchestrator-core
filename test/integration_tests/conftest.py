@@ -59,7 +59,7 @@ def idle_worker_status_monitor(fastapi_app) -> None:
     In teardown, a job that never finishes is reset (after a short grace period) so the leak fails
     the test that caused it instead of every later test on this worker.
     """
-    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=0)
+    wait_for_running_jobs_count(expected=0)
     yield
     if (leaked := wait_for_no_active_threadpool_jobs()) != 0:
         pytest.fail(f"{leaked} threadpool job(s) still running at teardown (#2039)")
