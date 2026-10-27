@@ -36,13 +36,26 @@ from test.integration_tests._fixtures import (  # noqa: E402
     JsonTestClient,
     TestOrchestratorCelery,
     do_refresh_subscriptions_search_view,
+    wait_for_running_jobs_count,
 )
 
 __all__ = [
     "CUSTOMER_ID",
     "TestOrchestratorCelery",
     "do_refresh_subscriptions_search_view",
+    "wait_for_running_jobs_count",
 ]
+
+
+@pytest.fixture(autouse=True)
+def idle_worker_status_monitor(fastapi_app) -> None:
+    """Start every test with no running jobs and a fresh WorkerStatusMonitor cache (#2039).
+
+    The monitor is a process-wide singleton whose cache is shared by every test on the same xdist
+    worker. Waiting for the count to reach zero (instead of only refreshing) also covers a job from
+    the previous test that is still finishing, and surfaces a genuinely leaked job as a clear timeout.
+    """
+    wait_for_running_jobs_count(fastapi_app.worker_status_monitor, expected=0)
 
 
 @pytest.fixture(autouse=True)

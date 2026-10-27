@@ -41,6 +41,7 @@ from test.integration_tests._session_setup import SERVICES_STACK as _SERVICES_ST
 import contextlib
 import datetime
 import os
+import time
 import typing
 import uuid
 from contextlib import closing, contextmanager
@@ -91,6 +92,7 @@ from orchestrator.core.services.tasks import (
     initialise_celery,
     register_custom_serializer,
 )
+from orchestrator.core.services.worker_status_monitor import WorkerStatusMonitor
 from orchestrator.core.services.workflows import get_workflow_by_name
 from orchestrator.core.settings import AppSettings, SecretPostgresDsn, app_settings
 from orchestrator.core.targets import Target
@@ -420,6 +422,9 @@ def make_orchestrator_app():
             app_settings,
             ENABLE_PROMETHEUS_METRICS_ENDPOINT=True,
             ENVIRONMENT="TESTING",
+            # The monitor refreshes once at startup and then sits idle for an hour, so the background
+            # thread cannot overwrite a freshly refreshed value with a stale one mid-test (#2039).
+            WORKER_STATUS_INTERVAL=3600,
         ),
     ):
         app = OrchestratorCore(base_settings=app_settings)
@@ -430,6 +435,34 @@ def make_orchestrator_app():
         finally:
             app.worker_status_monitor.stop()
             app.broadcast_thread.stop()
+
+
+def wait_for_running_jobs_count(
+    monitor: WorkerStatusMonitor, expected: int = 0, timeout: float = 10.0, interval: float = 0.05
+) -> None:
+    """Refresh the monitor until its running jobs count equals ``expected``, or fail after ``timeout``.
+
+    The monitor caches the running jobs count and only refreshes it periodically. Tests that assert on
+    the count would otherwise read a stale value left behind by a previous test's background job (#2039).
+
+    Args:
+        monitor: The WorkerStatusMonitor to refresh.
+        expected: The count to wait for.
+        timeout: Maximum number of seconds to wait.
+        interval: Number of seconds to sleep between refreshes.
+
+    Raises:
+        AssertionError: If the count does not reach ``expected`` within ``timeout``.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        monitor._refresh_once()
+        count = monitor.get_running_jobs_count()
+        if count == expected:
+            return
+        if time.monotonic() >= deadline:
+            raise AssertionError(f"running jobs count is {count}, expected {expected} after {timeout}s")
+        time.sleep(interval)
 
 
 @pytest.fixture(scope="session", autouse=True)
