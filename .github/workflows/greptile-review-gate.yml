@@ -6,18 +6,20 @@ name: Greptile review gate
 # budget of free open-source Greptile credits:
 #
 # - When a PR is ready for review and its author has write access to the repo,
-#   `greptile/run` is added once. That initial review also runs TREX
-#   (configured in the Greptile dashboard), so it costs FIRST_REVIEW_CREDITS.
+#   `greptile/run` is added once.
 # - Anyone who can label PRs requests another review by adding `greptile-review`.
 #   The workflow removes it and re-adds `greptile/run` while the PR stays within
-#   MAX_CREDITS. Repo admins (core-maintainers) are not capped, so they can force
+#   MAX_REVIEWS. Repo admins (core-maintainers) are not capped, so they can force
 #   another review when it is really needed.
 # - PRs from authors without write access are not reviewed automatically; a
 #   maintainer adds `greptile-review` to request a review.
+# - TREX (in-depth reviews that cost extra credits) runs only while the PR has
+#   the `greptile-review-trex` label; the TREX rule in the Greptile dashboard
+#   matches on it. Only repo admins may set it: the workflow removes it when
+#   anyone else adds it. When an admin adds it, a review is triggered right away.
 #
-# Credits are counted from the PR's history of `greptile/run` labeled events, so
-# they are an estimate and do not include reviews requested by commenting
-# `@greptileai`.
+# Reviews are counted from the PR's history of `greptile/run` labeled events, so
+# reviews requested by commenting `@greptileai` are not included.
 #
 # Uses pull_request_target so PRs from forks get a token that can edit labels.
 # It never checks out or runs code from the PR.
@@ -36,86 +38,102 @@ permissions:
 concurrency:
   group: greptile-review-gate-${{ github.event.pull_request.number }}
 
-env:
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  REPO: ${{ github.repository }}
-  PR: ${{ github.event.pull_request.number }}
-  REQUEST_LABEL: greptile-review
-  TRIGGER_LABEL: greptile/run
-  FIRST_REVIEW_CREDITS: 3 # Base review (1) + TREX (2)
-  REREVIEW_CREDITS: 1
-  MAX_CREDITS: 5
-
 jobs:
-  initial-review:
-    if: >-
-      github.event.action != 'labeled'
-      && !github.event.pull_request.draft
-      && github.event.pull_request.user.type != 'Bot'
-    runs-on: ubuntu-slim
-    steps:
-      - name: "🦖 Request the initial Greptile review"
-        env:
-          AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          permission=$(gh api "repos/${REPO}/collaborators/${AUTHOR}/permission" --jq .permission)
-          if [[ "${permission}" != "admin" && "${permission}" != "write" ]]; then
-            echo "${AUTHOR} has '${permission}' access; a maintainer can add '${REQUEST_LABEL}' to request a review."
-            exit 0
-          fi
-          reviews=$(gh api --paginate "repos/${REPO}/issues/${PR}/events" \
-            --jq ".[] | select(.event == \"labeled\" and .label.name == \"${TRIGGER_LABEL}\") | .id" | wc -l)
-          if (( reviews > 0 )); then
-            echo "This PR was already reviewed by Greptile; add '${REQUEST_LABEL}' to request another review."
-            exit 0
-          fi
-          gh pr edit "${PR}" --repo "${REPO}" --add-label "${TRIGGER_LABEL}"
-
-  rerun:
+  gate:
     # Labels added by this workflow's GITHUB_TOKEN do not trigger workflows, so a
-    # `labeled` event for TRIGGER_LABEL always comes from a person.
+    # `labeled` event always comes from a person.
     if: >-
-      github.event.action == 'labeled'
-      && contains(fromJSON('["greptile-review", "greptile/run"]'), github.event.label.name)
+      (github.event.action == 'labeled'
+        && contains(fromJSON('["greptile-review", "greptile-review-trex", "greptile/run"]'), github.event.label.name))
+      || (github.event.action != 'labeled'
+        && !github.event.pull_request.draft
+        && github.event.pull_request.user.type != 'Bot')
     runs-on: ubuntu-slim
     steps:
-      - name: "🦖 Request another Greptile review within the credit cap"
+      - name: "🦖 Request a Greptile review within the per-PR budget"
         env:
-          SENDER: ${{ github.event.sender.login }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          ACTION: ${{ github.event.action }}
           LABEL: ${{ github.event.label.name }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          SENDER: ${{ github.event.sender.login }}
+          REQUEST_LABEL: greptile-review
+          TREX_LABEL: greptile-review-trex
+          TRIGGER_LABEL: greptile/run
+          MAX_REVIEWS: 5
         run: |
-          permission=$(gh api "repos/${REPO}/collaborators/${SENDER}/permission" --jq .permission)
+          permission_of() {
+            gh api "repos/${REPO}/collaborators/$1/permission" --jq .permission
+          }
 
-          if [[ "${LABEL}" == "${TRIGGER_LABEL}" ]]; then
-            # Added by hand: Greptile has already been triggered, so this can only
-            # steer people towards REQUEST_LABEL. Admins may set it directly.
-            if [[ "${permission}" != "admin" ]]; then
-              gh pr edit "${PR}" --repo "${REPO}" --remove-label "${TRIGGER_LABEL}"
-              gh pr comment "${PR}" --repo "${REPO}" --body \
-                "@${SENDER} \`${TRIGGER_LABEL}\` is set by automation only; add \`${REQUEST_LABEL}\` to request a Greptile review. That keeps each PR within its share of our free Greptile credits."
+          labeled_events() {
+            gh api --paginate "repos/${REPO}/issues/${PR}/events" \
+              --jq ".[] | select(.event == \"labeled\" and .label.name == \"$1\") | .actor.login"
+          }
+
+          comment() {
+            gh pr comment "${PR}" --repo "${REPO}" --body "$1"
+          }
+
+          # Drop the TREX label unless an admin set it last, e.g. when a PR was opened with it.
+          drop_unauthorized_trex() {
+            if gh pr view "${PR}" --repo "${REPO}" --json labels --jq '.labels[].name' | grep -qxF "${TREX_LABEL}"; then
+              actor=$(labeled_events "${TREX_LABEL}" | tail -n 1)
+              if [[ -z "${actor}" || "$(permission_of "${actor}")" != "admin" ]]; then
+                gh pr edit "${PR}" --repo "${REPO}" --remove-label "${TREX_LABEL}"
+              fi
+            fi
+          }
+
+          # Greptile reviews when the label is added, so remove it first if present.
+          trigger_review() {
+            drop_unauthorized_trex
+            gh pr edit "${PR}" --repo "${REPO}" --remove-label "${TRIGGER_LABEL}" || true
+            gh pr edit "${PR}" --repo "${REPO}" --add-label "${TRIGGER_LABEL}"
+          }
+
+          reviews=$(labeled_events "${TRIGGER_LABEL}" | wc -l)
+          echo "Greptile reviews so far: ${reviews}"
+
+          if [[ "${ACTION}" != "labeled" ]]; then
+            permission=$(permission_of "${AUTHOR}")
+            if [[ "${permission}" != "admin" && "${permission}" != "write" ]]; then
+              echo "${AUTHOR} has '${permission}' access; a maintainer can add '${REQUEST_LABEL}' to request a review."
+            elif (( reviews > 0 )); then
+              echo "This PR was already reviewed by Greptile; add '${REQUEST_LABEL}' to request another review."
+            else
+              trigger_review
             fi
             exit 0
           fi
 
-          gh pr edit "${PR}" --repo "${REPO}" --remove-label "${REQUEST_LABEL}"
+          permission=$(permission_of "${SENDER}")
 
-          reviews=$(gh api --paginate "repos/${REPO}/issues/${PR}/events" \
-            --jq ".[] | select(.event == \"labeled\" and .label.name == \"${TRIGGER_LABEL}\") | .id" | wc -l)
-          if (( reviews == 0 )); then
-            used=0
-            next=${FIRST_REVIEW_CREDITS}
-          else
-            used=$(( FIRST_REVIEW_CREDITS + (reviews - 1) * REREVIEW_CREDITS ))
-            next=${REREVIEW_CREDITS}
-          fi
-          echo "Reviews so far: ${reviews}, estimated credits used: ${used}, next review: ${next}"
-
-          if (( used + next > MAX_CREDITS )) && [[ "${permission}" != "admin" ]]; then
-            gh pr comment "${PR}" --repo "${REPO}" --body \
-              "This PR has used its Greptile review budget (about ${used} of ${MAX_CREDITS} credits from our free monthly open-source allowance), so no further review was requested. If another review is really needed, a core maintainer (\`@workfloworchestrator/core-maintainers\`) can add the \`${REQUEST_LABEL}\` label to force one."
-            exit 0
-          fi
-
-          # Greptile reviews when the label is added, so remove it first if present.
-          gh pr edit "${PR}" --repo "${REPO}" --remove-label "${TRIGGER_LABEL}" || true
-          gh pr edit "${PR}" --repo "${REPO}" --add-label "${TRIGGER_LABEL}"
+          case "${LABEL}" in
+            "${TRIGGER_LABEL}")
+              # Added by hand: Greptile has already been triggered, so this can only
+              # steer people towards REQUEST_LABEL. Admins may set it directly.
+              if [[ "${permission}" != "admin" ]]; then
+                gh pr edit "${PR}" --repo "${REPO}" --remove-label "${TRIGGER_LABEL}"
+                comment "@${SENDER} \`${TRIGGER_LABEL}\` is set by automation only; add \`${REQUEST_LABEL}\` to request a Greptile review. That keeps each PR within its share of our free Greptile credits."
+              fi
+              ;;
+            "${TREX_LABEL}")
+              if [[ "${permission}" != "admin" ]]; then
+                gh pr edit "${PR}" --repo "${REPO}" --remove-label "${TREX_LABEL}"
+                comment "@${SENDER} TREX reviews use extra Greptile credits, so only a core maintainer (\`@workfloworchestrator/core-maintainers\`) can add \`${TREX_LABEL}\`."
+              else
+                trigger_review
+              fi
+              ;;
+            "${REQUEST_LABEL}")
+              gh pr edit "${PR}" --repo "${REPO}" --remove-label "${REQUEST_LABEL}"
+              if (( reviews >= MAX_REVIEWS )) && [[ "${permission}" != "admin" ]]; then
+                comment "This PR has used its Greptile review budget from our free monthly open-source allowance, so no further review was requested. If another review is really needed, a core maintainer (\`@workfloworchestrator/core-maintainers\`) can add the \`${REQUEST_LABEL}\` label to force one."
+              else
+                trigger_review
+              fi
+              ;;
+          esac

@@ -50,6 +50,7 @@ labels=(
   "dev-dependencies|ededed|Bumps a development-only dependency; excluded from release notes (set by Renovate)"
   # Greptile review gate (.github/workflows/greptile-review-gate.yml), not release-notes labels.
   "greptile-review|0e8a16|Request a Greptile review (budget per PR; core maintainers can exceed it)"
+  "greptile-review-trex|0e8a16|Run in-depth TREX Greptile reviews on this PR (core maintainers only)"
   "greptile/run|ededed|Triggers Greptile; added by automation only, do not set by hand"
 )
 
