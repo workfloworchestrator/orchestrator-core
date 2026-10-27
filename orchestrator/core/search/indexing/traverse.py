@@ -73,6 +73,9 @@ class BaseTraverser(ABC):
         model_class = type(instance)
 
         for name, annotation in iter_model_field_annotations(model_class):
+            if cls._should_skip_field(instance, name):
+                continue
+
             try:
                 value = getattr(instance, name, None)
             except Exception as e:
@@ -80,6 +83,10 @@ class BaseTraverser(ABC):
                 continue
             new_path = f"{path}{LTREE_SEPARATOR}{name}" if path else name
             yield from cls._yield_fields_for_value(value, new_path, annotation)
+
+    @classmethod
+    def _should_skip_field(cls, instance: Any, field_name: str) -> bool:
+        return False
 
     @classmethod
     def _yield_fields_for_value(cls, value: Any, path: str, annotation: Any) -> Iterable[ExtractedField]:
@@ -124,6 +131,10 @@ class BaseTraverser(ABC):
 
 class SubscriptionTraverser(BaseTraverser):
     """Traverser for subscription entities using full Pydantic model extraction."""
+
+    @classmethod
+    def _should_skip_field(cls, instance: Any, field_name: str) -> bool:
+        return isinstance(instance, ProductBlockModel) and field_name == "name"
 
     @classmethod
     def _load_model(cls, sub: SubscriptionTable) -> SubscriptionModel | None:

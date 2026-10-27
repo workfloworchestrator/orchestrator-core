@@ -28,7 +28,6 @@ def get_simple_product_expected_fields(product_uuid: UUID) -> list[ExtractedFiel
             ("product.status", "active", FieldType.STRING),
             ("product.tag", "SIMPLE", FieldType.STRING),
             ("product.simple_product.product_block.basic_block", "basic_block", FieldType.BLOCK),
-            ("product.simple_product.product_block.basic_block.name", "name", FieldType.RESOURCE_TYPE),
             ("product.simple_product.product_block.basic_block.value", "value", FieldType.RESOURCE_TYPE),
             ("product.simple_product.product_block.basic_block.enabled", "enabled", FieldType.RESOURCE_TYPE),
         ]
