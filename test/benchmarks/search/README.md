@@ -4,7 +4,8 @@ Measures whether a change to the text search (the fuzzy retriever) makes results
 Postgres. Semantic and hybrid retrieval are out of scope: they depend on the embedding model and its size.
 
 Accuracy is scored against *labels*, not against recorded output of the engine, so a wrong result is not locked in as
-correct. A label is the answer key of a query: the entities it should find (`expected`). Performance is the `EXPLAIN (ANALYZE, BUFFERS)` plan of each query, never wall time.
+correct. A label is the answer key of a query: the entities it should find (`expected`). Performance is the
+`EXPLAIN (ANALYZE, BUFFERS)` plan of each query, never wall time.
 
 ## How it works
 
@@ -14,8 +15,8 @@ correct. A label is the answer key of a query: the entities it should find (`exp
 2. The corpus is indexed through the real `Indexer` into `ai_search_index`, in a database built by the real Alembic
    migrations (the integration test fixtures, `pgvector/pgvector:pg15` and `pg17` in CI).
 3. Queries: ~30 hand-written ones (`queries/handwritten.yaml`, each with a note on the intended behaviour) plus
-   generated ones (`perturb.py`: typo, prefix, reorder, case/punctuation, exact, identifier, customer plus location). They run
-   through `execute_search` with `retriever=fuzzy`.
+   generated ones (`perturb.py`: typo, prefix, reorder, case/punctuation, exact, identifier, customer plus location).
+   They run through `execute_search` with `retriever=fuzzy`.
 4. Metrics per category (`metrics.py`): MRR, Success@1, Recall@10, and the false-positive rate of `negative` queries.
    Recall@10 is the share of what fits in 10 results, so a query that matches hundreds of entities can reach 1.0.
 5. Plan metrics per query (`test.integration_tests.search.performance._plans`): cost, blocks, rows, loops, filtered
@@ -46,6 +47,20 @@ against Amstelveen), so each query tests one specific distinction. The list is a
 | `identifier`       | a node and port name, IP prefix, ASN or (partial) UUID           | `ams-rt01 et-0/0/1`                       |
 | `multi_field`      | a customer plus a location, from different blocks of the entity | `Bluefin University Amsterdam`            |
 | `negative`         | text that should find nothing (hand-written only)                | `zxqv blorp`                              |
+
+### Generated queries
+
+`perturb.py` makes queries from the corpus itself, so their labels need no hand-writing:
+
+1. Sample 20 entities with the seed; every category uses the same 20.
+2. Per category, join the entity's facts that category uses (`GENERATORS`) and apply its perturbation, as in the table
+   above. Queries shorter than 5 characters are dropped.
+3. The label is every entity holding the same facts, including the values it only `carries` (a far end), not only the
+   entity the query came from.
+
+Labels compare the unperturbed facts: a `prefix` query is only answered by entities with the full description, not by
+everything the prefix also matches. All categories draw from one random sequence, so changing `GENERATORS` changes the
+queries, and the baseline rows, of the categories after it.
 
 ## Reading the accuracy table
 
