@@ -4,10 +4,7 @@
 name: Linting tests
 
 on:
-  push:
-    branches: [main]
   workflow_call:
-  pull_request:
 
 env:
   UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged

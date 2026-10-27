@@ -33,8 +33,12 @@ wfo_active_process_count 0.0
 
 
 @pytest.fixture(autouse=True, scope="function")
-def assume_empty_metrics_at_start(test_client) -> None:
-    """Assert that at the start of every unit test in this module, the metrics endpoint only contains empty data."""
+def assume_empty_metrics_at_start(idle_worker_status_monitor, test_client) -> None:
+    """Assert that at the start of every unit test in this module, the metrics endpoint only contains empty data.
+
+    Depends explicitly on ``idle_worker_status_monitor`` so the monitor cache is refreshed (and idle)
+    before the assertion runs, rather than relying on autouse fixture ordering (#2039).
+    """
     response = test_client.get("/api/metrics")
     assert HTTPStatus.OK == response.status_code
     assert response.text == EMPTY_METRICS

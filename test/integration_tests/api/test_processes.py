@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import time
 import uuid
 from http import HTTPStatus
 from queue import Queue
@@ -61,6 +60,7 @@ from orchestrator.core.workflow import (
 from orchestrator.core.workflows.tasks.cleanup_tasks_log import task_clean_up_tasks
 from pydantic_forms.core import FormPage
 from test.helpers import URL_STR_TYPE
+from test.integration_tests.conftest import wait_for_running_jobs_count
 from test.integration_tests.workflows import WorkflowInstanceForTests
 
 test_condition = Condition()
@@ -190,17 +190,20 @@ def test_long_running_pause(test_client, long_running_workflow, monkeypatch):
     # Let it run until the first lock step is started
     step_waiting.get(timeout=10)
 
+    # The worker is blocked inside the step, so exactly one job is active: refresh the monitor and
+    # assert the PAUSING transition deterministically (#2039).
+    wait_for_running_jobs_count(expected=1)
     response = test_client.put("/api/settings/status", json={"global_lock": True})
     assert response.json()["global_lock"] is True
-    # Worker-based counting: worker may still be executing, so could be 0 or 1
-    assert response.json()["running_processes"] in [0, 1]
-    assert response.json()["global_status"] in ["PAUSING", "PAUSED"]
+    assert response.json()["running_processes"] == 1  # Worker still executing the locked step
+    assert response.json()["global_status"] == "PAUSING"
 
     # Let it run until completing the first lock step
     with test_condition:
         test_condition.notify_all()
-    # FIXME: flaky, running_processes is read from the WorkerStatusMonitor cache which refreshes every 5s (#2039)
-    time.sleep(1)
+    # The worker returns from the job after the lock step and _ActiveJobTracker decrements the count;
+    # poll the monitor instead of sleeping past the (now idle) refresh interval (#2039).
+    wait_for_running_jobs_count(expected=0)
 
     # Check status after pausing.
     # Worker-based counting: worker has stopped executing, so count is 0
@@ -218,8 +221,9 @@ def test_long_running_pause(test_client, long_running_workflow, monkeypatch):
     # Unlock the engine to resume execution
     response = test_client.put("/api/settings/status", json={"global_lock": False})
     assert response.json()["global_lock"] is False
-    # Worker-based counting: monitor updates periodically, so may not reflect worker immediately
-    assert response.json()["running_processes"] in [0, 1]
+    # The cache was refreshed to 0 above and is not refreshed again before this response, so the
+    # engine has not picked up the pending process yet (#2039).
+    assert response.json()["running_processes"] == 0
     assert response.json()["global_status"] == "RUNNING"
 
     # Let it continue executing until the second lock step is started
@@ -228,7 +232,7 @@ def test_long_running_pause(test_client, long_running_workflow, monkeypatch):
     # Let it finish after second lock step
     with test_condition:
         test_condition.notify_all()
-    time.sleep(1)
+    wait_for_running_jobs_count(expected=0)
 
     response = test_client.get(f"api/processes/{process_id}")
     assert HTTPStatus.OK == response.status_code

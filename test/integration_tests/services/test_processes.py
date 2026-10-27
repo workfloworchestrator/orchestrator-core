@@ -14,7 +14,6 @@
 import asyncio
 from http import HTTPStatus
 from threading import Event
-from time import sleep
 from unittest import mock
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -69,6 +68,7 @@ from orchestrator.core.workflow import (
 from orchestrator.core.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core.translations import translations
 from pydantic_forms.exceptions import FormValidationError
+from test.integration_tests.conftest import wait_for_running_jobs_count
 from test.integration_tests.fixtures.workflows import initial_input_form, step1, step2
 from test.integration_tests.workflows import WorkflowInstanceForTests, run_workflow, store_workflow
 
@@ -999,49 +999,47 @@ def test_db_log_process_ex(simple_workflow):
     assert p.last_status == "failed"
 
 
-def test_run_process_async_success(fastapi_app, monkeypatch):
+def test_run_process_async_success(monkeypatch):
     process_id = uuid4()
     event = Event()
 
     def run_func():
-        return Success(event.wait(1))
+        # Block until the test sets the event (bounded so a failed test cannot hang the interpreter);
+        # a fixed wait(1) can finish before the count is observed on a busy runner (#2039).
+        return Success(event.wait(30))
 
     # Disable Testing setting since we want to run async
     monkeypatch.setattr(app_settings, "TESTING", False)
     _run_process_async(process_id, run_func)
-    sleep(0.01)
 
-    fastapi_app.worker_status_monitor._refresh_once()
+    wait_for_running_jobs_count(expected=1)
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 1
 
     event.set()
-    sleep(1)
 
-    fastapi_app.worker_status_monitor._refresh_once()
+    wait_for_running_jobs_count(expected=0)
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 0
 
 
 @mock.patch("orchestrator.core.services.processes._db_log_process_ex")
-def test_run_process_async_exception(mock_db_log_process_ex, fastapi_app, monkeypatch):
+def test_run_process_async_exception(mock_db_log_process_ex, monkeypatch):
     process_id = uuid4()
     event = Event()
 
     def run_func():
-        event.wait(1)
+        event.wait(30)
         raise ValueError("Failed")
 
     # Disable Testing setting since we want to run async
     monkeypatch.setattr(app_settings, "TESTING", False)
     _run_process_async(process_id, run_func)
-    sleep(0.1)
 
-    fastapi_app.worker_status_monitor._refresh_once()
+    wait_for_running_jobs_count(expected=1)
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 1
 
     event.set()
-    sleep(0.1)
 
-    fastapi_app.worker_status_monitor._refresh_once()
+    wait_for_running_jobs_count(expected=0)
     assert generate_engine_settings_schema(get_engine_settings_table()).running_processes == 0
 
     mock_db_log_process_ex.assert_called_once_with(process_id, mock.ANY)
