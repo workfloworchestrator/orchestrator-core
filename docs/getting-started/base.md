@@ -117,7 +117,7 @@ Visit the [OpenAPI docs](http://127.0.0.1:8080/api/docs) or
 <div class="termy">
 
 ```shell
-uv run pytest
+$ uv run pytest
 ```
 
 </div>
@@ -191,8 +191,8 @@ Create a postgres database:
 <div class="termy">
 
 ```shell
-createuser -sP nwa
-createdb orchestrator-core -O nwa
+$ createuser -sP nwa
+$ createdb orchestrator-core -O nwa
 ```
 
 </div>
@@ -284,10 +284,10 @@ Initialize the migration environment and database tables.
 <div class="termy">
 
 ```shell
-export DATABASE_URI=postgresql+psycopg://nwa:PASSWORD_FROM_STEP_2@localhost:5432/orchestrator-core
+$ export DATABASE_URI=postgresql+psycopg://nwa:PASSWORD_FROM_STEP_2@localhost:5432/orchestrator-core
 
-python main.py db init
-python main.py db upgrade heads
+$ python main.py db init
+$ python main.py db upgrade heads
 ```
 
 </div>
@@ -298,10 +298,10 @@ python main.py db upgrade heads
 <div class="termy">
 
 ```shell
-export DATABASE_URI=postgresql+psycopg://nwa:PASSWORD_FROM_STEP_2@localhost:5432/orchestrator-core
-export OAUTH2_ACTIVE=False
+$ export DATABASE_URI=postgresql+psycopg://nwa:PASSWORD_FROM_STEP_2@localhost:5432/orchestrator-core
+$ export OAUTH2_ACTIVE=False
 
-uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
+$ uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
 ```
 
 </div>
