@@ -460,8 +460,9 @@ example 30 schedules at 11:00, the scheduler starts the first few and skips the 
 There are two ways to make sure all of them start:
 
 1. **Give the schedules a `misfire_grace_time`** that covers starting all of them, for example `60` or `300` seconds.
-   The schedules then start one after the other, a little after their trigger time. Set it per schedule when you
-   create it, or update existing schedules through `PUT /api/schedules`:
+   The schedules then start one after the other, a little after their trigger time. Starting a schedule only creates
+   a process for its task; the orchestrator workers then run the task. Set it per schedule when you create it, or
+   update existing schedules through `PUT /api/schedules`:
    ```json
    {
      "schedule_id": "c1b6e5e3-d9f0-48f2-bc65-3c9c33fcf561",
@@ -484,12 +485,15 @@ of every 10 minutes while the scheduler was down for an hour, but that is still 
 
 #### Skipped schedules
 
-The scheduler logs every skipped schedule as an error, with the schedule id, name, workflow name, scheduled run time
-and `misfire_grace_time`:
+The scheduler logs every skipped schedule as an error, with the schedule id and the scheduled run time:
 
 ```
-[error] Scheduled task was skipped because it was not started within its misfire_grace_time schedule_id=... workflow_name=task_validate_subscriptions ...
+[error] Scheduled task was skipped because it was not started within its misfire_grace_time schedule_id=... scheduled_run_time=...
 ```
+
+To see which task a skipped schedule runs, look up its schedule id with `show-schedule`. The log does not include the
+name or task itself: looking those up while the scheduler is busy would slow it down further, and could block it from
+shutting down.
 
 APScheduler additionally logs a `Run time of job ... was missed by ...` warning. Alert on the error log of the
 scheduler process to notice skipped schedules. A skipped schedule does not start a process, so it does not show up
@@ -497,9 +501,9 @@ in the processes overview.
 
 #### Limitations
 
-- Run a single scheduler process per database. APScheduler 3 does not support several schedulers sharing a job
-  store, which leads to schedules that run twice or not at all. Use `SCHEDULER_EXECUTOR_THREADS` to scale within
-  the process instead.
+- Run exactly one scheduler process. The scheduler is designed to run as a single process; running more than one
+  leads to schedules that run twice or not at all. Use `SCHEDULER_EXECUTOR_THREADS` to scale within the process
+  instead.
 - `misfire_grace_time` and `coalesce` can only be set on schedules created through the API or `load_schedules`.
   Schedules created with the deprecated decorator use the scheduler defaults.
 - A schedule's `misfire_grace_time` and `coalesce` are not shown by `show-schedule` or the GraphQL API.

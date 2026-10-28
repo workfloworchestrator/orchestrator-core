@@ -20,7 +20,6 @@ from apscheduler.events import EVENT_JOB_MISSED, JobExecutionEvent
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.sqlalchemy import Job, SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.schedulers.base import BaseScheduler
 from more_itertools import partition
 from pydantic import BaseModel
 
@@ -43,29 +42,26 @@ job_defaults = {
 }
 
 
-def log_missed_job(event: JobExecutionEvent, scheduler_connection: BaseScheduler) -> None:
+def log_missed_job(event: JobExecutionEvent) -> None:
     """Log a scheduled task that APScheduler skipped because it was picked up after its misfire_grace_time.
 
-    APScheduler itself only logs this as a warning; an error with the schedule details makes the skip noticeable.
-    A job may no longer exist by now (a ``date`` trigger fires once), so its details are looked up best effort.
+    APScheduler itself only logs this as a warning; an error makes the skip noticeable.
+    Only the data the event carries is logged. APScheduler calls this listener on an executor thread, and looking up
+    the job there would take the scheduler's job store lock: that deadlocks with a scheduler shutdown, which holds the
+    lock while it waits for the executor threads, and it slows down the pool during the very burst that causes misfires.
 
     Args:
         event: The ``EVENT_JOB_MISSED`` event.
-        scheduler_connection: The scheduler that dispatched the event.
     """
-    job = scheduler_connection.get_job(event.job_id)
     logger.error(
         "Scheduled task was skipped because it was not started within its misfire_grace_time",
         schedule_id=event.job_id,
-        name=job.name if job else None,
-        workflow_name=job.kwargs.get("workflow_name") if job else None,
-        misfire_grace_time=job.misfire_grace_time if job else None,
         scheduled_run_time=event.scheduled_run_time,
     )
 
 
 scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
-scheduler.add_listener(lambda event: log_missed_job(event, scheduler), EVENT_JOB_MISSED)
+scheduler.add_listener(log_missed_job, EVENT_JOB_MISSED)
 
 
 @contextmanager

@@ -114,27 +114,12 @@ def test_job_options_are_applied_to_the_apscheduler_job(known_workflow):
     assert (default.misfire_grace_time, default.coalesce) == (1, True)
 
 
-@pytest.mark.parametrize(
-    "job,expected",
-    [
-        pytest.param(
-            SimpleNamespace(name="Validate X", kwargs={"workflow_name": "task_validate_x"}, misfire_grace_time=1),
-            {"name": "Validate X", "workflow_name": "task_validate_x", "misfire_grace_time": 1},
-            id="existing-job",
-        ),
-        pytest.param(
-            None, {"name": None, "workflow_name": None, "misfire_grace_time": None}, id="job-removed-after-firing"
-        ),
-    ],
-)
-def test_log_missed_job_logs_an_error_with_schedule_details(job, expected):
+def test_log_missed_job_logs_an_error_with_the_event_data():
     run_time = datetime(2026, 10, 5, 11, tzinfo=timezone.utc)
-    scheduler_connection = mock.Mock(get_job=mock.Mock(return_value=job))
 
     with capture_logs() as logs:
-        log_missed_job(JobExecutionEvent(EVENT_JOB_MISSED, "schedule-1", "default", run_time), scheduler_connection)
+        log_missed_job(JobExecutionEvent(EVENT_JOB_MISSED, "schedule-1", "default", run_time))
 
-    scheduler_connection.get_job.assert_called_once_with("schedule-1")
     assert logs == [
         {
             "event": "Scheduled task was skipped because it was not started within its misfire_grace_time",
@@ -142,7 +127,6 @@ def test_log_missed_job_logs_an_error_with_schedule_details(job, expected):
             "schedule_id": "schedule-1",
             "scheduled_run_time": run_time,
         }
-        | expected
     ]
 
 
@@ -165,7 +149,7 @@ def run_simultaneous_jobs(threads: int, **options) -> tuple[list[str], list[str]
             all_handled.set()
 
     scheduler_connection.add_listener(on_event, EVENT_JOB_EXECUTED | EVENT_JOB_MISSED)
-    scheduler_connection.add_listener(lambda event: log_missed_job(event, scheduler_connection), EVENT_JOB_MISSED)
+    scheduler_connection.add_listener(log_missed_job, EVENT_JOB_MISSED)
 
     run_date = datetime.now(timezone.utc) + timedelta(seconds=1)
     with (
