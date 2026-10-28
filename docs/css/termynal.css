@@ -4,6 +4,10 @@
  * @author Ines Montani <ines@ines.io>
  * @version 0.0.1
  * @license MIT
+ *
+ * The [data-terminal-control] rule follows the termynal PyPI package, version
+ * 0.14.0 (https://github.com/daxartio/termynal), whose termynal.js is vendored
+ * in ../js/termynal.js and renders the controls as buttons instead of links.
  */
 
 :root {
@@ -52,10 +56,15 @@
     text-align: center;
 }
 
-a[data-terminal-control] {
-    text-align: right;
+button[data-terminal-control] {
     display: block;
+    margin-left: auto;
     color: #aebbff;
+    font: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
 }
 
 [data-ty] {
