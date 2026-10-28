@@ -16,8 +16,9 @@ import pytest
 from test.integration_tests._async_session import session_joined_async
 from test.integration_tests.search.performance.conftest import db_session, sorted_gist_build  # noqa: F401
 
-# The integration fixtures (database with Alembic migrations, app, session) for this tree, as the acceptance tests do.
-pytest_plugins = ["test.integration_tests._fixtures"]
+# The database with Alembic migrations, app and session, plus this repo's own integration fixtures on top of them, loaded
+# as the integration and acceptance tests do.
+pytest_plugins = ["orchestrator.core.testing.fixtures", "test.integration_tests._fixtures"]
 
 pytestmark = pytest.mark.search
 
