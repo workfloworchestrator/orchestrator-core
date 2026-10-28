@@ -4,7 +4,7 @@ Measures whether a change to the text search (the fuzzy retriever) makes results
 Postgres. Semantic and hybrid retrieval are out of scope: they depend on the embedding model and its size.
 
 Accuracy is scored against *labels*, not against recorded output of the engine, so a wrong result is not locked in as
-correct. A label is the answer key of a query: the entities it should find (`expected`). Performance is the
+correct. A *label* is the answer key of a query: the entities it should find (`expected`). Performance is the
 `EXPLAIN (ANALYZE, BUFFERS)` plan of each query, never wall time.
 
 ## How it works
@@ -25,14 +25,15 @@ correct. A label is the answer key of a query: the entities it should find (`exp
 
 ## Anchors
 
-A label is only right if it lists *every* correct answer. Among 3000 random entities, a generated "Bluefin, Amsterdam"
-would be a correct answer to `bluefin amsterdam` that the YAML does not know about, and finding it would score as a
-miss.
+A hand-written query lists its correct answers by hand, so that list is only right if no generated entity is also a
+correct answer. If the generator made a "Bluefin Hospital" in Amsterdam, it would be a correct answer to
+`bluefin amsterdam` that the YAML does not list: returning it would count as wrong and push the listed answer down.
 
 Anchors avoid that: a few hand-designed entities (`anchors()` in the profile) that are always in the corpus, whatever
 the seed. Hand-written queries refer to them by key (`expected: [ams-rt10]`), and the generator never produces an
-entity that competes with them. Anchors are near-misses of each other (`ams-rt01` against `ams-rt10`, Amsterdam
-against Amstelveen), so each query tests one specific distinction. The list is at the top of
+entity that competes with them: generated entities never reuse an anchor's node names or (customer family, location)
+pairs (`reserved_nodes()`, `reserved_pairs()`). Anchors are near-misses of each other (`ams-rt01` against
+`ams-rt10`, Amsterdam against Amstelveen), so each query tests one specific distinction. The list is at the top of
 `queries/handwritten.yaml`.
 
 ## Query categories
