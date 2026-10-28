@@ -23,6 +23,31 @@ correct. A *label* is the answer key of a query: the entities it should find (`e
    rows and function calls, plus a check that the trigram index is used and `ai_search_index` is never sequentially
    scanned.
 
+### What gets indexed
+
+Every entity is a subscription-like `NetworkService` (`profiles/generic.py`). A light path or L2VPN has two ports, its
+A-end and B-end; a port or IP peering has one, and only an IP peering has an `ip` block. The description always names
+the A-end, which is why queries are made from it. An anchor, as indexed:
+
+```json
+{
+  "subscription_id": "0fc80d4c-85f1-52fc-9efe-f8792ddeda04",
+  "description": "Amsterdam Light Path ams-rt07 xe-1/2/4 for Northwind Research",
+  "status": "active",
+  "product_name": "Light Path",
+  "customer": {"customer_id": "e1f78731-95cf-57d4-a821-ccfb32b8ac25", "name": "Northwind Research"},
+  "ports": [
+    {"port_name": "xe-1/2/4", "port_speed": 10000, "vlan_id": 210,
+     "node": {"node_name": "ams-rt07", "location": "Amsterdam"}},
+    {"port_name": "xe-1/2/4", "port_speed": 10000, "vlan_id": 210,
+     "node": {"node_name": "rtd-rt07", "location": "Rotterdam"}}
+  ],
+  "ip": null
+}
+```
+
+To see the whole corpus, with each entity's facts, run `show_corpus` (see [Run](#run)).
+
 ## Anchors
 
 A hand-written query lists its correct answers by hand, so that list is only right if no generated entity is also a
@@ -92,6 +117,15 @@ pins that default so it cannot change unseen. Downstream users who change it sho
 uv run pytest test/benchmarks/search            # accuracy + plan baselines, needs Docker for Postgres
 uv run pytest test/unit_tests/benchmarks        # the pure parts: corpus, perturbations, metrics, query loader
 ```
+
+To see the corpus the benchmark indexes, as JSON with each entity's facts and model (the defaults are the benchmark's
+seed and the generic profile; `--profile module:Class` shows your own):
+
+```bash
+uv run python -m test.benchmarks.search.show_corpus --size 20 --output corpus.json
+```
+
+The orchestrator logs to stdout on import, so use `--output` for a file with JSON only.
 
 ## Update the baselines
 
