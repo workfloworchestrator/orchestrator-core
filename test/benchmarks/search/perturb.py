@@ -112,7 +112,7 @@ def generate_queries(corpus: Corpus, per_category: int, seed: int) -> list[Label
 
     A query is made from the first value of each fact. It is dropped if the perturbed text is shorter than
     `MIN_LENGTH`. Queries whose facts are shared by several entities (a customer at a location) expect all of them,
-    counting every value of a fact (a light path with its far end at the location, another service's far-end port with
+    counting every value of a fact (a light path with its B-end at the location, another service's B-end port with
     the queried identifier).
     """
     rng = Random(seed)  # noqa: S311 - reproducible, not secret

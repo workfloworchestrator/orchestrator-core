@@ -23,6 +23,7 @@ from collections.abc import Iterator, Sequence
 from itertools import count as counter
 from itertools import islice
 from random import Random
+from typing import NamedTuple
 from uuid import UUID, uuid5
 
 from pydantic import BaseModel
@@ -61,6 +62,7 @@ CUSTOMERS = [
 ]
 
 PRODUCTS = ["Port", "Light Path", "L2VPN", "IP Peering"]
+TWO_ENDED = frozenset({"Light Path", "L2VPN"})
 PORT_NAMES = ["et-0/0/{n}", "xe-1/2/{n}", "ge-0/1/{n}", "et-3/0/{n}"]
 SPEEDS = [1000, 10000, 100000]
 NODE_ROLE = "rt"
@@ -70,6 +72,27 @@ PORTS_PER_CARD = 8
 NEIGHBOUR_NODES = frozenset({"ams-rt11", "ams-rt12"})
 # Draws without a fresh identifier in a row after which the profile is full.
 MAX_ATTEMPTS = 200
+
+
+class End(NamedTuple):
+    """Where a service lands: the node's city, code and number, and the port on it.
+
+    A service's first end is its A-end: its description, and the queries made from it, name that end.
+    """
+
+    city: str
+    code: str
+    number: int
+    port_name: str
+    vlan: int
+
+    @property
+    def node_name(self) -> str:
+        return _node_name(self.code, self.number)
+
+    @property
+    def identifier(self) -> str:
+        return f"{self.node_name} {self.port_name}"
 
 
 class CustomerBlock(BaseModel):
@@ -123,7 +146,7 @@ def _service(
     entity_id: UUID,
     product: str,
     customer: str,
-    ends: Sequence[tuple[str, str, int, str, int]],
+    ends: Sequence[End],
     ip: IpBlock | None = None,
 ) -> CorpusEntity:
     """A service over `ends` of (city, node code, node number, port name, vlan id)."""
@@ -151,7 +174,7 @@ def _service(
         key=key,
         entity_id=entity_id,
         model=model,
-        # A service is also found by its far end, so a query for that is right to return it.
+        # A service is also found by its B-end, so a query for that is right to return it.
         facts={
             DESCRIPTION: (description,),
             IDENTIFIER: tuple(_identifier(port) for port in ports),
@@ -231,41 +254,40 @@ class GenericProfile:
     def _generate(self, rng: Random, used: set[str]) -> Iterator[CorpusEntity]:
         """Entities until `MAX_ATTEMPTS` draws in a row clashed with an anchor or an earlier entity."""
         nodes, pairs = self.reserved_nodes(), self.reserved_pairs()
+
+        def clashes(customer: str, ends: Sequence[End]) -> bool:
+            return ends[0].identifier in used or any(
+                end.node_name in nodes or (_family(customer), end.city) in pairs for end in ends
+            )
+
         misses = 0
         for index in counter():
-            if misses >= MAX_ATTEMPTS:
-                return
-            city, code = rng.choice(LOCATIONS)
-            # Node numbers cluster, so that neighbours such as rt01 and rt10 exist for most locations.
-            number = rng.randint(1, 12)
-            port_name = rng.choice(PORT_NAMES).format(n=rng.randint(0, PORTS_PER_CARD - 1))
-            product = rng.choice(PRODUCTS)
-            customer = rng.choice(CUSTOMERS)
-            ends = [(city, code, number, port_name, rng.randint(100, 4000))]
-            if product in ("Light Path", "L2VPN"):
-                far_city, far_code = rng.choice(LOCATIONS)
-                ends.append((far_city, far_code, rng.randint(1, 12), rng.choice(PORT_NAMES).format(n=1), ends[0][4]))
-            identifier = f"{_node_name(code, number)} {port_name}"
-            clashes = (
-                identifier in used
-                or any(_node_name(end_code, end_number) in nodes for _, end_code, end_number, _, _ in ends)
-                or any((_family(customer), end_city) in pairs for end_city, _, _, _, _ in ends)
-            )
-            if clashes:
+            product, customer, ends = _draw(rng)
+            if clashes(customer, ends):
                 misses += 1
+                if misses == MAX_ATTEMPTS:
+                    return
                 continue
             misses = 0
-            used.add(identifier)
-            ip = (
-                IpBlock(prefix=f"198.51.{rng.randint(0, 255)}.0/24", peer_asn=rng.randint(64512, 65534))
-                if product == "IP Peering"
-                else None
-            )
-            yield _service(
-                f"gen-{index}",
-                UUID(int=rng.getrandbits(128), version=4),
-                product,
-                customer,
-                ends,
-                ip,
-            )
+            used.add(ends[0].identifier)
+            ip = _draw_ip(rng) if product == "IP Peering" else None
+            yield _service(f"gen-{index}", UUID(int=rng.getrandbits(128), version=4), product, customer, ends, ip)
+
+
+def _draw(rng: Random) -> tuple[str, str, list[End]]:
+    """A random product and customer, and the ends of the service: an A-end, and a B-end for a light path or an L2VPN."""
+    city, code = rng.choice(LOCATIONS)
+    # Node numbers cluster, so that neighbours such as rt01 and rt10 exist for most locations.
+    number = rng.randint(1, 12)
+    port_name = rng.choice(PORT_NAMES).format(n=rng.randint(0, PORTS_PER_CARD - 1))
+    product, customer = rng.choice(PRODUCTS), rng.choice(CUSTOMERS)
+    a_end = End(city, code, number, port_name, rng.randint(100, 4000))
+    if product not in TWO_ENDED:
+        return product, customer, [a_end]
+    b_city, b_code = rng.choice(LOCATIONS)
+    b_end = End(b_city, b_code, rng.randint(1, 12), rng.choice(PORT_NAMES).format(n=1), a_end.vlan)
+    return product, customer, [a_end, b_end]
+
+
+def _draw_ip(rng: Random) -> IpBlock:
+    return IpBlock(prefix=f"198.51.{rng.randint(0, 255)}.0/24", peer_asn=rng.randint(64512, 65534))

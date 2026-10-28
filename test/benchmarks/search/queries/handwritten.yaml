@@ -35,7 +35,7 @@
 - query: "rtd-rt01"
   category: identifier
   expected: [rtd-rt01]
-  note: Must not be answered by the light path whose far end is rtd-rt07.
+  note: Must not be answered by the light path whose B-end is rtd-rt07.
 - query: "rmd-rt01"
   category: identifier
   expected: [rmd-rt01]

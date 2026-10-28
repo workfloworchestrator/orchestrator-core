@@ -56,7 +56,7 @@ pairs (`reserved_nodes()`, `reserved_pairs()`). Anchors are near-misses of each 
 1. Sample 20 entities with the seed; every category uses the same 20.
 2. Per category, join the first value of each fact that category uses (`GENERATORS`) and apply its perturbation, as in
    the table above. Queries shorter than 5 characters are dropped.
-3. The label is every entity holding the same facts among any of its values (a far end too), not only the entity the
+3. The label is every entity holding the same facts among any of its values (a B-end too), not only the entity the
    query came from.
 
 Labels compare the unperturbed facts: a `prefix` query is only answered by entities with the full description, not by
