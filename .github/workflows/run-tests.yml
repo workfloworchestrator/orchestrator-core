@@ -13,7 +13,9 @@ name: Tests
 #      (reusable ``run-llm-acceptance-tests.yml``). Tests use mocked
 #      embeddings, so it runs on fork PRs too.
 #   6) ``search-benchmark`` runs the search accuracy and query-plan benchmark
-#      against its committed baselines (reusable ``run-search-benchmark.yml``).
+#      against its committed baselines (reusable ``run-search-benchmark.yml``),
+#      on a pull request only when ``search-changes`` finds a change that can
+#      move its numbers.
 #
 # Each downstream job ``needs: unit-tests`` so unit tests run exactly once
 # per PR and downstream jobs only execute when units are green.
@@ -127,9 +129,40 @@ jobs:
     uses: ./.github/workflows/run-llm-acceptance-tests.yml
     secrets: inherit
 
+  # A `paths:` filter does not apply to a reusable workflow, so pull requests detect search changes here.
+  search-changes:
+    name: Detect search changes
+    runs-on: ubuntu-slim
+    outputs:
+      search: ${{ steps.diff.outputs.search }}
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Diff against the base branch
+        id: diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          EVENT_NAME: ${{ github.event_name }}
+        # Everything that moves the benchmark's numbers: the search code, the migrations that build the index, the
+        # fixtures and plan helpers the benchmark loads, the benchmark itself and the locked dependencies.
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "search=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE \
+            '^(orchestrator/core/(search|migrations|testing)/|test/benchmarks/search/|test/integration_tests/search/performance/|test/integration_tests/_fixtures\.py$|\.github/workflows/run-search-benchmark\.yml$|uv\.lock$)'; then
+            echo "search=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "search=false" >> "$GITHUB_OUTPUT"
+          fi
+
   search-benchmark:
     name: Search benchmark
-    needs: unit-tests
+    needs: [unit-tests, search-changes]
+    if: needs.search-changes.outputs.search == 'true'
     uses: ./.github/workflows/run-search-benchmark.yml
     secrets: inherit
 
