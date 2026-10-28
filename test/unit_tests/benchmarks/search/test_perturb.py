@@ -53,13 +53,16 @@ def test_typo_changes_one_word_of_a_description():
     assert sorted(changed[0][0]) == sorted(changed[0][1])
 
 
-def test_generated_typo_queries_expect_one_entity():
+def test_generated_typo_queries_mistype_a_customer_and_expect_all_of_its_services():
     corpus = build_corpus(GenericProfile(), 1, 100)
 
     typos = [query for query in generate_queries(corpus, 10, 1) if query.category == Category.TYPO]
     assert typos
-    assert all(len(query.expected) == 1 for query in typos)
-    assert all(query.text != corpus.by_key[query.expected[0]].facts["description"][0] for query in typos)
+    for query in typos:
+        customer = corpus.by_key[query.expected[0]].facts["customer"][0]
+        assert query.text != customer
+        assert sorted(query.text) == sorted(customer)
+        assert set(query.expected) == {e.key for e in corpus.entities if customer in e.facts["customer"]}
 
 
 @pytest.mark.parametrize("text", ["Rotterdam", "Silverline Museum", "Greenfield"])
@@ -73,8 +76,16 @@ def test_generated_multi_field_queries_join_customer_and_location_and_expect_eve
     queries = [q for q in generate_queries(corpus, 10, 1) if q.category == Category.MULTI_FIELD]
     assert queries
     for query in queries:
-        customer, location = (corpus.by_key[query.expected[0]].facts[fact][0] for fact in ("customer", "location"))
-        assert query.text == f"{customer} {location}"
+        # Every expected entity holds the queried customer and location, but only the source made the text, from the
+        # first value of each: another may hold the location as a B-end.
+        sources = [
+            (customer, location)
+            for key in query.expected
+            for customer, location in [(corpus.by_key[key].facts[fact][0] for fact in ("customer", "location"))]
+            if query.text == f"{customer} {location}"
+        ]
+        assert sources
+        customer, location = sources[0]
         assert set(query.expected) == {
             e.key for e in corpus.entities if customer in e.facts["customer"] and location in e.facts["location"]
         }

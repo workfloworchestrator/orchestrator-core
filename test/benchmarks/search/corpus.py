@@ -36,7 +36,7 @@ from orchestrator.core.search.indexing.traverse import BaseTraverser
 
 # What a profile's entity facts are called, so that query generation can perturb them without knowing the profile.
 DESCRIPTION = "description"  # the entity's full title text
-IDENTIFIER = "identifier"  # a short, near-unique token: a node and port, a prefix, ...
+IDENTIFIER = "identifier"  # a short token naming a resource: a node, a prefix, ...
 CUSTOMER = "customer"
 LOCATION = "location"
 

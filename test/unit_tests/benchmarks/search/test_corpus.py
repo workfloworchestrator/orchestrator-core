@@ -13,7 +13,7 @@
 
 import pytest
 
-from test.benchmarks.search.corpus import CUSTOMER, IDENTIFIER, Corpus, CorpusEntity, build_corpus
+from test.benchmarks.search.corpus import CUSTOMER, Corpus, CorpusEntity, build_corpus
 from test.benchmarks.search.profiles.generic import GenericProfile
 
 
@@ -38,11 +38,11 @@ def test_anchors_do_not_depend_on_seed():
     assert first.entities == second.entities
 
 
-def test_generated_identifiers_are_unique_and_clear_of_anchors():
+def test_no_two_entities_share_an_a_end_port():
     corpus = build_corpus(GenericProfile(), 1, 500)
-    identifiers = [entity.facts[IDENTIFIER][0] for entity in corpus.entities]
+    a_ends = [(entity.model.ports[0].node.node_name, entity.model.ports[0].port_name) for entity in corpus.entities]
 
-    assert len(set(identifiers)) == len(identifiers)
+    assert len(set(a_ends)) == len(a_ends)
 
 
 def test_generated_entities_stay_clear_of_anchor_nodes_and_customer_locations():
@@ -51,9 +51,7 @@ def test_generated_entities_stay_clear_of_anchor_nodes_and_customer_locations():
     generated = [entity for entity in corpus.entities if entity.key.startswith("gen-")]
     nodes = {port.node.node_name for entity in generated for port in entity.model.ports}
     pairs = {
-        (entity.facts[CUSTOMER][0].split()[0], port.node.location)
-        for entity in generated
-        for port in entity.model.ports
+        (entity.facts[CUSTOMER][0].split()[0], port.node.city) for entity in generated for port in entity.model.ports
     }
 
     assert generated
@@ -62,13 +60,15 @@ def test_generated_entities_stay_clear_of_anchor_nodes_and_customer_locations():
 
 
 def test_reserved_nodes_hold_the_anchors_and_their_prefix_neighbours():
-    assert {"ams-rt01", "ams-rt10", "ams-rt11", "ams-rt12", "rtd-rt07"} <= GenericProfile().reserved_nodes()
+    assert {"ams001a-rt01", "ams001a-rt10", "ams001a-rt11", "ams001a-rt12", "rtd001a-rt07", "ehv001a-rt03"} <= (
+        GenericProfile().reserved_nodes()
+    )
 
 
 def test_corpus_has_near_miss_anchors():
     keys = build_corpus(GenericProfile(), 1, 0).by_key.keys()
 
-    assert {"ams-rt01", "ams-rt10", "asv-rt01"} <= keys
+    assert {"ams001a-rt01", "ams001a-rt10", "asv001a-rt01"} <= keys
 
 
 def test_too_large_a_corpus_raises():

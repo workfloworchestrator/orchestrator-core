@@ -1,49 +1,56 @@
 # Hand-written queries: where the intended search behaviour is decided, not derived.
 #
 # `expected` holds keys of the generic profile's anchor entities (see profiles/generic.py). Every query is written so
-# that no generated entity can compete for the label: the profile reserves the anchors' node names (plus ams-rt11 and
-# ams-rt12, so `ams-rt1` means ams-rt01 or ams-rt10) and their customer-family/location pairs (no generated Bluefin
-# in Amsterdam, no Silverline in Rotterdam or Roermond, ...), generated ASNs stay above 64511, and anchor prefixes
-# (192.0.2.0/24) lie outside the generated 198.51.x.0/24. A query of a bare location or product would still match
-# hundreds of generated entities, so each names a node or a customer family too.
+# that no generated entity can compete for the label: the profile reserves the anchors' node names (plus ams001a-rt11
+# and ams001a-rt12, so `ams001a-rt1` means ams001a-rt01 or ams001a-rt10) and their customer-family/city pairs (no
+# generated Bluefin in Amsterdam, no Silverline in Rotterdam, Roermond, Eindhoven or Enschede, ...), generated ASNs stay
+# above 64511, and anchor prefixes (192.0.2.0/24) lie outside the generated 198.51.x.0/24. A query of a bare city, site
+# or product would still match hundreds of generated entities, so each names a node or a customer too.
 #
-#   ams-rt01  Amsterdam Port ams-rt01 et-0/0/1 for Northwind Research          vlan 101
-#   ams-rt10  Amsterdam Port ams-rt10 et-0/0/1 for Bluefin University          vlan 102
-#   asv-rt01  Amstelveen Port asv-rt01 et-0/0/1 for Redwood Institute          vlan 103
-#   northwind-lightpath  Amsterdam Light Path ams-rt07 xe-1/2/4 for Northwind Research, other end rtd-rt07  vlan 210
-#   northwind-peering    Utrecht IP Peering utr-rt02 et-3/0/2 for Northwind Research, 192.0.2.0/24, AS64500
-#   rtd-rt01  Rotterdam L2VPN rtd-rt01 ge-0/1/3 for Silverline Museum         vlan 410
-#   rmd-rt01  Roermond L2VPN rmd-rt01 ge-0/1/3 for Silverline Archives        vlan 411
+#   ams001a-rt01         NWR SP UNTAGGED AMS001A 10 Gbit/s     ams001a-rt01 et-0/0/1                          vlan 101
+#   ams001a-rt10         BFU SP UNTAGGED AMS001A 10 Gbit/s     ams001a-rt10 et-0/0/1                          vlan 102
+#   asv001a-rt01         RWI SP TAGGED ASV001A 10 Gbit/s       asv001a-rt01 et-0/0/1                          vlan 103
+#   northwind-lightpath  NWR LP AMS001A-RTD001A 10 Gbit/s      ams001a-rt07 xe-1/2/4, rtd001a-rt07 xe-1/2/4   vlan 210
+#   northwind-peering    NWR IP UTR001A 10 Gbit/s              utr001a-rt02 et-3/0/2, 192.0.2.0/24, AS64500   vlan 305
+#   rtd001a-rt01         SLM L2VPN EHV001A-RTD001A 10 Gbit/s   rtd001a-rt01 ge-0/1/3, ehv001a-rt03 ge-0/1/3   vlan 410
+#   rmd001a-rt01         SLA L2VPN ENS001A-RMD001A 10 Gbit/s   rmd001a-rt01 ge-0/1/3, ens001a-rt03 ge-0/1/3   vlan 411
+#
+# NWR, BFU, RWI, SLM and SLA abbreviate Northwind Research, Bluefin University, Redwood Institute, Silverline Museum and
+# Silverline Archives.
 
 # --- identifier: near-miss node names, the ranking between neighbours
-- query: "ams-rt01"
+- query: "ams001a-rt01"
   category: identifier
-  expected: [ams-rt01]
-  note: Exact node name; ams-rt10 differs by two characters and must not outrank it.
-- query: "ams-rt10"
+  expected: [ams001a-rt01]
+  note: Exact node name; ams001a-rt10 differs by two characters and must not outrank it.
+- query: "ams001a-rt10"
   category: identifier
-  expected: [ams-rt10]
-  note: The mirror of ams-rt01.
-- query: "asv-rt01"
+  expected: [ams001a-rt10]
+  note: The mirror of ams001a-rt01.
+- query: "asv001a-rt01"
   category: identifier
-  expected: [asv-rt01]
-  note: Same node number as ams-rt01 at another location; the location code decides.
-- query: "ams-rt07 xe-1/2/4"
+  expected: [asv001a-rt01]
+  note: Same node number as ams001a-rt01 at another site; the site code decides.
+- query: "ams001a-rt07 xe-1/2/4"
   category: identifier
   expected: [northwind-lightpath]
-  note: Node and port together identify one service.
-- query: "rtd-rt01"
+  note: Node and port together identify one service, though they are separate fields of the port block.
+- query: "rtd001a-rt01"
   category: identifier
-  expected: [rtd-rt01]
-  note: Must not be answered by the light path whose B-end is rtd-rt07.
-- query: "rmd-rt01"
+  expected: [rtd001a-rt01]
+  note: Must not be answered by the light path whose B-end is rtd001a-rt07.
+- query: "rmd001a-rt01"
   category: identifier
-  expected: [rmd-rt01]
-  note: One letter from rtd-rt01 at the location code.
-- query: "utr-rt02"
+  expected: [rmd001a-rt01]
+  note: One letter from rtd001a-rt01 at the site code.
+- query: "utr001a-rt02"
   category: identifier
   expected: [northwind-peering]
-  note: A node on a nested port that is not in the description's first words.
+  note: A node nested five blocks deep, under the peering's peer and attach point.
+- query: "ehv001a-rt03"
+  category: identifier
+  expected: [rtd001a-rt01]
+  note: A B-end node, which the description does not name.
 - query: "192.0.2.0/24"
   category: identifier
   expected: [northwind-peering]
@@ -51,79 +58,117 @@
 - query: "64500"
   category: identifier
   expected: [northwind-peering]
-  note: A bare number that is only a peer ASN.
+  note: A peer ASN, held in an integer field; must not be answered by the UUIDs that contain the digits.
 
 # --- identifier: partial ids (blind spot of the perturbations)
-- query: "{id:ams-rt01}"
+- query: "{id:ams001a-rt01}"
   category: identifier
-  expected: [ams-rt01]
-  note: A full UUID finds its entity.
-- query: "{id8:ams-rt10}"
+  expected: [ams001a-rt01]
+  note: A full UUID finds its entity, among the many block ids every entity carries.
+- query: "{id8:ams001a-rt10}"
   category: identifier
-  expected: [ams-rt10]
+  expected: [ams001a-rt10]
   note: The first block of a UUID, as copied from a log line.
-- query: "{id8:rmd-rt01}"
+- query: "{id8:rmd001a-rt01}"
   category: identifier
-  expected: [rmd-rt01]
+  expected: [rmd001a-rt01]
   note: A partial UUID must find its entity and not the entity whose text merely resembles it.
 
-# --- typo
-- query: "amstredam ams-rt01"
+# --- exact: a description as an operator copies it
+- query: "NWR LP AMS001A-RTD001A 10 Gbit/s"
+  category: exact
+  expected: [northwind-lightpath]
+  note: The full description; the customer's port in AMS001A shares three of its five words and must rank below it.
+- query: "SLA L2VPN ENS001A-RMD001A"
+  category: exact
+  expected: [rmd001a-rt01]
+  note: One letter from SLM's L2VPN in the abbreviation and in each site; every part must count.
+
+# --- typo: one field, mistyped
+- query: "ams001a-tr01"
   category: typo
-  expected: [ams-rt01]
-  note: A transposed city plus the exact node; the node settles which Amsterdam port.
-- query: "rotterdma silverline"
+  expected: [ams001a-rt01]
+  note: Transposed role in a node name; ams001a-rt10 is the near-miss that must not win.
+- query: "rmd001a-tr01"
   category: typo
-  expected: [rtd-rt01]
-  note: Transposed city, and a customer prefix shared by two services; Rotterdam picks the museum.
-- query: "roermnod silverline"
+  expected: [rmd001a-rt01]
+  note: Transposed role, and a site one letter from rtd001a-rt01.
+- query: "NRW LP AMS001A-RTD001A"
   category: typo
-  expected: [rmd-rt01]
-  note: Transposed city; Silverline runs services in Rotterdam and Roermond, and must not be answered by Rotterdam.
-- query: "amstelven redwood"
+  expected: [northwind-lightpath]
+  note: Transposed customer abbreviation in a description; NWL is a near-miss customer.
+- query: "SLM L2PVN EHV001A-RTD001A"
   category: typo
-  expected: [asv-rt01]
-  note: A dropped letter in Amstelveen must not turn into Amsterdam.
+  expected: [rtd001a-rt01]
+  note: Transposed product tag in a description.
 
 # --- prefix
-- query: "amsterdam port ams-rt1"
+- query: "ams001a-rt1"
   category: prefix
-  expected: [ams-rt01, ams-rt10]
+  expected: [ams001a-rt01, ams001a-rt10]
   note: Ambiguous on purpose; both neighbours are valid and one of them must be on top.
-- query: "utrecht ip peer utr-rt02"
+- query: "NWR IP UTR00"
   category: prefix
   expected: [northwind-peering]
-  note: A cut-off product name, with the node to single out one of the Utrecht peerings.
+  note: A description cut off in the site code; no other Northwind service is in Utrecht.
 
 # --- multi_field: a customer and a location say more than either alone
 - query: "northwind amsterdam light"
   category: multi_field
   expected: [northwind-lightpath]
-  note: Customer, location and product together; the customer's port in Amsterdam must rank below the light path.
+  note: Customer, city and product together; the customer's port in Amsterdam must rank below the light path.
 - query: "bluefin amsterdam"
   category: multi_field
-  expected: [ams-rt10]
+  expected: [ams001a-rt10]
   note: Customer disambiguates between the Amsterdam ports.
 - query: "redwood amstelveen"
   category: multi_field
-  expected: [asv-rt01]
-  note: Customer and location both name the same service.
+  expected: [asv001a-rt01]
+  note: Customer and city both name the same service.
+- query: "NWR AMS001A"
+  category: multi_field
+  expected: [ams001a-rt01, northwind-lightpath]
+  note: Abbreviation and site code, as in a description; both of the customer's services in AMS001A are right.
+- query: "SLM eindhoven"
+  category: multi_field
+  expected: [rtd001a-rt01]
+  note: Abbreviation and the city of a B-end; SLA's L2VPN ends in Enschede, a near-miss of Eindhoven.
+- query: "rotterdma silverline"
+  category: multi_field
+  expected: [rtd001a-rt01]
+  note: A transposed city and a customer family shared by two services; Rotterdam picks the museum.
+- query: "amstelven redwood"
+  category: multi_field
+  expected: [asv001a-rt01]
+  note: A dropped letter in Amstelveen must not turn into Amsterdam, with the customer in another field.
+- query: "northwind research peering utrecht"
+  category: multi_field
+  expected: [northwind-peering]
+  note: Customer, product and city, each from another block.
 
 # --- case_punctuation
-- query: "AMS RT10 ET 0 0 1"
+- query: "AMS001A RT10 ET 0 0 1"
   category: case_punctuation
-  expected: [ams-rt10]
+  expected: [ams001a-rt10]
   note: Separators and case dropped from the node and port name.
-- query: "ge-0-1-3 silverline museum rotterdam"
+- query: "utr001a rt02"
   category: case_punctuation
-  expected: [rtd-rt01]
-  note: A port name with the wrong separator, with customer and city to tell the two L2VPNs apart.
+  expected: [northwind-peering]
+  note: A node name with a space for the dash.
+- query: "nwr lp ams001a rtd001a"
+  category: case_punctuation
+  expected: [northwind-lightpath]
+  note: A description in lower case, without the dash between the sites.
 
 # --- reorder
-- query: "northwind research peering utrecht"
+- query: "AMS001A-RTD001A NWR LP"
   category: reorder
-  expected: [northwind-peering]
-  note: Words in another order than the description.
+  expected: [northwind-lightpath]
+  note: The words of a description in another order.
+- query: "EHV001A-RTD001A L2VPN SLM"
+  category: reorder
+  expected: [rtd001a-rt01]
+  note: The words of a description in another order; SLA's L2VPN has the same shape.
 
 # --- negative
 - query: "zxqv blorp"
@@ -137,4 +182,4 @@
   note: An IP prefix that is not indexed; digits and dots alone must not match.
 - query: "00000000-0000-4000-8000-00000000dead"
   category: negative
-  note: A well-formed UUID of no entity must not match the entities with similar ids.
+  note: A well-formed UUID of no entity must not match the many block ids with similar text.

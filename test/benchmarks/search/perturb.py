@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from enum import Enum
 from random import Random
 
-from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, LOCATION, Corpus
+from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, LOCATION, Corpus, CorpusEntity
 
 # Fewer characters than this leave nothing to find after a perturbation.
 MIN_LENGTH = 5
@@ -83,7 +83,7 @@ def reorder(text: str, rng: Random) -> str:
 
 
 def case_punctuation(text: str, rng: Random) -> str:
-    """Upper case, or separators swapped: `ams-rt07 et-0/0/1` as `AMS RT07 ET 0 0 1`."""
+    """Upper case, or separators swapped: `ams001a-rt07 et-0/0/1` as `AMS001A RT07 ET 0 0 1`."""
     return text.upper() if rng.random() < 0.5 else re.sub(r"[-/]+", " ", text)
 
 
@@ -95,9 +95,10 @@ def exact(text: str, rng: Random) -> str:  # noqa: ARG001
 GENERATORS: Mapping[Category, tuple[tuple[str, ...], Callable[[str, Random], str]]] = {
     Category.EXACT: ((DESCRIPTION,), exact),
     Category.PREFIX: ((DESCRIPTION,), prefix),
-    # The description, as a user mistypes one word of a longer query: a lone mistyped city is not a typo query but a
-    # location lookup that the `<%` threshold rejects, and it would expect hundreds of entities.
-    Category.TYPO: ((DESCRIPTION,), typo),
+    # A mistyped customer name: descriptions are codes with no word to mistype, and a customer joined with a field of
+    # another block would test multi-field matching, not typos. It expects every service of the customer, so Recall@10
+    # is the share of the top 10 that is that customer's.
+    Category.TYPO: ((CUSTOMER,), typo),
     Category.REORDER: ((DESCRIPTION,), reorder),
     Category.CASE_PUNCTUATION: ((IDENTIFIER,), case_punctuation),
     Category.IDENTIFIER: ((IDENTIFIER,), exact),
@@ -107,13 +108,25 @@ GENERATORS: Mapping[Category, tuple[tuple[str, ...], Callable[[str, Random], str
 }
 
 
+def answers(
+    candidate: CorpusEntity, source: CorpusEntity, category: Category, facts: tuple[str, ...], text: str
+) -> bool:
+    """Whether `candidate` is a right answer to `text`, made from `facts` of `source`.
+
+    It is when it holds the source's value of every fact among any of its own (a customer at a location, counting a
+    light path with its B-end there). A prefix is answered by every entity with a value that starts with it, as
+    `NWL IP GRQ002A 1` is the start of a 1 and of a 100 Gbit/s description alike.
+    """
+    if category == Category.PREFIX:
+        return any(value.startswith(text) for fact in facts for value in candidate.facts[fact])
+    return all(source.facts[fact][0] in candidate.facts[fact] for fact in facts)
+
+
 def generate_queries(corpus: Corpus, per_category: int, seed: int) -> list[LabelledQuery]:
     """`per_category` queries for each generated category, made from entities drawn with `seed`.
 
     A query is made from the first value of each fact. It is dropped if the perturbed text is shorter than
-    `MIN_LENGTH`. Queries whose facts are shared by several entities (a customer at a location) expect all of them,
-    counting every value of a fact (a light path with its B-end at the location, another service's B-end port with
-    the queried identifier).
+    `MIN_LENGTH`. It expects every entity that answers it (`answers`), not only the one it was made from.
     """
     rng = Random(seed)  # noqa: S311 - reproducible, not secret
     sampled = rng.sample(corpus.entities, min(per_category, len(corpus.entities)))
@@ -123,8 +136,6 @@ def generate_queries(corpus: Corpus, per_category: int, seed: int) -> list[Label
             text = perturb(" ".join(entity.facts[fact][0] for fact in facts), rng)
             if len(text) < MIN_LENGTH:
                 continue
-            expected = tuple(
-                e.key for e in corpus.entities if all(entity.facts[fact][0] in e.facts[fact] for fact in facts)
-            )
+            expected = tuple(e.key for e in corpus.entities if answers(e, entity, category, facts, text))
             queries.append(LabelledQuery(text=text, category=category, expected=expected))
     return queries

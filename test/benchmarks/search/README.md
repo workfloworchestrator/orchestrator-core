@@ -9,12 +9,13 @@ correct. A *label* is the answer key of a query: the entities it should find (`e
 
 ## How it works
 
-1. `corpus.py` + `profiles/generic.py`: a seeded corpus of network services (ports, light paths, L2VPNs, IP peerings)
-   with nested blocks and lists, confusable locations, neighbouring node names and customers on several services. The
-   same profile, seed and size give the same corpus; nothing large is committed.
+1. `corpus.py` + `profiles/generic.py`: a seeded corpus of network services (service ports, light paths, L2VPNs, IP
+   peerings) shaped like orchestrator subscriptions: product blocks nested up to six deep, block ids, inventory ids and
+   flags next to the names, code-style descriptions, confusable sites, neighbouring node names and customers on
+   several services. The same profile, seed and size give the same corpus; nothing large is committed.
 2. The corpus is indexed through the real `Indexer` into `ai_search_index`, in a database built by the real Alembic
    migrations (the integration test fixtures, `pgvector/pgvector:pg15` and `pg17` in CI).
-3. Queries: ~30 hand-written ones (`queries/handwritten.yaml`, each with a note on the intended behaviour) plus
+3. Queries: ~40 hand-written ones (`queries/handwritten.yaml`, each with a note on the intended behaviour) plus
    generated ones (`perturb.py`: typo, prefix, reorder, case/punctuation, exact, identifier, customer plus location).
    They run through `execute_search` with `retriever=fuzzy`.
 4. Metrics per category (`metrics.py`): MRR, Success@1, Recall@10, and the false-positive rate of `negative` queries.
@@ -25,24 +26,45 @@ correct. A *label* is the answer key of a query: the entities it should find (`e
 
 ### What gets indexed
 
-Every entity is a subscription-like `NetworkService` (`profiles/generic.py`). A light path or L2VPN has two ports, its
-A-end and B-end; a port or IP peering has one, and only an IP peering has an `ip` block. The description always names
-the A-end, which is why queries are made from it. An anchor, as indexed:
+Every entity is a subscription-like `NetworkService` (`profiles/generic.py`): the root fields of a `SubscriptionModel`,
+its `product`, and one product block. A service port has a `port`; a light path a `vc` with two service attach points
+(`saps`); an L2VPN a `vc` with two to four `esis`, each with a sap; an IP peering an `ip_peering` with `peers`, each
+with a sap. Every sap holds a `port` on a `node`. Every block carries the ids orchestrator-core's `ProductBlockModel`
+gives it (`subscription_instance_id`, `owner_subscription_id`), so most indexed values are UUIDs, numbers and flags,
+as in production: about 56 fields per entity, 170,000 rows for the benchmark corpus.
+
+The description is `customer abbreviation, product tag, sites, speed`, as orchestrators build it. It names every site,
+sorted; a multipoint L2VPN its first three. A service's first end is its A-end, the others its B-ends. An anchor, as
+indexed (block ids shortened):
 
 ```json
 {
   "subscription_id": "0fc80d4c-85f1-52fc-9efe-f8792ddeda04",
-  "description": "Amsterdam Light Path ams-rt07 xe-1/2/4 for Northwind Research",
+  "description": "NWR LP AMS001A-RTD001A 10 Gbit/s",
   "status": "active",
-  "product_name": "Light Path",
-  "customer": {"customer_id": "e1f78731-95cf-57d4-a821-ccfb32b8ac25", "name": "Northwind Research"},
-  "ports": [
-    {"port_name": "xe-1/2/4", "port_speed": 10000, "vlan_id": 210,
-     "node": {"node_name": "ams-rt07", "location": "Amsterdam"}},
-    {"port_name": "xe-1/2/4", "port_speed": 10000, "vlan_id": 210,
-     "node": {"node_name": "rtd-rt07", "location": "Rotterdam"}}
-  ],
-  "ip": null
+  "insync": true,
+  "start_date": "2023-08-15T00:00:00",
+  "version": 1,
+  "customer_id": "e1f78731-95cf-57d4-a821-ccfb32b8ac25",
+  "customer_name": "Northwind Research",
+  "customer_abbreviation": "NWR",
+  "product": {"product_id": "546471af-…", "name": "Light Path", "description": "Light Path",
+              "product_type": "LightPath", "tag": "LP", "status": "active"},
+  "vc": {
+    "name": "Light Path Virtual Circuit", "subscription_instance_id": "023658e3-…", "owner_subscription_id": "0fc80d4c-…",
+    "service_speed": 10000, "speed_policer": false, "remote_port_shutdown": true, "inventory_id": 868656,
+    "saps": [
+      {"name": "Service Attach Point", "subscription_instance_id": "a980f617-…", "owner_subscription_id": "0fc80d4c-…",
+       "vlanrange": "210",
+       "port": {"name": "Service Port", "subscription_instance_id": "cb20b884-…", "owner_subscription_id": "85f20d45-…",
+                "port_name": "xe-1/2/4", "port_speed": 10000, "port_mode": "tagged", "admin_state": "enabled",
+                "lldp": false, "inventory_id": 199024,
+                "node": {"name": "Node", "subscription_instance_id": "4371291e-…", "owner_subscription_id": "f24d3a57-…",
+                         "node_name": "ams001a-rt07", "site_code": "AMS001A", "city": "Amsterdam",
+                         "node_role": "access", "inventory_id": 362306}}},
+      {"…": "the B-end, on rtd001a-rt07 xe-1/2/4 in RTD001A, Rotterdam"}
+    ]
+  }
 }
 ```
 
@@ -55,24 +77,27 @@ correct answer. If the generator made a "Bluefin Hospital" in Amsterdam, it woul
 `bluefin amsterdam` that the YAML does not list: returning it would count as wrong and push the listed answer down.
 
 Anchors avoid that: a few hand-designed entities (`anchors()` in the profile) that are always in the corpus, whatever
-the seed. Hand-written queries refer to them by key (`expected: [ams-rt10]`), and the generator never produces an
+the seed. Hand-written queries refer to them by key (`expected: [ams001a-rt10]`), and the generator never produces an
 entity that competes with them: generated entities never reuse an anchor's node names or (customer family, location)
-pairs (`reserved_nodes()`, `reserved_pairs()`). Anchors are near-misses of each other (`ams-rt01` against
-`ams-rt10`, Amsterdam against Amstelveen), so each query tests one specific distinction. The list is at the top of
+pairs (`reserved_nodes()`, `reserved_pairs()`). Anchors are near-misses of each other (`ams001a-rt01` against
+`ams001a-rt10`, Amsterdam against Amstelveen), so each query tests one specific distinction. The list is at the top of
 `queries/handwritten.yaml`.
 
 ## Query categories
 
-| category           | the query is...                                                  | example                                   |
-| ------------------ | ---------------------------------------------------------------- | ----------------------------------------- |
-| `exact`            | an entity's full description, unchanged                          | `Amsterdam Port ams-rt01 et-0/0/1 for ...` |
-| `prefix`           | the description cut off at 60-80%                                | `Amsterdam Port ams-rt01 et-0/0/1 for No` |
-| `typo`             | the description with two neighbouring letters swapped            | `Amsterdma Port ams-rt01 ...`             |
-| `reorder`          | the description's words shuffled                                 | `Port Northwind ams-rt01 Amsterdam ...`   |
-| `case_punctuation` | a node and port in upper case, or without `-` and `/`            | `AMS RT10 ET 0 0 1`                       |
-| `identifier`       | a node and port name, IP prefix, ASN or (partial) UUID           | `ams-rt01 et-0/0/1`                       |
-| `multi_field`      | a customer plus a location, from different blocks of the entity | `Bluefin University Amsterdam`            |
-| `negative`         | text that should find nothing (hand-written only)                | `zxqv blorp`                              |
+| category           | the query is...                                                  | example                            |
+| ------------------ | ---------------------------------------------------------------- | ---------------------------------- |
+| `exact`            | an entity's full description, unchanged                          | `NWR LP AMS001A-RTD001A 10 Gbit/s` |
+| `prefix`           | the description cut off at 60-80%                                | `NWR LP AMS001A-RTD0`              |
+| `typo`             | the customer's name with two neighbouring letters swapped        | `Nrothwind Research`               |
+| `reorder`          | the description's words shuffled                                | `AMS001A-RTD001A NWR 10 LP Gbit/s` |
+| `case_punctuation` | a node name in upper case, or without `-`                        | `AMS001A RT07`                     |
+| `identifier`       | a node name, IP prefix, ASN or (partial) UUID                    | `ams001a-rt07`                     |
+| `multi_field`      | a customer plus a city, from different blocks of the entity     | `Bluefin University Amsterdam`     |
+| `negative`         | text that should find nothing (hand-written only)                | `zxqv blorp`                       |
+
+Generated `typo` queries expect every service of the customer, so for them Recall@10 is the share of the top 10 that
+is that customer's. Hand-written typos mistype a node name, a tag or an abbreviation within one field.
 
 ### Generated queries
 
@@ -84,8 +109,8 @@ pairs (`reserved_nodes()`, `reserved_pairs()`). Anchors are near-misses of each 
 3. The label is every entity holding the same facts among any of its values (a B-end too), not only the entity the
    query came from.
 
-Labels compare the unperturbed facts: a `prefix` query is only answered by entities with the full description, not by
-everything the prefix also matches. All categories draw from one random sequence, so changing `GENERATORS` changes the
+Labels compare the unperturbed facts, except for `prefix`: a cut-off description is answered by every entity whose
+description starts with it, as `NWL IP GRQ002A 1` is the start of a 1 and a 100 Gbit/s service alike. All categories draw from one random sequence, so changing `GENERATORS` changes the
 queries, and the baseline rows, of the categories after it.
 
 ## Reading the accuracy table

@@ -54,7 +54,7 @@ def test_handwritten_queries_are_valid_for_the_generic_profile(corpus):
     "yaml_text,message",
     [
         ("- {query: x, category: exact, expected: [nope], note: n}", "unknown entities"),
-        ("- {query: x, category: exact, expected: [ams-rt01]}", "needs a note"),
+        ("- {query: x, category: exact, expected: [ams001a-rt01]}", "needs a note"),
         ("- {query: x, category: bogus, note: n}", "bogus"),
     ],
 )
