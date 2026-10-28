@@ -102,7 +102,7 @@ GENERATORS: Mapping[Category, tuple[tuple[str, ...], Callable[[str, Random], str
     Category.CASE_PUNCTUATION: ((IDENTIFIER,), case_punctuation),
     Category.IDENTIFIER: ((IDENTIFIER,), exact),
     # Two facts from different blocks of the entity: together they say more than either alone, and every entity that
-    # carries both is a valid answer.
+    # has both is a valid answer.
     Category.MULTI_FIELD: ((CUSTOMER, LOCATION), exact),
 }
 
@@ -110,20 +110,21 @@ GENERATORS: Mapping[Category, tuple[tuple[str, ...], Callable[[str, Random], str
 def generate_queries(corpus: Corpus, per_category: int, seed: int) -> list[LabelledQuery]:
     """`per_category` queries for each generated category, made from entities drawn with `seed`.
 
-    A query is dropped if the perturbed text is shorter than `MIN_LENGTH`. Queries whose facts are shared by several
-    entities (a customer at a location) expect all of them, counting the values an entity only `carries` (a light path
-    with its far end at the location, another service's far-end port with the queried identifier).
+    A query is made from the first value of each fact. It is dropped if the perturbed text is shorter than
+    `MIN_LENGTH`. Queries whose facts are shared by several entities (a customer at a location) expect all of them,
+    counting every value of a fact (a light path with its far end at the location, another service's far-end port with
+    the queried identifier).
     """
     rng = Random(seed)  # noqa: S311 - reproducible, not secret
     sampled = rng.sample(corpus.entities, min(per_category, len(corpus.entities)))
     queries = []
     for category, (facts, perturb) in GENERATORS.items():
         for entity in sampled:
-            text = perturb(" ".join(entity.facts[fact] for fact in facts), rng)
+            text = perturb(" ".join(entity.facts[fact][0] for fact in facts), rng)
             if len(text) < MIN_LENGTH:
                 continue
             expected = tuple(
-                e.key for e in corpus.entities if all(entity.facts[fact] in e.values(fact) for fact in facts)
+                e.key for e in corpus.entities if all(entity.facts[fact][0] in e.facts[fact] for fact in facts)
             )
             queries.append(LabelledQuery(text=text, category=category, expected=expected))
     return queries

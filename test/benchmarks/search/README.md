@@ -53,10 +53,10 @@ against Amstelveen), so each query tests one specific distinction. The list is a
 `perturb.py` makes queries from the corpus itself, so their labels need no hand-writing:
 
 1. Sample 20 entities with the seed; every category uses the same 20.
-2. Per category, join the entity's facts that category uses (`GENERATORS`) and apply its perturbation, as in the table
-   above. Queries shorter than 5 characters are dropped.
-3. The label is every entity holding the same facts, including the values it only `carries` (a far end), not only the
-   entity the query came from.
+2. Per category, join the first value of each fact that category uses (`GENERATORS`) and apply its perturbation, as in
+   the table above. Queries shorter than 5 characters are dropped.
+3. The label is every entity holding the same facts among any of its values (a far end too), not only the entity the
+   query came from.
 
 Labels compare the unperturbed facts: a `prefix` query is only answered by entities with the full description, not by
 everything the prefix also matches. All categories draw from one random sequence, so changing `GENERATORS` changes the
@@ -66,7 +66,8 @@ queries, and the baseline rows, of the categories after it.
 
 All scores run from 0 to 1, averaged over the queries of a category.
 
-- **MRR**: how high the first right answer ranks. 1 at rank 1, 0.5 at rank 2, 0.33 at rank 3, 0 when not found.
+- **MRR (Mean Reciprocal Rank)**: how high the first right answer ranks. 1 at rank 1, 0.5 at rank 2, 0.33 at rank 3, 0
+   when not found.
 - **Success@1**: the share of queries with a right answer on top. Rank 2 counts as a miss.
 - **Recall@10**: the share of right answers in the top 10, capped at 10. Is it found at all?
 - **false positives**: the share of `negative` queries that returned anything. Lower is better.
@@ -109,5 +110,5 @@ Implement `Profile` from `corpus.py` (`anchors()` and `generate(rng, count)`), k
 YAML file loaded with `load_handwritten(corpus, path)`. Anchors must not depend on the seed, and `generate` must keep
 the facts a hand-written query relies on free of generated entities (the generic profile reserves the anchors' node
 names and customer-family/location pairs), or the label is incomplete and the metrics measure tie-breaking. An entity
-with several values of one fact (a service with two ends has two identifiers and two locations) lists the others in
-`carries`, so that a query for any of them counts the entity as a right answer.
+with several values of one fact (a service with two ends has two identifiers and two locations) lists all of them;
+queries are made from the first, and a query for any of them counts the entity as a right answer.

@@ -151,16 +151,12 @@ def _service(
         key=key,
         entity_id=entity_id,
         model=model,
-        facts={
-            DESCRIPTION: description,
-            IDENTIFIER: _identifier(first),
-            CUSTOMER: customer,
-            LOCATION: first.node.location,
-        },
         # A service is also found by its far end, so a query for that is right to return it.
-        carries={
-            IDENTIFIER: frozenset(_identifier(port) for port in ports),
-            LOCATION: frozenset(port.node.location for port in ports),
+        facts={
+            DESCRIPTION: (description,),
+            IDENTIFIER: tuple(_identifier(port) for port in ports),
+            CUSTOMER: (customer,),
+            LOCATION: tuple(port.node.location for port in ports),
         },
     )
 
@@ -226,7 +222,7 @@ class GenericProfile:
         )
 
     def generate(self, rng: Random, count: int) -> Sequence[CorpusEntity]:
-        used = {anchor.facts[IDENTIFIER] for anchor in self.anchors()}
+        used = {anchor.facts[IDENTIFIER][0] for anchor in self.anchors()}
         entities = list(islice(self._generate(rng, used), count))
         if len(entities) < count:
             raise ValueError(f"The generic profile has room for {len(entities)} entities, {count} requested")

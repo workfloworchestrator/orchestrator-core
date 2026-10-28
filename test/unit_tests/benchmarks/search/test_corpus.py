@@ -40,7 +40,7 @@ def test_anchors_do_not_depend_on_seed():
 
 def test_generated_identifiers_are_unique_and_clear_of_anchors():
     corpus = build_corpus(GenericProfile(), 1, 500)
-    identifiers = [entity.facts[IDENTIFIER] for entity in corpus.entities]
+    identifiers = [entity.facts[IDENTIFIER][0] for entity in corpus.entities]
 
     assert len(set(identifiers)) == len(identifiers)
 
@@ -51,7 +51,9 @@ def test_generated_entities_stay_clear_of_anchor_nodes_and_customer_locations():
     generated = [entity for entity in corpus.entities if entity.key.startswith("gen-")]
     nodes = {port.node.node_name for entity in generated for port in entity.model.ports}
     pairs = {
-        (entity.facts[CUSTOMER].split()[0], port.node.location) for entity in generated for port in entity.model.ports
+        (entity.facts[CUSTOMER][0].split()[0], port.node.location)
+        for entity in generated
+        for port in entity.model.ports
     }
 
     assert generated

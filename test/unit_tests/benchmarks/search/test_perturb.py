@@ -59,7 +59,7 @@ def test_generated_typo_queries_expect_one_entity():
     typos = [query for query in generate_queries(corpus, 10, 1) if query.category == Category.TYPO]
     assert typos
     assert all(len(query.expected) == 1 for query in typos)
-    assert all(query.text != corpus.by_key[query.expected[0]].facts["description"] for query in typos)
+    assert all(query.text != corpus.by_key[query.expected[0]].facts["description"][0] for query in typos)
 
 
 @pytest.mark.parametrize("text", ["Rotterdam", "Silverline Museum", "Greenfield"])
@@ -73,10 +73,10 @@ def test_generated_multi_field_queries_join_customer_and_location_and_expect_eve
     queries = [q for q in generate_queries(corpus, 10, 1) if q.category == Category.MULTI_FIELD]
     assert queries
     for query in queries:
-        customer, location = (corpus.by_key[query.expected[0]].facts[fact] for fact in ("customer", "location"))
+        customer, location = (corpus.by_key[query.expected[0]].facts[fact][0] for fact in ("customer", "location"))
         assert query.text == f"{customer} {location}"
         assert set(query.expected) == {
-            e.key for e in corpus.entities if e.facts["customer"] == customer and e.facts["location"] == location
+            e.key for e in corpus.entities if customer in e.facts["customer"] and location in e.facts["location"]
         }
 
 
