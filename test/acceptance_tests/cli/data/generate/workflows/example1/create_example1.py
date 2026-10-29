@@ -30,7 +30,6 @@ from workflows.example1.shared.forms import (
     must_be_unused_to_change_mode_validator,
 )
 
-
 logger = structlog.get_logger(__name__)
 
 validated_example_str_enum_1 = Annotated[ExampleStrEnum1, AfterValidator(must_be_unused_to_change_mode_validator)]

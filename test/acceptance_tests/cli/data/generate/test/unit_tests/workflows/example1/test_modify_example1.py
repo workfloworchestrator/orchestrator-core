@@ -13,10 +13,10 @@
 
 import pytest
 from orchestrator.core.forms import FormValidationError
+from orchestrator.core.testing import assert_complete, extract_state, run_workflow
 from orchestrator.core.types import SubscriptionLifecycle
 
 from products.product_types.example1 import Example1
-from orchestrator.core.testing import assert_complete, extract_state, run_workflow
 
 
 @pytest.mark.workflow

@@ -24,7 +24,6 @@ from pydantic_forms.validators import read_only_field
 from products.product_types.example4 import Example4, Example4Provisioning
 from products.services.description import description
 
-
 logger = structlog.get_logger(__name__)
 
 

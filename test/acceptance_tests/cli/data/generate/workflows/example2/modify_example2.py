@@ -24,7 +24,6 @@ from products.product_blocks.example2 import ExampleIntEnum2
 from products.product_types.example2 import Example2, Example2Provisioning
 from products.services.description import description
 
-
 logger = structlog.get_logger(__name__)
 
 
