@@ -29,8 +29,9 @@ from orchestrator.core.search.core.types import EntityType, RetrieverType
 from orchestrator.core.search.indexing.indexer import Indexer
 from orchestrator.core.search.query.engine import execute_search
 from orchestrator.core.search.query.queries import SelectQuery
+from orchestrator.core.search.query.results import SearchResult
 from test.benchmarks.search.corpus import CORPUS_ENTITY_CONFIG, Corpus
-from test.benchmarks.search.metrics import CategoryMetrics, QueryResult, metrics_per_category
+from test.benchmarks.search.metrics import CategoryMetrics, Hit, QueryResult, metrics_per_category
 from test.benchmarks.search.perturb import Category, LabelledQuery
 from test.integration_tests.search.performance._plans import (
     GIST_INDEX,
@@ -95,8 +96,16 @@ async def run_query(
     select = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query.text, retriever=retriever)
     with capturing_plans() as plans:
         response = await execute_search(select, session)
-    ranked = tuple(keys[result.entity_id] for result in response.results)
-    return QueryResult(query, ranked), one(plans)
+    hits = tuple(_hit(result, keys) for result in response.results)
+    return QueryResult(query, tuple(hit.key for hit in hits), hits), one(plans)
+
+
+def _hit(result: SearchResult, keys: Mapping[str, str]) -> Hit:
+    """The entity behind a search result, with the indexed value that matched it. Fuzzy search has one match per entity."""
+    path, text = (
+        (result.matching_fields[0].path, result.matching_fields[0].text) if result.matching_fields else ("", "")
+    )
+    return Hit(keys[result.entity_id], result.entity_title, path, text)
 
 
 async def run_queries(

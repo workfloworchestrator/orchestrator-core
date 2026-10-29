@@ -14,6 +14,9 @@
 #   northwind-peering    NWR IP UTR001A 10 Gbit/s              utr001a-rt02 et-3/0/2, 192.0.2.0/24, AS64500   vlan 305
 #   rtd001a-rt01         SLM L2VPN EHV001A-RTD001A 10 Gbit/s   rtd001a-rt01 ge-0/1/3, ehv001a-rt03 ge-0/1/3   vlan 410
 #   rmd001a-rt01         SLA L2VPN ENS001A-RMD001A 10 Gbit/s   rmd001a-rt01 ge-0/1/3, ens001a-rt03 ge-0/1/3   vlan 411
+#   rug-prefix-lir       RUG prefix LIR 192.87.22.0/24         no node, no port: the prefix is its identifier
+#   rug-lr               RUG LR ASD001B-GN012A ASD002A-GN001B  two VCs: asd001b-rt01 and gn012a-rt01 (et-0/0/1, et-0/0/2),
+#                        10 Gbit/s                             asd002a-rt01 and gn001b-rt01 (et-0/0/3, et-0/0/4)
 #
 # NWR, BFU, RWI, SLM and SLA abbreviate Northwind Research, Bluefin University, Redwood Institute, Silverline Museum and
 # Silverline Archives.
@@ -84,6 +87,16 @@
   expected: [rmd001a-rt01]
   note: One letter from SLM's L2VPN in the abbreviation and in each site; every part must count.
 
+# --- exact: the two RUG services as an operator copies them
+- query: "RUG LR ASD001B-GN012A ASD002A-GN001B 10 Gbit/s"
+  category: exact
+  expected: [rug-lr]
+  note: A redundant light path, both VCs named in the description. A decoy for RUG LIR, which must not return it first.
+- query: "RUG prefix LIR 192.87.22.0/24"
+  category: exact
+  expected: [rug-prefix-lir]
+  note: An IP prefix as an operator copies it. It has no speed and no node.
+
 # --- typo: one field, mistyped
 - query: "ams001a-tr01"
   category: typo
@@ -145,6 +158,16 @@
   category: multi_field
   expected: [northwind-peering]
   note: Customer, product and city, each from another block.
+
+# --- multi_field: the abbreviation and the tag of one description, with a word between them
+- query: "RUG LIR"
+  category: multi_field
+  expected: [rug-prefix-lir]
+  note: The issue this case comes from. Both words are in one description, but not next to each other, so the fuzzy gate drops it.
+- query: "RUG prefix LIR"
+  category: multi_field
+  expected: [rug-prefix-lir]
+  note: The same description with the words in order; the contrast to RUG LIR.
 
 # --- case_punctuation
 - query: "AMS001A RT10 ET 0 0 1"

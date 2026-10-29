@@ -11,10 +11,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Iterator
+
 import pytest
+from pydantic import BaseModel
 
 from test.benchmarks.search.corpus import CUSTOMER, Corpus, CorpusEntity, build_corpus
-from test.benchmarks.search.profiles.generic import GenericProfile
+from test.benchmarks.search.profiles.generic import GenericProfile, ServicePortBlock
+
+
+def ports(model: BaseModel) -> Iterator[ServicePortBlock]:
+    """The port blocks anywhere in `model`, in field order: the A-end first."""
+    for value in model.__dict__.values():
+        items = value if isinstance(value, list) else [value]
+        for item in items:
+            if isinstance(item, ServicePortBlock):
+                yield item
+            elif isinstance(item, BaseModel):
+                yield from ports(item)
 
 
 def test_same_seed_gives_same_corpus():
@@ -40,7 +54,12 @@ def test_anchors_do_not_depend_on_seed():
 
 def test_no_two_entities_share_an_a_end_port():
     corpus = build_corpus(GenericProfile(), 1, 500)
-    a_ends = [(entity.model.ports[0].node.node_name, entity.model.ports[0].port_name) for entity in corpus.entities]
+    # Services without a port, such as the LIR prefix anchor, have no A-end to share.
+    a_ends = [
+        (a_end.node.node_name, a_end.port_name)
+        for entity in corpus.entities
+        if (a_end := next(ports(entity.model), None))
+    ]
 
     assert len(set(a_ends)) == len(a_ends)
 
@@ -49,9 +68,9 @@ def test_generated_entities_stay_clear_of_anchor_nodes_and_customer_locations():
     profile = GenericProfile()
     corpus = build_corpus(profile, 1, 500)
     generated = [entity for entity in corpus.entities if entity.key.startswith("gen-")]
-    nodes = {port.node.node_name for entity in generated for port in entity.model.ports}
+    nodes = {port.node.node_name for entity in generated for port in ports(entity.model)}
     pairs = {
-        (entity.facts[CUSTOMER][0].split()[0], port.node.city) for entity in generated for port in entity.model.ports
+        (entity.facts[CUSTOMER][0].split()[0], port.node.city) for entity in generated for port in ports(entity.model)
     }
 
     assert generated

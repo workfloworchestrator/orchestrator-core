@@ -24,11 +24,25 @@ RECALL_CUTOFF = 10
 
 
 @dataclass(frozen=True)
+class Hit:
+    """A returned entity: its key, its title and the indexed value the score came from."""
+
+    key: str
+    title: str = ""
+    matched_path: str = ""
+    matched_text: str = ""
+
+
+@dataclass(frozen=True)
 class QueryResult:
-    """A query and the entity keys search returned for it, best first."""
+    """A query and the entity keys search returned for it, best first.
+
+    `hits` are the same entities as `ranked`, with what the ranking report shows of each. Metrics only need `ranked`.
+    """
 
     query: LabelledQuery
     ranked: tuple[str, ...]
+    hits: tuple[Hit, ...] = ()
 
 
 @dataclass(frozen=True)

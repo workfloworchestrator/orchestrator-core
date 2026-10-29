@@ -27,6 +27,7 @@ from test.benchmarks.search.corpus import build_corpus
 from test.benchmarks.search.perturb import Category, generate_queries
 from test.benchmarks.search.profiles.generic import GenericProfile
 from test.benchmarks.search.queries import load_handwritten
+from test.benchmarks.search.rankings import read_rankings, render_rankings
 from test.benchmarks.search.runner import (
     accuracy_by_category,
     load_corpus,
@@ -45,6 +46,8 @@ CORPUS_SIZE = 3000
 GENERATED_PER_CATEGORY = 20
 RETRIEVER = RetrieverType.FUZZY
 BASELINE = Path(__file__).parent / "baseline"
+# Not committed: the rankings of this run, marked where they drifted from the committed baseline.
+REPORT = Path(__file__).parent / "report"
 
 
 @pytest.fixture(scope="module")
@@ -88,6 +91,21 @@ def test_accuracy_is_unchanged(query_results, corpus):
         {RETRIEVER: accuracy_by_category(results)},
     )
     _assert_matches_baseline("accuracy", page)
+
+
+def test_rankings_are_written_with_drift_from_baseline(query_results, corpus):
+    results, _ = query_results
+    name = f"rankings.pg{postgres_major()}.md"
+    baseline_file = BASELINE / name
+    baseline = read_rankings(baseline_file.read_text()) if baseline_file.exists() else None
+    REPORT.mkdir(exist_ok=True)
+    description = (
+        f"The {RETRIEVER.value} retriever on the `{corpus.profile}` profile: seed {corpus.seed}, "
+        f"{len(corpus.entities)} entities."
+    )
+    (REPORT / name).write_text(
+        render_rankings(f"Search rankings on Postgres {postgres_major()}", description, results, baseline)
+    )
 
 
 def test_every_query_uses_the_trigram_index(query_results):

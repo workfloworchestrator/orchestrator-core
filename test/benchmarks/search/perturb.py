@@ -133,6 +133,9 @@ def generate_queries(corpus: Corpus, per_category: int, seed: int) -> list[Label
     queries = []
     for category, (facts, perturb) in GENERATORS.items():
         for entity in sampled:
+            # An entity without one of the facts, such as an IP prefix without a location, has no query of that kind.
+            if not all(entity.facts[fact] for fact in facts):
+                continue
             text = perturb(" ".join(entity.facts[fact][0] for fact in facts), rng)
             if len(text) < MIN_LENGTH:
                 continue

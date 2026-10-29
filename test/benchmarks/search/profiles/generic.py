@@ -22,18 +22,23 @@ for, so that most indexed fields are noise, as in production.
 Descriptions are short codes, not prose: `NWR LP AMS001A-RTD001A 10 Gbit/s` is customer abbreviation, product tag,
 sites and speed. Sites, node numbers and customers come in confusable groups, and every customer runs several
 services, as search has to tell those apart.
+
+A service is declared as a `Spec`: its product, customer and ends. Anchors are specs written by hand, generated
+services are specs drawn at random, and both become indexed models through the same `_entity`.
 """
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 from ipaddress import ip_network
 from itertools import count as counter
 from itertools import islice
 from random import Random
-from typing import NamedTuple
+from typing import Any, NamedTuple
 from uuid import UUID, uuid5
 
+from more_itertools import chunked
 from pydantic import BaseModel
 
 from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, LOCATION, CorpusEntity
@@ -64,18 +69,20 @@ class Customer(NamedTuple):
 
 
 # Customers of one family (the first word) are near-misses, and so are their abbreviations.
-CUSTOMERS = [
-    Customer("Northwind Research", "NWR"),
-    Customer("Northwind Labs", "NWL"),
-    Customer("Bluefin University", "BFU"),
-    Customer("Bluefin Hospital", "BFH"),
-    Customer("Redwood Institute", "RWI"),
-    Customer("Redwood Libraries", "RWL"),
-    Customer("Silverline Museum", "SLM"),
-    Customer("Silverline Archives", "SLA"),
-    Customer("Greenfield College", "GFC"),
-    Customer("Greenfield Observatory", "GFO"),
-]
+NWR = Customer("Northwind Research", "NWR")
+NWL = Customer("Northwind Labs", "NWL")
+BFU = Customer("Bluefin University", "BFU")
+BFH = Customer("Bluefin Hospital", "BFH")
+RWI = Customer("Redwood Institute", "RWI")
+RWL = Customer("Redwood Libraries", "RWL")
+SLM = Customer("Silverline Museum", "SLM")
+SLA = Customer("Silverline Archives", "SLA")
+GFC = Customer("Greenfield College", "GFC")
+GFO = Customer("Greenfield Observatory", "GFO")
+CUSTOMERS = [NWR, NWL, BFU, BFH, RWI, RWL, SLM, SLA, GFC, GFO]
+# Not in CUSTOMERS, so no generated service has the abbreviation. Only the abbreviation is in the descriptions; the
+# name is a placeholder.
+RUG = Customer("Rugby Institute", "RUG")
 
 
 class Product(NamedTuple):
@@ -90,6 +97,13 @@ LIGHT_PATH = Product("Light Path", "LP", 2, 2)
 L2VPN = Product("L2VPN", "L2VPN", 2, 4)
 IP_PEERING = Product("IP Peering", "IP", 1, 1)
 PRODUCTS = [SERVICE_PORT, LIGHT_PATH, L2VPN, IP_PEERING]
+# Not in PRODUCTS: these are anchors only. An IP prefix has no ports and no ends: its description names the prefix in
+# place of the sites.
+PREFIX = Product("IP Prefix", "prefix", 0, 0)
+PREFIX_TYPE = "LIR"
+# Two light paths in one service: `ENDS_PER_VC` ends per VC, and the description names each VC's sites.
+LR = Product("Light Path Redundant", "LR", 4, 4)
+ENDS_PER_VC = 2
 
 PORT_NAMES = ["et-0/0/{n}", "xe-1/2/{n}", "ge-0/1/{n}", "et-3/0/{n}"]
 SPEEDS = [1000, 10000, 100000]
@@ -119,10 +133,12 @@ class End(NamedTuple):
     number: int
     port_name: str
     vlan: int
+    # Real site codes end in a letter: `A` for most, `B` for some, as in ASD001B.
+    suffix: str = "A"
 
     @property
     def site_code(self) -> str:
-        return f"{self.code.upper()}{self.site:03d}A"
+        return f"{self.code.upper()}{self.site:03d}{self.suffix}"
 
     @property
     def node_name(self) -> str:
@@ -136,6 +152,41 @@ class End(NamedTuple):
 class Peering(NamedTuple):
     prefix: str
     asn: int
+
+
+@dataclass(frozen=True)
+class Spec:
+    """A service as declared: what `_entity` builds the indexed model and the facts from.
+
+    Raises:
+        ValueError: When the number of ends is not what the product takes, an IP peering has no `peering` or an IP
+            prefix has no `prefix`.
+    """
+
+    key: str
+    product: Product
+    customer: Customer
+    ends: Sequence[End]
+    peering: Peering | None = None
+    prefix: str | None = None
+    speed: int = 10000
+    status: str = "active"
+
+    def __post_init__(self) -> None:
+        if not self.product.min_ends <= len(self.ends) <= self.product.max_ends:
+            raise ValueError(
+                f"A {self.product.name} takes {self.product.min_ends} to {self.product.max_ends} ends, "
+                f"{self.key!r} has {len(self.ends)}"
+            )
+        if self.product == IP_PEERING and self.peering is None:
+            raise ValueError(f"An {self.product.name} needs a peering, {self.key!r} has none")
+        if self.product == PREFIX and self.prefix is None:
+            raise ValueError(f"An {self.product.name} needs a prefix, {self.key!r} has none")
+
+    @property
+    def vcs(self) -> list[list[End]]:
+        """The ends per virtual circuit: all of them for most products, `ENDS_PER_VC` at a time for a redundant one."""
+        return list(chunked(self.ends, ENDS_PER_VC)) if self.product == LR else [list(self.ends)]
 
 
 class PortMode(StrEnum):
@@ -210,6 +261,21 @@ class IpPeeringBlock(ProductBlock):
     peers: list[PeerBlock]
 
 
+class IpPrefixBlock(ProductBlock):
+    customer_aggregate: bool
+    to_internet: bool
+    planned: bool
+    ipam_prefix_id: int
+    extra_information: str | None = None
+    write_to_ripe_db: bool | None = None
+    ddos_auto_mitigation: bool | None = None
+
+
+class LightPathRedundantServiceSettingsBlock(ProductBlock):
+    vcs: list[LightPathCircuitBlock]
+    ims_protection_circuit_id: int | None = None
+
+
 class ProductInfo(BaseModel):
     """The product, as orchestrator-core's `ProductModel`."""
 
@@ -222,7 +288,7 @@ class ProductInfo(BaseModel):
 
 
 class NetworkService(BaseModel):
-    """What gets indexed: the root of a subscription-like entity, with one product-specific block."""
+    """What gets indexed: the root of a subscription-like entity, with the blocks of one product."""
 
     subscription_id: UUID
     description: str
@@ -237,20 +303,11 @@ class NetworkService(BaseModel):
     port: ServicePortBlock | None = None
     vc: LightPathCircuitBlock | L2vpnCircuitBlock | None = None
     ip_peering: IpPeeringBlock | None = None
-
-    @property
-    def ports(self) -> list[ServicePortBlock]:
-        """The ports of the service, A-end first. A property, not a field: it is not indexed."""
-        match self.port, self.vc, self.ip_peering:
-            case ServicePortBlock() as port, _, _:
-                return [port]
-            case _, LightPathCircuitBlock() as vc, _:
-                return [sap.port for sap in vc.saps]
-            case _, L2vpnCircuitBlock() as vc, _:
-                return [sap.port for esi in vc.esis for sap in esi.saps]
-            case _, _, IpPeeringBlock() as ip:
-                return [peer.sap.port for peer in ip.peers]
-        return []
+    prefix_type: str | None = None
+    ip_prefix: IpPrefixBlock | None = None
+    domain: str | None = None
+    protection_type: str | None = None
+    lrss: LightPathRedundantServiceSettingsBlock | None = None
 
 
 def _id(*parts: object) -> UUID:
@@ -270,8 +327,12 @@ def _speed(mbits: int) -> str:
     return f"{mbits // 1000} Gbit/s"
 
 
-def _family(customer: str) -> str:
-    return customer.split()[0]
+def _family(customer: Customer) -> str:
+    return customer.name.split()[0]
+
+
+def _mode(product: Product, entity_id: UUID) -> PortMode:
+    return PortMode.UNTAGGED if product == SERVICE_PORT and _flag(entity_id, 0) else PortMode.TAGGED
 
 
 def _node(end: End) -> NodeBlock:
@@ -304,46 +365,42 @@ def _port(end: End, speed: int, mode: PortMode) -> ServicePortBlock:
     )
 
 
-def _sap(entity_id: UUID, index: int, end: End, speed: int) -> ServiceAttachPointBlock:
+def _sap(entity_id: UUID, parent_id: UUID, index: int, end: End, speed: int) -> ServiceAttachPointBlock:
+    """The `index`th attach point of the block with `parent_id`, in the service `entity_id`."""
     return ServiceAttachPointBlock(
         name="Service Attach Point",
-        subscription_instance_id=_id(entity_id, "sap", index),
+        subscription_instance_id=_id(parent_id, "sap", index),
         owner_subscription_id=entity_id,
         vlanrange=str(end.vlan),
         port=_port(end, speed, PortMode.TAGGED),
     )
 
 
-def _description(product: Product, customer: Customer, ends: Sequence[End], speed: int, mode: PortMode) -> str:
-    """`ABBR TAG SITES speed`: sites sorted, a multipoint service names its first three distinct ones."""
-    sites = sorted({end.site_code for end in ends})[:3] if product.max_ends > 2 else sorted(e.site_code for e in ends)
-    tag = f"{product.tag} {mode.value.upper()}" if product == SERVICE_PORT else product.tag
-    return f"{customer.abbreviation} {tag} {'-'.join(sites)} {_speed(speed)}"
-
-
-def _light_path(entity_id: UUID, ends: Sequence[End], speed: int) -> LightPathCircuitBlock:
+def _light_path(entity_id: UUID, ends: Sequence[End], speed: int, number: int = 1) -> LightPathCircuitBlock:
+    """The `number`th VC of a light path."""
+    vc_id = _id(entity_id, "vc", number)
     return LightPathCircuitBlock(
         name="Light Path Virtual Circuit",
-        subscription_instance_id=_id(entity_id, "vc"),
+        subscription_instance_id=vc_id,
         owner_subscription_id=entity_id,
         service_speed=speed,
         speed_policer=_flag(entity_id, 1),
         remote_port_shutdown=_flag(entity_id, 2),
-        inventory_id=_inventory_id(entity_id, "vc"),
-        saps=[_sap(entity_id, index, end, speed) for index, end in enumerate(ends)],
+        inventory_id=_inventory_id(entity_id, "vc", number),
+        saps=[_sap(entity_id, vc_id, index, end, speed) for index, end in enumerate(ends)],
     )
 
 
 def _l2vpn(entity_id: UUID, ends: Sequence[End], speed: int) -> L2vpnCircuitBlock:
-    esis = [
-        EsiBlock(
+    def esi(index: int, end: End) -> EsiBlock:
+        esi_id = _id(entity_id, "esi", index)
+        return EsiBlock(
             name="L2VPN ESI",
-            subscription_instance_id=_id(entity_id, "esi", index),
+            subscription_instance_id=esi_id,
             owner_subscription_id=entity_id,
-            saps=[_sap(entity_id, index, end, speed)],
+            saps=[_sap(entity_id, esi_id, 0, end, speed)],
         )
-        for index, end in enumerate(ends)
-    ]
+
     return L2vpnCircuitBlock(
         name="L2VPN Virtual Circuit",
         subscription_instance_id=_id(entity_id, "vc"),
@@ -353,24 +410,24 @@ def _l2vpn(entity_id: UUID, ends: Sequence[End], speed: int) -> L2vpnCircuitBloc
         vlan_retagging=_flag(entity_id, 2),
         bum_filter=_flag(entity_id, 3),
         inventory_id=_inventory_id(entity_id, "vc"),
-        esis=esis,
+        esis=[esi(index, end) for index, end in enumerate(ends)],
     )
 
 
 def _ip_peering(
     entity_id: UUID, customer: Customer, ends: Sequence[End], speed: int, peering: Peering
 ) -> IpPeeringBlock:
-    peers = [
-        PeerBlock(
+    def peer(index: int, end: End) -> PeerBlock:
+        peer_id = _id(entity_id, "peer", index)
+        return PeerBlock(
             name="IP Peer",
-            subscription_instance_id=_id(entity_id, "peer", index),
+            subscription_instance_id=peer_id,
             owner_subscription_id=entity_id,
             ipv4_remote_address=str(ip_network(peering.prefix)[index + 1]),
             bfd=_flag(entity_id, 1),
-            sap=_sap(entity_id, index, end, speed),
+            sap=_sap(entity_id, peer_id, 0, end, speed),
         )
-        for index, end in enumerate(ends)
-    ]
+
     return IpPeeringBlock(
         name="IP Peering",
         subscription_instance_id=_id(entity_id, "ip"),
@@ -379,34 +436,76 @@ def _ip_peering(
         asn=peering.asn,
         service_speed=speed,
         prefixes=[peering.prefix],
-        peers=peers,
+        peers=[peer(index, end) for index, end in enumerate(ends)],
     )
 
 
-def _service(  # noqa: PLR0913
-    key: str,
-    entity_id: UUID,
-    product: Product,
-    customer: Customer,
-    ends: Sequence[End],
-    peering: Peering | None = None,
-    speed: int = 10000,
-    status: str = "active",
-) -> CorpusEntity:
-    """A service of `customer` over `ends`, the A-end first.
+def _ip_prefix(entity_id: UUID, prefix: str) -> IpPrefixBlock:
+    return IpPrefixBlock(
+        name="IP Prefix",
+        subscription_instance_id=_id(entity_id, "ip-prefix"),
+        owner_subscription_id=entity_id,
+        customer_aggregate=_flag(entity_id, 1),
+        to_internet=_flag(entity_id, 2),
+        planned=_flag(entity_id, 3),
+        ipam_prefix_id=_inventory_id("ipam", prefix),
+    )
 
-    Raises:
-        ValueError: When an IP peering has no `peering`.
-    """
-    if product == IP_PEERING and peering is None:
-        raise ValueError(f"An {product.name} needs a peering")
-    mode = PortMode.UNTAGGED if product == SERVICE_PORT and _flag(entity_id, 0) else PortMode.TAGGED
-    description = _description(product, customer, ends, speed, mode)
+
+def _lrss(entity_id: UUID, vcs: Sequence[Sequence[End]], speed: int) -> LightPathRedundantServiceSettingsBlock:
+    return LightPathRedundantServiceSettingsBlock(
+        name="LR Service Settings",
+        subscription_instance_id=_id(entity_id, "lrss"),
+        owner_subscription_id=entity_id,
+        vcs=[_light_path(entity_id, ends, speed, number) for number, ends in enumerate(vcs, start=1)],
+    )
+
+
+# The blocks of each product, as the fields of `NetworkService` they fill: the one place a product's shape is decided.
+BLOCKS: dict[Product, Callable[[Spec, UUID], dict[str, Any]]] = {
+    SERVICE_PORT: lambda spec, entity_id: {"port": _port(spec.ends[0], spec.speed, _mode(spec.product, entity_id))},
+    LIGHT_PATH: lambda spec, entity_id: {"vc": _light_path(entity_id, spec.ends, spec.speed)},
+    L2VPN: lambda spec, entity_id: {"vc": _l2vpn(entity_id, spec.ends, spec.speed)},
+    IP_PEERING: lambda spec, entity_id: {
+        "ip_peering": _ip_peering(entity_id, spec.customer, spec.ends, spec.speed, spec.peering)  # type: ignore[arg-type]
+    },
+    PREFIX: lambda spec, entity_id: {
+        "prefix_type": PREFIX_TYPE,
+        "ip_prefix": _ip_prefix(entity_id, spec.prefix),  # type: ignore[arg-type]
+    },
+    LR: lambda spec, entity_id: {
+        "domain": "SURFNET8",
+        "protection_type": "Redundant",
+        "lrss": _lrss(entity_id, spec.vcs, spec.speed),
+    },
+}
+
+
+def _sites(spec: Spec) -> str:
+    """The sites of the description: sorted, a multipoint service names its first three, a redundant one each VC's."""
+    if spec.product == LR:
+        return " ".join("-".join(end.site_code for end in vc) for vc in spec.vcs)
+    sites = [end.site_code for end in spec.ends]
+    return "-".join(sorted(set(sites))[:3] if spec.product.max_ends > 2 else sorted(sites))
+
+
+def _description(spec: Spec, mode: PortMode) -> str:
+    """`ABBR TAG SITES speed`, or `ABBR prefix LIR <prefix>` for an IP prefix."""
+    if spec.product == PREFIX:
+        return f"{spec.customer.abbreviation} {PREFIX.tag} {PREFIX_TYPE} {spec.prefix}"
+    tag = f"{spec.product.tag} {mode.value.upper()}" if spec.product == SERVICE_PORT else spec.product.tag
+    return f"{spec.customer.abbreviation} {tag} {_sites(spec)} {_speed(spec.speed)}"
+
+
+def _entity(spec: Spec, entity_id: UUID) -> CorpusEntity:
+    """The indexed model of `spec` and the facts queries are made from, with the A-end first."""
+    product, customer = spec.product, spec.customer
+    description = _description(spec, _mode(product, entity_id))
     model = NetworkService(
         subscription_id=entity_id,
         description=description,
-        status=status,
-        insync=status == "active",
+        status=spec.status,
+        insync=spec.status == "active",
         start_date=FIRST_START_DATE + timedelta(days=entity_id.int % 2500),
         version=1,
         customer_id=str(_id("customer", customer.name)),
@@ -420,35 +519,71 @@ def _service(  # noqa: PLR0913
             tag=product.tag,
             status="active",
         ),
-        port=_port(ends[0], speed, mode) if product == SERVICE_PORT else None,
-        vc=(
-            _light_path(entity_id, ends, speed)
-            if product == LIGHT_PATH
-            else _l2vpn(entity_id, ends, speed)
-            if product == L2VPN
-            else None
-        ),
-        ip_peering=_ip_peering(entity_id, customer, ends, speed, peering) if peering else None,
+        **BLOCKS[product](spec, entity_id),
     )
     return CorpusEntity(
-        key=key,
+        key=spec.key,
         entity_id=entity_id,
         model=model,
         # A service is also found by its B-ends, and a customer by its abbreviation: a query for those is right too.
         facts={
             DESCRIPTION: (description,),
-            IDENTIFIER: tuple(end.node_name for end in ends),
+            IDENTIFIER: (spec.prefix,) if spec.prefix else tuple(end.node_name for end in spec.ends),
             CUSTOMER: (customer.name, customer.abbreviation),
-            LOCATION: tuple(end.city for end in ends),
+            LOCATION: tuple(end.city for end in spec.ends),
         },
     )
 
 
-def _anchor_models(profile: "GenericProfile") -> list[NetworkService]:
-    return [anchor.model for anchor in profile.anchors() if isinstance(anchor.model, NetworkService)]
-
-
-CUSTOMER_BY_NAME = {customer.name: customer for customer in CUSTOMERS}
+ANCHORS = (
+    # ams001a-rt01 against ams001a-rt10: one transposition apart.
+    Spec("ams001a-rt01", SERVICE_PORT, NWR, [End("Amsterdam", "ams", 1, 1, "et-0/0/1", 101)]),
+    Spec("ams001a-rt10", SERVICE_PORT, BFU, [End("Amsterdam", "ams", 1, 10, "et-0/0/1", 102)]),
+    # Amsterdam against Amstelveen.
+    Spec("asv001a-rt01", SERVICE_PORT, RWI, [End("Amstelveen", "asv", 1, 1, "et-0/0/1", 103)]),
+    # One customer on several services.
+    Spec(
+        "northwind-lightpath",
+        LIGHT_PATH,
+        NWR,
+        [End("Amsterdam", "ams", 1, 7, "xe-1/2/4", 210), End("Rotterdam", "rtd", 1, 7, "xe-1/2/4", 210)],
+    ),
+    Spec(
+        "northwind-peering",
+        IP_PEERING,
+        NWR,
+        [End("Utrecht", "utr", 1, 2, "et-3/0/2", 305)],
+        peering=Peering(prefix="192.0.2.0/24", asn=64500),
+    ),
+    # Rotterdam against Roermond, with B-ends in Eindhoven against Enschede.
+    Spec(
+        "rtd001a-rt01",
+        L2VPN,
+        SLM,
+        [End("Rotterdam", "rtd", 1, 1, "ge-0/1/3", 410), End("Eindhoven", "ehv", 1, 3, "ge-0/1/3", 410)],
+    ),
+    Spec(
+        "rmd001a-rt01",
+        L2VPN,
+        SLA,
+        [End("Roermond", "rmd", 1, 1, "ge-0/1/3", 411), End("Enschede", "ens", 1, 3, "ge-0/1/3", 411)],
+    ),
+    # `RUG LIR` has to find `RUG prefix LIR`, the words of one description with a word between them. `RUG LR` is a
+    # redundant light path of the same customer: two VCs of two ends each.
+    Spec("rug-prefix-lir", PREFIX, RUG, [], prefix="192.87.22.0/24"),
+    Spec(
+        "rug-lr",
+        LR,
+        RUG,
+        [
+            End("Assen", "asd", 1, 1, "et-0/0/1", 801, "B"),
+            End("Groningen", "gn", 12, 1, "et-0/0/2", 802),
+            End("Assen", "asd", 2, 1, "et-0/0/3", 803),
+            End("Groningen", "gn", 1, 1, "et-0/0/4", 804, "B"),
+        ],
+    ),
+)
+ANCHOR_ENDS = [(spec.customer, end) for spec in ANCHORS for end in spec.ends]
 
 
 class GenericProfile:
@@ -457,55 +592,11 @@ class GenericProfile:
     name = "generic"
 
     def anchors(self) -> Sequence[CorpusEntity]:
-        def anchor(key: str, product: Product, customer: str, ends: Sequence[End], **kwargs: object) -> CorpusEntity:
-            return _service(key, _id(key), product, CUSTOMER_BY_NAME[customer], ends, **kwargs)  # type: ignore[arg-type]
-
-        return [
-            # ams001a-rt01 against ams001a-rt10: one transposition apart.
-            anchor(
-                "ams001a-rt01", SERVICE_PORT, "Northwind Research", [End("Amsterdam", "ams", 1, 1, "et-0/0/1", 101)]
-            ),
-            anchor(
-                "ams001a-rt10", SERVICE_PORT, "Bluefin University", [End("Amsterdam", "ams", 1, 10, "et-0/0/1", 102)]
-            ),
-            # Amsterdam against Amstelveen.
-            anchor(
-                "asv001a-rt01", SERVICE_PORT, "Redwood Institute", [End("Amstelveen", "asv", 1, 1, "et-0/0/1", 103)]
-            ),
-            # One customer on several services.
-            anchor(
-                "northwind-lightpath",
-                LIGHT_PATH,
-                "Northwind Research",
-                [End("Amsterdam", "ams", 1, 7, "xe-1/2/4", 210), End("Rotterdam", "rtd", 1, 7, "xe-1/2/4", 210)],
-            ),
-            anchor(
-                "northwind-peering",
-                IP_PEERING,
-                "Northwind Research",
-                [End("Utrecht", "utr", 1, 2, "et-3/0/2", 305)],
-                peering=Peering(prefix="192.0.2.0/24", asn=64500),
-            ),
-            # Rotterdam against Roermond, with B-ends in Eindhoven against Enschede.
-            anchor(
-                "rtd001a-rt01",
-                L2VPN,
-                "Silverline Museum",
-                [End("Rotterdam", "rtd", 1, 1, "ge-0/1/3", 410), End("Eindhoven", "ehv", 1, 3, "ge-0/1/3", 410)],
-            ),
-            anchor(
-                "rmd001a-rt01",
-                L2VPN,
-                "Silverline Archives",
-                [End("Roermond", "rmd", 1, 1, "ge-0/1/3", 411), End("Enschede", "ens", 1, 3, "ge-0/1/3", 411)],
-            ),
-        ]
+        return [_entity(spec, _id(spec.key)) for spec in ANCHORS]
 
     def reserved_nodes(self) -> frozenset[str]:
         """Node names only anchors carry, so that a query for one has a closed set of answers."""
-        return (
-            frozenset(port.node.node_name for anchor in _anchor_models(self) for port in anchor.ports) | NEIGHBOUR_NODES
-        )
+        return frozenset(end.node_name for _, end in ANCHOR_ENDS) | NEIGHBOUR_NODES
 
     def reserved_pairs(self) -> frozenset[tuple[str, str]]:
         """(customer family, city) pairs only anchors carry: `bluefin amsterdam` must mean one anchor.
@@ -513,24 +604,22 @@ class GenericProfile:
         A family is a customer's first word, as the near-miss customers (Bluefin University, Bluefin Hospital) share
         it and a query names the family as often as the full customer.
         """
-        return frozenset(
-            (_family(anchor.customer_name), port.node.city) for anchor in _anchor_models(self) for port in anchor.ports
-        )
+        return frozenset((_family(customer), end.city) for customer, end in ANCHOR_ENDS)
 
     def generate(self, rng: Random, count: int) -> Sequence[CorpusEntity]:
-        used = {f"{port.node.node_name} {port.port_name}" for anchor in _anchor_models(self) for port in anchor.ports}
-        entities = list(islice(self._generate(rng, used), count))
+        entities = list(islice(self._generate(rng), count))
         if len(entities) < count:
             raise ValueError(f"The generic profile has room for {len(entities)} entities, {count} requested")
         return entities
 
-    def _generate(self, rng: Random, used: set[str]) -> Iterator[CorpusEntity]:
+    def _generate(self, rng: Random) -> Iterator[CorpusEntity]:
         """Entities until `MAX_ATTEMPTS` draws in a row clashed with an anchor or an earlier entity."""
         nodes, pairs = self.reserved_nodes(), self.reserved_pairs()
+        used = {end.identifier for _, end in ANCHOR_ENDS}
 
         def clashes(customer: Customer, ends: Sequence[End]) -> bool:
             return ends[0].identifier in used or any(
-                end.node_name in nodes or (_family(customer.name), end.city) in pairs for end in ends
+                end.node_name in nodes or (_family(customer), end.city) in pairs for end in ends
             )
 
         misses = 0
@@ -547,7 +636,7 @@ class GenericProfile:
             speed = rng.choice(SPEEDS)
             status = rng.choices(STATUSES, STATUS_WEIGHTS)[0]
             entity_id = UUID(int=rng.getrandbits(128), version=4)
-            yield _service(f"gen-{index}", entity_id, product, customer, ends, peering, speed, status)
+            yield _entity(Spec(f"gen-{index}", product, customer, ends, peering, speed=speed, status=status), entity_id)
 
 
 def _draw_end(rng: Random, vlan: int) -> End:
