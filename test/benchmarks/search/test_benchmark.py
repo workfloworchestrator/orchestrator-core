@@ -63,7 +63,7 @@ def queries(corpus):
 
 
 @pytest.fixture
-async def ran(loaded, corpus, queries, async_session):
+async def query_results(loaded, corpus, queries, async_session):
     return await run_queries(async_session, corpus, queries, RETRIEVER)
 
 
@@ -79,8 +79,8 @@ def test_corpus_is_indexed_through_the_real_indexer(loaded, corpus):
     assert loaded > len(corpus.entities)
 
 
-def test_accuracy_is_unchanged(ran, corpus):
-    results, _ = ran
+def test_accuracy_is_unchanged(query_results, corpus):
+    results, _ = query_results
     page = render_accuracy(
         f"Search accuracy on Postgres {postgres_major()}",
         f"The {RETRIEVER.value} retriever on the `{corpus.profile}` profile: seed {corpus.seed}, {len(corpus.entities)} "
@@ -90,13 +90,13 @@ def test_accuracy_is_unchanged(ran, corpus):
     _assert_matches_baseline("accuracy", page)
 
 
-def test_every_query_uses_the_trigram_index(ran):
-    _, plans = ran
+def test_every_query_uses_the_trigram_index(query_results):
+    _, plans = query_results
     assert [i for i, plan in enumerate(plans) if seq_scans_index_table(plan) or not uses_trigram_index(plan)] == []
 
 
-def test_plan_metrics_are_unchanged(ran, corpus, queries):
-    _, plans = ran
+def test_plan_metrics_are_unchanged(query_results, corpus, queries):
+    _, plans = query_results
     page = render_plan_metrics(
         "Search benchmark plan metrics",
         f"The {RETRIEVER.value} retriever, one row per query, on {len(corpus.entities)} entities of the "
