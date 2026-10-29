@@ -263,11 +263,21 @@ An example body to create a nightly sync schedule would look like this:
 }
 ```
 
+Two optional fields control what happens when the scheduler starts a schedule late, see
+[Schedules that share a trigger time](#schedules-that-share-a-trigger-time):
+
+- `misfire_grace_time`: seconds after the trigger time that the schedule may still start, for example `60`.
+- `coalesce`: when `true`, a schedule that missed several trigger times runs once instead of once per missed time.
+
+Both default to `null`, which leaves them to the scheduler's defaults: a `misfire_grace_time` of 1 second
+and `coalesce` enabled.
+
 Respectively, you can update or delete schedules via `PUT` and `DELETE` requests to the same endpoint.
 
 *Example PUT*
 
-With `PUT` you can only update the `name`, `trigger`, and `trigger_kwargs` of an existing schedule.
+With `PUT` you can only update the `name`, `trigger`, `trigger_kwargs`, `misfire_grace_time` and `coalesce` of an
+existing schedule. A field that is left out or set to null keeps its current value; to go back to the default grace time, send 1.
 For example, to update the above schedule to run every 24 hours instead of every 12 hours
 ```json
 {
@@ -350,6 +360,8 @@ producing a job that silently never fires:
 | `trigger_kwargs` | no (default `{}`) | Keyword arguments for that trigger, passed straight to APScheduler. |
 | `name` | no | Human readable name, shown in `show-schedule` and the UI. Defaults to the workflow description. |
 | `user_inputs` | no (default `[{}]`) | Input form data for the task, one `dict` per form page. |
+| `misfire_grace_time` | no | Seconds after the trigger time that the task may still start. Defaults to the scheduler's 1 second. |
+| `coalesce` | no | Run a task that missed several trigger times only once. Defaults to the scheduler's `true`. |
 
 The same three trigger types as [the schedule API](#the-schedule-api) are available, with the same
 `trigger_kwargs`. A task that takes input needs `user_inputs`, one `dict` per form page:
@@ -436,6 +448,66 @@ python main.py scheduler load-initial-schedule
 ```
 
 > Remember, that if you do not explicitly import these, they will not be available to the scheduler.
+
+### Schedules that share a trigger time
+
+The scheduler is a single process. When schedules are due, it hands them to a thread pool, which starts the task of
+each schedule in turn. How long starting a task takes depends on the task, the database and the executor, typically
+a fraction of a second. APScheduler skips a schedule that is picked up more than its `misfire_grace_time` after its
+trigger time, and its default `misfire_grace_time` is only 1 second. So when many schedules share a trigger time, for
+example 30 schedules at 11:00, the scheduler starts the first few and skips the rest.
+
+There are two ways to make sure all of them start:
+
+1. **Give the schedules a `misfire_grace_time`** that covers starting all of them, for example `60` or `300` seconds.
+   The schedules then start one after the other, a little after their trigger time. Starting a schedule only creates
+   a process for its task; the orchestrator workers then run the task. Set it per schedule when you create it, or
+   update existing schedules through `PUT /api/schedules`:
+   ```json
+   {
+     "schedule_id": "c1b6e5e3-d9f0-48f2-bc65-3c9c33fcf561",
+     "misfire_grace_time": 300
+   }
+   ```
+2. **Raise `SCHEDULER_EXECUTOR_THREADS`** (default `1`) for the scheduler process, so it starts several schedules at
+   the same time. Each thread holds a database connection while it starts a task, so stay well below the database
+   connection pool size of 60, and below what your database accepts. A higher value moves the load of starting the
+   tasks to the database and the workers at the same moment; it does not limit how many tasks then run.
+
+A `misfire_grace_time` is the more robust option: threads only help as long as there are enough of them for all
+schedules that share a trigger time, while a grace time also covers other delays, such as a scheduler that restarts
+just around the trigger time. Spreading trigger times, for example 11:00, 11:01 and 11:02, avoids the problem without
+any configuration.
+
+`coalesce` decides what happens to a schedule that missed several trigger times, for example an `interval` schedule
+of every 10 minutes while the scheduler was down for an hour, but that is still within its `misfire_grace_time`. With
+`coalesce` enabled, the default, it runs once; disabled, it runs once for every missed trigger time.
+
+#### Skipped schedules
+
+The scheduler logs every skipped schedule as an error, with the schedule id and the scheduled run time:
+
+```
+[error] Scheduled task was skipped because it was not started within its misfire_grace_time schedule_id=... scheduled_run_time=...
+```
+
+To see which task a skipped schedule runs, look up its schedule id with `show-schedule`. The log does not include the
+name or task itself: looking those up while the scheduler is busy would slow it down further, and could block it from
+shutting down.
+
+APScheduler additionally logs a `Run time of job ... was missed by ...` warning. Alert on the error log of the
+scheduler process to notice skipped schedules. A skipped schedule does not start a process, so it does not show up
+in the processes overview.
+
+#### Limitations
+
+- Run exactly one scheduler process. The scheduler is designed to run as a single process; running more than one
+  leads to schedules that run twice or not at all. Use `SCHEDULER_EXECUTOR_THREADS` to scale within the process
+  instead.
+- `misfire_grace_time` and `coalesce` can only be set on schedules created through the API or `load_schedules`.
+  Schedules created with the deprecated decorator use the scheduler defaults.
+- A schedule's `misfire_grace_time` and `coalesce` are not shown by `show-schedule` or the GraphQL API.
+
 ### Manually executing tasks
 <!-- diataxis: -->
 
