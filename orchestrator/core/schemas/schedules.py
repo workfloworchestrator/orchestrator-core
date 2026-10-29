@@ -67,7 +67,7 @@ class APSchedulerJobOptions(BaseModel):
         None,
         description=(
             "Seconds after the trigger time that the job may still start. A job picked up later is skipped as "
-            "missed. APScheduler defaults to 1 second."
+             "missed. APScheduler defaults to 1 second. null uses that default; there is no 'no limit' option."
         ),
         examples=[60, 300],
     )

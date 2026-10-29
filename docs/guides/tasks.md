@@ -277,7 +277,7 @@ Respectively, you can update or delete schedules via `PUT` and `DELETE` requests
 *Example PUT*
 
 With `PUT` you can only update the `name`, `trigger`, `trigger_kwargs`, `misfire_grace_time` and `coalesce` of an
-existing schedule. A field left out keeps its current value.
+existing schedule. A field that is left out or set to null keeps its current value; to go back to the default grace time, send 1.
 For example, to update the above schedule to run every 24 hours instead of every 12 hours
 ```json
 {
