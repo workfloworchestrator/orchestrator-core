@@ -76,17 +76,22 @@ def insert_lazy_workflow_instances(environment: Environment, config: dict, write
         product=config,
     )
 
+    import_statement = "from orchestrator.core.workflows import LazyWorkflowInstance\n"
+
     path = get_workflows_folder() / Path("__init__.py")
     if path.exists():
-        with open(path) as fp:
-            if f"workflows.{variable}.create_{variable}" in fp.read():
-                logger.warning("not re-adding lazy workflows", product=variable)
-            else:
-                fp.close()
-                writer(path, content, append=True)
+        existing = path.read_text()
+        if f"workflows.{variable}.create_{variable}" in existing:
+            logger.warning("not re-adding lazy workflows", product=variable)
+            return
+        if import_statement.strip() in existing:
+            writer(path, content, append=True)
+        else:
+            # ``create_dunder_init_files`` pre-creates an empty ``workflows/__init__.py``, so the import may be
+            # missing even though the file exists. Add it, otherwise the appended instances fail to resolve.
+            writer(path, import_statement + "\n" + existing + content)
     else:
-        import_statement = "from orchestrator.core.workflows import LazyWorkflowInstance\n\n"
-        writer(path, import_statement + content)  # will create file if not dryrun
+        writer(path, import_statement + "\n" + content)  # will create file if not dryrun
 
 
 def read_description_service(environment: Environment) -> str:

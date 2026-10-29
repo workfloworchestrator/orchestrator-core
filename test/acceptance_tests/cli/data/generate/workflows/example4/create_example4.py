@@ -23,7 +23,6 @@ from pydantic_forms.types import FormGenerator, State, UUIDstr
 from products.product_types.example4 import Example4Inactive, Example4Provisioning
 from products.services.description import description
 
-
 logger = structlog.get_logger(__name__)
 
 
@@ -49,8 +48,8 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 @step("Construct Subscription model")
 def construct_example4_model(
     product: UUIDstr,
-    process_id: UUIDstr,
     customer_id: UUIDstr,
+    process_id: UUIDstr,
     num_val: int | None,
 ) -> State:
     example4 = Example4Inactive.from_product_id(
