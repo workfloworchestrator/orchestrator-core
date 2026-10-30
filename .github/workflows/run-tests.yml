@@ -12,6 +12,8 @@ name: Tests
 #   5) ``llm-acceptance-tests`` runs the LLM/embedding acceptance suite
 #      (reusable ``run-llm-acceptance-tests.yml``). Tests use mocked
 #      embeddings, so it runs on fork PRs too.
+#   6) ``integration-tests`` also runs the search benchmark (test/benchmarks/search)
+#      against its committed accuracy baseline.
 #
 # Each downstream job ``needs: unit-tests`` so unit tests run exactly once
 # per PR and downstream jobs only execute when units are green.
@@ -90,6 +92,16 @@ jobs:
           uv run pytest test/integration_tests \
             --cov-branch --cov=orchestrator --cov-report=xml \
             -n auto
+        env:
+          DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
+          CACHE_URI: redis://redis
+          POSTGRES_HOST: postgres
+          ENVIRONMENT: TESTING
+
+      - name: Run the search benchmark
+        # Accuracy of the fuzzy retriever against test/benchmarks/search/baseline/accuracy.md. Sequential: the
+        # queries' plans share one connection.
+        run: uv run pytest test/benchmarks/search -v
         env:
           DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
           CACHE_URI: redis://redis
