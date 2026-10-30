@@ -206,14 +206,11 @@ class StepList(list[Step]):
             retval = type(self)(retval)
         return retval
 
-    def __rshift__(self, other: StepList | Step | ParallelStepList | dict) -> StepList:
+    def __rshift__(self, other: StepList | Step | dict) -> StepList:
         if isinstance(other, Step):
             return StepList([*self, other])
         if isinstance(other, StepList):
             return StepList([*self, *other])
-        if isinstance(other, ParallelStepList):
-            name = other.name or _auto_parallel_name(other)
-            return StepList([*self, _make_parallel_step(name, other.branches)])
         if isinstance(other, dict):
             return self._rshift_dict(other)
         if hasattr(other, "__name__"):  # type:ignore[unreachable]
@@ -228,47 +225,15 @@ class StepList(list[Step]):
         name, value = next(iter(other.items()))
         if not isinstance(name, str):
             raise ValueError(f"Parallel dict key must be a string, got {type(name)}")
-        if isinstance(value, ParallelStepList):
-            return StepList([*self, _make_parallel_step(name, value.branches)])
         if isinstance(value, list) and all(isinstance(v, StepList) for v in value):
             return StepList([*self, _make_parallel_step(name, value)])
-        raise ValueError(f"Parallel dict value must be ParallelStepList or list[StepList], got {type(value)}")
+        raise ValueError(f"Parallel dict value must be list[StepList], got {type(value)}")
 
     def __str__(self) -> str:
         return f"StepList [{', '.join(x.name for x in self)}]"
 
-    def __or__(self, other: StepList | ParallelStepList) -> ParallelStepList:
-        if isinstance(other, ParallelStepList):
-            return ParallelStepList([self, *other.branches])
-        if isinstance(other, StepList):
-            return ParallelStepList([self, other])
-        raise ValueError(f"Cannot use | with {type(other)}")
-
     def __repr__(self) -> str:
         return f"StepList [{', '.join(repr(x) for x in self)}]"
-
-
-class ParallelStepList:
-    """Container for parallel branches, created by the | operator on StepList."""
-
-    def __init__(self, branches: list[StepList], name: str | None = None) -> None:
-        if len(branches) < 2:
-            raise ValueError("ParallelStepList requires at least 2 branches")
-        self.branches = branches
-        self.name = name
-
-    def __or__(self, other: StepList | ParallelStepList) -> ParallelStepList:
-        if isinstance(other, ParallelStepList):
-            return ParallelStepList([*self.branches, *other.branches], self.name)
-        if isinstance(other, StepList):
-            return ParallelStepList([*self.branches, other], self.name)
-        raise ValueError(f"Cannot use | with {type(other)}")
-
-    def __repr__(self) -> str:
-        branch_strs = ", ".join(str(b) for b in self.branches)
-        if self.name:
-            return f"ParallelStepList '{self.name}' [{branch_strs}]"
-        return f"ParallelStepList [{branch_strs}]"
 
 
 def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputFormGenerator:
@@ -532,12 +497,6 @@ def step_group(
     return make_step_function(func, name, form, retry_auth_callback=retry_auth_callback, importance=importance)
 
 
-def _auto_parallel_name(par: ParallelStepList) -> str:
-    """Generate an auto name from branch step names."""
-    branch_names = [" + ".join(s.name for s in branch) or "empty" for branch in par.branches]
-    return f"Parallel({', '.join(branch_names)})"
-
-
 _STATUS_PRIORITY: list[str] = ["isfailed", "iswaiting", "issuspend", "isawaitingcallback"]
 
 
@@ -629,7 +588,7 @@ def _run_branch(
         parent_step_id: Fork step ID to link child steps to.
         branch_index: Index of this branch (0-based).
         current_user: User who started the workflow.
-        state_seed: Optional per-branch state overrides (used by foreach_parallel).
+        state_seed: Optional per-branch state overrides (used by map_parallel).
     """
     with db.database_scope():
         branch_state = deepcopy(initial_state)
@@ -703,7 +662,9 @@ def _create_fork_step(
                 .all()
             )
             latest_per_branch = list(unique_everseen(prior_relations, key=lambda r: r.branch_index))
-            succeeded_branches = {r.branch_index for r in latest_per_branch if r.child_step.status == StepStatus.SUCCESS}
+            succeeded_branches = {
+                r.branch_index for r in latest_per_branch if r.child_step.status == StepStatus.SUCCESS
+            }
             inherited_relations = [r for r in prior_relations if r.branch_index in succeeded_branches]
 
         now = nowtz()
@@ -735,6 +696,7 @@ def _create_fork_step(
         return fork_step.step_id
 
 
+# TODO move to separate module along with parent caller _exec_parallel_branches and make public
 def _dispatch_worker_branches(
     branches: list[StepList],
     initial_state: State,
@@ -820,7 +782,7 @@ def _run_threadpool_branches(
     computed from each branch's *latest* attempt in the DB so successful prior
     branches contribute alongside the freshly-executed pending ones.
     """
-    from orchestrator.core.services.parallel import _STATUSES, _collect_branch_results, _succeeded_branch_indices
+    from orchestrator.core.services.parallel import _STATUSES, _collect_branch_results, _succeeded_branch_indices # type: ignore[attr-defined]  # TODO fix this in _collect_branch_results
 
     n_branches = len(seeds) if seeds else len(branches)
 
@@ -882,6 +844,7 @@ def _run_threadpool_branches(
     return Success(initial_state | {"__replace_last_state": True, "__last_step_started_at": parallel_start_time})
 
 
+# TODO move to separate module with submodules for threadpool/celery executor
 def _exec_parallel_branches(
     branches: list[StepList],
     initial_state: State,
@@ -936,7 +899,7 @@ def _make_parallel_step(
     def _validate_branch_step(branch_idx: int, s: Step) -> bool:
         if s.form is not None:
             raise ValueError(
-                f"Parallel branches must not contain inputsteps. " f"Found inputstep '{s.name}' in branch {branch_idx}."
+                f"Parallel branches must not contain inputsteps. Found inputstep '{s.name}' in branch {branch_idx}."
             )
         if getattr(s, "_is_callback_step", False):
             raise ValueError(
@@ -968,7 +931,7 @@ def reconstruct_branch(parallel_step: Step, branch_index: int) -> StepList:
 
     Args:
         parallel_step: A step created by :func:`_make_parallel_step` or
-            :func:`foreach_parallel` with branch metadata attached.
+            :func:`map_parallel` with branch metadata attached.
         branch_index: Zero-based index of the branch to reconstruct.
 
     Returns:
@@ -978,7 +941,7 @@ def reconstruct_branch(parallel_step: Step, branch_index: int) -> StepList:
         ValueError: If ``parallel_step`` has no parallel metadata.
         IndexError: If ``branch_index`` is out of range (static parallel only).
     """
-    # foreach_parallel: all branches use the same template
+    # map_parallel: all branches use the same template
     template: StepList | None = getattr(parallel_step, "_foreach_branch_template", None)
     if template is not None:
         return template
@@ -992,9 +955,9 @@ def reconstruct_branch(parallel_step: Step, branch_index: int) -> StepList:
 
 def parallel(
     name: str,
-    *branches: StepList,
+    *branches: StepList | Step,
     retry_auth_callback: Authorizer | None = None,
-    max_workers: int | None = None,
+    max_workers: int | None = None,  # TODO better name for this (max_concurrency, concurrency_limit, ..)
 ) -> Step:
     """Execute multiple step sequences in parallel.
 
@@ -1004,22 +967,9 @@ def parallel(
     block receives the pre-parallel state. Branch data can be accessed from the DB
     via ``fork_step.child_steps``.
 
-    This function provides explicit control over parallel execution. For simpler cases,
-    use the | operator syntax instead::
-
-        # Using | operator (preferred for simple cases)
-        init >> ((begin >> step_a) | (begin >> step_b)) >> done
-
-        # Using | with dict naming
-        init >> {"My parallel": (begin >> step_a) | (begin >> step_b)} >> done
-
-        # Using parallel() for advanced options
-        init >> parallel("My parallel", begin >> step_a, begin >> step_b,
-                         retry_auth_callback=my_callback) >> done
-
     Args:
         name: Name for this parallel group (shown in logs/UI)
-        *branches: Two or more StepList sequences to execute concurrently
+        *branches: multiple Step or StepList to execute concurrently
         retry_auth_callback: Authorization callback for retrying on failure
         max_workers: Max concurrent threads (None = number of branches)
 
@@ -1030,16 +980,19 @@ def parallel(
         ValueError: If fewer than 2 branches provided
         ValueError: If any branch contains an inputstep
     """
-    return _make_parallel_step(name, list(branches), retry_auth_callback=retry_auth_callback, max_workers=max_workers)
+    branch_steplists = [begin >> branch for branch in branches]
+    return _make_parallel_step(
+        name, list(branch_steplists), retry_auth_callback=retry_auth_callback, max_workers=max_workers
+    )
 
 
-def foreach_parallel(
+def map_parallel(
     name: str,
     items_key: str,
-    branch: StepList,
-    max_workers: int | None = None,
+    branch: StepList | Step,
+    max_workers: int | None = None,  # TODO better name for this (max_concurrency, concurrency_limit, ..)
 ) -> Step:
-    """Execute one parallel branch per item in ``state[items_key]``.
+    """Map the Step or StepList to all items in ``state[items_key]``.
 
     At runtime the step reads ``state[items_key]`` and spawns one thread per item.
     Each thread runs a deep copy of *branch* with the item merged into its initial state:
@@ -1070,15 +1023,16 @@ def foreach_parallel(
             return (
                 init
                 >> fetch_ports
-                >> foreach_parallel("Provision ports", "ports", begin >> provision_port)
+                >> map_parallel("Provision ports", "ports", provision_port)
                 >> link_ports
                 >> done
             )
+        # TODO example for a StepList with more than 1 step
 
     Args:
         name: Name for the parallel group (shown in logs/UI).
         items_key: Key in the workflow state whose value is the list to iterate over.
-        branch: StepList executed once per item, with the item merged into state.
+        branch: Step or StepList executed once per item, with the item merged into state.
         max_workers: Max concurrent threads. Defaults to the number of items.
 
     Returns:
@@ -1087,12 +1041,13 @@ def foreach_parallel(
     Raises:
         ValueError: If ``state[items_key]`` is not iterable at runtime.
     """
+    branch_steplist = begin >> branch
 
     def func(initial_state: State) -> Process:
         with transactional(db, logger):
             raw = initial_state.get(items_key)
             if raw is None:
-                raise ValueError(f"foreach_parallel: key '{items_key}' not found in state")
+                raise ValueError(f"map_parallel: key '{items_key}' not found in state")
             items = list(raw)
 
             if not items:
@@ -1103,11 +1058,12 @@ def foreach_parallel(
                 item if isinstance(item, dict) else {"item": item, "item_index": idx} for idx, item in enumerate(items)
             ]
 
-            return _exec_parallel_branches([branch], initial_state, name, max_workers=max_workers, seeds=seeds)
+            return _exec_parallel_branches([branch_steplist], initial_state, name, max_workers=max_workers, seeds=seeds)
 
     step_fn = make_step_function(func, name)
     # Attach metadata for Celery branch reconstruction
-    step_fn._foreach_branch_template = branch  # type: ignore[attr-defined]
+    # TODO fix untyped/undefined variables. Either define them on Step, or provide metadata another way
+    step_fn._foreach_branch_template = branch_steplist  # type: ignore[attr-defined]
     step_fn._parallel_group_name = name  # type: ignore[attr-defined]
     return step_fn
 
