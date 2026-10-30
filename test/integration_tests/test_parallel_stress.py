@@ -13,7 +13,7 @@
 
 """Stress / integration tests for parallel step execution.
 
-These tests exercise complex compositions of parallel() and foreach_parallel():
+These tests exercise complex compositions of parallel() and map_parallel():
 nested parallelism, mixed types, asymmetric branches, scale, error propagation,
 and edge cases. All tests run with real DB persistence via the engine-pool
 session fixture.
@@ -39,8 +39,8 @@ from orchestrator.core.workflow import (
     begin,
     conditional,
     done,
-    foreach_parallel,
     init,
+    map_parallel,
     parallel,
     retrystep,
     runwf,
@@ -344,7 +344,7 @@ def test_three_level_nested_parallel() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Step definitions for mixed parallel / foreach_parallel tests
+# Step definitions for mixed parallel / map_parallel tests
 # ---------------------------------------------------------------------------
 
 
@@ -399,41 +399,41 @@ def branch_marker_b() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Mixed parallel / foreach_parallel tests
+# Mixed parallel / map_parallel tests
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.workflow
-def test_parallel_with_foreach_branch() -> None:
-    """parallel() where one branch uses foreach_parallel.
+def test_parallel_with_map_parallel_branch() -> None:
+    """parallel() where one branch uses map_parallel.
 
     Structure:
         init >> parallel("Mixed",
-            begin >> setup_ports >> foreach_parallel("FE", "ports", begin >> process_port),
+            begin >> setup_ports >> map_parallel("FE", "ports", begin >> process_port),
             begin >> static_left,
         ) >> done
 
     Verifies:
     - Workflow completes successfully
-    - The outer parallel fork step and inner foreach fork step are both persisted in DB
+    - The outer parallel fork step and inner map_parallel fork step are both persisted in DB
     - Branch results are NOT merged into main state
-    - Both the foreach branch and the static branch execute correctly
+    - Both the dynamic branch and the static branch execute correctly
     """
 
     @workflow()
-    def mixed_parallel_foreach_wf():
+    def mixed_parallel_map_parallel_wf():
         return (
             init
             >> parallel(
                 "Mixed",
-                begin >> setup_ports >> foreach_parallel("FE", "ports", begin >> process_port),
+                begin >> setup_ports >> map_parallel("FE", "ports", begin >> process_port),
                 begin >> static_left,
             )
             >> done
         )
 
-    with WorkflowInstanceForTests(mixed_parallel_foreach_wf, "mixed_parallel_foreach_wf"):
-        result, pstat, _step_log = run_workflow("mixed_parallel_foreach_wf", [{}])
+    with WorkflowInstanceForTests(mixed_parallel_map_parallel_wf, "mixed_parallel_map_parallel_wf"):
+        result, pstat, _step_log = run_workflow("mixed_parallel_map_parallel_wf", [{}])
         assert_complete(result)
         state = result.unwrap()
 
@@ -442,7 +442,7 @@ def test_parallel_with_foreach_branch() -> None:
         assert "result_p2" not in state
         assert "left" not in state
 
-        # DB: two fork steps for "Mixed" (outer parallel) and "FE" (inner foreach)
+        # DB: two fork steps for "Mixed" (outer parallel) and "FE" (inner map_parallel)
         fork_steps = _get_fork_steps(pstat.process_id)
         assert len(fork_steps) == 2
 
@@ -461,11 +461,11 @@ def test_parallel_with_foreach_branch() -> None:
 
 
 @pytest.mark.workflow
-def test_foreach_parallel_with_parallel_inside() -> None:
-    """foreach_parallel where each item's branch contains a static parallel block.
+def test_map_parallel_with_parallel_inside() -> None:
+    """map_parallel where each item's branch contains a static parallel block.
 
     Structure:
-        init >> foreach_parallel("Items", "items", begin >> parallel("Inner",
+        init >> map_parallel("Items", "items", begin >> parallel("Inner",
             begin >> static_left,
             begin >> static_right,
         )) >> done
@@ -474,15 +474,15 @@ def test_foreach_parallel_with_parallel_inside() -> None:
 
     Verifies:
     - Workflow completes successfully
-    - The outer foreach_parallel fork step and all inner parallel fork steps are persisted in DB
+    - The outer map_parallel fork step and all inner parallel fork steps are persisted in DB
     - Branch results are NOT merged into main state
     """
 
     @workflow()
-    def foreach_with_inner_parallel_wf():
+    def map_parallel_with_inner_parallel_wf():
         return (
             init
-            >> foreach_parallel(
+            >> map_parallel(
                 "Items",
                 "items",
                 begin >> parallel("Inner", begin >> static_left, begin >> static_right),
@@ -490,7 +490,7 @@ def test_foreach_parallel_with_parallel_inside() -> None:
             >> done
         )
 
-    with register_test_workflow(foreach_with_inner_parallel_wf) as wf_table:
+    with register_test_workflow(map_parallel_with_inner_parallel_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {"items": [{"tag": "a"}, {"tag": "b"}, {"tag": "c"}]})
         result = runwf(pstat, store(log))
@@ -503,7 +503,7 @@ def test_foreach_parallel_with_parallel_inside() -> None:
         # Initial state preserved
         assert "items" in state
 
-        # DB: 4 fork steps - one for "Items" foreach + one "Inner" per branch (3 items)
+        # DB: 4 fork steps - one for "Items" map_parallel + one "Inner" per branch (3 items)
         fork_steps = _get_fork_steps(pstat.process_id)
         assert len(fork_steps) == 4
 
@@ -521,12 +521,12 @@ def test_foreach_parallel_with_parallel_inside() -> None:
 
 
 @pytest.mark.workflow
-def test_sequential_parallel_foreach_parallel_chain() -> None:
-    """Sequential chain: parallel >> foreach_parallel >> parallel.
+def test_sequential_parallel_map_parallel_chain() -> None:
+    """Sequential chain: parallel >> map_parallel >> parallel.
 
     Structure:
         init >> parallel("P1", begin >> outer_a, begin >> outer_b)
-             >> foreach_parallel("FE", "values", begin >> tag_item)
+             >> map_parallel("FE", "values", begin >> tag_item)
              >> parallel("P2", begin >> static_left, begin >> static_right)
              >> done
 
@@ -534,7 +534,7 @@ def test_sequential_parallel_foreach_parallel_chain() -> None:
 
     Verifies:
     - Workflow completes successfully
-    - Three fork steps persisted in DB (one per parallel/foreach_parallel block)
+    - Three fork steps persisted in DB (one per parallel/map_parallel block)
     - Branch results are NOT merged between blocks
     - Initial state key "values" is preserved through all blocks
     """
@@ -544,7 +544,7 @@ def test_sequential_parallel_foreach_parallel_chain() -> None:
         return (
             init
             >> parallel("P1", begin >> outer_a, begin >> outer_b)
-            >> foreach_parallel("FE", "values", begin >> tag_item)
+            >> map_parallel("FE", "values", begin >> tag_item)
             >> parallel("P2", begin >> static_left, begin >> static_right)
             >> done
         )
@@ -612,37 +612,37 @@ def test_sequential_parallel_foreach_parallel_chain() -> None:
         ),
     ],
 )
-def test_foreach_nested_inside_foreach(groups: list[dict], expected_outer_branches: int) -> None:
-    """foreach_parallel nested inside foreach_parallel.
+def test_map_parallel_nested(groups: list[dict], expected_outer_branches: int) -> None:
+    """map_parallel nested inside map_parallel.
 
     Structure:
-        init >> foreach_parallel("Outer", "groups", begin
-            >> foreach_parallel("Inner", "sub_items", begin >> compute_sum)
+        init >> map_parallel("Outer", "groups", begin
+            >> map_parallel("Inner", "sub_items", begin >> compute_sum)
         ) >> done
 
-    The outer foreach iterates over groups; each group dict contains a "sub_items"
-    list that the inner foreach iterates over.
+    The outer map_parallel iterates over groups; each group dict contains a "sub_items"
+    list that the inner map_parallel iterates over.
 
     Verifies:
     - Workflow completes successfully
-    - The outer foreach_parallel fork step and all inner foreach fork steps are persisted in DB
+    - The outer map_parallel fork step and all inner map_parallel fork steps are persisted in DB
     - Branch results are NOT merged into main state
     - Initial state preserved
     """
 
     @workflow()
-    def nested_foreach_wf():
+    def nested_map_parallel_wf():
         return (
             init
-            >> foreach_parallel(
+            >> map_parallel(
                 "Outer",
                 "groups",
-                begin >> foreach_parallel("Inner", "sub_items", begin >> compute_sum),
+                begin >> map_parallel("Inner", "sub_items", begin >> compute_sum),
             )
             >> done
         )
 
-    with register_test_workflow(nested_foreach_wf) as wf_table:
+    with register_test_workflow(nested_map_parallel_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {"groups": groups})
         result = runwf(pstat, store(log))
@@ -782,9 +782,9 @@ def test_asymmetric_branch_lengths(branch_lengths: list[int], expected_relations
         # Verify each branch has the expected number of relation rows
         for branch_idx, expected_count in expected_relations_per_branch.items():
             branch_rels = [r for r in relations if r.branch_index == branch_idx]
-            assert (
-                len(branch_rels) == expected_count
-            ), f"Branch {branch_idx}: expected {expected_count} relations, got {len(branch_rels)}"
+            assert len(branch_rels) == expected_count, (
+                f"Branch {branch_idx}: expected {expected_count} relations, got {len(branch_rels)}"
+            )
 
 
 @pytest.mark.workflow
@@ -834,9 +834,9 @@ def test_asymmetric_order_ids_sequential(branch_lengths: list[int]) -> None:
             branch_rels = [r for r in relations if r.branch_index == branch_idx]
             actual_order_ids = sorted(r.order_id for r in branch_rels)
             expected_order_ids = list(range(expected_length))
-            assert (
-                actual_order_ids == expected_order_ids
-            ), f"Branch {branch_idx}: expected order_ids {expected_order_ids}, got {actual_order_ids}"
+            assert actual_order_ids == expected_order_ids, (
+                f"Branch {branch_idx}: expected order_ids {expected_order_ids}, got {actual_order_ids}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -897,14 +897,14 @@ def test_ten_branch_parallel() -> None:
         # All branch steps have status "success"
         child_step_ids = {rel.child_step_id for rel in relations}
         branch_steps = db.session.query(ProcessStepTable).filter(ProcessStepTable.step_id.in_(child_step_ids)).all()
-        assert all(
-            bs.status == "success" for bs in branch_steps
-        ), f"Not all branch steps succeeded: {[(bs.name, bs.status) for bs in branch_steps]}"
+        assert all(bs.status == "success" for bs in branch_steps), (
+            f"Not all branch steps succeeded: {[(bs.name, bs.status) for bs in branch_steps]}"
+        )
 
 
 @pytest.mark.workflow
-def test_twenty_item_foreach_parallel() -> None:
-    """foreach_parallel over a list of 20 items with concurrency verification.
+def test_twenty_item_map_parallel() -> None:
+    """map_parallel over a list of 20 items with concurrency verification.
 
     Verifies:
     - Workflow completes successfully
@@ -915,7 +915,7 @@ def test_twenty_item_foreach_parallel() -> None:
 
     @workflow()
     def twenty_item_wf():
-        return init >> foreach_parallel("Scale FE", "items", begin >> slow_item_step) >> done
+        return init >> map_parallel("Scale FE", "items", begin >> slow_item_step) >> done
 
     with register_test_workflow(twenty_item_wf) as wf_table:
         log: list = []
@@ -944,7 +944,7 @@ def test_twenty_item_foreach_parallel() -> None:
 
 @pytest.mark.workflow
 def test_max_workers_throttling() -> None:
-    """foreach_parallel with max_workers=2 throttles concurrency.
+    """map_parallel with max_workers=2 throttles concurrency.
 
     With 10 items each sleeping 0.05s and max_workers=2, execution should take
     ~0.25s (5 batches of 2), not ~0.05s (full parallelism) and not ~0.5s (sequential).
@@ -957,7 +957,7 @@ def test_max_workers_throttling() -> None:
 
     @workflow()
     def throttled_wf():
-        return init >> foreach_parallel("Throttled", "items", begin >> slow_item_step, max_workers=2) >> done
+        return init >> map_parallel("Throttled", "items", begin >> slow_item_step, max_workers=2) >> done
 
     with register_test_workflow(throttled_wf) as wf_table:
         log: list = []
@@ -1060,12 +1060,12 @@ def test_error_in_inner_nested_parallel_propagates_to_outer() -> None:
 
 
 @pytest.mark.workflow
-def test_error_in_foreach_parallel_nested_inside_parallel() -> None:
-    """A failing item in foreach_parallel inside a parallel branch causes the workflow to fail.
+def test_error_in_map_parallel_nested_inside_parallel() -> None:
+    """A failing item in map_parallel inside a parallel branch causes the workflow to fail.
 
     Structure:
         init >> parallel("Outer",
-            begin >> foreach_parallel("FE Fail", "items", begin >> fail_fe_item),
+            begin >> map_parallel("FE Fail", "items", begin >> fail_fe_item),
             begin >> ok_step,
         ) >> done
 
@@ -1082,7 +1082,7 @@ def test_error_in_foreach_parallel_nested_inside_parallel() -> None:
             init
             >> parallel(
                 "Outer",
-                begin >> foreach_parallel("FE Fail", "items", begin >> fail_fe_item),
+                begin >> map_parallel("FE Fail", "items", begin >> fail_fe_item),
                 begin >> ok_step,
             )
             >> done
@@ -1230,9 +1230,9 @@ def test_partial_db_state_consistent_after_failure() -> None:
         child_step_ids = {rel.child_step_id for rel in relations}
         branch_steps = db.session.query(ProcessStepTable).filter(ProcessStepTable.step_id.in_(child_step_ids)).all()
         valid_statuses = {"success", "failed", "waiting"}
-        assert all(
-            bs.status in valid_statuses for bs in branch_steps
-        ), f"Unexpected branch step statuses: {[(bs.name, bs.status) for bs in branch_steps]}"
+        assert all(bs.status in valid_statuses for bs in branch_steps), (
+            f"Unexpected branch step statuses: {[(bs.name, bs.status) for bs in branch_steps]}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1271,8 +1271,8 @@ def scalar_echo(item: int, item_index: int) -> dict:
 
 
 @pytest.mark.workflow
-def test_foreach_parallel_single_item() -> None:
-    """foreach_parallel over a list with exactly 1 item behaves like a single branch.
+def test_map_parallel_single_item() -> None:
+    """map_parallel over a list with exactly 1 item behaves like a single branch.
 
     Verifies:
     - Workflow completes successfully
@@ -1282,7 +1282,7 @@ def test_foreach_parallel_single_item() -> None:
 
     @workflow()
     def single_item_fe_wf():
-        return init >> foreach_parallel("SingleFE", "items", begin >> scalar_echo) >> done
+        return init >> map_parallel("SingleFE", "items", begin >> scalar_echo) >> done
 
     with register_test_workflow(single_item_fe_wf) as wf_table:
         log: list = []
@@ -1433,8 +1433,8 @@ def test_conditional_step_inside_parallel_branch() -> None:
 
 
 @pytest.mark.workflow
-def test_foreach_parallel_with_scalar_items() -> None:
-    """foreach_parallel with a list of scalar integers.
+def test_map_parallel_with_scalar_items() -> None:
+    """map_parallel with a list of scalar integers.
 
     Verifies that item and item_index are accessible in the step function
     and the workflow completes correctly for all items.
@@ -1442,7 +1442,7 @@ def test_foreach_parallel_with_scalar_items() -> None:
 
     @workflow()
     def scalar_fe_wf():
-        return init >> foreach_parallel("ScalarFE", "values", begin >> scalar_echo) >> done
+        return init >> map_parallel("ScalarFE", "values", begin >> scalar_echo) >> done
 
     with register_test_workflow(scalar_fe_wf) as wf_table:
         log: list = []
@@ -1533,13 +1533,13 @@ def _make_find_wf(name: str):
                 )
 
             return nested_wf, "nested_find_wf"
-        case "nested_foreach":
+        case "nested_map_parallel":
 
             @workflow()
             def fe_nested_wf():
                 return (
                     init
-                    >> foreach_parallel(
+                    >> map_parallel(
                         "FEOuter",
                         "items",
                         begin >> parallel("InsideFE", begin >> inner_x, begin >> inner_y),
@@ -1574,7 +1574,7 @@ def _make_find_wf(name: str):
     [
         pytest.param("flat", "TopLevel", True, id="top-level"),
         pytest.param("nested_parallel", "Inner", True, id="nested-in-parallel-branch"),
-        pytest.param("nested_foreach", "InsideFE", True, id="nested-in-foreach-template"),
+        pytest.param("nested_map_parallel", "InsideFE", True, id="nested-in-map_parallel-template"),
         pytest.param("three_levels", "L1", True, id="3-levels-L1"),
         pytest.param("three_levels", "L2", True, id="3-levels-L2"),
         pytest.param("three_levels", "L3", True, id="3-levels-L3"),
