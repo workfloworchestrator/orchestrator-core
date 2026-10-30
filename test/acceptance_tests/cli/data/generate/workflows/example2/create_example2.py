@@ -24,7 +24,6 @@ from products.product_blocks.example2 import ExampleIntEnum2
 from products.product_types.example2 import Example2Inactive, Example2Provisioning
 from products.services.description import description
 
-
 logger = structlog.get_logger(__name__)
 
 
@@ -50,8 +49,8 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 @step("Construct Subscription model")
 def construct_example2_model(
     product: UUIDstr,
-    process_id: UUIDstr,
     customer_id: UUIDstr,
+    process_id: UUIDstr,
     example_int_enum_2: ExampleIntEnum2 | None,
 ) -> State:
     example2 = Example2Inactive.from_product_id(

@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from orchestrator.core.schemas.schedules import (
     APSchedulerJobCreate,
     APSchedulerJobDelete,
+    APSchedulerJobOptions,
     APSchedulerJobUpdate,
     APSJobAdapter,
 )
@@ -114,3 +115,47 @@ def test_update_without_trigger_skips_validation() -> None:
         {"scheduled_type": "update", "schedule_id": str(SCHEDULE_ID), "name": "renamed"}
     )
     assert job.trigger is None
+
+
+UPDATE_BASE = {"scheduled_type": "update", "schedule_id": str(SCHEDULE_ID)}
+
+
+@pytest.mark.parametrize("model,base", [(APSchedulerJobCreate, CREATE_BASE), (APSchedulerJobUpdate, UPDATE_BASE)])
+@pytest.mark.parametrize(
+    "options,expected",
+    [
+        pytest.param({}, {}, id="unset-not-passed"),
+        pytest.param({"misfire_grace_time": None, "coalesce": None}, {}, id="explicit-none-not-passed"),
+        pytest.param({"misfire_grace_time": 60}, {"misfire_grace_time": 60}, id="misfire-grace-time"),
+        pytest.param({"coalesce": False}, {"coalesce": False}, id="coalesce-false"),
+        pytest.param(
+            {"misfire_grace_time": 1, "coalesce": True}, {"misfire_grace_time": 1, "coalesce": True}, id="both"
+        ),
+    ],
+)
+def test_job_options_only_contains_set_options(
+    model: type[APSchedulerJobOptions], base: dict, options: dict, expected: dict
+) -> None:
+    job = model.model_validate({**base, "trigger": "interval", "trigger_kwargs": {"hours": 1}, **options})
+    assert job.job_options() == expected
+
+
+@pytest.mark.parametrize("model,base", [(APSchedulerJobCreate, CREATE_BASE), (APSchedulerJobUpdate, UPDATE_BASE)])
+@pytest.mark.parametrize(
+    "options",
+    [
+        pytest.param({"misfire_grace_time": 0}, id="misfire-zero"),
+        pytest.param({"misfire_grace_time": -1}, id="misfire-negative"),
+        pytest.param({"misfire_grace_time": 1.5}, id="misfire-fraction"),
+        pytest.param({"misfire_grace_time": "soon"}, id="misfire-not-a-number"),
+        pytest.param({"coalesce": "sometimes"}, id="coalesce-not-a-bool"),
+    ],
+)
+def test_job_options_reject_invalid_values(model: type[APSchedulerJobOptions], base: dict, options: dict) -> None:
+    with pytest.raises(ValidationError):
+        model.model_validate({**base, "trigger": "interval", **options})
+
+
+def test_job_options_survive_serialization_round_trip() -> None:
+    job = APSchedulerJobCreate.model_validate({**CREATE_BASE, "trigger": "interval", "misfire_grace_time": 120})
+    assert APSJobAdapter.validate_json(job.model_dump_json()).job_options() == {"misfire_grace_time": 120}

@@ -15,6 +15,8 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Generator
 
+import structlog
+from apscheduler.events import EVENT_JOB_MISSED, JobExecutionEvent
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.sqlalchemy import Job, SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -27,16 +29,39 @@ from orchestrator.core.db.filters.filters import CallableErrorHandler
 from orchestrator.core.db.sorting import Sort
 from orchestrator.core.db.sorting.sorting import SortOrder
 from orchestrator.core.schedules.service import get_linker_entries_by_schedule_ids
+from orchestrator.core.settings import app_settings
 from orchestrator.core.utils.helpers import camel_to_snake, to_camel
 
+logger = structlog.get_logger(__name__)
+
 executors = {
-    "default": ThreadPoolExecutor(1),
+    "default": ThreadPoolExecutor(app_settings.SCHEDULER_EXECUTOR_THREADS),
 }
 job_defaults = {
     "coalesce": True,
 }
 
+
+def log_missed_job(event: JobExecutionEvent) -> None:
+    """Log a scheduled task that APScheduler skipped because it was picked up after its misfire_grace_time.
+
+    APScheduler itself only logs this as a warning; an error makes the skip noticeable.
+    Only the data the event carries is logged. APScheduler calls this listener on an executor thread, and looking up
+    the job there would take the scheduler's job store lock: that deadlocks with a scheduler shutdown, which holds the
+    lock while it waits for the executor threads, and it slows down the pool during the very burst that causes misfires.
+
+    Args:
+        event: The ``EVENT_JOB_MISSED`` event.
+    """
+    logger.error(
+        "Scheduled task was skipped because it was not started within its misfire_grace_time",
+        schedule_id=event.job_id,
+        scheduled_run_time=event.scheduled_run_time,
+    )
+
+
 scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
+scheduler.add_listener(log_missed_job, EVENT_JOB_MISSED)
 
 
 @contextmanager

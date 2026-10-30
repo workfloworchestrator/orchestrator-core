@@ -13,10 +13,9 @@
 
 from uuid import uuid4
 
-from sqlalchemy import select
-
 from orchestrator.core.db import ProductTable, db
 from orchestrator.core.types import SubscriptionLifecycle
+from sqlalchemy import select
 
 from products.product_types.example4 import Example4, Example4Inactive
 

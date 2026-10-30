@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import pytest
-
 from orchestrator.core.testing import assert_complete, extract_state, run_workflow
 
 
