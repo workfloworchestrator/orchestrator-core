@@ -50,8 +50,8 @@ The decorated function must return a chain of steps using the `>>` operator to d
 === "`orchestrator-core` < 5.0"
 
     ```python
-    from orchestrator.core.workflows.utils import create_workflow
-    from orchestrator.core.workflow import StepList, begin
+    from orchestrator.workflows.utils import create_workflow
+    from orchestrator.workflow import StepList, begin
 
 
     @create_workflow(initial_input_form=initial_input_form_generator)
@@ -161,7 +161,7 @@ Example — registering the `create_user_group` workflow:
 === "`orchestrator-core` < 5.0"
 
     ```python
-    from orchestrator.core.workflows import LazyWorkflowInstance
+    from orchestrator.workflows import LazyWorkflowInstance
 
     LazyWorkflowInstance("workflows.user_group.create_user_group", "create_user_group")
     ```
@@ -255,7 +255,7 @@ To add all User and UserGroup workflows in bulk a list of `Dict` is created, for
 === "`orchestrator-core` < 5.0"
 
     ```python
-    from orchestrator.core.targets import Target
+    from orchestrator.targets import Target
 
     new_workflows = [
         {
@@ -294,7 +294,7 @@ The migration `upgrade` and `downgrade` functions will just loop through the lis
 === "`orchestrator-core` < 5.0"
 
     ```python
-    from orchestrator.core.migrations.helpers import create_workflow, delete_workflow
+    from orchestrator.migrations.helpers import create_workflow, delete_workflow
 
 
     def upgrade() -> None:
