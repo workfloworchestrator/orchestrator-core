@@ -2273,8 +2273,8 @@ def _exec_step(
     result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
     result_to_log.on_success(mutationlogger).on_failed(log_workflow_failure).on_waiting(log_workflow_failure)
 
-        # Capture the original exception that caused the workflow to fail
-        step_result_process.on_failed(capture_workflow_failure)
+    # Capture the original exception that caused the workflow to fail
+    step_result_process.on_failed(capture_workflow_failure)
 
     with transactional(db, logger):
         process = dblogstep(step_, result_to_log)
