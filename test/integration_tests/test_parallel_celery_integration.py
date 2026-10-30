@@ -33,8 +33,8 @@ from orchestrator.core.settings import ExecutorType, app_settings
 from orchestrator.core.workflow import (
     begin,
     done,
-    foreach_parallel,
     init,
+    map_parallel,
     parallel,
     runwf,
     step,
@@ -250,12 +250,12 @@ def test_resolve_branch_from_db_invalid_fork_step_raises() -> None:
 
 
 @pytest.mark.celery
-def test_foreach_parallel_branch_results_in_db() -> None:
-    """foreach_parallel over 3 dict items creates 3 branches with correct per-item states."""
+def test_map_parallel_branch_results_in_db() -> None:
+    """map_parallel over 3 dict items creates 3 branches with correct per-item states."""
 
     @workflow()
     def cel_foreach_wf():
-        return init >> seed_fe_items >> foreach_parallel("fe group", "items", begin >> process_fe_item) >> done
+        return init >> seed_fe_items >> map_parallel("fe group", "items", begin >> process_fe_item) >> done
 
     with WorkflowInstanceForTests(cel_foreach_wf, "cel_foreach_wf"):
         result, pstat, _step_log = run_workflow("cel_foreach_wf", [{}])
@@ -335,8 +335,8 @@ def test_full_parallel_workflow_db_state_after_completion() -> None:
 
 
 @pytest.mark.celery
-def test_foreach_parallel_worker_dispatches_all_branches(setup_test_celery) -> None:  # noqa: ARG001 — initialises Celery for WORKER-mode dispatch
-    """With EXECUTOR=WORKER, foreach_parallel must dispatch and execute every branch, not just the first."""
+def test_map_parallel_worker_dispatches_all_branches(setup_test_celery) -> None:  # noqa: ARG001 — initialises Celery for WORKER-mode dispatch
+    """With EXECUTOR=WORKER, map_parallel must dispatch and execute every branch, not just the first."""
 
     call_log: list[int] = []
 
@@ -351,9 +351,7 @@ def test_foreach_parallel_worker_dispatches_all_branches(setup_test_celery) -> N
 
     @workflow()
     def fe_worker_wf():
-        return (
-            init >> seed_fe_items_worker >> foreach_parallel("fe worker group", "items", begin >> track_fe_item) >> done
-        )
+        return init >> seed_fe_items_worker >> map_parallel("fe worker group", "items", begin >> track_fe_item) >> done
 
     from orchestrator.core.services.parallel import run_worker_branch as _original_run_worker_branch
 
@@ -475,15 +473,15 @@ def test_parallel_branch_failure_does_not_retry_with_worker(setup_test_celery) -
         assert fail_call_count == 1, f"Failing branch was called {fail_call_count} times, expected 1"
 
         # Steps after the failed parallel block must NOT have executed
-        assert (
-            post_parallel_call_count == 0
-        ), f"Post-parallel step was called {post_parallel_call_count} times, expected 0"
+        assert post_parallel_call_count == 0, (
+            f"Post-parallel step was called {post_parallel_call_count} times, expected 0"
+        )
 
         # Verify step log shows the failure propagated from the parallel group
         logged_step_names = [s.name for s, _process in step_log]
-        assert (
-            "After Parallel" not in logged_step_names
-        ), f"After Parallel should not appear in step log: {logged_step_names}"
+        assert "After Parallel" not in logged_step_names, (
+            f"After Parallel should not appear in step log: {logged_step_names}"
+        )
     finally:
         del ALL_WORKFLOWS["fail_worker_wf"]
         # Clean up DB row; use raw SQL to avoid ObjectDeletedError when the
@@ -501,8 +499,8 @@ def test_parallel_branch_failure_does_not_retry_with_worker(setup_test_celery) -
 
 
 @pytest.mark.celery
-def test_foreach_parallel_single_branch_failure_with_worker(setup_test_celery) -> None:  # noqa: ARG001 — initialises Celery for WORKER-mode dispatch
-    """In foreach_parallel with EXECUTOR=WORKER, one failing branch must fail the whole workflow.
+def test_map_parallel_single_branch_failure_with_worker(setup_test_celery) -> None:  # noqa: ARG001 — initialises Celery for WORKER-mode dispatch
+    """In map_parallel with EXECUTOR=WORKER, one failing branch must fail the whole workflow.
 
     All branches must still execute (no short-circuit), but the final status is Failed.
 
@@ -529,7 +527,7 @@ def test_foreach_parallel_single_branch_failure_with_worker(setup_test_celery) -
 
     @workflow()
     def fe_fail_worker_wf():
-        return init >> seed_with_poison >> foreach_parallel("fe fail group", "items", begin >> maybe_fail_item) >> done
+        return init >> seed_with_poison >> map_parallel("fe fail group", "items", begin >> maybe_fail_item) >> done
 
     from orchestrator.core.workflows import ALL_WORKFLOWS
     from test.integration_tests.workflows import store_workflow
@@ -662,9 +660,9 @@ def test_worker_resume_after_parallel_executes_remaining_steps(setup_test_celery
             # The remaining steps (loaded_pstat.log) should NOT include the parallel step
             # (it already ran). It should contain resume_final_step and done.
             remaining_step_names = [s.name for s in loaded_pstat.log]
-            assert (
-                "resume group" not in remaining_step_names
-            ), f"Parallel step 'resume group' should not be in remaining steps: {remaining_step_names}"
+            assert "resume group" not in remaining_step_names, (
+                f"Parallel step 'resume group' should not be in remaining steps: {remaining_step_names}"
+            )
             assert len(loaded_pstat.log) >= 2, (
                 f"Expected at least 2 remaining steps (resume_final_step + done), got {len(loaded_pstat.log)}: "
                 f"{remaining_step_names}"

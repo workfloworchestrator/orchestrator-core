@@ -106,7 +106,7 @@ def _find_parallel_step(steps: StepList, group_name: str) -> Step | None:
 
     Walks the step tree depth-first, checking each step's ``_parallel_group_name``
     attribute. Also recurses into ``_parallel_branches`` (static parallel) and
-    ``_foreach_branch_template`` (foreach_parallel).
+    ``_foreach_branch_template`` (dynamic parallel).
 
     Args:
         steps: A StepList (iterable of Step functions) to search.

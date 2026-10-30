@@ -34,16 +34,15 @@ from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
 from orchestrator.core.services.processes import SYSTEM_USER, safe_logstep
 from orchestrator.core.workflow import (
-    ParallelStepList,
     ProcessStat,
     ProcessStatus,
     Success,
     begin,
     conditional,
     done,
-    foreach_parallel,
     init,
     inputstep,
+    map_parallel,
     parallel,
     retrystep,
     runwf,
@@ -180,102 +179,22 @@ def failing_branch_step():
     raise ValueError("Branch failed")
 
 
-# --- Test: | operator and ParallelStepList ---
-
-
-def test_pipe_creates_parallel_step_list():
-    """StepList | StepList creates a ParallelStepList with 2 branches."""
-    branch_a = begin >> branch_a_step1
-    branch_b = begin >> branch_b_step1
-    par = branch_a | branch_b
-
-    assert isinstance(par, ParallelStepList)
-    assert len(par.branches) == 2
-
-
-def test_pipe_chaining_creates_multiple_branches():
-    """A | b | c creates a ParallelStepList with 3 branches."""
-    branch_a = begin >> branch_a_step1
-    branch_b = begin >> branch_b_step1
-
-    @step("Branch C")
-    def branch_c():
-        return {"c1": "done"}
-
-    par = branch_a | branch_b | (begin >> branch_c)
-    assert isinstance(par, ParallelStepList)
-    assert len(par.branches) == 3
-
-
-def test_pipe_operator_precedence_with_rshift():
-    """>> binds tighter than |, so begin >> step_a | begin >> step_b works."""
-    par = begin >> branch_a_step1 | begin >> branch_b_step1
-
-    assert isinstance(par, ParallelStepList)
-    assert len(par.branches) == 2
-
-
-@pytest.mark.parametrize(
-    "make_wf",
-    [
-        pytest.param(
-            lambda: workflow()(lambda: init >> ((begin >> branch_a_step1) | (begin >> branch_b_step1)) >> done),
-            id="unnamed-pipe-operator",
-        ),
-        pytest.param(
-            lambda: workflow()(
-                lambda: init >> {"Block": (begin >> branch_a_step1) | (begin >> branch_b_step1)} >> done
-            ),
-            id="named-dict-syntax",
-        ),
-    ],
-)
-def test_two_branch_parallel_passes_initial_state(make_wf):
-    """Two-branch parallel passes initial state through; branch state is NOT merged."""
-    wf = make_wf()
-    with register_test_workflow(wf) as wf_table:
-        log = []
-        pstat = create_new_process_stat(wf_table, {})
-        result = runwf(pstat, store(log))
-
-    assert_complete(result)
-    state = result.unwrap()
-    assert "a1" not in state
-    assert "b1" not in state
-
-
 # --- Test: Dict naming syntax ---
-
-
-def test_dict_with_parallel_step_list():
-    """{"name": branch_a | branch_b} creates a named parallel step."""
-    wf = workflow()(lambda: init >> {"Provision ports": (begin >> branch_a_step1) | (begin >> branch_b_step1)} >> done)
-
-    with register_test_workflow(wf) as wf_table:
-        log = []
-        pstat = create_new_process_stat(wf_table, {})
-        result = runwf(pstat, store(log))
-
-    assert_complete(result)
-    state = result.unwrap()
-    assert "a1" not in state
-    assert "b1" not in state
-
-    step_names = [entry[0] for entry in log]
-    assert "Provision ports" in step_names
 
 
 def test_dict_with_list_of_steplists():
     """{"name": [branch_a, branch_b]} also works as alternative."""
     wf = workflow()(
-        lambda: init
-        >> {
-            "Provision ports": [
-                begin >> branch_a_step1,
-                begin >> branch_b_step1,
-            ]
-        }
-        >> done
+        lambda: (
+            init
+            >> {
+                "Provision ports": [
+                    begin >> branch_a_step1,
+                    begin >> branch_b_step1,
+                ]
+            }
+            >> done
+        )
     )
 
     with register_test_workflow(wf) as wf_table:
@@ -293,15 +212,15 @@ def test_dict_with_multiple_keys_raises():
     """Dict with more than one key raises ValueError."""
     with pytest.raises(ValueError, match="exactly one key"):
         begin >> {
-            "a": (begin >> branch_a_step1) | (begin >> branch_b_step1),
-            "b": (begin >> branch_a_step1) | (begin >> branch_b_step1),
+            "a": [begin >> branch_a_step1, begin >> branch_b_step1],
+            "b": [begin >> branch_a_step1, begin >> branch_b_step1],
         }
 
 
 def test_dict_with_non_string_key_raises():
     """Dict with non-string key raises ValueError."""
     with pytest.raises(ValueError):
-        begin >> {42: (begin >> branch_a_step1) | (begin >> branch_b_step1)}
+        begin >> {42: [begin >> branch_a_step1, begin >> branch_b_step1]}
 
 
 # --- Test: Basic parallel execution ---
@@ -310,7 +229,7 @@ def test_dict_with_non_string_key_raises():
 def test_two_branches_pass_initial_state():
     """Two branches execute; post-parallel state is the pre-parallel state."""
     wf = workflow()(
-        lambda: init >> seq_before >> {"Parallel block": (begin >> branch_a_step1) | (begin >> branch_b_step1)} >> done
+        lambda: init >> seq_before >> {"Parallel block": [begin >> branch_a_step1, begin >> branch_b_step1]} >> done
     )
 
     with register_test_workflow(wf) as wf_table:
@@ -328,9 +247,15 @@ def test_two_branches_pass_initial_state():
 def test_multi_step_branches():
     """Branches with multiple steps each execute fully; state is not merged."""
     wf = workflow()(
-        lambda: init
-        >> ((begin >> branch_a_step1 >> branch_a_step1_cont) | (begin >> branch_b_step1 >> branch_b_step1_cont))
-        >> done
+        lambda: (
+            init
+            >> parallel(
+                "branch a and b",
+                begin >> branch_a_step1 >> branch_a_step1_cont,
+                begin >> branch_b_step1 >> branch_b_step1_cont,
+            )
+            >> done
+        )
     )
 
     with register_test_workflow(wf) as wf_table:
@@ -354,7 +279,11 @@ def test_three_branches():
         return {"c1": "done"}
 
     wf = workflow()(
-        lambda: init >> ((begin >> branch_a_step1) | (begin >> branch_b_step1) | (begin >> branch_c)) >> done
+        lambda: (
+            init
+            >> parallel("branch a b and c", begin >> branch_a_step1, begin >> branch_b_step1, begin >> branch_c)
+            >> done
+        )
     )
 
     with register_test_workflow(wf) as wf_table:
@@ -383,7 +312,7 @@ def test_branches_dont_see_each_others_mutations():
     def mutate_b(shared_list):
         return {"result_b": len(shared_list), "b_list": [*shared_list, "b"]}
 
-    wf = workflow()(lambda: init >> ((begin >> mutate_a) | (begin >> mutate_b)) >> done)
+    wf = workflow()(lambda: init >> parallel("mutate a and b", mutate_a, mutate_b) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -403,7 +332,7 @@ def test_branches_dont_see_each_others_mutations():
 
 def test_single_branch_failure_fails_group():
     """If one branch fails, the parallel group fails."""
-    wf = workflow()(lambda: init >> ((begin >> branch_a_step1) | (begin >> failing_branch_step)) >> done)
+    wf = workflow()(lambda: init >> parallel("branch a and b", branch_a_step1, failing_branch_step) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -415,7 +344,7 @@ def test_single_branch_failure_fails_group():
 
 def test_retryable_branch_returns_waiting():
     """If one branch is retryable (Waiting), the parallel group returns Waiting."""
-    wf = workflow()(lambda: init >> ((begin >> branch_a_step1) | (begin >> retryable_branch_step)) >> done)
+    wf = workflow()(lambda: init >> parallel("branch a and b", branch_a_step1, retryable_branch_step) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -427,7 +356,7 @@ def test_retryable_branch_returns_waiting():
 
 def test_failure_takes_precedence_over_waiting():
     """Failed status takes precedence over Waiting."""
-    wf = workflow()(lambda: init >> ((begin >> retryable_branch_step) | (begin >> failing_branch_step)) >> done)
+    wf = workflow()(lambda: init >> parallel("name", retryable_branch_step, failing_branch_step) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -446,9 +375,7 @@ def test_steps_after_failed_parallel_not_executed():
         side_effects.append("ran")
         return {}
 
-    wf = workflow()(
-        lambda: init >> ((begin >> failing_branch_step) | (begin >> branch_a_step1)) >> should_not_run >> done
-    )
+    wf = workflow()(lambda: init >> parallel("name", failing_branch_step, branch_a_step1) >> should_not_run >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -466,12 +393,6 @@ def test_requires_at_least_two_branches():
     """parallel() with fewer than 2 branches raises ValueError."""
     with pytest.raises(ValueError, match="at least 2 branches"):
         parallel("Single branch", begin >> branch_a_step1)
-
-
-def test_parallel_step_list_requires_two_branches():
-    """ParallelStepList with fewer than 2 branches raises ValueError."""
-    with pytest.raises(ValueError, match="at least 2 branches"):
-        ParallelStepList([begin >> branch_a_step1])
 
 
 def test_rejects_inputsteps_in_branches_via_parallel():
@@ -492,20 +413,6 @@ def test_rejects_inputsteps_in_branches_via_parallel():
         )
 
 
-def test_rejects_inputsteps_in_branches_via_pipe():
-    """| operator with inputsteps raises ValueError when composed with >>."""
-
-    @inputstep("User Input", assignee=Assignee.SYSTEM)  # type: ignore[untyped-decorator]
-    def user_input() -> type[FormPage]:
-        class Form(FormPage):
-            name: str
-
-        return Form
-
-    with pytest.raises(ValueError, match="must not contain inputsteps"):
-        begin >> ((begin >> branch_a_step1) | (begin >> user_input))
-
-
 # --- Test: Conditional in parallel ---
 
 
@@ -513,7 +420,7 @@ def test_conditional_step_in_branch():
     """Conditional steps inside branches work correctly."""
     skip_b = conditional(lambda s: False)
 
-    wf = workflow()(lambda: init >> ((begin >> branch_a_step1) | skip_b(branch_b_step1)) >> done)
+    wf = workflow()(lambda: init >> parallel("name", branch_a_step1, skip_b(branch_b_step1)) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -536,7 +443,7 @@ def test_parallel_after_step_group():
     def step_c():
         return {"c": True}
 
-    wf = workflow()(lambda: init >> group >> ((begin >> branch_b_step1) | (begin >> step_c)) >> done)
+    wf = workflow()(lambda: init >> group >> parallel("name", branch_b_step1, step_c) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -564,10 +471,7 @@ def test_multiple_parallel_blocks_in_sequence():
         return {"e": True}
 
     wf = workflow()(
-        lambda: init
-        >> ((begin >> branch_a_step1) | (begin >> branch_b_step1))
-        >> ((begin >> step_d) | (begin >> step_e))
-        >> done
+        lambda: init >> parallel("name", branch_a_step1, branch_b_step1) >> parallel("name", step_d, step_e) >> done
     )
 
     with register_test_workflow(wf) as wf_table:
@@ -581,22 +485,6 @@ def test_multiple_parallel_blocks_in_sequence():
     assert "b1" not in state
     assert "d" not in state
     assert "e" not in state
-
-
-def test_parallel_function_still_works():
-    """The explicit parallel() function continues to work for advanced use cases."""
-    par = parallel("Explicit parallel", begin >> branch_a_step1, begin >> branch_b_step1)
-    wf = workflow()(lambda: init >> par >> done)
-
-    with register_test_workflow(wf) as wf_table:
-        log = []
-        pstat = create_new_process_stat(wf_table, {})
-        result = runwf(pstat, store(log))
-
-    assert_complete(result)
-    state = result.unwrap()
-    assert "a1" not in state
-    assert "b1" not in state
 
 
 # --- Test: Branch input state ---
@@ -617,7 +505,7 @@ def test_branches_receive_state_from_previous_step():
     def use_y(y):
         return {"y_upper": y.upper()}
 
-    wf = workflow()(lambda: init >> setup >> ((begin >> use_x) | (begin >> use_y)) >> done)
+    wf = workflow()(lambda: init >> setup >> parallel("name", use_x, use_y) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -639,9 +527,7 @@ def test_branches_receive_state_from_previous_step():
 
 def test_named_parallel_group_appears_in_log():
     """A named parallel group appears with its name in the step log."""
-    wf = workflow()(
-        lambda: init >> {"My parallel block": (begin >> branch_a_step1) | (begin >> branch_b_step1)} >> done
-    )
+    wf = workflow()(lambda: init >> {"My parallel block": [begin >> branch_a_step1, begin >> branch_b_step1]} >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -656,7 +542,7 @@ def test_named_parallel_group_appears_in_log():
 
 def test_unnamed_parallel_gets_auto_name_in_log():
     """An unnamed parallel group gets an auto-generated name in the step log."""
-    wf = workflow()(lambda: init >> ((begin >> branch_a_step1) | (begin >> branch_b_step1)) >> done)
+    wf = workflow()(lambda: init >> parallel("name", branch_a_step1, branch_b_step1) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -670,33 +556,6 @@ def test_unnamed_parallel_gets_auto_name_in_log():
 
 
 # --- Test: Thread execution ---
-
-
-def test_branches_execute_concurrently():
-    """Two branches each sleeping 0.1s should complete in ~0.1s, not ~0.2s."""
-
-    @step("Slow A")
-    def slow_a():
-        time.sleep(0.1)
-        return {"slow_a": "done"}
-
-    @step("Slow B")
-    def slow_b():
-        time.sleep(0.1)
-        return {"slow_b": "done"}
-
-    wf = workflow()(lambda: init >> ((begin >> slow_a) | (begin >> slow_b)) >> done)
-
-    with register_test_workflow(wf) as wf_table:
-        log = []
-        pstat = create_new_process_stat(wf_table, {})
-
-        start = time.monotonic()
-        result = runwf(pstat, store(log))
-        elapsed = time.monotonic() - start
-
-    assert_complete(result)
-    assert elapsed < 0.18, f"Expected concurrent execution (<0.18s), but took {elapsed:.3f}s"
 
 
 def test_branch_exception_does_not_crash_other_branches():
@@ -713,7 +572,7 @@ def test_branch_exception_does_not_crash_other_branches():
     def bad_branch():
         raise RuntimeError("boom")
 
-    wf = workflow()(lambda: init >> ((begin >> good_branch) | (begin >> bad_branch)) >> done)
+    wf = workflow()(lambda: init >> parallel("name", good_branch, bad_branch) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -741,7 +600,7 @@ def test_each_branch_has_own_db_session():
             session_ids.append(id(db.session))
         return {"session_b": True}
 
-    wf = workflow()(lambda: init >> ((begin >> record_session_a) | (begin >> record_session_b)) >> done)
+    wf = workflow()(lambda: init >> parallel("name", record_session_a, record_session_b) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -770,7 +629,7 @@ def test_deepcopy_isolation_with_threads():
             observed_lengths.append(len(items))
         return {"b_snapshot": list(items), "b_len": len(items)}
 
-    wf = workflow()(lambda: init >> ((begin >> process_list_a) | (begin >> process_list_b)) >> done)
+    wf = workflow()(lambda: init >> parallel("name", process_list_a, process_list_b) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -786,17 +645,17 @@ def test_deepcopy_isolation_with_threads():
     assert "b_len" not in state
 
 
-# --- Test: foreach_parallel ---
+# --- Test: map_parallel ---
 
 
-def test_foreach_dict_items_seed_branch_state():
+def test_map_parallel_dict_items_seed_branch_state():
     """Dict items are merged into each branch's initial state; results stay in DB."""
 
     @step("Use seeded keys")
     def use_seeded(port_id, vlan):
         return {f"result_{port_id}": vlan * 2}
 
-    wf = workflow()(lambda: init >> foreach_parallel("Provision ports", "ports", begin >> use_seeded) >> done)
+    wf = workflow()(lambda: init >> map_parallel("Provision ports", "ports", use_seeded) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -813,14 +672,14 @@ def test_foreach_dict_items_seed_branch_state():
     assert "result_p2" not in state
 
 
-def test_foreach_scalar_items_injected_as_item_and_index():
+def test_map_parallel_scalar_items_injected_as_item_and_index():
     """Scalar items are injected as {"item": value, "item_index": idx}; results stay in DB."""
 
     @step("Use scalar item")
     def use_scalar(item, item_index):
         return {f"out_{item_index}": item * 10}
 
-    wf = workflow()(lambda: init >> foreach_parallel("Process scalars", "values", begin >> use_scalar) >> done)
+    wf = workflow()(lambda: init >> map_parallel("Process scalars", "values", use_scalar) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -836,14 +695,14 @@ def test_foreach_scalar_items_injected_as_item_and_index():
     assert "out_2" not in state
 
 
-def test_foreach_initial_state_accessible_in_branches():
+def test_map_parallel_initial_state_accessible_in_branches():
     """Branches can read both the item seed and the full upstream state."""
 
     @step("Combine upstream and seed")
     def combine(prefix, port_id):
         return {f"{prefix}_{port_id}": "provisioned"}
 
-    wf = workflow()(lambda: init >> foreach_parallel("Ports", "ports", begin >> combine) >> done)
+    wf = workflow()(lambda: init >> map_parallel("Ports", "ports", combine) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -858,14 +717,14 @@ def test_foreach_initial_state_accessible_in_branches():
     assert "env_B" not in state
 
 
-def test_foreach_empty_list_returns_success_unchanged():
+def test_map_parallel_empty_list_returns_success_unchanged():
     """An empty items list returns Success with the original state, no threads."""
 
     @step("Should not run")
     def should_not_run():
         return {"ran": True}
 
-    wf = workflow()(lambda: init >> foreach_parallel("Nothing", "items", begin >> should_not_run) >> done)
+    wf = workflow()(lambda: init >> map_parallel("Nothing", "items", should_not_run) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -876,14 +735,14 @@ def test_foreach_empty_list_returns_success_unchanged():
     assert "ran" not in result.unwrap()
 
 
-def test_foreach_missing_key_raises_at_runtime():
+def test_map_parallel_missing_key_raises_at_runtime():
     """Accessing a missing items_key raises ValueError during step execution."""
 
     @step("Noop")
     def noop():
         return {}
 
-    wf = workflow()(lambda: init >> foreach_parallel("Oops", "nonexistent", begin >> noop) >> done)
+    wf = workflow()(lambda: init >> map_parallel("Oops", "nonexistent", noop) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -893,8 +752,8 @@ def test_foreach_missing_key_raises_at_runtime():
     assert_failed(result)
 
 
-def test_foreach_branch_failure_fails_group():
-    """If one item's branch fails, the whole foreach group fails."""
+def test_map_parallel_branch_failure_fails_group():
+    """If one item's branch fails, the whole map_parallel group fails."""
 
     @step("Sometimes fails")
     def sometimes_fails(port_id):
@@ -902,7 +761,7 @@ def test_foreach_branch_failure_fails_group():
             raise ValueError("bad port")
         return {f"ok_{port_id}": True}
 
-    wf = workflow()(lambda: init >> foreach_parallel("Ports", "ports", begin >> sometimes_fails) >> done)
+    wf = workflow()(lambda: init >> map_parallel("Ports", "ports", sometimes_fails) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -912,36 +771,14 @@ def test_foreach_branch_failure_fails_group():
     assert_failed(result)
 
 
-def test_foreach_executes_concurrently():
-    """N items each sleeping 0.1s complete in ~0.1s, not N * 0.1s."""
-
-    @step("Slow step")
-    def slow_step(port_id):
-        time.sleep(0.1)
-        return {f"done_{port_id}": True}
-
-    wf = workflow()(lambda: init >> foreach_parallel("Ports", "ports", begin >> slow_step) >> done)
-
-    with register_test_workflow(wf) as wf_table:
-        log = []
-        pstat = create_new_process_stat(wf_table, {"ports": [{"port_id": "p1"}, {"port_id": "p2"}, {"port_id": "p3"}]})
-
-        start = time.monotonic()
-        result = runwf(pstat, store(log))
-        elapsed = time.monotonic() - start
-
-    assert_complete(result)
-    assert elapsed < 0.25, f"Expected concurrent execution, but took {elapsed:.3f}s"
-
-
-def test_foreach_appears_as_single_step_in_log():
-    """foreach_parallel appears as a single named step in the process log."""
+def test_map_parallel_appears_as_single_step_in_log():
+    """map_parallel appears as a single named step in the process log."""
 
     @step("Process item")
     def process_item(port_id):
         return {f"r_{port_id}": True}
 
-    wf = workflow()(lambda: init >> foreach_parallel("Provision ports", "ports", begin >> process_item) >> done)
+    wf = workflow()(lambda: init >> map_parallel("Provision ports", "ports", process_item) >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -986,9 +823,7 @@ def test_parallel_join_preserves_branch_row_state(branch_count):
     def seed_items():
         return {"items": [f"item-{i}" for i in range(branch_count)]}
 
-    wf = workflow()(
-        lambda: init >> seed_items >> foreach_parallel("Fan out", "items", begin >> capture_item) >> done
-    )
+    wf = workflow()(lambda: init >> seed_items >> map_parallel("Fan out", "items", capture_item) >> done)
 
     with register_test_workflow(wf) as wf_table:
         pstat = create_new_process_stat(wf_table, {})

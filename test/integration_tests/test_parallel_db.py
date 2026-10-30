@@ -21,7 +21,7 @@ import pytest
 
 from orchestrator.core.db import ProcessStepTable, db
 from orchestrator.core.db.models import ProcessStepRelationTable
-from orchestrator.core.workflow import begin, done, foreach_parallel, init, parallel, step, workflow
+from orchestrator.core.workflow import begin, done, init, map_parallel, parallel, step, workflow
 from test.integration_tests.workflows import WorkflowInstanceForTests, assert_complete, run_workflow
 
 
@@ -58,16 +58,6 @@ def branch_b2(b1: str) -> dict:
 @step("Process Item")
 def process_item(item: object, item_index: int) -> dict:
     return {f"result_{item_index}": f"processed_{item}"}
-
-
-@step("Pipe Branch X")
-def pipe_branch_x() -> dict:
-    return {"x": "done"}
-
-
-@step("Pipe Branch Y")
-def pipe_branch_y() -> dict:
-    return {"y": "done"}
 
 
 def _get_fork_step(process_id: object) -> ProcessStepTable:
@@ -239,8 +229,8 @@ def test_branch_step_states_contain_branch_results(parallel_workflow_run) -> Non
 
 
 @pytest.mark.workflow
-def test_foreach_parallel_creates_per_item_branch_relations() -> None:
-    """foreach_parallel over 3 items creates 3 branches with correct tracking."""
+def test_map_parallel_creates_per_item_branch_relations() -> None:
+    """map_parallel over 3 items creates 3 branches with correct tracking."""
 
     @step("Seed Items")
     def seed_items() -> dict:
@@ -248,7 +238,7 @@ def test_foreach_parallel_creates_per_item_branch_relations() -> None:
 
     @workflow()
     def foreach_wf():
-        return init >> seed_items >> foreach_parallel("Per item", "items", begin >> process_item) >> done
+        return init >> seed_items >> map_parallel("Per item", "items", begin >> process_item) >> done
 
     with WorkflowInstanceForTests(foreach_wf, "foreach_wf"):
         result, pstat, _step_log = run_workflow("foreach_wf", [{}])
@@ -261,27 +251,6 @@ def test_foreach_parallel_creates_per_item_branch_relations() -> None:
         relations = _get_relations(fork_step.step_id)
         branch_indices = {rel.branch_index for rel in relations}
         assert branch_indices == {0, 1, 2}
-
-
-@pytest.mark.workflow
-def test_pipe_operator_persists_fork_and_branches() -> None:
-    """Using | operator syntax persists fork step with correct branch tracking."""
-
-    @workflow()
-    def pipe_wf():
-        return init >> ((begin >> pipe_branch_x) | (begin >> pipe_branch_y)) >> done
-
-    with WorkflowInstanceForTests(pipe_wf, "pipe_wf"):
-        result, pstat, _step_log = run_workflow("pipe_wf", [{}])
-        assert_complete(result)
-
-        fork_step = _get_fork_step(pstat.process_id)
-        assert fork_step.parallel_total_branches == 2
-        assert fork_step.parallel_completed_count == 2
-
-        relations = _get_relations(fork_step.step_id)
-        branch_indices = {rel.branch_index for rel in relations}
-        assert branch_indices == {0, 1}
 
 
 @pytest.mark.workflow
