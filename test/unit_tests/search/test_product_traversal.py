@@ -40,6 +40,7 @@ def _assert_key_patterns_covered(mock_product_load_model, mock_db_product, produ
     )
 
     actual_fields_map = {field.path: field for field in extracted_fields}
+    assert any(".product_block." in field.path and field.path.endswith(".name") for field in extracted_fields)
     expected_paths = {field.path for field in expected_patterns}
     missing_patterns = expected_paths - set(actual_fields_map)
     assert not missing_patterns, f"Missing key patterns: {missing_patterns}"
