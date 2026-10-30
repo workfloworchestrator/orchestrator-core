@@ -40,7 +40,7 @@ NEW_TASK = "tasks.new_task"
 NEW_WORKFLOW = "tasks.new_workflow"
 RESUME_TASK = "tasks.resume_task"
 RESUME_WORKFLOW = "tasks.resume_workflow"
-EXECUTE_PARALLEL_BRANCH = "tasks.execute_parallel_branch"
+EXECUTE_PARALLEL_BRANCH = "tasks.execute_parallel_branch"  # TODO suffix _TASK and _task for consistency
 EXECUTE_PARALLEL_BRANCH_WORKFLOW = "tasks.execute_parallel_branch_workflow"
 
 
