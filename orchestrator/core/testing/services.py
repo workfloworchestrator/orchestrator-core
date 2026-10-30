@@ -96,8 +96,8 @@ def _resolve_from_env() -> ServiceURIs | None:
 @contextmanager
 def _testcontainers_services() -> Iterator[ServiceURIs]:
     try:
-        from testcontainers.postgres import PostgresContainer
-        from testcontainers.redis import RedisContainer
+        from testcontainers.community.postgres import PostgresContainer
+        from testcontainers.community.redis import RedisContainer
     except ImportError as exc:  # pragma: no cover — exercised only when extra missing
         raise RuntimeError(_missing_services_message(["Postgres", "Redis"])) from exc
 
