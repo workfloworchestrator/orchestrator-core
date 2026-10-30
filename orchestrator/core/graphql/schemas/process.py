@@ -56,8 +56,8 @@ class ProcessStepType:
     importance: str
     state: JSON | None
     state_delta: JSON | None
-    parallel_total_branches: strawberry.auto
-    parallel_completed_count: strawberry.auto
+    parallel_total_branches: strawberry.auto  # TODO add Field description
+    parallel_completed_count: strawberry.auto  # TODO add Field description
     child_steps: list[Annotated["ProcessStepType", strawberry.lazy(".process")]] | None = None
 
 
