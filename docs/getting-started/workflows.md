@@ -124,7 +124,8 @@ Information about all usable step decorators can be found on [the architecture p
 
 #### Parallel execution
 
-Steps that are independent of each other can be executed concurrently using the `|` operator or the `parallel()` / `foreach_parallel()` functions. For details and examples, see [Parallel Steps](../architecture/application/workflow.md#parallel-steps).
+Steps that are independent of each other can be executed concurrently using the `parallel()` / `map_parallel()` functions.
+For details and examples, see [Parallel Steps](../architecture/application/workflow.md#parallel-steps).
 
 ## Register workflows
 <!-- diataxis: -->

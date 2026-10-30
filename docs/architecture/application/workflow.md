@@ -193,27 +193,30 @@ def create_dual_port():
 Use when the number of branches depends on a runtime list in the workflow state (e.g., provision one port per item in `state["ports"]`).
 
 ```python
-from orchestrator.core.workflow import foreach_parallel
+from orchestrator.core.workflow import map_parallel
+
 
 @step("Fetch ports")
 def fetch_ports():
-    return {"ports": [{"port_id": "p1", "vlan": 100},
-                      {"port_id": "p2", "vlan": 200}]}
+  return {"ports": [{"port_id": "p1", "vlan": 100},
+                    {"port_id": "p2", "vlan": 200}]}
+
 
 @step("Provision port")
-def provision_port(port_id, vlan):          # injected from each item
-    result = call_provisioning_api(port_id, vlan)
-    return {f"port_{port_id}_result": result}  # distinct key per item
+def provision_port(port_id, vlan):  # injected from each item
+  result = call_provisioning_api(port_id, vlan)
+  return {f"port_{port_id}_result": result}  # distinct key per item
+
 
 @create_workflow(...)
 def provision_n_ports():
-    return (
-        init
-        >> fetch_ports
-        >> foreach_parallel("Provision ports", "ports", begin >> provision_port)
-        >> link_ports
-        >> done
-    )
+  return (
+          init
+          >> fetch_ports
+          >> map_parallel("Provision ports", "ports", provision_port)
+          >> link_ports
+          >> done
+  )
 ```
 
 Each item in the list becomes the seed state for one branch:
@@ -233,7 +236,7 @@ Seed keys are injected into the branch's initial state as input-only context for
 - **No user interaction in branches**: Parallel branches must not contain `inputstep` or `callback_step` steps. This is validated at workflow definition time.
 - **Logging**: The parallel group creates a fork step in the process log. Named groups use the provided name; unnamed groups get an auto-generated name from the branch step names. Branch sub-steps appear as child rows linked via `ProcessStepRelationTable`.
 - **Three or more branches**: The `|` operator chains naturally: `a | b | c` creates three parallel branches.
-- **Empty list** (`foreach_parallel`): An empty `items_key` list returns `Success` with the unchanged state — no threads are created.
+- **Empty list** (`map_parallel`): An empty `items_key` list returns `Success` with the unchanged state — no threads are created.
 
 #### Database schema
 
