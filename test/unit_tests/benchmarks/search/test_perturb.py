@@ -56,7 +56,7 @@ def test_typo_changes_one_word_of_a_description():
 def test_generated_typo_queries_mistype_a_customer_and_expect_all_of_its_services():
     corpus = build_corpus(GenericProfile(), 1, 100)
 
-    typos = [query for query in generate_queries(corpus, 10, 1) if query.category == Category.TYPO]
+    typos = [query for query in generate_queries(corpus, 10, 1) if query.category == Category.CUSTOMER_TYPO]
     assert typos
     for query in typos:
         customer = corpus.by_key[query.expected[0]].facts["customer"][0]

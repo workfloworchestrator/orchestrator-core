@@ -13,7 +13,7 @@
 
 """Print a corpus as JSON, to see what the benchmark indexes.
 
-    uv run python -m test.benchmarks.search.show_corpus --seed 2000 --size 20 --output corpus.json
+    uv run python -m test.benchmarks.search.show_corpus --size 20 --output corpus.json
 
 The orchestrator logs to stdout on import, so write to a file with `--output` to get JSON only.
 """
@@ -21,26 +21,13 @@ The orchestrator logs to stdout on import, so write to a file with `--output` to
 import argparse
 import json
 from collections.abc import Sequence
-from importlib import import_module
 from pathlib import Path
 
-from test.benchmarks.search.corpus import Corpus, Profile, build_corpus
+from test.benchmarks.search.corpus import Corpus, build_corpus
+from test.benchmarks.search.profiles.generic import GenericProfile
 
-DEFAULT_PROFILE = "test.benchmarks.search.profiles.generic:GenericProfile"
 # The seed the benchmark runs with, so that the entities shown are the ones it indexes.
 DEFAULT_SEED = 2000
-
-
-def load_profile(path: str) -> Profile:
-    """The profile class at `module:Class`, instantiated.
-
-    Raises:
-        ValueError: When `path` has no `:`.
-    """
-    module, separator, name = path.partition(":")
-    if not separator:
-        raise ValueError(f"Expected a profile as 'module:Class', got {path!r}")
-    return getattr(import_module(module), name)()
 
 
 def corpus_json(corpus: Corpus) -> str:
@@ -54,13 +41,12 @@ def corpus_json(corpus: Corpus) -> str:
 
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--profile", default=DEFAULT_PROFILE, help="the profile as module:Class")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--size", type=int, default=20, help="generated entities, on top of the anchors")
     parser.add_argument("--output", type=Path, help="write to this file instead of stdout")
     args = parser.parse_args(argv)
 
-    text = corpus_json(build_corpus(load_profile(args.profile), args.seed, args.size))
+    text = corpus_json(build_corpus(GenericProfile(), args.seed, args.size))
     if args.output:
         args.output.write_text(text + "\n")
     else:

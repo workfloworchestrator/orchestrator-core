@@ -1,28 +1,26 @@
 # Search benchmark
 
-Measures whether a change to the text search (the fuzzy retriever) makes results better or worse, and what it costs
-Postgres. Semantic and hybrid retrieval are out of scope: they depend on the embedding model and its size.
+Measures whether a change to the text search (the fuzzy retriever) makes results better or worse. Semantic and hybrid
+retrieval are out of scope: they depend on the embedding model and its size.
 
 Accuracy is scored against *labels*, not against recorded output of the engine, so a wrong result is not locked in as
-correct. A *label* is the answer key of a query: the entities it should find (`expected`). Performance is the
-`EXPLAIN (ANALYZE, BUFFERS)` plan of each query, never wall time.
+correct. A *label* is the answer key of a query: the entities it should find (`expected`).
 
 ## How it works
 
 1. `corpus.py` + `profiles/generic.py`: a seeded corpus of network services (service ports, light paths, L2VPNs, IP
    peerings) shaped like orchestrator subscriptions: product blocks nested up to six deep, block ids, inventory ids and
    flags next to the names, code-style descriptions, confusable sites, neighbouring node names and customers on
-   several services. The same profile, seed and size give the same corpus; nothing large is committed.
+   several services. The same seed and size give the same corpus; nothing large is committed.
 2. The corpus is indexed through the real `Indexer` into `ai_search_index`, in a database built by the real Alembic
-   migrations (the integration test fixtures, `pgvector/pgvector:pg15` and `pg17` in CI).
+   migrations (the integration test fixtures).
 3. Queries: ~40 hand-written ones (`queries/handwritten.yaml`, each with a note on the intended behaviour) plus
-   generated ones (`perturb.py`: typo, prefix, reorder, case/punctuation, exact, identifier, customer plus location).
-   They run through `execute_search` with `retriever=fuzzy`.
+   generated ones (`perturb.py`: exact, prefix, customer typo, reorder, case/punctuation, identifier, customer plus
+   location). They run through `execute_search` with `retriever=fuzzy`.
 4. Metrics per category (`metrics.py`): MRR, Success@1, Recall@10, and the false-positive rate of `negative` queries.
    Recall@10 is the share of what fits in 10 results, so a query that matches hundreds of entities can reach 1.0.
-5. Plan metrics per query (`test.integration_tests.search.performance._plans`): cost, blocks, rows, loops, filtered
-   rows and function calls, plus a check that the trigram index is used and `ai_search_index` is never sequentially
-   scanned.
+5. The plan of every query is checked to use the trigram index and never to scan `ai_search_index` sequentially. What
+   the fuzzy statement costs Postgres is measured by `test/integration_tests/search/performance`, not here.
 
 ### What gets indexed
 
@@ -89,15 +87,16 @@ pairs (`reserved_nodes()`, `reserved_pairs()`). Anchors are near-misses of each 
 | ------------------ | ---------------------------------------------------------------- | ---------------------------------- |
 | `exact`            | an entity's full description, unchanged                          | `NWR LP AMS001A-RTD001A 10 Gbit/s` |
 | `prefix`           | the description cut off at 60-80%                                | `NWR LP AMS001A-RTD0`              |
-| `typo`             | the customer's name with two neighbouring letters swapped        | `Nrothwind Research`               |
-| `reorder`          | the description's words shuffled                                | `AMS001A-RTD001A NWR 10 LP Gbit/s` |
+| `typo`             | one field mistyped, hand-written only                            | `ams001a-tr01`                     |
+| `customer_typo`    | the customer's name with two neighbouring letters swapped        | `Nrothwind Research`               |
+| `reorder`          | the description's words shuffled                                 | `AMS001A-RTD001A NWR 10 LP Gbit/s` |
 | `case_punctuation` | a node name in upper case, or without `-`                        | `AMS001A RT07`                     |
 | `identifier`       | a node name, IP prefix, ASN or (partial) UUID                    | `ams001a-rt07`                     |
-| `multi_field`      | a customer plus a city, from different blocks of the entity     | `Bluefin University Amsterdam`     |
+| `multi_field`      | a customer plus a city, from different blocks of the entity      | `Bluefin University Amsterdam`     |
 | `negative`         | text that should find nothing (hand-written only)                | `zxqv blorp`                       |
 
-Generated `typo` queries expect every service of the customer, so for them Recall@10 is the share of the top 10 that
-is that customer's. Hand-written typos mistype a node name, a tag or an abbreviation within one field.
+A `customer_typo` query expects every service of the customer, so for it Recall@10 is the share of the top 10 that is
+that customer's.
 
 ### Generated queries
 
@@ -110,12 +109,13 @@ is that customer's. Hand-written typos mistype a node name, a tag or an abbrevia
    query came from.
 
 Labels compare the unperturbed facts, except for `prefix`: a cut-off description is answered by every entity whose
-description starts with it, as `NWL IP GRQ002A 1` is the start of a 1 and a 100 Gbit/s service alike. All categories draw from one random sequence, so changing `GENERATORS` changes the
-queries, and the baseline rows, of the categories after it.
+description starts with it, as `NWL IP GRQ002A 1` is the start of a 1 and a 100 Gbit/s service alike. All categories
+draw from one random sequence, so changing `GENERATORS` changes the queries of the categories after it.
 
-## Reading the accuracy table
+## Reading the results
 
-All scores run from 0 to 1, averaged over the queries of a category.
+`baseline/accuracy.md` is the committed table, one row per category. All scores run from 0 to 1, averaged over the
+queries of a category.
 
 - **MRR (Mean Reciprocal Rank)**: how high the first right answer ranks. 1 at rank 1, 0.5 at rank 2, 0.33 at rank 3, 0
    when not found.
@@ -123,28 +123,26 @@ All scores run from 0 to 1, averaged over the queries of a category.
 - **Recall@10**: the share of right answers in the top 10, capped at 10. Is it found at all?
 - **false positives**: the share of `negative` queries that returned anything. Lower is better.
 
-High Recall@10 with low Success@1 means search finds the answer but ranks it too low. Plan metrics are explained in
-the legend of `baseline/plans.*.md`.
+High Recall@10 with low Success@1 means search finds the answer but ranks it too low. To see *why* a metric moved,
+read `report/rankings.md` (not committed): the top 10 of every query with the indexed value that matched. Keep the
+page of the run before a change to diff against.
 
 ## Reproducibility
 
-Plans only compare when everything else is fixed: the seed and corpus size, `jit = off`,
-`max_parallel_workers_per_gather = 0`, `work_mem`, a sorted GiST rebuild, rebuilt indexes and `ANALYZE` over the whole
-table (the statistics target is raised until the sample covers every row). `pg_trgm.word_similarity_threshold` is
-pinned in `runner.py`; orchestrator-core does not set it, so production uses the server default, and the benchmark
-pins that default so it cannot change unseen. Downstream users who change it should change it there too.
-
-`VACUUM` cannot run inside the test transaction; the index is truncated and loaded fresh, so it has no dead rows.
+The seed and corpus size are fixed. `pg_trgm.word_similarity_threshold` is pinned in `runner.py`; orchestrator-core
+does not set it, so production uses the server default, and the benchmark pins that default so it cannot change
+unseen. Downstream users who change it should change it there too. The accuracy table has been the same on Postgres 15
+and 17, so there is one baseline, not one per version.
 
 ## Run
 
 ```bash
-uv run pytest test/benchmarks/search            # accuracy + plan baselines, needs Docker for Postgres
+uv run pytest test/benchmarks/search            # accuracy against the baseline, needs Docker for Postgres
 uv run pytest test/unit_tests/benchmarks        # the pure parts: corpus, perturbations, metrics, query loader
 ```
 
-To see the corpus the benchmark indexes, as JSON with each entity's facts and model (the defaults are the benchmark's
-seed and the generic profile; `--profile module:Class` shows your own):
+To see the corpus the benchmark indexes, as JSON with each entity's facts and model (the default seed is the
+benchmark's):
 
 ```bash
 uv run python -m test.benchmarks.search.show_corpus --size 20 --output corpus.json
@@ -152,9 +150,7 @@ uv run python -m test.benchmarks.search.show_corpus --size 20 --output corpus.js
 
 The orchestrator logs to stdout on import, so use `--output` for a file with JSON only.
 
-## Update the baselines
-
-The baselines are markdown in `baseline/`, one pair per Postgres major version, so a change reads as a diff:
+## Update the baseline
 
 ```bash
 uv run pytest test/benchmarks/search --inline-snapshot=fix
@@ -162,13 +158,4 @@ git diff test/benchmarks/search/baseline
 ```
 
 Review the diff per category before committing: an improvement for typos that hurts identifier lookup shows here and
-disappears in an average. Commit the files for every Postgres version CI runs (`pg15`, `pg17`); run against each.
-
-## Your own profile
-
-Implement `Profile` from `corpus.py` (`anchors()` and `generate(rng, count)`), keeping hand-written queries in your own
-YAML file loaded with `load_handwritten(corpus, path)`. Anchors must not depend on the seed, and `generate` must keep
-the facts a hand-written query relies on free of generated entities (the generic profile reserves the anchors' node
-names and customer-family/location pairs), or the label is incomplete and the metrics measure tie-breaking. An entity
-with several values of one fact (a service with two ends has two identifiers and two locations) lists all of them;
-queries are made from the first, and a query for any of them counts the entity as a right answer.
+disappears in an average. When the baseline file does not exist yet, use `--inline-snapshot=create` instead.

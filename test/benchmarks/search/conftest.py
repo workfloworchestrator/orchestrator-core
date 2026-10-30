@@ -20,8 +20,6 @@ from test.integration_tests.search.performance.conftest import db_session, sorte
 # as the integration and acceptance tests do.
 pytest_plugins = ["orchestrator.core.testing.fixtures", "test.integration_tests._fixtures"]
 
-pytestmark = pytest.mark.search
-
 
 @pytest.fixture
 async def async_session(db_session):  # noqa: F811

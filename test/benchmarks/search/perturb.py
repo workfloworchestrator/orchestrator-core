@@ -33,6 +33,7 @@ class Category(str, Enum):
     EXACT = "exact"
     PREFIX = "prefix"
     TYPO = "typo"
+    CUSTOMER_TYPO = "customer_typo"
     REORDER = "reorder"
     CASE_PUNCTUATION = "case_punctuation"
     IDENTIFIER = "identifier"
@@ -95,10 +96,10 @@ def exact(text: str, rng: Random) -> str:  # noqa: ARG001
 GENERATORS: Mapping[Category, tuple[tuple[str, ...], Callable[[str, Random], str]]] = {
     Category.EXACT: ((DESCRIPTION,), exact),
     Category.PREFIX: ((DESCRIPTION,), prefix),
-    # A mistyped customer name: descriptions are codes with no word to mistype, and a customer joined with a field of
-    # another block would test multi-field matching, not typos. It expects every service of the customer, so Recall@10
-    # is the share of the top 10 that is that customer's.
-    Category.TYPO: ((CUSTOMER,), typo),
+    # A mistyped customer name: descriptions are codes with no word to mistype. It expects every service of the
+    # customer, so Recall@10 is the share of the top 10 that is that customer's. Hand-written `typo` queries mistype
+    # one field and expect one entity, which is why this is its own category.
+    Category.CUSTOMER_TYPO: ((CUSTOMER,), typo),
     Category.REORDER: ((DESCRIPTION,), reorder),
     Category.CASE_PUNCTUATION: ((IDENTIFIER,), case_punctuation),
     Category.IDENTIFIER: ((IDENTIFIER,), exact),

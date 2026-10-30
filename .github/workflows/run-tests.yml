@@ -12,10 +12,8 @@ name: Tests
 #   5) ``llm-acceptance-tests`` runs the LLM/embedding acceptance suite
 #      (reusable ``run-llm-acceptance-tests.yml``). Tests use mocked
 #      embeddings, so it runs on fork PRs too.
-#   6) ``search-benchmark`` runs the search accuracy and query-plan benchmark
-#      against its committed baselines (reusable ``run-search-benchmark.yml``),
-#      on a pull request only when ``search-changes`` finds a change that can
-#      move its numbers.
+#   6) ``integration-tests`` also runs the search benchmark (test/benchmarks/search)
+#      against its committed accuracy baseline.
 #
 # Each downstream job ``needs: unit-tests`` so unit tests run exactly once
 # per PR and downstream jobs only execute when units are green.
@@ -100,6 +98,16 @@ jobs:
           POSTGRES_HOST: postgres
           ENVIRONMENT: TESTING
 
+      - name: Run the search benchmark
+        # Accuracy of the fuzzy retriever against test/benchmarks/search/baseline/accuracy.md. Sequential: the
+        # queries' plans share one connection.
+        run: uv run pytest test/benchmarks/search -v
+        env:
+          DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
+          CACHE_URI: redis://redis
+          POSTGRES_HOST: postgres
+          ENVIRONMENT: TESTING
+
       - name: Install codecov dependencies
         run: apt-get update && apt-get install -y git curl gpg
 
@@ -127,43 +135,6 @@ jobs:
     name: LLM/embedding acceptance tests
     needs: unit-tests
     uses: ./.github/workflows/run-llm-acceptance-tests.yml
-    secrets: inherit
-
-  # A `paths:` filter does not apply to a reusable workflow, so pull requests detect search changes here.
-  search-changes:
-    name: Detect search changes
-    runs-on: ubuntu-slim
-    outputs:
-      search: ${{ steps.diff.outputs.search }}
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-
-      - name: Diff against the base branch
-        id: diff
-        env:
-          BASE_REF: ${{ github.base_ref }}
-          EVENT_NAME: ${{ github.event_name }}
-        # Everything that moves the benchmark's numbers: the search code, the migrations that build the index, the
-        # fixtures and plan helpers the benchmark loads, the benchmark itself and the locked dependencies.
-        run: |
-          set -euo pipefail
-          if [ "$EVENT_NAME" != "pull_request" ]; then
-            echo "search=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE \
-            '^(orchestrator/core/(search|migrations|testing)/|test/benchmarks/search/|test/integration_tests/search/performance/|test/integration_tests/_fixtures\.py$|\.github/workflows/run-search-benchmark\.yml$|uv\.lock$)'; then
-            echo "search=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "search=false" >> "$GITHUB_OUTPUT"
-          fi
-
-  search-benchmark:
-    name: Search benchmark
-    needs: [unit-tests, search-changes]
-    if: needs.search-changes.outputs.search == 'true'
-    uses: ./.github/workflows/run-search-benchmark.yml
     secrets: inherit
 
   linting-tests:
