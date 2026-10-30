@@ -194,7 +194,9 @@ class ProcessStepTable(BaseModel):
 
     # Parallel join tracking (only set on fork steps)
     parallel_total_branches = mapped_column(Integer(), nullable=True)
-    parallel_completed_count = mapped_column(Integer(), nullable=True, server_default=text("0"))
+    parallel_completed_count = mapped_column(
+        Integer(), nullable=True, server_default=text("0")
+    )  # TODO does not need to be nullable if it has a server_default
 
     # Relationships for parallel branch steps
     child_step_relations: Mapped[list["ProcessStepRelationTable"]] = relationship(

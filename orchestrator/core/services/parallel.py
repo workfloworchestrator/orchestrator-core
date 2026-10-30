@@ -18,6 +18,7 @@ Handles:
 - Atomic join counter (UPDATE...RETURNING)
 - Last-finisher detection and parent workflow resumption
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -62,6 +63,13 @@ def _atomic_increment_completed(fork_step_id: UUID) -> tuple[int, int | None]:
     )
     result = db.session.execute(stmt)
     completed, total = result.one()
+
+    # TODO check if this commit is necessary, or if it can be done higher up when all DB work is done.
+    #  Similar to the fixes/changes done for psycopg3, we should finalize the transaction right before handing over
+    #   "control" to another actor. (for example: returning a HTTP response, triggering a celery task, etc)
+    #  The reason is that another DB query executed after this function (before handing over control) would start a new
+    #   transaction, which also needs to be closed. If _that_ transaction fails, then this increment will not be rolled
+    #   back.
     db.session.commit()
     return completed, total
 
@@ -80,6 +88,7 @@ def _collect_branch_results(fork_step_id: UUID) -> list[tuple[int, dict, str]]:
     )
     relations = db.session.execute(stmt).scalars().all()
 
+    # TODO convert status with Process(StepStatus(rel.child_step.status), state) as that is what callers use
     first_per_branch = unique_everseen(relations, key=lambda r: r.branch_index)
     return [(rel.branch_index, rel.child_step.state, rel.child_step.status) for rel in first_per_branch]
 
