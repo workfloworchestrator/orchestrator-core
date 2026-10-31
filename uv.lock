@@ -2712,20 +2712,21 @@ wheels = [
 
 [[package]]
 name = "nwa-stdlib"
-version = "1.13.0"
+version = "1.14.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "colorama" },
+    { name = "graphql-core" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "redis" },
     { name = "strawberry-graphql" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6f/57/236c2c59a0364fa3185ce380bb48a9ba0b7be666f7a47f34feb92221afa4/nwa_stdlib-1.13.0.tar.gz", hash = "sha256:94d76ec312bb57ccdd1c25be14069e11a2a6950b9cae2f001f9a07dfcf1feaaa", size = 30781, upload-time = "2026-10-01T07:13:54.802Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/22/d1/ab2cbb88b6b1820cf4ac26ae7167eaccd336d0cfc281fdd5c80e0db24e6a/nwa_stdlib-1.14.0.tar.gz", hash = "sha256:a7b2b95edd5c22f26857b98fea0c13f2844bf7523a1f93e783160d35aa2e8d86", size = 33186, upload-time = "2026-10-30T13:01:18.292Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/40/69e50718fb1d2507b78e5367e32e32bd6512478581670355066e1731a17e/nwa_stdlib-1.13.0-py3-none-any.whl", hash = "sha256:f75bea3172342e0eb861b0cb3e1b652f1a588a781ea8119c5a9e3bdc37a23c35", size = 31696, upload-time = "2026-10-01T07:13:53.608Z" },
+    { url = "https://files.pythonhosted.org/packages/93/9d/c3dc0f827696f58bc29db6d8e0e7baed0323f0866bff10a74dbd04cfc39f/nwa_stdlib-1.14.0-py3-none-any.whl", hash = "sha256:be00af310f5e7d11c57e03cb7a39ac22c38a125a57b8d9e207a6aabfacfd3710", size = 31699, upload-time = "2026-10-30T13:01:16.969Z" },
 ]
 
 [[package]]
@@ -2927,7 +2928,7 @@ requires-dist = [
     { name = "jinja2", specifier = "==3.1.6" },
     { name = "litellm", specifier = ">=1.80.0" },
     { name = "more-itertools", specifier = "~=11.2.1" },
-    { name = "nwa-stdlib", specifier = "~=1.13.0" },
+    { name = "nwa-stdlib", specifier = "~=1.14.0" },
     { name = "oauth2-lib", specifier = ">=2.6.1,<4" },
     { name = "orjson", specifier = "==3.13.0" },
     { name = "pgvector", specifier = ">=0.4.1" },
