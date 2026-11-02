@@ -309,7 +309,11 @@ def format_search_response(
 
             highlight_indices = generate_highlight_indices(text, user_query)
             truncated_text, adjusted_indices = truncate_text_with_highlights(text, highlight_indices)
-            matching_fields = [MatchingField(text=truncated_text, path=path, highlight_indices=adjusted_indices)]
+
+            # With a structured filter, a text match that highlights nothing is not a useful match field.
+            drop_unhighlighted = query.filters is not None and not adjusted_indices
+            matched = MatchingField(text=truncated_text, path=path, highlight_indices=adjusted_indices)
+            matching_fields = [] if drop_unhighlighted else [matched]
 
         elif not user_query and query.filters and metadata.search_type == "structured":
             matching_fields = _resolve_structured_matching_fields(row, query.filters)
