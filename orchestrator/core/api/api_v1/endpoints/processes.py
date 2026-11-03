@@ -29,7 +29,7 @@ from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked, first, last, unique_everseen
 from sentry_sdk.tracing import trace
-from sqlalchemy import CompoundSelect, Select, select, update
+from sqlalchemy import CompoundSelect, Delete, Select, Update, select, update
 from sqlalchemy import delete as delete_stmt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -231,15 +231,13 @@ async def _bulk_validation_error(
     return None
 
 
-def _bulk_note_or_delete(action: ProcessBulkAction, process_ids: list[UUID], note: str | None) -> None:
-    where = ProcessTable.process_id.in_(process_ids)
-    stmt = (
-        update(ProcessTable).where(where).values(note=note)
-        if action == ProcessBulkAction.NOTE
-        else delete_stmt(ProcessTable).where(where)
-    )
+def _execute_in_transaction(stmt: Update | Delete) -> None:
     with transactional(db, logger):
         db.session.execute(stmt)
+
+
+def _all_succeeded(process_ids: list[UUID]) -> list[ProcessBulkItemResult]:
+    return [ProcessBulkItemResult(process_id=process_id, success=True) for process_id in process_ids]
 
 
 def _run_bulk_item(run: Callable[[ProcessTable], Any], process: ProcessTable) -> ProcessBulkItemResult:
@@ -282,21 +280,24 @@ async def bulk_process_action(
         raise_status(HTTPStatus.CONFLICT, "; ".join(errors))
 
     broadcast_func = api_broadcast_process_data(request)
+    selected = ProcessTable.process_id.in_(process_ids)
     match data.action:
-        case ProcessBulkAction.NOTE | ProcessBulkAction.DELETE:
-            await run_in_threadpool(_bulk_note_or_delete, data.action, process_ids, data.note)
-            results = [ProcessBulkItemResult(process_id=process_id, success=True) for process_id in process_ids]
+        case ProcessBulkAction.NOTE:
+            await run_in_threadpool(
+                _execute_in_transaction, update(ProcessTable).where(selected).values(note=data.note)
+            )
+            for process_id in process_ids:  # side effect: the note is part of the search index
+                await run_in_threadpool(run_indexing_for_entity, EntityType.PROCESS, str(process_id))
+            results = _all_succeeded(process_ids)
+        case ProcessBulkAction.DELETE:
+            await run_in_threadpool(_execute_in_transaction, delete_stmt(ProcessTable).where(selected))
+            for process_id in process_ids:  # side effect: deleted processes must vanish from open views
+                await broadcast_process_update_to_websocket_async(process_id)
+            results = _all_succeeded(process_ids)
         case ProcessBulkAction.RESUME | ProcessBulkAction.ABORT:
             action = resume_process if data.action == ProcessBulkAction.RESUME else abort_process
             run = partial(action, user=user, broadcast_func=broadcast_func)
             results = await run_in_threadpool(lambda: [_run_bulk_item(run, processes[pid]) for pid in process_ids])
-
-    # Side effects only: the note is part of the search index, deleted processes must vanish from open views.
-    for process_id in process_ids:
-        if data.action == ProcessBulkAction.NOTE:
-            await run_in_threadpool(run_indexing_for_entity, EntityType.PROCESS, str(process_id))
-        elif data.action == ProcessBulkAction.DELETE:
-            await broadcast_process_update_to_websocket_async(process_id)
     await broadcast_invalidate_status_counts_async()
 
     return ProcessBulkResultSchema(action=data.action, count=sum(result.success for result in results), results=results)
