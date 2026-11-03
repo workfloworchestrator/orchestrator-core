@@ -95,7 +95,8 @@ class ProcessBulkAction(StrEnum):
 
 class ProcessBulkSchema(OrchestratorBaseModel):
     action: ProcessBulkAction
-    process_ids: Annotated[list[UUID], Field(min_length=1)]
+    # Bounds the single IN query and the sequential per-process resume/abort within one request
+    process_ids: Annotated[list[UUID], Field(min_length=1, max_length=1000)]
     note: Annotated[str, Field(max_length=NOTE_LENGTH)] | None = None
 
     @model_validator(mode="after")

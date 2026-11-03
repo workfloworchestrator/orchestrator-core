@@ -1626,6 +1626,7 @@ def test_bulk_unknown_process(test_client, started_process):
     [
         pytest.param({"action": "note", "process_ids": [str(uuid4())]}, id="note-missing"),
         pytest.param({"action": "abort", "process_ids": []}, id="no-processes"),
+        pytest.param({"action": "abort", "process_ids": [str(uuid4()) for _ in range(1001)]}, id="too-many-processes"),
         pytest.param({"action": "restart", "process_ids": [str(uuid4())]}, id="unknown-action"),
     ],
 )
