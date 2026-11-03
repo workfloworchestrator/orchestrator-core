@@ -249,6 +249,28 @@ def _run_bulk_item(run: Callable[[ProcessTable], Any], process: ProcessTable) ->
     return ProcessBulkItemResult(process_id=process.process_id, success=True)
 
 
+async def _actionable_processes(data: ProcessBulkSchema, user_model: OIDCUserModel | None) -> dict[UUID, ProcessTable]:
+    """Return the requested processes in request order.
+
+    Raises 404 when a process is unknown and 409 when the action cannot be applied to one, before anything is changed.
+    """
+    process_ids = list(unique_everseen(data.process_ids))
+    stmt = select(ProcessTable).where(ProcessTable.process_id.in_(process_ids))
+    found = {p.process_id: p for p in await run_in_threadpool(lambda: db.session.scalars(stmt).all())}
+    if missing := [str(process_id) for process_id in process_ids if process_id not in found]:
+        raise_status(HTTPStatus.NOT_FOUND, f"Processes not found: {', '.join(missing)}")
+
+    processes = {process_id: found[process_id] for process_id in process_ids}
+    errors = [
+        f"{process_id}: {error}"
+        for process_id, process in processes.items()
+        if (error := await _bulk_validation_error(data.action, process, user_model))
+    ]
+    if errors:
+        raise_status(HTTPStatus.CONFLICT, "; ".join(errors))
+    return processes
+
+
 @router.post("/bulk", response_model=ProcessBulkResultSchema)
 async def bulk_process_action(
     request: Request,
@@ -265,20 +287,8 @@ async def bulk_process_action(
     if data.action == ProcessBulkAction.RESUME:
         check_global_lock()
 
-    process_ids = list(unique_everseen(data.process_ids))
-    stmt = select(ProcessTable).where(ProcessTable.process_id.in_(process_ids))
-    processes = {p.process_id: p for p in await run_in_threadpool(lambda: db.session.scalars(stmt).all())}
-    if missing := [str(process_id) for process_id in process_ids if process_id not in processes]:
-        raise_status(HTTPStatus.NOT_FOUND, f"Processes not found: {', '.join(missing)}")
-
-    errors = [
-        f"{process_id}: {error}"
-        for process_id in process_ids
-        if (error := await _bulk_validation_error(data.action, processes[process_id], user_model))
-    ]
-    if errors:
-        raise_status(HTTPStatus.CONFLICT, "; ".join(errors))
-
+    processes = await _actionable_processes(data, user_model)
+    process_ids = list(processes)
     broadcast_func = api_broadcast_process_data(request)
     selected = ProcessTable.process_id.in_(process_ids)
     match data.action:
@@ -297,7 +307,7 @@ async def bulk_process_action(
         case ProcessBulkAction.RESUME | ProcessBulkAction.ABORT:
             action = resume_process if data.action == ProcessBulkAction.RESUME else abort_process
             run = partial(action, user=user, broadcast_func=broadcast_func)
-            results = await run_in_threadpool(lambda: [_run_bulk_item(run, processes[pid]) for pid in process_ids])
+            results = await run_in_threadpool(lambda: [_run_bulk_item(run, process) for process in processes.values()])
     await broadcast_invalidate_status_counts_async()
 
     return ProcessBulkResultSchema(action=data.action, count=sum(result.success for result in results), results=results)
