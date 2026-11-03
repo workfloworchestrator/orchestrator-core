@@ -287,8 +287,10 @@ async def bulk_process_action(
     """Apply one action to many processes.
 
     The whole request is rejected when a process is unknown (404) or the action cannot be applied to it (409).
-    `note` and `delete` run in a single transaction. `resume` and `abort` are executed by the engine, which commits
-    per process, so their outcome is reported per item and `count` is the number that succeeded.
+    `note` and `delete` run in a single transaction. `abort` is executed by the engine, which commits per process, so
+    its outcome is reported per item and `count` is the number that succeeded. `resume` is started in the background,
+    shared with resume-all so concurrent resumes are refused (409); its results mean "resume started", and a process
+    that fails to resume is only logged.
     """
     if data.action == ProcessBulkAction.RESUME:
         await run_in_threadpool(check_global_lock)
@@ -309,9 +311,13 @@ async def bulk_process_action(
             for process_id in process_ids:  # side effect: deleted processes must vanish from open views
                 await broadcast_process_update_to_websocket_async(process_id)
             results = _all_succeeded(process_ids)
-        case ProcessBulkAction.RESUME | ProcessBulkAction.ABORT:
-            action = resume_process if data.action == ProcessBulkAction.RESUME else abort_process
-            run = partial(action, user=user, broadcast_func=api_broadcast_process_data(request))
+        case ProcessBulkAction.RESUME:
+            broadcast_func = api_broadcast_process_data(request)
+            if not await _async_resume_processes(list(processes.values()), user, broadcast_func=broadcast_func):
+                raise_status(HTTPStatus.CONFLICT, "Another request to resume processes is in progress")
+            results = _all_succeeded(process_ids)
+        case ProcessBulkAction.ABORT:
+            run = partial(abort_process, user=user, broadcast_func=api_broadcast_process_data(request))
             results = await run_in_threadpool(lambda: [_run_bulk_item(run, process) for process in processes.values()])
     await broadcast_invalidate_status_counts_async()
 

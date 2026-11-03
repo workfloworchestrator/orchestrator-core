@@ -1580,23 +1580,37 @@ def test_bulk_abort(test_client, mocked_processes_resumeall):
     assert [_process_column(pid, ProcessTable.last_status) for pid in process_ids] == [ProcessStatus.ABORTED] * 2
 
 
-def test_bulk_resume_reports_per_item(test_client, mocked_processes_resumeall):
-    process_ids = [mocked_processes_resumeall[0], mocked_processes_resumeall[4]]
-    with mock.patch("orchestrator.core.api.api_v1.endpoints.processes.resume_process") as mocked_resume:
-        mocked_resume.side_effect = [None, ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG)]
-        response = test_client.post(
-            "/api/processes/bulk", json={"action": "resume", "process_ids": [str(pid) for pid in process_ids]}
-        )
+def test_bulk_resume(test_client, process_on_retriable_step):
+    response = test_client.post(
+        "/api/processes/bulk", json={"action": "resume", "process_ids": [str(process_on_retriable_step)]}
+    )
 
     assert HTTPStatus.OK == response.status_code
-    assert response.json() == {
-        "action": "resume",
-        "count": 1,
-        "results": [
-            {"process_id": str(process_ids[0]), "success": True, "error": None},
-            {"process_id": str(process_ids[1]), "success": False, "error": RESUME_WORKFLOW_REMOVED_ERROR_MSG},
-        ],
-    }
+    assert response.json()["count"] == 1
+    assert _process_column(process_on_retriable_step, ProcessTable.last_status) == ProcessStatus.COMPLETED
+
+
+def test_bulk_resume_unauthorized(test_client, process_on_retriable_step, process_on_unretriable_step):
+    response = test_client.post(
+        "/api/processes/bulk",
+        json={"action": "resume", "process_ids": [str(process_on_retriable_step), str(process_on_unretriable_step)]},
+    )
+
+    assert HTTPStatus.CONFLICT == response.status_code
+    assert f"{process_on_unretriable_step}: User is not authorized to retry step" in response.json()["detail"]
+    assert _process_column(process_on_retriable_step, ProcessTable.last_status) == ProcessStatus.FAILED
+
+
+def test_bulk_resume_already_in_progress(test_client, mocked_processes_resumeall):
+    process_id = mocked_processes_resumeall[0]
+    with mock.patch(
+        "orchestrator.core.api.api_v1.endpoints.processes._async_resume_processes",
+        new=mock.AsyncMock(return_value=False),
+    ):
+        response = test_client.post("/api/processes/bulk", json={"action": "resume", "process_ids": [str(process_id)]})
+
+    assert HTTPStatus.CONFLICT == response.status_code
+    assert _process_column(process_id, ProcessTable.last_status) == ProcessStatus.API_UNAVAILABLE
 
 
 @pytest.mark.parametrize(
