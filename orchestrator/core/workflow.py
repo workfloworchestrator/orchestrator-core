@@ -765,6 +765,19 @@ def _update_fork_step(fork_step_id: UUID, status: str, state: State, n_branches:
         db.session.commit()
 
 
+# TODO AI analysed the following:
+#  Pool deadlock with parallel steps (relevant to this branch)
+#   - _run_threadpool_branches (workflow.py:795) defaults to max_workers = len(pending), so a map_parallel over 200 items opens 200 threads at once.
+#   - Each thread calls db.database_scope() and checks out its own connection.
+#   - Meanwhile the parent thread keeps its connection, because its transaction is still open under transactional.
+#   - _create_fork_step and _update_fork_step each check out a further connection.
+#   Running MAX_WORKERS=5 workflows, each fanning out, lets parents hold connections while their branches wait for one.
+#   The branches give up after pool_timeout with a TimeoutError, and the result is either a 30-second stall followed by
+#   failed branches, or a full deadlock with nested forks.
+#   Suggestions:
+#   - Use a bounded default for max_workers instead of len(pending), or cap it against pool_size + max_overflow.
+#   - Document the per-process peak as roughly anyio threads (40) + MAX_WORKERS × (1 + max branches) + scheduler threads.
+#   - Add a test that runs a fan-out wider than the pool.
 def _run_threadpool_branches(
     branches: list[StepList],
     initial_state: State,
@@ -782,7 +795,11 @@ def _run_threadpool_branches(
     computed from each branch's *latest* attempt in the DB so successful prior
     branches contribute alongside the freshly-executed pending ones.
     """
-    from orchestrator.core.services.parallel import _STATUSES, _collect_branch_results, _succeeded_branch_indices # type: ignore[attr-defined]  # TODO fix this in _collect_branch_results
+    from orchestrator.core.services.parallel import (  # type: ignore[attr-defined]  # TODO fix this in _collect_branch_results
+        _STATUSES,
+        _collect_branch_results,
+        _succeeded_branch_indices,
+    )
 
     n_branches = len(seeds) if seeds else len(branches)
 
