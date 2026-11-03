@@ -289,7 +289,6 @@ async def bulk_process_action(
 
     processes = await _actionable_processes(data, user_model)
     process_ids = list(processes)
-    broadcast_func = api_broadcast_process_data(request)
     selected = ProcessTable.process_id.in_(process_ids)
     match data.action:
         case ProcessBulkAction.NOTE:
@@ -306,7 +305,7 @@ async def bulk_process_action(
             results = _all_succeeded(process_ids)
         case ProcessBulkAction.RESUME | ProcessBulkAction.ABORT:
             action = resume_process if data.action == ProcessBulkAction.RESUME else abort_process
-            run = partial(action, user=user, broadcast_func=broadcast_func)
+            run = partial(action, user=user, broadcast_func=api_broadcast_process_data(request))
             results = await run_in_threadpool(lambda: [_run_bulk_item(run, process) for process in processes.values()])
     await broadcast_invalidate_status_counts_async()
 
