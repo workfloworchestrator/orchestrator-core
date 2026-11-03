@@ -25,8 +25,8 @@ from inline_snapshot import external_file
 from orchestrator.core.search.core.types import RetrieverType
 from test.benchmarks.search.corpus import build_corpus
 from test.benchmarks.search.perturb import Category, generate_queries
-from test.benchmarks.search.profiles.generic import GenericProfile
-from test.benchmarks.search.queries import load_handwritten
+from test.benchmarks.search.profiles.network_services import NetworkServicesProfile
+from test.benchmarks.search.queries import load_handwritten_queries
 from test.benchmarks.search.rankings import render_rankings
 from test.benchmarks.search.runner import (
     accuracy_by_category,
@@ -50,7 +50,7 @@ REPORT = Path(__file__).parent / "report" / "rankings.md"
 
 @pytest.fixture(scope="module")
 def corpus():
-    return build_corpus(GenericProfile(), SEED, CORPUS_SIZE)
+    return build_corpus(NetworkServicesProfile(), SEED, CORPUS_SIZE)
 
 
 @pytest.fixture
@@ -60,7 +60,7 @@ def loaded(corpus):
 
 @pytest.fixture
 def queries(corpus):
-    return [*load_handwritten(corpus), *generate_queries(corpus, GENERATED_PER_CATEGORY, SEED)]
+    return [*load_handwritten_queries(corpus), *generate_queries(corpus, GENERATED_PER_CATEGORY, SEED)]
 
 
 @pytest.fixture

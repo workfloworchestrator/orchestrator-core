@@ -1,11 +1,12 @@
 # Hand-written queries: where the intended search behaviour is decided, not derived.
 #
-# `expected` holds keys of the generic profile's anchor entities (see profiles/generic.py). Every query is written so
-# that no generated entity can compete for the label: the profile reserves the anchors' node names (plus ams001a-rt11
-# and ams001a-rt12, so `ams001a-rt1` means ams001a-rt01 or ams001a-rt10) and their customer-family/city pairs (no
-# generated Bluefin in Amsterdam, no Silverline in Rotterdam, Roermond, Eindhoven or Enschede, ...), generated ASNs stay
-# above 64511, and anchor prefixes (192.0.2.0/24) lie outside the generated 198.51.x.0/24. A query of a bare city, site
-# or product would still match hundreds of generated entities, so each names a node or a customer too.
+# `expected` holds keys of the network services profile's anchor entities (see profiles/network_services.py). Every
+# query is written so that no generated entity can compete for the label: the profile reserves the anchors' node names
+# (plus ams001a-rt11 and ams001a-rt12, so `ams001a-rt1` means ams001a-rt01 or ams001a-rt10) and their
+# customer-family/city pairs (no generated Bluefin in Amsterdam, no Silverline in Rotterdam, Roermond, Eindhoven or
+# Enschede, ...), generated ASNs stay above 64511, and anchor prefixes (192.0.2.0/24) lie outside the generated
+# 198.51.x.0/24. A query of a bare city, site or product would still match hundreds of generated entities, so each
+# names a node or a customer too.
 #
 #   ams001a-rt01         NWR SP UNTAGGED AMS001A 10 Gbit/s     ams001a-rt01 et-0/0/1                          vlan 101
 #   ams001a-rt10         BFU SP UNTAGGED AMS001A 10 Gbit/s     ams001a-rt10 et-0/0/1                          vlan 102

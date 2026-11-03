@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The default profile: generic network services, not specific to any organisation.
+"""The default profile: network services, not specific to any organisation.
 
 Products are a service port, a light path, an L2VPN and an IP peering, shaped like the subscriptions of a network
 orchestrator built on orchestrator-core: the root fields of a `SubscriptionModel` and its product, and product blocks
@@ -586,10 +586,10 @@ ANCHORS = (
 ANCHOR_ENDS = [(spec.customer, end) for spec in ANCHORS for end in spec.ends]
 
 
-class GenericProfile:
-    """Generic network services with deliberate near-miss groups."""
+class NetworkServicesProfile:
+    """Network services with deliberate near-miss groups."""
 
-    name = "generic"
+    name = "network_services"
 
     def anchors(self) -> Sequence[CorpusEntity]:
         return [_entity(spec, _id(spec.key)) for spec in ANCHORS]
@@ -609,7 +609,7 @@ class GenericProfile:
     def generate(self, rng: Random, count: int) -> Sequence[CorpusEntity]:
         entities = list(islice(self._generate(rng), count))
         if len(entities) < count:
-            raise ValueError(f"The generic profile has room for {len(entities)} entities, {count} requested")
+            raise ValueError(f"The network services profile has room for {len(entities)} entities, {count} requested")
         return entities
 
     def _generate(self, rng: Random) -> Iterator[CorpusEntity]:

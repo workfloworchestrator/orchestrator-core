@@ -22,7 +22,7 @@ import yaml
 from test.benchmarks.search.corpus import Corpus
 from test.benchmarks.search.perturb import Category, LabelledQuery
 
-HANDWRITTEN = Path(__file__).parent / "queries" / "handwritten.yaml"
+HANDWRITTEN_QUERIES = Path(__file__).parent / "queries" / "network_services.yaml"
 
 # `{id:KEY}` is the entity's full id, `{id8:KEY}` its first 8 characters: ids are derived, so they cannot be written out.
 PLACEHOLDER = re.compile(r"\{(id|id8):([^}]+)\}")
@@ -42,7 +42,7 @@ def expand(text: str, ids: Mapping[str, str]) -> str:
     return PLACEHOLDER.sub(fill, text)
 
 
-def load_handwritten(corpus: Corpus, path: Path = HANDWRITTEN) -> list[LabelledQuery]:
+def load_handwritten_queries(corpus: Corpus, path: Path = HANDWRITTEN_QUERIES) -> list[LabelledQuery]:
     """The hand-written queries, with placeholders filled.
 
     Raises:

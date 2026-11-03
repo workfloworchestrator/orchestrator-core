@@ -15,13 +15,13 @@ import pytest
 
 from test.benchmarks.search.corpus import build_corpus
 from test.benchmarks.search.perturb import Category
-from test.benchmarks.search.profiles.generic import GenericProfile
-from test.benchmarks.search.queries import expand, load_handwritten
+from test.benchmarks.search.profiles.network_services import NetworkServicesProfile
+from test.benchmarks.search.queries import expand, load_handwritten_queries
 
 
 @pytest.fixture(scope="module")
 def corpus():
-    return build_corpus(GenericProfile(), 1, 0)
+    return build_corpus(NetworkServicesProfile(), 1, 0)
 
 
 @pytest.mark.parametrize(
@@ -42,8 +42,8 @@ def test_expand_unknown_entity_raises():
         expand("{id:zzz}", {})
 
 
-def test_handwritten_queries_are_valid_for_the_generic_profile(corpus):
-    queries = load_handwritten(corpus)
+def test_handwritten_queries_are_valid_for_the_network_services_profile(corpus):
+    queries = load_handwritten_queries(corpus)
 
     assert len(queries) >= 25
     assert {Category.NEGATIVE, Category.IDENTIFIER, Category.TYPO} <= {query.category for query in queries}
@@ -58,9 +58,9 @@ def test_handwritten_queries_are_valid_for_the_generic_profile(corpus):
         ("- {query: x, category: bogus, note: n}", "bogus"),
     ],
 )
-def test_load_handwritten_rejects_bad_queries(corpus, tmp_path, yaml_text, message):
+def test_load_handwritten_queries_rejects_bad_queries(corpus, tmp_path, yaml_text, message):
     path = tmp_path / "q.yaml"
     path.write_text(yaml_text)
 
     with pytest.raises(ValueError, match=message):
-        load_handwritten(corpus, path)
+        load_handwritten_queries(corpus, path)

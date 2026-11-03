@@ -24,7 +24,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from test.benchmarks.search.corpus import Corpus, build_corpus
-from test.benchmarks.search.profiles.generic import GenericProfile
+from test.benchmarks.search.profiles.network_services import NetworkServicesProfile
 
 # The seed the benchmark runs with, so that the entities shown are the ones it indexes.
 DEFAULT_SEED = 2000
@@ -46,7 +46,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--output", type=Path, help="write to this file instead of stdout")
     args = parser.parse_args(argv)
 
-    text = corpus_json(build_corpus(GenericProfile(), args.seed, args.size))
+    text = corpus_json(build_corpus(NetworkServicesProfile(), args.seed, args.size))
     if args.output:
         args.output.write_text(text + "\n")
     else:

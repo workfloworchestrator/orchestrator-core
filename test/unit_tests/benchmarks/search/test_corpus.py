@@ -17,7 +17,7 @@ import pytest
 from pydantic import BaseModel
 
 from test.benchmarks.search.corpus import CUSTOMER, Corpus, CorpusEntity, build_corpus
-from test.benchmarks.search.profiles.generic import GenericProfile, ServicePortBlock
+from test.benchmarks.search.profiles.network_services import NetworkServicesProfile, ServicePortBlock
 
 
 def ports(model: BaseModel) -> Iterator[ServicePortBlock]:
@@ -32,28 +32,28 @@ def ports(model: BaseModel) -> Iterator[ServicePortBlock]:
 
 
 def test_same_seed_gives_same_corpus():
-    assert build_corpus(GenericProfile(), 1, 200) == build_corpus(GenericProfile(), 1, 200)
+    assert build_corpus(NetworkServicesProfile(), 1, 200) == build_corpus(NetworkServicesProfile(), 1, 200)
 
 
 def test_other_seed_gives_other_corpus():
-    assert build_corpus(GenericProfile(), 1, 200) != build_corpus(GenericProfile(), 2, 200)
+    assert build_corpus(NetworkServicesProfile(), 1, 200) != build_corpus(NetworkServicesProfile(), 2, 200)
 
 
 @pytest.mark.parametrize("size", [0, 1, 200])
 def test_corpus_holds_anchors_and_requested_entities(size):
-    anchors = len(GenericProfile().anchors())
+    anchors = len(NetworkServicesProfile().anchors())
 
-    assert len(build_corpus(GenericProfile(), 1, size).entities) == anchors + size
+    assert len(build_corpus(NetworkServicesProfile(), 1, size).entities) == anchors + size
 
 
 def test_anchors_do_not_depend_on_seed():
-    first, second = (build_corpus(GenericProfile(), seed, 0) for seed in (1, 2))
+    first, second = (build_corpus(NetworkServicesProfile(), seed, 0) for seed in (1, 2))
 
     assert first.entities == second.entities
 
 
 def test_no_two_entities_share_an_a_end_port():
-    corpus = build_corpus(GenericProfile(), 1, 500)
+    corpus = build_corpus(NetworkServicesProfile(), 1, 500)
     # Services without a port, such as the LIR prefix anchor, have no A-end to share.
     a_ends = [
         (a_end.node.node_name, a_end.port_name)
@@ -65,7 +65,7 @@ def test_no_two_entities_share_an_a_end_port():
 
 
 def test_generated_entities_stay_clear_of_anchor_nodes_and_customer_locations():
-    profile = GenericProfile()
+    profile = NetworkServicesProfile()
     corpus = build_corpus(profile, 1, 500)
     generated = [entity for entity in corpus.entities if entity.key.startswith("gen-")]
     nodes = {port.node.node_name for entity in generated for port in ports(entity.model)}
@@ -80,26 +80,28 @@ def test_generated_entities_stay_clear_of_anchor_nodes_and_customer_locations():
 
 def test_reserved_nodes_hold_the_anchors_and_their_prefix_neighbours():
     assert {"ams001a-rt01", "ams001a-rt10", "ams001a-rt11", "ams001a-rt12", "rtd001a-rt07", "ehv001a-rt03"} <= (
-        GenericProfile().reserved_nodes()
+        NetworkServicesProfile().reserved_nodes()
     )
 
 
 def test_corpus_has_near_miss_anchors():
-    keys = build_corpus(GenericProfile(), 1, 0).by_key.keys()
+    keys = build_corpus(NetworkServicesProfile(), 1, 0).by_key.keys()
 
     assert {"ams001a-rt01", "ams001a-rt10", "asv001a-rt01"} <= keys
 
 
 def test_too_large_a_corpus_raises():
     with pytest.raises(ValueError, match="has room for"):
-        build_corpus(GenericProfile(), 1, 1_000_000)
+        build_corpus(NetworkServicesProfile(), 1, 1_000_000)
 
 
 class _Clashing:
     name = "clashing"
 
     def anchors(self):
-        entity = CorpusEntity("a", GenericProfile().anchors()[0].entity_id, GenericProfile().anchors()[0].model, {})
+        entity = CorpusEntity(
+            "a", NetworkServicesProfile().anchors()[0].entity_id, NetworkServicesProfile().anchors()[0].model, {}
+        )
         return [entity, entity]
 
     def generate(self, rng, count):
@@ -113,7 +115,7 @@ def test_duplicate_entities_raise(profile):
 
 
 def test_by_key_maps_keys_to_entities():
-    corpus = build_corpus(GenericProfile(), 1, 3)
+    corpus = build_corpus(NetworkServicesProfile(), 1, 3)
 
     assert isinstance(corpus, Corpus)
     assert set(corpus.by_key) == {entity.key for entity in corpus.entities}

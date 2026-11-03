@@ -8,13 +8,13 @@ correct. A *label* is the answer key of a query: the entities it should find (`e
 
 ## How it works
 
-1. `corpus.py` + `profiles/generic.py`: a seeded corpus of network services (service ports, light paths, L2VPNs, IP
+1. `corpus.py` + `profiles/network_services.py`: a seeded corpus of network services (service ports, light paths, L2VPNs, IP
    peerings) shaped like orchestrator subscriptions: product blocks nested up to six deep, block ids, inventory ids and
    flags next to the names, code-style descriptions, confusable sites, neighbouring node names and customers on
    several services. The same seed and size give the same corpus; nothing large is committed.
 2. The corpus is indexed through the real `Indexer` into `ai_search_index`, in a database built by the real Alembic
    migrations (the integration test fixtures).
-3. Queries: ~40 hand-written ones (`queries/handwritten.yaml`, each with a note on the intended behaviour) plus
+3. Queries: ~40 hand-written ones (`queries/network_services.yaml`, each with a note on the intended behaviour) plus
    generated ones (`perturb.py`: exact, prefix, customer typo, reorder, case/punctuation, identifier, customer plus
    location). They run through `execute_search` with `retriever=fuzzy`.
 4. Metrics per category (`metrics.py`): MRR, Success@1, Recall@10, and the false-positive rate of `negative` queries.
@@ -24,7 +24,7 @@ correct. A *label* is the answer key of a query: the entities it should find (`e
 
 ### What gets indexed
 
-Every entity is a subscription-like `NetworkService` (`profiles/generic.py`): the root fields of a `SubscriptionModel`,
+Every entity is a subscription-like `NetworkService` (`profiles/network_services.py`): the root fields of a `SubscriptionModel`,
 its `product`, and one product block. A service port has a `port`; a light path a `vc` with two service attach points
 (`saps`); an L2VPN a `vc` with two to four `esis`, each with a sap; an IP peering an `ip_peering` with `peers`, each
 with a sap. Every sap holds a `port` on a `node`. Every block carries the ids orchestrator-core's `ProductBlockModel`
@@ -79,7 +79,7 @@ the seed. Hand-written queries refer to them by key (`expected: [ams001a-rt10]`)
 entity that competes with them: generated entities never reuse an anchor's node names or (customer family, location)
 pairs (`reserved_nodes()`, `reserved_pairs()`). Anchors are near-misses of each other (`ams001a-rt01` against
 `ams001a-rt10`, Amsterdam against Amstelveen), so each query tests one specific distinction. The list is at the top of
-`queries/handwritten.yaml`.
+`queries/network_services.yaml`.
 
 ## Query categories
 

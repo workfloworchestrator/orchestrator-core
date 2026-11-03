@@ -14,7 +14,7 @@
 import pytest
 
 from test.benchmarks.search.corpus import DESCRIPTION, IDENTIFIER, LOCATION
-from test.benchmarks.search.profiles.generic import (
+from test.benchmarks.search.profiles.network_services import (
     IP_PEERING,
     L2VPN,
     LIGHT_PATH,
@@ -24,7 +24,7 @@ from test.benchmarks.search.profiles.generic import (
     RUG,
     SERVICE_PORT,
     End,
-    GenericProfile,
+    NetworkServicesProfile,
     Peering,
     Spec,
 )
@@ -105,7 +105,7 @@ def test_other_products_keep_their_ends_in_one_vc(product):
     ],
 )
 def test_anchor_facts_are_as_the_hand_written_queries_expect(key, description, identifiers, locations):
-    facts = {anchor.key: anchor.facts for anchor in GenericProfile().anchors()}[key]
+    facts = {anchor.key: anchor.facts for anchor in NetworkServicesProfile().anchors()}[key]
 
     assert facts[DESCRIPTION] == (description,)
     assert facts[IDENTIFIER] == identifiers
@@ -113,7 +113,7 @@ def test_anchor_facts_are_as_the_hand_written_queries_expect(key, description, i
 
 
 def test_anchors_carry_the_blocks_of_their_product():
-    models = {anchor.key: anchor.model for anchor in GenericProfile().anchors()}
+    models = {anchor.key: anchor.model for anchor in NetworkServicesProfile().anchors()}
 
     assert models["ams001a-rt01"].port is not None
     assert models["northwind-lightpath"].vc is not None

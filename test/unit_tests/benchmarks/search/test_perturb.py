@@ -27,7 +27,7 @@ from test.benchmarks.search.perturb import (
     reorder,
     typo,
 )
-from test.benchmarks.search.profiles.generic import GenericProfile
+from test.benchmarks.search.profiles.network_services import NetworkServicesProfile
 
 
 @pytest.mark.parametrize("perturb", [typo, prefix, reorder, case_punctuation, exact])
@@ -54,7 +54,7 @@ def test_typo_changes_one_word_of_a_description():
 
 
 def test_generated_typo_queries_mistype_a_customer_and_expect_all_of_its_services():
-    corpus = build_corpus(GenericProfile(), 1, 100)
+    corpus = build_corpus(NetworkServicesProfile(), 1, 100)
 
     typos = [query for query in generate_queries(corpus, 10, 1) if query.category == Category.CUSTOMER_TYPO]
     assert typos
@@ -71,7 +71,7 @@ def test_typo_never_swaps_equal_letters(text):
 
 
 def test_generated_multi_field_queries_join_customer_and_location_and_expect_every_match():
-    corpus = build_corpus(GenericProfile(), 1, 100)
+    corpus = build_corpus(NetworkServicesProfile(), 1, 100)
 
     queries = [q for q in generate_queries(corpus, 10, 1) if q.category == Category.MULTI_FIELD]
     assert queries
@@ -120,14 +120,14 @@ def test_case_punctuation_changes_case_or_separators(text, expected):
 
 
 def test_generated_queries_cover_every_generated_category():
-    queries = generate_queries(build_corpus(GenericProfile(), 1, 100), 10, 1)
+    queries = generate_queries(build_corpus(NetworkServicesProfile(), 1, 100), 10, 1)
 
     assert {query.category for query in queries} == set(GENERATORS)
     assert Category.NEGATIVE not in {query.category for query in queries}
 
 
 def test_generated_queries_expect_their_source_entity():
-    corpus = build_corpus(GenericProfile(), 1, 100)
+    corpus = build_corpus(NetworkServicesProfile(), 1, 100)
 
     for query in generate_queries(corpus, 10, 1):
         assert query.expected
@@ -135,6 +135,6 @@ def test_generated_queries_expect_their_source_entity():
 
 
 def test_generated_queries_are_deterministic():
-    corpus = build_corpus(GenericProfile(), 1, 100)
+    corpus = build_corpus(NetworkServicesProfile(), 1, 100)
 
     assert generate_queries(corpus, 10, 5) == generate_queries(corpus, 10, 5)
