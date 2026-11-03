@@ -114,25 +114,41 @@ draw from one random sequence, so changing `GENERATORS` changes the queries of t
 
 ## Reading the results
 
-`baseline/accuracy.md` is the committed table, one row per category. All scores run from 0 to 1, averaged over the
-queries of a category.
+`baseline/accuracy.md` is the committed table, one row per [category](#query-categories); its legend repeats what
+follows. Each query gets its own score from 0 to 1. A row shows the mean over the queries of its category: not the best
+or the worst query, but how the category does on the whole.
 
-- **MRR (Mean Reciprocal Rank)**: how high the first right answer ranks. 1 at rank 1, 0.5 at rank 2, 0.33 at rank 3, 0
-   when not found.
-- **Success@1**: the share of queries with a right answer on top. Rank 2 counts as a miss.
-- **Recall@10**: the share of right answers in the top 10, capped at 10. Is it found at all?
-- **false positives**: the share of `negative` queries that returned anything. Lower is better.
+- **queries**: how many queries the category has, hand-written plus [generated](#generated-queries). A category with
+  few queries moves a lot when one of them changes.
+- **MRR (Mean Reciprocal Rank)**: per query, 1 divided by the rank of the first right answer: 1 at rank 1, 0.5 at
+  rank 2, 0.33 at rank 3, 0 when it is not returned. The row is the mean of those.
+- **Success@1**: the share of queries with a right answer on top. Stricter than MRR: rank 2 counts as a miss.
+- **Recall@10**: per query, the share of its right answers in the top 10. A query with more than 10 right answers needs
+  only 10 of them. Is it found at all, even if not on top?
+- **false positives**: the share of `negative` queries, which have no right answer in the corpus, that returned
+  anything. Lower is better. The only check on the `<%` threshold. The other categories have no such column: a wrong
+  result above the right one already lowers their MRR and Success@1.
 
-High Recall@10 with low Success@1 means search finds the answer but ranks it too low. To see *why* a metric moved,
-read `report/rankings.md` (not committed): the top 10 of every query with the indexed value that matched. Keep the
-page of the run before a change to diff against.
+How to read a row:
+
+- High Recall@10 with low Success@1: search finds the answer but ranks it too low.
+- MRR equal to Success@1: no right answer ranks 2nd or lower. Each query has one on top or doesn't return one, so
+  the misses are matching problems, not ranking problems.
+- MRR well above Success@1: right answers often rank just below the top, so the ranking is off, not the matching.
+- Success@1 of 1 with Recall@10 below 1: every query has a right answer on top, but not all of its right answers
+  made the top 10.
+- Low scores on all three: search does not find the answer at all, the matching is off.
+- With 4 `negative` queries, false positives of 0.250 means one of them returned results.
+
+To see *why* a metric moved, read `report/rankings.md` (not committed): the top 10 of every query with the indexed
+value that matched. Keep the page of the run before a change to diff against.
 
 ## Reproducibility
 
 The seed and corpus size are fixed. `pg_trgm.word_similarity_threshold` is pinned in `runner.py`; orchestrator-core
 does not set it, so production uses the server default, and the benchmark pins that default so it cannot change
 unseen. Downstream users who change it should change it there too. The accuracy table has been the same on Postgres 15
-and 17, so there is one baseline, not one per version.
+and 17, so there is one baseline, not one per version, and CI runs the benchmark on Python 3.14 / Postgres 17 only.
 
 ## Run
 

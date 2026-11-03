@@ -69,7 +69,11 @@ async def query_results(loaded, corpus, queries, async_session):
 
 
 def _description(corpus):
-    return f"The {RETRIEVER.value} retriever on the `{corpus.profile}` profile: seed {corpus.seed}, {len(corpus.entities)} entities."
+    anchors = len(corpus.entities) - CORPUS_SIZE
+    return (
+        f"The {RETRIEVER.value} retriever on the `{corpus.profile}` profile, over {len(corpus.entities)} entities: "
+        f"{anchors} hand-written anchors and {CORPUS_SIZE} generated with random seed {corpus.seed}."
+    )
 
 
 def test_every_category_has_queries(queries):
