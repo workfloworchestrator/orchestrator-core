@@ -257,8 +257,8 @@ async def _actionable_processes(data: ProcessBulkSchema, user_model: OIDCUserMod
     process_ids = list(unique_everseen(data.process_ids))
     stmt = select(ProcessTable).where(ProcessTable.process_id.in_(process_ids))
     found = {p.process_id: p for p in await run_in_threadpool(lambda: db.session.scalars(stmt).all())}
-    if missing := [str(process_id) for process_id in process_ids if process_id not in found]:
-        raise_status(HTTPStatus.NOT_FOUND, f"Processes not found: {', '.join(missing)}")
+    if missing := set(process_ids) - found.keys():
+        raise_status(HTTPStatus.NOT_FOUND, f"Processes not found: {', '.join(map(str, missing))}")
 
     processes = {process_id: found[process_id] for process_id in process_ids}
     errors = [
@@ -483,16 +483,7 @@ async def resume_all_processes_endpoint(request: Request, user: str = Depends(us
     # Retrieve processes eligible for resuming
     stmt = (
         select(ProcessTable)
-        .filter(
-            ProcessTable.last_status.in_(
-                [
-                    ProcessStatus.FAILED,
-                    ProcessStatus.WAITING,
-                    ProcessStatus.API_UNAVAILABLE,
-                    ProcessStatus.INCONSISTENT_DATA,
-                ]
-            )
-        )
+        .filter(ProcessTable.last_status.in_(BULK_RESUME_STATUSES))
         .filter(ProcessTable.is_task.is_(True))
     )
     processes_to_resume = await run_in_threadpool(lambda: db.session.scalars(stmt).all())
