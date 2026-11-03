@@ -27,7 +27,7 @@ from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
-from more_itertools import chunked, first, last
+from more_itertools import chunked, first, last, unique_everseen
 from sentry_sdk.tracing import trace
 from sqlalchemy import CompoundSelect, Select, select, update
 from sqlalchemy import delete as delete_stmt
@@ -267,7 +267,7 @@ async def bulk_process_action(
     if data.action == ProcessBulkAction.RESUME:
         check_global_lock()
 
-    process_ids = list(dict.fromkeys(data.process_ids))
+    process_ids = list(unique_everseen(data.process_ids))
     stmt = select(ProcessTable).where(ProcessTable.process_id.in_(process_ids))
     processes = {p.process_id: p for p in await run_in_threadpool(lambda: db.session.scalars(stmt).all())}
     if missing := [str(process_id) for process_id in process_ids if process_id not in processes]:
