@@ -223,7 +223,7 @@ async def _bulk_validation_error(
         case ProcessBulkAction.RESUME:
             if process.last_status not in BULK_RESUME_STATUSES:
                 return f"Resuming a {process.last_status.lower()} process is not possible in bulk"
-            pstat = load_process(process)
+            pstat = await run_in_threadpool(load_process, process)
             steps = get_steps_to_evaluate_for_rbac(pstat)
             _, auth_retry = get_auth_callbacks(steps, pstat.workflow)
             context = AuthContext(user=user_model, workflow=pstat.workflow, step=steps[-1], action="retry_workflow")
@@ -291,7 +291,7 @@ async def bulk_process_action(
     per process, so their outcome is reported per item and `count` is the number that succeeded.
     """
     if data.action == ProcessBulkAction.RESUME:
-        check_global_lock()
+        await run_in_threadpool(check_global_lock)
 
     processes = await _actionable_processes(data, user_model)
     process_ids = list(processes)
