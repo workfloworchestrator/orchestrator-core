@@ -286,20 +286,10 @@ async def bulk_process_action(
         case ProcessBulkAction.NOTE | ProcessBulkAction.DELETE:
             await run_in_threadpool(_bulk_note_or_delete, data.action, process_ids, data.note)
             results = [ProcessBulkItemResult(process_id=process_id, success=True) for process_id in process_ids]
-        case ProcessBulkAction.RESUME:
-            results = await run_in_threadpool(
-                lambda: [
-                    _run_bulk_item(partial(resume_process, user=user, broadcast_func=broadcast_func), processes[pid])
-                    for pid in process_ids
-                ]
-            )
-        case ProcessBulkAction.ABORT:
-            results = await run_in_threadpool(
-                lambda: [
-                    _run_bulk_item(lambda p: abort_process(p, user, broadcast_func=broadcast_func), processes[pid])
-                    for pid in process_ids
-                ]
-            )
+        case ProcessBulkAction.RESUME | ProcessBulkAction.ABORT:
+            action = resume_process if data.action == ProcessBulkAction.RESUME else abort_process
+            run = partial(action, user=user, broadcast_func=broadcast_func)
+            results = await run_in_threadpool(lambda: [_run_bulk_item(run, processes[pid]) for pid in process_ids])
 
     # Side effects only: the note is part of the search index, deleted processes must vanish from open views.
     for process_id in process_ids:
