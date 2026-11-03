@@ -21,6 +21,10 @@ from orchestrator.core.schemas.fixed_input import FixedInputSchema
 from orchestrator.core.schemas.problem_detail import ProblemDetailSchema
 from orchestrator.core.schemas.process import (
     ProcessBaseSchema,
+    ProcessBulkAction,
+    ProcessBulkItemResult,
+    ProcessBulkResultSchema,
+    ProcessBulkSchema,
     ProcessIdSchema,
     ProcessResumeAllSchema,
     ProcessSchema,
@@ -73,4 +77,8 @@ __all__ = (
     "WorkflowSchema",
     "Reporter",
     "ProcessStatusCounts",
+    "ProcessBulkAction",
+    "ProcessBulkItemResult",
+    "ProcessBulkResultSchema",
+    "ProcessBulkSchema",
 )
