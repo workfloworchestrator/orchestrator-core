@@ -332,6 +332,18 @@ def test_abort_process(test_client, started_process):
     assert "aborted" == aborted_process["last_status"]
 
 
+@pytest.mark.parametrize("process_status", [ProcessStatus.COMPLETED, ProcessStatus.ABORTED])
+def test_abort_finished_process(test_client, started_process, process_status):
+    process = db.session.get(ProcessTable, started_process)
+    process.last_status = process_status
+    db.session.commit()
+
+    response = test_client.put(f"/api/processes/{started_process}/abort")
+
+    assert HTTPStatus.CONFLICT == response.status_code
+    assert test_client.get(f"/api/processes/{started_process}").json()["last_status"] == process_status
+
+
 def test_new_process_invalid_body(test_client, long_running_workflow):
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{"wrong": "body"}])
     assert HTTPStatus.BAD_REQUEST == response.status_code

@@ -208,6 +208,13 @@ BULK_RESUME_STATUSES = (
 )
 
 
+def _abort_error(process: ProcessTable) -> str | None:
+    """Return why `process` cannot be aborted, or None when it can."""
+    if process.last_status in (ProcessStatus.COMPLETED, ProcessStatus.ABORTED):
+        return f"Aborting a {process.last_status.lower()} process is not possible"
+    return None
+
+
 async def _bulk_validation_error(
     action: ProcessBulkAction, process: ProcessTable, user_model: OIDCUserModel | None
 ) -> str | None:
@@ -223,8 +230,7 @@ async def _bulk_validation_error(
             if auth_retry is not None and not await auth_retry(context):
                 return "User is not authorized to retry step"
         case ProcessBulkAction.ABORT:
-            if process.last_status in (ProcessStatus.COMPLETED, ProcessStatus.ABORTED):
-                return f"Aborting a {process.last_status.lower()} process is not possible"
+            return _abort_error(process)
         case ProcessBulkAction.DELETE:
             if not process.is_task:
                 return "Only tasks can be deleted"
@@ -512,6 +518,8 @@ async def abort_process_endpoint(
 ) -> None:
     """Abort a running workflow process. This is irreversible."""
     process = await run_in_threadpool(_get_process, process_id)
+    if error := _abort_error(process):
+        raise_status(HTTPStatus.CONFLICT, error)
 
     broadcast_func = api_broadcast_process_data(request)
     try:
