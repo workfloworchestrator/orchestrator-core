@@ -166,18 +166,19 @@ def _format(value):
     return f"{value:,.2f}" if isinstance(value, float) else f"{value:,}"
 
 
-def _table(header, rows):
-    """A markdown table that also lines up as plain text: the first column left-aligned, the others right-aligned."""
+def _table(header, rows, text_columns=1):
+    """A markdown table that also lines up as plain text: the first `text_columns` left-aligned, the others right."""
     # At least 3 wide: a delimiter cell needs a hyphen besides the colon.
     widths = [max(3, *map(len, column)) for column in zip(header, *rows)]
 
     def line(cells):
         aligned = [
-            cell.ljust(width) if i == 0 else cell.rjust(width) for i, (cell, width) in enumerate(zip(cells, widths))
+            cell.ljust(width) if i < text_columns else cell.rjust(width)
+            for i, (cell, width) in enumerate(zip(cells, widths))
         ]
         return f"| {' | '.join(aligned)} |"
 
-    separator = ["-" * widths[0], *("-" * (width - 1) + ":" for width in widths[1:])]
+    separator = ["-" * width if i < text_columns else "-" * (width - 1) + ":" for i, width in enumerate(widths)]
     return "\n".join([line(header), line(separator), *map(line, rows)])
 
 
