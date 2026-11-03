@@ -13,7 +13,7 @@ name: Tests
 #      (reusable ``run-llm-acceptance-tests.yml``). Tests use mocked
 #      embeddings, so it runs on fork PRs too.
 #   6) ``integration-tests`` also runs the search benchmark (test/benchmarks/search)
-#      against its committed accuracy baseline.
+#      against its committed accuracy baseline, on the newest matrix row only.
 #
 # Each downstream job ``needs: unit-tests`` so unit tests run exactly once
 # per PR and downstream jobs only execute when units are green.
@@ -50,6 +50,7 @@ jobs:
           - python-version: "3.14"
             postgres-version: "17"
             redis-version: "8"
+            search-benchmark: true
       fail-fast: false
     container: ubuntu:latest
     services:
@@ -100,7 +101,8 @@ jobs:
 
       - name: Run the search benchmark
         # Accuracy of the fuzzy retriever against test/benchmarks/search/baseline/accuracy.md. Sequential: the
-        # queries' plans share one connection.
+        # queries' plans share one connection. One row is enough: the baseline is the same on every Postgres version.
+        if: matrix.search-benchmark
         run: uv run pytest test/benchmarks/search -v
         env:
           DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
