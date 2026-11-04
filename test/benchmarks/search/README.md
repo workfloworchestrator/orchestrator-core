@@ -102,15 +102,15 @@ that customer's.
 
 `perturb.py` makes queries from the corpus itself, so their labels need no hand-writing:
 
-1. Sample 20 entities with the seed; every category uses the same 20.
+1. Sample 20 entities with the seed; every category uses the same 20. Each entity is ranked by a random number drawn
+   for its key, so adding an entity (an anchor, say) leaves the sample as it was unless the new one ranks in.
 2. Per category, join the first value of each fact that category uses (`GENERATORS`) and apply its perturbation, as in
    the table above. Queries shorter than 5 characters are dropped.
 3. The label is every entity holding the same facts among any of its values (a B-end too), not only the entity the
    query came from.
 
 Labels compare the unperturbed facts, except for `prefix`: a cut-off description is answered by every entity whose
-description starts with it, as `NWL IP GRQ002A 1` is the start of a 1 and a 100 Gbit/s service alike. All categories
-draw from one random sequence, so changing `GENERATORS` changes the queries of the categories after it.
+description starts with it, as `NWL IP GRQ002A 1` is the start of a 1 and a 100 Gbit/s service alike.
 
 ## Reading the results
 
@@ -145,9 +145,15 @@ value that matched. Keep the page of the run before a change to diff against.
 
 ## Reproducibility
 
-The seed and corpus size are fixed. `pg_trgm.word_similarity_threshold` is pinned in `runner.py`; orchestrator-core
-does not set it, so production uses the server default, and the benchmark pins that default so it cannot change
-unseen. Downstream users who change it should change it there too. The accuracy table has been the same on Postgres 15
+The seed and corpus size are fixed. Every generated entity and every generated query draws from its own random generator
+(`scoped_rng` in `corpus.py`), derived from the seed and what it generates: the attempt number for an entity, the
+category and source entity for a query, the entity's key for the sample of source entities. So a change to the benchmark
+only changes the data it is about: removing a query category, or drawing one more value for an IP peering, leaves the
+other queries and entities as they were. A change to what is drawn from (a city added to `LOCATIONS`, another product)
+still changes the values drawn, and an entity still depends on the ones before it through the identifiers they used up.
+
+`pg_trgm.word_similarity_threshold` is pinned in `runner.py`; orchestrator-core does not set it, so production uses
+the server default, and the benchmark pins that default so it cannot change unseen. Downstream users who change it should change it there too. The accuracy table has been the same on Postgres 15
 and 17, so there is one baseline, not one per version, and CI runs the benchmark on Python 3.14 / Postgres 17 only.
 
 ## Run

@@ -41,7 +41,7 @@ from uuid import UUID, uuid5
 from more_itertools import chunked
 from pydantic import BaseModel
 
-from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, LOCATION, CorpusEntity
+from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, LOCATION, CorpusEntity, scoped_rng
 
 NAMESPACE = UUID("5b1b3c1e-0000-4000-8000-000000000001")
 
@@ -83,6 +83,8 @@ CUSTOMERS = [NWR, NWL, BFU, BFH, RWI, RWL, SLM, SLA, GFC, GFO]
 # Not in CUSTOMERS, so no generated service has the abbreviation. Only the abbreviation is in the descriptions; the
 # name is a placeholder.
 RUG = Customer("Rugby Institute", "RUG")
+# Not in CUSTOMERS either, so that only the twin anchors have descriptions starting with `DLT LP`.
+DLT = Customer("Delta Institute", "DLT")
 
 
 class Product(NamedTuple):
@@ -582,6 +584,22 @@ ANCHORS = (
             End("Groningen", "gn", 1, 1, "et-0/0/4", 804, "B"),
         ],
     ),
+    # Twins: the same sites with the site numbers swapped. A trigram does not cross a word, so both descriptions have
+    # the same set of trigrams, and only the exact text tells them apart.
+    Spec(
+        "twin-ehv002a-mst001a",
+        LIGHT_PATH,
+        DLT,
+        [End("Eindhoven", "ehv", 2, 5, "et-0/0/5", 901), End("Maastricht", "mst", 1, 5, "et-0/0/5", 901)],
+        speed=100000,
+    ),
+    Spec(
+        "twin-ehv001a-mst002a",
+        LIGHT_PATH,
+        DLT,
+        [End("Eindhoven", "ehv", 1, 5, "et-0/0/5", 902), End("Maastricht", "mst", 2, 5, "et-0/0/5", 902)],
+        speed=100000,
+    ),
 )
 ANCHOR_ENDS = [(spec.customer, end) for spec in ANCHORS for end in spec.ends]
 
@@ -606,14 +624,18 @@ class NetworkServicesProfile:
         """
         return frozenset((_family(customer), end.city) for customer, end in ANCHOR_ENDS)
 
-    def generate(self, rng: Random, count: int) -> Sequence[CorpusEntity]:
-        entities = list(islice(self._generate(rng), count))
+    def generate(self, seed: int, count: int) -> Sequence[CorpusEntity]:
+        entities = list(islice(self._generate(seed), count))
         if len(entities) < count:
             raise ValueError(f"The network services profile has room for {len(entities)} entities, {count} requested")
         return entities
 
-    def _generate(self, rng: Random) -> Iterator[CorpusEntity]:
-        """Entities until `MAX_ATTEMPTS` draws in a row clashed with an anchor or an earlier entity."""
+    def _generate(self, seed: int) -> Iterator[CorpusEntity]:
+        """Entities until `MAX_ATTEMPTS` draws in a row clashed with an anchor or an earlier entity.
+
+        Every attempt draws from its own `scoped_rng`, so drawing more or fewer values for one entity (an extra end, a
+        peering) does not change the entities after it. They still depend on it through the identifiers it uses up.
+        """
         nodes, pairs = self.reserved_nodes(), self.reserved_pairs()
         used = {end.identifier for _, end in ANCHOR_ENDS}
 
@@ -623,20 +645,26 @@ class NetworkServicesProfile:
             )
 
         misses = 0
-        for index in counter():
+        for attempt in counter():
+            rng = scoped_rng(seed, "entity", attempt)
             product, customer, ends = _draw(rng)
             if clashes(customer, ends):
                 misses += 1
                 if misses == MAX_ATTEMPTS:
                     return
-                continue
-            misses = 0
-            used.add(ends[0].identifier)
-            peering = _draw_peering(rng) if product == IP_PEERING else None
-            speed = rng.choice(SPEEDS)
-            status = rng.choices(STATUSES, STATUS_WEIGHTS)[0]
-            entity_id = UUID(int=rng.getrandbits(128), version=4)
-            yield _entity(Spec(f"gen-{index}", product, customer, ends, peering, speed=speed, status=status), entity_id)
+            else:
+                misses = 0
+                used.add(ends[0].identifier)
+                yield _finish(rng, f"gen-{attempt}", product, customer, ends)
+
+
+def _finish(rng: Random, key: str, product: Product, customer: Customer, ends: list[End]) -> CorpusEntity:
+    """The entity of a drawn product, customer and ends, with the rest of its values drawn from `rng`."""
+    peering = _draw_peering(rng) if product == IP_PEERING else None
+    speed = rng.choice(SPEEDS)
+    status = rng.choices(STATUSES, STATUS_WEIGHTS)[0]
+    entity_id = UUID(int=rng.getrandbits(128), version=4)
+    return _entity(Spec(key, product, customer, ends, peering, speed=speed, status=status), entity_id)
 
 
 def _draw_end(rng: Random, vlan: int) -> End:

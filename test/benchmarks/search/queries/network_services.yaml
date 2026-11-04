@@ -18,9 +18,11 @@
 #   rug-prefix-lir       RUG prefix LIR 192.87.22.0/24         no node, no port: the prefix is its identifier
 #   rug-lr               RUG LR ASD001B-GN012A ASD002A-GN001B  two VCs: asd001b-rt01 and gn012a-rt01 (et-0/0/1, et-0/0/2),
 #                        10 Gbit/s                             asd002a-rt01 and gn001b-rt01 (et-0/0/3, et-0/0/4)
+#   twin-ehv002a-mst001a DLT LP EHV002A-MST001A 100 Gbit/s     ehv002a-rt05 et-0/0/5, mst001a-rt05 et-0/0/5   vlan 901
+#   twin-ehv001a-mst002a DLT LP EHV001A-MST002A 100 Gbit/s     ehv001a-rt05 et-0/0/5, mst002a-rt05 et-0/0/5   vlan 902
 #
 # NWR, BFU, RWI, SLM and SLA abbreviate Northwind Research, Bluefin University, Redwood Institute, Silverline Museum and
-# Silverline Archives.
+# Silverline Archives. RUG and DLT are anchor-only customers: no generated service has their abbreviation.
 
 # --- identifier: near-miss node names, the ranking between neighbours
 - query: "ams001a-rt01"
@@ -97,6 +99,16 @@
   category: exact
   expected: [rug-prefix-lir]
   note: An IP prefix as an operator copies it. It has no speed and no node.
+
+# --- exact: twins whose descriptions have the same trigrams, the site numbers swapped
+- query: "DLT LP EHV002A-MST001A 100 Gbit/s"
+  category: exact
+  expected: [twin-ehv002a-mst001a]
+  note: Its twin has the same set of trigrams, so trigram similarity ties; only the exact text can rank it first.
+- query: "DLT LP EHV001A-MST002A 100 Gbit/s"
+  category: exact
+  expected: [twin-ehv001a-mst002a]
+  note: The mirror of the other twin. With a tie, at most one of the pair can be on top.
 
 # --- typo: one field, mistyped
 - query: "ams001a-tr01"

@@ -14,16 +14,18 @@
 """Query generation: take a fact of an entity and perturb it the way a user would mistype it.
 
 The entity a query was made from is its correct answer by construction. Every perturbation is a pure function of the
-text and an `Random`, so the same corpus and seed give the same queries.
+text and a `Random`, so the same corpus and seed give the same queries.
 """
 
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
+from heapq import nsmallest
+from itertools import product
 from random import Random
 
-from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, LOCATION, Corpus, CorpusEntity
+from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, IDENTIFIER, LOCATION, Corpus, CorpusEntity, scoped_rng
 
 # Fewer characters than this leave nothing to find after a perturbation.
 MIN_LENGTH = 5
@@ -126,20 +128,36 @@ def answers(
 def generate_queries(corpus: Corpus, per_category: int, seed: int) -> list[LabelledQuery]:
     """`per_category` queries for each generated category, made from entities drawn with `seed`.
 
-    A query is made from the first value of each fact. It is dropped if the perturbed text is shorter than
-    `MIN_LENGTH`. It expects every entity that answers it (`answers`), not only the one it was made from.
+    Every category uses the same entities (`sample_sources`). Each query is perturbed with its own `scoped_rng`, keyed
+    by category and entity, so removing or changing a category, or a perturbation drawing more values, leaves the other
+    queries as they were.
     """
-    rng = Random(seed)  # noqa: S311 - reproducible, not secret
-    sampled = rng.sample(corpus.entities, min(per_category, len(corpus.entities)))
-    queries = []
-    for category, (facts, perturb) in GENERATORS.items():
-        for entity in sampled:
-            # An entity without one of the facts, such as an IP prefix without a location, has no query of that kind.
-            if not all(entity.facts[fact] for fact in facts):
-                continue
-            text = perturb(" ".join(entity.facts[fact][0] for fact in facts), rng)
-            if len(text) < MIN_LENGTH:
-                continue
-            expected = tuple(e.key for e in corpus.entities if answers(e, entity, category, facts, text))
-            queries.append(LabelledQuery(text=text, category=category, expected=expected))
-    return queries
+    sampled = sample_sources(corpus.entities, per_category, seed)
+    queries = (_query(corpus, category, entity, seed) for category, entity in product(GENERATORS, sampled))
+    return [query for query in queries if query is not None]
+
+
+def sample_sources(entities: Sequence[CorpusEntity], count: int, seed: int) -> list[CorpusEntity]:
+    """The `count` entities ranked first by a random number drawn per entity key.
+
+    The rank of an entity depends on its key only, not on its position, so adding or removing an entity (an anchor,
+    say) changes the sample only when that entity itself ranks among the first `count`.
+    """
+    return nsmallest(count, entities, key=lambda entity: scoped_rng(seed, "sample", entity.key).random())
+
+
+def _query(corpus: Corpus, category: Category, source: CorpusEntity, seed: int) -> LabelledQuery | None:
+    """The `category` query made from `source`, or None when it has none.
+
+    A query is made from the first value of each fact. There is none when `source` lacks one of the facts, as an IP
+    prefix has no location, or when the perturbed text is shorter than `MIN_LENGTH`. It expects every entity that
+    answers it (`answers`), not only `source`.
+    """
+    facts, perturb = GENERATORS[category]
+    if not all(source.facts[fact] for fact in facts):
+        return None
+    text = perturb(" ".join(source.facts[fact][0] for fact in facts), scoped_rng(seed, category.value, source.key))
+    if len(text) < MIN_LENGTH:
+        return None
+    expected = tuple(entity.key for entity in corpus.entities if answers(entity, source, category, facts, text))
+    return LabelledQuery(text=text, category=category, expected=expected)

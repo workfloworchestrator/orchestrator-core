@@ -13,9 +13,11 @@
 
 """A seeded synthetic corpus of entities, built by a `Profile`.
 
-The same profile, seed and size give the same corpus, so nothing large has to be committed. A corpus holds the
-profile's *anchors*, a small fixed set of hand-designed entities that hand-written queries refer to by key, and
-generated entities that fill the index to a realistic size.
+The same profile, seed and size give the same corpus, so nothing large has to be committed. Randomness is drawn from
+`scoped_rng`, one generator per scope, so that changing one scope does not change the values drawn by another.
+
+A corpus holds the profile's *anchors*, a small fixed set of hand-designed entities that hand-written queries refer to
+by key, and generated entities that fill the index to a realistic size.
 
 Entities are Pydantic models, indexed through the real `BaseTraverser`, so paths and field types are those of
 production subscriptions: nested blocks, lists and many fields at different depths.
@@ -39,6 +41,16 @@ DESCRIPTION = "description"  # the entity's full title text
 IDENTIFIER = "identifier"  # a short token naming a resource: a node, a prefix, ...
 CUSTOMER = "customer"
 LOCATION = "location"
+
+
+def scoped_rng(seed: int, *scope: object) -> Random:
+    """A generator for one `scope` under `seed`, independent of the generators of other scopes.
+
+    Each scope draws its own sequence, so removing or changing one scope (a generated entity, a query category)
+    leaves the values of every other scope as they were. A string seed is hashed with SHA-512, so this is the same in
+    every process, whatever `PYTHONHASHSEED` is.
+    """
+    return Random(":".join(map(str, (seed, *scope))))  # noqa: S311 - reproducible, not secret
 
 
 @dataclass(frozen=True)
@@ -69,8 +81,12 @@ class Profile(Protocol):
         """The fixed entities hand-written queries refer to. Must not depend on the seed."""
         ...
 
-    def generate(self, rng: Random, count: int) -> Sequence[CorpusEntity]:
-        """`count` entities drawn with `rng`, none of which clash with the anchors' identifiers."""
+    def generate(self, seed: int, count: int) -> Sequence[CorpusEntity]:
+        """`count` entities drawn with `seed`, none of which clash with the anchors' identifiers.
+
+        Draw each entity with its own `scoped_rng`, so that a change to how one entity is drawn does not shift the
+        entities after it.
+        """
         ...
 
 
@@ -93,7 +109,7 @@ def build_corpus(profile: Profile, seed: int, size: int) -> Corpus:
     Raises:
         ValueError: When two entities share a key or an id.
     """
-    entities = (*profile.anchors(), *profile.generate(Random(seed), size))  # noqa: S311 - reproducible, not secret
+    entities = (*profile.anchors(), *profile.generate(seed, size))
     for attribute in ("key", "entity_id"):
         values = [getattr(entity, attribute) for entity in entities]
         if len(set(values)) != len(values):

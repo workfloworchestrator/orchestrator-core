@@ -16,6 +16,7 @@ from random import Random
 
 import pytest
 
+from test.benchmarks.search import perturb as perturb_module
 from test.benchmarks.search.corpus import build_corpus
 from test.benchmarks.search.perturb import (
     GENERATORS,
@@ -25,6 +26,7 @@ from test.benchmarks.search.perturb import (
     generate_queries,
     prefix,
     reorder,
+    sample_sources,
     typo,
 )
 from test.benchmarks.search.profiles.network_services import NetworkServicesProfile
@@ -138,3 +140,38 @@ def test_generated_queries_are_deterministic():
     corpus = build_corpus(NetworkServicesProfile(), 1, 100)
 
     assert generate_queries(corpus, 10, 5) == generate_queries(corpus, 10, 5)
+
+
+@pytest.mark.parametrize("removed", list(GENERATORS))
+def test_removing_a_category_leaves_the_other_queries_unchanged(monkeypatch, removed):
+    corpus = build_corpus(NetworkServicesProfile(), 1, 100)
+    before = generate_queries(corpus, 10, 1)
+    monkeypatch.setattr(
+        perturb_module, "GENERATORS", {category: v for category, v in GENERATORS.items() if category != removed}
+    )
+
+    assert generate_queries(corpus, 10, 1) == [query for query in before if query.category != removed]
+
+
+@pytest.mark.parametrize("count", [0, 10, 200])
+def test_sample_sources_draws_count_distinct_entities(count):
+    entities = build_corpus(NetworkServicesProfile(), 1, 100).entities
+    sampled = sample_sources(entities, count, 1)
+
+    assert len(sampled) == min(count, len(entities))
+    assert len({entity.key for entity in sampled}) == len(sampled)
+
+
+def test_removing_an_unsampled_entity_leaves_the_sample_unchanged():
+    entities = build_corpus(NetworkServicesProfile(), 1, 100).entities
+    sampled = sample_sources(entities, 10, 1)
+    unsampled = next(entity for entity in entities if entity not in sampled)
+
+    assert sample_sources([entity for entity in entities if entity != unsampled], 10, 1) == sampled
+
+
+def test_removing_a_sampled_entity_keeps_the_rest_of_the_sample():
+    entities = build_corpus(NetworkServicesProfile(), 1, 100).entities
+    removed, *kept = sample_sources(entities, 10, 1)
+
+    assert sample_sources([entity for entity in entities if entity != removed], 10, 1)[:-1] == kept
