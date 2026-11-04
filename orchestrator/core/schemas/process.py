@@ -12,10 +12,11 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Annotated, Any
+from enum import StrEnum
+from typing import Annotated, Any, Self
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db.models import NOTE_LENGTH
@@ -83,6 +84,39 @@ class ProcessStatusCounts(OrchestratorBaseModel):
 
 class ProcessPatchSchema(OrchestratorBaseModel):
     note: Annotated[str, Field(max_length=NOTE_LENGTH)] | None = None
+
+
+class ProcessBulkAction(StrEnum):
+    RESUME = "resume"
+    ABORT = "abort"
+    DELETE = "delete"
+    NOTE = "note"
+
+
+class ProcessBulkSchema(OrchestratorBaseModel):
+    action: ProcessBulkAction
+    # Bounds the single IN query and the sequential per-process resume/abort within one request
+    process_ids: Annotated[list[UUID], Field(min_length=1, max_length=1000)]
+    note: Annotated[str, Field(max_length=NOTE_LENGTH)] | None = None
+
+    @model_validator(mode="after")
+    def note_given_for_note_action(self) -> Self:
+        # `None` clears the note, so only an omitted field is an error
+        if self.action == ProcessBulkAction.NOTE and "note" not in self.model_fields_set:
+            raise ValueError("'note' is required for the 'note' action")
+        return self
+
+
+class ProcessBulkItemResult(OrchestratorBaseModel):
+    process_id: UUID
+    success: bool
+    error: str | None = None
+
+
+class ProcessBulkResultSchema(OrchestratorBaseModel):
+    action: ProcessBulkAction
+    count: int
+    results: list[ProcessBulkItemResult]
 
 
 Reporter = Annotated[str, Field(max_length=100)]
