@@ -136,4 +136,4 @@ APSchedulerJobs = Annotated[
     ],
     Field(discriminator="scheduled_type"),
 ]
-APSJobAdapter = TypeAdapter(APSchedulerJobs)  # type: ignore
+APSJobAdapter = TypeAdapter(APSchedulerJobs)
