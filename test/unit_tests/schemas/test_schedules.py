@@ -158,4 +158,6 @@ def test_job_options_reject_invalid_values(model: type[APSchedulerJobOptions], b
 
 def test_job_options_survive_serialization_round_trip() -> None:
     job = APSchedulerJobCreate.model_validate({**CREATE_BASE, "trigger": "interval", "misfire_grace_time": 120})
-    assert APSJobAdapter.validate_json(job.model_dump_json()).job_options() == {"misfire_grace_time": 120}
+    round_tripped = APSJobAdapter.validate_json(job.model_dump_json())
+    assert isinstance(round_tripped, APSchedulerJobCreate)
+    assert round_tripped.job_options() == {"misfire_grace_time": 120}
