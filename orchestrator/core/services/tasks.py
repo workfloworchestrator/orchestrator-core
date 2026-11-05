@@ -25,6 +25,7 @@ from orchestrator.core.db.database import transactional
 from orchestrator.core.schemas.engine_settings import WorkerStatus
 from orchestrator.core.services.executors.threadpool import thread_resume_process, thread_start_process
 from orchestrator.core.services.flower import get_flower_worker_status
+from orchestrator.core.services.parallel import run_worker_branch
 from orchestrator.core.services.processes import _get_process, ensure_correct_process_status, load_process
 from orchestrator.core.settings import app_settings
 from orchestrator.core.types import BroadcastFunc
@@ -142,8 +143,6 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
             branch_index=branch_index,
         )
         try:
-            from orchestrator.core.services.parallel import run_worker_branch
-
             run_worker_branch(
                 process_id=process_id,
                 branch_index=branch_index,

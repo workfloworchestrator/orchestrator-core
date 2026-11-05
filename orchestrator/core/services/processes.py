@@ -40,7 +40,7 @@ from orchestrator.core.db import (
     db,
 )
 from orchestrator.core.db.database import transactional
-from orchestrator.core.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
+from orchestrator.core.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH, ProcessStepRelationTable
 from orchestrator.core.distlock import distlock_manager
 from orchestrator.core.schemas.engine_settings import WorkerStatus
 from orchestrator.core.search.indexing.hooks import index_process_and_subscriptions
@@ -293,8 +293,6 @@ def _get_current_step_to_update(
     - '__replace_last_state' - When the value for this key is truthy, the previous state in the db will be overridden
     - '__remove_keys' - Removes the keys in this given list from the state
     """
-    from orchestrator.core.db.models import ProcessStepRelationTable
-
     step_state: State = process_state.unwrap()
     current_step = None
     # Exclude rows that are branch children of a parallel fork step. Otherwise the
