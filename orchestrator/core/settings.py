@@ -74,8 +74,6 @@ class AppSettings(BaseSettings):
     ]
     ENVIRONMENT: str = "local"
     EXECUTOR: str = ExecutorType.THREADPOOL
-    PARALLEL_BRANCH_QUEUE: str = ""  # empty = use default tasks queue
-    PARALLEL_BRANCH_WORKFLOW_QUEUE: str = ""  # empty = use default workflows queue
     WORKFLOWS_SWAGGER_HOST: str = "localhost"
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
     BASE_URL: str = "http://localhost:8080"  # Base URL for the API (used for generating export URLs)
@@ -140,6 +138,13 @@ class AppSettings(BaseSettings):
     EXPOSE_OAUTH_SETTINGS: bool = False
     LIFECYCLE_VALIDATION_MODE: LifecycleValidationMode = LifecycleValidationMode.LOOSE
     MCP_ENABLED: bool = False
+
+    PARALLEL_BRANCH_QUEUE: str = Field(
+        "new_tasks", description="Use this to override the celery queue for parallel branches in a task"
+    )
+    PARALLEL_BRANCH_WORKFLOW_QUEUE: str = Field(
+        "new_workflows", description="Use this to override the celery queue for parallel branches in a workflow"
+    )
     CELERY_TARGET_QUEUES: dict[Target, str] = Field(
         default_factory=dict,
         description=(
