@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import threading
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 from functools import partial
@@ -1010,7 +1010,7 @@ def _recoverwf(wf: Workflow, log: list[WFProcess]) -> tuple[WFProcess, StepList]
     return state, rest
 
 
-def _restore_log(steps: list[ProcessStepTable]) -> list[WFProcess]:
+def _restore_log(steps: Iterator[ProcessStepTable]) -> list[WFProcess]:
     """Deserialize ProcessStepTable objects into foldable 'Process step' objects."""
 
     def deserialize(step: ProcessStepTable) -> WFProcess:
@@ -1038,7 +1038,7 @@ def load_process(process: ProcessTable) -> ProcessStat:
     if not workflow:
         workflow = removed_workflow
 
-    main_steps = [s for s in process.steps if _is_main_log_step(s)]
+    main_steps = (s for s in process.steps if _is_main_log_step(s))
     log = _restore_log(main_steps)
     pstate, remaining = _recoverwf(workflow, log)
 
