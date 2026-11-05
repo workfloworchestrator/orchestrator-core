@@ -50,6 +50,14 @@ from orchestrator.core.search.query.results import generate_highlight_indices, t
             id="symbol-token-kept-whole",
         ),
         pytest.param("(fox)", "(fox)", [(1, 4)], id="wrapped-in-parentheses"),
+        pytest.param("UNIMAAS SP UNTAGGED MT001A 100 Gbit/s", "unimaass", [(0, 7)], id="fuzzy-extra-letter"),
+        pytest.param("UNIMAAS SP UNTAGGED MT001A 100 Gbit/s", "unimass", [(0, 7)], id="fuzzy-missing-letter"),
+        pytest.param(
+            "UNIMAAS SP UNTAGGED MT001A 100 Gbit/s", "unimaass untaged", [(0, 7), (11, 19)], id="fuzzy-multiple-words"
+        ),
+        pytest.param("UNIMAAS SP UNTAGGED", "unima unimaass", [(0, 5), (0, 7)], id="fuzzy-only-for-unmatched-word"),
+        pytest.param("The quick brown fox jumps", "foz", [], id="fuzzy-skipped-for-short-word"),
+        pytest.param("The quick brown fox jumps", "brain", [], id="fuzzy-below-threshold"),
     ],
 )
 def test_generate_highlight_indices(text: str, term: str, expected: list):
