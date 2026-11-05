@@ -104,6 +104,7 @@ def _succeeded_branch_indices(fork_step_id: UUID) -> set[int]:
 
 def _child_step_lists(s: Step) -> Iterator[StepList]:
     """Yield the nested step lists (branches and templates) attached to a step."""
+    # TODO make step metadata check type-safe
     yield from getattr(s, "_parallel_branches", [])
     template = getattr(s, "_foreach_branch_template", None)
     if template is not None:
@@ -124,7 +125,9 @@ def _find_parallel_step(steps: StepList, group_name: str) -> Step | None:
     Returns:
         The Step with matching ``_parallel_group_name``, or None if not found.
     """
+    # TODO is it guaranteed that parallel group names are unique?
     for s in steps:
+        # TODO make step metadata check type-safe
         if getattr(s, "_parallel_group_name", None) == group_name:
             return s
         found = next(
@@ -154,12 +157,15 @@ def _resolve_branch_from_db(
     """
     from orchestrator.core.workflows import get_workflow
 
+    # TODO select step name directly by fork_step_id
     fork_step = db.session.get(ProcessStepTable, fork_step_id)
     if fork_step is None:
         raise ValueError(f"Fork step {fork_step_id} not found")
 
     parallel_group_name = fork_step.name
 
+    # TODO select workflow name directly by process_id
+    #  Remove `process` from return values as it's unused
     process = db.session.get(ProcessTable, process_id)
     if process is None:
         raise ValueError(f"Process {process_id} not found")
@@ -203,7 +209,7 @@ def run_worker_branch(
         log=wf.steps,
         current_user=user,
     )
-    process_stat_var.set(pstat)
+    process_stat_var.set(pstat)  # TODO check if global var is really necessary
 
     branch_state = deepcopy(initial_state)
     dblogstep = _make_branch_dblogstep(process_id, fork_step_id, branch_index, user, seed_state=seed_state)
@@ -212,6 +218,13 @@ def run_worker_branch(
     except Exception as e:
         logger.error("Celery branch execution failed", branch_index=branch_index, error=str(e))
 
+    # TODO both _atomic_increment_completed and _join_and_resume commit the transaction.
+    #  Is this double commit necessarily safe(r)?
+    #  What guarantee would you lose if run_worker_branch would be the one doing a commit at the end (or, if it goes
+    #    into _join_and_resume, inside of that function before it hands off to Celery)?
+    #  What happens if the worker crashes before it can do _join_and_resume? Is either design better in terms of recoverability?
+    #  (it is indeed necessary to lock to provide an atomic increment, but I'd think that should be in this function,
+    #   wrapping both the increment and the join)
     completed, total = _atomic_increment_completed(fork_step_id)
 
     logger.info(
@@ -253,10 +266,14 @@ def _join_and_resume(
     resolved_status = worst.status if worst else StepStatus.SUCCESS
     resolved_state = worst.unwrap() if worst else initial_state
 
+    # TODO retrieve fork_step at the start and raise an exception if None? It should not go unnoticed
     fork_step = db.session.get(ProcessStepTable, fork_step_id)
     if fork_step is not None:
         fork_step.status = resolved_status
         fork_step.state = resolved_state
+        # TODO add fork_step.save() ?
+
+        # TODO remove commit? The ExecutorFunction.RESUME already performs a commit
         db.session.commit()
 
     from orchestrator.core.services.executors.types import ExecutorFunction

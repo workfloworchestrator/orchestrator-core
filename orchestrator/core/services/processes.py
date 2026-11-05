@@ -299,6 +299,10 @@ def _get_current_step_to_update(
     # last-completed query picks the last-finishing branch and ``__replace_last_state``
     # overwrites that branch's state with the parent workflow's state.
     branch_child_ids = select(ProcessStepRelationTable.child_step_id)
+    # TODO not sure whether selecting ALL ProcessStepRelationTable.child_step_ids values
+    #  is the most performant. ProcessStepRelationTable will grow rather large as it contains one entry for each step
+    #  in each branch, and here we tell postgres to fetch all of them through a subquery.
+    #  We can (probably) limit the scope of the subquery a lot by matching on step_id
     last_db_step = db.session.scalars(
         select(ProcessStepTable)
         .where(

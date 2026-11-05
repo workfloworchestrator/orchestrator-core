@@ -933,6 +933,7 @@ def _make_parallel_step(
 
     step_fn = make_step_function(func, name, retry_auth_callback=retry_auth_callback)
     # Attach metadata for Celery step reconstruction
+    # TODO fix untyped/undefined variables. Either define them on Step, or provide metadata another way
     step_fn._parallel_branches = branches  # type: ignore[attr-defined]
     step_fn._parallel_group_name = name  # type: ignore[attr-defined]
     return step_fn
