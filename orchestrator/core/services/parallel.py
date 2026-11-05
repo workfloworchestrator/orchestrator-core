@@ -250,8 +250,8 @@ def _join_and_resume(
     results = [_STATUSES.get(StepStatus(status), Success)(state) for _branch_idx, state, status in branch_data]
     worst = _worst_status(results)
 
-    resolved_status = worst.status if worst is not None else StepStatus.SUCCESS
-    resolved_state = worst.unwrap() if worst is not None else initial_state
+    resolved_status = worst.status if worst else StepStatus.SUCCESS
+    resolved_state = worst.unwrap() if worst else initial_state
 
     fork_step = db.session.get(ProcessStepTable, fork_step_id)
     if fork_step is not None:
