@@ -25,9 +25,7 @@ from pathlib import Path
 
 from test.benchmarks.search.corpus import Corpus, build_corpus
 from test.benchmarks.search.profiles.network_services import NetworkServicesProfile
-
-# The seed the benchmark runs with, so that the entities shown are the ones it indexes.
-DEFAULT_SEED = 2000
+from test.benchmarks.search.settings import SEED
 
 
 def corpus_json(corpus: Corpus) -> str:
@@ -41,7 +39,7 @@ def corpus_json(corpus: Corpus) -> str:
 
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--size", type=int, default=20, help="generated entities, on top of the anchors")
     parser.add_argument("--output", type=Path, help="write to this file instead of stdout")
     args = parser.parse_args(argv)

@@ -36,14 +36,12 @@ from test.benchmarks.search.runner import (
     seq_scans_index_table,
     uses_trigram_index,
 )
+from test.benchmarks.search.settings import BASELINE, CORPUS_SIZE, GENERATED_PER_CATEGORY, SEED
 
 pytestmark = pytest.mark.search
 
-SEED = 2000
-CORPUS_SIZE = 3000
-GENERATED_PER_CATEGORY = 20
 RETRIEVER = RetrieverType.FUZZY
-BASELINE = Path(__file__).parent / "baseline" / "accuracy.md"
+ACCURACY = BASELINE / "accuracy.md"
 # Not committed: the top results of every query of this run, to see why a metric moved.
 REPORT = Path(__file__).parent / "report" / "rankings.md"
 
@@ -87,7 +85,7 @@ def test_corpus_is_indexed_through_the_real_indexer(loaded, corpus):
 def test_accuracy_is_unchanged(query_results, corpus):
     results, _ = query_results
     page = render_accuracy("Search accuracy", _description(corpus), {RETRIEVER: accuracy_by_category(results)})
-    assert page == external_file(BASELINE, format=".txt")
+    assert page == external_file(ACCURACY, format=".txt")
 
 
 def test_rankings_are_written(query_results, corpus):

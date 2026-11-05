@@ -8,21 +8,11 @@
 # 198.51.x.0/24. A query of a bare city, site or product would still match hundreds of generated entities, so each
 # names a node or a customer too.
 #
-#   ams001a-rt01         NWR SP UNTAGGED AMS001A 10 Gbit/s     ams001a-rt01 et-0/0/1                          vlan 101
-#   ams001a-rt10         BFU SP UNTAGGED AMS001A 10 Gbit/s     ams001a-rt10 et-0/0/1                          vlan 102
-#   asv001a-rt01         RWI SP TAGGED ASV001A 10 Gbit/s       asv001a-rt01 et-0/0/1                          vlan 103
-#   northwind-lightpath  NWR LP AMS001A-RTD001A 10 Gbit/s      ams001a-rt07 xe-1/2/4, rtd001a-rt07 xe-1/2/4   vlan 210
-#   northwind-peering    NWR IP UTR001A 10 Gbit/s              utr001a-rt02 et-3/0/2, 192.0.2.0/24, AS64500   vlan 305
-#   rtd001a-rt01         SLM L2VPN EHV001A-RTD001A 10 Gbit/s   rtd001a-rt01 ge-0/1/3, ehv001a-rt03 ge-0/1/3   vlan 410
-#   rmd001a-rt01         SLA L2VPN ENS001A-RMD001A 10 Gbit/s   rmd001a-rt01 ge-0/1/3, ens001a-rt03 ge-0/1/3   vlan 411
-#   rug-prefix-lir       RUG prefix LIR 192.87.22.0/24         no node, no port: the prefix is its identifier
-#   rug-lr               RUG LR ASD001B-GN012A ASD002A-GN001B  two VCs: asd001b-rt01 and gn012a-rt01 (et-0/0/1, et-0/0/2),
-#                        10 Gbit/s                             asd002a-rt01 and gn001b-rt01 (et-0/0/3, et-0/0/4)
-#   twin-ehv002a-mst001a DLT LP EHV002A-MST001A 100 Gbit/s     ehv002a-rt05 et-0/0/5, mst001a-rt05 et-0/0/5   vlan 901
-#   twin-ehv001a-mst002a DLT LP EHV001A-MST002A 100 Gbit/s     ehv001a-rt05 et-0/0/5, mst002a-rt05 et-0/0/5   vlan 902
+# The anchors are the first rows of baseline/corpus.md, with their descriptions, nodes, customers and cities; that
+# page also lists every generated entity, to check what else a query could match. It is a snapshot, so it cannot go
+# out of date. Ports, VLANs, ASNs and ids are in the indexed models: see `show_corpus` in the README.
 #
-# NWR, BFU, RWI, SLM and SLA abbreviate Northwind Research, Bluefin University, Redwood Institute, Silverline Museum and
-# Silverline Archives. RUG and DLT are anchor-only customers: no generated service has their abbreviation.
+# RUG and DLT are anchor-only customers: no generated service has their abbreviation.
 
 # --- identifier: near-miss node names, the ranking between neighbours
 - query: "ams001a-rt01"

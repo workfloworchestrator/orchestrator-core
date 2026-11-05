@@ -66,7 +66,8 @@ indexed (block ids shortened):
 }
 ```
 
-To see the whole corpus, with each entity's facts, run `show_corpus` (see [Run](#run)).
+Every entity's facts are in `baseline/corpus.md` (see [Snapshots](#snapshots-of-the-corpus-and-queries)). To see the
+whole indexed models, run `show_corpus` (see [Run](#run)).
 
 ## Anchors
 
@@ -78,8 +79,23 @@ Anchors avoid that: a few hand-designed entities (`anchors()` in the profile) th
 the seed. Hand-written queries refer to them by key (`expected: [ams001a-rt10]`), and the generator never produces an
 entity that competes with them: generated entities never reuse an anchor's node names or (customer family, location)
 pairs (`reserved_nodes()`, `reserved_pairs()`). Anchors are near-misses of each other (`ams001a-rt01` against
-`ams001a-rt10`, Amsterdam against Amstelveen), so each query tests one specific distinction. The list is at the top of
-`queries/network_services.yaml`.
+`ams001a-rt10`, Amsterdam against Amstelveen), so each query tests one specific distinction.
+
+## Snapshots of the corpus and queries
+
+Two committed pages show the data the benchmark runs on, so a change to the profile or the perturbations shows in the
+diff of a PR, and you can work out what a query should return without running it:
+
+- `baseline/corpus.md`: one row per entity, anchors first, with the facts queries are made from (description,
+  identifiers, customer, locations). To check what else a query could match, grep it:
+  `grep Bluefin baseline/corpus.md | grep Amsterdam`.
+- `baseline/generated_queries.md`: every [generated query](#generated-queries) with how many entities it expects and
+  the first 10 of them.
+
+Both are checked by `test/unit_tests/benchmarks/search/test_snapshot.py`, which needs no database, so they cannot go
+out of date. Columns are padded to fixed widths (`CORPUS_COLUMNS` and `QUERY_COLUMNS` in `snapshot.py`), so the pages
+read as plain text and a changed entity or query changes only its own line. A value wider than its column pushes the
+rest of its own row out of line; widen the column if that happens often.
 
 ## Query categories
 
@@ -160,7 +176,7 @@ and 17, so there is one baseline, not one per version, and CI runs the benchmark
 
 ```bash
 uv run pytest test/benchmarks/search            # accuracy against the baseline, needs Docker for Postgres
-uv run pytest test/unit_tests/benchmarks        # the pure parts: corpus, perturbations, metrics, query loader
+uv run pytest test/unit_tests/benchmarks        # the pure parts and the corpus and query snapshots
 ```
 
 To see the corpus the benchmark indexes, as JSON with each entity's facts and model (the default seed is the
@@ -175,7 +191,8 @@ The orchestrator logs to stdout on import, so use `--output` for a file with JSO
 ## Update the baseline
 
 ```bash
-uv run pytest test/benchmarks/search --inline-snapshot=fix
+uv run pytest test/benchmarks/search --inline-snapshot=fix                  # accuracy.md
+uv run pytest test/unit_tests/benchmarks/search --inline-snapshot=fix       # corpus.md, generated_queries.md
 git diff test/benchmarks/search/baseline
 ```
 
