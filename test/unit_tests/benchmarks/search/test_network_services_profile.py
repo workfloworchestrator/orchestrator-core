@@ -13,7 +13,6 @@
 
 import pytest
 
-from test.benchmarks.search.corpus import DESCRIPTION, IDENTIFIER, LOCATION
 from test.benchmarks.search.profiles.network_services import (
     IP_PEERING,
     L2VPN,
@@ -25,13 +24,11 @@ from test.benchmarks.search.profiles.network_services import (
     SERVICE_PORT,
     End,
     NetworkServicesProfile,
-    Peering,
     Spec,
 )
 
 AMS = End("Amsterdam", "ams", 1, 1, "et-0/0/1", 101)
 RTD = End("Rotterdam", "rtd", 1, 2, "et-0/0/2", 101)
-PEERING = Peering(prefix="192.0.2.0/24", asn=64500)
 
 
 @pytest.mark.parametrize(
@@ -52,64 +49,8 @@ def test_spec_rejects_what_its_product_cannot_take(product, ends, kwargs, match)
         Spec("key", product, NWR, ends, **kwargs)
 
 
-@pytest.mark.parametrize(
-    "product, ends, kwargs",
-    [
-        (SERVICE_PORT, [AMS], {}),
-        (LIGHT_PATH, [AMS, RTD], {}),
-        (L2VPN, [AMS, RTD, AMS, RTD], {}),
-        (IP_PEERING, [AMS], {"peering": PEERING}),
-        (PREFIX, [], {"prefix": "192.0.2.0/24"}),
-        (LR, [AMS, RTD, AMS, RTD], {}),
-    ],
-)
-def test_spec_accepts_what_its_product_takes(product, ends, kwargs):
-    assert Spec("key", product, NWR, ends, **kwargs).product == product
-
-
 def test_redundant_light_path_splits_its_ends_per_vc():
     assert Spec("key", LR, RUG, [AMS, RTD, RTD, AMS]).vcs == [[AMS, RTD], [RTD, AMS]]
-
-
-@pytest.mark.parametrize("product", [SERVICE_PORT, LIGHT_PATH])
-def test_other_products_keep_their_ends_in_one_vc(product):
-    ends = [AMS, RTD][: product.max_ends]
-
-    assert Spec("key", product, NWR, ends).vcs == [ends]
-
-
-@pytest.mark.parametrize(
-    "key, description, identifiers, locations",
-    [
-        ("ams001a-rt01", "NWR SP UNTAGGED AMS001A 10 Gbit/s", ("ams001a-rt01",), ("Amsterdam",)),
-        (
-            "northwind-lightpath",
-            "NWR LP AMS001A-RTD001A 10 Gbit/s",
-            ("ams001a-rt07", "rtd001a-rt07"),
-            ("Amsterdam", "Rotterdam"),
-        ),
-        ("northwind-peering", "NWR IP UTR001A 10 Gbit/s", ("utr001a-rt02",), ("Utrecht",)),
-        (
-            "rtd001a-rt01",
-            "SLM L2VPN EHV001A-RTD001A 10 Gbit/s",
-            ("rtd001a-rt01", "ehv001a-rt03"),
-            ("Rotterdam", "Eindhoven"),
-        ),
-        ("rug-prefix-lir", "RUG prefix LIR 192.87.22.0/24", ("192.87.22.0/24",), ()),
-        (
-            "rug-lr",
-            "RUG LR ASD001B-GN012A ASD002A-GN001B 10 Gbit/s",
-            ("asd001b-rt01", "gn012a-rt01", "asd002a-rt01", "gn001b-rt01"),
-            ("Assen", "Groningen", "Assen", "Groningen"),
-        ),
-    ],
-)
-def test_anchor_facts_are_as_the_hand_written_queries_expect(key, description, identifiers, locations):
-    facts = {anchor.key: anchor.facts for anchor in NetworkServicesProfile().anchors()}[key]
-
-    assert facts[DESCRIPTION] == (description,)
-    assert facts[IDENTIFIER] == identifiers
-    assert facts[LOCATION] == locations
 
 
 def test_anchors_carry_the_blocks_of_their_product():

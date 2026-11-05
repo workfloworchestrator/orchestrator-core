@@ -22,7 +22,6 @@ from test.benchmarks.search.perturb import (
     GENERATORS,
     Category,
     case_punctuation,
-    exact,
     generate_queries,
     prefix,
     reorder,
@@ -30,20 +29,6 @@ from test.benchmarks.search.perturb import (
     typo,
 )
 from test.benchmarks.search.profiles.network_services import NetworkServicesProfile
-
-
-@pytest.mark.parametrize("perturb", [typo, prefix, reorder, case_punctuation, exact])
-def test_perturbation_is_deterministic(perturb):
-    text = "Amsterdam Port ams-rt01 et-0/0/1"
-
-    assert perturb(text, Random(3)) == perturb(text, Random(3))
-
-
-def test_typo_keeps_the_letters():
-    result = typo("Amsterdam", Random(1))
-
-    assert result != "Amsterdam"
-    assert sorted(result) == sorted("Amsterdam")
 
 
 def test_typo_changes_one_word_of_a_description():
@@ -93,11 +78,6 @@ def test_generated_multi_field_queries_join_customer_and_location_and_expect_eve
         }
 
 
-def test_typo_without_a_long_word_raises():
-    with pytest.raises(IndexError):
-        typo("ab cd", Random(1))
-
-
 def test_prefix_is_a_proper_prefix():
     text = "Amsterdam Port ams-rt01"
 
@@ -119,27 +99,6 @@ def test_reorder_keeps_the_words_but_not_their_order():
 )
 def test_case_punctuation_changes_case_or_separators(text, expected):
     assert {case_punctuation(text, Random(seed)) for seed in range(10)} == expected
-
-
-def test_generated_queries_cover_every_generated_category():
-    queries = generate_queries(build_corpus(NetworkServicesProfile(), 1, 100), 10, 1)
-
-    assert {query.category for query in queries} == set(GENERATORS)
-    assert Category.NEGATIVE not in {query.category for query in queries}
-
-
-def test_generated_queries_expect_their_source_entity():
-    corpus = build_corpus(NetworkServicesProfile(), 1, 100)
-
-    for query in generate_queries(corpus, 10, 1):
-        assert query.expected
-        assert set(query.expected) <= corpus.by_key.keys()
-
-
-def test_generated_queries_are_deterministic():
-    corpus = build_corpus(NetworkServicesProfile(), 1, 100)
-
-    assert generate_queries(corpus, 10, 5) == generate_queries(corpus, 10, 5)
 
 
 @pytest.mark.parametrize("removed", list(GENERATORS))

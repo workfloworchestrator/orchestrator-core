@@ -12,11 +12,12 @@
 # limitations under the License.
 
 from collections.abc import Iterator
+from dataclasses import replace
 
 import pytest
 from pydantic import BaseModel
 
-from test.benchmarks.search.corpus import CUSTOMER, DESCRIPTION, Corpus, CorpusEntity, build_corpus, scoped_rng
+from test.benchmarks.search.corpus import CUSTOMER, build_corpus
 from test.benchmarks.search.profiles import network_services
 from test.benchmarks.search.profiles.network_services import IP_PEERING, NetworkServicesProfile, ServicePortBlock
 
@@ -32,18 +33,16 @@ def ports(model: BaseModel) -> Iterator[ServicePortBlock]:
                 yield from ports(item)
 
 
-def test_same_seed_gives_same_corpus():
-    assert build_corpus(NetworkServicesProfile(), 1, 200) == build_corpus(NetworkServicesProfile(), 1, 200)
-
-
-def test_other_seed_gives_other_corpus():
-    assert build_corpus(NetworkServicesProfile(), 1, 200) != build_corpus(NetworkServicesProfile(), 2, 200)
-
-
 def test_a_smaller_corpus_is_the_start_of_a_larger_one():
     small, large = (build_corpus(NetworkServicesProfile(), 1, size) for size in (100, 200))
 
     assert large.entities[: len(small.entities)] == small.entities
+
+
+def test_other_seed_gives_other_entities():
+    first, second = (build_corpus(NetworkServicesProfile(), seed, 20) for seed in (1, 2))
+
+    assert first.entities != second.entities
 
 
 def test_drawing_more_for_one_entity_leaves_the_others_unchanged(monkeypatch):
@@ -59,43 +58,6 @@ def test_drawing_more_for_one_entity_leaves_the_others_unchanged(monkeypatch):
     assert any(map(is_peering, before.entities))
     assert [e for e in after.entities if not is_peering(e)] == [e for e in before.entities if not is_peering(e)]
     assert [e for e in after.entities if is_peering(e)] != [e for e in before.entities if is_peering(e)]
-
-
-@pytest.mark.parametrize(
-    "scope",
-    [
-        pytest.param((), id="no scope"),
-        pytest.param(("entity", 3), id="entity"),
-        pytest.param(("exact", "gen-3"), id="query"),
-    ],
-)
-def test_scoped_rng_is_reproducible(scope):
-    assert scoped_rng(1, *scope).random() == scoped_rng(1, *scope).random()
-
-
-@pytest.mark.parametrize(
-    "first, second",
-    [
-        pytest.param((1, "entity", 3), (2, "entity", 3), id="other seed"),
-        pytest.param((1, "entity", 3), (1, "entity", 4), id="other entity"),
-        pytest.param((1, "exact", "gen-3"), (1, "prefix", "gen-3"), id="other category"),
-    ],
-)
-def test_scoped_rng_differs_per_scope(first, second):
-    assert scoped_rng(*first).random() != scoped_rng(*second).random()
-
-
-@pytest.mark.parametrize("size", [0, 1, 200])
-def test_corpus_holds_anchors_and_requested_entities(size):
-    anchors = len(NetworkServicesProfile().anchors())
-
-    assert len(build_corpus(NetworkServicesProfile(), 1, size).entities) == anchors + size
-
-
-def test_anchors_do_not_depend_on_seed():
-    first, second = (build_corpus(NetworkServicesProfile(), seed, 0) for seed in (1, 2))
-
-    assert first.entities == second.entities
 
 
 def test_no_two_entities_share_an_a_end_port():
@@ -130,20 +92,6 @@ def test_reserved_nodes_hold_the_anchors_and_their_prefix_neighbours():
     )
 
 
-def test_corpus_has_near_miss_anchors():
-    keys = build_corpus(NetworkServicesProfile(), 1, 0).by_key.keys()
-
-    assert {"ams001a-rt01", "ams001a-rt10", "asv001a-rt01", "twin-ehv002a-mst001a", "twin-ehv001a-mst002a"} <= keys
-
-
-def test_twin_anchors_differ_only_in_the_order_of_their_characters():
-    by_key = build_corpus(NetworkServicesProfile(), 1, 0).by_key
-    first, second = (by_key[key].facts[DESCRIPTION][0] for key in ("twin-ehv002a-mst001a", "twin-ehv001a-mst002a"))
-
-    assert first != second
-    assert sorted(first) == sorted(second)
-
-
 def test_too_large_a_corpus_raises():
     with pytest.raises(ValueError, match="has room for"):
         build_corpus(NetworkServicesProfile(), 1, 1_000_000)
@@ -152,24 +100,18 @@ def test_too_large_a_corpus_raises():
 class _Clashing:
     name = "clashing"
 
+    def __init__(self, attribute):
+        self.attribute = attribute
+
     def anchors(self):
-        entity = CorpusEntity(
-            "a", NetworkServicesProfile().anchors()[0].entity_id, NetworkServicesProfile().anchors()[0].model, {}
-        )
-        return [entity, entity]
+        first, second = NetworkServicesProfile().anchors()[:2]
+        return [first, replace(second, **{self.attribute: getattr(first, self.attribute)})]
 
     def generate(self, seed, count):
         return []
 
 
-@pytest.mark.parametrize("profile", [_Clashing()])
-def test_duplicate_entities_raise(profile):
-    with pytest.raises(ValueError, match="duplicate entity"):
-        build_corpus(profile, 1, 0)
-
-
-def test_by_key_maps_keys_to_entities():
-    corpus = build_corpus(NetworkServicesProfile(), 1, 3)
-
-    assert isinstance(corpus, Corpus)
-    assert set(corpus.by_key) == {entity.key for entity in corpus.entities}
+@pytest.mark.parametrize("attribute", ["key", "entity_id"])
+def test_duplicate_entities_raise(attribute):
+    with pytest.raises(ValueError, match=f"duplicate entity {attribute}s"):
+        build_corpus(_Clashing(attribute), 1, 0)

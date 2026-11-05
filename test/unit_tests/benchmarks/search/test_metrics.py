@@ -14,6 +14,7 @@
 import pytest
 
 from test.benchmarks.search.metrics import (
+    CategoryMetrics,
     QueryResult,
     category_metrics,
     metrics_per_category,
@@ -87,6 +88,26 @@ def test_category_metrics_rejects_bad_input(results, message):
 
 
 def test_metrics_per_category_groups_and_orders_by_category():
-    results = [_result(["a"], ["a"], Category.TYPO), _result(["a"], ["a"], Category.EXACT)]
+    results = [
+        _result(["b", "a"], ["a"], Category.TYPO),
+        _result([], [], Category.NEGATIVE),
+        _result(["a"], ["a", "b"], Category.EXACT),
+        _result(["a"], ["a"], Category.TYPO),
+        _result([], ["a"], Category.EXACT),
+        _result(["x"], [], Category.NEGATIVE),
+    ]
 
-    assert list(metrics_per_category(results)) == [Category.EXACT, Category.TYPO]
+    metrics = metrics_per_category(results)
+
+    assert list(metrics) == [Category.EXACT, Category.TYPO, Category.NEGATIVE]
+    assert metrics == {
+        Category.EXACT: CategoryMetrics(
+            queries=2, mrr=0.5, success_at_1=0.5, recall_at_10=0.25, false_positive_rate=None
+        ),
+        Category.TYPO: CategoryMetrics(
+            queries=2, mrr=0.75, success_at_1=0.5, recall_at_10=1.0, false_positive_rate=None
+        ),
+        Category.NEGATIVE: CategoryMetrics(
+            queries=2, mrr=None, success_at_1=None, recall_at_10=None, false_positive_rate=0.5
+        ),
+    }
