@@ -33,6 +33,12 @@ from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
 from orchestrator.core.services.processes import SYSTEM_USER, safe_logstep
+from orchestrator.core.testing import (
+    WorkflowInstanceForTests,
+    assert_complete,
+    assert_failed,
+    assert_waiting,
+)
 from orchestrator.core.workflow import (
     ProcessStat,
     ProcessStatus,
@@ -51,12 +57,6 @@ from orchestrator.core.workflow import (
     workflow,
 )
 from pydantic_forms.core import FormPage
-from test.integration_tests.workflows import (
-    WorkflowInstanceForTests,
-    assert_complete,
-    assert_failed,
-    assert_waiting,
-)
 
 
 @pytest.fixture(autouse=True)
