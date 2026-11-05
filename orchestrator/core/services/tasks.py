@@ -26,6 +26,7 @@ from orchestrator.core.schemas.engine_settings import WorkerStatus
 from orchestrator.core.services.executors.threadpool import thread_resume_process, thread_start_process
 from orchestrator.core.services.flower import get_flower_worker_status
 from orchestrator.core.services.processes import _get_process, ensure_correct_process_status, load_process
+from orchestrator.core.settings import app_settings
 from orchestrator.core.types import BroadcastFunc
 from orchestrator.core.utils.json import json_dumps, json_loads
 from orchestrator.core.workflow import ProcessStatus
@@ -62,17 +63,13 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
     _celery = celery
 
     # Different routes/queues so we can assign them priorities
-    from orchestrator.core.settings import app_settings
-
-    parallel_task_queue = app_settings.PARALLEL_BRANCH_QUEUE or "new_tasks"
-    parallel_wf_queue = app_settings.PARALLEL_BRANCH_WORKFLOW_QUEUE or "new_workflows"
     celery.conf.task_routes = {
         NEW_TASK: {"queue": "new_tasks"},
         NEW_WORKFLOW: {"queue": "new_workflows"},
         RESUME_TASK: {"queue": "resume_tasks"},
         RESUME_WORKFLOW: {"queue": "resume_workflows"},
-        EXECUTE_PARALLEL_BRANCH: {"queue": parallel_task_queue},
-        EXECUTE_PARALLEL_BRANCH_WORKFLOW: {"queue": parallel_wf_queue},
+        EXECUTE_PARALLEL_BRANCH: {"queue": app_settings.PARALLEL_BRANCH_QUEUE},
+        EXECUTE_PARALLEL_BRANCH_WORKFLOW: {"queue": app_settings.PARALLEL_BRANCH_WORKFLOW_QUEUE},
     }
 
     register_custom_serializer()
