@@ -25,12 +25,13 @@ RECALL_CUTOFF = 10
 
 @dataclass(frozen=True)
 class Hit:
-    """A returned entity: its key, its title and the indexed value the score came from."""
+    """A returned entity: its key, its title, its score and the indexed value the score came from."""
 
     key: str
     title: str = ""
     matched_path: str = ""
     matched_text: str = ""
+    score: float | None = None
 
 
 @dataclass(frozen=True)
@@ -56,10 +57,16 @@ class CategoryMetrics:
     false_positive_rate: float | None
 
 
+def first_rank(ranked: Sequence[str], expected: Iterable[str]) -> int | None:
+    """The rank of the first expected entity, counting from 1, or None if none was returned."""
+    wanted = set(expected)
+    return next((rank for rank, key in enumerate(ranked, start=1) if key in wanted), None)
+
+
 def reciprocal_rank(ranked: Sequence[str], expected: Iterable[str]) -> float:
     """1 / the rank of the first expected entity, 0 if none was returned."""
-    wanted = set(expected)
-    return next((1 / rank for rank, key in enumerate(ranked, start=1) if key in wanted), 0.0)
+    rank = first_rank(ranked, expected)
+    return 1 / rank if rank else 0.0
 
 
 def success_at_1(ranked: Sequence[str], expected: Iterable[str]) -> float:
@@ -72,7 +79,12 @@ def recall_at(ranked: Sequence[str], expected: Sequence[str], cutoff: int = RECA
     A query made from a shared fact (a city, a customer) expects hundreds of entities, of which no more than `cutoff`
     fit. The share is of what could fit: finding `cutoff` of them is full recall.
     """
-    return len(set(ranked[:cutoff]) & set(expected)) / min(len(expected), cutoff)
+    return len(found_at(ranked, expected, cutoff)) / min(len(expected), cutoff)
+
+
+def found_at(ranked: Sequence[str], expected: Iterable[str], cutoff: int = RECALL_CUTOFF) -> set[str]:
+    """The expected entities among the first `cutoff` results."""
+    return set(ranked[:cutoff]) & set(expected)
 
 
 def category_metrics(results: Sequence[QueryResult]) -> CategoryMetrics:

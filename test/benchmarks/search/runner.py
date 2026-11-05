@@ -104,7 +104,7 @@ def _hit(result: SearchResult, keys: Mapping[str, str]) -> Hit:
     path, text = (
         (result.matching_fields[0].path, result.matching_fields[0].text) if result.matching_fields else ("", "")
     )
-    return Hit(keys[result.entity_id], result.entity_title, path, text)
+    return Hit(keys[result.entity_id], result.entity_title, path, text, result.score)
 
 
 async def run_queries(

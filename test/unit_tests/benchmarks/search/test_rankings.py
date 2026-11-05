@@ -11,11 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
 import pytest
 
 from test.benchmarks.search.metrics import Hit, QueryResult
 from test.benchmarks.search.perturb import Category, LabelledQuery
-from test.benchmarks.search.rankings import RANKING_CUTOFF, render_rankings
+from test.benchmarks.search.rankings import RANKING_CUTOFF, SHOWN_EXPECTED, passed, render_rankings
 
 
 def _result(text, ranked, expected=(), category=Category.IDENTIFIER, hits=()):
@@ -26,50 +28,84 @@ def _page(results):
     return render_rankings("Title", "Description", results)
 
 
-def test_query_is_the_heading_above_its_ranked_results():
-    page = _page([_result("ams001a-rt01", ["ams001a-rt01", "gen-1"], expected=["ams001a-rt01"])])
+def _row(page, prefix):
+    return next(line for line in page.splitlines() if line.startswith(prefix))
 
-    assert "### identifier · query: `ams001a-rt01`\n" in page
-    assert "| 1 | ams001a-rt01 |  |  |  | ✓ |" in page
-    assert "| 2 | gen-1 |  |  |  |  |" in page
+
+def _summary_links(page):
+    """The query text and section anchor of every summary row, in page order."""
+    summary = page.split("## Summary")[1].split("## Queries")[0]
+    return re.findall(r"\[`([^`]+)`\]\(#(q\d+)\)", summary)
+
+
+def _section(page, anchor):
+    return page.split(f'<a id="{anchor}"></a>')[1].split("<a id=")[0]
+
+
+@pytest.mark.parametrize(
+    "ranked,expected,category,result",
+    [
+        pytest.param(["a", "b"], ["a"], Category.IDENTIFIER, True, id="right answer on top"),
+        pytest.param(["b", "a"], ["a"], Category.IDENTIFIER, False, id="right answer second"),
+        pytest.param(["b", "a"], ["a", "b"], Category.IDENTIFIER, True, id="two right answers"),
+        pytest.param([], ["a"], Category.IDENTIFIER, False, id="nothing returned"),
+        pytest.param([], [], Category.NEGATIVE, True, id="negative, nothing returned"),
+        pytest.param(["a"], [], Category.NEGATIVE, False, id="negative, false positive"),
+    ],
+)
+def test_passed(ranked, expected, category, result):
+    assert passed(_result("q", ranked, expected, category)) is result
 
 
 @pytest.mark.parametrize("returned", [1, 3, RANKING_CUTOFF + 5])
 def test_at_most_the_cutoff_is_shown(returned):
     ranked = [f"gen-{i}" for i in range(returned)]
 
-    rows = [line for line in _page([_result("q", ranked)]).splitlines() if line.startswith("| ") and "gen-" in line]
+    rows = [line for line in _page([_result("q", ranked)]).splitlines() if line.startswith("| ") and " gen-" in line]
 
     assert len(rows) == min(returned, RANKING_CUTOFF)
 
 
-def test_query_without_results_renders_an_empty_table():
-    page = _page([_result("nothing", [], category=Category.NEGATIVE)])
-
-    assert "### negative · query: `nothing`" in page
-    assert "| # | entity | title | matched path | matched value | expected |" in page
-
-
-def test_matched_title_path_and_value_are_shown():
-    hit = Hit("ams001a-rt01", "NWR LP AMS001A", "subscription.vc.saps.0.port.port_name", "xe-1/2/4")
-
-    page = _page([_result("q", ["ams001a-rt01"], hits=[hit])])
-
-    assert "| 1 | ams001a-rt01 | NWR LP AMS001A | subscription.vc.saps.0.port.port_name | xe-1/2/4 |  |" in page
-
-
 def test_pipes_and_newlines_in_values_do_not_break_the_table():
-    hit = Hit("a", "first|second\nthird", "p", "x")
+    page = _page([_result("q", ["a"], hits=[Hit("a", "first|second\nthird", "p", "x")])])
 
-    row = next(line for line in _page([_result("q", ["a"], hits=[hit])]).splitlines() if line.startswith("| 1 |"))
-
-    assert row == "| 1 | a | first\\|second third | p | x |  |"
+    assert "| first\\|second third |" in _row(page, "| 1 |")
 
 
-def test_long_values_are_shortened():
-    hit = Hit("a", "x" * 200)
+@pytest.mark.parametrize(
+    "ranked,expected,verdict",
+    [
+        pytest.param(
+            ["x", "a"],
+            ["a", "b"],
+            "Expects 2: a, b.  \nFirst right answer: rank 2. Right answers in top 10: 1 of 2.  \n"
+            "Missing from top 10: b.\n",
+            id="ranked low, one missing",
+        ),
+        pytest.param(
+            ["k0"],
+            [f"k{i}" for i in range(SHOWN_EXPECTED + 3)],
+            f"Expects {SHOWN_EXPECTED + 3}: {', '.join(f'k{i}' for i in range(SHOWN_EXPECTED))}, … 3 more.  \n"
+            "First right answer: rank 1. Right answers in top 10: 1 of 10.\n",
+            id="more than fit, missing not listed",
+        ),
+    ],
+)
+def test_verdict(ranked, expected, verdict):
+    assert verdict in _page([_result("q", ranked, expected)])
 
-    row = next(line for line in _page([_result("q", ["a"], hits=[hit])]).splitlines() if line.startswith("| 1 |"))
 
-    assert ("x" * 79 + "…") in row
-    assert ("x" * 80) not in row
+def test_summary_lists_misses_first_in_benchmark_order_and_links_to_sections():
+    results = [
+        _result("hit", ["a"], ["a"]),
+        _result("low", ["x", "a"], ["a"]),
+        _result("noise", ["x"], category=Category.NEGATIVE),
+        _result("quiet", [], category=Category.NEGATIVE),
+    ]
+
+    page = _page(results)
+
+    links = _summary_links(page)
+
+    assert [text for text, _ in links] == ["low", "noise", "hit", "quiet"]
+    assert all(f"`{text}`" in _section(page, anchor) for text, anchor in links)

@@ -156,8 +156,11 @@ How to read a row:
 - Low scores on all three: search does not find the answer at all, the matching is off.
 - With 4 `negative` queries, false positives of 0.250 means one of them returned results.
 
-To see *why* a metric moved, read `report/rankings.md` (not committed): the top 10 of every query with the indexed
-value that matched. Keep the page of the run before a change to diff against.
+To see *why* a metric moved, read `report/rankings.md` (not committed). It opens with a summary of every query,
+misses first, each linking to its section. A section gives the query's verdict (the rank of the first right answer,
+how many right answers made the top 10, which are missing), its note, and the top 10 with their scores and the indexed
+value that matched. Equal scores are ties, ordered by entity id. Keep the page of the run before a change to diff
+against.
 
 ## Reproducibility
 
