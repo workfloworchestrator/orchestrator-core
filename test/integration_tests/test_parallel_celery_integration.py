@@ -30,6 +30,12 @@ from orchestrator.core.services.parallel import (
 )
 from orchestrator.core.services.processes import create_process, load_process, safe_logstep
 from orchestrator.core.settings import ExecutorType, app_settings
+from orchestrator.core.testing import (
+    WorkflowInstanceForTests,
+    assert_complete,
+    run_workflow,
+    store_workflow,
+)
 from orchestrator.core.workflow import (
     begin,
     done,
@@ -41,12 +47,6 @@ from orchestrator.core.workflow import (
     workflow,
 )
 from orchestrator.core.workflows import ALL_WORKFLOWS
-from test.integration_tests.workflows import (
-    WorkflowInstanceForTests,
-    assert_complete,
-    run_workflow,
-    store_workflow,
-)
 
 # --- Step definitions ---
 

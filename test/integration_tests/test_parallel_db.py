@@ -21,8 +21,8 @@ import pytest
 
 from orchestrator.core.db import ProcessStepTable, db
 from orchestrator.core.db.models import ProcessStepRelationTable
+from orchestrator.core.testing import WorkflowInstanceForTests, assert_complete, run_workflow
 from orchestrator.core.workflow import begin, done, init, map_parallel, parallel, step, workflow
-from test.integration_tests.workflows import WorkflowInstanceForTests, assert_complete, run_workflow
 
 
 @step("Int Branch A")
