@@ -332,6 +332,18 @@ def test_abort_process(test_client, started_process):
     assert "aborted" == aborted_process["last_status"]
 
 
+@pytest.mark.parametrize("process_status", [ProcessStatus.COMPLETED, ProcessStatus.ABORTED])
+def test_abort_finished_process(test_client, started_process, process_status):
+    process = db.session.get(ProcessTable, started_process)
+    process.last_status = process_status
+    db.session.commit()
+
+    response = test_client.put(f"/api/processes/{started_process}/abort")
+
+    assert HTTPStatus.CONFLICT == response.status_code
+    assert test_client.get(f"/api/processes/{started_process}").json()["last_status"] == process_status
+
+
 def test_new_process_invalid_body(test_client, long_running_workflow):
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{"wrong": "body"}])
     assert HTTPStatus.BAD_REQUEST == response.status_code
@@ -1528,3 +1540,133 @@ def test_patch_process_update_note(test_client, started_process):
     with db.scoped_session():
         process_table = _get_process(started_process)
         assert process_table.note == "CHANGED"
+
+
+def _process_column(process_id, column):
+    return db.session.scalar(select(column).where(ProcessTable.process_id == process_id))
+
+
+@pytest.mark.parametrize("note", ["bulk note", None])
+def test_bulk_note(test_client, mocked_processes_resumeall, note):
+    process_ids = mocked_processes_resumeall[:2]
+    response = test_client.post(
+        "/api/processes/bulk", json={"action": "note", "process_ids": [str(pid) for pid in process_ids], "note": note}
+    )
+
+    assert HTTPStatus.OK == response.status_code
+    assert response.json()["count"] == 2
+    assert [_process_column(pid, ProcessTable.note) for pid in process_ids] == [note, note]
+
+
+def test_bulk_delete(test_client, mocked_processes_resumeall):
+    process_ids = [mocked_processes_resumeall[0], mocked_processes_resumeall[2]]
+    response = test_client.post(
+        "/api/processes/bulk", json={"action": "delete", "process_ids": [str(pid) for pid in process_ids]}
+    )
+
+    assert HTTPStatus.OK == response.status_code
+    assert response.json()["count"] == 2
+    assert [_process_column(pid, ProcessTable.process_id) for pid in process_ids] == [None, None]
+
+
+def test_bulk_abort(test_client, mocked_processes_resumeall):
+    process_ids = mocked_processes_resumeall[:2]
+    response = test_client.post(
+        "/api/processes/bulk", json={"action": "abort", "process_ids": [str(pid) for pid in process_ids]}
+    )
+
+    assert HTTPStatus.OK == response.status_code
+    assert response.json()["count"] == 2
+    assert [_process_column(pid, ProcessTable.last_status) for pid in process_ids] == [ProcessStatus.ABORTED] * 2
+
+
+def test_bulk_resume(test_client, process_on_retriable_step):
+    response = test_client.post(
+        "/api/processes/bulk", json={"action": "resume", "process_ids": [str(process_on_retriable_step)]}
+    )
+
+    assert HTTPStatus.OK == response.status_code
+    assert response.json()["count"] == 1
+    assert _process_column(process_on_retriable_step, ProcessTable.last_status) == ProcessStatus.COMPLETED
+
+
+def test_bulk_resume_unauthorized(test_client, process_on_retriable_step, process_on_unretriable_step):
+    response = test_client.post(
+        "/api/processes/bulk",
+        json={"action": "resume", "process_ids": [str(process_on_retriable_step), str(process_on_unretriable_step)]},
+    )
+
+    assert HTTPStatus.CONFLICT == response.status_code
+    assert f"{process_on_unretriable_step}: User is not authorized to retry step" in response.json()["detail"]
+    assert _process_column(process_on_retriable_step, ProcessTable.last_status) == ProcessStatus.FAILED
+
+
+def test_bulk_resume_already_in_progress(test_client, mocked_processes_resumeall):
+    process_id = mocked_processes_resumeall[0]
+    with mock.patch(
+        "orchestrator.core.api.api_v1.endpoints.processes._async_resume_processes",
+        new=mock.AsyncMock(return_value=False),
+    ):
+        response = test_client.post("/api/processes/bulk", json={"action": "resume", "process_ids": [str(process_id)]})
+
+    assert HTTPStatus.CONFLICT == response.status_code
+    assert _process_column(process_id, ProcessTable.last_status) == ProcessStatus.API_UNAVAILABLE
+
+
+@pytest.mark.parametrize(
+    "action, invalid_index",
+    [
+        pytest.param("resume", 1, id="resume-suspended"),
+        pytest.param("resume", 2, id="resume-completed"),
+        pytest.param("abort", 2, id="abort-completed"),
+        pytest.param("delete", 7, id="delete-workflow"),
+    ],
+)
+def test_bulk_rejects_whole_request(test_client, mocked_processes_resumeall, action, invalid_index):
+    valid_id, invalid_id = mocked_processes_resumeall[0], mocked_processes_resumeall[invalid_index]
+    statuses_before = [_process_column(pid, ProcessTable.last_status) for pid in (valid_id, invalid_id)]
+
+    response = test_client.post(
+        "/api/processes/bulk", json={"action": action, "process_ids": [str(valid_id), str(invalid_id)]}
+    )
+
+    assert HTTPStatus.CONFLICT == response.status_code
+    assert str(invalid_id) in response.json()["detail"]
+    assert str(valid_id) not in response.json()["detail"]
+    assert [_process_column(pid, ProcessTable.last_status) for pid in (valid_id, invalid_id)] == statuses_before
+
+
+def test_bulk_unknown_process(test_client, started_process):
+    unknown_id = uuid4()
+    response = test_client.post(
+        "/api/processes/bulk", json={"action": "abort", "process_ids": [str(started_process), str(unknown_id)]}
+    )
+
+    assert HTTPStatus.NOT_FOUND == response.status_code
+    assert str(unknown_id) in response.json()["detail"]
+    assert _process_column(started_process, ProcessTable.last_status) == ProcessStatus.SUSPENDED
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param({"action": "note", "process_ids": [str(uuid4())]}, id="note-missing"),
+        pytest.param({"action": "abort", "process_ids": []}, id="no-processes"),
+        pytest.param({"action": "abort", "process_ids": [str(uuid4()) for _ in range(1001)]}, id="too-many-processes"),
+        pytest.param({"action": "restart", "process_ids": [str(uuid4())]}, id="unknown-action"),
+    ],
+)
+def test_bulk_invalid_body(test_client, body):
+    response = test_client.post("/api/processes/bulk", json=body)
+    assert HTTPStatus.UNPROCESSABLE_ENTITY == response.status_code
+
+
+def test_bulk_resume_engine_locked(test_client, mocked_processes_resumeall):
+    get_engine_settings_table().global_lock = True
+    db.session.flush()
+
+    response = test_client.post(
+        "/api/processes/bulk", json={"action": "resume", "process_ids": [str(mocked_processes_resumeall[0])]}
+    )
+
+    assert HTTPStatus.SERVICE_UNAVAILABLE == response.status_code

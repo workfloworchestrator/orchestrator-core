@@ -15,7 +15,8 @@
 
 import struct
 import zlib
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
+from functools import partial
 from http import HTTPStatus
 from typing import Any
 from uuid import UUID
@@ -26,9 +27,10 @@ from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
-from more_itertools import chunked, first, last
+from more_itertools import chunked, first, last, unique_everseen
 from sentry_sdk.tracing import trace
-from sqlalchemy import CompoundSelect, Select, select
+from sqlalchemy import CompoundSelect, Delete, Select, Update, select, update
+from sqlalchemy import delete as delete_stmt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql.functions import count
@@ -39,6 +41,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.api.helpers import add_response_range
 from orchestrator.core.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db, get_async_session
+from orchestrator.core.db.database import transactional
 from orchestrator.core.db.filters import Filter
 from orchestrator.core.db.filters.process import filter_processes
 from orchestrator.core.db.sorting import Sort, SortOrder
@@ -51,6 +54,10 @@ from orchestrator.core.mcp.server import (
     WRITE_TOOL,
 )
 from orchestrator.core.schemas import (
+    ProcessBulkAction,
+    ProcessBulkItemResult,
+    ProcessBulkResultSchema,
+    ProcessBulkSchema,
     ProcessIdSchema,
     ProcessResumeAllSchema,
     ProcessSchema,
@@ -190,6 +197,131 @@ async def delete(process_id: UUID, session: AsyncSession = Depends(get_async_ses
 
     await broadcast_invalidate_status_counts_async()
     await broadcast_process_update_to_websocket_async(process.process_id)
+
+
+# A bulk resume cannot send form input, so only statuses that resume without it are allowed.
+BULK_RESUME_STATUSES = (
+    ProcessStatus.FAILED,
+    ProcessStatus.WAITING,
+    ProcessStatus.API_UNAVAILABLE,
+    ProcessStatus.INCONSISTENT_DATA,
+)
+
+
+def _abort_error(process: ProcessTable) -> str | None:
+    """Return why `process` cannot be aborted, or None when it can."""
+    if process.last_status in (ProcessStatus.COMPLETED, ProcessStatus.ABORTED):
+        return f"Aborting a {process.last_status.lower()} process is not possible"
+    return None
+
+
+async def _bulk_validation_error(
+    action: ProcessBulkAction, process: ProcessTable, user_model: OIDCUserModel | None
+) -> str | None:
+    """Return why `action` cannot be applied to `process`, or None when it can."""
+    match action:
+        case ProcessBulkAction.RESUME:
+            if process.last_status not in BULK_RESUME_STATUSES:
+                return f"Resuming a {process.last_status.lower()} process is not possible in bulk"
+            pstat = await run_in_threadpool(load_process, process)
+            steps = get_steps_to_evaluate_for_rbac(pstat)
+            _, auth_retry = get_auth_callbacks(steps, pstat.workflow)
+            context = AuthContext(user=user_model, workflow=pstat.workflow, step=steps[-1], action="retry_workflow")
+            if auth_retry is not None and not await auth_retry(context):
+                return "User is not authorized to retry step"
+        case ProcessBulkAction.ABORT:
+            return _abort_error(process)
+        case ProcessBulkAction.DELETE:
+            if not process.is_task:
+                return "Only tasks can be deleted"
+    return None
+
+
+def _execute_in_transaction(stmt: Update | Delete) -> None:
+    with transactional(db, logger):
+        db.session.execute(stmt)
+
+
+def _all_succeeded(process_ids: list[UUID]) -> list[ProcessBulkItemResult]:
+    return [ProcessBulkItemResult(process_id=process_id, success=True) for process_id in process_ids]
+
+
+def _run_bulk_item(run: Callable[[ProcessTable], Any], process: ProcessTable) -> ProcessBulkItemResult:
+    try:
+        run(process)
+    except Exception as e:
+        logger.exception("Bulk action failed for process", process_id=process.process_id)
+        return ProcessBulkItemResult(process_id=process.process_id, success=False, error=str(e))
+    return ProcessBulkItemResult(process_id=process.process_id, success=True)
+
+
+async def _actionable_processes(data: ProcessBulkSchema, user_model: OIDCUserModel | None) -> dict[UUID, ProcessTable]:
+    """Return the requested processes in request order.
+
+    Raises 404 when a process is unknown and 409 when the action cannot be applied to one, before anything is changed.
+    """
+    process_ids = list(unique_everseen(data.process_ids))
+    stmt = select(ProcessTable).where(ProcessTable.process_id.in_(process_ids))
+    found = {p.process_id: p for p in await run_in_threadpool(lambda: db.session.scalars(stmt).all())}
+    if missing := set(process_ids) - found.keys():
+        raise_status(HTTPStatus.NOT_FOUND, f"Processes not found: {', '.join(map(str, missing))}")
+
+    processes = {process_id: found[process_id] for process_id in process_ids}
+    errors = [
+        f"{process_id}: {error}"
+        for process_id, process in processes.items()
+        if (error := await _bulk_validation_error(data.action, process, user_model))
+    ]
+    if errors:
+        raise_status(HTTPStatus.CONFLICT, "; ".join(errors))
+    return processes
+
+
+@router.post("/bulk", response_model=ProcessBulkResultSchema)
+async def bulk_process_action(
+    request: Request,
+    data: ProcessBulkSchema = Body(...),
+    user: str = Depends(user_name),
+    user_model: OIDCUserModel | None = Depends(authenticate),
+) -> ProcessBulkResultSchema:
+    """Apply one action to many processes.
+
+    The whole request is rejected when a process is unknown (404) or the action cannot be applied to it (409).
+    `note` and `delete` run in a single transaction. `abort` is executed by the engine, which commits per process, so
+    its outcome is reported per item and `count` is the number that succeeded. `resume` is started in the background,
+    shared with resume-all so concurrent resumes are refused (409); its results mean "resume started", and a process
+    that fails to resume is only logged.
+    """
+    if data.action == ProcessBulkAction.RESUME:
+        await run_in_threadpool(check_global_lock)
+
+    processes = await _actionable_processes(data, user_model)
+    process_ids = list(processes)
+    selected = ProcessTable.process_id.in_(process_ids)
+    match data.action:
+        case ProcessBulkAction.NOTE:
+            await run_in_threadpool(
+                _execute_in_transaction, update(ProcessTable).where(selected).values(note=data.note)
+            )
+            for process_id in process_ids:  # side effect: the note is part of the search index
+                await run_in_threadpool(run_indexing_for_entity, EntityType.PROCESS, str(process_id))
+            results = _all_succeeded(process_ids)
+        case ProcessBulkAction.DELETE:
+            await run_in_threadpool(_execute_in_transaction, delete_stmt(ProcessTable).where(selected))
+            for process_id in process_ids:  # side effect: deleted processes must vanish from open views
+                await broadcast_process_update_to_websocket_async(process_id)
+            results = _all_succeeded(process_ids)
+        case ProcessBulkAction.RESUME:
+            broadcast_func = api_broadcast_process_data(request)
+            if not await _async_resume_processes(list(processes.values()), user, broadcast_func=broadcast_func):
+                raise_status(HTTPStatus.CONFLICT, "Another request to resume processes is in progress")
+            results = _all_succeeded(process_ids)
+        case ProcessBulkAction.ABORT:
+            run = partial(abort_process, user=user, broadcast_func=api_broadcast_process_data(request))
+            results = await run_in_threadpool(lambda: [_run_bulk_item(run, process) for process in processes.values()])
+    await broadcast_invalidate_status_counts_async()
+
+    return ProcessBulkResultSchema(action=data.action, count=sum(result.success for result in results), results=results)
 
 
 @router.post(
@@ -363,16 +495,7 @@ async def resume_all_processes_endpoint(request: Request, user: str = Depends(us
     # Retrieve processes eligible for resuming
     stmt = (
         select(ProcessTable)
-        .filter(
-            ProcessTable.last_status.in_(
-                [
-                    ProcessStatus.FAILED,
-                    ProcessStatus.WAITING,
-                    ProcessStatus.API_UNAVAILABLE,
-                    ProcessStatus.INCONSISTENT_DATA,
-                ]
-            )
-        )
+        .filter(ProcessTable.last_status.in_(BULK_RESUME_STATUSES))
         .filter(ProcessTable.is_task.is_(True))
     )
     processes_to_resume = await run_in_threadpool(lambda: db.session.scalars(stmt).all())
@@ -401,6 +524,8 @@ async def abort_process_endpoint(
 ) -> None:
     """Abort a running workflow process. This is irreversible."""
     process = await run_in_threadpool(_get_process, process_id)
+    if error := _abort_error(process):
+        raise_status(HTTPStatus.CONFLICT, error)
 
     broadcast_func = api_broadcast_process_data(request)
     try:

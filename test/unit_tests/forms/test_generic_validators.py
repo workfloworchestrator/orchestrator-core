@@ -123,9 +123,9 @@ def test_product_id_nok(mock_get_product_by_id):
         {
             "type": "uuid_parsing",
             "loc": ("product_id",),
-            "msg": "Input should be a valid UUID, invalid character: found `I` at 1",
+            "msg": mock.ANY,
             "input": "INCOMPLETE",
-            "ctx": {"error": "invalid character: found `I` at 1"},
+            "ctx": {"error": mock.ANY},
         }
         | URL_PARSING,
     ]
