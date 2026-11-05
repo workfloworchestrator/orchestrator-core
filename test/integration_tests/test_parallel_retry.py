@@ -32,6 +32,7 @@ import pytest
 
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.services.processes import create_process, load_process, safe_logstep
+from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.workflow import (
     begin,
     done,
@@ -41,7 +42,6 @@ from orchestrator.core.workflow import (
     step,
     workflow,
 )
-from test.integration_tests.workflows import WorkflowInstanceForTests
 
 
 @step("Always Succeeds A")

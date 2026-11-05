@@ -32,6 +32,13 @@ from orchestrator.core.db import ProcessStepRelationTable, ProcessStepTable, Pro
 from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
 from orchestrator.core.services.parallel import _find_parallel_step
 from orchestrator.core.services.processes import SYSTEM_USER
+from orchestrator.core.testing import (
+    WorkflowInstanceForTests,
+    assert_complete,
+    assert_failed,
+    assert_waiting,
+    run_workflow,
+)
 from orchestrator.core.workflow import (
     ProcessStat,
     ProcessStatus,
@@ -48,13 +55,6 @@ from orchestrator.core.workflow import (
     workflow,
 )
 from orchestrator.core.workflows import get_workflow
-from test.integration_tests.workflows import (
-    WorkflowInstanceForTests,
-    assert_complete,
-    assert_failed,
-    assert_waiting,
-    run_workflow,
-)
 
 
 @pytest.fixture(autouse=True)
