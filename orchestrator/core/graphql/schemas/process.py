@@ -56,6 +56,14 @@ class ProcessStepType:
     importance: str
     state: JSON | None
     state_delta: JSON | None
+    branch_count: strawberry.auto
+    branch_kind: strawberry.auto
+    branches_completed: strawberry.auto
+    # Populated by `enrich_process` only when the query selects it (see `_is_child_steps_selected`),
+    # A more thorough alternative is a Strawberry resolver on this field and a dataloader.
+    # That would remove the selection check, but `ProcessType` is built with `from_pydantic` from the enriched dict,
+    # so the field would need to be declared as a resolver instead of being taken from `ProcessStepSchema`.
+    child_steps: list[Annotated["ProcessStepType", strawberry.lazy(".process")]] | None = None
 
 
 @strawberry.experimental.pydantic.type(model=ProcessSchema, directives=federation_key_directives)

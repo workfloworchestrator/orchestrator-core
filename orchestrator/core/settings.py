@@ -138,6 +138,13 @@ class AppSettings(BaseSettings):
     EXPOSE_OAUTH_SETTINGS: bool = False
     LIFECYCLE_VALIDATION_MODE: LifecycleValidationMode = LifecycleValidationMode.LOOSE
     MCP_ENABLED: bool = False
+
+    PARALLEL_BRANCH_QUEUE: str = Field(
+        "new_tasks", description="Use this to override the celery queue for parallel branches in a task"
+    )
+    PARALLEL_BRANCH_WORKFLOW_QUEUE: str = Field(
+        "new_workflows", description="Use this to override the celery queue for parallel branches in a workflow"
+    )
     CELERY_TARGET_QUEUES: dict[Target, str] = Field(
         default_factory=dict,
         description=(
