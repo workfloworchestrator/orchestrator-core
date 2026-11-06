@@ -192,13 +192,12 @@ class ProcessStepTable(BaseModel):
     started_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
     commit_hash = mapped_column(String(40), nullable=True, default=GIT_COMMIT_HASH)
 
-    # Parallel join tracking (only set on fork steps)
-    parallel_total_branches = mapped_column(Integer(), nullable=True)
-    parallel_completed_count = mapped_column(
-        Integer(), nullable=True, server_default=text("0")
-    )  # TODO does not need to be nullable if it has a server_default
+    # Fork/branch tracking (fork steps are those with a branch_kind)
+    branch_count = mapped_column(Integer(), nullable=True)  # Number of branches the fork step fans out into
+    branch_kind = mapped_column(String(50), nullable=True)  # BranchKind value; NULL for ordinary steps
+    branches_completed = mapped_column(Integer(), nullable=False, server_default=text("0"))  # Finished branches so far
 
-    # Relationships for parallel branch steps
+    # Relationships for branch steps
     child_step_relations: Mapped[list["ProcessStepRelationTable"]] = relationship(
         "ProcessStepRelationTable",
         cascade="all, delete-orphan",

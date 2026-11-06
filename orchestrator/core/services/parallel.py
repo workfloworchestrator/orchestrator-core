@@ -51,15 +51,15 @@ logger = structlog.get_logger(__name__)
 
 
 def _atomic_increment_completed(fork_step_id: UUID) -> tuple[int, int | None]:
-    """Atomically increment parallel_completed_count and return (new_count, total_branches).
+    """Atomically increment branches_completed and return (new_count, branch_count).
 
     Uses UPDATE...RETURNING for atomic last-finisher detection, avoiding an extra SELECT.
     """
     stmt = (
         update(ProcessStepTable)
         .where(ProcessStepTable.step_id == fork_step_id)
-        .values(parallel_completed_count=ProcessStepTable.parallel_completed_count + 1)
-        .returning(ProcessStepTable.parallel_completed_count, ProcessStepTable.parallel_total_branches)
+        .values(branches_completed=ProcessStepTable.branches_completed + 1)
+        .returning(ProcessStepTable.branches_completed, ProcessStepTable.branch_count)
     )
     result = db.session.execute(stmt)
     completed, total = result.one()

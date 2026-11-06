@@ -23,7 +23,7 @@ from sqlalchemy.orm import selectinload
 from orchestrator.core.db import ProcessStepTable, db
 from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.testing import WorkflowInstanceForTests, assert_complete, run_workflow
-from orchestrator.core.workflow import begin, done, init, map_parallel, parallel, step, workflow
+from orchestrator.core.workflow import BranchKind, begin, done, init, map_parallel, parallel, step, workflow
 
 
 @step("Int Branch A")
@@ -68,7 +68,7 @@ def _get_fork_step(process_id: object) -> ProcessStepTable:
         .options(selectinload(ProcessStepTable.child_step_relations).selectinload(ProcessStepRelationTable.child_step))
         .filter(
             ProcessStepTable.process_id == process_id,
-            ProcessStepTable.parallel_total_branches.isnot(None),
+            ProcessStepTable.branch_count.isnot(None),
         )
         .one()
     )
@@ -105,13 +105,29 @@ def test_fork_step_created_with_branch_count(parallel_workflow_run) -> None:
         db.session.query(ProcessStepTable)
         .filter(
             ProcessStepTable.process_id == pstat.process_id,
-            ProcessStepTable.parallel_total_branches.isnot(None),
+            ProcessStepTable.branch_count.isnot(None),
         )
         .all()
     )
     assert len(fork_steps) == 1
-    assert fork_steps[0].parallel_total_branches == 2
-    assert fork_steps[0].parallel_completed_count == 2
+    assert fork_steps[0].branch_count == 2
+    assert fork_steps[0].branches_completed == 2
+    assert fork_steps[0].branch_kind == BranchKind.PARALLEL
+
+
+@pytest.mark.workflow
+def test_ordinary_steps_have_no_branch_kind(parallel_workflow_run) -> None:
+    pstat = parallel_workflow_run
+    fork_step = _get_fork_step(pstat.process_id)
+    child_ids = {rel.child_step_id for rel in _get_relations(fork_step.step_id)}
+    others = (
+        db.session.query(ProcessStepTable)
+        .filter(ProcessStepTable.process_id == pstat.process_id, ProcessStepTable.step_id != fork_step.step_id)
+        .all()
+    )
+    assert others
+    assert all(s.branch_kind is None and s.branch_count is None for s in others)
+    assert child_ids <= {s.step_id for s in others}
 
 
 @pytest.mark.workflow
@@ -247,8 +263,9 @@ def test_map_parallel_creates_per_item_branch_relations() -> None:
         assert_complete(result)
 
         fork_step = _get_fork_step(pstat.process_id)
-        assert fork_step.parallel_total_branches == 3
-        assert fork_step.parallel_completed_count == 3
+        assert fork_step.branch_count == 3
+        assert fork_step.branches_completed == 3
+        assert fork_step.branch_kind == BranchKind.MAP_PARALLEL
 
         relations = _get_relations(fork_step.step_id)
         branch_indices = {rel.branch_index for rel in relations}

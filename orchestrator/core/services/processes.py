@@ -377,7 +377,7 @@ def _get_current_step_to_update(
     # Preserve a fork step's original timestamps. Its started_at/completed_at were
     # set by ``_create_fork_step`` before branches ran. Bumping them here would push
     # the fork step after its child branch rows in the UI, which orders by completed_at.
-    is_fork_step = current_step.parallel_total_branches is not None
+    is_fork_step = current_step.branch_kind is not None
     if not is_fork_step:
         # Since the Start step does not have a __last_step_started_at in it's state, we effectively assume it is instantaneous.
         now = nowtz()

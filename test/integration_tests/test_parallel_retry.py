@@ -73,7 +73,7 @@ def _fork_rows(process_id, name: str) -> list[ProcessStepTable]:
         .filter(
             ProcessStepTable.process_id == process_id,
             ProcessStepTable.name == name,
-            ProcessStepTable.parallel_total_branches.isnot(None),
+            ProcessStepTable.branch_count.isnot(None),
         )
         .all()
     )
@@ -104,8 +104,7 @@ def test_threadpool_failure_does_not_duplicate_main_log_row() -> None:
 
         rows = _rows_with_name(pstat.process_id, "Fan out")
         assert len(rows) == 1, (
-            f"expected exactly one row named 'Fan out', got {len(rows)}: "
-            f"{[(r.status, r.parallel_total_branches) for r in rows]}"
+            f"expected exactly one row named 'Fan out', got {len(rows)}: {[(r.status, r.branch_count) for r in rows]}"
         )
 
 
@@ -201,7 +200,7 @@ def test_threadpool_retry_preserves_old_fork_and_adds_new_one() -> None:
         forks = sorted(_fork_rows(pstat.process_id, "Fan out"), key=lambda f: f.completed_at)
         assert len(forks) == 2, (
             f"expected two fork rows (old failed + new success), got {len(forks)}: "
-            f"{[(f.status, f.parallel_total_branches, f.parallel_completed_count) for f in forks]}"
+            f"{[(f.status, f.branch_count, f.branches_completed) for f in forks]}"
         )
         assert [f.status for f in forks] == ["failed", "success"], (
             f"expected [failed, success] in completed_at order, got {[f.status for f in forks]}"

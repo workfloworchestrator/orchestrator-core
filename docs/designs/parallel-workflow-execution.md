@@ -275,7 +275,7 @@ def _exec_parallel_branches(branches, initial_state, name, max_workers=None, see
 
 Both paths share the same setup:
 
-1. Create a **fork step** in `ProcessStepTable` (with `parallel_total_branches` set) via `database_scope()`
+1. Create a **fork step** in `ProcessStepTable` (with `branch_count` and `branch_kind` set) via `database_scope()`
 2. Each branch writes its own `ProcessStepTable` rows via `_make_branch_dblogstep`
 3. Branch steps are linked to the fork step via `ProcessStepRelationTable`
 4. After all branches complete, `_worst_status` determines the group outcome
@@ -343,7 +343,7 @@ The fork step must be visible to branch threads before they start. Since branch 
 `_create_fork_step` uses a separate `database_scope()` session to commit the fork step on its own connection:
 
 ```python
-def _create_fork_step(process_id, name, initial_state, total_branches, current_user):
+def _create_fork_step(process_id, name, initial_state, total_branches, current_user, branch_kind):
     with db.database_scope():
         fork_step = ProcessStepTable(
             process_id=process_id,
@@ -351,8 +351,9 @@ def _create_fork_step(process_id, name, initial_state, total_branches, current_u
             status=StepStatus.SUCCESS,
             state=initial_state,
             created_by=current_user,
-            parallel_total_branches=total_branches,
-            parallel_completed_count=0,
+            branch_count=total_branches,
+            branch_kind=branch_kind,
+            branches_completed=0,
         )
         db.session.add(fork_step)
         db.session.commit()
@@ -367,7 +368,7 @@ def _update_fork_step(fork_step_id, status, state, n_branches):
         stmt = (
             update(ProcessStepTable)
             .where(ProcessStepTable.step_id == fork_step_id)
-            .values(status=status, state=state, parallel_completed_count=n_branches)
+            .values(status=status, state=state, branches_completed=n_branches)
         )
         db.session.execute(stmt)
         db.session.commit()
@@ -486,8 +487,8 @@ def _atomic_increment_completed(fork_step_id):
     stmt = (
         update(ProcessStepTable)
         .where(ProcessStepTable.step_id == fork_step_id)
-        .values(parallel_completed_count=ProcessStepTable.parallel_completed_count + 1)
-        .returning(ProcessStepTable.parallel_completed_count, ProcessStepTable.parallel_total_branches)
+        .values(branches_completed=ProcessStepTable.branches_completed + 1)
+        .returning(ProcessStepTable.branches_completed, ProcessStepTable.branch_count)
     )
     result = db.session.execute(stmt)
     completed, total = result.one()
@@ -636,8 +637,9 @@ class ProcessStepRelationTable(BaseModel):
 ```python
 class ProcessStepTable(BaseModel):
     # ... existing columns ...
-    parallel_total_branches = mapped_column(Integer(), nullable=True)
-    parallel_completed_count = mapped_column(Integer(), nullable=True, server_default=text("0"))
+    branch_count = mapped_column(Integer(), nullable=True)
+    branch_kind = mapped_column(String(50), nullable=True)  # "parallel" | "map_parallel"; NULL for ordinary steps
+    branches_completed = mapped_column(Integer(), nullable=True, server_default=text("0"))
 
     child_step_relations = relationship("ProcessStepRelationTable", cascade="all, delete-orphan", ...)
     parent_step_relations = relationship("ProcessStepRelationTable", cascade="all, delete-orphan", ...)
@@ -650,7 +652,7 @@ class ProcessStepTable(BaseModel):
 ProcessTable (pid=abc)
 ├── ProcessStepTable (step_id=s1, name="Start", status="success")
 ├── ProcessStepTable (step_id=s2, name="Provision ports", status="success",    ← fork step
-│                      parallel_total_branches=2, parallel_completed_count=2)
+│                      branch_count=2, branch_kind="parallel", branches_completed=2)
 │   ├── ProcessStepRelationTable (parent=s2, child=s3, order_id=0, branch_index=0)
 │   ├── ProcessStepRelationTable (parent=s2, child=s4, order_id=0, branch_index=1)
 │   │
@@ -664,8 +666,9 @@ ProcessTable (pid=abc)
 
 ```python
 def upgrade() -> None:
-    op.add_column("process_steps", sa.Column("parallel_total_branches", sa.Integer(), nullable=True))
-    op.add_column("process_steps", sa.Column("parallel_completed_count", sa.Integer(), nullable=True,
+    op.add_column("process_steps", sa.Column("branch_count", sa.Integer(), nullable=True))
+    op.add_column("process_steps", sa.Column("branch_kind", sa.String(length=50), nullable=True))
+    op.add_column("process_steps", sa.Column("branches_completed", sa.Integer(), nullable=True,
                                               server_default=sa.text("0")))
     op.create_table(
         "process_step_relations",
@@ -680,8 +683,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("process_step_relations")
-    op.drop_column("process_steps", "parallel_completed_count")
-    op.drop_column("process_steps", "parallel_total_branches")
+    op.drop_column("process_steps", "branches_completed")
+    op.drop_column("process_steps", "branch_count")
+    op.drop_column("process_steps", "branch_kind")
 ```
 
 ### 4.8 API Impact

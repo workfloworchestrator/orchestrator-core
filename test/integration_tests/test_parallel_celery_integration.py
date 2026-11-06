@@ -108,7 +108,7 @@ def _get_fork_step(process_id: object) -> ProcessStepTable:
         .options(selectinload(ProcessStepTable.child_step_relations).selectinload(ProcessStepRelationTable.child_step))
         .filter(
             ProcessStepTable.process_id == process_id,
-            ProcessStepTable.parallel_total_branches.isnot(None),
+            ProcessStepTable.branch_count.isnot(None),
         )
         .one()
     )
@@ -140,11 +140,11 @@ def test_atomic_increment_completed_with_real_db() -> None:
         assert_complete(result)
 
         fork_step = _get_fork_step(pstat.process_id)
-        assert fork_step.parallel_completed_count == 2
-        assert fork_step.parallel_total_branches == 2
+        assert fork_step.branches_completed == 2
+        assert fork_step.branch_count == 2
 
         # Reset counter to test _atomic_increment_completed directly
-        fork_step.parallel_completed_count = 0
+        fork_step.branches_completed = 0
         db.session.commit()
 
         first_completed, first_total = _atomic_increment_completed(fork_step.step_id)
@@ -314,8 +314,8 @@ def test_full_parallel_workflow_db_state_after_completion() -> None:
 
         # Verify fork step persisted with correct counts
         fork_step = _get_fork_step(pstat.process_id)
-        assert fork_step.parallel_total_branches == 2
-        assert fork_step.parallel_completed_count == 2
+        assert fork_step.branch_count == 2
+        assert fork_step.branches_completed == 2
 
         # Verify fork step has child_steps via association proxy
         child_steps = list(fork_step.child_steps)
@@ -396,8 +396,8 @@ def test_map_parallel_worker_dispatches_all_branches(setup_test_celery) -> None:
 
             # DB: fork step must show all branches completed
             fork_step = _get_fork_step(pstat.process_id)
-            assert fork_step.parallel_total_branches == 3
-            assert fork_step.parallel_completed_count == 3
+            assert fork_step.branch_count == 3
+            assert fork_step.branches_completed == 3
 
             # DB: all branch results must be present
             branch_results = _collect_branch_results(fork_step.step_id)
@@ -748,9 +748,9 @@ def test_join_and_resume_writes_no_duplicate_main_row(setup_test_celery) -> None
             )
             assert len(rows) == 1, (
                 f"expected exactly one row named 'join group' (the fork), got {len(rows)}: "
-                f"{[(r.status, r.parallel_total_branches) for r in rows]}"
+                f"{[(r.status, r.branch_count) for r in rows]}"
             )
-            assert rows[0].parallel_total_branches == 2
+            assert rows[0].branch_count == 2
 
 
 @pytest.mark.celery

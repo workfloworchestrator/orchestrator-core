@@ -31,10 +31,11 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("process_steps", sa.Column("parallel_total_branches", sa.Integer(), nullable=True))
+    op.add_column("process_steps", sa.Column("branch_count", sa.Integer(), nullable=True))
+    op.add_column("process_steps", sa.Column("branch_kind", sa.String(length=50), nullable=True))
     op.add_column(
         "process_steps",
-        sa.Column("parallel_completed_count", sa.Integer(), nullable=True, server_default=sa.text("0")),
+        sa.Column("branches_completed", sa.Integer(), nullable=False, server_default=sa.text("0")),
     )
     op.create_table(
         "process_step_relations",
@@ -59,5 +60,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("process_step_relation_p_c_o_ix", table_name="process_step_relations")
     op.drop_table("process_step_relations")
-    op.drop_column("process_steps", "parallel_completed_count")
-    op.drop_column("process_steps", "parallel_total_branches")
+    op.drop_column("process_steps", "branches_completed")
+    op.drop_column("process_steps", "branch_count")
+    op.drop_column("process_steps", "branch_kind")

@@ -135,7 +135,7 @@ def _get_fork_steps(process_id):
         db.session.query(ProcessStepTable)
         .filter(
             ProcessStepTable.process_id == process_id,
-            ProcessStepTable.parallel_total_branches.isnot(None),
+            ProcessStepTable.branch_count.isnot(None),
         )
         .all()
     )
@@ -248,12 +248,12 @@ def test_two_level_nested_parallel() -> None:
 
         fork_by_name = {fs.name: fs for fs in fork_steps}
         outer_fork = fork_by_name["Outer"]
-        assert outer_fork.parallel_total_branches == 2
-        assert outer_fork.parallel_completed_count == 2
+        assert outer_fork.branch_count == 2
+        assert outer_fork.branches_completed == 2
 
         inner_fork = fork_by_name["Inner"]
-        assert inner_fork.parallel_total_branches == 2
-        assert inner_fork.parallel_completed_count == 2
+        assert inner_fork.branch_count == 2
+        assert inner_fork.branches_completed == 2
         inner_relations = _get_relations(inner_fork.step_id)
         inner_branch_indices = {rel.branch_index for rel in inner_relations}
         assert inner_branch_indices == {0, 1}
@@ -326,16 +326,16 @@ def test_three_level_nested_parallel() -> None:
         assert set(fork_by_name.keys()) == {"Top", "Mid", "Deep"}
 
         top_fork = fork_by_name["Top"]
-        assert top_fork.parallel_total_branches == 2
-        assert top_fork.parallel_completed_count == 2
+        assert top_fork.branch_count == 2
+        assert top_fork.branches_completed == 2
 
         mid_fork = fork_by_name["Mid"]
-        assert mid_fork.parallel_total_branches == 2
-        assert mid_fork.parallel_completed_count == 2
+        assert mid_fork.branch_count == 2
+        assert mid_fork.branches_completed == 2
 
         deep_fork = fork_by_name["Deep"]
-        assert deep_fork.parallel_total_branches == 2
-        assert deep_fork.parallel_completed_count == 2
+        assert deep_fork.branch_count == 2
+        assert deep_fork.branches_completed == 2
 
         # Verify top fork has branch relations with indices {0, 1}
         relations = _get_relations(top_fork.step_id)
@@ -448,12 +448,12 @@ def test_parallel_with_map_parallel_branch() -> None:
 
         fork_by_name = {fs.name: fs for fs in fork_steps}
         outer_fork = fork_by_name["Mixed"]
-        assert outer_fork.parallel_total_branches == 2
-        assert outer_fork.parallel_completed_count == 2
+        assert outer_fork.branch_count == 2
+        assert outer_fork.branches_completed == 2
 
         fe_fork = fork_by_name["FE"]
-        assert fe_fork.parallel_total_branches == 2
-        assert fe_fork.parallel_completed_count == 2
+        assert fe_fork.branch_count == 2
+        assert fe_fork.branches_completed == 2
 
         relations = _get_relations(outer_fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}
@@ -512,8 +512,8 @@ def test_map_parallel_with_parallel_inside() -> None:
         assert fork_names.count("Inner") == 3
 
         fe_fork = next(fs for fs in fork_steps if fs.name == "Items")
-        assert fe_fork.parallel_total_branches == 3
-        assert fe_fork.parallel_completed_count == 3
+        assert fe_fork.branch_count == 3
+        assert fe_fork.branches_completed == 3
 
         relations = _get_relations(fe_fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}
@@ -575,16 +575,16 @@ def test_sequential_parallel_map_parallel_chain() -> None:
         assert set(fork_by_name.keys()) == {"P1", "FE", "P2"}
 
         # P1: 2 branches
-        assert fork_by_name["P1"].parallel_total_branches == 2
-        assert fork_by_name["P1"].parallel_completed_count == 2
+        assert fork_by_name["P1"].branch_count == 2
+        assert fork_by_name["P1"].branches_completed == 2
 
         # FE: 3 branches (one per item)
-        assert fork_by_name["FE"].parallel_total_branches == 3
-        assert fork_by_name["FE"].parallel_completed_count == 3
+        assert fork_by_name["FE"].branch_count == 3
+        assert fork_by_name["FE"].branches_completed == 3
 
         # P2: 2 branches
-        assert fork_by_name["P2"].parallel_total_branches == 2
-        assert fork_by_name["P2"].parallel_completed_count == 2
+        assert fork_by_name["P2"].branch_count == 2
+        assert fork_by_name["P2"].branches_completed == 2
 
 
 @pytest.mark.workflow
@@ -665,8 +665,8 @@ def test_map_parallel_nested(groups: list[dict], expected_outer_branches: int) -
         assert fork_names.count("Inner") == expected_outer_branches
 
         outer_fork = next(fs for fs in fork_steps if fs.name == "Outer")
-        assert outer_fork.parallel_total_branches == expected_outer_branches
-        assert outer_fork.parallel_completed_count == expected_outer_branches
+        assert outer_fork.branch_count == expected_outer_branches
+        assert outer_fork.branches_completed == expected_outer_branches
 
         relations = _get_relations(outer_fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}
@@ -772,8 +772,8 @@ def test_asymmetric_branch_lengths(branch_lengths: list[int], expected_relations
         assert len(fork_steps) == 1
 
         fork = fork_steps[0]
-        assert fork.parallel_total_branches == len(branch_lengths)
-        assert fork.parallel_completed_count == len(branch_lengths)
+        assert fork.branch_count == len(branch_lengths)
+        assert fork.branches_completed == len(branch_lengths)
 
         relations = _get_relations(fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}
@@ -861,7 +861,7 @@ def test_ten_branch_parallel() -> None:
 
     Verifies:
     - Workflow completes successfully
-    - Fork step has parallel_total_branches=10 and parallel_completed_count=10
+    - Fork step has branch_count=10 and branches_completed=10
     - All 10 branch indices present in ProcessStepRelationTable
     - All branch steps have status "success"
     """
@@ -886,8 +886,8 @@ def test_ten_branch_parallel() -> None:
         assert len(fork_steps) == 1
 
         fork = fork_steps[0]
-        assert fork.parallel_total_branches == 10
-        assert fork.parallel_completed_count == 10
+        assert fork.branch_count == 10
+        assert fork.branches_completed == 10
 
         # All 10 branch indices present
         relations = _get_relations(fork.step_id)
@@ -908,7 +908,7 @@ def test_twenty_item_map_parallel() -> None:
 
     Verifies:
     - Workflow completes successfully
-    - Fork step has parallel_total_branches=20 and parallel_completed_count=20
+    - Fork step has branch_count=20 and branches_completed=20
     - All 20 branch indices present in ProcessStepRelationTable
     - Execution is concurrent (20 items sleeping 0.05s each should complete in <2s)
     """
@@ -933,8 +933,8 @@ def test_twenty_item_map_parallel() -> None:
         assert len(fork_steps) == 1
 
         fork = fork_steps[0]
-        assert fork.parallel_total_branches == 20
-        assert fork.parallel_completed_count == 20
+        assert fork.branch_count == 20
+        assert fork.branches_completed == 20
 
         # All 20 branch indices present
         relations = _get_relations(fork.step_id)
@@ -977,8 +977,8 @@ def test_max_workers_throttling() -> None:
         assert len(fork_steps) == 1
 
         fork = fork_steps[0]
-        assert fork.parallel_total_branches == 10
-        assert fork.parallel_completed_count == 10
+        assert fork.branch_count == 10
+        assert fork.branches_completed == 10
 
         # All 10 branch indices present
         relations = _get_relations(fork.step_id)
@@ -1190,7 +1190,7 @@ def test_partial_db_state_consistent_after_failure() -> None:
     the worst status. Completed branch steps should be linked via relations.
 
     Verifies:
-    - Fork step exists with parallel_total_branches set
+    - Fork step exists with branch_count set
     - Fork step status reflects failure
     - Relations exist for branches that completed (at least the successful one)
     - Branch steps linked via relations have consistent status values
@@ -1217,7 +1217,7 @@ def test_partial_db_state_consistent_after_failure() -> None:
         assert len(fork_steps) == 1
 
         fork = fork_steps[0]
-        assert fork.parallel_total_branches == 2
+        assert fork.branch_count == 2
 
         # Fork status should reflect the worst outcome (failed)
         assert fork.status == "failed"
@@ -1276,7 +1276,7 @@ def test_map_parallel_single_item() -> None:
 
     Verifies:
     - Workflow completes successfully
-    - Fork step has parallel_total_branches=1
+    - Fork step has branch_count=1
     - Exactly one branch (index 0) in ProcessStepRelationTable
     """
 
@@ -1299,8 +1299,8 @@ def test_map_parallel_single_item() -> None:
         assert len(fork_steps) == 1
 
         fork = fork_steps[0]
-        assert fork.parallel_total_branches == 1
-        assert fork.parallel_completed_count == 1
+        assert fork.branch_count == 1
+        assert fork.branches_completed == 1
 
         relations = _get_relations(fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}
@@ -1345,8 +1345,8 @@ def test_back_to_back_parallel_blocks() -> None:
         assert set(fork_by_name.keys()) == {"P1", "P2"}
 
         for name in ("P1", "P2"):
-            assert fork_by_name[name].parallel_total_branches == 2
-            assert fork_by_name[name].parallel_completed_count == 2
+            assert fork_by_name[name].branch_count == 2
+            assert fork_by_name[name].branches_completed == 2
 
             relations = _get_relations(fork_by_name[name].step_id)
             branch_indices = {rel.branch_index for rel in relations}
@@ -1428,8 +1428,8 @@ def test_conditional_step_inside_parallel_branch() -> None:
         assert len(fork_steps) == 1
 
         fork = fork_steps[0]
-        assert fork.parallel_total_branches == 2
-        assert fork.parallel_completed_count == 2
+        assert fork.branch_count == 2
+        assert fork.branches_completed == 2
 
 
 @pytest.mark.workflow
@@ -1460,8 +1460,8 @@ def test_map_parallel_with_scalar_items() -> None:
         assert len(fork_steps) == 1
 
         fork = fork_steps[0]
-        assert fork.parallel_total_branches == 5
-        assert fork.parallel_completed_count == 5
+        assert fork.branch_count == 5
+        assert fork.branches_completed == 5
 
         relations = _get_relations(fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}
@@ -1495,8 +1495,8 @@ def test_parallel_branches_return_empty_dicts() -> None:
         assert len(fork_steps) == 1
 
         fork = fork_steps[0]
-        assert fork.parallel_total_branches == 2
-        assert fork.parallel_completed_count == 2
+        assert fork.branch_count == 2
+        assert fork.branches_completed == 2
 
         relations = _get_relations(fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}

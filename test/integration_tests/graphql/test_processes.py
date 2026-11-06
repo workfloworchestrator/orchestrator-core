@@ -724,8 +724,9 @@ def test_processes_steps_of_parallel_fork(
         name="Fork",
         status="success",
         state={},
-        parallel_total_branches=1,
-        parallel_completed_count=1,
+        branch_count=1,
+        branch_kind="parallel",
+        branches_completed=1,
     )
     branch = ProcessStepTable(process_id=process_id, name="Branch", status="success", state={})
     db.session.add_all([fork, branch])
