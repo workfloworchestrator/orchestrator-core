@@ -17,11 +17,16 @@ The baseline is ``baseline/accuracy.md``, so a change shows as a readable diff. 
 ``pytest test/benchmarks/search --inline-snapshot=fix``; see the README.
 """
 
+from contextlib import closing
 from pathlib import Path
 
 import pytest
 from inline_snapshot import external_file
+from sqlalchemy import text
+from sqlalchemy.orm import close_all_sessions, scoped_session, sessionmaker
 
+from orchestrator.core.db import db
+from orchestrator.core.db.database import SESSION_ARGUMENTS
 from orchestrator.core.search.core.types import RetrieverType
 from test.benchmarks.search.corpus import build_corpus
 from test.benchmarks.search.perturb import Category, generate_queries
@@ -30,10 +35,12 @@ from test.benchmarks.search.queries import load_handwritten_queries
 from test.benchmarks.search.rankings import render_rankings
 from test.benchmarks.search.runner import (
     accuracy_by_category,
+    apply_benchmark_settings,
     load_corpus,
     render_accuracy,
     run_queries,
     seq_scans_index_table,
+    settle_index,
     uses_trigram_index,
 )
 from test.benchmarks.search.settings import BASELINE, CORPUS_SIZE, GENERATED_PER_CATEGORY, SEED
@@ -51,9 +58,27 @@ def corpus():
     return build_corpus(NetworkServicesProfile(), SEED, CORPUS_SIZE)
 
 
-@pytest.fixture
-def loaded(corpus):
-    return load_corpus(corpus)
+@pytest.fixture(scope="module")
+def loaded(corpus, database):
+    """`corpus`, indexed once for the module and committed, as indexing it takes about a minute.
+
+    The per-test transaction of `db_session` would roll the index back after every test. The module's tests only read
+    it, and it is emptied again after them.
+    """
+    test_database = db.wrapped_database
+    with closing(test_database.engine.connect()) as connection:
+        # Bound to this connection as `db_session` binds the test connection, so the indexer joins its transaction.
+        test_database.session_factory = sessionmaker(bind=connection, **SESSION_ARGUMENTS)
+        test_database.scoped_session = scoped_session(test_database.session_factory, test_database._scopefunc)
+        with connection.begin():
+            written = load_corpus(corpus)
+        close_all_sessions()
+    with test_database.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+        settle_index(connection)
+    yield written
+    # TRUNCATE fires no row triggers, so the paths the trigger derived from the index are emptied too.
+    with test_database.engine.begin() as connection:
+        connection.execute(text("TRUNCATE ai_search_index, ai_search_paths"))
 
 
 @pytest.fixture
@@ -63,6 +88,7 @@ def queries(corpus):
 
 @pytest.fixture
 async def query_results(loaded, corpus, queries, async_session):
+    apply_benchmark_settings()
     return await run_queries(async_session, corpus, queries, RETRIEVER)
 
 
