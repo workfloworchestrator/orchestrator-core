@@ -71,6 +71,9 @@ def loaded(corpus, database):
         test_database.session_factory = sessionmaker(bind=connection, **SESSION_ARGUMENTS)
         test_database.scoped_session = scoped_session(test_database.session_factory, test_database._scopefunc)
         with connection.begin():
+            # A vacuum or analyze at some moment during the tests would change their plans, so only `settle_index`
+            # does them. Disabled in the load's own transaction, so the rows are never committed with autovacuum on.
+            connection.execute(text("ALTER TABLE ai_search_index SET (autovacuum_enabled = false)"))
             written = load_corpus(corpus)
         close_all_sessions()
     with test_database.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
@@ -79,6 +82,7 @@ def loaded(corpus, database):
     # TRUNCATE fires no row triggers, so the paths the trigger derived from the index are emptied too.
     with test_database.engine.begin() as connection:
         connection.execute(text("TRUNCATE ai_search_index, ai_search_paths"))
+        connection.execute(text("ALTER TABLE ai_search_index RESET (autovacuum_enabled)"))
 
 
 @pytest.fixture

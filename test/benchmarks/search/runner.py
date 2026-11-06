@@ -72,8 +72,8 @@ def load_corpus(corpus: Corpus) -> int:
 def settle_index(connection: Connection) -> None:
     """VACUUM and ANALYZE the committed index on an autocommit `connection`, so its plans are the same on every run.
 
-    Left to autovacuum, the table would be vacuumed and analyzed at some point during the tests, and its plans would
-    change with it. Done here, autovacuum finds nothing left to do, as no test commits a change to the table.
+    Autovacuum must be disabled on the table, or it would vacuum and analyze it again at some point during the tests,
+    and change their plans with it.
     """
     # ANALYZE samples 300 * default_statistics_target rows, and a random sample gives run-dependent cost estimates. The
     # target is raised until the sample covers the whole table, so that it is read whole, as `_plans.seed_index` does.
