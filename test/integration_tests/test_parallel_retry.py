@@ -141,7 +141,9 @@ def test_retry_preserves_history_and_only_reruns_failed_branches() -> None:
         assert result.isfailed()
 
         db.session.expire_all()
-        retry_result = runwf(load_process(db.session.get(ProcessTable, pstat.process_id)), partial(safe_logstep))
+        process = db.session.get(ProcessTable, pstat.process_id)
+        assert process is not None
+        retry_result = runwf(load_process(process), partial(safe_logstep))
         assert retry_result.iscomplete()
 
         assert invocations["good"] == 1, f"good branch should run once, ran {invocations['good']} times"
@@ -191,6 +193,7 @@ def test_threadpool_retry_preserves_old_fork_and_adds_new_one() -> None:
 
         db.session.expire_all()
         process = db.session.get(ProcessTable, pstat.process_id)
+        assert process is not None
         loaded_pstat = load_process(process)
         retry_result = runwf(loaded_pstat, partial(safe_logstep))
         assert retry_result.iscomplete(), f"expected retry to complete, got {retry_result}"

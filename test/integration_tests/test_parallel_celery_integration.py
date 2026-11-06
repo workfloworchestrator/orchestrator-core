@@ -460,8 +460,6 @@ def test_parallel_branch_failure_does_not_retry_with_worker(setup_test_celery) -
 
     # Register workflow manually to control cleanup (database_scope() commits in
     # _create_fork_step can invalidate the test transaction, making ORM-based cleanup fail).
-    from test.integration_tests.workflows import store_workflow
-
     ALL_WORKFLOWS["fail_worker_wf"] = WorkflowInstanceForTests(fail_worker_wf, "fail_worker_wf")
     wf_table = store_workflow(fail_worker_wf, name="fail_worker_wf")
     try:
@@ -533,7 +531,6 @@ def test_map_parallel_single_branch_failure_with_worker(setup_test_celery) -> No
         return init >> seed_with_poison >> map_parallel("fe fail group", "items", begin >> maybe_fail_item) >> done
 
     from orchestrator.core.workflows import ALL_WORKFLOWS
-    from test.integration_tests.workflows import store_workflow
 
     ALL_WORKFLOWS["fe_fail_worker_wf"] = WorkflowInstanceForTests(fe_fail_worker_wf, "fe_fail_worker_wf")
     wf_table = store_workflow(fe_fail_worker_wf, name="fe_fail_worker_wf")
