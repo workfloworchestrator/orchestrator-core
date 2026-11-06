@@ -13,7 +13,7 @@
 """Add process_step_relations table and parallel columns on process_steps.
 
 Revision ID: 18a7c2676fd3
-Revises: cab8b6a0ac92
+Revises: bfa6c728afd9
 Create Date: 2026-05-27 10:00:00.000000
 
 """
@@ -25,7 +25,7 @@ from sqlalchemy_utils import UUIDType
 
 # revision identifiers, used by Alembic.
 revision = "18a7c2676fd3"
-down_revision = "cab8b6a0ac92"
+down_revision = "bfa6c728afd9"
 branch_labels = None
 depends_on = None
 
