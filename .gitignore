@@ -89,3 +89,6 @@ docs/superpowers
 
 # Search benchmark rankings report, written by the test run
 test/benchmarks/search/report/
+
+# complexipy cognitive-complexity cache (the snapshot baseline is committed)
+.complexipy_cache/
