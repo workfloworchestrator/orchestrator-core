@@ -16,6 +16,8 @@
 Branch results are NOT merged into the main workflow state. After a parallel
 block, the next step receives the pre-parallel (initial) state. Branch data
 is persisted in the DB and accessible via ProcessStepRelationTable / child_steps.
+
+TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
 """
 
 import threading

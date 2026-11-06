@@ -15,6 +15,8 @@
 
 Lives under integration_tests because :func:`_exec_parallel_branches` opens a
 ``db.database_scope()`` for each branch, which requires a real DB connection.
+
+TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
 """
 
 from orchestrator.core.workflow import (

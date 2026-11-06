@@ -17,6 +17,8 @@ These tests exercise complex compositions of parallel() and map_parallel():
 nested parallelism, mixed types, asymmetric branches, scale, error propagation,
 and edge cases. All tests run with real DB persistence via the engine-pool
 session fixture.
+
+TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
 """
 
 import time

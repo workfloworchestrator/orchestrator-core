@@ -24,6 +24,8 @@ Covers three bugs surfaced by the SURF orchestrator parallel-demo workflow:
 3. ``_update_main_parallel_step`` only matches ``status == WAITING``. After a
    failed retry, the old main-log row sits in ``failed`` state and is never
    updated to reflect the retry outcome.
+
+TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
 """
 
 from functools import partial

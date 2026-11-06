@@ -14,6 +14,8 @@
 """Integration tests for Celery-based parallel branch execution.
 
 Tests exercise real DB persistence through the parallel execution path.
+
+TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
 """
 
 from functools import partial
