@@ -15,6 +15,8 @@
 
 These tests verify that fork steps and branch step relations are
 correctly persisted in the database during parallel workflow execution.
+
+TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
 """
 
 import pytest
