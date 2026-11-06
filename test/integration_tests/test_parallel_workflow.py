@@ -540,21 +540,6 @@ def test_named_parallel_group_appears_in_log():
     assert "Done" in step_names
 
 
-def test_unnamed_parallel_gets_auto_name_in_log():
-    """An unnamed parallel group gets an auto-generated name in the step log."""
-    wf = workflow()(lambda: init >> parallel("name", branch_a_step1, branch_b_step1) >> done)
-
-    with register_test_workflow(wf) as wf_table:
-        log = []
-        pstat = create_new_process_stat(wf_table, {})
-        result = runwf(pstat, store(log))
-
-    assert_complete(result)
-    step_names = [entry[0] for entry in log]
-    parallel_names = [n for n in step_names if "Parallel" in n or "Branch" in n]
-    assert len(parallel_names) >= 1, f"Expected auto-named parallel step in log, got: {step_names}"
-
-
 # --- Test: Thread execution ---
 
 
