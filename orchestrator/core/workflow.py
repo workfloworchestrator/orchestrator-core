@@ -610,8 +610,9 @@ def _create_fork_step(
     initial_state: State,
     total_branches: int,
     current_user: str,
+    branch_kind: BranchKind,
 ) -> UUID:
-    """Create a new fork step for this (process, parallel group).
+    """Create a new fork step for this (process, branch group).
 
     Always inserts a fresh fork row — mirrors orchestrator-core's existing retry
     pattern where each new attempt of a step gets its own row, leaving prior
@@ -638,7 +639,7 @@ def _create_fork_step(
             .where(
                 ProcessStepTable.process_id == process_id,
                 ProcessStepTable.name == name,
-                ProcessStepTable.parallel_total_branches.isnot(None),
+                ProcessStepTable.branch_count.isnot(None),
                 ProcessStepTable.status == StepStatus.FAILED,
             )
             .order_by(ProcessStepTable.completed_at.desc())
@@ -674,8 +675,9 @@ def _create_fork_step(
             status=StepStatus.SUCCESS,
             state=initial_state,
             created_by=current_user,
-            parallel_total_branches=total_branches,
-            parallel_completed_count=len(succeeded_branches),
+            branch_count=total_branches,
+            branch_kind=branch_kind,
+            branches_completed=len(succeeded_branches),
             started_at=now,
             completed_at=now,
         )
@@ -758,7 +760,7 @@ def _update_fork_step(fork_step_id: UUID, status: str, state: State, n_branches:
             .values(
                 status=status,
                 state=state,
-                parallel_completed_count=n_branches,
+                branches_completed=n_branches,
             )
         )
         db.session.execute(stmt)
@@ -866,6 +868,7 @@ def _exec_parallel_branches(
     branches: list[StepList],
     initial_state: State,
     name: str,
+    branch_kind: BranchKind,
     max_workers: int | None = None,
     seeds: list[State] | None = None,
 ) -> Process:
@@ -877,7 +880,11 @@ def _exec_parallel_branches(
     current_user = pstat.current_user if pstat else ""
     n_branches = len(seeds) if seeds else len(branches)
 
-    fork_step_id = _create_fork_step(process_id, name, initial_state, n_branches, current_user) if process_id else None
+    fork_step_id = (
+        _create_fork_step(process_id, name, initial_state, n_branches, current_user, branch_kind)
+        if process_id
+        else None
+    )
 
     match app_settings.EXECUTOR:
         case ExecutorType.WORKER if process_id is not None and fork_step_id is not None:
@@ -929,7 +936,7 @@ def _make_parallel_step(
 
     def func(initial_state: State) -> Process:
         with transactional(db, logger):
-            return _exec_parallel_branches(branches, initial_state, name, max_workers=max_workers)
+            return _exec_parallel_branches(branches, initial_state, name, BranchKind.PARALLEL, max_workers=max_workers)
 
     step_fn = make_step_function(func, name, retry_auth_callback=retry_auth_callback)
     # Attach metadata for Celery step reconstruction
@@ -1076,7 +1083,9 @@ def map_parallel(
                 item if isinstance(item, dict) else {"item": item, "item_index": idx} for idx, item in enumerate(items)
             ]
 
-            return _exec_parallel_branches([branch_steplist], initial_state, name, max_workers=max_workers, seeds=seeds)
+            return _exec_parallel_branches(
+                [branch_steplist], initial_state, name, BranchKind.MAP_PARALLEL, max_workers=max_workers, seeds=seeds
+            )
 
     step_fn = make_step_function(func, name)
     # Attach metadata for Celery branch reconstruction
@@ -1340,6 +1349,13 @@ class ProcessStatus(strEnum):
     INCONSISTENT_DATA = "inconsistent_data"
     COMPLETED = "completed"
     RESUMED = "resumed"
+
+
+class BranchKind(strEnum):
+    """Kind of step that fans out into child steps; stored in ``ProcessStepTable.branch_kind``."""
+
+    PARALLEL = "parallel"
+    MAP_PARALLEL = "map_parallel"
 
 
 class StepStatus(strEnum):

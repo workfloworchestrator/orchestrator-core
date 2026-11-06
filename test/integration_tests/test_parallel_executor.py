@@ -18,6 +18,7 @@ Lives under integration_tests because :func:`_exec_parallel_branches` opens a
 """
 
 from orchestrator.core.workflow import (
+    BranchKind,
     StepList,
     _exec_parallel_branches,
     process_stat_var,
@@ -44,6 +45,7 @@ def test_threadpool_executor_is_default(db_session) -> None:  # noqa: ARG001 —
             branches=[StepList([_step_a]), StepList([_step_b])],
             initial_state={},
             name="test",
+            branch_kind=BranchKind.PARALLEL,
         )
     finally:
         process_stat_var.reset(token)
