@@ -86,3 +86,6 @@ dmypy.json
 .DS_store
 
 docs/superpowers
+
+# Search benchmark rankings report, written by the test run
+test/benchmarks/search/report/
