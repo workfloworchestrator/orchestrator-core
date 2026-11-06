@@ -1,9 +1,13 @@
 name: Check alembic migrations
 
+# Reusable only — invoked from ``ci.yml`` as a gate.
+# Deliberately has no ``paths`` filter so it always runs and
+# always reports a status, which lets it be a required check without being
+# skipped (a skipped required check blocks merges).
+
 on:
-  pull_request:
-    paths:
-      - 'orchestrator/core/migrations/**'
+  workflow_call:
+  workflow_dispatch:
 
 env:
   UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
@@ -11,7 +15,7 @@ env:
 jobs:
   build:
     name: Check alembic migrations
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-26.04
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -21,6 +25,10 @@ jobs:
         with:
           # It is considered best practice to pin to a specific uv version.
           version: "0.13.6"
+          # Same runner image + Python as the linting/unit jobs so this job
+          # shares their `setup-uv` download cache instead of re-downloading
+          # the whole dependency tree on every run.
+          python-version: "3.13"
 
       - name: Ensure there is 1 migration head
         run: |

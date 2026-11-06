@@ -7,22 +7,28 @@ name: CI
 #      the full Python matrix (no services).
 #   2) ``linting-tests`` runs the reusable ``run-linting-tests.yml`` workflow
 #      (mypy + prek hooks).
-#   3) ``integration-tests`` runs after the unit and linting gates on a
+#   3) ``alembic-migrations`` runs the reusable ``check-alembic-migrations.yml``
+#      workflow to assert a single alembic head. It always runs (no path
+#      filter) so it can be a required check.
+#   4) ``integration-tests`` runs after the unit, linting and alembic gates on a
 #      deliberately narrow service-matrix to keep PR feedback fast.
-#   4) ``cli-acceptance-tests`` runs the CLI code-generation acceptance suite
+#   5) ``codspeed-tests`` runs the reusable ``run-codspeed-tests.yml`` workflow
+#      (CodSpeed benchmarks) after the same gates.
+#   6) ``cli-acceptance-tests`` runs the CLI code-generation acceptance suite
 #      (reusable ``run-cli-acceptance-tests.yml``).
-#   5) ``celery-acceptance-tests`` runs the Celery acceptance suite
+#   7) ``celery-acceptance-tests`` runs the Celery acceptance suite
 #      (reusable ``run-celery-acceptance-tests.yml``).
-#   6) ``llm-acceptance-tests`` runs the LLM/embedding acceptance suite
+#   8) ``llm-acceptance-tests`` runs the LLM/embedding acceptance suite
 #      (reusable ``run-llm-acceptance-tests.yml``). Tests use mocked
 #      embeddings, so it runs on fork PRs too.
-#   7) ``integration-tests`` also has a matrix row that runs the search benchmark
+#   9) ``integration-tests`` also has a matrix row that runs the search benchmark
 #      (test/benchmarks/search) against its committed accuracy baseline, in parallel
 #      with the integration tests.
 #
-# Each downstream job ``needs: [unit-tests, linting-tests]`` so the unit matrix
-# and the cheap linting checks run exactly once per PR and the expensive
-# service-backed suites only execute when both are green.
+# Each downstream job ``needs: [unit-tests, linting-tests, alembic-migrations]``
+# so the unit matrix, the cheap linting checks and the alembic head check run
+# exactly once per PR and the expensive service-backed suites only execute when
+# all three are green.
 
 on:
   push:
@@ -44,9 +50,13 @@ jobs:
     uses: ./.github/workflows/run-linting-tests.yml
     secrets: inherit
 
+  alembic-migrations:
+    name: Check alembic migrations
+    uses: ./.github/workflows/check-alembic-migrations.yml
+
   integration-tests:
     name: ${{ matrix.suite }} (Python ${{ matrix.python-version }} / Postgres ${{ matrix.postgres-version }} / Redis ${{ matrix.redis-version }})
-    needs: [unit-tests, linting-tests]
+    needs: [unit-tests, linting-tests, alembic-migrations]
     runs-on: ubuntu-26.04
     strategy:
       # Narrow matrix: oldest + newest supported Python × Postgres, with the
@@ -135,21 +145,27 @@ jobs:
           files: ./coverage.xml
           flags: integration
 
+  codspeed-tests:
+    name: CodSpeed benchmarks
+    needs: [unit-tests, linting-tests, alembic-migrations]
+    uses: ./.github/workflows/run-codspeed-tests.yml
+    secrets: inherit
+
   cli-acceptance-tests:
     name: CLI acceptance tests
-    needs: [unit-tests, linting-tests]
+    needs: [unit-tests, linting-tests, alembic-migrations]
     uses: ./.github/workflows/run-cli-acceptance-tests.yml
     secrets: inherit
 
   celery-acceptance-tests:
     name: Celery acceptance tests
-    needs: [unit-tests, linting-tests]
+    needs: [unit-tests, linting-tests, alembic-migrations]
     uses: ./.github/workflows/run-celery-acceptance-tests.yml
     secrets: inherit
 
   llm-acceptance-tests:
     name: LLM/embedding acceptance tests
-    needs: [unit-tests, linting-tests]
+    needs: [unit-tests, linting-tests, alembic-migrations]
     uses: ./.github/workflows/run-llm-acceptance-tests.yml
     secrets: inherit
 
@@ -158,7 +174,9 @@ jobs:
     needs:
       - unit-tests
       - linting-tests
+      - alembic-migrations
       - integration-tests
+      - codspeed-tests
       - cli-acceptance-tests
       - celery-acceptance-tests
       - llm-acceptance-tests

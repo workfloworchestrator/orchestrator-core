@@ -1,10 +1,12 @@
 name: CodSpeed
 
+# Reusable only — invoked from ``ci.yml`` so the benchmark job participates in
+# the single ``CI result`` merge gate. ci.yml triggers on pushes to ``main``, so
+# the CodSpeed baseline is still refreshed there.
+
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+  workflow_call:
+  workflow_dispatch:
 
 env:
   UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged
