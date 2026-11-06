@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import threading
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Collection, Iterable, Iterator, Sequence
 from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 from functools import partial
@@ -27,7 +27,8 @@ from requests.adapters import MaxRetryError
 from sqlalchemy import delete, select
 from sqlalchemy.exc import NoResultFound, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm.strategy_options import _AbstractLoad
 
 from nwastdlib.ex import show_ex
 from oauth2_lib.fastapi import OIDCUserModel
@@ -485,12 +486,25 @@ def _db_log_process_ex(process_id: UUID, ex: Exception) -> None:
         raise
 
 
+def process_steps_loader() -> _AbstractLoad:
+    """Loader option for ``ProcessTable.steps`` including the branch relations of parallel fork steps.
+
+    The relations are configured with ``lazy="raise"``, so every query whose result is serialised with child steps
+    (see ``enrich_step_details``) must apply this option. :func:`load_process` does not depend on it.
+    """
+    return (
+        selectinload(ProcessTable.steps)
+        .selectinload(ProcessStepTable.child_step_relations)
+        .selectinload(ProcessStepRelationTable.child_step)
+    )
+
+
 def _get_process(process_id: UUID) -> ProcessTable:
     stmt = (
         select(ProcessTable)
         .where(ProcessTable.process_id == process_id)
         .options(
-            joinedload(ProcessTable.steps),
+            process_steps_loader(),
             joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
         )
     )
@@ -521,7 +535,7 @@ async def get_process_async(
         .where(ProcessTable.process_id == process_id)
         .options(
             joinedload(ProcessTable.workflow),
-            joinedload(ProcessTable.steps),
+            process_steps_loader(),
             *(options or []),
         )
     )
@@ -1025,15 +1039,31 @@ def _restore_log(steps: Iterator[ProcessStepTable]) -> list[WFProcess]:
     return [deserialize(step) for step in steps]
 
 
-def _is_main_log_step(step: ProcessStepTable) -> bool:
-    """Return True if this step is part of the main workflow log.
+def _branch_child_step_ids(process_id: UUID) -> set[UUID]:
+    """Return the ids of the steps of this process that are branch children of a parallel fork step.
+
+    Queries the relation table directly, so it works for any ``ProcessTable`` regardless of which relationships
+    were loaded.
+    """
+    stmt = (
+        select(ProcessStepRelationTable.child_step_id)
+        .join(ProcessStepTable, ProcessStepRelationTable.parent_step_id == ProcessStepTable.step_id)
+        .where(ProcessStepTable.process_id == process_id)
+    )
+    return set(db.session.scalars(stmt))
+
+
+def _main_log_steps(
+    steps: Iterable[ProcessStepTable], branch_child_ids: Collection[UUID]
+) -> Iterator[ProcessStepTable]:
+    """Yield the steps that are part of the main workflow log.
 
     Excludes only branch child steps (rows linked to a fork via
     ``ProcessStepRelationTable``). A fork row IS the main-log entry for its
     parallel step: it carries the parallel group's resolved status and is what
     ``_recoverwf`` reads to advance past a completed parallel block.
     """
-    return not step.parent_step_relations
+    return (step for step in steps if step.step_id not in branch_child_ids)
 
 
 def load_process(process: ProcessTable) -> ProcessStat:
@@ -1042,8 +1072,7 @@ def load_process(process: ProcessTable) -> ProcessStat:
     if not workflow:
         workflow = removed_workflow
 
-    main_steps = (s for s in process.steps if _is_main_log_step(s))
-    log = _restore_log(main_steps)
+    log = _restore_log(_main_log_steps(process.steps, _branch_child_step_ids(process.process_id)))
     pstate, remaining = _recoverwf(workflow, log)
 
     return ProcessStat(

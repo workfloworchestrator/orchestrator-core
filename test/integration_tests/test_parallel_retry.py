@@ -29,8 +29,10 @@ Covers three bugs surfaced by the SURF orchestrator parallel-demo workflow:
 from functools import partial
 
 import pytest
+from sqlalchemy.orm import selectinload
 
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
+from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.services.processes import create_process, load_process, safe_logstep
 from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.workflow import (
@@ -67,6 +69,7 @@ def _fork_rows(process_id, name: str) -> list[ProcessStepTable]:
     """Fork rows (rows carrying parallel branch metadata) for this group on this process."""
     return (
         db.session.query(ProcessStepTable)
+        .options(selectinload(ProcessStepTable.child_step_relations).selectinload(ProcessStepRelationTable.child_step))
         .filter(
             ProcessStepTable.process_id == process_id,
             ProcessStepTable.name == name,

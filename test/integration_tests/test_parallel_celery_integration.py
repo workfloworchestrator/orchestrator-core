@@ -21,8 +21,10 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.orm import selectinload
 
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
+from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.services.parallel import (
     _atomic_increment_completed,
     _collect_branch_results,
@@ -103,6 +105,7 @@ def _get_fork_step(process_id: object) -> ProcessStepTable:
     """Return the single fork step for a given process."""
     return (
         db.session.query(ProcessStepTable)
+        .options(selectinload(ProcessStepTable.child_step_relations).selectinload(ProcessStepRelationTable.child_step))
         .filter(
             ProcessStepTable.process_id == process_id,
             ProcessStepTable.parallel_total_branches.isnot(None),
