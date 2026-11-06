@@ -18,6 +18,9 @@ repos:
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
       - id: end-of-file-fixer
+        # complexipy writes complexipy-snapshot.json without a trailing newline;
+        # adding one here makes complexipy report the file as modified on every run.
+        exclude: ^complexipy-snapshot\.json$
       - id: check-docstring-first
       - id: check-json
       - id: check-yaml
