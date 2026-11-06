@@ -162,7 +162,7 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
         else:
             return process_id
 
-    @celery_task(name=EXECUTE_PARALLEL_BRANCH)  # type: ignore
+    @celery_task(name=EXECUTE_PARALLEL_BRANCH)
     def execute_parallel_branch(
         process_id: UUID,
         branch_index: int,
@@ -173,7 +173,7 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
     ) -> UUID | None:
         return _run_parallel_branch(process_id, branch_index, fork_step_id, initial_state, user, seed_state)
 
-    @celery_task(name=EXECUTE_PARALLEL_BRANCH_WORKFLOW)  # type: ignore
+    @celery_task(name=EXECUTE_PARALLEL_BRANCH_WORKFLOW)
     def execute_parallel_branch_workflow(
         process_id: UUID,
         branch_index: int,
