@@ -26,12 +26,14 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
+from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.services.processes import SYSTEM_USER, safe_logstep
 from orchestrator.core.testing import (
     WorkflowInstanceForTests,
@@ -819,7 +821,11 @@ def test_parallel_join_preserves_branch_row_state(branch_count):
         # the workflow row, taking the process and all its steps with it.
         db.session.commit()
         fan_out_rows = db.session.scalars(
-            select(ProcessStepTable).where(
+            select(ProcessStepTable)
+            .options(
+                selectinload(ProcessStepTable.child_step_relations).selectinload(ProcessStepRelationTable.child_step)
+            )
+            .where(
                 ProcessStepTable.process_id == pstat.process_id,
                 ProcessStepTable.name == "Fan out",
             )
