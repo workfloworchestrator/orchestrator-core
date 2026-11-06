@@ -19,6 +19,7 @@ from sqlalchemy import select
 
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessStepTable, ProcessTable, WorkflowTable, db
+from orchestrator.core.services.executors.types import ExecutorFunction
 from orchestrator.core.targets import Target
 from orchestrator.core.testing import assert_complete, assert_state, extract_state, run_workflow
 from orchestrator.core.workflow import ProcessStatus
@@ -119,6 +120,25 @@ def test_resume_workflow(
 
     assert mock_resume_process.call_count == 2
     assert mock_restart_process.call_count == 1
+
+
+@pytest.mark.workflow
+@mock.patch("orchestrator.core.services.processes.get_execution_context")
+def test_resume_workflow_loads_process_without_mocking_resume_process(
+    mock_execution_context, stuck_resumed_note_workflow
+):
+    """Only the executor is mocked, so `resume_process` and `load_process` run for real on a freshly loaded process."""
+    resume_func = mock.Mock()
+    mock_execution_context.return_value = {ExecutorFunction.RESUME: resume_func}
+    process_id = str(stuck_resumed_note_workflow.process_id)
+    db.session.expunge_all()
+
+    result, _, _ = run_workflow("task_resume_workflows", {})
+    assert_complete(result)
+
+    res = extract_state(result)
+    assert res["resumed_process_ids"] == [process_id]
+    resume_func.assert_called_once()
 
 
 @mock.patch("orchestrator.core.services.processes.resume_process")
