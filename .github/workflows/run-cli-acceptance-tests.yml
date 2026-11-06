@@ -1,6 +1,6 @@
 # CLI acceptance tests: full user-facing CLI code-generation flows.
-# Reusable only — invoked from ``run-tests.yml`` after the unit-test gate
-# passes. Celery and LLM acceptance suites have their own workflows.
+# Reusable only — invoked from ``ci.yml`` after the unit-test and linting
+# gates pass. Celery and LLM acceptance suites have their own workflows.
 
 name: Pytest CLI Acceptance Tests
 
