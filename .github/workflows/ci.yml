@@ -16,8 +16,9 @@ name: CI
 #   6) ``llm-acceptance-tests`` runs the LLM/embedding acceptance suite
 #      (reusable ``run-llm-acceptance-tests.yml``). Tests use mocked
 #      embeddings, so it runs on fork PRs too.
-#   7) ``integration-tests`` also runs the search benchmark (test/benchmarks/search)
-#      against its committed accuracy baseline, on the newest matrix row only.
+#   7) ``integration-tests`` also has a matrix row that runs the search benchmark
+#      (test/benchmarks/search) against its committed accuracy baseline, in parallel
+#      with the integration tests.
 #
 # Each downstream job ``needs: [unit-tests, linting-tests]`` so the unit matrix
 # and the cheap linting checks run exactly once per PR and the expensive
@@ -44,7 +45,7 @@ jobs:
     secrets: inherit
 
   integration-tests:
-    name: Integration tests (Python ${{ matrix.python-version }} / Postgres ${{ matrix.postgres-version }} / Redis ${{ matrix.redis-version }})
+    name: ${{ matrix.suite }} (Python ${{ matrix.python-version }} / Postgres ${{ matrix.postgres-version }} / Redis ${{ matrix.redis-version }})
     needs: [unit-tests, linting-tests]
     runs-on: ubuntu-26.04
     strategy:
@@ -53,15 +54,28 @@ jobs:
       # (scheduled-build.yml currently runs only the unit workflow).
       matrix:
         include:
-          - python-version: "3.11"
+          - suite: Integration tests
+            python-version: "3.11"
             postgres-version: "15"
             redis-version: "7"
-          - python-version: "3.14"
+          - suite: Integration tests
+            python-version: "3.14"
             postgres-version: "17"
             redis-version: "8"
-            search-benchmark: true
+          # Accuracy of the fuzzy retriever against test/benchmarks/search/baseline/accuracy.md. Its own row so it runs
+          # in parallel with the integration tests. One row is enough: the baseline is the same on every Postgres
+          # version. Sequential: the queries' plans share one connection.
+          - suite: Search benchmark
+            python-version: "3.14"
+            postgres-version: "17"
+            redis-version: "8"
       fail-fast: false
     container: ubuntu:latest
+    env:
+      DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
+      CACHE_URI: redis://redis
+      POSTGRES_HOST: postgres
+      ENVIRONMENT: TESTING
     services:
       postgres:
         image: pgvector/pgvector:pg${{ matrix.postgres-version }}
@@ -98,31 +112,22 @@ jobs:
         # Celery, LLM and CLI suites live under test/acceptance_tests/ and
         # have their own workflows (run-celery-acceptance-tests.yml,
         # run-llm-acceptance-tests.yml, run-cli-acceptance-tests.yml).
+        if: matrix.suite == 'Integration tests'
         run: |
           uv run pytest test/integration_tests \
             --cov-branch --cov=orchestrator --cov-report=xml \
             -n auto
-        env:
-          DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
-          CACHE_URI: redis://redis
-          POSTGRES_HOST: postgres
-          ENVIRONMENT: TESTING
 
       - name: Run the search benchmark
-        # Accuracy of the fuzzy retriever against test/benchmarks/search/baseline/accuracy.md. Sequential: the
-        # queries' plans share one connection. One row is enough: the baseline is the same on every Postgres version.
-        if: matrix.search-benchmark
+        if: matrix.suite == 'Search benchmark'
         run: uv run pytest test/benchmarks/search -v
-        env:
-          DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
-          CACHE_URI: redis://redis
-          POSTGRES_HOST: postgres
-          ENVIRONMENT: TESTING
 
       - name: Install codecov dependencies
+        if: matrix.suite == 'Integration tests'
         run: apt-get update && apt-get install -y git curl gpg
 
       - name: "Upload coverage to Codecov"
+        if: matrix.suite == 'Integration tests'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
