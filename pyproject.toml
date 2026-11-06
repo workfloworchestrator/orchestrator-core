@@ -351,6 +351,15 @@ disallow_untyped_calls = false
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 
+[tool.complexipy]
+# Cognitive complexity gate (see .pre-commit-config.yaml and complexipy-snapshot.json).
+# We adopt complexipy with a snapshot baseline: existing functions above the threshold are
+# allowed, and only new or worsened functions fail. Improve a baseline function and it drops
+# out of complexipy-snapshot.json, so the gate ratchets down on its own. Run
+# `complexipy . --snapshot-create` after moving or renaming a baseline function.
+paths = ["."]
+max-complexity-allowed = 15
+
 [tool.coverage.run]
 source = ["orchestrator/core"]
 branch = true

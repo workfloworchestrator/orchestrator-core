@@ -66,6 +66,15 @@ repos:
       - id: python-use-type-annotations
       - id: python-check-mock-methods
 
+  # Cognitive complexity gate. Existing offenders are recorded in complexipy-snapshot.json and
+  # allowed; only new or worsened functions fail. See [tool.complexipy] in pyproject.toml.
+  - repo: https://github.com/rohaquinlop/complexipy-pre-commit
+    rev: v8.3.0
+    hooks:
+      - id: complexipy
+        types_or: [python, pyi]
+        require_serial: true
+
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
     hooks:
