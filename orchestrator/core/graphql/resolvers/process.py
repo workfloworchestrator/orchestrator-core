@@ -46,6 +46,7 @@ from orchestrator.core.graphql.utils import (
     to_graphql_result_page,
 )
 from orchestrator.core.graphql.utils.get_query_loaders import get_query_loaders_for_gql_fields
+from orchestrator.core.graphql.utils.get_selected_paths import get_selected_paths
 from orchestrator.core.schemas.process import ProcessSchema
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.services.processes import load_process
@@ -68,9 +69,16 @@ _DEFAULT_PROCESS_LOADERS = [
 ]
 
 
-def _enrich_process(process: ProcessTable, with_details: bool = False) -> ProcessSchema:
+def _is_child_steps_selected(info: OrchestratorInfo) -> bool:
+    """Check if the query selects the branch steps of parallel fork steps."""
+    return any(".steps.child_steps." in f".{path}." for path in get_selected_paths(info))
+
+
+def _enrich_process(
+    process: ProcessTable, with_details: bool = False, include_child_steps: bool = False
+) -> ProcessSchema:
     pstat = load_process(process) if with_details else None
-    process_data = enrich_process(process, pstat)
+    process_data = enrich_process(process, pstat, include_child_steps)
     return ProcessSchema(**process_data)
 
 
@@ -78,17 +86,20 @@ def _graphql_processes(
     info: OrchestratorInfo, stmt: Select | CompoundSelect, loaders: Sequence[_AbstractLoad]
 ) -> Iterator[ProcessType]:
     is_detailed = _is_process_detailed(info)
+    include_child_steps = _is_child_steps_selected(info)
     for process in rows_from_statement(stmt, ProcessTable, loaders=loaders):
-        yield ProcessType.from_pydantic(_enrich_process(process, is_detailed))
+        yield ProcessType.from_pydantic(_enrich_process(process, is_detailed, include_child_steps=include_child_steps))
 
 
 @make_async
 def resolve_process(info: OrchestratorInfo, process_id: UUID) -> ProcessType | None:
     query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info)
     stmt = select(ProcessTable).options(*query_loaders).where(ProcessTable.process_id == process_id)
-    if process := db.session.scalar(stmt):
+    if process := db.session.scalars(stmt).unique().first():
         is_detailed = _is_process_detailed(info)
-        return ProcessType.from_pydantic(_enrich_process(process, is_detailed))
+        return ProcessType.from_pydantic(
+            _enrich_process(process, is_detailed, include_child_steps=_is_child_steps_selected(info))
+        )
     return None
 
 

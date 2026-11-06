@@ -17,6 +17,8 @@ from unittest.mock import patch
 import pytest
 
 from orchestrator.core import app_settings
+from orchestrator.core.db import ProcessStepTable, db
+from orchestrator.core.db.models import ProcessStepRelationTable
 from test.integration_tests.config import GRAPHQL_ENDPOINT
 from test.integration_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 
@@ -701,3 +703,46 @@ def test_processes_step_importance(test_client_graphql, mocked_processes, mocked
     # Steps without an explicit importance, executed and pending, default to "default"
     assert steps
     assert {step["importance"] for step in steps} == {"default"}
+
+
+@pytest.mark.parametrize(
+    "step_fields,expected_child_steps",
+    [
+        pytest.param("name status", None, id="child-steps-not-selected"),
+        pytest.param(
+            "name status childSteps { name status }", [{"name": "Branch", "status": "success"}], id="selected"
+        ),
+    ],
+)
+def test_processes_steps_of_parallel_fork(
+    test_client_graphql, mocked_processes, mocked_processes_resumeall, step_fields, expected_child_steps
+):
+    """Fork steps only get their branch steps when the query selects `childSteps`, and the query works either way."""
+    process_id = mocked_processes[0]
+    fork = ProcessStepTable(
+        process_id=process_id,
+        name="Fork",
+        status="success",
+        state={},
+        parallel_total_branches=1,
+        parallel_completed_count=1,
+    )
+    branch = ProcessStepTable(process_id=process_id, name="Branch", status="success", state={})
+    db.session.add_all([fork, branch])
+    db.session.flush()
+    db.session.add(
+        ProcessStepRelationTable(parent_step_id=fork.step_id, child_step_id=branch.step_id, order_id=0, branch_index=0)
+    )
+    db.session.commit()
+
+    data = get_processes_state_updates_and_delta(
+        filter_by=[{"field": "processId", "value": str(process_id)}], step_fields=step_fields
+    )
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    assert "errors" not in result
+    steps = result["data"]["processes"]["page"][0]["steps"]
+    fork_step = next(step for step in steps if step["name"] == "Fork")
+    assert fork_step.get("childSteps") == expected_child_steps

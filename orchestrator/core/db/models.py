@@ -206,6 +206,7 @@ class ProcessStepTable(BaseModel):
         back_populates="parent_step",
         foreign_keys="[ProcessStepRelationTable.parent_step_id]",
         order_by="ProcessStepRelationTable.order_id",
+        lazy="raise",
     )
     parent_step_relations: Mapped[list["ProcessStepRelationTable"]] = relationship(
         "ProcessStepRelationTable",
@@ -213,6 +214,7 @@ class ProcessStepTable(BaseModel):
         passive_deletes=True,
         back_populates="child_step",
         foreign_keys="[ProcessStepRelationTable.child_step_id]",
+        lazy="raise",
     )
 
     child_steps = association_proxy("child_step_relations", "child_step")
@@ -244,6 +246,7 @@ class ProcessStepRelationTable(BaseModel):
         "ProcessStepTable",
         back_populates="parent_step_relations",
         foreign_keys=[child_step_id],
+        lazy="raise",
     )
 
 

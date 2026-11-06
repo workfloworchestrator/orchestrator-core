@@ -18,6 +18,7 @@ correctly persisted in the database during parallel workflow execution.
 """
 
 import pytest
+from sqlalchemy.orm import selectinload
 
 from orchestrator.core.db import ProcessStepTable, db
 from orchestrator.core.db.models import ProcessStepRelationTable
@@ -64,6 +65,7 @@ def _get_fork_step(process_id: object) -> ProcessStepTable:
     """Return the single fork step for a given process."""
     return (
         db.session.query(ProcessStepTable)
+        .options(selectinload(ProcessStepTable.child_step_relations).selectinload(ProcessStepRelationTable.child_step))
         .filter(
             ProcessStepTable.process_id == process_id,
             ProcessStepTable.parallel_total_branches.isnot(None),

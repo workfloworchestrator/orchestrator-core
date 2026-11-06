@@ -253,7 +253,7 @@ def _join_and_resume(
 ) -> None:
     """Called by the last-finishing branch to determine status and resume the parent workflow.
 
-    The fork row IS the main-log entry for the parallel step (see ``_is_main_log_step``),
+    The fork row IS the main-log entry for the parallel step (see ``_main_log_steps``),
     so resolving the parallel block means updating only that row. For failures, propagate
     the worst branch's error state so it's visible on the main log; for successes, keep
     the pre-parallel state.
