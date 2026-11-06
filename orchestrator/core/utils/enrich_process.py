@@ -69,10 +69,11 @@ def enrich_step_details(
         "step_id": step.step_id,
         "stepid": step.step_id,
         "state_delta": state_delta,
-        "parallel_total_branches": step.parallel_total_branches,
-        "parallel_completed_count": step.parallel_completed_count,
+        "branch_count": step.branch_count,
+        "branch_kind": step.branch_kind,
+        "branches_completed": step.branches_completed,
     }
-    if include_child_steps and step.parallel_total_branches is not None:
+    if include_child_steps and step.branch_kind is not None:
         result["child_steps"] = [enrich_step_details(child, None) for child in step.child_steps]
     return result
 

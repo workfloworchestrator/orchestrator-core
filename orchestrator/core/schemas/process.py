@@ -60,8 +60,11 @@ class ProcessStepSchema(OrchestratorBaseModel):
     importance: StepImportance = StepImportance.DEFAULT
     state: dict[str, Any] | None = None
     state_delta: dict[str, Any] | None = None
-    parallel_total_branches: int | None = None  # TODO add Field description
-    parallel_completed_count: int | None = None  # TODO add Field description
+    branch_count: int | None = Field(None, description="Number of branches of a fork step")
+    branch_kind: str | None = Field(
+        None, description="Kind of fork step: 'parallel' or 'map_parallel'; null for ordinary steps"
+    )
+    branches_completed: int = Field(0, description="Number of finished branches of a fork step")
     child_steps: list["ProcessStepSchema"] | None = None
 
 

@@ -56,8 +56,9 @@ class ProcessStepType:
     importance: str
     state: JSON | None
     state_delta: JSON | None
-    parallel_total_branches: strawberry.auto  # TODO add Field description
-    parallel_completed_count: strawberry.auto  # TODO add Field description
+    branch_count: strawberry.auto
+    branch_kind: strawberry.auto
+    branches_completed: strawberry.auto
     # Populated by `enrich_process` only when the query selects it (see `_is_child_steps_selected`),
     # A more thorough alternative is a Strawberry resolver on this field and a dataloader.
     # That would remove the selection check, but `ProcessType` is built with `from_pydantic` from the enriched dict,
