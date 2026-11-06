@@ -112,6 +112,7 @@ docs = [
 dev = [
     "apache-license-check>=1.0.0",
     "blinker>=1.9.0",
+    "complexipy==8.3.0",
     "deepdiff>=8.5.0",
     "dirty-equals>=0.9.0",
     "inline-snapshot>=0.32.4",
@@ -356,7 +357,7 @@ disallow_incomplete_defs = false
 # We adopt complexipy with a snapshot baseline: existing functions above the threshold are
 # allowed, and only new or worsened functions fail. Improve a baseline function and it drops
 # out of complexipy-snapshot.json, so the gate ratchets down on its own. Run
-# `complexipy . --snapshot-create` after moving or renaming a baseline function.
+# `uv run complexipy . --snapshot-create` after moving or renaming a baseline function.
 paths = ["."]
 max-complexity-allowed = 15
 
