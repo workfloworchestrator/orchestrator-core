@@ -73,7 +73,6 @@ EXPECTED_TOOL_NAMES = {
     "get_process_status",
     "list_recent_processes",
     "list_subscriptions",
-    "get_subscription_details",
     "get_product",  # GET /api/products/{product_id}
     "get_product_block",  # GET /api/product_blocks/{product_block_id}
     "get_resource_type",  # GET /api/resource_types/{resource_type_id}

@@ -103,7 +103,7 @@ async def subscription_details_by_id_with_domain_model(
     """Get a subscription's full domain model: the nested product-block tree and relations.
 
     May be large: returns the entire instantiated product-block tree. Prefer
-    ``get_subscription_details`` for a flat header; use this only when the full
+    ``resolve_entity`` for a flat header; use this only when the full
     tree is required.
     """
 
