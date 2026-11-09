@@ -194,7 +194,7 @@ All endpoints are under `/api/search`.
 | `GET /definitions` | Operators valid per UI type |
 | `GET /queries/{id}` | Re-run a saved search |
 | `GET /queries/{id}/results` | Full results of a saved query of any type (select, count, aggregate) |
-| `GET /queries/{id}/export` | Export a saved search as flattened records, e.g. for CSV |
+| `GET /queries/{id}/export` | Download a saved search as a CSV file |
 
 The search and export endpoints take the same body: `query`, `filters` (a filter tree or
 Elasticsearch DSL), `retriever`, `order_by` (only without `query`), `response_columns` and
@@ -205,7 +205,8 @@ Elasticsearch DSL), `retriever`, `order_by` (only without `query`), `response_co
   The query is not saved and no cursor is returned; `page_info.has_next_page` is `true` when the
   export was cut off.
 
-Saved-query exports return up to `SEARCH_MAX_EXPORT_LIMIT` records as well.
+Saved-query exports hold up to `SEARCH_MAX_EXPORT_LIMIT` records as well. The response is the file itself:
+`text/csv` as an attachment, semicolon-separated with every value quoted.
 
 ### GraphQL
 
@@ -216,7 +217,7 @@ Saved-query exports return up to `SEARCH_MAX_EXPORT_LIMIT` records as well.
 | `searchDefinitions` | `GET /definitions` |
 | `searchQuery` | `GET /queries/{id}` |
 | `searchQueryResults` | `GET /queries/{id}/results` |
-| `searchQueryExport` | `GET /queries/{id}/export` |
+| `searchQueryExport` | `GET /queries/{id}/export`, as records instead of a file |
 
 ### Agent tools
 

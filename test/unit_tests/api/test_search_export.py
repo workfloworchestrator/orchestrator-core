@@ -11,9 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for POST /api/search/{entity}[/export]: cursor resumption, export limit, query passthrough, response shape and errors."""
+"""Tests for POST /api/search/{entity}[/export] and the saved-query export.
 
+Cursor resumption, export limit, query passthrough, response shape and errors; the saved query as a CSV file.
+"""
+
+import re
 from http import HTTPStatus
+from types import SimpleNamespace
 from typing import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
@@ -37,6 +42,8 @@ pytestmark = pytest.mark.search
 ENGINE_PATH = "orchestrator.core.api.api_v1.endpoints.search.engine.execute_search"
 PAGE_PATH = "orchestrator.core.api.api_v1.endpoints.search.execute_search_page"
 VALIDATE_PATH = "orchestrator.core.api.api_v1.endpoints.search.validate_structured_order_by_element"
+LOAD_QUERY_PATH = "orchestrator.core.api.api_v1.endpoints.search.QueryState.load_from_id"
+EXPORT_PATH = "orchestrator.core.api.api_v1.endpoints.search.engine.execute_export"
 
 FILTERS = SIMPLE_SUBSCRIPTION_FILTER.model_dump(mode="json")
 
@@ -180,3 +187,31 @@ def test_export_engine_error_is_not_handled(
 
     with pytest.raises(error_type, match="boom"):
         test_client.post("/api/search/subscriptions/export", json={"filters": FILTERS})
+
+
+def test_saved_query_export_is_a_csv_file(test_client: TestClient) -> None:
+    saved = SimpleNamespace(
+        query=SimpleNamespace(entity_type=EntityType.SUBSCRIPTION, filters=None, query_text="port"),
+        query_embedding=None,
+    )
+    records = [
+        {"subscription_id": "s-1", "description": "Port 1", "insync": True, "note": None},
+        {"subscription_id": "s-2", "description": 'Port "2"\nsecond line', "insync": False, "tag": "LP"},
+    ]
+    with (
+        patch(LOAD_QUERY_PATH, new=AsyncMock(return_value=saved)),
+        patch(EXPORT_PATH, new=AsyncMock(return_value=records)),
+    ):
+        response = test_client.get("/api/search/queries/2b1c9a52-6d0f-4c3e-9a57-0d2f8f3f7c11/export")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.headers["content-type"].startswith("text/csv")
+    assert re.fullmatch(
+        r'attachment; filename="subscription_\d{4}-\d{2}-\d{2}\.csv"', response.headers["content-disposition"]
+    )
+    # Semicolons, every value quoted, columns in first-seen order; a record stays one line.
+    assert response.text.splitlines() == [
+        '"subscription_id";"description";"insync";"note";"tag"',
+        '"s-1";"Port 1";"true";"";""',
+        '"s-2";"Port ""2"" second line";"false";"";"LP"',
+    ]

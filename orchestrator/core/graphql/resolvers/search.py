@@ -355,7 +355,7 @@ async def resolve_search_query_export(
 ) -> ExportResponseType:
     """Export search results for a saved query.
 
-    Mirrors the REST ``export_by_query_id()`` endpoint.
+    Returns the records that the REST ``export_by_query_id()`` endpoint writes as a CSV file.
 
     Args:
         info: Strawberry resolver info.
