@@ -29,8 +29,14 @@ from orchestrator.core.search.core.types import (
     ResponseColumns,
     SearchMetadata,
 )
-from orchestrator.core.search.filters import FilterTree
+from orchestrator.core.search.filters import ContainsFilter, EqualityFilter, FilterTree, LtreeFilter, StringFilter
 from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
+from orchestrator.core.search.retrieval.highlight_columns import (
+    HIGHLIGHT_MATCHES_LABEL,
+    HIGHLIGHT_PATH_LABEL,
+    HIGHLIGHT_SOURCE_LABEL,
+    HIGHLIGHT_TEXT_LABEL,
+)
 
 STRUCTURED_RETRIEVER = "structured"
 
@@ -370,16 +376,14 @@ def _resolve_text_matching_fields(row: "RowMapping", user_query: str, search_typ
     The retriever is the row's ``highlight_source`` when the retriever reports one (hybrid does, since its
     highlight can come from either source), otherwise the search type.
     """
-    from orchestrator.core.search.retrieval.retrievers import Retriever
-
-    text = row.get(Retriever.HIGHLIGHT_TEXT_LABEL)
-    path = row.get(Retriever.HIGHLIGHT_PATH_LABEL)
+    text = row.get(HIGHLIGHT_TEXT_LABEL)
+    path = row.get(HIGHLIGHT_PATH_LABEL)
     if text is None or path is None:
         return []
     text = str(text)
     highlight_indices = generate_highlight_indices(text, user_query)
     truncated_text, adjusted_indices = truncate_text_with_highlights(text, highlight_indices)
-    retriever = row.get(Retriever.HIGHLIGHT_SOURCE_LABEL) or search_type
+    retriever = row.get(HIGHLIGHT_SOURCE_LABEL) or search_type
     return [
         MatchingField(text=truncated_text, path=str(path), highlight_indices=adjusted_indices, retriever=str(retriever))
     ]
@@ -402,10 +406,7 @@ def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree"
     that leaf (``{"value", "path", "idx"}``). Flattening gives every (value, path) pair
     that satisfied any filter, deduplicated across leaves.
     """
-    from orchestrator.core.search.filters import ContainsFilter, EqualityFilter, LtreeFilter, StringFilter
-    from orchestrator.core.search.retrieval.retrievers import Retriever
-
-    leaf_arrays: list[list[dict]] | None = row.get(Retriever.HIGHLIGHT_MATCHES_LABEL)
+    leaf_arrays: list[list[dict]] | None = row.get(HIGHLIGHT_MATCHES_LABEL)
     if not leaf_arrays:
         return []
 

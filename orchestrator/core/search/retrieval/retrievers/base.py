@@ -25,13 +25,17 @@ from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import EntityType, FieldType, RetrieverType, SearchMetadata
 from orchestrator.core.search.filters import FilterTree, PathFilter
 from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
+from orchestrator.core.search.retrieval.highlight_columns import (
+    HIGHLIGHT_MATCHES_LABEL,
+    HIGHLIGHT_PATH_LABEL,
+    HIGHLIGHT_SOURCE_LABEL,
+    HIGHLIGHT_TEXT_LABEL,
+)
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.session import SessionSetting
 from orchestrator.core.settings import llm_settings
 
 logger = structlog.get_logger(__name__)
-
-HIGHLIGHT_MATCHES_LABEL = "highlight_matches"
 
 
 def _leaf_matches_json(cand: Subquery, leaf: PathFilter, idx: int) -> ColumnElement:
@@ -67,9 +71,9 @@ class Retriever(ABC):
 
     SCORE_PRECISION = 12
     SCORE_NUMERIC_TYPE = Numeric(38, 12)
-    HIGHLIGHT_TEXT_LABEL = "highlight_text"
-    HIGHLIGHT_PATH_LABEL = "highlight_path"
-    HIGHLIGHT_SOURCE_LABEL = "highlight_source"
+    HIGHLIGHT_TEXT_LABEL = HIGHLIGHT_TEXT_LABEL
+    HIGHLIGHT_PATH_LABEL = HIGHLIGHT_PATH_LABEL
+    HIGHLIGHT_SOURCE_LABEL = HIGHLIGHT_SOURCE_LABEL
     HIGHLIGHT_MATCHES_LABEL = HIGHLIGHT_MATCHES_LABEL
     SCORE_LABEL = "score"
     SEARCHABLE_FIELD_TYPES = [
