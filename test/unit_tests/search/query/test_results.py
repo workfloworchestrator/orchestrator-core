@@ -787,3 +787,78 @@ def test_format_text_response_highlights_query_and_filter_separately():
 
     assert text_field.highlight_indices == [(0, len("fiber"))]
     assert filter_field.highlight_indices == [(0, len("active"))]
+
+
+# =============================================================================
+# format_search_response — the retriever behind each matching field
+# =============================================================================
+
+
+def test_matching_field_retriever_defaults_to_none():
+    assert MatchingField(text="fiber", path="subscription.description").retriever is None
+
+
+@pytest.mark.parametrize(
+    "metadata,query_text,with_filters,row_data,expected",
+    [
+        pytest.param(
+            SearchMetadata.fuzzy(),
+            "fiber",
+            False,
+            _TEXT_HIGHLIGHT,
+            [("subscription.description", "fiber link", "fuzzy")],
+            id="fuzzy-text-uses-search-type",
+        ),
+        pytest.param(
+            SearchMetadata.semantic(),
+            "fiber",
+            False,
+            _TEXT_HIGHLIGHT,
+            [("subscription.description", "fiber link", "semantic")],
+            id="semantic-text-uses-search-type",
+        ),
+        pytest.param(
+            SearchMetadata.hybrid(),
+            "fiber",
+            False,
+            {**_TEXT_HIGHLIGHT, "highlight_source": "semantic"},
+            [("subscription.description", "fiber link", "semantic")],
+            id="hybrid-reports-semantic-source",
+        ),
+        pytest.param(
+            SearchMetadata.hybrid(),
+            "fiber",
+            False,
+            {**_TEXT_HIGHLIGHT, "highlight_source": "fuzzy"},
+            [("subscription.description", "fiber link", "fuzzy")],
+            id="hybrid-reports-fuzzy-source",
+        ),
+        pytest.param(
+            SearchMetadata.hybrid(),
+            "fiber",
+            True,
+            {**_TEXT_HIGHLIGHT, "highlight_source": "fuzzy", "highlight_matches": _STATUS_MATCH},
+            [("subscription.description", "fiber link", "fuzzy"), ("subscription.status", "active", "structured")],
+            id="text-and-filter-name-their-own-retriever",
+        ),
+        pytest.param(
+            SearchMetadata.structured(),
+            None,
+            True,
+            {"highlight_matches": _STATUS_MATCH},
+            [("subscription.status", "active", "structured")],
+            id="filter-only-is-structured",
+        ),
+    ],
+)
+def test_format_search_response_names_retriever_per_field(metadata, query_text, with_filters, row_data, expected):
+    """Each matching field names the retriever that produced it: the text retriever or the structured filters."""
+    tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"), path="subscription.status")
+    query = SelectQuery(
+        entity_type=EntityType.SUBSCRIPTION, query_text=query_text, filters=tree if with_filters else None
+    )
+
+    response = format_search_response([_structured_row(**row_data)], query, metadata, None, None, None, None)
+
+    fields = response.results[0].matching_fields
+    assert [(f.path, f.text, f.retriever) for f in fields] == expected

@@ -13,6 +13,7 @@
 
 """Unit tests for the GraphQL search output types in orchestrator.core.graphql.schemas.search."""
 
+import pytest
 import strawberry.scalars
 
 from orchestrator.core.graphql.schemas.search import (
@@ -236,3 +237,16 @@ def test_value_schema_type_no_fields() -> None:
     assert schema.operator == FilterOp.EQ
     assert schema.kind == "single"
     assert schema.fields is None
+
+
+@pytest.mark.parametrize(
+    "retriever,expected",
+    [
+        pytest.param(None, None, id="not-reported"),
+        pytest.param("fuzzy", "fuzzy", id="text-retriever"),
+        pytest.param("structured", "structured", id="filter-retriever"),
+    ],
+)
+def test_matching_field_type_retriever(retriever, expected) -> None:
+    field = MatchingFieldType(text="test", path="name", retriever=retriever)
+    assert field.retriever == expected

@@ -22,7 +22,11 @@ import pytest
 from graphql import GraphQLError
 from strawberry.types.nodes import SelectedField
 
-from orchestrator.core.graphql.resource_search import _reject_non_search_arguments, search_resource
+from orchestrator.core.graphql.resource_search import (
+    _reject_non_search_arguments,
+    matching_field_to_gql,
+    search_resource,
+)
 from orchestrator.core.graphql.search_inputs import ResourceSearchInput
 from orchestrator.core.search.core.exceptions import (
     InvalidCursorError,
@@ -166,3 +170,24 @@ async def test_search_resource_maps_invalid_page_size():
         await search_resource(_info(), EntityType.SUBSCRIPTION, ResourceSearchInput(), AsyncMock(), first=0, after=0)
 
     assert exc_info.value.extensions["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.parametrize(
+    "retriever",
+    [
+        pytest.param(None, id="not-reported"),
+        pytest.param("hybrid", id="text-retriever"),
+        pytest.param("structured", id="filter-retriever"),
+    ],
+)
+def test_matching_field_to_gql_passes_retriever(retriever) -> None:
+    field = MatchingField(text="active", path="subscription.status", highlight_indices=[(0, 6)], retriever=retriever)
+
+    gql = matching_field_to_gql(field)
+
+    assert (gql.text, gql.path, gql.highlight_indices, gql.retriever) == (
+        "active",
+        "subscription.status",
+        [(0, 6)],
+        retriever,
+    )

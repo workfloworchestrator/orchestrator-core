@@ -168,3 +168,48 @@ async def test_filter_matches_keep_ranked_order_and_limit(seeded, async_session,
     assert [r.score for r in full.results] == sorted((r.score for r in full.results), reverse=True)
     assert [r.entity_id for r in first.results] == [str(seeded.exact)]
     assert first.has_more is True
+
+
+class Attributed:
+    fuzzy_only = uuid4()  # matches the query text by trigram and has no embedding
+    semantic_only = uuid4()  # matches only by embedding: no trigram of the query text is in its description
+
+
+@pytest.fixture
+def attributed() -> type[Attributed]:
+    db.session.add_all(
+        [
+            _index_row(Attributed.fuzzy_only, "subscription.description", QUERY_TEXT, "fuzzy_only"),
+            _index_row(
+                Attributed.semantic_only, "subscription.description", "Lorem ipsum dolor sit", "semantic_only", _vec(0)
+            ),
+        ]
+    )
+    db.session.commit()
+    return Attributed
+
+
+@pytest.mark.parametrize(
+    "entity,expected_text,expected_retriever",
+    [
+        pytest.param("fuzzy_only", QUERY_TEXT, RetrieverType.FUZZY.value, id="text-from-fuzzy"),
+        pytest.param(
+            "semantic_only", "Lorem ipsum dolor sit", RetrieverType.SEMANTIC.value, id="text-from-semantic-only-row"
+        ),
+    ],
+)
+async def test_hybrid_names_the_retriever_of_its_text_match(
+    attributed, async_session, entity, expected_text, expected_retriever
+):
+    """A hybrid text match names the source its highlight came from, not just the hybrid retriever."""
+    query = SelectQuery(
+        entity_type=EntityType.SUBSCRIPTION,
+        query_text=QUERY_TEXT,
+        retriever=RetrieverType.HYBRID,
+        limit=10,
+    )
+
+    response = await engine.execute_search(query, async_session, query_embedding=_vec(0))
+
+    result = next(r for r in response.results if r.entity_id == str(getattr(attributed, entity)))
+    assert [(f.text, f.retriever) for f in result.matching_fields] == [(expected_text, expected_retriever)]
