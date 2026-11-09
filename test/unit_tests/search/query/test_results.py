@@ -722,63 +722,62 @@ def test_format_search_response_keeps_query_embedding(rows):
 # format_search_response — text search with filters
 # =============================================================================
 
+_STATUS_TREE = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"), path="subscription.status")
 _STATUS_MATCH = [[{"value": "active", "path": "subscription.status", "idx": 0}]]
 _DESCRIPTION_MATCH = [[{"value": "fiber link", "path": "subscription.description", "idx": 0}]]
 _TEXT_HIGHLIGHT = {"highlight_text": "fiber link", "highlight_path": "subscription.description"}
+_TEXT_FIELD = ("subscription.description", "fiber link")
+_STATUS_FIELD = ("subscription.status", "active", "structured")
 
 
 @pytest.mark.parametrize(
-    "with_filters,row_data,expected",
+    "metadata,with_filters,row_data,expected",
     [
+        pytest.param(SearchMetadata.fuzzy(), False, _TEXT_HIGHLIGHT, [(*_TEXT_FIELD, "fuzzy")], id="fuzzy-text"),
         pytest.param(
+            SearchMetadata.hybrid(),
+            False,
+            {**_TEXT_HIGHLIGHT, "highlight_source": "semantic", "highlight_matches": _STATUS_MATCH},
+            [(*_TEXT_FIELD, "semantic")],
+            id="hybrid-semantic-source-ignores-matches-without-filters",
+        ),
+        pytest.param(
+            SearchMetadata.hybrid(),
             True,
-            {**_TEXT_HIGHLIGHT, "highlight_matches": _STATUS_MATCH},
-            [("subscription.description", "fiber link"), ("subscription.status", "active")],
+            {**_TEXT_HIGHLIGHT, "highlight_source": "fuzzy", "highlight_matches": _STATUS_MATCH},
+            [(*_TEXT_FIELD, "fuzzy"), _STATUS_FIELD],
             id="text-then-filter",
         ),
         pytest.param(
+            SearchMetadata.hybrid(),
             True,
             {**_TEXT_HIGHLIGHT, "highlight_matches": _DESCRIPTION_MATCH},
-            [("subscription.description", "fiber link")],
-            id="same-field-reported-once",
+            [(*_TEXT_FIELD, "hybrid")],
+            id="same-field-reported-once-as-text",
         ),
         pytest.param(
-            True,
-            _TEXT_HIGHLIGHT,
-            [("subscription.description", "fiber link")],
-            id="no-filter-matches-column",
+            SearchMetadata.hybrid(), True, _TEXT_HIGHLIGHT, [(*_TEXT_FIELD, "hybrid")], id="no-filter-matches-column"
         ),
         pytest.param(
-            True,
-            {"highlight_matches": _STATUS_MATCH},
-            [("subscription.status", "active")],
-            id="no-text-highlight",
-        ),
-        pytest.param(
-            False,
-            {**_TEXT_HIGHLIGHT, "highlight_matches": _STATUS_MATCH},
-            [("subscription.description", "fiber link")],
-            id="no-filters",
+            SearchMetadata.hybrid(), True, {"highlight_matches": _STATUS_MATCH}, [_STATUS_FIELD], id="no-text-highlight"
         ),
     ],
 )
-def test_format_text_response_appends_filter_matches(with_filters, row_data, expected):
-    """A text search reports its text match first, then the filter matches on other fields."""
-    tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"), path="subscription.status")
-    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text="fiber", filters=tree if with_filters else None)
-
-    response = format_search_response(
-        [_structured_row(**row_data)], query, SearchMetadata.hybrid(), None, None, None, None
+def test_format_search_response_text_then_filter_matches(metadata, with_filters, row_data, expected):
+    """The text match comes first, then the filter matches on other fields; each names its own retriever."""
+    query = SelectQuery(
+        entity_type=EntityType.SUBSCRIPTION, query_text="fiber", filters=_STATUS_TREE if with_filters else None
     )
 
+    response = format_search_response([_structured_row(**row_data)], query, metadata, None, None, None, None)
+
     fields = response.results[0].matching_fields
-    assert [(f.path, f.text) for f in fields] == expected
+    assert [(f.path, f.text, f.retriever) for f in fields] == expected
 
 
 def test_format_text_response_highlights_query_and_filter_separately():
     """The text match highlights the query words; the filter match highlights the filter value."""
-    tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"), path="subscription.status")
-    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text="fiber", filters=tree)
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text="fiber", filters=_STATUS_TREE)
     row = _structured_row(**_TEXT_HIGHLIGHT, highlight_matches=_STATUS_MATCH)
 
     text_field, filter_field = (
@@ -787,78 +786,3 @@ def test_format_text_response_highlights_query_and_filter_separately():
 
     assert text_field.highlight_indices == [(0, len("fiber"))]
     assert filter_field.highlight_indices == [(0, len("active"))]
-
-
-# =============================================================================
-# format_search_response — the retriever behind each matching field
-# =============================================================================
-
-
-def test_matching_field_retriever_defaults_to_none():
-    assert MatchingField(text="fiber", path="subscription.description").retriever is None
-
-
-@pytest.mark.parametrize(
-    "metadata,query_text,with_filters,row_data,expected",
-    [
-        pytest.param(
-            SearchMetadata.fuzzy(),
-            "fiber",
-            False,
-            _TEXT_HIGHLIGHT,
-            [("subscription.description", "fiber link", "fuzzy")],
-            id="fuzzy-text-uses-search-type",
-        ),
-        pytest.param(
-            SearchMetadata.semantic(),
-            "fiber",
-            False,
-            _TEXT_HIGHLIGHT,
-            [("subscription.description", "fiber link", "semantic")],
-            id="semantic-text-uses-search-type",
-        ),
-        pytest.param(
-            SearchMetadata.hybrid(),
-            "fiber",
-            False,
-            {**_TEXT_HIGHLIGHT, "highlight_source": "semantic"},
-            [("subscription.description", "fiber link", "semantic")],
-            id="hybrid-reports-semantic-source",
-        ),
-        pytest.param(
-            SearchMetadata.hybrid(),
-            "fiber",
-            False,
-            {**_TEXT_HIGHLIGHT, "highlight_source": "fuzzy"},
-            [("subscription.description", "fiber link", "fuzzy")],
-            id="hybrid-reports-fuzzy-source",
-        ),
-        pytest.param(
-            SearchMetadata.hybrid(),
-            "fiber",
-            True,
-            {**_TEXT_HIGHLIGHT, "highlight_source": "fuzzy", "highlight_matches": _STATUS_MATCH},
-            [("subscription.description", "fiber link", "fuzzy"), ("subscription.status", "active", "structured")],
-            id="text-and-filter-name-their-own-retriever",
-        ),
-        pytest.param(
-            SearchMetadata.structured(),
-            None,
-            True,
-            {"highlight_matches": _STATUS_MATCH},
-            [("subscription.status", "active", "structured")],
-            id="filter-only-is-structured",
-        ),
-    ],
-)
-def test_format_search_response_names_retriever_per_field(metadata, query_text, with_filters, row_data, expected):
-    """Each matching field names the retriever that produced it: the text retriever or the structured filters."""
-    tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"), path="subscription.status")
-    query = SelectQuery(
-        entity_type=EntityType.SUBSCRIPTION, query_text=query_text, filters=tree if with_filters else None
-    )
-
-    response = format_search_response([_structured_row(**row_data)], query, metadata, None, None, None, None)
-
-    fields = response.results[0].matching_fields
-    assert [(f.path, f.text, f.retriever) for f in fields] == expected

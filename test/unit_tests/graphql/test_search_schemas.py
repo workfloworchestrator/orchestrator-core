@@ -13,7 +13,6 @@
 
 """Unit tests for the GraphQL search output types in orchestrator.core.graphql.schemas.search."""
 
-import pytest
 import strawberry.scalars
 
 from orchestrator.core.graphql.schemas.search import (
@@ -40,15 +39,19 @@ from orchestrator.core.search.core.types import EntityType, FilterOp, UIType
 
 
 def test_matching_field_type() -> None:
-    field = MatchingFieldType(text="fiber optic", path="subscription.description", highlight_indices=[(0, 5)])
+    field = MatchingFieldType(
+        text="fiber optic", path="subscription.description", highlight_indices=[(0, 5)], retriever="fuzzy"
+    )
     assert field.text == "fiber optic"
     assert field.path == "subscription.description"
     assert field.highlight_indices == [(0, 5)]
+    assert field.retriever == "fuzzy"
 
 
 def test_matching_field_type_no_highlights() -> None:
     field = MatchingFieldType(text="test", path="name")
     assert field.highlight_indices is None
+    assert field.retriever is None
 
 
 def test_search_result_type() -> None:
@@ -237,16 +240,3 @@ def test_value_schema_type_no_fields() -> None:
     assert schema.operator == FilterOp.EQ
     assert schema.kind == "single"
     assert schema.fields is None
-
-
-@pytest.mark.parametrize(
-    "retriever,expected",
-    [
-        pytest.param(None, None, id="not-reported"),
-        pytest.param("fuzzy", "fuzzy", id="text-retriever"),
-        pytest.param("structured", "structured", id="filter-retriever"),
-    ],
-)
-def test_matching_field_type_retriever(retriever, expected) -> None:
-    field = MatchingFieldType(text="test", path="name", retriever=retriever)
-    assert field.retriever == expected

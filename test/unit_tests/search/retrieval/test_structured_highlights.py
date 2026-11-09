@@ -32,16 +32,17 @@ from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFil
 from orchestrator.core.search.filters.ltree_filters import LtreeFilter
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
 from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
-from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
-from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
 from orchestrator.core.search.retrieval.retrievers.structured import StructuredRetriever
 
 
-def _compile(filters: FilterTree | None) -> str:
-    candidate = select(
+def _candidate():
+    return select(
         AiSearchIndex.entity_id.label("entity_id"), AiSearchIndex.entity_title.label("entity_title")
     ).distinct()
-    query = StructuredRetriever(cursor=None, filters=filters).apply(candidate)
+
+
+def _compile(filters: FilterTree | None) -> str:
+    query = StructuredRetriever(cursor=None, filters=filters).apply(_candidate())
     return str(query.compile(dialect=postgresql.dialect()))
 
 
@@ -68,12 +69,6 @@ def test_no_filters_produces_no_highlight_column() -> None:
     assert Retriever.HIGHLIGHT_MATCHES_LABEL not in sql
 
 
-def _candidate():
-    return select(
-        AiSearchIndex.entity_id.label("entity_id"), AiSearchIndex.entity_title.label("entity_title")
-    ).distinct()
-
-
 def _tree(leaf: PathFilter) -> FilterTree:
     return FilterTree(op=BooleanOperator.AND, children=[leaf])
 
@@ -85,17 +80,13 @@ _HAS_COMPONENT_LEAF = PathFilter(
     path="*", condition=LtreeFilter(op=FilterOp.HAS_COMPONENT, value="port"), value_kind=UIType.COMPONENT
 )
 
-_TEXT_RETRIEVERS = [
-    pytest.param(lambda: FuzzyRetriever("fiber", cursor=None), id="fuzzy"),
-    pytest.param(lambda: SemanticRetriever([0.1, 0.2], cursor=None), id="semantic"),
-    pytest.param(lambda: RrfHybridRetriever([0.1, 0.2], "fiber", cursor=None), id="hybrid"),
-]
 
+def test_text_retriever_adds_filter_matches_around_the_page() -> None:
+    """The column is added outside the paged statement, which is re-ordered by score and id.
 
-@pytest.mark.parametrize("retriever_factory", _TEXT_RETRIEVERS)
-def test_text_retriever_adds_filter_matches_around_the_page(retriever_factory) -> None:
-    """The column is added outside the paged statement, which is re-ordered by score and id."""
-    retriever = retriever_factory()
+    `with_filter_matches` is shared by every text retriever; the integration tests run it for each of them.
+    """
+    retriever = FuzzyRetriever("fiber", cursor=None)
     page = retriever.apply(_candidate()).limit(10)
 
     stmt = retriever.with_filter_matches(page, _tree(_EQ_LEAF))
@@ -106,13 +97,12 @@ def test_text_retriever_adds_filter_matches_around_the_page(retriever_factory) -
     assert sql.rstrip().endswith("ORDER BY page.score DESC NULLS LAST, page.entity_id ASC")
 
 
-@pytest.mark.parametrize("retriever_factory", _TEXT_RETRIEVERS)
 @pytest.mark.parametrize(
     "filters",
     [pytest.param(None, id="no-filters"), pytest.param(_tree(_HAS_COMPONENT_LEAF), id="has-component-only")],
 )
-def test_text_retriever_without_highlightable_leaves_keeps_page(retriever_factory, filters) -> None:
-    retriever = retriever_factory()
+def test_text_retriever_without_highlightable_leaves_keeps_page(filters) -> None:
+    retriever = FuzzyRetriever("fiber", cursor=None)
     page = retriever.apply(_candidate()).limit(10)
 
     assert retriever.with_filter_matches(page, filters) is page
