@@ -1,25 +1,32 @@
-name: Tests
+name: CI
 
-# Single PR/push entry point for the entire test suite:
+# Single PR/push entry point for the entire test suite.
+# For PRs the final 'CI result' job must pass in order to merge.
+#
 #   1) ``unit-tests`` runs the reusable ``run-unit-tests.yml`` workflow across
-#      the full Python matrix (no services). Required gate.
-#   2) ``integration-tests`` runs after the unit gate on a deliberately
-#      narrow service-matrix to keep PR feedback fast.
-#   3) ``cli-acceptance-tests`` runs the CLI code-generation acceptance suite
+#      the full Python matrix (no services).
+#   2) ``linting-tests`` runs the reusable ``run-linting-tests.yml`` workflow
+#      (mypy + prek hooks).
+#   3) ``integration-tests`` runs after the unit and linting gates on a
+#      deliberately narrow service-matrix to keep PR feedback fast.
+#   4) ``cli-acceptance-tests`` runs the CLI code-generation acceptance suite
 #      (reusable ``run-cli-acceptance-tests.yml``).
-#   4) ``celery-acceptance-tests`` runs the Celery acceptance suite
+#   5) ``celery-acceptance-tests`` runs the Celery acceptance suite
 #      (reusable ``run-celery-acceptance-tests.yml``).
-#   5) ``llm-acceptance-tests`` runs the LLM/embedding acceptance suite
+#   6) ``llm-acceptance-tests`` runs the LLM/embedding acceptance suite
 #      (reusable ``run-llm-acceptance-tests.yml``). Tests use mocked
 #      embeddings, so it runs on fork PRs too.
+#   7) ``integration-tests`` also has a matrix row that runs the search benchmark
+#      (test/benchmarks/search) against its committed accuracy baseline, in parallel
+#      with the integration tests.
 #
-# Each downstream job ``needs: unit-tests`` so unit tests run exactly once
-# per PR and downstream jobs only execute when units are green.
+# Each downstream job ``needs: [unit-tests, linting-tests]`` so the unit matrix
+# and the cheap linting checks run exactly once per PR and the expensive
+# service-backed suites only execute when both are green.
 
 on:
   push:
     branches: [main]
-  workflow_call:
   workflow_dispatch:
   pull_request:
 
@@ -32,9 +39,14 @@ jobs:
     uses: ./.github/workflows/run-unit-tests.yml
     secrets: inherit
 
+  linting-tests:
+    name: Linting tests
+    uses: ./.github/workflows/run-linting-tests.yml
+    secrets: inherit
+
   integration-tests:
-    name: Integration tests (Python ${{ matrix.python-version }} / Postgres ${{ matrix.postgres-version }} / Redis ${{ matrix.redis-version }})
-    needs: unit-tests
+    name: ${{ matrix.suite }} (Python ${{ matrix.python-version }} / Postgres ${{ matrix.postgres-version }} / Redis ${{ matrix.redis-version }})
+    needs: [unit-tests, linting-tests]
     runs-on: ubuntu-26.04
     strategy:
       # Narrow matrix: oldest + newest supported Python × Postgres, with the
@@ -42,14 +54,28 @@ jobs:
       # (scheduled-build.yml currently runs only the unit workflow).
       matrix:
         include:
-          - python-version: "3.11"
+          - suite: Integration tests
+            python-version: "3.11"
             postgres-version: "15"
             redis-version: "7"
-          - python-version: "3.14"
+          - suite: Integration tests
+            python-version: "3.14"
+            postgres-version: "17"
+            redis-version: "8"
+          # Accuracy of the fuzzy retriever against test/benchmarks/search/baseline/accuracy.md. Its own row so it runs
+          # in parallel with the integration tests. One row is enough: the baseline is the same on every Postgres
+          # version. Sequential: the queries' plans share one connection.
+          - suite: Search benchmark
+            python-version: "3.14"
             postgres-version: "17"
             redis-version: "8"
       fail-fast: false
     container: ubuntu:latest
+    env:
+      DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
+      CACHE_URI: redis://redis
+      POSTGRES_HOST: postgres
+      ENVIRONMENT: TESTING
     services:
       postgres:
         image: pgvector/pgvector:pg${{ matrix.postgres-version }}
@@ -86,20 +112,22 @@ jobs:
         # Celery, LLM and CLI suites live under test/acceptance_tests/ and
         # have their own workflows (run-celery-acceptance-tests.yml,
         # run-llm-acceptance-tests.yml, run-cli-acceptance-tests.yml).
+        if: matrix.suite == 'Integration tests'
         run: |
           uv run pytest test/integration_tests \
             --cov-branch --cov=orchestrator --cov-report=xml \
             -n auto
-        env:
-          DATABASE_URI: postgresql+psycopg://nwa:nwa@postgres/orchestrator-core-test
-          CACHE_URI: redis://redis
-          POSTGRES_HOST: postgres
-          ENVIRONMENT: TESTING
+
+      - name: Run the search benchmark
+        if: matrix.suite == 'Search benchmark'
+        run: uv run pytest test/benchmarks/search -v
 
       - name: Install codecov dependencies
+        if: matrix.suite == 'Integration tests'
         run: apt-get update && apt-get install -y git curl gpg
 
       - name: "Upload coverage to Codecov"
+        if: matrix.suite == 'Integration tests'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -109,49 +137,35 @@ jobs:
 
   cli-acceptance-tests:
     name: CLI acceptance tests
-    needs: unit-tests
+    needs: [unit-tests, linting-tests]
     uses: ./.github/workflows/run-cli-acceptance-tests.yml
     secrets: inherit
 
   celery-acceptance-tests:
     name: Celery acceptance tests
-    needs: unit-tests
+    needs: [unit-tests, linting-tests]
     uses: ./.github/workflows/run-celery-acceptance-tests.yml
     secrets: inherit
 
   llm-acceptance-tests:
     name: LLM/embedding acceptance tests
-    needs: unit-tests
+    needs: [unit-tests, linting-tests]
     uses: ./.github/workflows/run-llm-acceptance-tests.yml
     secrets: inherit
 
-  linting-tests:
-    name: Linting tests
-    uses: ./.github/workflows/run-linting-tests.yml
-    secrets: inherit
-
-  # Final gate: ensures all required checks passed before merge is allowed
-  all-checks-passed:
-    name: All checks passed (merge gate)
+  gate:
+    name: CI result
     needs:
       - unit-tests
+      - linting-tests
       - integration-tests
       - cli-acceptance-tests
       - celery-acceptance-tests
       - llm-acceptance-tests
-      - linting-tests
     runs-on: ubuntu-slim
-    if: always()
+    if: always()  # also report when a needed job failed or was cancelled
     steps:
-      - name: Fail if any required check failed
-        run: |
-          if [[ "${{ needs.unit-tests.result }}" != "success" ]] || \
-             [[ "${{ needs.integration-tests.result }}" != "success" ]] || \
-             [[ "${{ needs.cli-acceptance-tests.result }}" != "success" ]] || \
-             [[ "${{ needs.celery-acceptance-tests.result }}" != "success" ]] || \
-             [[ "${{ needs.llm-acceptance-tests.result }}" != "success" ]] || \
-             [[ "${{ needs.linting-tests.result }}" != "success" ]]; then
-            echo "❌ One or more required checks failed. Cannot merge."
-            exit 1
-          fi
-          echo "✅ All required checks passed. Ready to merge."
+      - name: Decide whether the needed jobs succeeded or failed
+        uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
+        with:
+          jobs: ${{ toJSON(needs) }}
