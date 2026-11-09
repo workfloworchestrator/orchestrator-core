@@ -18,14 +18,13 @@ from typing import Any
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.db import SearchQueryTable, get_async_session
 from orchestrator.core.schemas.search import (
     CursorInfoSchema,
-    ExportResponse,
     PageInfoSchema,
     PathsResponse,
     SearchResultsSchema,
@@ -37,6 +36,7 @@ from orchestrator.core.search.filters.definitions import TypeDefinition, generat
 from orchestrator.core.search.query import QueryState, engine
 from orchestrator.core.search.query.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
 from orchestrator.core.search.query.exceptions import SEARCH_INPUT_ERRORS
+from orchestrator.core.search.query.export import export_records_to_csv
 from orchestrator.core.search.query.page import execute_search_page
 from orchestrator.core.search.query.queries import AggregateQuery, CountQuery, ExportQuery, QueryAdapter, SelectQuery
 from orchestrator.core.search.query.results import QueryResultsResponse, ResultRow, SearchResult, VisualizationType
@@ -44,9 +44,16 @@ from orchestrator.core.search.query.validation import (
     is_lquery_syntactically_valid,
     validate_structured_order_by_element,
 )
+from orchestrator.core.utils.datetime import nowtz
 
 router = APIRouter()
 logger = structlog.get_logger(__name__)
+
+
+class CSVResponse(Response):
+    """A CSV file. As a route's `response_class` it also documents the response as `text/csv`."""
+
+    media_type = "text/csv"
 
 
 @contextmanager
@@ -362,21 +369,21 @@ async def get_by_query_id(
 
 @router.get(
     "/queries/{query_id}/export",
-    summary="Export query results by query_id",
-    response_model=ExportResponse,
+    summary="Export query results by query_id as a CSV file",
+    response_class=CSVResponse,
 )
-async def export_by_query_id(query_id: str, session: AsyncSession = Depends(get_async_session)) -> ExportResponse:
-    """Export search results using query_id.
+async def export_by_query_id(query_id: str, session: AsyncSession = Depends(get_async_session)) -> CSVResponse:
+    """Export search results using query_id, as a CSV file.
 
-    The query is retrieved from the database, re-executed, and results are returned
-    as flattened records suitable for CSV download.
+    The query is retrieved from the database, re-executed, and its results are written as flattened
+    records to a CSV file (semicolon-separated, every value quoted), which is returned as a download.
 
     Args:
         query_id: QueryTypes UUID
         session: Async database session
 
     Returns:
-        ExportResponse containing 'page' with an array of flattened entity records.
+        The CSV file, as an attachment.
 
     Raises:
         HTTPException: 404 if query not found, 400 if invalid data
@@ -393,4 +400,9 @@ async def export_by_query_id(query_id: str, session: AsyncSession = Depends(get_
         )
 
         export_records = await engine.execute_export(export_query, session, query_state.query_embedding)
-        return ExportResponse(page=export_records)
+
+    filename = f"{export_query.entity_type.value.lower()}_{nowtz():%Y-%m-%d}.csv"
+    return CSVResponse(
+        content=export_records_to_csv(export_records),
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

@@ -15,6 +15,8 @@
 
 import re
 from collections.abc import Sequence
+from difflib import SequenceMatcher
+from itertools import chain
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -217,31 +219,54 @@ def truncate_text_with_highlights(
 EDGE_PUNCTUATION_RE = re.compile(r"^[^\w+#@]+|[^\w+#@]+$")
 
 
+# Similarity fallback for query words without a literal hit (typos, extra or missing letters). This is a Python-side
+# heuristic, independent of pg_trgm: the retriever compares the whole query to a whole field by trigram similarity,
+# while this compares each query word to each text token with a ``SequenceMatcher`` ratio, so the thresholds are not
+# interchangeable. Short words are excluded because nearly anything is "similar" to them.
+HIGHLIGHT_SIMILARITY_MIN_RATIO = 0.8
+HIGHLIGHT_SIMILARITY_MIN_WORD_LENGTH = 4
+# A text token is a run of word characters, optionally joined by inner ``-``, ``.`` or ``/`` (``asd066d-jnp-02``).
+TEXT_TOKEN_RE = re.compile(r"\w+(?:[-./]\w+)*")
+
+
+def _literal_word_matches(text: str, word: str) -> list[tuple[int, int]]:
+    """Returns the spans of all word-boundary and substring occurrences of ``word`` in ``text``."""
+    patterns = (rf"\b{re.escape(word)}\b", re.escape(word))
+    return [(m.start(), m.end()) for pattern in patterns for m in re.finditer(pattern, text, re.IGNORECASE)]
+
+
+def _is_similar(word: str, token: str) -> bool:
+    """Whether ``token`` is a close enough (case-insensitive) spelling of ``word``."""
+    return SequenceMatcher(None, word.lower(), token.lower()).ratio() >= HIGHLIGHT_SIMILARITY_MIN_RATIO
+
+
+def _similar_word_matches(text: str, word: str) -> list[tuple[int, int]]:
+    """Returns the spans of the text tokens that are similar to ``word``."""
+    if len(word) < HIGHLIGHT_SIMILARITY_MIN_WORD_LENGTH:
+        return []
+    return [(m.start(), m.end()) for m in TEXT_TOKEN_RE.finditer(text) if _is_similar(word, m.group())]
+
+
+def _word_matches(text: str, word: str) -> list[tuple[int, int]]:
+    """Returns the literal matches of ``word``, or its similar matches when there is no literal match."""
+    return _literal_word_matches(text, word) or _similar_word_matches(text, word)
+
+
 def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
     """Finds all occurrences of individual words from the term, including both word boundary and substring matches.
 
     Wrapping punctuation is stripped from the edges of each word, so a quoted query highlights the words
     it wraps (``"Node`` highlights ``Node``). Identifiers keep their inner punctuation and are matched
     whole, so ``asd066d-jnp-02`` is one word rather than three.
+
+    A word without any literal occurrence falls back to similarity matching: every text token whose similarity
+    to the word is at least ``HIGHLIGHT_SIMILARITY_MIN_RATIO`` is highlighted, so ``unimaass`` highlights ``UNIMAAS``.
     """
     if not text or not term:
         return []
 
-    all_matches = []
     words = [w for w in (EDGE_PUNCTUATION_RE.sub("", w) for w in term.split()) if w]
-
-    for word in words:
-        # First find word boundary matches
-        word_boundary_pattern = rf"\b{re.escape(word)}\b"
-        word_matches = list(re.finditer(word_boundary_pattern, text, re.IGNORECASE))
-        all_matches.extend([(m.start(), m.end()) for m in word_matches])
-
-        # Then find all substring matches
-        substring_pattern = re.escape(word)
-        substring_matches = list(re.finditer(substring_pattern, text, re.IGNORECASE))
-        all_matches.extend([(m.start(), m.end()) for m in substring_matches])
-
-    return sorted(set(all_matches))
+    return sorted(set(chain.from_iterable(_word_matches(text, word) for word in words)))
 
 
 def generate_regex_highlight_indices(text: str, pattern: str) -> list[tuple[int, int]]:

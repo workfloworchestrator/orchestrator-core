@@ -50,7 +50,7 @@ The test suite is split across four pytest invocations. See the
 The Celery and LLM suites run as their own GitHub Actions workflows
 (`run-celery-acceptance-tests.yml`, `run-llm-acceptance-tests.yml`,
 `run-cli-acceptance-tests.yml`). The integration
-command above is what `run-tests.yml` runs.
+command above is what `ci.yml` runs.
 
 ### Run unit tests (no services required)
 <!-- diataxis: -->

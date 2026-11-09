@@ -171,5 +171,5 @@ class ResolveEntityResponse(OrchestratorBaseModel):
 
 class ExportQueryResponse(OrchestratorBaseModel):
     query_id: UUID
-    download_path: str = Field(description="Relative API path that streams the CSV export.")
+    download_path: str = Field(description="Relative API path that returns the export as a CSV file.")
     message: str

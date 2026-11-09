@@ -1,5 +1,5 @@
 # LLM/embedding-based search acceptance tests. Reusable only — invoked from
-# ``run-tests.yml`` after the unit-test gate passes, so the unit
+# ``ci.yml`` after the unit-test and linting gates pass, so the unit
 # matrix runs at most once per PR.
 
 name: Pytest LLM Acceptance Tests

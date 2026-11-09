@@ -1,0 +1,266 @@
+[
+  {
+    "path": "orchestrator/core/cli/domain_gen_helpers/product_block_helpers.py",
+    "file_name": "product_block_helpers.py",
+    "functions": [
+      {
+        "name": "generate_create_product_block_instance_relations_sql",
+        "complexity": 20
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/cli/domain_gen_helpers/resource_type_helpers.py",
+    "file_name": "resource_type_helpers.py",
+    "functions": [
+      {
+        "name": "map_rename_resource_types",
+        "complexity": 22
+      },
+      {
+        "name": "map_update_product_block_resource_types",
+        "complexity": 24
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/cli/migrate_domain_models.py",
+    "file_name": "migrate_domain_models.py",
+    "functions": [
+      {
+        "name": "map_differences_unique",
+        "complexity": 18
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/cli/migration_helpers.py",
+    "file_name": "migration_helpers.py",
+    "functions": [
+      {
+        "name": "create_migration_file",
+        "complexity": 19
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/cli/search/display.py",
+    "file_name": "display.py",
+    "functions": [
+      {
+        "name": "display_results",
+        "complexity": 18
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/db/sorting/process.py",
+    "file_name": "process.py",
+    "functions": [
+      {
+        "name": "generic_process_relation_sort",
+        "complexity": 16
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/devtools/populator.py",
+    "file_name": "populator.py",
+    "functions": [
+      {
+        "name": "Populator::get_form_data",
+        "complexity": 49
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/domain/base.py",
+    "file_name": "base.py",
+    "functions": [
+      {
+        "name": "validate_base_model",
+        "complexity": 16
+      },
+      {
+        "name": "DomainModel::_data_from_lifecycle",
+        "complexity": 25
+      },
+      {
+        "name": "ProductBlockModel::_save_instance_values",
+        "complexity": 25
+      },
+      {
+        "name": "DomainModel::_load_instances",
+        "complexity": 30
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/graphql/utils/get_subscription_product_blocks.py",
+    "file_name": "get_subscription_product_blocks.py",
+    "functions": [
+      {
+        "name": "get_subscription_product_blocks",
+        "complexity": 16
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/graphql/utils/is_query_detailed.py",
+    "file_name": "is_query_detailed.py",
+    "functions": [
+      {
+        "name": "is_query_detailed",
+        "complexity": 24
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/migrations/helpers.py",
+    "file_name": "helpers.py",
+    "functions": [
+      {
+        "name": "create",
+        "complexity": 30
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/search/filters/base.py",
+    "file_name": "base.py",
+    "functions": [
+      {
+        "name": "FilterTree::matching_entity_ids",
+        "complexity": 22
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/search/indexing/indexer.py",
+    "file_name": "indexer.py",
+    "functions": [
+      {
+        "name": "Indexer::_generate_upsert_batches",
+        "complexity": 18
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/search/indexing/traverse.py",
+    "file_name": "traverse.py",
+    "functions": [
+      {
+        "name": "ProductTraverser::_extract_block_schema",
+        "complexity": 18
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/search/query/builder.py",
+    "file_name": "builder.py",
+    "functions": [
+      {
+        "name": "_apply_ordering",
+        "complexity": 37
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/search/query/results.py",
+    "file_name": "results.py",
+    "functions": [
+      {
+        "name": "format_search_response",
+        "complexity": 20
+      },
+      {
+        "name": "_resolve_structured_matching_fields",
+        "complexity": 25
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/search/retrieval/retrievers/base.py",
+    "file_name": "base.py",
+    "functions": [
+      {
+        "name": "Retriever::route",
+        "complexity": 20
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/services/subscriptions.py",
+    "file_name": "subscriptions.py",
+    "functions": [
+      {
+        "name": "subscription_workflows",
+        "complexity": 36
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/types.py",
+    "file_name": "types.py",
+    "functions": [
+      {
+        "name": "is_list_type",
+        "complexity": 20
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/utils/fixed_inputs.py",
+    "file_name": "fixed_inputs.py",
+    "functions": [
+      {
+        "name": "fixed_input_configuration",
+        "complexity": 23
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/utils/search_query.py",
+    "file_name": "search_query.py",
+    "functions": [
+      {
+        "name": "SQLAlchemyVisitor::visit_kv_term",
+        "complexity": 18
+      }
+    ]
+  },
+  {
+    "path": "orchestrator/core/workflows/tasks/validate_products.py",
+    "file_name": "validate_products.py",
+    "functions": [
+      {
+        "name": "check_db_fixed_input_config",
+        "complexity": 18
+      }
+    ]
+  },
+  {
+    "path": "scripts/check_diataxis.py",
+    "file_name": "check_diataxis.py",
+    "functions": [
+      {
+        "name": "main",
+        "complexity": 22
+      }
+    ]
+  },
+  {
+    "path": "test/acceptance_tests/search/llm/scripts/benchmark/display.py",
+    "file_name": "display.py",
+    "functions": [
+      {
+        "name": "display_ranking_comparison",
+        "complexity": 27
+      },
+      {
+        "name": "display_benchmark_results",
+        "complexity": 30
+      }
+    ]
+  }
+]

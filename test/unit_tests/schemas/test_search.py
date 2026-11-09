@@ -17,7 +17,6 @@ import pytest
 from pydantic import ValidationError
 
 from orchestrator.core.schemas.search import (
-    ExportResponse,
     PageInfoSchema,
     PathsResponse,
     SearchResultsSchema,
@@ -52,7 +51,6 @@ def test_search_results_defaults() -> None:
     "model,kwargs",
     [
         pytest.param(PathsResponse, {"leaves": [], "components": [], "extra_field": "no"}, id="paths-extra"),
-        pytest.param(ExportResponse, {"page": [], "extra": "no"}, id="export-extra"),
     ],
 )
 def test_extra_fields_forbidden(model: type, kwargs: dict) -> None:

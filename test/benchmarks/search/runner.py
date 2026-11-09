@@ -20,7 +20,7 @@ that it uses the trigram index; see `test.integration_tests.search.performance._
 from collections.abc import Mapping, Sequence
 
 from more_itertools import one
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.db import db
@@ -53,28 +53,42 @@ BENCHMARK_SETTINGS = {**PLAN_SETTINGS, "pg_trgm.word_similarity_threshold": WORD
 
 
 def load_corpus(corpus: Corpus) -> int:
-    """Replace the search index by `corpus`, indexed by the real `Indexer`, and settle the database for plan reading.
+    """Replace the search index by `corpus`, indexed by the real `Indexer`.
 
     Embeddings are off (``EMBEDDING_API_ENABLED``), so the rows carry none: only the text retrievers are measured.
+    Once committed, `settle_index` readies the table for plan reading.
 
     Returns:
         The number of index rows written.
     """
     db.session.execute(text("TRUNCATE ai_search_index"))
     written = Indexer(CORPUS_ENTITY_CONFIG, dry_run=False, force_index=True).run(corpus.entities)  # type: ignore[arg-type]
-    # Rebuilt, so the index sizes do not depend on insertion order; see `_plans.seed_index`. VACUUM cannot run in the
-    # test transaction, but a freshly truncated table has no dead rows: ANALYZE is what settles the statistics.
+    # Rebuilt, so the index sizes do not depend on insertion order; see `_plans.seed_index`.
     for index in (GIST_INDEX, TRIGRAM_INDEX):
         db.session.execute(text(f"REINDEX INDEX {index}"))
+    return written
+
+
+def settle_index(connection: Connection) -> None:
+    """VACUUM and ANALYZE the committed index on an autocommit `connection`, so its plans are the same on every run.
+
+    Autovacuum must be disabled on the table, or it would vacuum and analyze it again at some point during the tests,
+    and change their plans with it.
+    """
     # ANALYZE samples 300 * default_statistics_target rows, and a random sample gives run-dependent cost estimates. The
     # target is raised until the sample covers the whole table, so that it is read whole, as `_plans.seed_index` does.
-    rows = db.session.execute(text("SELECT count(*) FROM ai_search_index")).scalar_one()
+    rows = connection.execute(text("SELECT count(*) FROM ai_search_index")).scalar_one()
     target = max(DEFAULT_STATISTICS_TARGET, -(-rows // ROWS_PER_STATISTICS_TARGET))
-    db.session.execute(text("SELECT set_config('default_statistics_target', :target, true)"), {"target": str(target)})
-    db.session.execute(text("ANALYZE ai_search_index"))
+    connection.execute(text("SELECT set_config('default_statistics_target', :target, false)"), {"target": str(target)})
+    # VACUUM sets the visibility map, which the planner reads for index-only scans.
+    connection.execute(text("VACUUM (ANALYZE) ai_search_index"))
+    connection.execute(text("RESET default_statistics_target"))
+
+
+def apply_benchmark_settings() -> None:
+    """Set `BENCHMARK_SETTINGS` for the rest of the current transaction."""
     for name, value in BENCHMARK_SETTINGS.items():
         db.session.execute(text("SELECT set_config(:name, :value, true)"), {"name": name, "value": value})
-    return written
 
 
 def uses_trigram_index(plan: Mapping) -> bool:

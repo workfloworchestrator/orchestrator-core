@@ -95,7 +95,7 @@ Click *Ready for review* once the PR is complete. Automated [Greptile](https://w
 Please don't trigger reviews by commenting `@greptileai`, as that bypasses the per-PR budget.
 
 ## Pre-commit hooks
-<!-- diataxis: -->
+<!-- diataxis: how-to -->
 
 We use [prek](https://prek.j178.dev/) to run the pre-commit hooks to ensure that the code is formatted correctly and that the tests pass.
 To install the hooks, run the following command:
@@ -109,6 +109,25 @@ To run the hooks manually, run the following command:
 ```shell
 uv run prek run --all-files
 ```
+
+### Cognitive complexity
+<!-- diataxis: how-to -->
+
+One of the hooks, [complexipy](https://github.com/rohaquinlop/complexipy), fails a commit when a Python
+function exceeds a cognitive-complexity threshold of 15. The repository is adopted with a snapshot
+baseline in `complexipy-snapshot.json`: the functions that were already above the threshold when the gate
+was introduced are allowed, so you only fail when you add a new complex function or make a baseline
+function more complex.
+
+When the hook fails:
+
+- Prefer refactoring the function. `uv run complexipy <path> --failed --suggest-refactors` names the
+  functions and suggests extractions, and `uv run complexipy <path> --fix --dry-run` previews the fixes
+  complexipy can apply itself.
+- If the complexity is genuinely necessary, add a `# complexipy: ignore (reason)` comment on the function
+  and note why.
+- If you moved or renamed a baseline function, run `uv run complexipy . --snapshot-create` and commit the
+  updated `complexipy-snapshot.json`.
 
 ## Updating AI context (CLAUDE.md)
 <!-- diataxis: -->
