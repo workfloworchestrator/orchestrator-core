@@ -47,7 +47,11 @@ class VisualizationType(BaseModel):
 
 
 class MatchingField(BaseModel):
-    """Contains the field that contributed most to the (fuzzy) search result."""
+    """A field that made an entity a search result.
+
+    A text search reports the field that best matched the query text first, followed by the fields
+    that satisfied the filters, if any; a filter-only search reports the filter matches alone.
+    """
 
     text: str
     path: str
@@ -286,7 +290,6 @@ def format_search_response(
         SearchResponse: A list of `SearchResult` objects containing entity IDs, scores,
         and optional highlight information.
     """
-    from orchestrator.core.search.retrieval.retrievers import Retriever
 
     if not db_rows:
         return SearchResponse(results=[], metadata=metadata, total_items=total_items, query_embedding=query_embedding)
@@ -295,24 +298,9 @@ def format_search_response(
 
     results = []
     for row in db_rows:
-        matching_fields: list[MatchingField] = []
-
-        if (
-            user_query
-            and (text := row.get(Retriever.HIGHLIGHT_TEXT_LABEL)) is not None
-            and (path := row.get(Retriever.HIGHLIGHT_PATH_LABEL)) is not None
-        ):
-            if not isinstance(text, str):
-                text = str(text)
-            if not isinstance(path, str):
-                path = str(path)
-
-            highlight_indices = generate_highlight_indices(text, user_query)
-            truncated_text, adjusted_indices = truncate_text_with_highlights(text, highlight_indices)
-            matching_fields = [MatchingField(text=truncated_text, path=path, highlight_indices=adjusted_indices)]
-
-        elif not user_query and query.filters and metadata.search_type == "structured":
-            matching_fields = _resolve_structured_matching_fields(row, query.filters)
+        text_fields = _resolve_text_matching_fields(row, user_query) if user_query else []
+        filter_fields = _resolve_structured_matching_fields(row, query.filters) if query.filters else []
+        matching_fields = _merge_matching_fields(text_fields, filter_fields)
 
         entity_title = row.get("entity_title", "")
         if not isinstance(entity_title, str):
@@ -343,6 +331,29 @@ def format_search_response(
         end_cursor=end_cursor,
         query_embedding=query_embedding,
     )
+
+
+def _resolve_text_matching_fields(row: "RowMapping", user_query: str) -> list[MatchingField]:
+    """The field the text retriever ranked on, with the query words highlighted, or nothing if the row has none."""
+    from orchestrator.core.search.retrieval.retrievers import Retriever
+
+    text = row.get(Retriever.HIGHLIGHT_TEXT_LABEL)
+    path = row.get(Retriever.HIGHLIGHT_PATH_LABEL)
+    if text is None or path is None:
+        return []
+    text = str(text)
+    highlight_indices = generate_highlight_indices(text, user_query)
+    truncated_text, adjusted_indices = truncate_text_with_highlights(text, highlight_indices)
+    return [MatchingField(text=truncated_text, path=str(path), highlight_indices=adjusted_indices)]
+
+
+def _merge_matching_fields(text_fields: list[MatchingField], filter_fields: list[MatchingField]) -> list[MatchingField]:
+    """The text match first, as it decided the ranking, then the filter matches on other fields.
+
+    A field that matched both the text and a filter is reported once, as the text match.
+    """
+    text_paths = {field.path for field in text_fields}
+    return [*text_fields, *(field for field in filter_fields if field.path not in text_paths)]
 
 
 def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree") -> list[MatchingField]:

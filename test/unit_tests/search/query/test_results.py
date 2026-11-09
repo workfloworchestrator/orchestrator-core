@@ -716,3 +716,74 @@ def test_format_search_response_keeps_query_embedding(rows):
 
     assert response.query_embedding == [0.1, 0.2]
     assert len(response.results) == len(rows)
+
+
+# =============================================================================
+# format_search_response — text search with filters
+# =============================================================================
+
+_STATUS_MATCH = [[{"value": "active", "path": "subscription.status", "idx": 0}]]
+_DESCRIPTION_MATCH = [[{"value": "fiber link", "path": "subscription.description", "idx": 0}]]
+_TEXT_HIGHLIGHT = {"highlight_text": "fiber link", "highlight_path": "subscription.description"}
+
+
+@pytest.mark.parametrize(
+    "with_filters,row_data,expected",
+    [
+        pytest.param(
+            True,
+            {**_TEXT_HIGHLIGHT, "highlight_matches": _STATUS_MATCH},
+            [("subscription.description", "fiber link"), ("subscription.status", "active")],
+            id="text-then-filter",
+        ),
+        pytest.param(
+            True,
+            {**_TEXT_HIGHLIGHT, "highlight_matches": _DESCRIPTION_MATCH},
+            [("subscription.description", "fiber link")],
+            id="same-field-reported-once",
+        ),
+        pytest.param(
+            True,
+            _TEXT_HIGHLIGHT,
+            [("subscription.description", "fiber link")],
+            id="no-filter-matches-column",
+        ),
+        pytest.param(
+            True,
+            {"highlight_matches": _STATUS_MATCH},
+            [("subscription.status", "active")],
+            id="no-text-highlight",
+        ),
+        pytest.param(
+            False,
+            {**_TEXT_HIGHLIGHT, "highlight_matches": _STATUS_MATCH},
+            [("subscription.description", "fiber link")],
+            id="no-filters",
+        ),
+    ],
+)
+def test_format_text_response_appends_filter_matches(with_filters, row_data, expected):
+    """A text search reports its text match first, then the filter matches on other fields."""
+    tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"), path="subscription.status")
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text="fiber", filters=tree if with_filters else None)
+
+    response = format_search_response(
+        [_structured_row(**row_data)], query, SearchMetadata.hybrid(), None, None, None, None
+    )
+
+    fields = response.results[0].matching_fields
+    assert [(f.path, f.text) for f in fields] == expected
+
+
+def test_format_text_response_highlights_query_and_filter_separately():
+    """The text match highlights the query words; the filter match highlights the filter value."""
+    tree = _single_leaf_filter_tree(EqualityFilter(op=FilterOp.EQ, value="active"), path="subscription.status")
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text="fiber", filters=tree)
+    row = _structured_row(**_TEXT_HIGHLIGHT, highlight_matches=_STATUS_MATCH)
+
+    text_field, filter_field = (
+        format_search_response([row], query, SearchMetadata.hybrid(), None, None, None, None).results[0].matching_fields
+    )
+
+    assert text_field.highlight_indices == [(0, len("fiber"))]
+    assert filter_field.highlight_indices == [(0, len("active"))]
