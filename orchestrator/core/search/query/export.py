@@ -11,6 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
+import io
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -269,3 +272,33 @@ def fetch_export_data(entity_type: EntityType, entity_ids: list[str]) -> list[di
             return fetch_resource_type_export_data(entity_ids)
         case _:
             raise ValueError(f"Unsupported entity type: {entity_type}")
+
+
+def export_records_to_csv(records: list[dict]) -> str:
+    """Write flattened export records as a CSV file, in the dialect the WFO UI writes its own exports in.
+
+    Semicolon-separated with every value quoted; the columns are the records' keys in first-seen order. A missing
+    value is empty, and a line break inside a value becomes a space, so a record is always one line.
+
+    Args:
+        records: Flattened entity records, as `fetch_export_data` returns them
+
+    Returns:
+        The CSV text; empty when there are no records
+    """
+    if not records:
+        return ""
+    columns = list(dict.fromkeys(key for record in records for key in record))
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, delimiter=";", quoting=csv.QUOTE_ALL, lineterminator="\n")
+    writer.writerow(columns)
+    writer.writerows([_csv_cell(record.get(column)) for column in columns] for record in records)
+    return buffer.getvalue()
+
+
+def _csv_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return " ".join(str(value).splitlines())
