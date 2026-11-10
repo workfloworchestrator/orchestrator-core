@@ -57,10 +57,11 @@ class VisualizationType(BaseModel):
 
 
 class MatchingField(BaseModel):
-    """A field that made an entity a search result.
+    """A field whose value matched the search query or filters.
 
-    A text search reports the field that best matched the query text first, followed by the fields
-    that satisfied the filters, if any; a filter-only search reports the filter matches alone.
+    A text search reports the field that best matched the query text first,
+    followed by any fields that satisfied the filters. A filter-only search
+    reports only the filter matches.
 
     ``retriever`` names what produced the field: the text retriever (``fuzzy``, ``semantic``, ``hybrid``)
     for the text match, or ``structured`` for a filter match.
