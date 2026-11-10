@@ -528,6 +528,9 @@ async def aggregate_endpoint(
 ) -> AggregateToolResponse:
     """Count entities or compute statistics (SUM/AVG/MIN/MAX), optionally grouped.
 
+    The result is numbers only, never entities. A request for the entities themselves, filtered or not,
+    is a ``search``, which returns the matching rows; this tool is for a quantity about them.
+
     operation='count' counts rows (optionally grouped by ``group_by`` / ``temporal_group_by``);
     operation='aggregate' computes ``aggregations`` over the matching rows. To filter, first discover
     field paths with discover_filter_paths and check operators with get_valid_operators (same filter
@@ -650,8 +653,7 @@ async def resolve_entity_endpoint(
 
     A unique SUBSCRIPTION match comes with the subscription's flat header in
     ``subscription`` (status, product, customer, dates), so looking one up by
-    id takes this call alone. Its nested product blocks and relations are in
-    ``get_subscription_domain_model``.
+    id takes this call alone.
     """
     form, normalized = _classify_id(params.id_or_prefix)
     if form is IdForm.NON_HEX:
@@ -709,7 +711,12 @@ async def resolve_entity_endpoint(
 async def export_query_endpoint(
     params: ExportQueryRequest, session: AsyncSession = Depends(get_async_session)
 ) -> ExportQueryResponse:
-    """Prepare a CSV export download for a previously executed search ``query_id``."""
+    """Prepare a CSV export download of a search's results, by the ``query_id`` that search returned.
+
+    An export needs a search. When the rows to export have not been searched for yet, call ``search``
+    for them first and then this tool with its ``query_id``, in the same turn: do not stop after the
+    search, and do not ask the user to search.
+    """
     try:
         await QueryState.load_from_id(str(params.query_id), SelectQuery, session)
     except QueryStateNotFoundError:
