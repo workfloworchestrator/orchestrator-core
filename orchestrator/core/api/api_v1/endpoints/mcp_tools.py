@@ -436,10 +436,12 @@ async def search_endpoint(
     ``fallback_used=true`` — those are approximate, closest matches.
 
     Building good filters:
-    - KEEP STRUCTURED FILTERS: when the request names a concrete dimension (status, product), always
-      include it as a filter even if you also pass ``query_text`` — filters narrow the candidate set
-      *before* ranking, so they make results more relevant, not fewer. Use `eq` when the exact value is
-      known (e.g. status `active`), `like` when unsure of the stored value (e.g. a product name).
+    - FILTER ON STATED DIMENSIONS: when a word qualifies the entities by a dimension the data stores as
+      a fixed set of values (a status, a lifecycle, a date range), or the request asks for a filter
+      outright, include it as a filter even if you also pass ``query_text`` — filters narrow the
+      candidate set *before* ranking. Use `eq` when the exact value is known, `like` when unsure of the
+      stored value. Words that say what the thing is (its name, kind or description) are not filters:
+      they go in ``query_text``, which ranks on titles, and the entity is ``entity_type``.
     - EXTRACT IDENTIFIERS: pull the high-signal identifiers from the request — entity/subscription ids,
       customer names, reference codes (e.g. `IS4443`), or numbers (e.g. `4433`, `id 1234`) — find the
       field that holds them via discover_filter_paths and filter with `like`. Never silently ignore an
