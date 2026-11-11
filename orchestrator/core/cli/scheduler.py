@@ -115,6 +115,9 @@ def _to_schedule_row(task: Job, *, api_managed_ids: set[str], verbose: bool) -> 
         yield str(task.trigger)  # trigger
         if verbose:
             yield json.dumps(task.kwargs, indent=2)  # kwargs
+            yield json.dumps(
+                {"misfire_grace_time": task.misfire_grace_time, "coalesce": task.coalesce}, indent=2
+            )  # job options
 
     return list(values())
 
@@ -139,6 +142,7 @@ def show_schedule(
     table.add_column("trigger")
     if verbose:
         table.add_column("kwargs")
+        table.add_column("job options")
 
     scheduled_tasks = get_all_scheduler_tasks()
     _schedule_ids = [task.id for task in scheduled_tasks]
