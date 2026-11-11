@@ -39,15 +39,19 @@ from orchestrator.core.search.core.types import EntityType, FilterOp, UIType
 
 
 def test_matching_field_type() -> None:
-    field = MatchingFieldType(text="fiber optic", path="subscription.description", highlight_indices=[(0, 5)])
+    field = MatchingFieldType(
+        text="fiber optic", path="subscription.description", highlight_indices=[(0, 5)], retriever="fuzzy"
+    )
     assert field.text == "fiber optic"
     assert field.path == "subscription.description"
     assert field.highlight_indices == [(0, 5)]
+    assert field.retriever == "fuzzy"
 
 
 def test_matching_field_type_no_highlights() -> None:
     field = MatchingFieldType(text="test", path="name")
     assert field.highlight_indices is None
+    assert field.retriever is None
 
 
 def test_search_result_type() -> None:

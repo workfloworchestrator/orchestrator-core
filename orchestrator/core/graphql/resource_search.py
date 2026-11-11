@@ -49,6 +49,7 @@ def matching_field_to_gql(mf: MatchingField) -> MatchingFieldType:
         text=mf.text,
         path=mf.path,
         highlight_indices=mf.highlight_indices,
+        retriever=mf.retriever,
     )
 
 

@@ -11,43 +11,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sqlalchemy import Select, String, Subquery, and_, cast, func, literal, or_, select
-from sqlalchemy.orm import aliased
+from sqlalchemy import Select, Subquery, and_, literal, or_, select
 from sqlalchemy.sql.elements import ColumnElement, Label
 from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import SearchMetadata
-from orchestrator.core.search.filters import FilterTree, PathFilter
+from orchestrator.core.search.filters import FilterTree
 from orchestrator.core.search.query.mixins import OrderDirection, StructuredOrderBy
 from orchestrator.core.search.retrieval.pagination import PageCursor
-from orchestrator.core.search.retrieval.retrievers.base import Retriever
+from orchestrator.core.search.retrieval.retrievers.base import Retriever, highlight_matches_column
 
 ORDER_VALUE_LABEL = "order_value"
-
-
-def _leaf_matches_json(cand: Subquery, leaf: PathFilter, idx: int) -> ColumnElement:
-    """JSON array of all index rows matched by one filter leaf, as a correlated scalar subquery.
-
-    Aggregating every matching row means a filter that can match in several places
-    (e.g. a global ``status = 'active'`` or ``ends_with status``) reports every
-    matching path (``subscription.status``, ``subscription.block.status``, …),
-    not just the first.
-    """
-    alias = aliased(AiSearchIndex)
-    row_json = func.json_build_object("value", alias.value, "path", cast(alias.path, String), "idx", literal(idx))
-    return (
-        select(func.json_agg(row_json))
-        .where(alias.entity_id == cand.c.entity_id, leaf.matched_row_predicate(alias))
-        .correlate(cand)
-        .scalar_subquery()
-    )
-
-
-def _highlight_matches_column(cand: Subquery, leaves: list[PathFilter]) -> Label:
-    """Single JSON array column — one matches subquery per positive filter leaf."""
-    json_arrays = [_leaf_matches_json(cand, leaf, i) for i, leaf in enumerate(leaves)]
-    return func.json_build_array(*json_arrays).label(Retriever.HIGHLIGHT_MATCHES_LABEL)
 
 
 def _apply_id_pagination(stmt: Select, cand: Subquery, cursor: PageCursor | None) -> Select:
@@ -122,7 +97,7 @@ class StructuredRetriever(Retriever):
         leaves = self.filters.get_highlightable_leaves() if self.filters else []
         if not leaves:
             return []
-        return [_highlight_matches_column(cand, leaves)]
+        return [highlight_matches_column(cand, leaves)]
 
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()
@@ -138,6 +113,10 @@ class StructuredRetriever(Retriever):
             inner.c.entity_id, inner.c.entity_title, inner.c.score, inner.c.order_value, *self._highlight_columns(inner)
         ).select_from(inner)
         return _apply_order_value_pagination(stmt, inner, self.cursor, self.order_by)
+
+    def with_filter_matches(self, page_stmt: Select, filters: FilterTree | None) -> Select:
+        """Return the page unchanged: `apply` already selects the filter matches, from the same filters."""
+        return page_stmt
 
     @property
     def metadata(self) -> SearchMetadata:
