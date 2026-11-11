@@ -391,12 +391,10 @@ def _resolve_text_matching_fields(row: "RowMapping", user_query: str, search_typ
 
 
 def _merge_matching_fields(text_fields: list[MatchingField], filter_fields: list[MatchingField]) -> list[MatchingField]:
-    """The text match first, as it decided the ranking, then the filter matches on other fields.
-
-    A field that matched both the text and a filter is reported once, as the text match.
-    """
+    """Merge matching fields, first text matches that decide ranking and then filter matches on other fields."""
     text_paths = {field.path for field in text_fields}
-    return [*text_fields, *(field for field in filter_fields if field.path not in text_paths)]
+    unique_filter_fields = [field for field in filter_fields if field.path not in text_paths]
+    return text_fields + unique_filter_fields
 
 
 def _resolve_structured_matching_fields(row: "RowMapping", filters: "FilterTree") -> list[MatchingField]:
