@@ -36,6 +36,7 @@ from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 
 import orchestrator.core.services.parallel as parallel_service
+import orchestrator.core.services.processes as processes_service
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
@@ -292,6 +293,46 @@ def test_multi_step_branches():
     assert "a2" not in state
     assert "b1" not in state
     assert "b2" not in state
+
+
+@pytest.mark.parametrize(
+    "make_workflow",
+    [
+        pytest.param(
+            lambda: (
+                init
+                >> seq_before
+                >> parallel("branch a and b", begin >> branch_a_step1, begin >> branch_b_step1)
+                >> done
+            ),
+            id="parallel",
+        ),
+        pytest.param(
+            lambda: init >> map_parallel("branch a and b", "items", begin >> branch_a_step1) >> done,
+            id="map-parallel",
+        ),
+    ],
+)
+def test_step_updates_look_up_branch_children_scoped_to_the_process(make_workflow):
+    """Every step write excludes the branch children through a subquery scoped to its own process."""
+    wf = workflow()(make_workflow)
+
+    with register_test_workflow(wf) as wf_table:
+        pstat = create_new_process_stat(wf_table, {"items": ["alpha"]})
+
+        def logstep(stat, step_, process):
+            return safe_logstep(stat, step_, process, broadcast_func=lambda *_: None)
+
+        # The real select is still called; the wrapper only records the calls.
+        with patch.object(
+            processes_service,
+            "_branch_child_step_ids_select",
+            wraps=processes_service._branch_child_step_ids_select,
+        ) as branch_child_step_ids_select:
+            result = runwf(pstat, logstep)
+
+    assert_complete(result)
+    assert {call.args for call in branch_child_step_ids_select.call_args_list} == {(pstat.process_id,)}
 
 
 def test_three_branches():

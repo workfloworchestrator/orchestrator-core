@@ -178,6 +178,12 @@ class ProcessTable(BaseModel):
 
 class ProcessStepTable(BaseModel):
     __tablename__ = "process_steps"
+    # A fork step has both columns, an ordinary step has neither; `_create_fork_step` inserts them together.
+    __table_args__ = (
+        sqlalchemy.CheckConstraint(
+            "(branch_kind IS NULL) = (branch_count IS NULL)", name="ck_process_steps_branch_kind_count_set_together"
+        ),
+    )
 
     step_id = mapped_column("stepid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     process_id = mapped_column(

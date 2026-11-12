@@ -46,6 +46,7 @@ from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.workflow import (
     CALLBACK_TOKEN_KEY,
+    BranchKind,
     ProcessStatus,
     StepList,
     StepStatus,
@@ -139,6 +140,42 @@ def test_show(test_client, started_process):
 def test_show_invalid_uuid(test_client):
     response = test_client.get("/api/processes/wrong")
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "branch_kind,expected_branch_kind",
+    [
+        pytest.param(BranchKind.PARALLEL, "parallel", id="parallel"),
+        pytest.param(BranchKind.MAP_PARALLEL, "map_parallel", id="map-parallel"),
+    ],
+)
+def test_show_serializes_branch_kind_as_stored_string(
+    test_client, started_process, branch_kind, expected_branch_kind
+) -> None:
+    """The REST API emits the BranchKind value ("parallel"), not its name ("PARALLEL")."""
+    db.session.add(
+        ProcessStepTable(
+            process_id=started_process,
+            name="Fork",
+            status=StepStatus.SUCCESS,
+            state={},
+            branch_count=2,
+            branch_kind=branch_kind,
+            branches_completed=2,
+        )
+    )
+    db.session.commit()
+
+    response = test_client.get(f"/api/processes/{started_process}")
+
+    assert HTTPStatus.OK == response.status_code
+    steps = response.json()["steps"]
+    fork_step = next(step for step in steps if step["name"] == "Fork")
+    assert fork_step["branch_kind"] == expected_branch_kind
+    assert fork_step["branch_count"] == 2
+    ordinary_steps = [step for step in steps if step["name"] != "Fork"]
+    assert ordinary_steps
+    assert all(step["branch_kind"] is None for step in ordinary_steps)
 
 
 def test_show_not_found(test_client, started_process):

@@ -58,4 +58,5 @@ def test_enrich_step_details_gates_child_steps_on_branch_kind(branch_kind, inclu
 def test_enrich_step_details_ignores_branch_count_without_branch_kind():
     result = enrich_step_details(_step(None, branch_count=2, children=[_step(None)]), None)
 
+    assert result["branch_kind"] is None
     assert "child_steps" not in result
