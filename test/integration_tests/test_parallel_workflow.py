@@ -24,7 +24,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from functools import partial
+from functools import partial, wraps
 from typing import cast
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -58,13 +58,13 @@ from orchestrator.core.workflow import (
     StepStatus,
     Success,
     _assert_parallel_step_is_visible,
-    _child_step_lists,
     begin,
     callback_step,
     conditional,
     done,
     init,
     inputstep,
+    make_step_function,
     map_parallel,
     parallel,
     process_stat_var,
@@ -180,6 +180,11 @@ def branch_b_step1():
 @step("Branch B Step 2")
 def branch_b_step1_cont(b1):
     return {"b2": f"{b1}_continued"}
+
+
+@step("Callback validate")
+def cb_validate_step():
+    return {}
 
 
 @step("Sequential Before")
@@ -492,14 +497,19 @@ def test_parallel_inside_conditional_runs_on_threadpool(predicate):
     assert "b1" not in state
 
 
-@pytest.mark.xfail(
-    reason="step_group keeps its sub-steps in a closure, so the walk cannot see a parallel step inside it. "
-    "Phase 4 adds Step.sub_steps.",
-    strict=True,
+@pytest.mark.parametrize(
+    "wrapper",
+    [
+        pytest.param(step_group, id="step_group"),
+        pytest.param(
+            lambda name, steps: callback_step(name, action_step=steps, validate_step=cb_validate_step),
+            id="callback_step",
+        ),
+    ],
 )
-def test_parallel_inside_step_group_is_visible():
-    """A parallel step inside step_group must be visible to the walk once phase 4 adds Step.sub_steps."""
-    group = step_group("Wrapper", begin >> parallel("Grouped", begin >> branch_a_step1, begin >> branch_b_step1))
+def test_parallel_inside_step_group_is_visible(wrapper):
+    """step_group and callback_step keep their sub steps on ``Step.sub_steps``, so the walk sees the parallel step."""
+    group = wrapper("Wrapper", begin >> parallel("Grouped", begin >> branch_a_step1, begin >> branch_b_step1))
 
     with pytest.raises(ValueError, match=r"Duplicate parallel group name\(s\) \['Grouped'\]"):
 
@@ -508,13 +518,8 @@ def test_parallel_inside_step_group_is_visible():
             return init >> group >> parallel("Grouped", begin >> branch_a_step1, begin >> branch_b_step1) >> done
 
 
-@pytest.mark.xfail(
-    reason="step_group keeps its sub-steps in a closure, so the walk cannot see a parallel step inside it. "
-    "Phase 4 adds Step.sub_steps.",
-    strict=True,
-)
 def test_parallel_inside_step_group_runs():
-    """Running a parallel step inside step_group is supported once phase 4 adds Step.sub_steps."""
+    """A parallel step inside step_group runs without tripping the safety net."""
     group = step_group("Wrapper", begin >> parallel("Grouped run", begin >> branch_a_step1, begin >> branch_b_step1))
 
     wf = workflow()(lambda: init >> group >> done)
@@ -528,10 +533,18 @@ def test_parallel_inside_step_group_runs():
 
 
 def test_parallel_inside_step_group_fails_the_safety_net():
-    """Until phase 4, a parallel step inside step_group fails loudly instead of running unchecked."""
-    group = step_group("Wrapper", begin >> parallel("Unreachable", begin >> branch_a_step1, begin >> branch_b_step1))
+    """A wrapper that hides its sub steps fails loudly instead of running a parallel step unchecked."""
+    par = parallel("Unreachable", begin >> branch_a_step1, begin >> branch_b_step1)
 
-    wf = workflow()(lambda: init >> group >> done)
+    @wraps(par)
+    def hiding_wrapper(state):
+        # Runs the parallel step like a user wrapper would, but doesn't expose it as a sub step.
+        return par(state)
+
+    wrapper = make_step_function(hiding_wrapper, "Wrapper")
+    assert wrapper.sub_steps is None
+
+    wf = workflow()(lambda: init >> wrapper >> done)
 
     with register_test_workflow(wf) as wf_table:
         log = []
@@ -540,31 +553,6 @@ def test_parallel_inside_step_group_fails_the_safety_net():
 
     assert_failed(result)
     assert "not visible in the workflow's step tree" in str(result.unwrap())
-
-
-@pytest.mark.xfail(
-    reason="callback_step is built on step_group, so the walk cannot see a parallel step inside it. "
-    "Phase 4 adds Step.sub_steps.",
-    strict=True,
-)
-def test_parallel_inside_callback_step_is_visible():
-    """A parallel step inside callback_step must be visible to the walk once phase 4 adds Step.sub_steps."""
-
-    @step("CB Validate")
-    def cb_validate():
-        return {}
-
-    cb = callback_step(
-        "Callback wrapper",
-        action_step=parallel("Called back", begin >> branch_a_step1, begin >> branch_b_step1),
-        validate_step=cb_validate,
-    )
-
-    with pytest.raises(ValueError, match=r"Duplicate parallel group name\(s\) \['Called back'\]"):
-
-        @workflow()
-        def duplicate_callback_wf():
-            return init >> cb >> parallel("Called back", begin >> branch_a_step1, begin >> branch_b_step1) >> done
 
 
 def test_parallel_step_with_a_reused_name_fails_the_safety_net():
@@ -577,8 +565,9 @@ def test_parallel_step_with_a_reused_name_fails_the_safety_net():
         return init >> first >> done
 
     # `second` was never added to this workflow, so the step found under its name has other branches.
+    assert second.branching is not None
     with pytest.raises(ValueError, match="reused by a parallel step with different branches"):
-        _assert_parallel_step_is_visible(reused_name_wf.steps, "Reused name", list(_child_step_lists(second)))
+        _assert_parallel_step_is_visible(reused_name_wf.steps, second.branching)
 
 
 def test_parallel_step_missing_from_the_step_list_fails_the_safety_net():
@@ -589,8 +578,9 @@ def test_parallel_step_missing_from_the_step_list_fails_the_safety_net():
     def without_parallel_wf():
         return init >> branch_a_step1 >> done
 
+    assert par.branching is not None
     with pytest.raises(ValueError, match="not visible in the workflow's step tree"):
-        _assert_parallel_step_is_visible(without_parallel_wf.steps, "Hidden group", list(_child_step_lists(par)))
+        _assert_parallel_step_is_visible(without_parallel_wf.steps, par.branching)
 
 
 # --- Test: Composition ---

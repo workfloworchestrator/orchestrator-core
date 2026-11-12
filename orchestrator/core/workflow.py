@@ -19,7 +19,7 @@ import functools
 import inspect
 import secrets
 import warnings
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from contextvars import copy_context
 from copy import deepcopy
@@ -100,6 +100,9 @@ class Step(Protocol):
     assignee: Assignee | None
     resume_auth_callback: Authorizer | None = None
     retry_auth_callback: Authorizer | None = None
+    branching: BranchSpec | None = None
+    sub_steps: StepList | None = None
+    is_callback_step: bool = False
 
     def __call__(self, state: State) -> Process: ...
 
@@ -158,7 +161,16 @@ def make_step_function(
     resume_auth_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
     importance: StepImportance = StepImportance.DEFAULT,
+    *,
+    branching: BranchSpec | None = None,
+    sub_steps: StepList | None = None,
+    is_callback_step: bool = False,
 ) -> Step:
+    """Turn ``f`` into a :class:`Step`, setting every :class:`Step` attribute.
+
+    Every attribute is set, including those that default to ``None``: a ``Step`` annotation on the ``Step`` Protocol
+    only exists for type checkers, so a step that skips an attribute would break code that reads it.
+    """
     step_func = cast(Step, f)
 
     step_func.name = name
@@ -167,6 +179,9 @@ def make_step_function(
     step_func.resume_auth_callback = resume_auth_callback
     step_func.retry_auth_callback = retry_auth_callback
     step_func.importance = importance
+    step_func.branching = branching
+    step_func.sub_steps = sub_steps
+    step_func.is_callback_step = is_callback_step
     return step_func
 
 
@@ -266,16 +281,15 @@ def default_user_inputs() -> list[State]:
 
 
 def _child_step_lists(s: Step) -> Iterator[StepList]:
-    """Yield the nested step lists (parallel branches and map_parallel templates) of a step."""
-    # TODO make step metadata check type-safe
-    yield from getattr(s, "_parallel_branches", [])
-    template = getattr(s, "_foreach_branch_template", None)
-    if template is not None:
-        yield template
+    """Yield the nested step lists of a step: its branches and its sub steps, if any."""
+    if (branching := s.branching) is not None:
+        yield from branching.branches
+    if (sub_steps := s.sub_steps) is not None:
+        yield sub_steps
 
 
 def _iter_steps(steps: StepList) -> Iterator[Step]:
-    """Yield every step in ``steps``, depth-first, including steps nested in parallel branches."""
+    """Yield every step in ``steps``, depth-first, including steps nested in branches and step groups."""
     for s in steps:
         yield s
         for child in _child_step_lists(s):
@@ -283,16 +297,16 @@ def _iter_steps(steps: StepList) -> Iterator[Step]:
 
 
 def _iter_parallel_group_names(steps: StepList) -> Iterator[str]:
-    """Yield the parallel group name of every parallel step in ``steps``, in tree order."""
+    """Yield the group name of every branching step in ``steps``, in tree order."""
     for s in _iter_steps(steps):
-        if (name := getattr(s, "_parallel_group_name", None)) is not None:
-            yield name
+        if (branching := s.branching) is not None:
+            yield branching.name
 
 
 def _validate_unique_parallel_group_names(steps: StepList) -> None:
-    """Raise ``ValueError`` when two parallel steps in the tree share a group name.
+    """Raise ``ValueError`` when two branching steps in the tree share a group name.
 
-    A group name identifies a parallel step when a worker rebuilds a branch from it
+    A group name identifies a branching step when a worker rebuilds a branch from it
     (:func:`_find_parallel_step`), so a definition that reuses a name cannot reliably look up its branch.
 
     This is a definition-time check only. It does not make the group name unique per fork row at runtime: a
@@ -309,46 +323,45 @@ def _validate_unique_parallel_group_names(steps: StepList) -> None:
 
 
 def _find_step_by_group_name(steps: StepList, group_name: str) -> Step | None:
-    """Return the first step in ``steps`` whose parallel group name is ``group_name``, or None."""
-    return next((s for s in _iter_steps(steps) if getattr(s, "_parallel_group_name", None) == group_name), None)
+    """Return the first step in ``steps`` whose ``branching`` has group name ``group_name``, or None."""
+    return next(
+        (s for s in _iter_steps(steps) if s.branching is not None and s.branching.name == group_name),
+        None,
+    )
 
 
-def _assert_parallel_step_is_visible(steps: StepList, group_name: str, branches: Iterable[StepList]) -> None:
-    """Check that the step tree walk can see the parallel step that is about to run.
+def _assert_parallel_step_is_visible(steps: StepList, branching: BranchSpec) -> None:
+    """Check that the step tree walk can see the branching step that is about to run.
 
     The uniqueness check in :func:`_validate_unique_parallel_group_names` only covers steps the walk reaches. A
-    parallel step that a wrapper hides (inside a ``step_group``, a ``callback_step``, or a user wrapper that does
-    not copy the step's attributes) is not checked, and a worker cannot look it up by name. Failing here turns that
-    into an error on the step's first run, instead of a worker rebuilding the wrong branch or failing obscurely.
+    branching step that a wrapper hides (inside a user wrapper that does not copy the step's attributes, or hiding
+    its sub steps) is not checked, and a worker cannot look it up by name. Failing here turns that into an error on
+    the step's first run, instead of a worker rebuilding the wrong branch or failing obscurely.
 
-    The comparison is on the branches, by identity, not on the step: ``conditional`` and ``steplens`` return a wrapper
-    around the step, so the step object that runs is not the one in the workflow's step list. Value equality would
-    also pass for two different ``parallel()`` calls with the same branches.
+    The comparison is on ``branching``, by identity, not on the step: ``conditional`` and ``steplens`` return a
+    wrapper around the step, so the step object that runs is not the one in the workflow's step list. Value equality
+    would also pass for two different ``parallel()`` calls with the same branches.
 
     Args:
         steps: The workflow's step list, as passed to :func:`make_workflow`.
-        group_name: Group name of the parallel step that is running.
-        branches: The step lists this parallel step executes.
+        branching: The :class:`BranchSpec` of the branching step that is running.
 
     Raises:
-        ValueError: If no step in ``steps`` carries ``group_name``, or if the one that does has other branches.
+        ValueError: If no step in ``steps`` carries ``branching.name``, or if the one that does has another
+            :class:`BranchSpec`.
     """
-    found = _find_step_by_group_name(steps, group_name)
+    found = _find_step_by_group_name(steps, branching.name)
     if found is None:
         raise ValueError(
-            f"Parallel group '{group_name}' is not visible in the workflow's step tree, so a worker cannot look it "
-            "up and duplicate group names inside it go undetected. A parallel step inside step_group, callback_step "
-            "or a custom step wrapper that doesn't copy the step's attributes is not supported."
+            f"Parallel group '{branching.name}' is not visible in the workflow's step tree, so a worker cannot look "
+            "it up and duplicate group names inside it go undetected. A parallel step inside a custom step wrapper "
+            "that doesn't copy the step's attributes is not supported."
         )
 
-    found_branches = list(_child_step_lists(found))
-    running_branches = list(branches)
-    if len(found_branches) != len(running_branches) or any(
-        a is not b for a, b in zip(found_branches, running_branches)
-    ):
+    if found.branching is not branching:
         raise ValueError(
-            f"Parallel group name '{group_name}' is reused by a parallel step with different branches. Group names "
-            "must be unique within a workflow."
+            f"Parallel group name '{branching.name}' is reused by a parallel step with different branches. Group "
+            "names must be unique within a workflow."
         )
 
 
@@ -549,7 +562,22 @@ def step_group(
         importance: Importance of the group. The sub steps all log into the group's single process step row, so
             this, not the sub steps' own importance, is what clients see.
     """
+    return _step_group(name, steps, extract_form, retry_auth_callback, importance)
 
+
+def _step_group(
+    name: str,
+    steps: StepList,
+    extract_form: bool = True,
+    retry_auth_callback: Authorizer | None = None,
+    importance: StepImportance = StepImportance.DEFAULT,
+    *,
+    is_callback_step: bool = False,
+) -> Step:
+    """Build a step group, optionally marked as the step that :func:`callback_step` returns.
+
+    :func:`step_group` is the public entry point; it keeps its signature free of internal flags.
+    """
     steps = _extend_step_group_steps(name, steps)
 
     def func(initial_state: State) -> Process:
@@ -583,7 +611,40 @@ def step_group(
 
     # Make sure we return a form is a sub step has a form
     form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
-    return make_step_function(func, name, form, retry_auth_callback=retry_auth_callback, importance=importance)
+    return make_step_function(
+        func,
+        name,
+        form,
+        retry_auth_callback=retry_auth_callback,
+        importance=importance,
+        sub_steps=steps,
+        is_callback_step=is_callback_step,
+    )
+
+
+def _rewrap_step(step: Step, f: Callable[[Step], Callable[[State], Process]]) -> Step:
+    """Wrap ``step`` in a new step function returned by ``f``, copying every :class:`Step` attribute.
+
+    ``make_step_function`` sets the attributes it is given and resets the rest, so passing only a subset would drop
+    them. ``branching`` and ``sub_steps`` in particular have to survive: they are how the tree walk and a worker find
+    this step and its child steps.
+
+    Args:
+        step: The step to wrap.
+        f: Given ``step``, returns the function that becomes the wrapper's ``__call__``.
+    """
+    return make_step_function(
+        f(step),
+        step.name,
+        step.form,
+        step.assignee,
+        resume_auth_callback=step.resume_auth_callback,
+        retry_auth_callback=step.retry_auth_callback,
+        importance=step.importance,
+        branching=step.branching,
+        sub_steps=step.sub_steps,
+        is_callback_step=step.is_callback_step,
+    )
 
 
 _STATUS_PRIORITY: list[str] = ["isfailed", "iswaiting", "issuspend", "isawaitingcallback"]
@@ -952,28 +1013,28 @@ def _run_threadpool_branches(
 
 # TODO move to separate module with submodules for threadpool/celery executor
 def _exec_parallel_branches(
-    branches: list[StepList],
+    branching: BranchSpec,
     initial_state: State,
-    name: str,
-    branch_kind: BranchKind,
     max_workers: int | None = None,
     seeds: list[State] | None = None,
 ) -> Process:
-    """Execute branches in parallel, dispatching to worker or threadpool based on EXECUTOR setting."""
+    """Execute the branches of ``branching``, dispatching to worker or threadpool based on EXECUTOR setting."""
     from orchestrator.core.settings import ExecutorType, app_settings
 
     pstat = process_stat_var.get(None)
     process_id = pstat.process_id if pstat else None
     current_user = pstat.current_user if pstat else ""
+    # A template kind runs its one list per seed; the other kinds have one list per branch.
+    branches = list(branching.branches)
     n_branches = len(seeds) if seeds else len(branches)
 
     # Refuse to run a parallel step that the workflow's step tree walk cannot see. See
     # _assert_parallel_step_is_visible for why that matters.
     if pstat is not None:
-        _assert_parallel_step_is_visible(pstat.workflow.steps, name, branches)
+        _assert_parallel_step_is_visible(pstat.workflow.steps, branching)
 
     fork_step_id = (
-        _create_fork_step(process_id, name, initial_state, n_branches, current_user, branch_kind)
+        _create_fork_step(process_id, branching.name, initial_state, n_branches, current_user, branching.kind)
         if process_id
         else None
     )
@@ -992,7 +1053,7 @@ def _exec_parallel_branches(
             return _run_threadpool_branches(
                 branches,
                 initial_state,
-                name,
+                branching.name,
                 process_id,
                 fork_step_id,
                 current_user,
@@ -1017,7 +1078,7 @@ def _make_parallel_step(
             raise ValueError(
                 f"Parallel branches must not contain inputsteps. Found inputstep '{s.name}' in branch {branch_idx}."
             )
-        if getattr(s, "_is_callback_step", False):
+        if s.is_callback_step:
             raise ValueError(
                 f"Parallel branches must not contain callback steps. "
                 f"Found callback_step '{s.name}' in branch {branch_idx}."
@@ -1026,48 +1087,29 @@ def _make_parallel_step(
 
     any(_validate_branch_step(idx, s) for idx, branch in enumerate(branches) for s in branch)
 
+    branching = BranchSpec(name, BranchKind.PARALLEL, tuple(branches))
+
     def func(initial_state: State) -> Process:
         with transactional(db, logger):
-            return _exec_parallel_branches(branches, initial_state, name, BranchKind.PARALLEL, max_workers=max_workers)
+            return _exec_parallel_branches(branching, initial_state, max_workers=max_workers)
 
-    step_fn = make_step_function(func, name, retry_auth_callback=retry_auth_callback)
-    # Attach metadata for Celery step reconstruction
-    # TODO fix untyped/undefined variables. Either define them on Step, or provide metadata another way
-    step_fn._parallel_branches = branches  # type: ignore[attr-defined]
-    step_fn._parallel_group_name = name  # type: ignore[attr-defined]
-    return step_fn
+    return make_step_function(func, name, retry_auth_callback=retry_auth_callback, branching=branching)
 
 
 def reconstruct_branch(parallel_step: Step, branch_index: int) -> StepList:
-    """Reconstruct a branch StepList from a parallel step's metadata.
-
-    Used by Celery workers to re-create the branch for execution.
-
-    Supports both static parallel (``_parallel_branches``) and dynamic foreach
-    (``_foreach_branch_template``) steps.
+    """Return the step list to run for ``branch_index`` of ``parallel_step``, for a Celery worker.
 
     Args:
-        parallel_step: A step created by :func:`_make_parallel_step` or
-            :func:`map_parallel` with branch metadata attached.
+        parallel_step: A step created by :func:`_make_parallel_step` or :func:`map_parallel`.
         branch_index: Zero-based index of the branch to reconstruct.
 
-    Returns:
-        The :class:`StepList` for the requested branch.
-
     Raises:
-        ValueError: If ``parallel_step`` has no parallel metadata.
+        ValueError: If ``parallel_step`` doesn't fan out, so it has no branch to reconstruct.
         IndexError: If ``branch_index`` is out of range (static parallel only).
     """
-    # map_parallel: all branches use the same template
-    template: StepList | None = getattr(parallel_step, "_foreach_branch_template", None)
-    if template is not None:
-        return template
-
-    # static parallel: indexed branches
-    branches: list[StepList] | None = getattr(parallel_step, "_parallel_branches", None)
-    if branches is None:
+    if parallel_step.branching is None:
         raise ValueError(f"Step '{parallel_step.name}' is not a parallel step")
-    return branches[branch_index]
+    return parallel_step.branching.reconstruct_branch(branch_index)
 
 
 def parallel(
@@ -1159,6 +1201,7 @@ def map_parallel(
         ValueError: If ``state[items_key]`` is not iterable at runtime.
     """
     branch_steplist = begin >> branch
+    branching = BranchSpec(name, BranchKind.MAP_PARALLEL, (branch_steplist,))
 
     def func(initial_state: State) -> Process:
         with transactional(db, logger):
@@ -1175,16 +1218,9 @@ def map_parallel(
                 item if isinstance(item, dict) else {"item": item, "item_index": idx} for idx, item in enumerate(items)
             ]
 
-            return _exec_parallel_branches(
-                [branch_steplist], initial_state, name, BranchKind.MAP_PARALLEL, max_workers=max_workers, seeds=seeds
-            )
+            return _exec_parallel_branches(branching, initial_state, max_workers=max_workers, seeds=seeds)
 
-    step_fn = make_step_function(func, name)
-    # Attach metadata for Celery branch reconstruction
-    # TODO fix untyped/undefined variables. Either define them on Step, or provide metadata another way
-    step_fn._foreach_branch_template = branch_steplist  # type: ignore[attr-defined]
-    step_fn._parallel_group_name = name  # type: ignore[attr-defined]
-    return step_fn
+    return make_step_function(func, name, branching=branching)
 
 
 def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
@@ -1246,13 +1282,12 @@ def callback_step(
     create_endpoint_step = step(f"{name} - Create endpoint")(_create_endpoint_step(key=callback_route_key))
     await_step = _awaitstep(f"{name} - Await callback", result_key=result_key, timeout=timeout)
     cleanup_step = step(f"{name} - Cleanup callback step")(lambda: {"__remove_keys": [CALLBACK_TOKEN_KEY]})
-    result = step_group(
+    return _step_group(
         name=name,
         steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step >> cleanup_step,
         importance=importance,
+        is_callback_step=True,
     )
-    result._is_callback_step = True  # type: ignore[attr-defined]
-    return result
 
 
 def _purestep(
@@ -1285,14 +1320,14 @@ def conditional(p: Callable[[State], bool]) -> Callable[..., StepList]:
         else:
             steps = steps_or_func
 
-        def wrap(step: Step) -> Step:
+        def wrapped(step: Step) -> Callable[[State], Process]:
             @functools.wraps(step)
             def wrapper(state: State) -> Process:
                 return step(state) if p(state) else Skipped(state)
 
-            return make_step_function(wrapper, step.name, step.form, step.assignee, importance=step.importance)
+            return wrapper
 
-        return steps.map(wrap)
+        return steps.map(lambda step: _rewrap_step(step, wrapped))
 
     return _conditional
 
@@ -1300,7 +1335,7 @@ def conditional(p: Callable[[State], bool]) -> Callable[..., StepList]:
 def steplens(get: Callable[[State], State], set: Callable[[State], Callable[[State], State]]) -> Callable[[Step], Step]:
     """Update a step list to zoom its input state using get and update its output state using set."""
 
-    def wrap(step: Step) -> Step:
+    def wrapped(step: Step) -> Callable[[State], Process]:
         @functools.wraps(step)
         def wrapper(state: State) -> Process:
             sub_state = get(state)
@@ -1311,9 +1346,9 @@ def steplens(get: Callable[[State], State], set: Callable[[State], Callable[[Sta
                 return result
             return result.map(set(state))
 
-        return make_step_function(wrapper, step.name, step.form, step.assignee, importance=step.importance)
+        return wrapper
 
-    return wrap
+    return lambda step: _rewrap_step(step, wrapped)
 
 
 def focussteps(key: str) -> Callable[[Step | StepList], StepList]:
@@ -1448,6 +1483,35 @@ class BranchKind(strEnum):
 
     PARALLEL = "parallel"
     MAP_PARALLEL = "map_parallel"
+
+
+@dataclass(frozen=True)
+class BranchSpec:
+    """The structure of a step that fans out into child steps, exposed as :attr:`Step.branching`.
+
+    It holds only the structure, not how the branches run: execution options such as the concurrency limit and the
+    ``map_parallel`` items key live in the step function that the DSL builds.
+
+    Args:
+        name: Group name of the branching step, used to look the step up when a branch is retried or resumed.
+        kind: The kind of fan-out.
+        branches: The step lists that run per branch. Template kinds (``MAP_PARALLEL``, and later ``LOOP``) hold the
+            single template they run for every item.
+    """
+
+    name: str
+    kind: BranchKind
+    branches: tuple[StepList, ...]
+
+    def reconstruct_branch(self, branch_index: int) -> StepList:
+        """Return the step list to run for ``branch_index``.
+
+        Raises:
+            IndexError: If ``branch_index`` is out of range, which only a non-template kind can be.
+        """
+        if self.kind == BranchKind.MAP_PARALLEL:
+            return self.branches[0]
+        return self.branches[branch_index]
 
 
 class StepStatus(strEnum):

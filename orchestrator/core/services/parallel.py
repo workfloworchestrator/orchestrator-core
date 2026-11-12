@@ -101,24 +101,21 @@ def _succeeded_branch_indices(fork_step_id: UUID) -> set[int]:
 
 
 def _find_parallel_step(steps: StepList, group_name: str) -> Step | None:
-    """Recursively search steps (and their parallel branches) for a parallel group name.
+    """Recursively search steps (and their branches and sub steps) for a group name.
 
-    Walks the step tree depth-first, checking each step's ``_parallel_group_name``
-    attribute. Also recurses into ``_parallel_branches`` (static parallel) and
-    ``_foreach_branch_template`` (dynamic parallel).
+    Walks the step tree depth-first over each step's ``branching`` and ``sub_steps``.
 
     Group names are unique within a workflow, validated when the workflow is built by
     :func:`_validate_unique_parallel_group_names`, so there is exactly one match. Without that check this
-    first-match lookup could rebuild a branch from a different parallel step with the same name.
+    first-match lookup could rebuild a branch from a different branching step with the same name.
 
     Args:
         steps: A StepList (iterable of Step functions) to search.
-        group_name: The parallel group name to find.
+        group_name: The group name to find.
 
     Returns:
-        The Step with matching ``_parallel_group_name``, or None if not found.
+        The Step whose ``branching`` has this name, or None if not found.
     """
-    # TODO make step metadata check type-safe
     return _find_step_by_group_name(steps, group_name)
 
 

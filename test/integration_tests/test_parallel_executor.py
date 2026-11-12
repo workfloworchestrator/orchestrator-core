@@ -21,6 +21,7 @@ TODO: move to the correct place in the integration tests (in the module of the m
 
 from orchestrator.core.workflow import (
     BranchKind,
+    BranchSpec,
     StepList,
     _exec_parallel_branches,
     process_stat_var,
@@ -44,10 +45,12 @@ def test_threadpool_executor_is_default(db_session) -> None:  # noqa: ARG001 —
     token = process_stat_var.set(None)  # type: ignore[arg-type]
     try:
         result = _exec_parallel_branches(
-            branches=[StepList([_step_a]), StepList([_step_b])],
+            branching=BranchSpec(
+                "test",
+                BranchKind.PARALLEL,
+                (StepList([_step_a]), StepList([_step_b])),
+            ),
             initial_state={},
-            name="test",
-            branch_kind=BranchKind.PARALLEL,
         )
     finally:
         process_stat_var.reset(token)

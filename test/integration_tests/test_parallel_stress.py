@@ -1594,6 +1594,7 @@ def test_find_parallel_step(wf_key: str, search_name: str, expected_found: bool)
 
         if expected_found:
             assert result is not None, f"Expected to find '{search_name}' but got None"
-            assert getattr(result, "_parallel_group_name", None) == search_name
+            assert result.branching is not None
+            assert result.branching.name == search_name
         else:
             assert result is None, f"Expected None for '{search_name}' but found a step"
