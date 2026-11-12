@@ -42,6 +42,7 @@ from orchestrator.core.db import (
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas import SubscriptionWorkflowListsSchema
 from orchestrator.core.schemas.subscription import SubscriptionDomainModelSchema, SubscriptionWithMetadata
+from orchestrator.core.search.indexing import update_subscription_insync_in_index
 from orchestrator.core.security import authenticate
 from orchestrator.core.services.subscriptions import (
     format_extended_domain_model,
@@ -222,6 +223,7 @@ async def subscription_set_in_sync(
             failed_processes_list = await _failed_processes(subscription_id, session)
             if not failed_processes_list:
                 subscription.insync = True
+                await update_subscription_insync_in_index(session, str(subscription_id), True)
                 await session.commit()
                 logger.info("Subscription set in sync", user=current_user)
                 await invalidate_subscription_cache(subscription.subscription_id)
