@@ -7,7 +7,8 @@ reviewed: false
 # Design: package structure of `orchestrator.core`
 <!-- diataxis: mixed -->
 
-Status: proposal. The restructuring itself is planned for a future major release, together with a migration script.
+Status: proposal, tracked in [#2123](https://github.com/workfloworchestrator/orchestrator-core/issues/2123). The
+restructuring itself is planned for a future major release, together with a migration script.
 Two parts take effect now, starting with the parallel steps feature (PR #1444):
 
 - the `orchestrator/core/beta/` package, a permanent home for features that may still change incompatibly;
