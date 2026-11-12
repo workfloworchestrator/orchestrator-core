@@ -30,6 +30,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import joinedload
 
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
+from orchestrator.core.db.database import transactional
 from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.workflow import (
     _STATUSES,
@@ -53,7 +54,9 @@ logger = structlog.get_logger(__name__)
 def _atomic_increment_completed(fork_step_id: UUID) -> tuple[int, int | None]:
     """Atomically increment branches_completed and return (new_count, branch_count).
 
-    Uses UPDATE...RETURNING for atomic last-finisher detection, avoiding an extra SELECT.
+    Uses UPDATE...RETURNING for atomic last-finisher detection, avoiding an extra SELECT. Does not commit: the row
+    lock taken by the UPDATE is held until :func:`run_worker_branch` commits, so the last finisher can update the fork
+    row in the same transaction.
     """
     stmt = (
         update(ProcessStepTable)
@@ -63,14 +66,6 @@ def _atomic_increment_completed(fork_step_id: UUID) -> tuple[int, int | None]:
     )
     result = db.session.execute(stmt)
     completed, total = result.one()
-
-    # TODO check if this commit is necessary, or if it can be done higher up when all DB work is done.
-    #  Similar to the fixes/changes done for psycopg3, we should finalize the transaction right before handing over
-    #   "control" to another actor. (for example: returning a HTTP response, triggering a celery task, etc)
-    #  The reason is that another DB query executed after this function (before handing over control) would start a new
-    #   transaction, which also needs to be closed. If _that_ transaction fails, then this increment will not be rolled
-    #   back.
-    db.session.commit()
     return completed, total
 
 
@@ -177,7 +172,11 @@ def run_worker_branch(
     Derives the workflow key and parallel group name from the fork step in DB,
     then executes the branch with DB logging. After execution, atomically
     increments the completed counter. If this is the last branch, collects all
-    results and resumes the parent workflow.
+    results and resolves the fork step.
+
+    The increment and, for the last branch, the fork update run in one
+    transaction that is committed exactly once, right before the parent workflow
+    is resumed.
     """
     parallel_group_name, branch, process, wf = _resolve_branch_from_db(fork_step_id, process_id, branch_index)
 
@@ -199,56 +198,51 @@ def run_worker_branch(
     except Exception as e:
         logger.error("Celery branch execution failed", branch_index=branch_index, error=str(e))
 
-    # TODO both _atomic_increment_completed and _join_and_resume commit the transaction.
-    #  Is this double commit necessarily safe(r)?
-    #  What guarantee would you lose if run_worker_branch would be the one doing a commit at the end (or, if it goes
-    #    into _join_and_resume, inside of that function before it hands off to Celery)?
-    #  What happens if the worker crashes before it can do _join_and_resume? Is either design better in terms of recoverability?
-    #  (it is indeed necessary to lock to provide an atomic increment, but I'd think that should be in this function,
-    #   wrapping both the increment and the join)
-    completed, total = _atomic_increment_completed(fork_step_id)
+    with transactional(db, logger):
+        completed, total = _atomic_increment_completed(fork_step_id)
+        is_last_branch = total is not None and completed >= total
 
-    logger.info(
-        "Branch completed",
-        branch_index=branch_index,
-        completed=completed,
-        total=total,
-        parallel_group=parallel_group_name,
-    )
-
-    if total is not None and completed >= total:
-        _join_and_resume(
-            process_id=process_id,
-            fork_step_id=fork_step_id,
-            initial_state=initial_state,
-            user=user,
+        logger.info(
+            "Branch completed",
+            branch_index=branch_index,
+            completed=completed,
+            total=total,
+            parallel_group=parallel_group_name,
         )
 
+        if is_last_branch:
+            _resolve_fork_step(process_id=process_id, fork_step_id=fork_step_id, initial_state=initial_state)
 
-def _join_and_resume(
+    # The commit above is the hand-off point, so the process is only resumed after it.
+    if is_last_branch:
+        _resume(process_id, user)
+
+
+def _resolve_fork_step(
     *,
     process_id: UUID,
     fork_step_id: UUID,
     initial_state: dict,
-    user: str,
 ) -> None:
-    """Called by the last-finishing branch to determine status and resume the parent workflow.
+    """Called by the last-finishing branch to resolve the parallel block in the DB.
 
     The fork row IS the main-log entry for the parallel step (see ``_main_log_steps``),
     so resolving the parallel block means updating only that row. For failures, propagate
     the worst branch's error state so it's visible on the main log; for successes, keep
     the pre-parallel state.
 
+    Does not commit and does not resume: the caller commits the fork update together
+    with the branch increment, and resumes the parent workflow afterwards.
+
     Raises:
-        ValueError: If the fork step does not exist. Skipping the join would resume the process with the parallel
+        ValueError: If the fork step does not exist. Resolving nothing would resume the process with the parallel
             step still unresolved.
     """
     fork_step = db.session.get(ProcessStepTable, fork_step_id)
     if fork_step is None:
-        # The increment of this branch is already committed, so the process stays Waiting on this fork. Log the
-        # ids to make the stuck process findable; recovering such forks is tracked separately.
+        # The counter update matches no row, so in practice this does not happen; keep the check as a guard.
         logger.error(
-            "Fork step not found while joining parallel branches",
+            "Fork step not found while resolving parallel branches",
             process_id=str(process_id),
             fork_step_id=str(fork_step_id),
         )
@@ -264,11 +258,18 @@ def _join_and_resume(
 
     fork_step.status = resolved_status
     fork_step.state = resolved_state
-    # TODO add fork_step.save() ?
 
-    # TODO remove commit? The ExecutorFunction.RESUME already performs a commit
-    db.session.commit()
 
+def _resume(process_id: UUID, user: str) -> None:
+    """Hand the parent workflow over to the RESUME executor, committed by the caller before this.
+
+    The caller commits the fork update separately and does not rely on the transaction
+    the RESUME executor opens. That transaction rolls back when resuming fails (for
+    example with "incorrect status to resume"), which would also roll back the fork
+    update. The fork row would then stay ``waiting``: ``_recoverwf`` treats the parallel
+    step as not done and ``_create_fork_step`` only inherits branches from *failed*
+    forks, so a manual resume would run every branch again.
+    """
     from orchestrator.core.services.executors.types import ExecutorFunction
     from orchestrator.core.services.processes import _get_process, get_execution_context
 
