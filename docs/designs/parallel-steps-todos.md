@@ -202,8 +202,45 @@ Do this last, as pure moves, so the earlier diffs stay readable.
   | `test_parallel_stress.py` | `acceptance_tests/`, or `integration_tests/beta/parallel/` behind a slow marker; replace its use of the private `_find_parallel_step` |
   | `test/unit_tests/services/test_parallel.py`, parallel tests in `test/unit_tests/test_workflow.py` | `unit_tests/beta/parallel/` |
 
+## Findings for later investigation
+<!-- diataxis: explanation -->
+
+### Nested parallel steps on the worker path (found in phase 3)
+
+A parallel step nested in a branch of another parallel step probably doesn't work with `EXECUTOR=worker`. This was
+found while writing a test for `process_stat_var` in phase 3, and has not been confirmed with separate worker
+processes: the eager, single-process Celery test setup shares the context variable between tasks, so the test could
+not tell real behaviour apart from artefacts of that setup.
+
+The behaviour was already there before phase 1 (`ba445ebb`); phases 1 to 4 did not cause it.
+
+What the code does today:
+
+- The outer branch runs on a worker through `run_worker_branch`. When it reaches the nested parallel step,
+  `_exec_parallel_branches` creates an inner fork row, dispatches the inner branches and returns `Waiting`.
+  `branch_dblogstep` records that `Waiting` as the outer branch's step, and `_exec_steps` stops the branch there,
+  because only `Success` and `Skipped` continue. Nothing resumes the outer branch later.
+- The outer branch then counts as finished. The outer join (`_resolve_fork_step`) takes `Waiting` as its worst result,
+  through `_collect_branch_results` and `_worst_status`.
+- The last inner branch runs `_resolve_fork_step` for the inner fork, and then `_resume(process_id, user)`. That
+  resumes the whole process (`resume_process`, `load_process`, `runwf`), not the outer branch, while the outer
+  parallel step may still be running. `load_process` only sees main-log rows (`_main_log_steps` leaves out branch
+  rows), so `_recoverwf` doesn't know about the outer branch at all.
+
+In the test setup, the inner fork row ended up `waiting` although both inner branches completed.
+
+To investigate:
+
+- Confirm the behaviour with separate worker processes (Redis and real Celery workers).
+- Decide whether a nested fork should resume its parent branch instead of the process, or whether nested parallel
+  steps are rejected on the worker path until that works. The threadpool path is probably not affected, because it
+  waits for the inner branches within the same call.
+- Decide this before phase 7, which moves the worker code to `beta/parallel/worker.py`.
+
 ## Not part of this plan
 <!-- diataxis: reference -->
 
 - `orchestrator/core/workflows/utils.py:124` (translations, #549): unrelated to this branch.
 - Recovery of forks stuck in Waiting after a worker crash: separate issue, see phase 2.
+- Nested parallel steps on the worker path: see
+  [Findings for later investigation](#nested-parallel-steps-on-the-worker-path-found-in-phase-3).
