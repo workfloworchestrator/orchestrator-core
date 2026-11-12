@@ -22,21 +22,28 @@ TODO: move to the correct place in the integration tests (in the module of the m
 
 import threading
 import time
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from functools import partial
 from typing import cast
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 
+import orchestrator.core.services.parallel as parallel_service
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
 from orchestrator.core.db.models import ProcessStepRelationTable
-from orchestrator.core.services.processes import SYSTEM_USER, safe_logstep
+from orchestrator.core.services.executors.types import ExecutorFunction
+from orchestrator.core.services.parallel import _resolve_fork_step, run_worker_branch
+from orchestrator.core.services.processes import SYSTEM_USER, create_process, load_process, safe_logstep
+from orchestrator.core.settings import ExecutorType, app_settings
 from orchestrator.core.testing import (
     WorkflowInstanceForTests,
     assert_complete,
@@ -44,8 +51,10 @@ from orchestrator.core.testing import (
     assert_waiting,
 )
 from orchestrator.core.workflow import (
+    BranchKind,
     ProcessStat,
     ProcessStatus,
+    StepStatus,
     Success,
     _assert_parallel_step_is_visible,
     _child_step_lists,
@@ -1001,3 +1010,262 @@ def test_parallel_join_preserves_branch_row_state(branch_count):
         assert all(fork_step.completed_at <= child.completed_at for child in children), (
             "fork step completed_at was bumped after branches — ordering broken"
         )
+
+
+# --- Test: the transaction around the join in run_worker_branch ---
+#
+# The worker path runs each branch through ``run_worker_branch``. The increment of ``branches_completed`` and, for the
+# last finisher, the fork update form one transaction that is committed before the RESUME executor is called. The
+# resume dispatch is stubbed, so these tests cover only the DB work of the worker.
+
+
+def _make_fork_step(process_id, name: str, branch_count: int, state: dict) -> ProcessStepTable:
+    """Insert a fork step that is waiting for ``branch_count`` branches, like ``_create_fork_step`` does.
+
+    Branches are not dispatched: each test runs a branch with ``run_worker_branch`` itself.
+    """
+    fork_step = ProcessStepTable(
+        process_id=process_id,
+        name=name,
+        status=ProcessStatus.WAITING,
+        state=state,
+        created_by=SYSTEM_USER,
+        branch_count=branch_count,
+        branch_kind=BranchKind.PARALLEL,
+        branches_completed=0,
+    )
+    db.session.add(fork_step)
+    db.session.commit()
+    return fork_step
+
+
+def _make_branch_result(fork_step: ProcessStepTable, branch_index: int, status: str) -> None:
+    """Link a finished branch step to the fork, as the branch's DB step logger would."""
+    child_step = ProcessStepTable(
+        process_id=fork_step.process_id,
+        name=f"[Branch {branch_index}] {fork_step.name}",
+        status=status,
+        state={"branch": branch_index},
+        created_by=SYSTEM_USER,
+    )
+    db.session.add(child_step)
+    db.session.flush()
+    db.session.add(
+        ProcessStepRelationTable(
+            parent_step_id=fork_step.step_id,
+            child_step_id=child_step.step_id,
+            order_id=0,
+            branch_index=branch_index,
+        )
+    )
+    db.session.commit()
+
+
+class _ResumeCalls:
+    """Stub for ``get_execution_context`` that records resume calls instead of handing over to an executor."""
+
+    def __init__(self) -> None:
+        self.process_ids: list = []
+
+    def resume(self, process, user: str = SYSTEM_USER) -> None:  # noqa: ARG002
+        self.process_ids.append(process.process_id)
+
+    def __getitem__(self, executor_function: ExecutorFunction) -> Callable:
+        if executor_function is not ExecutorFunction.RESUME:
+            raise AssertionError(f"run_worker_branch must only call the RESUME executor, not {executor_function}")
+        return self.resume
+
+
+@contextmanager
+def _worker_branch_environment(workflow_key: str, join_group: str = "Worker join group") -> Iterator[_ResumeCalls]:
+    """Register a workflow with a two-branch parallel step and stub the resume dispatch of ``run_worker_branch``."""
+    resume_calls = _ResumeCalls()
+
+    par = parallel(join_group, begin >> branch_a_step1, begin >> branch_b_step1)
+
+    @workflow()
+    def worker_join_wf():
+        return init >> par >> done
+
+    with (
+        WorkflowInstanceForTests(worker_join_wf, workflow_key),
+        patch("orchestrator.core.services.processes.get_execution_context", return_value=resume_calls),
+    ):
+        yield resume_calls
+
+
+def test_run_worker_branch_non_last_branch_increments_without_resuming():
+    """A branch that is not the last one increments the counter, leaves the fork unresolved and doesn't resume."""
+    with _worker_branch_environment("worker_join_non_last_wf") as resume_calls:
+        pstat = create_process("worker_join_non_last_wf", [{}])
+        initial_state = pstat.state.unwrap()
+        fork_step = _make_fork_step(pstat.process_id, "Worker join group", branch_count=2, state=initial_state)
+        _make_branch_result(fork_step, branch_index=0, status=StepStatus.SUCCESS)
+
+        run_worker_branch(
+            process_id=pstat.process_id,
+            branch_index=0,
+            fork_step_id=fork_step.step_id,
+            initial_state=initial_state,
+            user=SYSTEM_USER,
+        )
+
+        db.session.expire_all()
+        fork_step = db.session.get(ProcessStepTable, fork_step.step_id)
+        assert fork_step.branches_completed == 1
+        assert fork_step.status == ProcessStatus.WAITING
+        # The fork keeps the pre-parallel state until the last branch resolves it.
+        assert fork_step.state == {**initial_state, "process_id": str(pstat.process_id)}
+        assert resume_calls.process_ids == []
+
+
+@pytest.mark.parametrize(
+    "branch_status, expected_status",
+    [
+        pytest.param(StepStatus.SUCCESS, StepStatus.SUCCESS, id="all-succeeded"),
+        pytest.param(StepStatus.FAILED, StepStatus.FAILED, id="one-failed"),
+        pytest.param(StepStatus.WAITING, StepStatus.WAITING, id="one-waiting"),
+        pytest.param(StepStatus.AWAITING_CALLBACK, StepStatus.AWAITING_CALLBACK, id="one-awaiting-callback"),
+        pytest.param(StepStatus.SUSPEND, StepStatus.SUSPEND, id="one-suspend"),
+    ],
+)
+def test_run_worker_branch_last_finisher_resolves_fork_and_resumes_once(branch_status, expected_status):
+    """The last finisher sets the fork's status from the worst branch and resumes the process exactly once."""
+    with _worker_branch_environment("worker_join_last_wf") as resume_calls:
+        pstat = create_process("worker_join_last_wf", [{}])
+        initial_state = pstat.state.unwrap()
+        fork_step = _make_fork_step(pstat.process_id, "Worker join group", branch_count=2, state=initial_state)
+
+        # Branch 0 ran earlier and left its result in the DB.
+        _make_branch_result(fork_step, branch_index=0, status=branch_status)
+        db.session.execute(
+            update(ProcessStepTable).where(ProcessStepTable.step_id == fork_step.step_id).values(branches_completed=1)
+        )
+        db.session.commit()
+
+        # Branch 1 is the last finisher and succeeds.
+        run_worker_branch(
+            process_id=pstat.process_id,
+            branch_index=1,
+            fork_step_id=fork_step.step_id,
+            initial_state=initial_state,
+            user=SYSTEM_USER,
+        )
+
+        db.session.expire_all()
+        fork_step = db.session.get(ProcessStepTable, fork_step.step_id)
+        assert fork_step.branches_completed == 2
+        assert fork_step.status == expected_status
+        assert resume_calls.process_ids == [pstat.process_id]
+
+
+def test_run_worker_branch_failing_resume_leaves_fork_resolved():
+    """A failing RESUME must not undo the join: the fork row is committed before the hand-off.
+
+    If the fork update were rolled back with a failing resume, the fork would stay ``waiting``. The parallel step then
+    looks undone, and a manual resume would run every branch again.
+    """
+    with _worker_branch_environment("worker_join_failing_resume_wf") as resume_calls:
+        pstat = create_process("worker_join_failing_resume_wf", [{}])
+        initial_state = pstat.state.unwrap()
+        fork_step = _make_fork_step(pstat.process_id, "Worker join group", branch_count=1, state=initial_state)
+
+        with (
+            patch.object(resume_calls, "resume", side_effect=AssertionError("incorrect status to resume")),
+            pytest.raises(AssertionError, match="incorrect status to resume"),
+        ):
+            run_worker_branch(
+                process_id=pstat.process_id,
+                branch_index=0,
+                fork_step_id=fork_step.step_id,
+                initial_state=initial_state,
+                user=SYSTEM_USER,
+            )
+
+        db.session.expire_all()
+        fork_step = db.session.get(ProcessStepTable, fork_step.step_id)
+        assert fork_step.branches_completed == 1
+        assert fork_step.status == StepStatus.SUCCESS
+
+
+def test_resolve_fork_step_missing_fork_step_raises_and_logs_ids():
+    """A missing fork step must not be skipped: the process would resume with the parallel step unresolved.
+
+    In practice the counter update already fails on a missing fork row, so this is exercised on the fork lookup
+    directly.
+    """
+    process_id = uuid4()
+    fork_step_id = uuid4()
+    logger_mock = MagicMock()
+
+    with (
+        patch.object(parallel_service, "logger", logger_mock),
+        pytest.raises(ValueError, match=f"Fork step {fork_step_id} not found"),
+    ):
+        _resolve_fork_step(process_id=process_id, fork_step_id=fork_step_id, initial_state={})
+
+    # The ids make the stuck process findable.
+    logger_mock.error.assert_called_once_with(
+        "Fork step not found while resolving parallel branches",
+        process_id=str(process_id),
+        fork_step_id=str(fork_step_id),
+    )
+
+
+# --- Test: current behaviour when a worker crashes before the join ---
+#
+# Out of scope for the transaction around the join (see docs/designs/parallel-steps-todos.md, phase 2); recovery is
+# tracked separately. This test documents what happens today, so the follow-up has a starting point.
+
+
+def test_worker_crash_before_the_join_leaves_the_process_stuck_in_waiting():
+    """A worker that commits its branch and then dies before the join leaves the process stuck in Waiting.
+
+    The workflow runs on the worker path, so it suspends on the fork row and dispatches both branches. The dispatch is
+    stubbed, so no branch runs. Then one branch commits its result and its increment, and the worker dies before the
+    join; the other branch never reports. Nobody resolves the fork row: it stays ``waiting`` with one branch completed,
+    the process stays Waiting, and a resume runs the whole parallel step again instead of just the missing branch.
+    """
+    task = MagicMock()
+
+    @workflow()
+    def worker_crash_wf():
+        return init >> parallel("Worker crash group", begin >> branch_a_step1, begin >> branch_b_step1) >> done
+
+    with WorkflowInstanceForTests(worker_crash_wf, "worker_crash_wf"):
+        with (
+            patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
+            # Dispatching the branch tasks returns without running them, as the workers would run them out of band.
+            patch("orchestrator.core.services.tasks.get_celery_task", return_value=task),
+        ):
+            pstat = create_process("worker_crash_wf", [{}])
+            result = runwf(pstat, partial(safe_logstep))
+
+        assert result.iswaiting(), f"Expected Waiting (WORKER mode), but was: {result}"
+        assert len(task.delay.call_args_list) == 2, "both branches must be dispatched"
+
+        db.session.expire_all()
+        process = db.session.get(ProcessTable, pstat.process_id)
+        assert process.last_status == ProcessStatus.WAITING
+        fork_step = db.session.get(ProcessStepTable, result.unwrap()["__fork_step_id"])
+        assert fork_step.status == StepStatus.WAITING
+        assert fork_step.branches_completed == 0
+
+        # One branch commits its result and its increment; its worker dies before the join.
+        _make_branch_result(fork_step, branch_index=0, status=StepStatus.SUCCESS)
+        db.session.execute(
+            update(ProcessStepTable).where(ProcessStepTable.step_id == fork_step.step_id).values(branches_completed=1)
+        )
+        db.session.commit()
+
+        # Nothing resolves the fork row, so the process stays Waiting on it.
+        db.session.expire_all()
+        assert db.session.get(ProcessTable, pstat.process_id).last_status == ProcessStatus.WAITING
+        fork_step = db.session.get(ProcessStepTable, fork_step.step_id)
+        assert fork_step.status == StepStatus.WAITING
+        assert fork_step.branches_completed == 1
+
+        # A resume offers the parallel step again. The fork row is not failed, so its finished branch is not inherited
+        # and every branch runs again, including the branch that already finished.
+        loaded_pstat = load_process(db.session.get(ProcessTable, pstat.process_id))
+        assert [s.name for s in loaded_pstat.log] == ["Worker crash group", "Done"]

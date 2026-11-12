@@ -492,23 +492,26 @@ def _atomic_increment_completed(fork_step_id):
     )
     result = db.session.execute(stmt)
     completed, total = result.one()
-    db.session.commit()
     return completed, total
 ```
 
 #### Last-Finisher Continuation
 
-The last branch to complete detects this via the atomic counter and triggers the join:
+The last branch to complete detects this via the atomic counter. The increment and the fork resolution run in one transaction, which is committed before the parent workflow is resumed:
 
 ```python
-completed, total = _atomic_increment_completed(fork_step_id)
+with transactional(db, logger):
+    completed, total = _atomic_increment_completed(fork_step_id)
+    is_last_branch = total is not None and completed >= total
+    if is_last_branch:
+        _resolve_fork_step(process_id=process_id, fork_step_id=fork_step_id,
+                           initial_state=initial_state)
 
-if total is not None and completed >= total:
-    _join_and_resume(process_id=process_id, fork_step_id=fork_step_id,
-                     initial_state=initial_state, user=user)
+if is_last_branch:
+    _resume(process_id, user)
 ```
 
-`_join_and_resume` loads all child steps from `ProcessStepRelationTable`, determines the worst status across all branches, updates the fork step, and resumes the parent workflow via `get_execution_context()["resume"]`, respecting the configured executor.
+`_resolve_fork_step` loads all child steps from `ProcessStepRelationTable`, determines the worst status across all branches, and updates the fork step. The row lock taken by the increment lasts until the commit, which happens once, right before the hand-off. `_resume` then resumes the parent workflow via `get_execution_context()["resume"]`, respecting the configured executor. It does not rely on the transaction the RESUME executor opens: that transaction rolls back when resuming fails, which would also roll back the fork update and make a manual resume run every branch again.
 
 ### 4.4 Error Handling
 
@@ -703,7 +706,7 @@ def downgrade() -> None:
 | File | Purpose |
 |------|---------|
 | `orchestrator/workflow.py` | Core parallel engine: `_make_parallel_step`, `_exec_parallel_branches`, `_run_threadpool_branches`, `_dispatch_worker_branches`, `_run_branch`, `_create_fork_step`, `_update_fork_step`, `_worst_status`, `_make_branch_dblogstep`, `reconstruct_branch`, `parallel()`, `foreach_parallel()`, `ParallelStepList` |
-| `orchestrator/services/parallel.py` | Celery worker branch execution: `run_worker_branch`, `_atomic_increment_completed`, `_collect_branch_results`, `_resolve_branch_from_db`, `_join_and_resume` |
+| `orchestrator/services/parallel.py` | Celery worker branch execution: `run_worker_branch`, `_atomic_increment_completed`, `_collect_branch_results`, `_resolve_branch_from_db`, `_resolve_fork_step`, `_resume` |
 | `orchestrator/db/models.py` | `ProcessStepTable` (parallel columns), `ProcessStepRelationTable` |
 | `orchestrator/utils/enrich_process.py` | `enrich_step_details` — recursive serialization of fork + child steps for API |
 | `orchestrator/settings.py` | `ExecutorType` enum, `EXECUTOR` setting |

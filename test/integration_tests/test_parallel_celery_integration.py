@@ -155,12 +155,12 @@ def test_atomic_increment_completed_with_real_db() -> None:
         db.session.commit()
 
         first_completed, first_total = _atomic_increment_completed(fork_step.step_id)
-        assert first_completed == 1
-        assert first_total == 2
-
         second_completed, second_total = _atomic_increment_completed(fork_step.step_id)
-        assert second_completed == 2
-        assert second_total == 2
+
+        assert (first_completed, first_total) == (1, 2)
+        assert (second_completed, second_total) == (2, 2)
+        # The function must not commit; its caller owns the transaction.
+        assert db.session.in_transaction()
 
 
 @pytest.mark.celery
@@ -387,7 +387,7 @@ def test_map_parallel_worker_dispatches_all_branches(setup_test_celery) -> None:
     with (
         patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
         patch("orchestrator.core.services.parallel.run_worker_branch", _scoped_run_worker_branch),
-        # Stub only the resume dispatch so _join_and_resume's DB logic is tested.
+        # Stub only the resume dispatch so the fork lookup and the join's DB logic are tested.
         patch("orchestrator.core.services.processes.get_execution_context", return_value=noop_execution_context),
     ):
         with WorkflowInstanceForTests(fe_worker_wf, "fe_worker_wf"):
@@ -419,7 +419,7 @@ def test_map_parallel_worker_dispatches_all_branches(setup_test_celery) -> None:
             assert "tracked_1" in all_state_keys
             assert "tracked_2" in all_state_keys
 
-            # _join_and_resume must have updated the fork step status and triggered resume
+            # The join must have resolved the fork step and triggered the resume
             assert fork_step.status == "success"
             assert len(resume_log) == 1, f"Expected exactly 1 resume call, got {len(resume_log)}"
             assert resume_log[0] == pstat.process_id
@@ -571,17 +571,17 @@ def test_worker_resume_after_parallel_executes_remaining_steps(setup_test_celery
 
     This exercises the full Celery resume flow:
     1. Run the workflow in WORKER mode — it suspends (Waiting) at the parallel step
-    2. Branches execute and _join_and_resume triggers a resume
+    2. Branches execute and the join (``_resolve_fork_step``) triggers a resume
     3. We simulate the resume by calling load_process + runwf
     4. The resumed workflow must execute the post-parallel step and reach Complete
 
     Two bugs fixed:
     1. load_process included fork/branch child steps, inflating stepcount in _recoverwf
-    2. _join_and_resume didn't update the main Waiting step to Success
+    2. the join didn't update the main Waiting step to Success
 
     Note: In eager Celery mode, branches execute synchronously inside .delay(), so
-    _join_and_resume fires BEFORE safe_logstep writes the (now unified) fork+main row.
-    In production, branches run asynchronously and _join_and_resume runs AFTER. We
+    the join fires BEFORE safe_logstep writes the (now unified) fork+main row.
+    In production, branches run asynchronously and the join runs AFTER. We
     simulate the production ordering by overwriting the fork status to ``success``
     after the workflow returns Waiting.
     """
@@ -649,7 +649,7 @@ def test_worker_resume_after_parallel_executes_remaining_steps(setup_test_celery
             # Branches should have completed (eager mode) and triggered resume
             assert len(resume_log) == 1, f"Expected exactly 1 resume call, got {len(resume_log)}"
 
-            # Simulate production ordering: in production, _join_and_resume runs AFTER
+            # Simulate production ordering: in production, the join runs AFTER
             # safe_logstep updates the fork to Waiting. Here in eager mode the order is
             # reversed, so we manually re-resolve the fork to success after the workflow
             # returns Waiting.
@@ -698,13 +698,13 @@ def test_worker_resume_after_parallel_executes_remaining_steps(setup_test_celery
 
 
 @pytest.mark.celery
-def test_join_and_resume_writes_no_duplicate_main_row(setup_test_celery) -> None:  # noqa: ARG001 — initialises Celery for WORKER-mode dispatch
+def test_join_writes_no_duplicate_main_row(setup_test_celery) -> None:  # noqa: ARG001 — initialises Celery for WORKER-mode dispatch
     """The fork row IS the main-log row for the parallel step (no separate Waiting row).
 
     Previously safe_logstep wrote a Waiting row alongside the fork in WORKER mode, and
     ``_update_main_parallel_step`` was responsible for syncing them. With the unified
     design ``_dispatch_worker_branches`` sets ``__replace_last_state`` so safe_logstep
-    overwrites the fork in-place, and ``_join_and_resume`` resolves the same row.
+    overwrites the fork in-place, and ``_resolve_fork_step`` resolves the same row.
     """
 
     @step("Join Branch A")
