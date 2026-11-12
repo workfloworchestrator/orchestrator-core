@@ -29,11 +29,12 @@ from more_itertools import unique_everseen
 from sqlalchemy import select, update
 from sqlalchemy.orm import joinedload
 
-from orchestrator.core.db import ProcessStepTable, ProcessTable, db
+from orchestrator.core.db import ProcessStepTable, ProcessTable, WorkflowTable, db
 from orchestrator.core.db.database import transactional
 from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.workflow import (
     _STATUSES,
+    Process,
     ProcessStat,
     Step,
     StepList,
@@ -69,11 +70,11 @@ def _atomic_increment_completed(fork_step_id: UUID) -> tuple[int, int | None]:
     return completed, total
 
 
-def _collect_branch_results(fork_step_id: UUID) -> list[tuple[int, dict, str]]:
-    """Collect branch results from DB via ProcessStepRelationTable.
+def _collect_branch_results(fork_step_id: UUID) -> dict[int, Process]:
+    """Collect the latest branch result per branch index from DB via ProcessStepRelationTable.
 
-    Returns list of (branch_index, state, status) sorted by branch_index.
-    Takes the last step per branch (highest order_id) as the branch result.
+    Takes the last step per branch (highest order_id) as the branch result and converts its status
+    back into the matching ``Process``, so callers can compare results without converting themselves.
     """
     stmt = (
         select(ProcessStepRelationTable)
@@ -83,9 +84,11 @@ def _collect_branch_results(fork_step_id: UUID) -> list[tuple[int, dict, str]]:
     )
     relations = db.session.execute(stmt).scalars().all()
 
-    # TODO convert status with Process(StepStatus(rel.child_step.status), state) as that is what callers use
-    first_per_branch = unique_everseen(relations, key=lambda r: r.branch_index)
-    return [(rel.branch_index, rel.child_step.state, rel.child_step.status) for rel in first_per_branch]
+    latest_per_branch = unique_everseen(relations, key=lambda rel: rel.branch_index)
+    return {
+        rel.branch_index: _STATUSES.get(StepStatus(rel.child_step.status), Success)(rel.child_step.state)
+        for rel in latest_per_branch
+    }
 
 
 def _succeeded_branch_indices(fork_step_id: UUID) -> set[int]:
@@ -94,7 +97,7 @@ def _succeeded_branch_indices(fork_step_id: UUID) -> set[int]:
     Used by retry logic to skip branches that already completed successfully
     on a previous attempt of the same parallel group.
     """
-    return {idx for idx, _state, status in _collect_branch_results(fork_step_id) if status == StepStatus.SUCCESS}
+    return {idx for idx, result in _collect_branch_results(fork_step_id).items() if result.issuccess()}
 
 
 def _find_parallel_step(steps: StepList, group_name: str) -> Step | None:
@@ -119,34 +122,30 @@ def _find_parallel_step(steps: StepList, group_name: str) -> Step | None:
     return _find_step_by_group_name(steps, group_name)
 
 
-def _resolve_branch_from_db(
-    fork_step_id: UUID, process_id: UUID, branch_index: int
-) -> tuple[str, StepList, ProcessTable, Workflow]:
-    """Derive the workflow key, branch step list, process, and workflow from the fork step in DB.
+def _resolve_branch_from_db(fork_step_id: UUID, process_id: UUID, branch_index: int) -> tuple[str, StepList, Workflow]:
+    """Derive the workflow key, branch step list, and workflow from the fork step in DB.
 
     The fork step's ``name`` stores the parallel group name, and the process's
     workflow relationship provides the workflow key. This avoids passing workflow
     metadata through the Celery task arguments.
 
     Returns:
-        (parallel_group_name, branch_step_list, process, workflow)
+        (parallel_group_name, branch_step_list, workflow)
     """
     from orchestrator.core.workflows import get_workflow
 
-    # TODO select step name directly by fork_step_id
-    fork_step = db.session.get(ProcessStepTable, fork_step_id)
-    if fork_step is None:
+    parallel_group_name = db.session.scalar(
+        select(ProcessStepTable.name).where(ProcessStepTable.step_id == fork_step_id)
+    )
+    if parallel_group_name is None:
         raise ValueError(f"Fork step {fork_step_id} not found")
 
-    parallel_group_name = fork_step.name
-
-    # TODO select workflow name directly by process_id
-    #  Remove `process` from return values as it's unused
-    process = db.session.get(ProcessTable, process_id)
-    if process is None:
+    workflow_key = db.session.scalar(
+        select(WorkflowTable.name).join(ProcessTable.workflow).where(ProcessTable.process_id == process_id)
+    )
+    if workflow_key is None:
         raise ValueError(f"Process {process_id} not found")
 
-    workflow_key = process.workflow.name
     wf = get_workflow(workflow_key)
     if wf is None:
         raise ValueError(f"Workflow '{workflow_key}' not found")
@@ -155,7 +154,7 @@ def _resolve_branch_from_db(
     if parallel_step is None:
         raise ValueError(f"Parallel group '{parallel_group_name}' not found in workflow '{workflow_key}'")
 
-    return parallel_group_name, reconstruct_branch(parallel_step, branch_index), process, wf
+    return parallel_group_name, reconstruct_branch(parallel_step, branch_index), wf
 
 
 def run_worker_branch(
@@ -178,10 +177,12 @@ def run_worker_branch(
     transaction that is committed exactly once, right before the parent workflow
     is resumed.
     """
-    parallel_group_name, branch, process, wf = _resolve_branch_from_db(fork_step_id, process_id, branch_index)
+    parallel_group_name, branch, wf = _resolve_branch_from_db(fork_step_id, process_id, branch_index)
 
-    # Set process_stat_var so nested parallel branches can create fork steps
-    # and dispatch to Celery workers (if EXECUTOR=WORKER).
+    # process_stat_var is how the engine knows this process when a branch runs a nested parallel step:
+    # _exec_parallel_branches reads process_id, current_user and workflow.name from it to create a fork row and
+    # dispatch its branches (to Celery workers when EXECUTOR=WORKER). state and log are placeholders, because the
+    # branch runs its own step list (and its own step log) rather than the workflow's.
     pstat = ProcessStat(
         process_id=process_id,
         workflow=wf,
@@ -189,7 +190,7 @@ def run_worker_branch(
         log=wf.steps,
         current_user=user,
     )
-    process_stat_var.set(pstat)  # TODO check if global var is really necessary
+    process_stat_var.set(pstat)
 
     branch_state = deepcopy(initial_state)
     dblogstep = _make_branch_dblogstep(process_id, fork_step_id, branch_index, user, seed_state=seed_state)
@@ -248,10 +249,7 @@ def _resolve_fork_step(
         )
         raise ValueError(f"Fork step {fork_step_id} not found")
 
-    branch_data = _collect_branch_results(fork_step_id)
-
-    results = [_STATUSES.get(StepStatus(status), Success)(state) for _branch_idx, state, status in branch_data]
-    worst = _worst_status(results)
+    worst = _worst_status(list(_collect_branch_results(fork_step_id).values()))
 
     resolved_status = worst.status if worst else StepStatus.SUCCESS
     resolved_state = worst.unwrap() if worst else initial_state

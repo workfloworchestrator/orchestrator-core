@@ -465,17 +465,16 @@ Steps are Python functions and cannot be serialized. The Celery task receives `p
 
 ```python
 def _resolve_branch_from_db(fork_step_id, process_id, branch_index):
-    fork_step = db.session.get(ProcessStepTable, fork_step_id)
-    parallel_group_name = fork_step.name
-
-    process = db.session.get(ProcessTable, process_id)
-    workflow_key = process.workflow.name
+    parallel_group_name = db.session.scalar(
+        select(ProcessStepTable.name).where(ProcessStepTable.step_id == fork_step_id)
+    )
+    workflow_key = db.session.scalar(
+        select(WorkflowTable.name).join(ProcessTable.workflow).where(ProcessTable.process_id == process_id)
+    )
     wf = get_workflow(workflow_key)
 
-    parallel_step = next(
-        s for s in wf.steps if getattr(s, '_parallel_group_name', None) == parallel_group_name
-    )
-    return parallel_group_name, reconstruct_branch(parallel_step, branch_index)
+    parallel_step = _find_parallel_step(wf.steps, parallel_group_name)
+    return parallel_group_name, reconstruct_branch(parallel_step, branch_index), wf
 ```
 
 #### Atomic Join: DB-based `UPDATE...RETURNING`

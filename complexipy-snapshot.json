@@ -265,7 +265,7 @@
     "functions": [
       {
         "name": "_run_threadpool_branches",
-        "complexity": 27
+        "complexity": 25
       }
     ]
   }

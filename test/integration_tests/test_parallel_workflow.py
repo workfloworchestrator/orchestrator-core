@@ -50,6 +50,7 @@ from orchestrator.core.testing import (
     assert_failed,
     assert_waiting,
 )
+from orchestrator.core.testing.workflows import TEST_USER
 from orchestrator.core.workflow import (
     BranchKind,
     ProcessStat,
@@ -66,6 +67,7 @@ from orchestrator.core.workflow import (
     inputstep,
     map_parallel,
     parallel,
+    process_stat_var,
     retrystep,
     runwf,
     step,
@@ -1157,6 +1159,41 @@ def test_run_worker_branch_last_finisher_resolves_fork_and_resumes_once(branch_s
         assert fork_step.branches_completed == 2
         assert fork_step.status == expected_status
         assert resume_calls.process_ids == [pstat.process_id]
+
+
+def test_run_worker_branch_makes_the_process_available_to_nested_parallel_steps():
+    """While a branch runs, ``process_stat_var`` holds this process, its user and its workflow.
+
+    A parallel step nested in a branch has no other way to know its process: ``_exec_parallel_branches`` reads
+    ``process_id``, ``current_user`` and ``workflow.name`` from the context variable to create the nested fork and
+    dispatch its branches, and looks the workflow up by name on the worker. Resolving one branch therefore has to
+    install it before the branch executes.
+    """
+    seen: list[ProcessStat | None] = []
+
+    with _worker_branch_environment("worker_nested_context_wf"):
+        pstat = create_process("worker_nested_context_wf", [{}])
+        initial_state = pstat.state.unwrap()
+        fork_step = _make_fork_step(pstat.process_id, "Worker join group", branch_count=1, state=initial_state)
+
+        # Stand in for the branch's steps and record the process context the worker set up for them.
+        with patch.object(
+            parallel_service, "_exec_steps", side_effect=lambda *_args: seen.append(process_stat_var.get(None))
+        ):
+            run_worker_branch(
+                process_id=pstat.process_id,
+                branch_index=0,
+                fork_step_id=fork_step.step_id,
+                initial_state=initial_state,
+                user=TEST_USER,
+            )
+
+    assert len(seen) == 1, "the branch must have been executed once"
+    branch_stat = seen[0]
+    assert branch_stat is not None, "a nested parallel step in the branch would not find its process"
+    assert branch_stat.process_id == pstat.process_id
+    assert branch_stat.current_user == TEST_USER
+    assert branch_stat.workflow.name == "worker_nested_context_wf"
 
 
 def test_run_worker_branch_failing_resume_leaves_fork_resolved():

@@ -716,11 +716,10 @@ def _create_fork_step(
 
     Returns the fork step_id (not the ORM object) to avoid stale-object issues.
     """
-    from more_itertools import unique_everseen
     from sqlalchemy import select
-    from sqlalchemy.orm import joinedload
 
     from orchestrator.core.db.models import ProcessStepRelationTable
+    from orchestrator.core.services.parallel import _succeeded_branch_indices
 
     with db.database_scope():
         prior_failed = db.session.scalars(
@@ -738,24 +737,25 @@ def _create_fork_step(
         inherited_relations: list[ProcessStepRelationTable] = []
         succeeded_branches: set[int] = set()
         if prior_failed is not None:
-            prior_relations = (
+            # Re-inherit the steps of the branches that succeeded in the prior fork, as they were recorded there, in
+            # their original order: the latest step of each branch determines its result, and the earlier ones are its
+            # history.
+            succeeded_branches = _succeeded_branch_indices(prior_failed.step_id)
+            inherited_relations = list(
                 db.session.execute(
                     select(ProcessStepRelationTable)
-                    .options(joinedload(ProcessStepRelationTable.child_step))
-                    .where(ProcessStepRelationTable.parent_step_id == prior_failed.step_id)
+                    .where(
+                        ProcessStepRelationTable.parent_step_id == prior_failed.step_id,
+                        ProcessStepRelationTable.branch_index.in_(succeeded_branches),
+                    )
                     .order_by(
                         ProcessStepRelationTable.branch_index,
-                        ProcessStepRelationTable.order_id.desc(),
+                        ProcessStepRelationTable.order_id,
                     )
                 )
                 .scalars()
                 .all()
             )
-            latest_per_branch = list(unique_everseen(prior_relations, key=lambda r: r.branch_index))
-            succeeded_branches = {
-                r.branch_index for r in latest_per_branch if r.child_step.status == StepStatus.SUCCESS
-            }
-            inherited_relations = [r for r in prior_relations if r.branch_index in succeeded_branches]
 
         now = nowtz()
         fork_step = ProcessStepTable(
@@ -886,8 +886,7 @@ def _run_threadpool_branches(
     computed from each branch's *latest* attempt in the DB so successful prior
     branches contribute alongside the freshly-executed pending ones.
     """
-    from orchestrator.core.services.parallel import (  # type: ignore[attr-defined]  # TODO fix this in _collect_branch_results
-        _STATUSES,
+    from orchestrator.core.services.parallel import (
         _collect_branch_results,
         _succeeded_branch_indices,
     )
@@ -933,8 +932,7 @@ def _run_threadpool_branches(
     # Aggregate from the DB so previously-succeeded branches contribute to the worst-status
     # calculation alongside the branches that just ran in this attempt.
     if fork_step_id is not None:
-        branch_data = _collect_branch_results(fork_step_id)
-        results: list[Process] = [_STATUSES.get(StepStatus(s), Success)(state) for _idx, state, s in branch_data]
+        results = list(_collect_branch_results(fork_step_id).values())
     else:
         results = [r for r in branch_results if r is not None]
 
