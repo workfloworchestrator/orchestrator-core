@@ -16,7 +16,7 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.core.services.parallel import _atomic_increment_completed
+from orchestrator.core.services.parallel import _atomic_increment_completed, _join_and_resume
 
 
 @pytest.mark.parametrize(
@@ -53,3 +53,34 @@ def test_atomic_increment_executes_update_on_process_steps(mock_db: MagicMock) -
     mock_db.session.execute.assert_called_once()
     stmt = mock_db.session.execute.call_args[0][0]
     assert "process_steps" in str(stmt)
+
+
+@patch("orchestrator.core.services.parallel.db")
+def test_join_and_resume_raises_when_fork_step_is_missing(mock_db: MagicMock) -> None:
+    """A missing fork step must not be skipped: the process would resume with the parallel step unresolved."""
+    process_id = uuid4()
+    fork_step_id = uuid4()
+    mock_db.session.get.return_value = None
+
+    with pytest.raises(ValueError, match=f"Fork step {fork_step_id} not found"):
+        _join_and_resume(process_id=process_id, fork_step_id=fork_step_id, initial_state={}, user="test_user")
+
+    mock_db.session.commit.assert_not_called()
+
+
+@patch("orchestrator.core.services.parallel.db")
+@patch("orchestrator.core.services.parallel.logger")
+def test_join_and_resume_logs_ids_when_fork_step_is_missing(mock_logger: MagicMock, mock_db: MagicMock) -> None:
+    """The stuck process must be findable from the logs: log the process id and fork step id before raising."""
+    process_id = uuid4()
+    fork_step_id = uuid4()
+    mock_db.session.get.return_value = None
+
+    with pytest.raises(ValueError):
+        _join_and_resume(process_id=process_id, fork_step_id=fork_step_id, initial_state={}, user="test_user")
+
+    mock_logger.error.assert_called_once_with(
+        "Fork step not found while joining parallel branches",
+        process_id=str(process_id),
+        fork_step_id=str(fork_step_id),
+    )

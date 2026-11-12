@@ -47,7 +47,10 @@ from orchestrator.core.workflow import (
     ProcessStat,
     ProcessStatus,
     Success,
+    _assert_parallel_step_is_visible,
+    _child_step_lists,
     begin,
+    callback_step,
     conditional,
     done,
     init,
@@ -436,6 +439,149 @@ def test_conditional_step_in_branch():
     assert "a1" not in state
 
 
+# --- Test: parallel steps the tree walk cannot see (safety net) ---
+#
+# _validate_unique_parallel_group_names only sees the steps the walk reaches. A parallel step hidden by a wrapper
+# is not checked, and a worker cannot look it up by name. The safety net in _exec_parallel_branches fails loudly
+# when such a step runs, instead of letting a worker rebuild the wrong branch.
+
+
+def test_parallel_inside_conditional_is_visible_and_duplicates_are_detected():
+    """conditional() copies the wrapped step's attributes, so the walk sees the parallel step inside it."""
+    par = parallel("Conditional group", begin >> branch_a_step1, begin >> branch_b_step1)
+    gated = conditional(lambda _state: True)(par)
+
+    with pytest.raises(ValueError, match=r"Duplicate parallel group name\(s\) \['Conditional group'\]"):
+
+        @workflow()
+        def duplicate_conditional_wf():
+            return (
+                init >> gated >> parallel("Conditional group", begin >> branch_a_step1, begin >> branch_b_step1) >> done
+            )
+
+
+@pytest.mark.parametrize(
+    "predicate", [pytest.param(True, id="predicate-true"), pytest.param(False, id="predicate-false")]
+)
+def test_parallel_inside_conditional_runs_on_threadpool(predicate):
+    """A parallel step inside conditional() runs (or is skipped) without tripping the safety net."""
+    par = parallel("Conditional run group", begin >> branch_a_step1, begin >> branch_b_step1)
+    gated = conditional(lambda _state: predicate)(par)
+
+    wf = workflow()(lambda: init >> gated >> done)
+
+    with register_test_workflow(wf) as wf_table:
+        log = []
+        pstat = create_new_process_stat(wf_table, {})
+        result = runwf(pstat, store(log))
+
+    assert_complete(result)
+    state = result.unwrap()
+    assert "a1" not in state
+    assert "b1" not in state
+
+
+@pytest.mark.xfail(
+    reason="step_group keeps its sub-steps in a closure, so the walk cannot see a parallel step inside it. "
+    "Phase 4 adds Step.sub_steps.",
+    strict=True,
+)
+def test_parallel_inside_step_group_is_visible():
+    """A parallel step inside step_group must be visible to the walk once phase 4 adds Step.sub_steps."""
+    group = step_group("Wrapper", begin >> parallel("Grouped", begin >> branch_a_step1, begin >> branch_b_step1))
+
+    with pytest.raises(ValueError, match=r"Duplicate parallel group name\(s\) \['Grouped'\]"):
+
+        @workflow()
+        def duplicate_step_group_wf():
+            return init >> group >> parallel("Grouped", begin >> branch_a_step1, begin >> branch_b_step1) >> done
+
+
+@pytest.mark.xfail(
+    reason="step_group keeps its sub-steps in a closure, so the walk cannot see a parallel step inside it. "
+    "Phase 4 adds Step.sub_steps.",
+    strict=True,
+)
+def test_parallel_inside_step_group_runs():
+    """Running a parallel step inside step_group is supported once phase 4 adds Step.sub_steps."""
+    group = step_group("Wrapper", begin >> parallel("Grouped run", begin >> branch_a_step1, begin >> branch_b_step1))
+
+    wf = workflow()(lambda: init >> group >> done)
+
+    with register_test_workflow(wf) as wf_table:
+        log = []
+        pstat = create_new_process_stat(wf_table, {})
+        result = runwf(pstat, store(log))
+
+    assert_complete(result)
+
+
+def test_parallel_inside_step_group_fails_the_safety_net():
+    """Until phase 4, a parallel step inside step_group fails loudly instead of running unchecked."""
+    group = step_group("Wrapper", begin >> parallel("Unreachable", begin >> branch_a_step1, begin >> branch_b_step1))
+
+    wf = workflow()(lambda: init >> group >> done)
+
+    with register_test_workflow(wf) as wf_table:
+        log = []
+        pstat = create_new_process_stat(wf_table, {})
+        result = runwf(pstat, store(log))
+
+    assert_failed(result)
+    assert "not visible in the workflow's step tree" in str(result.unwrap())
+
+
+@pytest.mark.xfail(
+    reason="callback_step is built on step_group, so the walk cannot see a parallel step inside it. "
+    "Phase 4 adds Step.sub_steps.",
+    strict=True,
+)
+def test_parallel_inside_callback_step_is_visible():
+    """A parallel step inside callback_step must be visible to the walk once phase 4 adds Step.sub_steps."""
+
+    @step("CB Validate")
+    def cb_validate():
+        return {}
+
+    cb = callback_step(
+        "Callback wrapper",
+        action_step=parallel("Called back", begin >> branch_a_step1, begin >> branch_b_step1),
+        validate_step=cb_validate,
+    )
+
+    with pytest.raises(ValueError, match=r"Duplicate parallel group name\(s\) \['Called back'\]"):
+
+        @workflow()
+        def duplicate_callback_wf():
+            return init >> cb >> parallel("Called back", begin >> branch_a_step1, begin >> branch_b_step1) >> done
+
+
+def test_parallel_step_with_a_reused_name_fails_the_safety_net():
+    """A visible group name must belong to a step carrying this step's own branches."""
+    first = parallel("Reused name", begin >> branch_a_step1, begin >> branch_b_step1)
+    second = parallel("Reused name", begin >> branch_a_step1, begin >> branch_b_step1)
+
+    @workflow()
+    def reused_name_wf():
+        return init >> first >> done
+
+    # `second` was never added to this workflow, so the step found under its name has other branches.
+    with pytest.raises(ValueError, match="reused by a parallel step with different branches"):
+        _assert_parallel_step_is_visible(reused_name_wf.steps, "Reused name", list(_child_step_lists(second)))
+
+
+def test_parallel_step_missing_from_the_step_list_fails_the_safety_net():
+    """A parallel step the walk cannot reach at all is rejected instead of running unchecked."""
+    par = parallel("Hidden group", begin >> branch_a_step1, begin >> branch_b_step1)
+
+    @workflow()
+    def without_parallel_wf():
+        return init >> branch_a_step1 >> done
+
+    with pytest.raises(ValueError, match="not visible in the workflow's step tree"):
+        _assert_parallel_step_is_visible(without_parallel_wf.steps, "Hidden group", list(_child_step_lists(par)))
+
+
 # --- Test: Composition ---
 
 
@@ -475,7 +621,12 @@ def test_multiple_parallel_blocks_in_sequence():
         return {"e": True}
 
     wf = workflow()(
-        lambda: init >> parallel("name", branch_a_step1, branch_b_step1) >> parallel("name", step_d, step_e) >> done
+        lambda: (
+            init
+            >> parallel("first block", branch_a_step1, branch_b_step1)
+            >> parallel("second block", step_d, step_e)
+            >> done
+        )
     )
 
     with register_test_workflow(wf) as wf_table:

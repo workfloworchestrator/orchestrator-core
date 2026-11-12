@@ -131,10 +131,17 @@ These stay in stable code because they are generic branching support or fall und
 | `ProcessStepRelationTable`, the `branch_*` columns, migration `18a7c2676fd3` | `db/models.py`, `migrations/` |
 | `branch_count`, `branch_kind`, `branches_completed`, `child_steps` fields | `schemas/process.py`, `graphql/schemas/process.py` |
 | `BranchKind` | `workflow.py`, next to `StepStatus` |
+| `BranchSpec`, the `Step.branching` and `Step.sub_steps` attributes | `workflow.py`, next to `BranchKind` |
+| step tree walk (`_child_step_lists`, `_iter_steps`) and the group name check `_validate_unique_parallel_group_names` | `workflow.py`, next to `make_workflow` |
 | `_branch_child_step_ids`, `_main_log_steps`, `process_steps_loader`, the fork handling in `_get_current_step_to_update` | `services/processes.py` |
 | child steps in `enrich_step_details` | `utils/enrich_process.py` |
 | `PARALLEL_BRANCH_QUEUE`, `PARALLEL_BRANCH_WORKFLOW_QUEUE` | `settings.py` |
 | `execute_parallel_branch*` task registration (wiring import) | `services/tasks.py` |
+
+`make_workflow` runs the group name check on every workflow, so the check, the walk and the step data they read
+(`BranchSpec`) are stable: stable code doesn't import beta code (see [Rules](#rules)). `BranchSpec` holds only the
+structure of a branching step (name, `BranchKind`, step lists), so loop steps reuse it. Execution options, such as
+`max_concurrency`, stay in `beta/parallel/dsl.py`.
 
 Other effects of the move:
 
@@ -212,7 +219,7 @@ Only modules that users import from the package root, or that everything depends
 | Module | Contents | From |
 |---|---|---|
 | `workflow/__init__.py` | re-exports the public DSL, so `from orchestrator.core.workflow import step` keeps working | `workflow.py` |
-| `workflow/dsl.py` | `Step`, `StepList`, `make_step_function`, `step`, `retrystep`, `inputstep`, `step_group`, `conditional`, `callback_step`, `begin`, `done`, `init`, `abort`, `focussteps`, `steplens`, `workflow`, `make_workflow` | `workflow.py` |
+| `workflow/dsl.py` | `Step`, `StepList`, `BranchSpec`, `make_step_function`, `step`, `retrystep`, `inputstep`, `step_group`, `conditional`, `callback_step`, `begin`, `done`, `init`, `abort`, `focussteps`, `steplens`, `workflow`, `make_workflow` | `workflow.py` |
 | `workflow/process.py` | `Process`, `Success`, `Skipped`, `Suspend`, `Waiting`, `AwaitingCallback`, `Abort`, `Failed`, `Complete`, `StepStatus`, `ProcessStatus` | `workflow.py` |
 | `workflow/state.py` | `inject_args`, `form_inject_args`, `extract`, `merge_state` | `utils/state.py`, `services/processes.py` |
 | `workflow/targets.py`, `workflow/assignee.py` | `Target`, `Assignee` | `targets.py`, `config/assignee.py` |
@@ -446,6 +453,8 @@ Two consequences for the work ahead:
 
 - When loop work starts while parallel steps are still in beta, the shared storage moves from `beta/parallel/branching.py`
   to `beta/branching/`, so that `beta/loop` doesn't depend on parallel internals.
+- `loop()` builds a `BranchSpec` with `BranchKind.LOOP`, so the step tree walk, the group name check and
+  `reconstruct_branch` cover loop bodies without changes.
 - Resuming inside a child step belongs in `execution/recovery.py`, not in `loop`. Built there, it can also be used to
   allow input steps in parallel branches, which the parallel design lists as a future enhancement.
 
