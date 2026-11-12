@@ -21,7 +21,6 @@ Handles:
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from copy import deepcopy
 from uuid import UUID
 
@@ -41,6 +40,7 @@ from orchestrator.core.workflow import (
     Success,
     Workflow,
     _exec_steps,
+    _find_step_by_group_name,
     _make_branch_dblogstep,
     _worst_status,
     process_stat_var,
@@ -102,21 +102,16 @@ def _succeeded_branch_indices(fork_step_id: UUID) -> set[int]:
     return {idx for idx, _state, status in _collect_branch_results(fork_step_id) if status == StepStatus.SUCCESS}
 
 
-def _child_step_lists(s: Step) -> Iterator[StepList]:
-    """Yield the nested step lists (branches and templates) attached to a step."""
-    # TODO make step metadata check type-safe
-    yield from getattr(s, "_parallel_branches", [])
-    template = getattr(s, "_foreach_branch_template", None)
-    if template is not None:
-        yield template
-
-
 def _find_parallel_step(steps: StepList, group_name: str) -> Step | None:
     """Recursively search steps (and their parallel branches) for a parallel group name.
 
     Walks the step tree depth-first, checking each step's ``_parallel_group_name``
     attribute. Also recurses into ``_parallel_branches`` (static parallel) and
     ``_foreach_branch_template`` (dynamic parallel).
+
+    Group names are unique within a workflow, validated when the workflow is built by
+    :func:`_validate_unique_parallel_group_names`, so there is exactly one match. Without that check this
+    first-match lookup could rebuild a branch from a different parallel step with the same name.
 
     Args:
         steps: A StepList (iterable of Step functions) to search.
@@ -125,22 +120,8 @@ def _find_parallel_step(steps: StepList, group_name: str) -> Step | None:
     Returns:
         The Step with matching ``_parallel_group_name``, or None if not found.
     """
-    # TODO is it guaranteed that parallel group names are unique?
-    for s in steps:
-        # TODO make step metadata check type-safe
-        if getattr(s, "_parallel_group_name", None) == group_name:
-            return s
-        found = next(
-            (
-                result
-                for child in _child_step_lists(s)
-                if (result := _find_parallel_step(child, group_name)) is not None
-            ),
-            None,
-        )
-        if found is not None:
-            return found
-    return None
+    # TODO make step metadata check type-safe
+    return _find_step_by_group_name(steps, group_name)
 
 
 def _resolve_branch_from_db(
@@ -257,7 +238,22 @@ def _join_and_resume(
     so resolving the parallel block means updating only that row. For failures, propagate
     the worst branch's error state so it's visible on the main log; for successes, keep
     the pre-parallel state.
+
+    Raises:
+        ValueError: If the fork step does not exist. Skipping the join would resume the process with the parallel
+            step still unresolved.
     """
+    fork_step = db.session.get(ProcessStepTable, fork_step_id)
+    if fork_step is None:
+        # The increment of this branch is already committed, so the process stays Waiting on this fork. Log the
+        # ids to make the stuck process findable; recovering such forks is tracked separately.
+        logger.error(
+            "Fork step not found while joining parallel branches",
+            process_id=str(process_id),
+            fork_step_id=str(fork_step_id),
+        )
+        raise ValueError(f"Fork step {fork_step_id} not found")
+
     branch_data = _collect_branch_results(fork_step_id)
 
     results = [_STATUSES.get(StepStatus(status), Success)(state) for _branch_idx, state, status in branch_data]
@@ -266,15 +262,12 @@ def _join_and_resume(
     resolved_status = worst.status if worst else StepStatus.SUCCESS
     resolved_state = worst.unwrap() if worst else initial_state
 
-    # TODO retrieve fork_step at the start and raise an exception if None? It should not go unnoticed
-    fork_step = db.session.get(ProcessStepTable, fork_step_id)
-    if fork_step is not None:
-        fork_step.status = resolved_status
-        fork_step.state = resolved_state
-        # TODO add fork_step.save() ?
+    fork_step.status = resolved_status
+    fork_step.state = resolved_state
+    # TODO add fork_step.save() ?
 
-        # TODO remove commit? The ExecutorFunction.RESUME already performs a commit
-        db.session.commit()
+    # TODO remove commit? The ExecutorFunction.RESUME already performs a commit
+    db.session.commit()
 
     from orchestrator.core.services.executors.types import ExecutorFunction
     from orchestrator.core.services.processes import _get_process, get_execution_context

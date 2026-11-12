@@ -19,6 +19,7 @@ TODO: move to the correct place in the integration tests (in the module of the m
 """
 
 from functools import partial
+from typing import NamedTuple
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -41,13 +42,17 @@ from orchestrator.core.testing import (
     store_workflow,
 )
 from orchestrator.core.workflow import (
+    Process,
+    ProcessStat,
     begin,
+    conditional,
     done,
     init,
     map_parallel,
     parallel,
     runwf,
     step,
+    step_group,
     workflow,
 )
 from orchestrator.core.workflows import ALL_WORKFLOWS
@@ -782,3 +787,96 @@ def test_load_process_excludes_fork_and_branch_steps() -> None:
         # The recovered state should be Complete (workflow finished)
         assert loaded.state.iscomplete(), f"Expected Complete state, got: {loaded.state}"
         assert len(loaded.log) == 0, f"Expected no remaining steps, got: {[s.name for s in loaded.log]}"
+
+
+# --- Tests: parallel steps wrapped by conditional or step_group ---
+#
+# conditional() copies the wrapped step's attributes (functools.wraps), so the step tree walk sees a parallel step
+# inside it and the worker can rebuild its branch from the group name. step_group keeps its sub-steps in a closure,
+# so a parallel step inside it is invisible; the strict-xfail test below asserts the intended behaviour once phase 4
+# adds Step.sub_steps.
+
+
+def _run_worker_branch_inline(**kwargs) -> None:
+    """Run a dispatched branch inline via run_worker_branch instead of through Celery.
+
+    Each branch gets its own database session, matching production worker isolation. The resume dispatch is stubbed
+    by the caller, so only the branch lookup and the join are exercised.
+    """
+    from orchestrator.core.services.parallel import run_worker_branch
+
+    with db.database_scope():
+        run_worker_branch(**kwargs)
+
+
+class _WorkerRun(NamedTuple):
+    """Outcome of running a workflow with EXECUTOR=WORKER in-process."""
+
+    result: Process
+    pstat: ProcessStat
+    resume_calls: list[object]
+
+
+def _run_on_worker(workflow_key: str) -> _WorkerRun:
+    """Run ``workflow_key`` with the worker executor, executing branches inline and stubbing the resume dispatch."""
+    resume_calls: list[object] = []
+
+    def _noop_resume(process, user="test"):
+        resume_calls.append(process.process_id)
+
+    with (
+        patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
+        patch("orchestrator.core.services.parallel.run_worker_branch", _run_worker_branch_inline),
+        patch(
+            "orchestrator.core.services.processes.get_execution_context",
+            return_value={"start": lambda *a, **kw: None, "resume": _noop_resume, "validate": lambda *a, **kw: None},
+        ),
+    ):
+        result, pstat, _step_log = run_workflow(workflow_key, [{}])
+
+    return _WorkerRun(result, pstat, resume_calls)
+
+
+def _assert_worker_dispatched_and_joined(run: _WorkerRun, n_branches: int) -> None:
+    """Assert that every branch ran on the worker path and that the join resumed the process exactly once."""
+    assert run.result.iswaiting(), f"Expected Waiting (WORKER mode), but was: {run.result}"
+
+    fork_step = _get_fork_step(run.pstat.process_id)
+    assert fork_step.branch_count == n_branches
+    assert fork_step.branches_completed == n_branches
+    assert len(run.resume_calls) == 1, f"Expected exactly 1 resume call, got {len(run.resume_calls)}"
+    assert run.resume_calls[0] == run.pstat.process_id
+
+
+@pytest.mark.celery
+def test_parallel_inside_conditional_dispatches_on_worker(setup_test_celery) -> None:  # noqa: ARG001
+    """With EXECUTOR=WORKER, a parallel step wrapped by conditional() dispatches and joins all branches."""
+    par = parallel("conditional worker group", begin >> cel_branch_a, begin >> cel_branch_b)
+    gated = conditional(lambda _state: True)(par)
+
+    @workflow()
+    def conditional_worker_wf():
+        return init >> gated >> done
+
+    with WorkflowInstanceForTests(conditional_worker_wf, "conditional_worker_wf"):
+        _assert_worker_dispatched_and_joined(_run_on_worker("conditional_worker_wf"), n_branches=2)
+
+
+@pytest.mark.xfail(
+    reason="step_group keeps its sub-steps in a closure, so the walk cannot see a parallel step inside it and the "
+    "worker cannot look it up by name. Phase 4 adds Step.sub_steps.",
+    strict=True,
+)
+@pytest.mark.celery
+def test_parallel_inside_step_group_dispatches_on_worker(setup_test_celery) -> None:  # noqa: ARG001
+    """With EXECUTOR=WORKER, a parallel step inside step_group must dispatch once phase 4 adds Step.sub_steps."""
+    group = step_group(
+        "worker group wrapper", begin >> parallel("grouped worker", begin >> cel_branch_a, begin >> cel_branch_b)
+    )
+
+    @workflow()
+    def step_group_worker_wf():
+        return init >> group >> done
+
+    with WorkflowInstanceForTests(step_group_worker_wf, "step_group_worker_wf"):
+        _assert_worker_dispatched_and_joined(_run_on_worker("step_group_worker_wf"), n_branches=2)

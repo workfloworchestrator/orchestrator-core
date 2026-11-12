@@ -24,7 +24,12 @@ from orchestrator.core.workflow import (
     Suspend,
     Waiting,
     _dispatch_worker_branches,
+    _iter_parallel_group_names,
+    done,
+    init,
+    map_parallel,
     reconstruct_branch,
+    workflow,
 )
 from orchestrator.core.workflow import (
     _worst_status as worst_status,
@@ -123,6 +128,115 @@ def test_reconstruct_branch_index_out_of_range_raises() -> None:
 def test_reconstruct_branch_non_parallel_step_raises() -> None:
     with pytest.raises(ValueError, match="not a parallel step"):
         reconstruct_branch(_step_a, 0)
+
+
+# -- parallel group names are unique --
+
+
+def test_duplicate_group_name_at_top_level_raises() -> None:
+    """Two parallel blocks with the same name are rejected when the workflow is built."""
+    with pytest.raises(ValueError, match=r"Duplicate parallel group name\(s\) \['Same group'\]"):
+
+        @workflow()
+        def duplicate_top_level_wf():
+            return (
+                init
+                >> parallel("Same group", begin >> _step_a, begin >> _step_b)
+                >> parallel("Same group", begin >> _step_a, begin >> _step_b)
+                >> done
+            )
+
+
+def test_duplicate_group_name_nested_in_branch_raises() -> None:
+    """A nested parallel block that reuses an outer group name is rejected."""
+    with pytest.raises(ValueError, match=r"Duplicate parallel group name\(s\) \['Outer'\]"):
+
+        @workflow()
+        def duplicate_nested_wf():
+            return (
+                init
+                >> parallel(
+                    "Outer",
+                    begin >> _step_a >> parallel("Outer", begin >> _step_a, begin >> _step_b),
+                    begin >> _step_b,
+                )
+                >> done
+            )
+
+
+def test_duplicate_group_name_across_parallel_and_map_parallel_raises() -> None:
+    """parallel() and map_parallel() share the group-name namespace of a workflow."""
+    with pytest.raises(ValueError, match=r"Duplicate parallel group name\(s\) \['Shared name'\]"):
+
+        @workflow()
+        def duplicate_map_parallel_wf():
+            return (
+                init
+                >> parallel("Shared name", begin >> _step_a, begin >> _step_b)
+                >> map_parallel("Shared name", "items", begin >> _step_a)
+                >> done
+            )
+
+
+def test_duplicate_group_name_inside_map_parallel_template_raises() -> None:
+    """A duplicate inside a map_parallel template is found by walking the template."""
+    with pytest.raises(ValueError, match=r"Duplicate parallel group name\(s\) \['Repeated'\]"):
+
+        @workflow()
+        def duplicate_in_template_wf():
+            return (
+                init
+                >> map_parallel(
+                    "Repeated",
+                    "items",
+                    begin >> parallel("Repeated", begin >> _step_a, begin >> _step_b),
+                )
+                >> done
+            )
+
+
+def test_duplicate_group_name_reported_once_per_name() -> None:
+    """A name used three times is reported once, not once per extra occurrence."""
+    with pytest.raises(ValueError, match=r"Duplicate parallel group name\(s\) \['Trio'\]"):
+
+        @workflow()
+        def triple_duplicate_wf():
+            return (
+                init
+                >> parallel("Trio", begin >> _step_a, begin >> _step_b)
+                >> parallel("Trio", begin >> _step_a, begin >> _step_b)
+                >> parallel("Trio", begin >> _step_a, begin >> _step_b)
+                >> done
+            )
+
+
+def test_distinct_group_names_at_any_depth_are_allowed() -> None:
+    """Distinct group names, nested or not, are accepted; the tree walk yields them in order."""
+
+    @workflow()
+    def distinct_names_wf():
+        return (
+            init
+            >> parallel(
+                "Outer",
+                begin >> _step_a >> parallel("Inner", begin >> _step_a, begin >> _step_b),
+                begin >> _step_b,
+            )
+            >> map_parallel("Per item", "items", begin >> _step_a)
+            >> done
+        )
+
+    assert list(_iter_parallel_group_names(distinct_names_wf.steps)) == ["Outer", "Inner", "Per item"]
+
+
+def test_workflow_without_parallel_steps_is_allowed() -> None:
+    """A workflow without parallel steps has no group names to check."""
+
+    @workflow()
+    def no_parallel_wf():
+        return init >> _step_a >> done
+
+    assert list(_iter_parallel_group_names(no_parallel_wf.steps)) == []
 
 
 # -- executor dispatch --

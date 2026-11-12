@@ -19,7 +19,7 @@ import functools
 import inspect
 import secrets
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from contextvars import copy_context
 from copy import deepcopy
@@ -40,6 +40,7 @@ from uuid import UUID
 import strawberry
 import structlog
 from deprecated import deprecated
+from more_itertools import duplicates_everseen, unique_everseen
 from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
@@ -264,6 +265,93 @@ def default_user_inputs() -> list[State]:
     return [{}]
 
 
+def _child_step_lists(s: Step) -> Iterator[StepList]:
+    """Yield the nested step lists (parallel branches and map_parallel templates) of a step."""
+    # TODO make step metadata check type-safe
+    yield from getattr(s, "_parallel_branches", [])
+    template = getattr(s, "_foreach_branch_template", None)
+    if template is not None:
+        yield template
+
+
+def _iter_steps(steps: StepList) -> Iterator[Step]:
+    """Yield every step in ``steps``, depth-first, including steps nested in parallel branches."""
+    for s in steps:
+        yield s
+        for child in _child_step_lists(s):
+            yield from _iter_steps(child)
+
+
+def _iter_parallel_group_names(steps: StepList) -> Iterator[str]:
+    """Yield the parallel group name of every parallel step in ``steps``, in tree order."""
+    for s in _iter_steps(steps):
+        if (name := getattr(s, "_parallel_group_name", None)) is not None:
+            yield name
+
+
+def _validate_unique_parallel_group_names(steps: StepList) -> None:
+    """Raise ``ValueError`` when two parallel steps in the tree share a group name.
+
+    A group name identifies a parallel step when a worker rebuilds a branch from it
+    (:func:`_find_parallel_step`), so a definition that reuses a name cannot reliably look up its branch.
+
+    This is a definition-time check only. It does not make the group name unique per fork row at runtime: a
+    parallel step nested in a ``map_parallel`` template is defined once but creates one fork row per item, and
+    those rows share ``(process_id, name, branch_kind)``. Retries of such a nested group can therefore inherit
+    successful branches from a sibling item's fork row. Scoping the prior-fork lookup to the enclosing branch is
+    tracked in ``docs/designs/parallel-steps-todos.md``, with a strict-xfail test of the intended behaviour.
+    """
+    if duplicates := list(unique_everseen(duplicates_everseen(_iter_parallel_group_names(steps)))):
+        raise ValueError(
+            f"Duplicate parallel group name(s) {duplicates!r}. Parallel group names must be unique within a "
+            "workflow, as they are used to look up the parallel step when a branch is retried or resumed."
+        )
+
+
+def _find_step_by_group_name(steps: StepList, group_name: str) -> Step | None:
+    """Return the first step in ``steps`` whose parallel group name is ``group_name``, or None."""
+    return next((s for s in _iter_steps(steps) if getattr(s, "_parallel_group_name", None) == group_name), None)
+
+
+def _assert_parallel_step_is_visible(steps: StepList, group_name: str, branches: Iterable[StepList]) -> None:
+    """Check that the step tree walk can see the parallel step that is about to run.
+
+    The uniqueness check in :func:`_validate_unique_parallel_group_names` only covers steps the walk reaches. A
+    parallel step that a wrapper hides (inside a ``step_group``, a ``callback_step``, or a user wrapper that does
+    not copy the step's attributes) is not checked, and a worker cannot look it up by name. Failing here turns that
+    into an error on the step's first run, instead of a worker rebuilding the wrong branch or failing obscurely.
+
+    The comparison is on the branches, by identity, not on the step: ``conditional`` and ``steplens`` return a wrapper
+    around the step, so the step object that runs is not the one in the workflow's step list. Value equality would
+    also pass for two different ``parallel()`` calls with the same branches.
+
+    Args:
+        steps: The workflow's step list, as passed to :func:`make_workflow`.
+        group_name: Group name of the parallel step that is running.
+        branches: The step lists this parallel step executes.
+
+    Raises:
+        ValueError: If no step in ``steps`` carries ``group_name``, or if the one that does has other branches.
+    """
+    found = _find_step_by_group_name(steps, group_name)
+    if found is None:
+        raise ValueError(
+            f"Parallel group '{group_name}' is not visible in the workflow's step tree, so a worker cannot look it "
+            "up and duplicate group names inside it go undetected. A parallel step inside step_group, callback_step "
+            "or a custom step wrapper that doesn't copy the step's attributes is not supported."
+        )
+
+    found_branches = list(_child_step_lists(found))
+    running_branches = list(branches)
+    if len(found_branches) != len(running_branches) or any(
+        a is not b for a, b in zip(found_branches, running_branches)
+    ):
+        raise ValueError(
+            f"Parallel group name '{group_name}' is reused by a parallel step with different branches. Group names "
+            "must be unique within a workflow."
+        )
+
+
 def make_workflow(
     f: Callable,
     description: str,
@@ -293,6 +381,7 @@ def make_workflow(
 
     wf.initial_input_form = _handle_simple_input_form_generator(initial_input_form)
     wf.target = target
+    _validate_unique_parallel_group_names(steps)
     wf.steps = steps
     wf.run_predicate = run_predicate
 
@@ -639,7 +728,7 @@ def _create_fork_step(
             .where(
                 ProcessStepTable.process_id == process_id,
                 ProcessStepTable.name == name,
-                ProcessStepTable.branch_count.isnot(None),
+                ProcessStepTable.branch_kind == branch_kind,
                 ProcessStepTable.status == StepStatus.FAILED,
             )
             .order_by(ProcessStepTable.completed_at.desc())
@@ -879,6 +968,11 @@ def _exec_parallel_branches(
     process_id = pstat.process_id if pstat else None
     current_user = pstat.current_user if pstat else ""
     n_branches = len(seeds) if seeds else len(branches)
+
+    # Refuse to run a parallel step that the workflow's step tree walk cannot see. See
+    # _assert_parallel_step_is_visible for why that matters.
+    if pstat is not None:
+        _assert_parallel_step_is_visible(pstat.workflow.steps, name, branches)
 
     fork_step_id = (
         _create_fork_step(process_id, name, initial_state, n_branches, current_user, branch_kind)

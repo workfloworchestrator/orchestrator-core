@@ -41,6 +41,7 @@ from orchestrator.core.workflow import (
     begin,
     done,
     init,
+    map_parallel,
     parallel,
     runwf,
     step,
@@ -213,4 +214,89 @@ def test_threadpool_retry_preserves_old_fork_and_adds_new_one() -> None:
         child_statuses = sorted(c.status for c in new_fork.child_steps)
         assert child_statuses == ["success", "success"], (
             f"new fork's child_steps should reflect all branches as success, got {child_statuses}"
+        )
+
+
+@pytest.mark.workflow
+@pytest.mark.xfail(
+    reason="Known gap: the prior-fork lookup of a nested parallel in a map_parallel template is not scoped to its item",
+    strict=True,
+)
+def test_nested_parallel_in_map_parallel_retries_only_its_own_failed_branches() -> None:
+    """A retried nested parallel in a map_parallel template re-runs its own failed branches, not a sibling's.
+
+    ``parallel("Inner", ...)`` is defined once inside a ``map_parallel`` template, so the definition-time
+    uniqueness check passes. At runtime every item creates its own ``Inner`` fork row, and all of those rows
+    share ``(process_id, name, branch_kind)``. ``_create_fork_step`` currently picks the most recent *failed*
+    ``Inner`` fork of the whole process, which can belong to a sibling item, and inherits its successful branches.
+
+    Here item 0's ``Provision`` fails and item 1's ``Record`` fails. On retry, item 0 must run its ``Provision``
+    again (and fail again), while item 1 only re-runs ``Record``. Today item 0's new ``Inner`` fork inherits
+    item 1's successful ``Provision`` branch instead, so item 0 completes without re-running it.
+    ``max_workers=1`` keeps the item order deterministic.
+
+    Strict xfail: once the prior-fork lookup is scoped to the enclosing branch (see
+    ``docs/designs/parallel-steps-todos.md``, phase 1), this test passes and the marker must be removed.
+    """
+    provision_attempts: dict[int, int] = {}
+    inner_fork_ids: list = []
+
+    @step("Seed Items")
+    def seed_items() -> dict:
+        return {"items": [{"item_index": 0}, {"item_index": 1}]}
+
+    @step("Provision")
+    def provision(item_index: int) -> dict:
+        # Item 0 never provisions successfully.
+        provision_attempts[item_index] = provision_attempts.get(item_index, 0) + 1
+        if item_index == 0:
+            raise ValueError("provisioning fails for item 0")
+        return {"provisioned": item_index}
+
+    @step("Record")
+    def record(item_index: int) -> dict:
+        # Item 1's second branch fails, so its Inner fork is a *failed* fork with a successful first branch.
+        if item_index == 1 and len(inner_fork_ids) <= 1:
+            raise ValueError("recording fails for item 1")
+        return {"recorded": item_index}
+
+    @workflow()
+    def nested_item_retry_wf():
+        return (
+            init
+            >> seed_items
+            >> map_parallel(
+                "Items",
+                "items",
+                begin >> parallel("Inner", begin >> provision, begin >> record),
+                max_workers=1,
+            )
+            >> done
+        )
+
+    with WorkflowInstanceForTests(nested_item_retry_wf, "nested_item_retry_wf"):
+        pstat = create_process("nested_item_retry_wf", [{}])
+        result = runwf(pstat, partial(safe_logstep))
+        assert result.isfailed(), f"expected the first run to fail, got {result}"
+
+        db.session.expire_all()
+        inner_fork_ids.extend(f.step_id for f in _fork_rows(pstat.process_id, "Inner"))
+        assert len(inner_fork_ids) == 2, "expected one Inner fork per item"
+
+        process = db.session.get(ProcessTable, pstat.process_id)
+        assert process is not None
+        retry_result = runwf(load_process(process), partial(safe_logstep))
+
+        # Item 0's Provision is re-run and fails again; item 1 inherits its own successful Provision.
+        assert provision_attempts == {0: 2, 1: 1}, (
+            f"expected only item 0's failed Provision to be re-run on retry, got {provision_attempts}"
+        )
+        assert retry_result.isfailed(), f"expected the retry to fail on item 0's Provision, got {retry_result}"
+
+        db.session.expire_all()
+        retried_statuses = sorted(
+            f.status for f in _fork_rows(pstat.process_id, "Inner") if f.step_id not in inner_fork_ids
+        )
+        assert retried_statuses == ["failed", "success"], (
+            f"expected item 0's retried Inner fork to fail and item 1's to succeed, got {retried_statuses}"
         )
