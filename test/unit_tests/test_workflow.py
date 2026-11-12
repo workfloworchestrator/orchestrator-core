@@ -16,24 +16,33 @@ from uuid import uuid4
 import pytest
 
 from orchestrator.core import begin, parallel, step
+from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.workflow import (
     AwaitingCallback,
     Failed,
+    Step,
+    StepImportance,
     StepList,
     Success,
     Suspend,
     Waiting,
     _dispatch_worker_branches,
     _iter_parallel_group_names,
+    callback_step,
+    conditional,
     done,
+    focussteps,
     init,
+    make_step_function,
     map_parallel,
     reconstruct_branch,
+    step_group,
     workflow,
 )
 from orchestrator.core.workflow import (
     _worst_status as worst_status,
 )
+from pydantic_forms.core import FormPage
 
 
 @step("Step A")
@@ -119,15 +128,36 @@ def test_reconstruct_branch_returns_step_list() -> None:
     assert len(branch) > 0
 
 
+def test_reconstruct_branch_returns_the_branch_at_the_index() -> None:
+    par_step = parallel("Test group", begin >> _step_a, begin >> _step_b)
+    assert par_step.branching is not None
+    assert reconstruct_branch(par_step, 1) == par_step.branching.branches[1]
+
+
 def test_reconstruct_branch_index_out_of_range_raises() -> None:
     par_step = parallel("Test group", begin >> _step_a, begin >> _step_b)
     with pytest.raises(IndexError):
         reconstruct_branch(par_step, 5)
 
 
-def test_reconstruct_branch_non_parallel_step_raises() -> None:
+def test_reconstruct_branch_of_a_step_that_does_not_branch_raises() -> None:
     with pytest.raises(ValueError, match="not a parallel step"):
         reconstruct_branch(_step_a, 0)
+
+
+@pytest.mark.parametrize("branch_index", [0, 1, 7])
+def test_reconstruct_branch_of_map_parallel_returns_the_template(branch_index: int) -> None:
+    """Every item of a map_parallel runs the same template, whatever the branch index."""
+    template = begin >> _step_a
+    step_fn = map_parallel("Per item", "items", template)
+
+    assert reconstruct_branch(step_fn, branch_index) == template
+
+
+def test_steps_without_branching_have_no_branches() -> None:
+    """A step that doesn't fan out has no branches and no sub steps."""
+    assert _step_a.branching is None
+    assert _step_a.sub_steps is None
 
 
 # -- parallel group names are unique --
@@ -274,3 +304,117 @@ def test_worker_branches_submits_tasks_and_returns_waiting(
 
     expected_task = EXECUTE_PARALLEL_BRANCH if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW
     mock_get_task.assert_called_once_with(expected_task)
+
+
+# -- typed step metadata --
+
+
+class _Form(FormPage):
+    answer: int
+
+
+async def _retry_allow(_context) -> bool:
+    return True
+
+
+async def _resume_allow(_context) -> bool:
+    return True
+
+
+def _step_attributes(step_fn: Step) -> tuple:
+    """Everything a rewrap has to copy, in a form that compares by identity for the callables."""
+    return (
+        step_fn.name,
+        step_fn.form,
+        step_fn.assignee,
+        step_fn.resume_auth_callback,
+        step_fn.retry_auth_callback,
+        step_fn.importance,
+        step_fn.branching,
+        step_fn.sub_steps,
+        step_fn.is_callback_step,
+    )
+
+
+@pytest.mark.parametrize(
+    "rewrap",
+    [
+        lambda step_fn: conditional(lambda _state: True)(step_fn)[0],
+        lambda step_fn: focussteps("sub")(step_fn)[0],
+    ],
+    ids=["conditional", "focussteps"],
+)
+@pytest.mark.parametrize(
+    "step_fn_factory",
+    [
+        pytest.param(
+            lambda: make_step_function(
+                lambda state: Success(state),
+                "Plain",
+                _Form,
+                Assignee.NOC,
+                resume_auth_callback=_resume_allow,
+                retry_auth_callback=_retry_allow,
+                importance=StepImportance.HIGH,
+            ),
+            id="plain-step",
+        ),
+        pytest.param(
+            lambda: parallel("Wrapped group", begin >> _step_a, begin >> _step_b),
+            id="parallel-step",
+        ),
+        pytest.param(
+            lambda: map_parallel("Wrapped map", "items", begin >> _step_a),
+            id="map-parallel-step",
+        ),
+        pytest.param(
+            lambda: step_group("Wrapped group", begin >> _step_a),
+            id="step-group",
+        ),
+    ],
+)
+def test_wrapping_a_step_copies_every_step_attribute(rewrap, step_fn_factory) -> None:
+    """Conditional and steplens (and so focussteps) keep all Step attributes, including both auth callbacks."""
+    step_fn = step_fn_factory()
+
+    wrapped = rewrap(step_fn)
+
+    assert _step_attributes(wrapped) == _step_attributes(step_fn)
+
+
+def test_step_group_and_callback_step_expose_their_sub_steps() -> None:
+    """step_group stores its steps on the Step, so the tree walk reaches them; callback_step is one too."""
+    group = step_group("Group", begin >> _step_a)
+    # The group's own Enter step and the given steps, followed by its Exit step.
+    assert group.sub_steps is not None
+    assert [s.name for s in group.sub_steps] == ["Group - Enter", "Step A", "Group - Exit"]
+    assert group.branching is None
+    assert not group.is_callback_step
+
+    cb = callback_step("Callback", action_step=_step_a, validate_step=_step_b)
+    assert cb.is_callback_step
+    assert cb.sub_steps is not None
+    assert [s.name for s in cb.sub_steps] == [
+        "Callback - Enter",
+        "Callback - Create endpoint",
+        "Step A",
+        "Callback - Await callback",
+        "Step B",
+        "Callback - Cleanup callback step",
+        "Callback - Exit",
+    ]
+
+
+def test_focussteps_keeps_the_retry_auth_callback() -> None:
+    """Focussteps zooms its input state, but the step it represents keeps its authorization callbacks."""
+    step_fn = make_step_function(
+        lambda state: Success(state),
+        "Authorized",
+        retry_auth_callback=_retry_allow,
+        resume_auth_callback=_resume_allow,
+    )
+
+    wrapped = focussteps("sub")(step_fn)[0]
+
+    assert wrapped.retry_auth_callback is _retry_allow
+    assert wrapped.resume_auth_callback is _resume_allow

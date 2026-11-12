@@ -852,14 +852,9 @@ def test_parallel_inside_conditional_dispatches_on_worker(setup_test_celery) -> 
         _assert_worker_dispatched_and_joined(_run_on_worker("conditional_worker_wf"), n_branches=2)
 
 
-@pytest.mark.xfail(
-    reason="step_group keeps its sub-steps in a closure, so the walk cannot see a parallel step inside it and the "
-    "worker cannot look it up by name. Phase 4 adds Step.sub_steps.",
-    strict=True,
-)
 @pytest.mark.celery
 def test_parallel_inside_step_group_dispatches_on_worker(setup_test_celery) -> None:  # noqa: ARG001
-    """With EXECUTOR=WORKER, a parallel step inside step_group must dispatch once phase 4 adds Step.sub_steps."""
+    """With EXECUTOR=WORKER, a parallel step inside step_group dispatches and joins all branches."""
     group = step_group(
         "worker group wrapper", begin >> parallel("grouped worker", begin >> cel_branch_a, begin >> cel_branch_b)
     )

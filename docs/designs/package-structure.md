@@ -454,7 +454,7 @@ Two consequences for the work ahead:
 - When loop work starts while parallel steps are still in beta, the shared storage moves from `beta/parallel/branching.py`
   to `beta/branching/`, so that `beta/loop` doesn't depend on parallel internals.
 - `loop()` builds a `BranchSpec` with `BranchKind.LOOP`, so the step tree walk, the group name check and
-  `reconstruct_branch` cover loop bodies without changes.
+  `BranchSpec.reconstruct_branch` cover loop bodies without changes.
 - Resuming inside a child step belongs in `execution/recovery.py`, not in `loop`. Built there, it can also be used to
   allow input steps in parallel branches, which the parallel design lists as a future enhancement.
 

@@ -259,18 +259,19 @@ All parallel tracking — branch results, completion counts, branch-to-fork rela
 The execution strategy is determined by the global `app_settings.EXECUTOR` setting. The engine dispatches to the appropriate executor at the fork point:
 
 ```python
-def _exec_parallel_branches(branches, initial_state, name, max_workers=None, seeds=None):
+def _exec_parallel_branches(branching, initial_state, max_workers=None, seeds=None):
     pstat = process_stat_var.get(None)
     process_id = pstat.process_id if pstat else None
+    branches = list(branching.branches)
     n_branches = len(seeds) if seeds else len(branches)
 
-    fork_step_id = _create_fork_step(...) if process_id else None
+    fork_step_id = _create_fork_step(..., branching.kind) if process_id else None
 
     match app_settings.EXECUTOR:
         case ExecutorType.WORKER if process_id is not None and fork_step_id is not None:
             return _dispatch_worker_branches(branches, initial_state, process_id, ...)
         case _:
-            return _run_threadpool_branches(branches, initial_state, name, ...)
+            return _run_threadpool_branches(branches, initial_state, branching.name, ...)
 ```
 
 Both paths share the same setup:
@@ -293,7 +294,7 @@ Both `_make_parallel_step` and `foreach_parallel` wrap their execution in `trans
 def _make_parallel_step(name, branches, ...):
     def func(initial_state):
         with transactional(db, logger):
-            return _exec_parallel_branches(branches, initial_state, name, ...)
+            return _exec_parallel_branches(branching, initial_state, ...)
     ...
 ```
 
@@ -527,7 +528,7 @@ If a branch returns `Waiting`, the parallel group returns `Waiting`. On retry, t
 Parallel branches **must not contain `inputstep`s or `callback_step`s**. Both are validated at workflow definition time:
 
 - `inputstep`: Detected via `s.form is not None`
-- `callback_step`: Detected via `getattr(s, '_is_callback_step', False)`
+- `callback_step`: Detected via the `s.is_callback_step` attribute
 
 A `ValueError` is raised if either is found inside a `parallel()` block.
 
@@ -594,13 +595,11 @@ def foreach_parallel(name, items_key, branch, max_workers=None):
                 item if isinstance(item, dict) else {"item": item, "item_index": idx}
                 for idx, item in enumerate(items)
             ]
-            return _exec_parallel_branches([branch], initial_state, name,
+            return _exec_parallel_branches(branching, initial_state,
                                            max_workers=max_workers, seeds=seeds)
 
-    step_fn = make_step_function(func, name)
-    step_fn._foreach_branch_template = branch
-    step_fn._parallel_group_name = name
-    return step_fn
+    # MAP_PARALLEL is a template kind: one branch list that runs once per item
+    return make_step_function(func, name, branching=BranchSpec(name, BranchKind.MAP_PARALLEL, (branch,)))
 ```
 
 #### State seeding rules
