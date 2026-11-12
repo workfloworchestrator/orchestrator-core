@@ -85,7 +85,8 @@ dmypy.json
 # MacOS Stuff
 .DS_store
 
-docs/superpowers
+# Superpowers plans (local only)
+docs/superpowers/
 
 # Search benchmark rankings report, written by the test run
 test/benchmarks/search/report/

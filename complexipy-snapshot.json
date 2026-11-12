@@ -258,5 +258,15 @@
         "complexity": 30
       }
     ]
+  },
+  {
+    "path": "orchestrator/core/workflow.py",
+    "file_name": "workflow.py",
+    "functions": [
+      {
+        "name": "_run_threadpool_branches",
+        "complexity": 27
+      }
+    ]
   }
 ]

@@ -52,10 +52,12 @@ def find_previous_step(steps: list[ProcessStepTable], index: int) -> ProcessStep
     return first([step for step in reversed(steps[:index]) if step.status in step_finish_statuses], None)
 
 
-def enrich_step_details(step: ProcessStepTable, previous_step: ProcessStepTable | None) -> dict:
+def enrich_step_details(
+    step: ProcessStepTable, previous_step: ProcessStepTable | None, include_child_steps: bool = True
+) -> dict:
     state_delta = get_dict_updates(previous_step.state, step.state) if previous_step else step.state
 
-    return {
+    result = {
         "name": step.name,
         "executed": step.completed_at.timestamp(),
         "started": step.started_at.timestamp(),
@@ -67,13 +69,22 @@ def enrich_step_details(step: ProcessStepTable, previous_step: ProcessStepTable 
         "step_id": step.step_id,
         "stepid": step.step_id,
         "state_delta": state_delta,
+        "branch_count": step.branch_count,
+        "branch_kind": step.branch_kind,
+        "branches_completed": step.branches_completed,
     }
+    if include_child_steps and step.branch_kind is not None:
+        result["child_steps"] = [enrich_step_details(child, None) for child in step.child_steps]
+    return result
 
 
-def enrich_process_details(process: ProcessTable, p_stat: ProcessStat) -> dict:
+def enrich_process_details(process: ProcessTable, p_stat: ProcessStat, include_child_steps: bool = True) -> dict:
     current_state = p_stat.state.unwrap() if p_stat.state else None
     steps: list[ProcessStepTable] = process.steps
-    dict_steps = [enrich_step_details(step, find_previous_step(steps, index)) for index, step in enumerate(steps)]
+    dict_steps = [
+        enrich_step_details(step, find_previous_step(steps, index), include_child_steps)
+        for index, step in enumerate(steps)
+    ]
 
     def step_fn(step: Step) -> dict:
         return {"name": step.name, "status": "pending", "importance": step.importance}
@@ -89,12 +100,19 @@ def enrich_process_details(process: ProcessTable, p_stat: ProcessStat) -> dict:
     }
 
 
-def enrich_process(process: ProcessTable, p_stat: ProcessStat | None = None) -> dict:
+def enrich_process(process: ProcessTable, p_stat: ProcessStat | None = None, include_child_steps: bool = True) -> dict:
+    """Enrich a process with its subscriptions and, when `p_stat` is given, its steps, form and state.
+
+    Args:
+        process: The process to enrich.
+        p_stat: The process state; steps, form and current state are only included when given.
+        include_child_steps: Whether to include the branch steps of parallel fork steps, which require explicit loading.
+    """
     # process.subscriptions is a non JSON serializable AssociationProxy
     # So we need to build a list of Subscriptions here.
     subscriptions = [format_subscription(sub) for sub in process.subscriptions]
 
-    details = enrich_process_details(process, p_stat) if p_stat else {}
+    details = enrich_process_details(process, p_stat, include_child_steps=include_child_steps) if p_stat else {}
 
     return {
         "process_id": process.process_id,
