@@ -639,8 +639,15 @@ class ProcessStepRelationTable(BaseModel):
 class ProcessStepTable(BaseModel):
     # ... existing columns ...
     branch_count = mapped_column(Integer(), nullable=True)
-    branch_kind = mapped_column(String(50), nullable=True)  # "parallel" | "map_parallel"; NULL for ordinary steps
+    branch_kind = mapped_column(String(50), nullable=True)  # BranchKind value; NULL for ordinary steps
     branches_completed = mapped_column(Integer(), nullable=True, server_default=text("0"))
+
+    # A fork step sets both, an ordinary step neither
+    __table_args__ = (
+        sqlalchemy.CheckConstraint(
+            "(branch_kind IS NULL) = (branch_count IS NULL)", name="ck_process_steps_branch_kind_count_set_together"
+        ),
+    )
 
     child_step_relations = relationship("ProcessStepRelationTable", cascade="all, delete-orphan", ...)
     parent_step_relations = relationship("ProcessStepRelationTable", cascade="all, delete-orphan", ...)
@@ -689,6 +696,9 @@ def downgrade() -> None:
     op.drop_column("process_steps", "branch_kind")
 ```
 
+A later migration (`06300482cd05`) adds
+`CHECK ((branch_kind IS NULL) = (branch_count IS NULL))`, because a fork step always sets both columns in one insert.
+
 ### 4.8 API Impact
 
 **No API endpoint changes required.** The parallel group is transparent to the REST/GraphQL API:
@@ -698,6 +708,8 @@ def downgrade() -> None:
 - The `ProcessStepRelationTable` enables UI to render parallel branches as a tree
 - `enrich_step_details` in `orchestrator/utils/enrich_process.py` recursively serializes `child_steps` for fork steps
 - Resume/retry APIs work unchanged
+- `branch_kind` is typed as the `BranchKind` enum in `ProcessStepSchema` and the GraphQL schema, and serialises to the
+  stored strings (`"parallel"`, `"map_parallel"`)
 
 ## 5. Key Implementation Files
 

@@ -27,7 +27,11 @@ config = context.config
 # This line sets up loggers basically.
 logger = logging.getLogger("alembic.env")
 
-config.set_main_option("sqlalchemy.url", str(app_settings.DATABASE_URI.get_secret_value()))
+# The alembic CLI's alembic.ini has no URL, so it follows the settings; an explicit URL (as make_alembic_config sets
+# for a scratch database in tests) wins.
+config.set_main_option(
+    "sqlalchemy.url", config.get_main_option("sqlalchemy.url") or str(app_settings.DATABASE_URI.get_secret_value())
+)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

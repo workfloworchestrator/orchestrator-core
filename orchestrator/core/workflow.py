@@ -1478,6 +1478,7 @@ class ProcessStatus(strEnum):
     RESUMED = "resumed"
 
 
+@strawberry.enum(name="BranchKind", graphql_name_from="value")
 class BranchKind(strEnum):
     """Kind of step that fans out into child steps; stored in ``ProcessStepTable.branch_kind``."""
 

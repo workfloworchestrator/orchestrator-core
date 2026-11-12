@@ -145,14 +145,7 @@ has a starting point.
 ## Phase 5: Database and API
 <!-- diataxis: how-to -->
 
-- `services/processes.py:303`: *selecting all `child_step_id`s is not performant.*
-  Scope the subquery to this process by joining on the parent step's `process_id`, exactly like
-  `_branch_child_step_ids` (`processes.py:1042`). Better still, build the select once in a helper and use it in both
-  places. The only index on `process_step_relations` starts with `parent_step_id`, so the join can use it.
-- Migration (no TODO; follow-up of the column rename): add
-  `CHECK ((branch_kind IS NULL) = (branch_count IS NULL))`, because the two columns are set together.
-- `schemas/process.py:64` (no TODO): type `branch_kind` as `BranchKind | None` instead of `str | None`. GraphQL then
-  exposes an enum, and the description no longer has to list the values by hand.
+Status: done.
 
 ## Phase 6: Public API and defaults
 <!-- diataxis: how-to -->

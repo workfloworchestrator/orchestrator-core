@@ -19,10 +19,14 @@ correctly persisted in the database during parallel workflow execution.
 TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
 """
 
+from uuid import UUID, uuid4
+
 import pytest
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from orchestrator.core.db import ProcessStepTable, db
+from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.testing import WorkflowInstanceForTests, assert_complete, run_workflow
 from orchestrator.core.workflow import BranchKind, begin, done, init, map_parallel, parallel, step, workflow
@@ -294,3 +298,79 @@ def test_cascade_delete_removes_branch_relations(parallel_workflow_run) -> None:
         .count()
     )
     assert relations_after == 0
+
+
+# --- Fork column check constraint (migration 06300482cd05) ---
+
+
+@pytest.fixture()
+def empty_process(test_workflow) -> UUID:
+    """A process without steps, to hang test step rows on."""
+    process_id = uuid4()
+    db.session.add(ProcessTable(process_id=process_id, workflow_id=test_workflow.workflow_id, last_status="created"))
+    db.session.commit()
+    return process_id
+
+
+@pytest.mark.parametrize(
+    "branch_kind,branch_count",
+    [
+        pytest.param(BranchKind.PARALLEL, 2, id="fork-step-both-set"),
+        pytest.param(None, None, id="ordinary-step-neither-set"),
+    ],
+)
+def test_step_accepts_both_or_neither_fork_column(empty_process, branch_kind, branch_count) -> None:
+    step_row = ProcessStepTable(
+        process_id=empty_process,
+        name="Step",
+        status="success",
+        state={},
+        branch_kind=branch_kind,
+        branch_count=branch_count,
+    )
+
+    db.session.add(step_row)
+    db.session.commit()
+
+    assert db.session.get(ProcessStepTable, step_row.step_id) is not None
+
+
+@pytest.mark.parametrize(
+    "branch_kind,branch_count",
+    [
+        pytest.param(BranchKind.PARALLEL, None, id="kind-without-count"),
+        pytest.param(None, 2, id="count-without-kind"),
+    ],
+)
+def test_step_rejects_half_set_fork_columns(empty_process, branch_kind, branch_count) -> None:
+    """The check constraint from migration 06300482cd05 refuses a step with only one of the fork columns."""
+    with (
+        pytest.raises(IntegrityError, match="ck_process_steps_branch_kind_count_set_together"),
+        db.session.begin_nested(),
+    ):
+        db.session.add(
+            ProcessStepTable(
+                process_id=empty_process,
+                name="Half set",
+                status="success",
+                state={},
+                branch_kind=branch_kind,
+                branch_count=branch_count,
+            )
+        )
+        db.session.flush()
+
+
+def test_parallel_run_writes_no_half_set_fork_rows(parallel_workflow_run) -> None:
+    """Every step of a parallel run satisfies the fork-column check constraint."""
+    pstat = parallel_workflow_run
+
+    half_set = db.session.execute(
+        text(
+            "SELECT name FROM process_steps "
+            "WHERE pid = :pid AND ((branch_kind IS NULL) IS DISTINCT FROM (branch_count IS NULL))"
+        ),
+        {"pid": pstat.process_id},
+    ).all()
+
+    assert half_set == []

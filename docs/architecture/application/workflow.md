@@ -243,7 +243,7 @@ Seed keys are injected into the branch's initial state as input-only context for
 Parallel execution introduces:
 
 - **`ProcessStepRelationTable`**: A join table linking parent (fork) steps to child (branch) steps with `parent_step_id`, `child_step_id`, `order_id`, and `branch_index` columns.
-- **Fork step columns on `ProcessStepTable`**: `branch_count` (total branch count), `branch_kind` (`parallel` for `parallel()`, `map_parallel` for `map_parallel()`, NULL for ordinary steps) and `branches_completed` (branches finished so far, used for atomic last-finisher detection with Celery).
+- **Fork step columns on `ProcessStepTable`**: `branch_count` (total branch count), `branch_kind` (`parallel` for `parallel()`, `map_parallel` for `map_parallel()`, NULL for ordinary steps) and `branches_completed` (branches finished so far, used for atomic last-finisher detection with Celery). A check constraint requires `branch_kind` and `branch_count` to be set together. In the API, `branch_kind` is the `BranchKind` enum, which serializes to those same strings.
 
 #### Celery configuration
 

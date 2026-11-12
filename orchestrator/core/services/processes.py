@@ -24,7 +24,7 @@ from deepmerge.merger import Merger
 from deprecated import deprecated
 from pytz import utc
 from requests.adapters import MaxRetryError
-from sqlalchemy import delete, select
+from sqlalchemy import Select, delete, select
 from sqlalchemy.exc import NoResultFound, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -299,16 +299,11 @@ def _get_current_step_to_update(
     # Exclude rows that are branch children of a parallel fork step. Otherwise the
     # last-completed query picks the last-finishing branch and ``__replace_last_state``
     # overwrites that branch's state with the parent workflow's state.
-    branch_child_ids = select(ProcessStepRelationTable.child_step_id)
-    # TODO not sure whether selecting ALL ProcessStepRelationTable.child_step_ids values
-    #  is the most performant. ProcessStepRelationTable will grow rather large as it contains one entry for each step
-    #  in each branch, and here we tell postgres to fetch all of them through a subquery.
-    #  We can (probably) limit the scope of the subquery a lot by matching on step_id
     last_db_step = db.session.scalars(
         select(ProcessStepTable)
         .where(
             ProcessStepTable.process_id == p.process_id,
-            ProcessStepTable.step_id.notin_(branch_child_ids),
+            ProcessStepTable.step_id.notin_(_branch_child_step_ids_select(p.process_id)),
         )
         .order_by(ProcessStepTable.completed_at.desc())
         .limit(1)
@@ -1039,18 +1034,27 @@ def _restore_log(steps: Iterator[ProcessStepTable]) -> list[WFProcess]:
     return [deserialize(step) for step in steps]
 
 
+def _branch_child_step_ids_select(process_id: UUID) -> Select[tuple[UUID]]:
+    """Select the ids of the steps of this process that are branch children of a parallel fork step.
+
+    The join goes through the parent step purely for its ``process_id``, so the subquery is scoped to one process.
+    It also keeps the subquery index-only: the only index on ``process_step_relations`` starts with
+    ``parent_step_id``, and ``process_steps.stepid`` is the primary key.
+    """
+    return (
+        select(ProcessStepRelationTable.child_step_id)
+        .join(ProcessStepTable, ProcessStepRelationTable.parent_step_id == ProcessStepTable.step_id)
+        .where(ProcessStepTable.process_id == process_id)
+    )
+
+
 def _branch_child_step_ids(process_id: UUID) -> set[UUID]:
     """Return the ids of the steps of this process that are branch children of a parallel fork step.
 
     Queries the relation table directly, so it works for any ``ProcessTable`` regardless of which relationships
     were loaded.
     """
-    stmt = (
-        select(ProcessStepRelationTable.child_step_id)
-        .join(ProcessStepTable, ProcessStepRelationTable.parent_step_id == ProcessStepTable.step_id)
-        .where(ProcessStepTable.process_id == process_id)
-    )
-    return set(db.session.scalars(stmt))
+    return set(db.session.scalars(_branch_child_step_ids_select(process_id)))
 
 
 def _main_log_steps(
