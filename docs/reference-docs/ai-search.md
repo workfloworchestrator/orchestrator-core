@@ -90,7 +90,7 @@ Embeddings are **optional**. See [Running without embeddings](#running-without-e
 <!-- diataxis: -->
 
 ### Indexing (write path)
-<!-- diataxis: -->
+<!-- diataxis: explanation -->
 
 ```mermaid
 flowchart LR
@@ -111,7 +111,7 @@ longer produces are deleted, so re-indexing an unchanged entity does almost no w
 are embedded in batches sized against the embedding model's context window; everything else is
 stored with no embedding.
 
-Indexing is triggered from three places:
+Indexing is triggered from four places:
 
 - **Process exit**: whenever a process reaches a normal exit through the workflow engine — completed, failed,
   aborted, suspended or timed out awaiting a callback (but not when execution fails before reaching
@@ -124,6 +124,10 @@ Indexing is triggered from three places:
   logged and swallowed by default, so a failed re-index never breaks a process; set
   `SEARCH_INDEXING_STRICT` to raise instead.
 - **REST endpoints**: product and process updates re-index the entity they changed.
+- **The scheduler**: a schedule is re-indexed when the scheduler creates or updates it and each time it
+  submits it for a run, which moves its next run time. Deleting a schedule, or a run that leaves it without
+  further run times, removes it from the index. Only schedules made through the API or `load_schedules`
+  are indexed. Failures are logged and swallowed unless `SEARCH_INDEXING_STRICT` is set.
 - **The CLI**: see [Building and refreshing the index](#building-and-refreshing-the-index).
 
 ### Searching (read path)
