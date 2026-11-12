@@ -12,11 +12,13 @@
 # limitations under the License.
 
 from typing import Any
+from uuid import UUID
 
 import structlog
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 
 from orchestrator.core.db import db
+from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.domain.context_cache import cache_subscription_models
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing.indexer import Indexer
@@ -81,6 +83,24 @@ def run_indexing_for_entity(
 
     with cache_subscription_models():
         indexer.run(entities)
+
+
+def remove_entity_from_index(entity_kind: EntityType, entity_id: str) -> None:
+    """Delete every index record of one entity, for an entity that no longer exists.
+
+    Indexing can't do this: it only visits entities that are still in the database.
+
+    Args:
+        entity_kind (EntityType): The entity type the id belongs to.
+        entity_id (str): The entity to remove (UUID string).
+    """
+    db.session.execute(
+        delete(AiSearchIndex)
+        .where(AiSearchIndex.entity_type == entity_kind.value)
+        .where(AiSearchIndex.entity_id == UUID(entity_id))
+        .execution_options(synchronize_session=False)
+    )
+    db.session.commit()
 
 
 def run_indexing_for_all_entities(force_index: bool = False) -> None:

@@ -119,6 +119,7 @@ class EntityType(str, Enum):
     PROCESS = "PROCESS"
     PRODUCT_BLOCK = "PRODUCT_BLOCK"
     RESOURCE_TYPE = "RESOURCE_TYPE"
+    SCHEDULE = "SCHEDULE"
 
 
 class QueryOperation(str, Enum):

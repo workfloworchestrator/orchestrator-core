@@ -28,6 +28,7 @@ from orchestrator.core.db import (
     SubscriptionTable,
     WorkflowTable,
 )
+from orchestrator.core.db.models import WorkflowApschedulerJob
 from orchestrator.core.domain import (
     SUBSCRIPTION_MODEL_REGISTRY,
     SubscriptionModel,
@@ -43,11 +44,20 @@ from orchestrator.core.search.indexing.schema import iter_model_field_annotation
 from orchestrator.core.search.schemas.process import ProcessIndexSchema
 from orchestrator.core.search.schemas.product_block import ProductBlockIndexSchema
 from orchestrator.core.search.schemas.resource_type import ResourceTypeIndexSchema
+from orchestrator.core.search.schemas.schedule import ScheduleIndexSchema, load_schedule_index_schema
 from orchestrator.core.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)
 
-DatabaseEntity = SubscriptionTable | ProductTable | ProcessTable | WorkflowTable | ProductBlockTable | ResourceTypeTable
+DatabaseEntity = (
+    SubscriptionTable
+    | ProductTable
+    | ProcessTable
+    | WorkflowTable
+    | ProductBlockTable
+    | ResourceTypeTable
+    | WorkflowApschedulerJob
+)
 
 
 class BaseTraverser(ABC):
@@ -361,6 +371,18 @@ class WorkflowTraverser(BaseTraverser):
     def _load_model(cls, workflow: WorkflowTable) -> WorkflowSchema:
         """Load workflow model using WorkflowSchema."""
         return cls._load_model_with_schema(workflow, WorkflowSchema, "workflow_id")
+
+
+class ScheduleTraverser(BaseTraverser):
+    """Traverser for schedules using ScheduleIndexSchema: a linker row combined with its APScheduler job."""
+
+    @classmethod
+    def _load_model(cls, schedule: WorkflowApschedulerJob) -> ScheduleIndexSchema | None:
+        """Load the schedule model, None (no fields) when its APScheduler job no longer exists."""
+        try:
+            return load_schedule_index_schema(schedule)
+        except Exception as e:
+            raise ModelLoadError(f"Failed to load ScheduleIndexSchema for schedule_id '{schedule.schedule_id}'") from e
 
 
 class ProductBlockTraverser(BaseTraverser):
