@@ -17,6 +17,8 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy_utils.types.ltree import Ltree
 
 from nwastdlib.url import URL
 from orchestrator.core.api.helpers import product_block_paths
@@ -32,8 +34,9 @@ from orchestrator.core.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.core.db.models import SubscriptionInstanceRelationTable, WorkflowTable
+from orchestrator.core.db.models import AiSearchIndex, SubscriptionInstanceRelationTable, WorkflowTable
 from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.search.core.types import FieldType
 from orchestrator.core.services.subscriptions import (
     RELATION_RESOURCE_TYPES,
     _generate_etag,
@@ -56,6 +59,7 @@ from test.integration_tests.config import (
     PORT_SUBSCRIPTION_ID,
 )
 from test.integration_tests.conftest import do_refresh_subscriptions_search_view
+from test.integration_tests.search._helpers import index_row
 
 SERVICE_SUBSCRIPTION_ID = str(uuid4())
 PORT_A_SUBSCRIPTION_ID = str(uuid4())
@@ -261,6 +265,8 @@ def seed():
     db.session.add(lp_subscription)
     db.session.add(invalid_subscription)
     db.session.add(invalid_tagged_subscription)
+    # Stale on purpose: the set_in_sync tests expect a real update to change it.
+    db.session.add(index_row(IP_PREFIX_SUBSCRIPTION_ID, "subscription.insync", "False", value_type=FieldType.BOOLEAN))
     db.session.commit()
 
     relation_resource_type_ids = [
@@ -639,6 +645,35 @@ def test_set_in_sync(seed, test_client):
 
     subscription = get_subscription(subscription_id)
     assert subscription.insync
+
+
+@pytest.mark.parametrize(
+    "insync, failed_process, expected_status, expected_indexed_insync",
+    [
+        pytest.param(False, False, HTTPStatus.OK, "True", id="unsynced-updates-index"),
+        pytest.param(True, False, HTTPStatus.OK, "False", id="already-in-sync-index-untouched"),
+        pytest.param(False, True, HTTPStatus.UNPROCESSABLE_ENTITY, "False", id="failed-process-index-untouched"),
+    ],
+)
+def test_set_in_sync_updates_index_insync(
+    seed, test_client, insync, failed_process, expected_status, expected_indexed_insync
+):
+    subscription_id = IP_PREFIX_SUBSCRIPTION_ID
+    if not insync:
+        unsync(subscription_id)
+    if failed_process:
+        _create_failed_process(subscription_id)
+    db.session.commit()
+
+    response = test_client.put(f"/api/subscriptions/{subscription_id}/set_in_sync")
+
+    indexed_insync = db.session.scalar(
+        select(AiSearchIndex.value).where(
+            AiSearchIndex.entity_id == subscription_id, AiSearchIndex.path == Ltree("subscription.insync")
+        )
+    )
+    assert response.status_code == expected_status
+    assert indexed_insync == expected_indexed_insync
 
 
 def _create_failed_process(subscription_id):
