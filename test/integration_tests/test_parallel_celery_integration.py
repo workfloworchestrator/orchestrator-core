@@ -178,18 +178,15 @@ def test_collect_branch_results_from_real_db() -> None:
         fork_step = _get_fork_step(pstat.process_id)
         branch_results = _collect_branch_results(fork_step.step_id)
 
-        assert len(branch_results) == 2
+        # Results are keyed by branch_index
+        assert list(branch_results) == [0, 1]
 
-        # Results are sorted by branch_index
-        assert branch_results[0][0] == 0
-        assert branch_results[1][0] == 1
-
-        # Each branch should have "success" status
-        assert branch_results[0][2] == "success"
-        assert branch_results[1][2] == "success"
+        # Both branches should have succeeded
+        assert branch_results[0].issuccess()
+        assert branch_results[1].issuccess()
 
         # Collect all state keys across branches
-        all_state_keys = {key for _idx, state, _status in branch_results for key in state}
+        all_state_keys = {key for result in branch_results.values() for key in result.unwrap()}
         assert "cel_a" in all_state_keys
         assert "cel_b" in all_state_keys
 
@@ -209,20 +206,16 @@ def test_collect_branch_results_multi_step_returns_last_step() -> None:
         fork_step = _get_fork_step(pstat.process_id)
         branch_results = _collect_branch_results(fork_step.step_id)
 
-        assert len(branch_results) == 2
+        assert set(branch_results) == {0, 1}
 
         # Branch 0 has 2 steps (multi_a1 >> multi_a2); the last step's state should have both keys
-        branch_0_results = [r for r in branch_results if r[0] == 0]
-        assert len(branch_0_results) == 1
-        branch_0_state = branch_0_results[0][1]
+        branch_0_state = branch_results[0].unwrap()
         assert "a1" in branch_0_state
         assert "a2" in branch_0_state
         assert branch_0_state["a2"] == "first_second"
 
         # Branch 1 has 1 step
-        branch_1_results = [r for r in branch_results if r[0] == 1]
-        assert len(branch_1_results) == 1
-        assert "b1" in branch_1_results[0][1]
+        assert "b1" in branch_results[1].unwrap()
 
 
 @pytest.mark.celery
@@ -239,16 +232,14 @@ def test_resolve_branch_from_db_finds_correct_branch() -> None:
 
         fork_step = _get_fork_step(pstat.process_id)
 
-        group_name_0, branch_steps_0, process_0, wf_0 = _resolve_branch_from_db(fork_step.step_id, pstat.process_id, 0)
+        group_name_0, branch_steps_0, wf_0 = _resolve_branch_from_db(fork_step.step_id, pstat.process_id, 0)
         assert group_name_0 == "resolve group"
         assert len(branch_steps_0) > 0
-        assert process_0.process_id == pstat.process_id
         assert wf_0 is not None
 
-        group_name_1, branch_steps_1, process_1, wf_1 = _resolve_branch_from_db(fork_step.step_id, pstat.process_id, 1)
+        group_name_1, branch_steps_1, wf_1 = _resolve_branch_from_db(fork_step.step_id, pstat.process_id, 1)
         assert group_name_1 == "resolve group"
         assert len(branch_steps_1) > 0
-        assert process_1.process_id == pstat.process_id
         assert wf_1 is not None
 
 
@@ -277,11 +268,10 @@ def test_map_parallel_branch_results_in_db() -> None:
         assert len(branch_results) == 3
 
         # Verify branch indices
-        indices = {r[0] for r in branch_results}
-        assert indices == {0, 1, 2}
+        assert set(branch_results) == {0, 1, 2}
 
         # Each branch should have processed its item
-        all_state_keys = {key for _idx, state, _status in branch_results for key in state}
+        all_state_keys = {key for result in branch_results.values() for key in result.unwrap()}
         assert "result_0" in all_state_keys
         assert "result_1" in all_state_keys
         assert "result_2" in all_state_keys
@@ -410,11 +400,11 @@ def test_map_parallel_worker_dispatches_all_branches(setup_test_celery) -> None:
             branch_results = _collect_branch_results(fork_step.step_id)
             assert len(branch_results) == 3
 
-            indices = {r[0] for r in branch_results}
+            indices = set(branch_results)
             assert indices == {0, 1, 2}
 
             # Each branch produced its expected key
-            all_state_keys = {key for _idx, state, _status in branch_results for key in state}
+            all_state_keys = {key for result in branch_results.values() for key in result.unwrap()}
             assert "tracked_0" in all_state_keys
             assert "tracked_1" in all_state_keys
             assert "tracked_2" in all_state_keys

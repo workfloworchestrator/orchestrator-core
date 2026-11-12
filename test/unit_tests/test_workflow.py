@@ -242,11 +242,13 @@ def test_workflow_without_parallel_steps_is_allowed() -> None:
 # -- executor dispatch --
 
 
-# TODO move this when _dispatch_worker_branches itself is moved, and fix the DB error
-@pytest.mark.xfail(reason="Currently requires a database session; needs to be mocked")
+# TODO move this when _dispatch_worker_branches itself is moved
 @pytest.mark.parametrize("is_task", [pytest.param(True, id="task"), pytest.param(False, id="workflow")])
+@patch("orchestrator.core.services.parallel._succeeded_branch_indices", return_value=set())
 @patch("orchestrator.core.services.tasks.get_celery_task")
-def test_worker_branches_submits_tasks_and_returns_waiting(mock_get_task: MagicMock, is_task: bool) -> None:
+def test_worker_branches_submits_tasks_and_returns_waiting(
+    mock_get_task: MagicMock, _mock_succeeded: MagicMock, is_task: bool
+) -> None:
     mock_task = MagicMock()
     mock_get_task.return_value = mock_task
 
