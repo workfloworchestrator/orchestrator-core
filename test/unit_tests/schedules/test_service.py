@@ -11,16 +11,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for load_schedules, the entry point for registering schedules from code."""
+"""Tests for load_schedules, the entry point for registering schedules from code, and for schedule indexing."""
 
 import importlib
 import warnings
+from unittest import mock
 from uuid import NAMESPACE_DNS, uuid5
 
 import pytest
+from structlog.testing import capture_logs
 
 import orchestrator.core.schedules as schedules
-from orchestrator.core.schedules.service import load_schedules
+from orchestrator.core.schedules.service import index_schedule, load_schedules
+from orchestrator.core.search.core.types import EntityType
+
+SCHEDULE_ID = "990e8400-e29b-41d4-a716-446655440000"
 
 
 def test_importing_schedules_does_not_warn():
@@ -109,3 +114,66 @@ def test_load_schedules_rejects_invalid_workflow_name(mock_schedule_queue, workf
     with pytest.raises(ValueError, match="has no valid workflow_name"):
         load_schedules([schedule])
     assert mock_add.call_count == 0
+
+
+@pytest.fixture
+def mock_schedule_index():
+    """Patch what index_schedule calls, yielding the mocks as (linker lookup, index, remove)."""
+    service = "orchestrator.core.schedules.service"
+    with (
+        mock.patch(f"{service}.get_linker_entries_by_schedule_ids", return_value=[]) as mock_linker_entries,
+        mock.patch(f"{service}.run_indexing_for_entity") as mock_index,
+        mock.patch(f"{service}.remove_entity_from_index") as mock_remove,
+    ):
+        yield mock_linker_entries, mock_index, mock_remove
+
+
+@pytest.mark.parametrize(
+    ("schedule_id", "linker_entries", "expected_indexed", "expected_removed"),
+    [
+        pytest.param(SCHEDULE_ID, [object()], True, False, id="existing-schedule-is-indexed"),
+        pytest.param(SCHEDULE_ID, [], False, True, id="deleted-schedule-is-removed"),
+        pytest.param("decorator_job", [], False, False, id="never-indexed-job-is-ignored"),
+        pytest.param("None", [], False, False, id="delete-without-schedule-id-is-ignored"),
+    ],
+)
+def test_index_schedule_indexes_or_removes(
+    mock_schedule_index, schedule_id, linker_entries, expected_indexed, expected_removed
+):
+    mock_linker_entries, mock_index, mock_remove = mock_schedule_index
+    mock_linker_entries.return_value = linker_entries
+
+    index_schedule(schedule_id)
+
+    mock_linker_entries.assert_called_once_with([schedule_id])
+    assert mock_index.call_args_list == [mock.call(EntityType.SCHEDULE, schedule_id)] * expected_indexed
+    assert mock_remove.call_args_list == [mock.call(EntityType.SCHEDULE, schedule_id)] * expected_removed
+
+
+@pytest.mark.parametrize("failing", ["linker lookup", "index", "remove"])
+def test_index_schedule_logs_and_swallows_failures(mock_schedule_index, failing):
+    mock_linker_entries, mock_index, mock_remove = mock_schedule_index
+    mock_linker_entries.return_value = [object()] if failing == "index" else []
+    failing_mock = {"linker lookup": mock_linker_entries, "index": mock_index, "remove": mock_remove}[failing]
+    failing_mock.side_effect = RuntimeError("index unavailable")
+
+    with capture_logs() as logs:
+        index_schedule(SCHEDULE_ID)
+
+    assert logs == [
+        {
+            "event": "Failed to index schedule",
+            "log_level": "warning",
+            "schedule_id": SCHEDULE_ID,
+            "error": "index unavailable",
+        }
+    ]
+
+
+def test_index_schedule_raises_when_indexing_is_strict(mock_schedule_index, monkeypatch):
+    _, _, mock_remove = mock_schedule_index
+    mock_remove.side_effect = RuntimeError("index unavailable")
+    monkeypatch.setattr("orchestrator.core.schedules.service.llm_settings.SEARCH_INDEXING_STRICT", True)
+
+    with pytest.raises(RuntimeError, match="index unavailable"):
+        index_schedule(SCHEDULE_ID)

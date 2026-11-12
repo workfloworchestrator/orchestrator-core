@@ -23,14 +23,19 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
-from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_MISSED, JobExecutionEvent
+from apscheduler.events import (
+    EVENT_JOB_EXECUTED,
+    EVENT_JOB_MISSED,
+    EVENT_JOB_SUBMITTED,
+    JobExecutionEvent,
+)
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from structlog.testing import capture_logs
 
-from orchestrator.core.schedules.scheduler import job_defaults, log_missed_job
-from orchestrator.core.schedules.service import _add_scheduled_task, _update_scheduled_task
-from orchestrator.core.schemas.schedules import APSchedulerJobCreate, APSchedulerJobUpdate
+from orchestrator.core.schedules.scheduler import index_submitted_schedule, job_defaults, log_missed_job
+from orchestrator.core.schedules.service import _add_scheduled_task, _delete_scheduled_task, _update_scheduled_task
+from orchestrator.core.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
 
 JOB_COUNT = 25
 # Roughly the time start_process takes; with one thread, JOB_COUNT jobs take ~2.5s, far beyond the 1s default grace.
@@ -45,6 +50,13 @@ def create_payload(**options) -> APSchedulerJobCreate:
         trigger_kwargs={"hours": 1},
         **options,
     )
+
+
+@pytest.fixture(autouse=True)
+def mock_index_schedule() -> Iterator[mock.Mock]:
+    """Keep the search index out of these tests; schedule changes would otherwise reach for the database."""
+    with mock.patch("orchestrator.core.schedules.service.index_schedule") as mock_index:
+        yield mock_index
 
 
 @pytest.fixture
@@ -112,6 +124,75 @@ def test_job_options_are_applied_to_the_apscheduler_job(known_workflow):
         scheduler_connection.shutdown()
     assert (configured.misfire_grace_time, configured.coalesce) == (120, False)
     assert (default.misfire_grace_time, default.coalesce) == (1, True)
+
+
+def _create_schedule(scheduler_connection: mock.Mock) -> str:
+    _add_scheduled_task(create_payload(), scheduler_connection)
+    return scheduler_connection.add_job.call_args.kwargs["id"]
+
+
+def _update_schedule(scheduler_connection: mock.Mock) -> str:
+    schedule_id = uuid4()
+    _update_scheduled_task(APSchedulerJobUpdate(schedule_id=schedule_id, name="Renamed"), scheduler_connection)
+    return str(schedule_id)
+
+
+def _delete_schedule(scheduler_connection: mock.Mock) -> str:
+    schedule_id = uuid4()
+    with mock.patch("orchestrator.core.schedules.service._delete_linker_entry"):
+        _delete_scheduled_task(APSchedulerJobDelete(workflow_id=uuid4(), schedule_id=schedule_id), scheduler_connection)
+    return str(schedule_id)
+
+
+@pytest.mark.parametrize(
+    "change_schedule",
+    [
+        pytest.param(_create_schedule, id="create"),
+        pytest.param(_update_schedule, id="update"),
+        pytest.param(_delete_schedule, id="delete"),
+    ],
+)
+def test_schedule_changes_update_the_search_index(known_workflow, mock_index_schedule, change_schedule):
+    schedule_id = change_schedule(mock.Mock())
+
+    mock_index_schedule.assert_called_once_with(schedule_id)
+
+
+@pytest.mark.parametrize(
+    ("trigger", "trigger_kwargs", "job_remains"),
+    [
+        pytest.param("interval", {"seconds": 1}, True, id="recurring-job-has-its-next-run-time"),
+        pytest.param("date", {}, False, id="job-without-further-runs-is-removed"),
+    ],
+)
+def test_schedule_is_indexed_after_the_scheduler_stored_the_outcome_of_a_run(trigger, trigger_kwargs, job_remains):
+    """index_submitted_schedule relies on the job store being up to date when APScheduler reports a submission."""
+    scheduler_connection = BackgroundScheduler()
+    scheduler_connection.add_listener(index_submitted_schedule, EVENT_JOB_SUBMITTED)
+    stored_jobs: list[Any] = []
+    indexed = threading.Event()
+
+    def record_stored_job(schedule_id: str) -> None:
+        stored_jobs.append(scheduler_connection.get_job(schedule_id))
+        indexed.set()
+
+    scheduled_at = datetime.now(timezone.utc)
+    with (
+        mock.patch("orchestrator.core.schedules.scheduler.db"),
+        mock.patch("orchestrator.core.schedules.scheduler.index_schedule", side_effect=record_stored_job),
+    ):
+        scheduler_connection.add_job(
+            lambda: None, trigger, id="schedule-1", next_run_time=scheduled_at, misfire_grace_time=60, **trigger_kwargs
+        )
+        scheduler_connection.start()
+        try:
+            assert indexed.wait(timeout=10), "the schedule was not indexed"
+        finally:
+            scheduler_connection.shutdown()
+
+    (stored_job,) = stored_jobs[:1]
+    assert (stored_job is not None) == job_remains
+    assert not job_remains or stored_job.next_run_time > scheduled_at
 
 
 def test_log_missed_job_logs_an_error_with_the_event_data():
