@@ -13,14 +13,12 @@
 
 """Builders for seeding the search index and filtering it in retrieval integration tests."""
 
-from uuid import UUID, uuid4
-
-from sqlalchemy_utils import Ltree
-
-from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.search.core.types import BooleanOperator, EntityType, FieldType, FilterOp, UIType
+from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
 from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter
 from orchestrator.core.settings import llm_settings
+from test.integration_tests.search._helpers import index_row
+
+__all__ = ["and_tree", "eq_leaf", "index_row", "vec"]
 
 
 def vec(axis: int) -> list[float]:
@@ -28,21 +26,6 @@ def vec(axis: int) -> list[float]:
     vector = [0.0] * llm_settings.EMBEDDING_DIMENSION
     vector[axis] = 1.0
     return vector
-
-
-def index_row(
-    entity_id: UUID, path: str, value: str, title: str, embedding: list[float] | None = None
-) -> AiSearchIndex:
-    return AiSearchIndex(
-        entity_type=EntityType.SUBSCRIPTION,
-        entity_id=entity_id,
-        entity_title=title,
-        path=Ltree(path),
-        value=value,
-        value_type=FieldType.STRING,
-        content_hash=uuid4().hex,
-        embedding=embedding,
-    )
 
 
 def eq_leaf(path: str, value: str) -> PathFilter:
