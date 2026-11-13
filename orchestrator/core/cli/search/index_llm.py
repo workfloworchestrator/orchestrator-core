@@ -237,6 +237,40 @@ def resource_types_command(
     )
 
 
+@app.command("schedules")
+def schedules_command(
+    schedule_id: EntityId = None,
+    dry_run: DryRun = False,
+    force_index: ForceIndex = False,
+    show_progress: ShowProgress = False,
+) -> None:
+    """Index the schedule search index.
+
+    Args:
+        schedule_id: UUID of a single schedule to index, `None` indexes all.
+        dry_run: Make no database writes and no embedding calls.
+        force_index: Re-index every field, ignoring the content hashes.
+        show_progress: Show per-entity progress.
+
+    CLI Options:
+        ```shell
+        Options:
+            --schedule-id <str>                   UUID (default = all)
+            --dry-run / --no-dry-run              No DB writes  [default: no-dry-run]
+            --force-index / --no-force-index      Force re-index (ignore hash cache)  [default: no-force-index]
+            --show-progress / --no-show-progress  Show per-entity progress  [default: no-show-progress]
+            --help                                Show this message and exit.
+        ```
+    """
+    run_indexing_for_entity(
+        entity_kind=EntityType.SCHEDULE,
+        entity_id=schedule_id,
+        dry_run=dry_run,
+        force_index=force_index,
+        show_progress=show_progress,
+    )
+
+
 @app.command("all")
 def all_command(force_index: ForceIndex = False) -> None:
     """Index all entity types and rebuild the ai_search_paths table.

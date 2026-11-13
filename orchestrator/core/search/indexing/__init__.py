@@ -17,4 +17,8 @@ from orchestrator.core.search.indexing.tasks import (
     run_indexing_for_entity,
 )
 
-__all__ = ["rebuild_search_paths", "run_indexing_for_all_entities", "run_indexing_for_entity"]
+__all__ = [
+    "rebuild_search_paths",
+    "run_indexing_for_all_entities",
+    "run_indexing_for_entity",
+]

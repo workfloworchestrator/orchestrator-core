@@ -11,27 +11,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
+from uuid import UUID
+
 import structlog
 
 from orchestrator.core.db.filters import Filter
 from orchestrator.core.db.sorting import Sort
 from orchestrator.core.graphql.pagination import Connection
 from orchestrator.core.graphql.resolvers.helpers import make_async
+from orchestrator.core.graphql.resource_search import search_resource
 from orchestrator.core.graphql.schemas.scheduled_task import ScheduledTaskGraphql
+from orchestrator.core.graphql.search_inputs import After, First, ResourceSearchInput
 from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.core.graphql.utils import create_resolver_error_handler, to_graphql_result_page
 from orchestrator.core.graphql.utils.is_query_detailed import is_querying_page_data
 from orchestrator.core.schedules.scheduler import (
+    enrich_with_workflow_id,
+    get_all_scheduler_tasks,
     get_scheduler_tasks,
     scheduled_task_filter_keys,
     scheduled_task_sort_keys,
 )
+from orchestrator.core.search.core.types import EntityType
 
 logger = structlog.get_logger(__name__)
 
 
 @make_async
-def resolve_scheduled_tasks(
+def query_scheduled_tasks(
     info: OrchestratorInfo,
     filter_by: list[GraphqlFilter] | None = None,
     sort_by: list[GraphqlSort] | None = None,
@@ -53,3 +61,23 @@ def resolve_scheduled_tasks(
     return to_graphql_result_page(
         graphql_scheduled_tasks, first, after, total, scheduled_task_filter_keys, scheduled_task_sort_keys
     )
+
+
+@make_async
+def _load_scheduled_tasks(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, ScheduledTaskGraphql]:
+    schedule_ids = set(map(str, ids))
+    jobs = [job for job in get_all_scheduler_tasks() if job.id in schedule_ids]
+    return {task.id: ScheduledTaskGraphql.from_pydantic(task) for task in enrich_with_workflow_id(jobs)}
+
+
+async def resolve_scheduled_tasks(
+    info: OrchestratorInfo,
+    filter_by: list[GraphqlFilter] | None = None,
+    sort_by: list[GraphqlSort] | None = None,
+    first: First = 10,
+    after: After = 0,
+    search: ResourceSearchInput | None = None,
+) -> Connection[ScheduledTaskGraphql]:
+    if search is not None:
+        return await search_resource(info, EntityType.SCHEDULE, search, _load_scheduled_tasks, first=first, after=after)
+    return await query_scheduled_tasks(info, filter_by, sort_by, first, after)

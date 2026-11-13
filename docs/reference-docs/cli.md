@@ -827,6 +827,22 @@ python main.py index rebuild-paths
       show_symbol_type_toc: false
       heading_level: 3
 
+### `schedules`
+<!-- diataxis: reference -->
+
+::: orchestrator.core.cli.search.index_llm.schedules_command
+    options:
+      docstring_style: google
+      separate_signature: false
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+
 ### `all`
 
 ::: orchestrator.core.cli.search.index_llm.all_command

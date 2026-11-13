@@ -33,8 +33,11 @@ from orchestrator.core.schemas.schedules import (
     APSJobAdapter,
     build_trigger,
 )
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.indexing import run_indexing_for_entity
 from orchestrator.core.services.processes import start_process
 from orchestrator.core.services.workflows import get_workflow_by_name, get_workflow_by_workflow_id
+from orchestrator.core.settings import llm_settings
 from orchestrator.core.utils.errors import StartPredicateError
 from orchestrator.core.utils.redis_client import create_redis_asyncio_client, create_redis_client
 from pydantic_forms.exceptions import FormValidationError
@@ -251,6 +254,28 @@ def _delete_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
     db.session.commit()
 
 
+def index_schedule(schedule_id: str) -> None:
+    """Bring the search index in line with one schedule.
+
+    Indexing a schedule that no longer exists removes it from the index. A schedule exists as long as it has
+    a linker entry; that entry disappears on delete and, through its foreign key, when APScheduler removes a
+    job that has no run times left.
+
+    Args:
+        schedule_id: The APScheduler job id.
+
+    Raises:
+        Exception: Only when `llm_settings.SEARCH_INDEXING_STRICT` is True. Otherwise failures are logged
+            and swallowed, so the search index never blocks scheduling.
+    """
+    try:
+        run_indexing_for_entity(EntityType.SCHEDULE, schedule_id)
+    except Exception as ex:
+        if llm_settings.SEARCH_INDEXING_STRICT:
+            raise
+        logger.warning("Failed to index schedule", schedule_id=schedule_id, error=str(ex))
+
+
 def run_start_workflow_scheduler_task(workflow_name: str, user_inputs: list[State] | None = None) -> None:
     """Function to start a workflow from the scheduler.
 
@@ -313,6 +338,7 @@ def _add_scheduled_task(payload: APSchedulerJobCreate, scheduler_connection: Bas
     )
 
     _add_linker_entry(workflow_id=payload.workflow_id, schedule_id=schedule_id)
+    index_schedule(schedule_id)
 
 
 def _build_trigger_on_update(trigger_name: str | None, trigger_kwargs: dict) -> BaseTrigger | None:
@@ -351,6 +377,7 @@ def _update_scheduled_task(payload: APSchedulerJobUpdate, scheduler_connection: 
         modify_kwargs["name"] = payload.name
 
     job.modify(**modify_kwargs)
+    index_schedule(schedule_id)
 
 
 def _delete_scheduled_task(payload: APSchedulerJobDelete, scheduler_connection: BaseScheduler) -> None:
@@ -365,6 +392,7 @@ def _delete_scheduled_task(payload: APSchedulerJobDelete, scheduler_connection: 
     schedule_id = str(payload.schedule_id)
     scheduler_connection.remove_job(job_id=schedule_id)
     _delete_linker_entry(workflow_id=payload.workflow_id, schedule_id=schedule_id)
+    index_schedule(schedule_id)
 
 
 def workflow_scheduler_queue(queue_item: tuple[str, bytes], scheduler_connection: BaseScheduler) -> None:

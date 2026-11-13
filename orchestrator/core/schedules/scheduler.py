@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Any, Generator
 
 import structlog
-from apscheduler.events import EVENT_JOB_MISSED, JobExecutionEvent
+from apscheduler.events import EVENT_JOB_MISSED, EVENT_JOB_SUBMITTED, JobExecutionEvent, JobSubmissionEvent
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.sqlalchemy import Job, SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -28,7 +28,7 @@ from orchestrator.core.db.filters import Filter
 from orchestrator.core.db.filters.filters import CallableErrorHandler
 from orchestrator.core.db.sorting import Sort
 from orchestrator.core.db.sorting.sorting import SortOrder
-from orchestrator.core.schedules.service import get_linker_entries_by_schedule_ids
+from orchestrator.core.schedules.service import get_linker_entries_by_schedule_ids, index_schedule
 from orchestrator.core.settings import app_settings
 from orchestrator.core.utils.helpers import camel_to_snake, to_camel
 
@@ -60,8 +60,24 @@ def log_missed_job(event: JobExecutionEvent) -> None:
     )
 
 
+def index_submitted_schedule(event: JobSubmissionEvent) -> None:
+    """Update the search index of a schedule that was just handed to an executor, as its next run time changed.
+
+    APScheduler calls this listener on the scheduler thread, after it stored the job's new next run time or removed
+    a job that has no run times left. Indexing reads the job through a job store of its own, so it never takes the
+    scheduler's job store lock (see `log_missed_job`). Only the next run time differs from the indexed schedule,
+    which is not embedded, so this costs a few queries and no embedding call.
+
+    Args:
+        event: The ``EVENT_JOB_SUBMITTED`` event.
+    """
+    with db.database_scope():
+        index_schedule(event.job_id)
+
+
 scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
 scheduler.add_listener(log_missed_job, EVENT_JOB_MISSED)
+scheduler.add_listener(index_submitted_schedule, EVENT_JOB_SUBMITTED)
 
 
 @contextmanager

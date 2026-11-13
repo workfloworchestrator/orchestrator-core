@@ -918,4 +918,6 @@ class WorkflowApschedulerJob(BaseModel):
         String(512), ForeignKey("apscheduler_jobs.id", ondelete="CASCADE"), primary_key=True, nullable=False, index=True
     )
 
+    workflow = relationship("WorkflowTable")
+
     __table_args__ = (UniqueConstraint("workflow_id", "schedule_id", name="uq_workflow_schedule"),)

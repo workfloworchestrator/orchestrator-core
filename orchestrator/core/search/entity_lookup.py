@@ -35,6 +35,7 @@ from orchestrator.core.db.models import (
     ProductTable,
     ResourceTypeTable,
     SubscriptionTable,
+    WorkflowApschedulerJob,
     WorkflowTable,
 )
 from orchestrator.core.search.core.types import EntityType
@@ -69,6 +70,14 @@ _ENTITY_LOOKUP: dict[EntityType, _LookupSpec] = {
     ),
     EntityType.PRODUCT_BLOCK: _LookupSpec(ProductBlockTable.product_block_id, ProductBlockTable.name),
     EntityType.RESOURCE_TYPE: _LookupSpec(ResourceTypeTable.resource_type_id, ResourceTypeTable.resource_type),
+    # A schedule's own name lives in the pickled APScheduler job, so the title is the workflow it runs.
+    EntityType.SCHEDULE: _LookupSpec(
+        WorkflowApschedulerJob.schedule_id,
+        select(WorkflowTable.name)
+        .where(WorkflowTable.workflow_id == WorkflowApschedulerJob.workflow_id)
+        .correlate(WorkflowApschedulerJob)
+        .scalar_subquery(),
+    ),
 }
 
 

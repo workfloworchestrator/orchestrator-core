@@ -11,16 +11,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for load_schedules, the entry point for registering schedules from code."""
+"""Tests for load_schedules, the entry point for registering schedules from code, and for schedule indexing."""
 
 import importlib
 import warnings
+from unittest import mock
 from uuid import NAMESPACE_DNS, uuid5
 
 import pytest
+from structlog.testing import capture_logs
 
 import orchestrator.core.schedules as schedules
-from orchestrator.core.schedules.service import load_schedules
+from orchestrator.core.schedules.service import index_schedule, load_schedules
+from orchestrator.core.search.core.types import EntityType
+
+SCHEDULE_ID = "990e8400-e29b-41d4-a716-446655440000"
 
 
 def test_importing_schedules_does_not_warn():
@@ -109,3 +114,39 @@ def test_load_schedules_rejects_invalid_workflow_name(mock_schedule_queue, workf
     with pytest.raises(ValueError, match="has no valid workflow_name"):
         load_schedules([schedule])
     assert mock_add.call_count == 0
+
+
+@pytest.fixture
+def mock_run_indexing():
+    with mock.patch("orchestrator.core.schedules.service.run_indexing_for_entity") as mock_index:
+        yield mock_index
+
+
+def test_index_schedule_runs_indexing_for_the_schedule(mock_run_indexing):
+    index_schedule(SCHEDULE_ID)
+
+    mock_run_indexing.assert_called_once_with(EntityType.SCHEDULE, SCHEDULE_ID)
+
+
+def test_index_schedule_logs_and_swallows_failures(mock_run_indexing):
+    mock_run_indexing.side_effect = RuntimeError("index unavailable")
+
+    with capture_logs() as logs:
+        index_schedule(SCHEDULE_ID)
+
+    assert logs == [
+        {
+            "event": "Failed to index schedule",
+            "log_level": "warning",
+            "schedule_id": SCHEDULE_ID,
+            "error": "index unavailable",
+        }
+    ]
+
+
+def test_index_schedule_raises_when_indexing_is_strict(mock_run_indexing, monkeypatch):
+    mock_run_indexing.side_effect = RuntimeError("index unavailable")
+    monkeypatch.setattr("orchestrator.core.schedules.service.llm_settings.SEARCH_INDEXING_STRICT", True)
+
+    with pytest.raises(RuntimeError, match="index unavailable"):
+        index_schedule(SCHEDULE_ID)

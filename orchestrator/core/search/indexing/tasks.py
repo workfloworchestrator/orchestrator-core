@@ -12,13 +12,17 @@
 # limitations under the License.
 
 from typing import Any
+from uuid import UUID
 
 import structlog
-from sqlalchemy import func, select, text
+from more_itertools import peekable
+from sqlalchemy import delete, func, select, text
 
 from orchestrator.core.db import db
+from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.domain.context_cache import cache_subscription_models
 from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.core.validators import is_uuid
 from orchestrator.core.search.indexing.indexer import Indexer
 from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 
@@ -45,6 +49,9 @@ def run_indexing_for_entity(
     Builds a streaming query via the entity's registry config, disables ORM eager
     loads when applicable and delegates processing to `Indexer`.
 
+    When `entity_id` is given and that entity no longer exists, its index records are
+    removed instead, so indexing a deleted entity brings the index in line with it.
+
     Args:
         entity_kind (EntityType): The entity type to index (must exist in
             `ENTITY_CONFIG_REGISTRY`).
@@ -68,7 +75,11 @@ def run_indexing_for_entity(
     total_count = _get_entity_count(stmt) if show_progress else None
 
     stmt = stmt.execution_options(stream_results=True, yield_per=chunk_size)
-    entities = db.session.execute(stmt).scalars()
+    entities = peekable(db.session.execute(stmt).scalars())
+
+    if entity_id and not entities:
+        _remove_entity_from_index(entity_kind, entity_id, dry_run)
+        return
 
     indexer = Indexer(
         config=config,
@@ -81,6 +92,29 @@ def run_indexing_for_entity(
 
     with cache_subscription_models():
         indexer.run(entities)
+
+
+def _remove_entity_from_index(entity_kind: EntityType, entity_id: str, dry_run: bool) -> None:
+    """Delete every index record of one entity that no longer exists.
+
+    The `Indexer` can't do this: it only cleans up the entities it is handed.
+
+    Args:
+        entity_kind (EntityType): The entity type the id belongs to.
+        entity_id (str): The entity to remove. An id that is not a UUID can't be in the index and is ignored.
+        dry_run (bool): When True, nothing is deleted.
+    """
+    if dry_run or not is_uuid(entity_id):
+        return
+
+    db.session.execute(
+        delete(AiSearchIndex)
+        .where(AiSearchIndex.entity_type == entity_kind.value)
+        .where(AiSearchIndex.entity_id == UUID(entity_id))
+        .execution_options(synchronize_session=False)
+    )
+    db.session.commit()
+    logger.debug("Removed deleted entity from the search index", entity_kind=entity_kind.value, entity_id=entity_id)
 
 
 def run_indexing_for_all_entities(force_index: bool = False) -> None:
