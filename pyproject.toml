@@ -61,7 +61,7 @@ dependencies = [
     "python-rapidjson>=1.26,<1.27",
     "pytz>=2025",
     "redis==8.1.0",
-    "semver==3.1.0",
+    "semver==3.1.1",
     "sentry-sdk[fastapi]>=2.29.1",
     "sqlalchemy[asyncio]==2.1.8",
     "sqlalchemy-utils==0.43.0",
