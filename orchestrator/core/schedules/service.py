@@ -34,8 +34,7 @@ from orchestrator.core.schemas.schedules import (
     build_trigger,
 )
 from orchestrator.core.search.core.types import EntityType
-from orchestrator.core.search.core.validators import is_uuid
-from orchestrator.core.search.indexing import remove_entity_from_index, run_indexing_for_entity
+from orchestrator.core.search.indexing import run_indexing_for_entity
 from orchestrator.core.services.processes import start_process
 from orchestrator.core.services.workflows import get_workflow_by_name, get_workflow_by_workflow_id
 from orchestrator.core.settings import llm_settings
@@ -256,24 +255,21 @@ def _delete_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
 
 
 def index_schedule(schedule_id: str) -> None:
-    """Bring the search index in line with one schedule: index it, or drop it when it no longer exists.
+    """Bring the search index in line with one schedule.
 
-    A schedule exists as long as it has a linker entry. That entry disappears on delete and, through its
-    foreign key, when APScheduler removes a job that has no run times left.
+    Indexing a schedule that no longer exists removes it from the index. A schedule exists as long as it has
+    a linker entry; that entry disappears on delete and, through its foreign key, when APScheduler removes a
+    job that has no run times left.
 
     Args:
-        schedule_id: The APScheduler job id. Ids without a linker entry that are not UUIDs belong to
-            jobs that were never indexed and are ignored.
+        schedule_id: The APScheduler job id.
 
     Raises:
         Exception: Only when `llm_settings.SEARCH_INDEXING_STRICT` is True. Otherwise failures are logged
             and swallowed, so the search index never blocks scheduling.
     """
     try:
-        if get_linker_entries_by_schedule_ids([schedule_id]):
-            run_indexing_for_entity(EntityType.SCHEDULE, schedule_id)
-        elif is_uuid(schedule_id):
-            remove_entity_from_index(EntityType.SCHEDULE, schedule_id)
+        run_indexing_for_entity(EntityType.SCHEDULE, schedule_id)
     except Exception as ex:
         if llm_settings.SEARCH_INDEXING_STRICT:
             raise

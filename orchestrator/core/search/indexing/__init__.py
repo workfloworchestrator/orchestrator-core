@@ -13,14 +13,12 @@
 
 from orchestrator.core.search.indexing.tasks import (
     rebuild_search_paths,
-    remove_entity_from_index,
     run_indexing_for_all_entities,
     run_indexing_for_entity,
 )
 
 __all__ = [
     "rebuild_search_paths",
-    "remove_entity_from_index",
     "run_indexing_for_all_entities",
     "run_indexing_for_entity",
 ]
