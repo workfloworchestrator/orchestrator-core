@@ -47,7 +47,7 @@ class ScheduleIndexSchema(OrchestratorBaseModel):
         """
         workflow = schedule.workflow
         return cls(
-            schedule_id=schedule.schedule_id,
+            schedule_id=UUID(schedule.schedule_id),
             name=job.name,
             trigger=str(job.trigger),
             next_run_time=job.next_run_time,
