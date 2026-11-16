@@ -21,11 +21,7 @@ from orchestrator.core.targets import Target
 
 
 class ScheduleIndexSchema(OrchestratorBaseModel):
-    """A schedule for search indexing: the scheduled workflow or task, plus when it runs.
-
-    A schedule has no table of its own. The workflow comes from the `workflows_apscheduler_jobs` linker row and
-    the name, trigger and next run time from the APScheduler job that row points to.
-    """
+    """The scheduled workflow or task, plus when it runs."""
 
     schedule_id: UUID
     name: str | None = None

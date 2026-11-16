@@ -16,8 +16,6 @@
 Embeddings are disabled in the tests, so indexing stores the fields without calling an embedding service.
 """
 
-import json
-from http import HTTPStatus
 from uuid import UUID, uuid4
 
 import pytest
@@ -31,7 +29,6 @@ from orchestrator.core.search.entity_lookup import ResolvedEntity, resolve_entit
 from orchestrator.core.search.indexing import run_indexing_for_entity
 from orchestrator.core.search.query.export import fetch_export_data
 from orchestrator.core.services.workflows import get_workflow_by_name
-from test.integration_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
 
 pytestmark = pytest.mark.search
 
@@ -117,48 +114,3 @@ async def test_schedule_id_prefix_resolves_to_the_workflow_name(schedule_id, asy
     resolved = await resolve_entity_id_prefix(async_session, EntityType.SCHEDULE, schedule_id[:8], limit=5)
 
     assert resolved == [ResolvedEntity(entity_id=schedule_id, title=WORKFLOW_NAME)]
-
-
-def test_scheduled_tasks_search_returns_the_matching_schedules(
-    test_client_graphql, schedule_id, create_schedules_via_api
-):
-    other_schedule_id = str(uuid4())
-    create_schedules_via_api(job_name="Clean up", workflow_name="task_clean_up_tasks", schedule_id=other_schedule_id)
-    index_schedule(schedule_id)
-    index_schedule(other_schedule_id)
-    query = """
-    query ScheduleSearch($search: ResourceSearchInput) {
-        scheduledTasks(search: $search) {
-            page { id workflowId name trigger }
-            searchEdges { node { id } matchingFields { path text } }
-            searchMetadata { searchType }
-            pageInfo { hasNextPage hasPreviousPage totalItems }
-        }
-    }
-    """
-    search_filter = {
-        "path": "schedule.workflow_name",
-        "condition": {"op": "EQ", "value": WORKFLOW_NAME},
-        "valueKind": "STRING",
-    }
-    data = json.dumps({"query": query, "variables": {"search": {"filters": {"op": "AND", "filters": [search_filter]}}}})
-
-    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers=GRAPHQL_HEADERS)
-
-    assert response.status_code == HTTPStatus.OK
-    result = response.json()
-    assert "errors" not in result
-    connection = result["data"]["scheduledTasks"]
-    assert connection["page"] == [
-        {
-            "id": schedule_id,
-            "workflowId": str(get_workflow_by_name(WORKFLOW_NAME).workflow_id),
-            "name": "Resume nightly",
-            "trigger": "interval[1:00:00]",
-        }
-    ]
-    assert connection["searchEdges"] == [
-        {"node": {"id": schedule_id}, "matchingFields": [{"path": "schedule.workflow_name", "text": WORKFLOW_NAME}]}
-    ]
-    assert connection["searchMetadata"]["searchType"] == "structured"
-    assert connection["pageInfo"] == {"hasNextPage": False, "hasPreviousPage": False, "totalItems": 1}

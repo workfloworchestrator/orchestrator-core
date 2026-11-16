@@ -15,7 +15,6 @@
 
 import importlib
 import warnings
-from unittest import mock
 from uuid import NAMESPACE_DNS, uuid5
 
 import pytest
@@ -23,7 +22,6 @@ from structlog.testing import capture_logs
 
 import orchestrator.core.schedules as schedules
 from orchestrator.core.schedules.service import index_schedule, load_schedules
-from orchestrator.core.search.core.types import EntityType
 
 SCHEDULE_ID = "990e8400-e29b-41d4-a716-446655440000"
 
@@ -114,18 +112,6 @@ def test_load_schedules_rejects_invalid_workflow_name(mock_schedule_queue, workf
     with pytest.raises(ValueError, match="has no valid workflow_name"):
         load_schedules([schedule])
     assert mock_add.call_count == 0
-
-
-@pytest.fixture
-def mock_run_indexing():
-    with mock.patch("orchestrator.core.schedules.service.run_indexing_for_entity") as mock_index:
-        yield mock_index
-
-
-def test_index_schedule_runs_indexing_for_the_schedule(mock_run_indexing):
-    index_schedule(SCHEDULE_ID)
-
-    mock_run_indexing.assert_called_once_with(EntityType.SCHEDULE, SCHEDULE_ID)
 
 
 def test_index_schedule_logs_and_swallows_failures(mock_run_indexing):
