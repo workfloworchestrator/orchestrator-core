@@ -11,16 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from orchestrator.core.search.indexing.subscription import update_subscription_insync_in_index
 from orchestrator.core.search.indexing.tasks import (
     rebuild_search_paths,
     run_indexing_for_all_entities,
     run_indexing_for_entity,
 )
 
-__all__ = [
-    "rebuild_search_paths",
-    "run_indexing_for_all_entities",
-    "run_indexing_for_entity",
-    "update_subscription_insync_in_index",
-]
+__all__ = ["rebuild_search_paths", "run_indexing_for_all_entities", "run_indexing_for_entity"]

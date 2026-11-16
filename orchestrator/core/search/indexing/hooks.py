@@ -25,6 +25,7 @@ from uuid import UUID
 import structlog
 from more_itertools import partition
 from sqlalchemy import select
+from starlette.concurrency import run_in_threadpool
 
 from orchestrator.core.db import ProcessSubscriptionTable, db
 from orchestrator.core.search.core.types import EntityType
@@ -117,13 +118,14 @@ def _indexable_subscription_ids(candidates: Iterable[str], process_id: UUID) -> 
     return indexable
 
 
-def _index_entity(entity_type: EntityType, entity_id: str, process_id: UUID) -> None:
+def _index_entity(entity_type: EntityType, entity_id: str, process_id: UUID | None) -> None:
     """Index a single entity, isolated from every other entity indexed for the same process exit.
 
     Args:
         entity_type: The kind of entity to index.
         entity_id: The entity's id.
-        process_id: The process this entity was indexed on behalf of, for log context.
+        process_id: The process this entity was indexed on behalf of, for log context. None when the
+            change did not come from a process.
 
     Raises:
         Exception: Only when `llm_settings.SEARCH_INDEXING_STRICT` is True. Otherwise failures
@@ -138,9 +140,25 @@ def _index_entity(entity_type: EntityType, entity_id: str, process_id: UUID) -> 
             "Failed to index entity",
             entity_type=entity_type,
             entity_id=entity_id,
-            process_id=str(process_id),
+            process_id=None if process_id is None else str(process_id),
             error=str(ex),
         )
+
+
+async def reindex_entity(entity_type: EntityType, entity_id: UUID | str) -> None:
+    """Re-index an entity changed outside a process (e.g. setting a subscription in sync).
+
+    Call after the change is committed, since the indexer reads through its own connection.
+    Runs in a worker thread because indexing is synchronous database work.
+
+    Args:
+        entity_type: The kind of entity to index.
+        entity_id: The entity's id.
+
+    Raises:
+        Exception: Only when `llm_settings.SEARCH_INDEXING_STRICT` is True.
+    """
+    await run_in_threadpool(_index_entity, entity_type, str(entity_id), None)
 
 
 def _safe_linked_subscription_ids(process_id: UUID) -> set[str]:
