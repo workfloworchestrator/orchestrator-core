@@ -15,6 +15,7 @@
 
 import importlib
 import warnings
+from unittest import mock
 from uuid import NAMESPACE_DNS, uuid5
 
 import pytest
@@ -112,6 +113,12 @@ def test_load_schedules_rejects_invalid_workflow_name(mock_schedule_queue, workf
     with pytest.raises(ValueError, match="has no valid workflow_name"):
         load_schedules([schedule])
     assert mock_add.call_count == 0
+
+
+@pytest.fixture
+def mock_run_indexing():
+    with mock.patch("orchestrator.core.schedules.service.run_indexing_for_entity") as mock_index:
+        yield mock_index
 
 
 def test_index_schedule_logs_and_swallows_failures(mock_run_indexing):
