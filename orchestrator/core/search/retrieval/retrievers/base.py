@@ -16,11 +16,21 @@ from collections.abc import Sequence
 from decimal import Decimal
 
 import structlog
-from sqlalchemy import BindParameter, Numeric, Select, literal, select
+from sqlalchemy import BindParameter, Numeric, Select, String, cast, func, literal, select
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql.elements import ColumnElement, Label
+from sqlalchemy.sql.expression import Subquery
 
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import EntityType, FieldType, RetrieverType, SearchMetadata
+from orchestrator.core.search.filters import FilterTree, PathFilter
 from orchestrator.core.search.query.queries import ExportQuery, SelectQuery
+from orchestrator.core.search.retrieval.highlight_columns import (
+    HIGHLIGHT_MATCHES_LABEL,
+    HIGHLIGHT_PATH_LABEL,
+    HIGHLIGHT_SOURCE_LABEL,
+    HIGHLIGHT_TEXT_LABEL,
+)
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.session import SessionSetting
 from orchestrator.core.settings import llm_settings
@@ -28,14 +38,43 @@ from orchestrator.core.settings import llm_settings
 logger = structlog.get_logger(__name__)
 
 
+def _leaf_matches_json(cand: Subquery, leaf: PathFilter, idx: int) -> ColumnElement:
+    """JSON array of all index rows matched by one filter leaf, as a correlated scalar subquery.
+
+    Aggregating every matching row means a filter that can match in several places
+    (e.g. a global ``status = 'active'`` or ``ends_with status``) reports every
+    matching path (``subscription.status``, ``subscription.block.status``, …),
+    not just the first.
+    """
+    alias = aliased(AiSearchIndex)
+    row_json = func.json_build_object("value", alias.value, "path", cast(alias.path, String), "idx", literal(idx))
+    return (
+        select(func.json_agg(row_json))
+        .where(alias.entity_id == cand.c.entity_id, leaf.matched_row_predicate(alias))
+        .correlate(cand)
+        .scalar_subquery()
+    )
+
+
+def highlight_matches_column(cand: Subquery, leaves: list[PathFilter]) -> Label:
+    """Single JSON array column — one matches subquery per highlightable filter leaf.
+
+    ``cand`` must expose an ``entity_id`` column; the leaves must come from
+    `FilterTree.get_highlightable_leaves`, since the result resolver indexes matches by position in that list.
+    """
+    json_arrays = [_leaf_matches_json(cand, leaf, i) for i, leaf in enumerate(leaves)]
+    return func.json_build_array(*json_arrays).label(HIGHLIGHT_MATCHES_LABEL)
+
+
 class Retriever(ABC):
     """Abstract base class for applying a ranking strategy to a search query."""
 
     SCORE_PRECISION = 12
     SCORE_NUMERIC_TYPE = Numeric(38, 12)
-    HIGHLIGHT_TEXT_LABEL = "highlight_text"
-    HIGHLIGHT_PATH_LABEL = "highlight_path"
-    HIGHLIGHT_MATCHES_LABEL = "highlight_matches"
+    HIGHLIGHT_TEXT_LABEL = HIGHLIGHT_TEXT_LABEL
+    HIGHLIGHT_PATH_LABEL = HIGHLIGHT_PATH_LABEL
+    HIGHLIGHT_SOURCE_LABEL = HIGHLIGHT_SOURCE_LABEL
+    HIGHLIGHT_MATCHES_LABEL = HIGHLIGHT_MATCHES_LABEL
     SCORE_LABEL = "score"
     SEARCHABLE_FIELD_TYPES = [
         FieldType.STRING.value,
@@ -221,6 +260,31 @@ class Retriever(ABC):
             Select: A new `Select` statement with ranking expressions applied.
         """
         ...
+
+    def with_filter_matches(self, page_stmt: Select, filters: FilterTree | None) -> Select:
+        """Add the index rows that satisfied each filter leaf to an already paged, ranked statement.
+
+        The text ranking decides the order and the highlighted field; the filters only decide which
+        entities may appear. This reports the fields that let each entity through the filters as a
+        ``highlight_matches`` column, next to the text highlight. It wraps the paged statement, so the
+        correlated lookups run for the rows of one page only, never for the whole candidate set, and
+        restores the ranked order the wrapping would otherwise lose.
+
+        Args:
+            page_stmt: The retriever's statement with offset and limit already applied.
+            filters: The query's filters, or None.
+
+        Returns:
+            The statement with a ``highlight_matches`` column, or ``page_stmt`` unchanged when no
+            filter leaf can be highlighted.
+        """
+        leaves = filters.get_highlightable_leaves() if filters else []
+        if not leaves:
+            return page_stmt
+        page = page_stmt.subquery("page")
+        return select(page, highlight_matches_column(page, leaves)).order_by(
+            page.c.score.desc().nulls_last(), page.c.entity_id.asc()
+        )
 
     @staticmethod
     def _can_inline_candidate_filters(candidate_query: Select) -> bool:

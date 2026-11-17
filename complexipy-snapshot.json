@@ -170,10 +170,6 @@
     "file_name": "results.py",
     "functions": [
       {
-        "name": "format_search_response",
-        "complexity": 20
-      },
-      {
         "name": "_resolve_structured_matching_fields",
         "complexity": 25
       }

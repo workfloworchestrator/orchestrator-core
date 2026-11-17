@@ -43,6 +43,8 @@ def _make_task(task_id: str = "task-1", name: str = "My Task", args=None, kwargs
         kwargs=kwargs,
         next_run_time=_BASE_RUN_TIME + timedelta(seconds=run_offset_seconds),
         trigger="interval",
+        misfire_grace_time=300,
+        coalesce=True,
     )
 
 
@@ -163,3 +165,21 @@ def test_show_schedule_with_tasks():
     output = "\n".join(_to_ascii(line) for line in result.output.splitlines())
     assert re.search(r"api-task\s+API Task\s+API", output)
     assert re.search(r"dec-task\s+Decorator Task\s+decorator", output)
+
+
+def test_show_schedule_verbose_includes_job_options():
+    task = _make_task(kwargs={"workflow_name": "task_example"})
+
+    with (
+        mock.patch("orchestrator.core.cli.scheduler.get_all_scheduler_tasks", return_value=[task]),
+        mock.patch("orchestrator.core.schedules.service.get_linker_entries_by_schedule_ids", return_value=[]),
+    ):
+        result = runner.invoke(app, ["show-schedule", "-v"], env={"COLUMNS": "300", "LINES": "200"})
+
+    assert result.exit_code == 0
+    output = "\n".join(_to_ascii(line) for line in result.output.splitlines())
+    assert "job options" in output
+    assert "misfire_grace_time" in output
+    assert "300" in output
+    assert "coalesce" in output
+    assert "true" in output
