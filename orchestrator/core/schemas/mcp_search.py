@@ -48,7 +48,7 @@ def _decode_json_text(value: Any) -> Any:
         return value
     try:
         return json.loads(value)
-    except ValueError:
+    except (ValueError, RecursionError):  # RecursionError: deeply nested text is invalid input, not a crash
         return value
 
 

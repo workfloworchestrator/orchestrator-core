@@ -63,6 +63,7 @@ def test_json_text_filters_become_a_filter_tree() -> None:
         pytest.param("42", id="json-scalar"),
         pytest.param('"text"', id="json-string"),
         pytest.param(json.dumps({"op": "AND"}), id="json-object-of-the-wrong-shape"),
+        pytest.param("[" * 100_000 + "]" * 100_000, id="nested-deeper-than-json-can-parse"),
     ],
 )
 def test_text_that_is_not_a_filter_tree_is_still_rejected(value: str) -> None:
