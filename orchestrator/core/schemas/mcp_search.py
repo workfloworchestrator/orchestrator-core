@@ -18,10 +18,11 @@ reach into the search engine directly; the same capability is now exposed as
 self-contained MCP tools so any agent can drive search/aggregation over MCP.
 """
 
-from typing import Any, Literal
+import json
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import BeforeValidator, Field, model_validator
 
 from orchestrator.core.schemas.base import OrchestratorBaseModel
 from orchestrator.core.search.aggregations import Aggregation, TemporalGrouping
@@ -35,13 +36,31 @@ from orchestrator.core.search.query.results import ResultRow
 # --- Requests -------------------------------------------------------------
 
 
+def _decode_json_text(value: Any) -> Any:
+    """The value JSON text encodes; anything else, and text that is not JSON, is returned for pydantic to validate.
+
+    Some LLMs send a nested tool argument (a filter tree, a list of aggregations) as a JSON-encoded string instead
+    of an object or array. Accepting it here saves the round trip; text that is not JSON is left as it is, so the
+    validation error still reports the real problem. The generated JSON schema is unchanged.
+    """
+    if not isinstance(value, str):
+        return value
+    try:
+        return json.loads(value)
+    except ValueError:
+        return value
+
+
+JsonText = BeforeValidator(_decode_json_text)
+
+
 class SearchToolRequest(OrchestratorBaseModel):
     entity_type: EntityType = Field(description="Type of entity to search: SUBSCRIPTION, PRODUCT, WORKFLOW or PROCESS.")
     query_text: str | None = Field(
         default=None,
         description="Free-text query for semantic/fuzzy ranking (e.g. a name, description fragment, or id).",
     )
-    filters: FilterTree | None = Field(
+    filters: Annotated[FilterTree | None, JsonText] = Field(
         default=None,
         description="Structured filter tree. Use discover_filter_paths and get_valid_operators to build valid paths/operators first.",
     )
@@ -84,17 +103,19 @@ class AggregateToolRequest(OrchestratorBaseModel):
         default="count",
         description="'count' to count rows (optionally grouped); 'aggregate' to compute SUM/AVG/MIN/MAX (requires aggregations).",
     )
-    filters: FilterTree | None = Field(default=None, description="Structured filter tree to apply before aggregating.")
-    group_by: list[str] | None = Field(default=None, description="Field paths to group by.")
-    aggregations: list[Aggregation] | None = Field(
+    filters: Annotated[FilterTree | None, JsonText] = Field(
+        default=None, description="Structured filter tree to apply before aggregating."
+    )
+    group_by: Annotated[list[str] | None, JsonText] = Field(default=None, description="Field paths to group by.")
+    aggregations: Annotated[list[Aggregation] | None, JsonText] = Field(
         default=None,
         description="Aggregations to compute (required when operation='aggregate').",
     )
-    temporal_group_by: list[TemporalGrouping] | None = Field(
+    temporal_group_by: Annotated[list[TemporalGrouping] | None, JsonText] = Field(
         default=None, description="Group datetime fields by time period (month, year, ...)."
     )
     cumulative: bool = Field(default=False, description="Running totals over a single temporal grouping.")
-    order_by: list[OrderBy] | None = Field(
+    order_by: Annotated[list[OrderBy] | None, JsonText] = Field(
         default=None, description="Order grouped results by a grouping field or aggregation alias."
     )
     visualization_type: Literal["bar", "line", "pie"] | None = Field(
