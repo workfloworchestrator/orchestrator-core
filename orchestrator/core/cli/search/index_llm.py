@@ -13,6 +13,12 @@
 
 from typing import Annotated
 
+# PEP 810: deferred on Python 3.15+; silently ignored on <3.15.
+__lazy_modules__ = [
+    "orchestrator.core.search.core.types",
+    "orchestrator.core.search.indexing",
+]
+
 import typer
 
 from orchestrator.core.search.core.types import EntityType

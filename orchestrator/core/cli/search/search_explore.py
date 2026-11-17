@@ -13,6 +13,15 @@
 
 import asyncio
 
+# PEP 810: deferred on Python 3.15+; silently ignored on <3.15.
+# search.query and search.retrieval.retrievers share a circular dependency;
+# defer only the modules that don't participate in that cycle.
+__lazy_modules__ = [
+    "pydantic",
+    "orchestrator.core.cli.search.display",
+    "orchestrator.core.search.filters",
+]
+
 import structlog
 import typer
 from pydantic import ValidationError
