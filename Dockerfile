@@ -1,11 +1,11 @@
 # Pin uv to a specific version so builds are reproducible
-FROM ghcr.io/astral-sh/uv:0.13.4 AS uv_image
-FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:0.13.4 AS uv_build_image
+FROM ghcr.io/astral-sh/uv:0.13.9 AS uv_image
+FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:0.13.9 AS uv_build_image
 
 ###############
 ### Build stage
 # The wheel is pure Python, so build it once natively instead of under QEMU per platform.
-FROM --platform=$BUILDPLATFORM python:3.13-slim AS build
+FROM --platform=$BUILDPLATFORM python:3.15-slim AS build
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git build-essential \
@@ -17,12 +17,12 @@ RUN --mount=from=uv_build_image,source=/uv,target=/bin/uv \
 
 ###############
 ### Final stage
-FROM python:3.13-slim
+FROM python:3.15-slim
 
 # Prevent uv from downloading Python, use the one already in this image
 ENV UV_PYTHON_DOWNLOADS=never
 # Set pythonpath so that activating the venv is not required
-ENV PYTHONPATH=/home/orchestrator/.venv/lib/python3.13/site-packages
+ENV PYTHONPATH=/home/orchestrator/.venv/lib/python3.15/site-packages
 # Put the venv's executables (uvicorn, celery, alembic) and python first on the path
 ENV PATH=/home/orchestrator/.venv/bin:$PATH
 
