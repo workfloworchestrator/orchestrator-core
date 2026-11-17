@@ -257,6 +257,7 @@ exclude-newer-package = { certifi = false, pydantic-forms = false, nwa-stdlib = 
 override-dependencies = [
     "grpcio==1.85.1", # Force grpcio 1.85.1 for Python 3.15 wheel support
     "cachebox>=6.1.2", # force cachebox 6.x for Python 3.15 support
+    "httptools>=0.9.0", # Force httptools 0.9.0+ for Python 3.15 wheel support (0.8.0 has no cp315 wheel)
 ]
 
 [tool.uv.build-backend]
