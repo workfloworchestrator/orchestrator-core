@@ -8,7 +8,7 @@ license-files = ["LICENSE"]
 authors = [
     { name = "SURF", email = "automation-beheer@surf.nl" }
 ]
-requires-python = ">=3.11,<3.15"
+requires-python = ">=3.11,<3.16"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Web Environment",
@@ -25,6 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python",
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Internet :: WWW/HTTP",
@@ -57,7 +58,7 @@ dependencies = [
     "pydantic-forms>=2.9.0",
     "pydantic-settings~=2.16.0",
     "pydantic[email]~=2.14.2",
-    "python-dateutil==4.0.0",
+    "python-dateutil>=2.9.0",
     "python-rapidjson>=1.26,<1.27",
     "pytz>=2025",
     "redis==8.1.0",
@@ -70,7 +71,7 @@ dependencies = [
     "tabulate==0.10.0",
     "typer==0.29.1",
     "uvicorn[standard]~=0.53.0",
-    "litellm>=1.80.0",
+    "litellm>=1.109.0",
     "celery-types>=0.26.0",
 ]
 
@@ -217,7 +218,6 @@ ignore = [
     "N815",
     "N802",
 ]
-select = ["ASYNC", "B", "C", "D", "E", "F", "I", "N", "RET", "S", "T", "TID", "W"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -255,7 +255,8 @@ exclude-newer = "3 days"
 # certifi is exempt so the emSign CA distrust (GHSA-6q48-6c7w-9gw2) is picked up immediately.
 exclude-newer-package = { certifi = false, pydantic-forms = false, nwa-stdlib = false, oauth2-lib = false }
 override-dependencies = [
-    "grpcio==1.76.0",  # Force grpcio 1.76.0 for Python 3.14 wheel support
+    "grpcio==1.85.1", # Force grpcio 1.85.1 for Python 3.15 wheel support
+    "cachebox>=6.1.2", # force cachebox 6.x for Python 3.15 support
 ]
 
 [tool.uv.build-backend]
