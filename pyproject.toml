@@ -124,7 +124,7 @@ dev = [
     "mypy-extensions>=1.1.0",
     "prek>=0.5.5",
     "pydocstyle>=6.3.0",
-    "pyinstrument>=5.0.2",
+    "pyinstrument>=5.0.2; python_version < '3.15'",
     "pytest==9.2.0",
     "pytest-asyncio==1.4.1.post1",
     "pytest-celery>=1.2.1",
