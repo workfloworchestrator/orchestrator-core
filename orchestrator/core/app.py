@@ -150,6 +150,7 @@ class OrchestratorCore(FastAPI):
             None
         """
         initialise_logging(LOGGER_OVERRIDES)
+        logger.info("Starting the orchestrator", version=__version__)
         init_model_loaders()
         if base_settings.ENABLE_GRAPHQL_STATS_EXTENSION:
             monitor_sqlalchemy_queries()
