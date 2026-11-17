@@ -128,20 +128,27 @@ def run_migrations(db_uri: str, alembic_cfg: Config | None = None) -> None:
 class JsonTestClient(TestClient):
     """Starlette test client that serializes ``json=`` with the orchestrator JSON encoder (UUIDs, datetimes, ...)."""
 
-    def request(
+    def request(  # type: ignore[override]
         self,
         method: str,
-        url: httpx._types.URLTypes,
+        url: httpx.URL | str,
+        *,
         data: Any | None = None,
         headers: dict[str, str] | None = None,
         json: Any = None,
         **kwargs: Any,
     ) -> httpx.Response:
         if json is None:
-            return super().request(method, url, data=data, headers=headers, **kwargs)
+            return super().request(method, url, data=data, headers=headers, **kwargs)  # type: ignore[return-value, arg-type]
 
         json_headers = {**(headers or {}), "Content-Type": "application/json"}
-        return super().request(method, url, data=json_dumps(json).encode(), headers=json_headers, **kwargs)  # type: ignore[arg-type]
+        return super().request(  # type: ignore[return-value]
+            method,
+            url,  # type: ignore[arg-type]
+            content=json_dumps(json).encode(),
+            headers=json_headers,
+            **kwargs,
+        )
 
 
 @contextmanager
