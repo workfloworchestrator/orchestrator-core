@@ -133,14 +133,17 @@ class JsonTestClient(TestClient):
         method: str,
         url: httpx.URL | str,
         *,
+        content: Any | None = None,
         data: Any | None = None,
         headers: dict[str, str] | None = None,
         json: Any = None,
         **kwargs: Any,
     ) -> httpx.Response:
         if json is None:
-            return super().request(method, url, data=data, headers=headers, **kwargs)  # type: ignore[return-value, arg-type]
+            return super().request(method, url, content=content, data=data, headers=headers, **kwargs)  # type: ignore[return-value, arg-type]
 
+        # json kwarg is provided: encode with the orchestrator JSON encoder (handles UUIDs, datetimes, etc.)
+        # and ignore any caller-supplied content (the encoded json IS the content)
         json_headers = {**(headers or {}), "Content-Type": "application/json"}
         return super().request(  # type: ignore[return-value]
             method,
