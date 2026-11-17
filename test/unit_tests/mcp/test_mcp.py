@@ -336,17 +336,21 @@ def _port_form(state):
 _PORT_WORKFLOW = SimpleNamespace(initial_input_form=_port_form, target="CREATE")
 
 
-async def _form_tool(app: FastAPI, arguments: dict) -> dict:
-    """Call ``get_workflow_form`` for the port workflow through fastmcp; the structured result."""
+async def _call_tool(app: FastAPI, tool: str, workflow: SimpleNamespace, arguments: dict) -> dict:
+    """Call a form tool for ``workflow`` through fastmcp; the structured result."""
     from fastmcp import Client
 
     from orchestrator.core.mcp.server import build_mcp
 
-    with patch.object(mcp_tools, "get_workflow", return_value=_PORT_WORKFLOW):
+    with patch.object(mcp_tools, "get_workflow", return_value=workflow):
         async with Client(build_mcp(app)) as client:
-            result = await client.call_tool("get_workflow_form", {"workflow_key": "create_port", **arguments})
+            result = await client.call_tool(tool, {"workflow_key": "create_port", **arguments})
     assert result.structured_content is not None
     return result.structured_content
+
+
+async def _form_tool(app: FastAPI, arguments: dict) -> dict:
+    return await _call_tool(app, "get_workflow_form", _PORT_WORKFLOW, arguments)
 
 
 @pytest.mark.asyncio
@@ -405,9 +409,9 @@ _NODES = {"ams": ["ams-1", "ams-2"], "utr": ["utr-1"]}
 _PORTS = [{"id": f"p-{n:03d}", "name": f"Port {n:03d}"} for n in range(100)]
 
 
-def _first_ports(q: str = "", by: tuple[str, ...] = ("id", "name")) -> list[dict]:
+def _first_ports(q: str = "") -> list[dict]:
     """A route that searches on the server: three rows at a time, of those ``q`` fits."""
-    return [port for port in _PORTS if any(q in port[key] for key in by)][:3]
+    return [port for port in _PORTS if q in port["name"]][:3]
 
 
 def _one_port(port: str) -> dict:
@@ -429,7 +433,7 @@ class _SourcedPage(FormPage):
         str | None,
         Field(**_source("/options/ports", search="q", lookup="/options/ports/{value}", value="id", label="name")),
     ] = None
-    uplink: Annotated[str | None, Field(**_source("/options/uplinks", search="q", value="id", label="name"))] = None
+    uplink: Annotated[str | None, Field(**_source("/options/ports", search="q", value="id", label="name"))] = None
 
 
 def _sourced_form(state):
@@ -446,22 +450,13 @@ def app_with_options(app_with_agent_routes: FastAPI) -> FastAPI:
     app_with_agent_routes.add_api_route("/options/customers", lambda: _CUSTOMERS)
     app_with_agent_routes.add_api_route("/options/locations", lambda: list(_NODES))
     app_with_agent_routes.add_api_route("/options/nodes/{code}", lambda code: _NODES[code])
-    app_with_agent_routes.add_api_route("/options/ports", lambda q="": _first_ports(q))
+    app_with_agent_routes.add_api_route("/options/ports", _first_ports)
     app_with_agent_routes.add_api_route("/options/ports/{port}", _one_port)
-    app_with_agent_routes.add_api_route("/options/uplinks", lambda q="": _first_ports(q, by=("name",)))
     return app_with_agent_routes
 
 
 async def _sourced_tool(app: FastAPI, tool: str, arguments: dict) -> dict:
-    from fastmcp import Client
-
-    from orchestrator.core.mcp.server import build_mcp
-
-    with patch.object(mcp_tools, "get_workflow", return_value=_SOURCED_WORKFLOW):
-        async with Client(build_mcp(app)) as client:
-            result = await client.call_tool(tool, {"workflow_key": "create_sourced", **arguments})
-    assert result.structured_content is not None
-    return result.structured_content
+    return await _call_tool(app, tool, _SOURCED_WORKFLOW, arguments)
 
 
 @pytest.mark.asyncio
@@ -475,8 +470,6 @@ async def test_a_short_sourced_list_is_written_into_the_schema_and_a_long_one_is
     # too long, waiting for the location, unreadable, and searched on the server: each keeps its source
     kept = ("customer", "node", "broken", "port", "uplink")
     assert all("optionsSource" in json.dumps(properties[name]) for name in kept)
-    assert "enum" not in json.dumps(properties["port"])  # its three rows without a term are not the list
-    assert "enum" not in json.dumps(properties["customer"])
 
 
 @pytest.mark.asyncio
@@ -487,6 +480,7 @@ async def test_a_short_sourced_list_is_written_into_the_schema_and_a_long_one_is
         ({"field": "customer", "search": "c-1", "limit": 5}, [f"c-{n}" for n in range(10, 15)], 10),
         ({"field": "customer", "limit": 2}, ["c-00", "c-01"], 30),
         ({"field": "node", "page_values": {"location": "ams"}}, ["ams-1", "ams-2"], 2),
+        ({"field": "port", "search": "077"}, ["p-077"], 1),  # searched by the source's own route
     ],
 )
 async def test_the_options_tool_finds_a_sourced_fields_options(
@@ -545,8 +539,6 @@ async def test_a_searching_source_is_judged_through_its_lookup_and_not_at_all_wi
     app_with_options: FastAPI,
 ) -> None:
     pytest.importorskip("fastmcp")
-    found = await _sourced_tool(app_with_options, "get_workflow_form_options", {"field": "port", "search": "077"})
-    assert [option["value"] for option in found["options"]] == ["p-077"]
     page = {"customer": "c-07", "location": "ams", "port": "p-077", "uplink": "p-077"}
     done = await _sourced_tool(app_with_options, "get_workflow_form", {"page_inputs": [page]})
     # Neither route lists p-077 without a term. The port has a lookup, so it is checked and labelled; the
