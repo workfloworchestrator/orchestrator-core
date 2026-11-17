@@ -149,28 +149,36 @@ async def judge(
     options cannot be read is not judged. Neither is a value that a source which searches on its server does
     not list, unless the source declares a ``lookup``: its whole list cannot be seen from here.
     """
-    errors: list[FormFieldError] = []
-    labels: dict[str, Any] = {}
-    for name, node in sourced_fields(schema).items():
-        if (value := submitted.get(name)) in (None, "", []):
-            continue
-        source = node[OPTIONS_SOURCE]
-        items = value if isinstance(value, list) else [value]
-        try:
-            known = await _labels_of(source, submitted, items, fetch)
-        except Exception as exc:
-            logger.warning("A form field's options could not be read", field=name, error=str(exc))
-            continue
-        if known is None:
-            continue
-        strangers = [item for item in items if str(item) not in known]
-        if strangers and (source.get("lookup") or not source.get("search")):
-            msg = f"{strangers!r} is not among the field's options: find the value with get_workflow_form_options"
-            errors.append(FormFieldError(loc=[name], msg=msg, type="value_error"))
-        elif not strangers:
-            shown = [known[str(item)] for item in items]
-            labels[name] = shown if isinstance(value, list) else shown[0]
+    verdicts = [
+        await _judge_field(name, node[OPTIONS_SOURCE], submitted, fetch)
+        for name, node in sourced_fields(schema).items()
+        if submitted.get(name) not in (None, "", [])
+    ]
+    errors = [verdict for verdict in verdicts if isinstance(verdict, FormFieldError)]
+    labels = dict(verdict for verdict in verdicts if isinstance(verdict, tuple))
     return errors, labels
+
+
+async def _judge_field(
+    name: str, source: Mapping[str, Any], submitted: Mapping[str, Any], fetch: Fetch
+) -> FormFieldError | tuple[str, Any] | None:
+    """One sourced field's submitted value: the error when it is no option, its label when it is, None when unjudged."""
+    value = submitted[name]
+    items = value if isinstance(value, list) else [value]
+    try:
+        known = await _labels_of(source, submitted, items, fetch)
+    except Exception as exc:
+        logger.warning("A form field's options could not be read", field=name, error=str(exc))
+        return None
+    if known is None:
+        return None
+    if not (strangers := [item for item in items if str(item) not in known]):
+        shown = [known[str(item)] for item in items]
+        return name, shown if isinstance(value, list) else shown[0]
+    if source.get("search") and not source.get("lookup"):
+        return None  # a list that is never whole, and no way to ask for one value
+    msg = f"{strangers!r} is not among the field's options: find the value with get_workflow_form_options"
+    return FormFieldError(loc=[name], msg=msg, type="value_error")
 
 
 async def _labels_of(
