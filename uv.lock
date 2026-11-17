@@ -3014,7 +3014,7 @@ requires-dist = [
     { name = "prometheus-client", specifier = "==0.25.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.3" },
     { name = "pydantic", extras = ["email"], specifier = "~=2.14.2" },
-    { name = "pydantic-forms", specifier = ">=2.9.0" },
+    { name = "pydantic-forms", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = "~=2.16.0" },
     { name = "pytest", marker = "extra == 'testing'", specifier = ">=8.0" },
     { name = "python-dateutil", specifier = "==4.0.0" },
@@ -3719,16 +3719,16 @@ wheels = [
 
 [[package]]
 name = "pydantic-forms"
-version = "2.9.0"
+version = "2.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "more-itertools" },
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-i18n" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1e/f4/1214de8639bd5d497932ce4a832d3a94f58c3cc229c13f0d36b4f8b90adf/pydantic_forms-2.9.0.tar.gz", hash = "sha256:f52030ca679fdb2dea93773a7638068497eaea49c29f9f8131c855dc7ba7e4df", size = 61532, upload-time = "2026-10-19T14:33:24.119Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2d/94/2460978297267ceedabbda7c78ef6ced6338ccc1ee13b1dd4ce455bdc9b3/pydantic_forms-2.10.0.tar.gz", hash = "sha256:8fa0c34fd901bc34871543af1a871a165616e263f7dda176897249aee33aae3e", size = 70304, upload-time = "2026-11-04T10:40:13.377Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/33/7f48babebebf617be025e69f7ba67a7b193f9d618d5d52cfb7fca5c96aea/pydantic_forms-2.9.0-py3-none-any.whl", hash = "sha256:eb435418cd12bbaec567f4b964814aa23da927ed2fa353e94049db2e577d02e9", size = 56984, upload-time = "2026-10-19T14:33:22.872Z" },
+    { url = "https://files.pythonhosted.org/packages/24/42/015e42395e0212ff883f17a66981576f2fe59ace555b4c9bca865ab8d71c/pydantic_forms-2.10.0-py3-none-any.whl", hash = "sha256:60e214ea1c45b7a9d2bdf662a74fc48453ade9912ca1f764fe42436e3c198d6f", size = 63281, upload-time = "2026-11-04T10:40:11.987Z" },
 ]
 
 [[package]]
