@@ -18,7 +18,7 @@ from sqlalchemy import Integer, Select, and_, case, cast, func, literal, null, o
 from sqlalchemy.sql.expression import CTE, ColumnElement, Label, Subquery
 from sqlalchemy.types import TypeEngine
 
-from orchestrator.core.search.core.types import EntityType, SearchMetadata
+from orchestrator.core.search.core.types import EntityType, RetrieverType, SearchMetadata
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
 from orchestrator.core.search.retrieval.retrievers.fuzzy import FuzzyRetriever
@@ -150,6 +150,19 @@ def compute_rrf_hybrid_score_sql(
     )
 
 
+def highlight_source_sql(fuzzy_text: ColumnElement, semantic_text: ColumnElement | None) -> ColumnElement:
+    """Which retriever the coalesced highlight text comes from.
+
+    Mirrors ``coalesce(fuzzy_text, semantic_text)``: the fuzzy source wins whenever its text is not NULL,
+    even when the semantic source also has text. Without a semantic source only fuzzy can supply the text.
+    """
+    fuzzy_when = (fuzzy_text.is_not(None), literal(RetrieverType.FUZZY.value))
+    semantic_whens = (
+        () if semantic_text is None else ((semantic_text.is_not(None), literal(RetrieverType.SEMANTIC.value)),)
+    )
+    return case(fuzzy_when, *semantic_whens, else_=null())
+
+
 class RrfHybridRetriever(Retriever):
     """Reciprocal Rank Fusion of the fuzzy and the semantic retriever.
 
@@ -223,6 +236,7 @@ class RrfHybridRetriever(Retriever):
                     f.score.label("fuzzy_score"),
                     f.highlight_text,
                     f.highlight_path,
+                    highlight_source_sql(f.highlight_text, None).label(self.HIGHLIGHT_SOURCE_LABEL),
                     cast(null(), Integer).label("sem_rank"),
                     fuzzy_rank.label("fuzzy_rank"),
                 ).select_from(fuzzy_results)
@@ -236,6 +250,7 @@ class RrfHybridRetriever(Retriever):
                 f.score.label("fuzzy_score"),
                 func.coalesce(f.highlight_text, s.highlight_text).label(self.HIGHLIGHT_TEXT_LABEL),
                 func.coalesce(f.highlight_path, s.highlight_path).label(self.HIGHLIGHT_PATH_LABEL),
+                highlight_source_sql(f.highlight_text, s.highlight_text).label(self.HIGHLIGHT_SOURCE_LABEL),
                 case(
                     (s.entity_id.is_(None), null()),
                     else_=func.dense_rank().over(order_by=s.score.desc().nulls_last()),
@@ -271,6 +286,7 @@ class RrfHybridRetriever(Retriever):
             score,
             ranked.c.highlight_text,
             ranked.c.highlight_path,
+            ranked.c.highlight_source,
             perfect.label("perfect_match"),
         ).select_from(ranked)
 

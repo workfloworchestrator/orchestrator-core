@@ -42,8 +42,6 @@ Why these are curated rather than auto-generated from the existing REST API:
 * ``list_subscriptions`` —> no list route exists on ``/subscriptions``
   (browsing lives in GraphQL) and ``search`` deliberately refuses to
   enumerate without criteria; this gives agents a deterministic listing.
-* ``get_subscription_details`` —> REST ``GET /subscriptions/domain-model/{id}``
-  returns the full product-block tree; this returns a flat header.
 """
 
 from collections.abc import Sequence
@@ -93,7 +91,7 @@ from orchestrator.core.schemas.mcp_tools import (
     ProcessStatusResponse,
     ProcessSummary,
     ProductSummary,
-    SubscriptionDetailsResponse,
+    SubscriptionDetails,
     SubscriptionIdRequest,
     SubscriptionSummary,
     WorkflowFormPage,
@@ -101,7 +99,7 @@ from orchestrator.core.schemas.mcp_tools import (
 from orchestrator.core.schemas.workflow import SubscriptionWorkflowListsSchema, WorkflowSchema
 from orchestrator.core.search.aggregations import FieldAggregation
 from orchestrator.core.search.core.exceptions import QueryStateNotFoundError
-from orchestrator.core.search.core.types import FilterOp
+from orchestrator.core.search.core.types import EntityType, FilterOp
 from orchestrator.core.search.entity_lookup import IdForm, _classify_id, resolve_entity_id_prefix
 from orchestrator.core.search.fallback import execute_search_with_fallback
 from orchestrator.core.search.filters.definitions import generate_definitions
@@ -351,10 +349,9 @@ async def list_subscriptions_endpoint(
     """List the newest subscriptions, at most 20.
 
     Returns flat summary rows without product blocks; use
-    get_subscription_details or get_subscription_domain_model for one
-    subscription's full data. When ``has_more`` is true the listing is
-    truncated; use ``search`` to find or filter subscriptions instead of
-    listing further.
+    get_subscription_domain_model for one subscription's full data. When
+    ``has_more`` is true the listing is truncated; use ``search`` to find
+    or filter subscriptions instead of listing further.
     """
     stmt = (
         select(SubscriptionTable)
@@ -383,30 +380,12 @@ async def list_subscriptions_endpoint(
     )
 
 
-@router.post(
-    "/get_subscription_details",
-    response_model=SubscriptionDetailsResponse,
-    tags=[AGENT_EXPOSED_TAG],
-    operation_id="get_subscription_details",
-    openapi_extra=READONLY_TOOL,
-)
-async def get_subscription_details_endpoint(
-    params: SubscriptionIdRequest, session: AsyncSession = Depends(get_async_session)
-) -> SubscriptionDetailsResponse:
-    """Get summary information about a subscription.
-
-    Returns a flat header (status, product, customer, dates), no nested
-    product blocks or in-use-by relations.
-    """
-    try:
-        subscription: SubscriptionTable = await get_subscription_async(
-            UUID(params.subscription_id), session, options=[joinedload(SubscriptionTable.product)]
-        )
-    except ValueError as exc:
-        raise_status(HTTPStatus.NOT_FOUND, f"Subscription not found: {exc}")
-    except DBInternalError:
-        raise_status(HTTPStatus.INTERNAL_SERVER_ERROR)
-    return SubscriptionDetailsResponse(
+async def _subscription_details(session: AsyncSession, subscription_id: UUID) -> SubscriptionDetails:
+    """A subscription's flat header: status, product, customer and dates, no product blocks or relations."""
+    subscription: SubscriptionTable = await get_subscription_async(
+        subscription_id, session, options=[joinedload(SubscriptionTable.product)]
+    )
+    return SubscriptionDetails(
         subscription_id=subscription.subscription_id,
         description=subscription.description,
         status=subscription.status,
@@ -457,10 +436,12 @@ async def search_endpoint(
     ``fallback_used=true`` — those are approximate, closest matches.
 
     Building good filters:
-    - KEEP STRUCTURED FILTERS: when the request names a concrete dimension (status, product), always
-      include it as a filter even if you also pass ``query_text`` — filters narrow the candidate set
-      *before* ranking, so they make results more relevant, not fewer. Use `eq` when the exact value is
-      known (e.g. status `active`), `like` when unsure of the stored value (e.g. a product name).
+    - FILTER ON STATED DIMENSIONS: when a word qualifies the entities by a dimension the data stores as
+      a fixed set of values (a status, a lifecycle, a date range), or the request asks for a filter
+      outright, include it as a filter even if you also pass ``query_text`` — filters narrow the
+      candidate set *before* ranking. Use `eq` when the exact value is known, `like` when unsure of the
+      stored value. Words that say what the thing is (its name, kind or description) are not filters:
+      they go in ``query_text``, which ranks on titles, and the entity is ``entity_type``.
     - EXTRACT IDENTIFIERS: pull the high-signal identifiers from the request — entity/subscription ids,
       customer names, reference codes (e.g. `IS4443`), or numbers (e.g. `4433`, `id 1234`) — find the
       field that holds them via discover_filter_paths and filter with `like`. Never silently ignore an
@@ -548,6 +529,9 @@ async def aggregate_endpoint(
     params: AggregateToolRequest, session: AsyncSession = Depends(get_async_session)
 ) -> AggregateToolResponse:
     """Count entities or compute statistics (SUM/AVG/MIN/MAX), optionally grouped.
+
+    The result is numbers only, never entities. A request for the entities themselves, filtered or not,
+    is a ``search``, which returns the matching rows; this tool is for a quantity about them.
 
     operation='count' counts rows (optionally grouped by ``group_by`` / ``temporal_group_by``);
     operation='aggregate' computes ``aggregations`` over the matching rows. To filter, first discover
@@ -667,7 +651,12 @@ async def get_valid_operators_endpoint() -> dict[str, list[FilterOp]]:
 async def resolve_entity_endpoint(
     params: ResolveEntityRequest, session: AsyncSession = Depends(get_async_session)
 ) -> ResolveEntityResponse:
-    """Resolve a full UUID or partial id-prefix to one entity, or list candidates to disambiguate."""
+    """Resolve a full UUID or partial id-prefix to one entity, or list candidates to disambiguate.
+
+    A unique SUBSCRIPTION match comes with the subscription's flat header in
+    ``subscription`` (status, product, customer, dates), so looking one up by
+    id takes this call alone.
+    """
     form, normalized = _classify_id(params.id_or_prefix)
     if form is IdForm.NON_HEX:
         return ResolveEntityResponse(
@@ -690,11 +679,15 @@ async def resolve_entity_endpoint(
             message=f"No {params.entity_type.value} found with id starting with {normalized}.",
         )
     if len(matches) == 1:
+        subscription = None
+        if params.entity_type is EntityType.SUBSCRIPTION:
+            subscription = await _subscription_details(session, UUID(matches[0].entity_id))
         return ResolveEntityResponse(
             status="unique",
             entity_type=params.entity_type,
             entity_id=matches[0].entity_id,
             title=matches[0].title,
+            subscription=subscription,
             message=f"Resolved to a single {params.entity_type.value}.",
         )
 
@@ -720,7 +713,12 @@ async def resolve_entity_endpoint(
 async def export_query_endpoint(
     params: ExportQueryRequest, session: AsyncSession = Depends(get_async_session)
 ) -> ExportQueryResponse:
-    """Prepare a CSV export download for a previously executed search ``query_id``."""
+    """Prepare a CSV export download of a search's results, by the ``query_id`` that search returned.
+
+    An export needs a search. When the rows to export have not been searched for yet, call ``search``
+    for them first and then this tool with its ``query_id``, in the same turn: do not stop after the
+    search, and do not ask the user to search.
+    """
     try:
         await QueryState.load_from_id(str(params.query_id), SelectQuery, session)
     except QueryStateNotFoundError:

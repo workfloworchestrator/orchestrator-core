@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: mw-root/uv-lock-report@dc61e2c8bceda25c9008d60b8bcda2dea8ab5aef # v0.14.1
+      - uses: mw-root/uv-lock-report@459802bf235b5ff0ece0c7f8c243084136a6d689 # v0.15.5
         with:
           output-format: "table"
           github-token: ${{ secrets.GITHUB_TOKEN }}

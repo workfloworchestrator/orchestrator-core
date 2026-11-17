@@ -34,6 +34,7 @@ from orchestrator.core.db import (
 )
 from orchestrator.core.db.models import SubscriptionInstanceRelationTable, WorkflowTable
 from orchestrator.core.domain.base import SubscriptionModel
+from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.services.subscriptions import (
     RELATION_RESOURCE_TYPES,
     _generate_etag,
@@ -629,7 +630,14 @@ def test_delete_subscription_404(responses, seed, test_client):
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-def test_set_in_sync(seed, test_client):
+@pytest.fixture
+def reindex():
+    """Stand in for the indexer: its own database scope would tear down the per-test transaction."""
+    with mock.patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity") as run:
+        yield run
+
+
+def test_set_in_sync(seed, test_client, reindex):
     subscription_id = IP_PREFIX_SUBSCRIPTION_ID
     unsync(subscription_id)
     db.session.commit()
@@ -639,6 +647,47 @@ def test_set_in_sync(seed, test_client):
 
     subscription = get_subscription(subscription_id)
     assert subscription.insync
+
+
+@pytest.mark.parametrize(
+    "insync, failed_process, expected_status, expected_reindexed",
+    [
+        pytest.param(False, False, HTTPStatus.OK, True, id="unsynced-reindexes"),
+        pytest.param(True, False, HTTPStatus.OK, False, id="already-in-sync-not-reindexed"),
+        pytest.param(False, True, HTTPStatus.UNPROCESSABLE_ENTITY, False, id="failed-process-not-reindexed"),
+    ],
+)
+def test_set_in_sync_reindexes_subscription(
+    seed, test_client, reindex, insync, failed_process, expected_status, expected_reindexed
+):
+    subscription_id = IP_PREFIX_SUBSCRIPTION_ID
+    if not insync:
+        unsync(subscription_id)
+    if failed_process:
+        _create_failed_process(subscription_id)
+    db.session.commit()
+
+    response = test_client.put(f"/api/subscriptions/{subscription_id}/set_in_sync")
+
+    assert response.status_code == expected_status
+    assert reindex.call_args_list == (
+        [mock.call(EntityType.SUBSCRIPTION, subscription_id)] if expected_reindexed else []
+    )
+
+
+@pytest.mark.parametrize("strict", [pytest.param(False, id="lenient-swallows"), pytest.param(True, id="strict-raises")])
+def test_set_in_sync_indexing_failure(seed, test_client, reindex, strict):
+    unsync(IP_PREFIX_SUBSCRIPTION_ID)
+    db.session.commit()
+    reindex.side_effect = RuntimeError("boom")
+
+    with mock.patch("orchestrator.core.search.indexing.hooks.llm_settings.SEARCH_INDEXING_STRICT", strict):
+        if strict:
+            with pytest.raises(RuntimeError):
+                test_client.put(f"/api/subscriptions/{IP_PREFIX_SUBSCRIPTION_ID}/set_in_sync")
+        else:
+            response = test_client.put(f"/api/subscriptions/{IP_PREFIX_SUBSCRIPTION_ID}/set_in_sync")
+            assert response.status_code == HTTPStatus.OK
 
 
 def _create_failed_process(subscription_id):

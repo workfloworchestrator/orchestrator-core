@@ -1386,7 +1386,7 @@ query {
     searchEdges {
       score # relevance, highest first
       perfectMatch # 1 when a field (nearly) exactly matches the text; those rank above the rest
-      matchingFields { text path highlightIndices } # the fields that matched, with the spans to highlight
+      matchingFields { text path highlightIndices retriever } # the fields that matched, with the spans to highlight and the retriever that matched each
       node { subscriptionId description }
     }
     searchMetadata { searchType description } # the retriever that ran

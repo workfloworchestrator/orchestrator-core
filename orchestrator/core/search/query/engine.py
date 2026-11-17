@@ -107,7 +107,7 @@ async def _execute_search(
     await apply_session_settings(db_session, retriever.session_settings)
 
     final_stmt = retriever.apply(candidate_query)
-    final_stmt_with_limit = final_stmt.offset(offset).limit(limit)
+    final_stmt_with_limit = retriever.with_filter_matches(final_stmt.offset(offset).limit(limit), query.filters)
     logger.debug(final_stmt_with_limit)
 
     execute_result = await db_session.execute(final_stmt_with_limit)

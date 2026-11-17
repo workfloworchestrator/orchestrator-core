@@ -25,6 +25,7 @@ class MatchingFieldType:
     text: str
     path: str
     highlight_indices: list[tuple[int, int]] | None = None
+    retriever: str | None = None
 
 
 @strawberry.type

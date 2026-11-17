@@ -25,6 +25,7 @@ from uuid import UUID
 from pydantic import BeforeValidator, Field, model_validator
 
 from orchestrator.core.schemas.base import OrchestratorBaseModel
+from orchestrator.core.schemas.mcp_tools import SubscriptionDetails
 from orchestrator.core.search.aggregations import Aggregation, TemporalGrouping
 from orchestrator.core.search.core.types import EntityType, RetrieverType
 from orchestrator.core.search.entity_lookup import ResolvedEntity
@@ -186,6 +187,10 @@ class ResolveEntityResponse(OrchestratorBaseModel):
     entity_type: EntityType
     entity_id: str | None = None
     title: str | None = None
+    subscription: SubscriptionDetails | None = Field(
+        default=None,
+        description="On a unique SUBSCRIPTION match: its flat header (status, product, customer, dates).",
+    )
     candidates: list[ResolvedEntity] = []
     message: str
 

@@ -52,7 +52,6 @@ The default toolset covers the typical agent flow:
 | `get_process_status`                      | Inspect a running/suspended process                  |
 | `list_recent_processes`                   | List recent processes (with typed filters)           |
 | `list_subscriptions`                      | List subscriptions, newest first                     |
-| `get_subscription_details`                | Get a flat header for a subscription                 |
 | `list_products`                           | List products                                        |
 | `get_product`                             | Get one product definition by id                     |
 | `get_product_block`                       | Get one product block definition by id               |

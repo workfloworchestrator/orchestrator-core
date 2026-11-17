@@ -54,11 +54,16 @@ def test_get_subscription_available_workflows_db_error(mock_get_subscription_asy
     assert "abc-123" not in response.text
 
 
-@mock.patch("orchestrator.core.api.api_v1.endpoints.mcp_tools.get_subscription_async")
-def test_get_subscription_details_db_error(mock_get_subscription_async, test_client):
-    mock_get_subscription_async.side_effect = DBInternalError("Database error while looking up subscription abc-123")
+def test_resolve_entity_gives_a_unique_subscription_with_its_header(product_type_1_subscription_factory, test_client):
+    subscription_id = product_type_1_subscription_factory(description="a resolved subscription")
 
-    response = test_client.post("/api/agent/get_subscription_details", json={"subscription_id": str(uuid4())})
+    response = test_client.post(
+        "/api/agent/resolve_entity", json={"id_or_prefix": subscription_id, "entity_type": "SUBSCRIPTION"}
+    )
 
-    assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
-    assert "abc-123" not in response.text
+    assert response.status_code == HTTPStatus.OK
+    body = response.json()
+    assert (body["status"], body["entity_id"]) == ("unique", subscription_id)
+    header = body["subscription"]
+    assert (header["subscription_id"], header["description"]) == (subscription_id, "a resolved subscription")
+    assert {"status", "insync", "product", "customer_id", "start_date", "end_date", "note"} <= header.keys()

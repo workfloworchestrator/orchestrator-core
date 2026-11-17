@@ -152,7 +152,7 @@ class ListSubscriptionsResponse(OrchestratorBaseModel):
     has_more: bool = Field(description="True when more subscriptions exist beyond the returned limit.")
 
 
-class SubscriptionDetailsResponse(OrchestratorBaseModel):
+class SubscriptionDetails(OrchestratorBaseModel):
     subscription_id: UUID
     description: str | None = None
     status: SubscriptionLifecycle
