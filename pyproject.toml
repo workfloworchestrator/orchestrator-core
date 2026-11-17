@@ -86,7 +86,7 @@ celery = [
     "celery~=5.6.0",
 ]
 mcp = [
-    "fastmcp>=2.0.0",
+    "fastmcp>=4.1.0",  # 3.15 support added in 4.1.0
 ]
 # Test helpers in orchestrator.core.testing for downstream test suites
 testing = [
