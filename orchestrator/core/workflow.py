@@ -44,7 +44,6 @@ from nwastdlib import const, identity
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import db, transactional
-from orchestrator.core.services.settings import get_engine_settings_table
 from orchestrator.core.settings import app_settings
 from orchestrator.core.targets import Target
 from orchestrator.core.types import ErrorDict, StepFunc
@@ -1629,6 +1628,8 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         # Execute step
         try:
             with transactional(db, logger):
+                from orchestrator.core.services.settings import get_engine_settings_table
+
                 engine_status = get_engine_settings_table()
                 if engine_status.global_lock:
                     # Exiting from thread workflow engine is Paused or Pausing

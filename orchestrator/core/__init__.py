@@ -17,27 +17,46 @@ from importlib.metadata import version
 
 __version__: str = version("orchestrator-core")
 
+# PEP 810 (Python 3.15+): these imports become lazy automatically.
+# On <3.15 this variable is silently ignored; __getattr__ below handles deferral.
+__lazy_modules__ = [
+    "orchestrator.core.app",
+    "orchestrator.core.settings",
+    "orchestrator.core.workflow",
+]
 
-from structlog import get_logger
 
-logger = get_logger(__name__)
+def __getattr__(name: str) -> object:
+    """PEP 562 lazy attribute access (Python 3.11-3.14 fallback)."""
+    if name in ("app_settings", "llm_settings"):
+        from orchestrator.core.settings import app_settings, llm_settings
 
-logger.info("Starting the orchestrator", version=__version__)
+        globals()["app_settings"] = app_settings
+        globals()["llm_settings"] = llm_settings
+        return globals()[name]
+    if name == "OrchestratorCore":
+        from orchestrator.core.app import OrchestratorCore
 
-# App settings must resolve before OrchestratorCore
-from orchestrator.core.settings import app_settings, llm_settings
-from orchestrator.core.app import OrchestratorCore
-from orchestrator.core.workflow import (
-    begin,
-    conditional,
-    done,
-    focussteps,
-    inputstep,
-    retrystep,
-    step,
-    steplens,
-    workflow,
-)
+        globals()["OrchestratorCore"] = OrchestratorCore
+        return OrchestratorCore
+    if name in ("begin", "conditional", "done", "focussteps", "inputstep", "retrystep", "step", "steplens", "workflow"):
+        from orchestrator.core import workflow as _wf
+
+        for attr in (
+            "begin",
+            "conditional",
+            "done",
+            "focussteps",
+            "inputstep",
+            "retrystep",
+            "step",
+            "steplens",
+            "workflow",
+        ):
+            globals()[attr] = getattr(_wf, attr)
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "OrchestratorCore",
