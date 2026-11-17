@@ -17,8 +17,15 @@ from importlib.metadata import version
 
 __version__: str = version("orchestrator-core")
 
-# PEP 810 (Python 3.15+): these imports become lazy automatically.
-# On <3.15 this variable is silently ignored; __getattr__ below handles deferral.
+# PEP 810 (Python 3.15+): listed modules become lazy automatically, so importing
+# this package no longer pays the full app-stack cost at CLI startup.
+# On Python <3.15, __lazy_modules__ is silently ignored by the interpreter; the
+# __getattr__ below (PEP 562, supported since Python 3.7) provides equivalent
+# deferred loading and is what actually eliminates the eager import cost on current
+# Python versions.  Both mechanisms together keep CLI startup fast today and will
+# stay correct after the 3.15 upgrade.
+# PEP 810: https://peps.python.org/pep-0810/
+# PEP 562: https://peps.python.org/pep-0562/
 __lazy_modules__ = [
     "orchestrator.core.app",
     "orchestrator.core.settings",
@@ -27,7 +34,14 @@ __lazy_modules__ = [
 
 
 def __getattr__(name: str) -> object:
-    """PEP 562 lazy attribute access (Python 3.11-3.14 fallback)."""
+    """Defer heavy submodule imports until their attributes are first accessed.
+
+    This is the active mechanism for Python <3.15.  It prevents ``orchestrator.core.app``
+    (and the full FastAPI/Strawberry/SQLAlchemy stack it pulls in) from loading just
+    because the CLI does ``import orchestrator.core``.
+
+    See: https://peps.python.org/pep-0562/
+    """
     if name in ("app_settings", "llm_settings"):
         from orchestrator.core.settings import app_settings, llm_settings
 
