@@ -23,6 +23,7 @@ from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing.hooks import (
     extract_subscription_ids,
     index_process_and_subscriptions,
+    reindex_entity,
 )
 from orchestrator.core.settings import llm_settings
 from orchestrator.core.workflow import (
@@ -274,3 +275,22 @@ def test_failed_link_lookup_is_raised_when_strict(mock_run_indexing, linked_subs
 
     with pytest.raises(RuntimeError, match="lookup error"):
         index_process_and_subscriptions(uuid4(), Success({"subscription_id": SUB_ID_A}))
+
+
+@pytest.mark.parametrize("entity_type", [EntityType.SUBSCRIPTION, EntityType.PRODUCT])
+@pytest.mark.parametrize(
+    "strict",
+    [pytest.param(False, id="lenient-swallows"), pytest.param(True, id="strict-raises")],
+)
+@patch("orchestrator.core.search.indexing.hooks.run_indexing_for_entity")
+async def test_reindex_entity_indexes_the_entity_and_honours_strictness(mock_run_indexing, strict, entity_type):
+    mock_run_indexing.side_effect = RuntimeError("boom")
+
+    with patch("orchestrator.core.search.indexing.hooks.llm_settings.SEARCH_INDEXING_STRICT", strict):
+        if strict:
+            with pytest.raises(RuntimeError):
+                await reindex_entity(entity_type, SUB_ID_A)
+        else:
+            await reindex_entity(entity_type, SUB_ID_A)
+
+    mock_run_indexing.assert_called_once_with(entity_type, SUB_ID_A)
