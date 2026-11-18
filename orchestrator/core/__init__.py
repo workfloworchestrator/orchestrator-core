@@ -71,7 +71,7 @@ def __getattr__(name: str) -> object:
         globals()["OrchestratorCore"] = OrchestratorCore
         return OrchestratorCore
     if name in ("begin", "conditional", "done", "focussteps", "inputstep", "retrystep", "step", "steplens", "workflow"):
-        from orchestrator.core import workflow as _wf
+        import orchestrator.core.workflow as _wf
 
         for attr in (
             "begin",
