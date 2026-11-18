@@ -14,8 +14,25 @@
 """This is the orchestrator workflow engine."""
 
 from importlib.metadata import version
+from typing import TYPE_CHECKING
 
 __version__: str = version("orchestrator-core")
+
+if TYPE_CHECKING:
+    # This is to make mypy happy (import concrete types for type_checking)
+    from orchestrator.core.app import OrchestratorCore
+    from orchestrator.core.settings import app_settings, llm_settings
+    from orchestrator.core.workflow import (
+        begin,
+        conditional,
+        done,
+        focussteps,
+        inputstep,
+        retrystep,
+        step,
+        steplens,
+        workflow,
+    )
 
 # PEP 810 (Python 3.15+): listed modules become lazy automatically, so importing
 # this package no longer pays the full app-stack cost at CLI startup.
