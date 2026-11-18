@@ -17,12 +17,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy_utils.types.ltree import Ltree
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.db import SubscriptionTable
-from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import EntityType, FieldType
 from orchestrator.core.settings import llm_settings
+from test.integration_tests.search._embeddings import add_indexed_row_async
 
 GROUND_TRUTH_FILE = Path(__file__).parent / "data" / "ground_truth.json"
 MODELS_FILE = GROUND_TRUTH_FILE.parent / "models.json"
@@ -140,8 +140,8 @@ def save_ground_truth(entities: list[dict], queries: list[dict]) -> None:
         json.dump(ground_truth, f, indent=2)
 
 
-def index_subscription(
-    subscription: SubscriptionTable, embedding: list[float], session, subscription_index: int = 1
+async def index_subscription(
+    subscription: SubscriptionTable, embedding: list[float], session: AsyncSession, subscription_index: int = 1
 ) -> None:
     """Index a single subscription into AiSearchIndex with multiple records.
 
@@ -154,60 +154,28 @@ def index_subscription(
     Args:
         subscription: The subscription to index
         embedding: The embedding vector for the subscription description
-        session: The SQLAlchemy session to use
+        session: The async session to use. The vector upsert is awaited, so the caller must await this function
         subscription_index: Index of subscription (1-based) used to generate test dates
     """
-    # Index description with embedding
-    index_record = AiSearchIndex(
-        entity_type=EntityType.SUBSCRIPTION.value,
-        entity_id=subscription.subscription_id,
-        entity_title=subscription.description[:50],
-        path=Ltree("description"),
-        value=subscription.description,
-        value_type=FieldType.STRING.value,
-        content_hash=f"test_hash_{subscription.subscription_id}",
-        embedding=embedding,
+    title = subscription.description[:50]
+    start_month = ((subscription_index - 1) % 12) + 1  # cycle through all 12 months: 1-12 -> Jan-Dec, 13-22 -> Jan-Oct
+    status = subscription.status.value if hasattr(subscription.status, "value") else str(subscription.status)
+    # (path, value, value type, embedding)
+    fields = (
+        ("description", subscription.description, FieldType.STRING, embedding),
+        ("status", status, FieldType.STRING, None),
+        ("insync", str(subscription.insync).lower(), FieldType.BOOLEAN, None),
+        ("subscription.start_date", f"2024-{start_month:02d}-01T00:00:00", FieldType.DATETIME, None),
     )
-    session.add(index_record)
-
-    # Add status field (no embedding)
-    status_record = AiSearchIndex(
-        entity_type=EntityType.SUBSCRIPTION.value,
-        entity_id=subscription.subscription_id,
-        entity_title=subscription.description[:50],
-        path=Ltree("status"),
-        value=subscription.status.value if hasattr(subscription.status, "value") else str(subscription.status),
-        value_type=FieldType.STRING.value,
-        content_hash=f"test_hash_status_{subscription.subscription_id}",
-        embedding=None,
-    )
-    session.add(status_record)
-
-    # Add insync field (no embedding)
-    insync_record = AiSearchIndex(
-        entity_type=EntityType.SUBSCRIPTION.value,
-        entity_id=subscription.subscription_id,
-        entity_title=subscription.description[:50],
-        path=Ltree("insync"),
-        value=str(subscription.insync).lower(),
-        value_type=FieldType.BOOLEAN.value,
-        content_hash=f"test_hash_insync_{subscription.subscription_id}",
-        embedding=None,
-    )
-    session.add(insync_record)
-
-    # Cycle through all 12 months: index 1-12 -> Jan-Dec, 13-22 -> Jan-Oct
-    month = ((subscription_index - 1) % 12) + 1
-    start_date = f"2024-{month:02d}-01T00:00:00"
-
-    start_date_record = AiSearchIndex(
-        entity_type=EntityType.SUBSCRIPTION.value,
-        entity_id=subscription.subscription_id,
-        entity_title=subscription.description[:50],
-        path=Ltree("subscription.start_date"),
-        value=start_date,
-        value_type=FieldType.DATETIME.value,
-        content_hash=f"test_hash_start_date_{subscription.subscription_id}",
-        embedding=None,
-    )
-    session.add(start_date_record)
+    # A side effect per field (rows and vectors land in the session), not a collection that is built
+    for path, value, value_type, field_embedding in fields:
+        await add_indexed_row_async(
+            session,
+            entity_type=EntityType.SUBSCRIPTION,
+            entity_id=subscription.subscription_id,
+            path=path,
+            value=value,
+            embedding=field_embedding,
+            title=title,
+            value_type=value_type,
+        )

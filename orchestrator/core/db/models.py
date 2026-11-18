@@ -875,13 +875,29 @@ class AiSearchIndex(BaseModel):
         Enum(FieldType, name="field_type", values_callable=lambda obj: [e.value for e in obj]), nullable=False
     )
 
-    # Embedding
-    embedding = mapped_column(Vector(llm_settings.EMBEDDING_DIMENSION), nullable=True)
-
     # SHA-256
     content_hash = mapped_column(String(64), nullable=False, index=True)
 
-    __table_args__ = (PrimaryKeyConstraint("entity_id", "path", name="pk_ai_search_index"),)
+    # No foreign key to ai_search_embeddings: rows keep their hash when embedding failed, and the retry finds
+    # them by the missing embeddings row.
+    embedding_hash = mapped_column(String(64), nullable=True)
+
+    __table_args__ = (
+        PrimaryKeyConstraint("entity_id", "path", name="pk_ai_search_index"),
+        Index("ix_ai_search_index_entity_type_embedding_hash", "entity_type", "embedding_hash"),
+    )
+
+
+class AiSearchEmbedding(BaseModel):
+    """One vector per distinct (entity type, model, lowercased text), shared by all index rows with that text."""
+
+    __tablename__ = "ai_search_embeddings"
+
+    entity_type = mapped_column(TEXT, nullable=False)
+    embedding_hash = mapped_column(String(64), nullable=False)
+    embedding = mapped_column(Vector(llm_settings.EMBEDDING_DIMENSION), nullable=False)
+
+    __table_args__ = (PrimaryKeyConstraint("entity_type", "embedding_hash", name="pk_ai_search_embeddings"),)
 
 
 class AiSearchPaths(BaseModel):

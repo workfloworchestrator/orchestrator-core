@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import hashlib
 from typing import Any
 
 import structlog
@@ -33,6 +34,22 @@ def prewarm_embedding_dependencies() -> None:
         return
 
     import litellm  # noqa: F401
+
+
+def compute_embedding_hash(model_id: str, text: str) -> str:
+    """Identify one embedding by the model that made it and the text it was made from.
+
+    The text is lowercased because the embedding API call lowercases its input. The NUL separator keeps
+    ``("ab", "c")`` and ``("a", "bc")`` apart.
+
+    Args:
+        model_id: The embedding model identifier.
+        text: The text that is embedded, as ``"{path}: {value}"``.
+
+    Returns:
+        The SHA-256 hex digest.
+    """
+    return hashlib.sha256(f"{model_id}\x00{text.lower()}".encode()).hexdigest()
 
 
 class EmbeddingIndexer:

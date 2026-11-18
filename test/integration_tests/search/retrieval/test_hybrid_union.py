@@ -34,7 +34,7 @@ from orchestrator.core.search.query.builder import build_candidate_query
 from orchestrator.core.search.query.queries import SelectQuery
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.hybrid import RrfHybridRetriever
-from test.integration_tests.search.retrieval._helpers import and_tree, eq_leaf, index_row, vec
+from test.integration_tests.search.retrieval._helpers import and_tree, eq_leaf, index_row, seed_rows, vec
 
 EXACT_DESCRIPTION = "Coffee grinder CG-2000-XL"
 SIBLING_DESCRIPTION = "Coffee grinder CG-2000-XS"  # word_similarity 0.92 against EXACT_DESCRIPTION: also >= 0.9
@@ -82,7 +82,7 @@ def seeded() -> type[Seeded]:
         ),
         index_row(Seeded.referrer, "subscription.status", "active", "referrer"),
     ]
-    db.session.add_all(rows)
+    seed_rows(rows)
     db.session.commit()
     return Seeded
 

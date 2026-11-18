@@ -23,8 +23,9 @@ from uuid import UUID, uuid5
 
 from sqlalchemy.orm import Session
 
+from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.settings import llm_settings
-from test.integration_tests.search._helpers import index_row
+from test.integration_tests.search._embeddings import add_indexed_row
 
 NAMESPACE = UUID("6f1c2a52-0f3e-4c53-9a54-0d3a4f0a7e11")
 ENTITY_COUNT = 40
@@ -32,6 +33,7 @@ ENTITY_COUNT = 40
 # only valid for the dimension they were recorded with.
 SNAPSHOT_DIMENSION = 1536
 AXES_PER_TOKEN = 6
+BOUNDED_CANDIDATES_LIMIT = 1000
 
 STATUSES = ("active", "provisioning", "terminated")
 PRODUCTS = ("Fiber access", "Light path", "Layer 2 VPN", "IP peering")
@@ -101,5 +103,14 @@ def vector_for(row: CorpusRow) -> list[float] | None:
 
 
 def seed_corpus(session: Session) -> None:
-    """Add the whole corpus to the session. The caller commits."""
-    session.add_all([index_row(row.entity_id, row.path, row.value, row.title, vector_for(row)) for row in corpus()])
+    """Add the whole corpus to the session through ``add_indexed_row``. The caller commits."""
+    for row in corpus():  # a side effect per row, not a collection that is built
+        add_indexed_row(
+            session,
+            entity_type=EntityType.SUBSCRIPTION,
+            entity_id=row.entity_id,
+            path=row.path,
+            value=row.value,
+            embedding=vector_for(row),
+            title=row.title,
+        )

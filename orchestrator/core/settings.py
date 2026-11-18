@@ -195,12 +195,15 @@ class LLMSettings(BaseSettings):
 
     # Retrieval behaviour
     SEARCH_SEMANTIC_CANDIDATE_LIMIT: int = Field(
-        2000,
+        300,
         gt=0,
         description=(
-            "How many index fields the semantic retriever, and the semantic source of the hybrid retriever, "
-            "pull from the HNSW index per search. Higher reaches further down the result list at the cost "
-            "of a slower scan; semantic exports are not capped."
+            "How many distinct field texts the semantic retriever, and the semantic source of the hybrid "
+            "retriever, pull from the HNSW index per search. Every matching field with one of those texts is "
+            "ranked, so a text many entities share takes one place. The default is small because there are far "
+            "fewer distinct texts than fields: above about 2% of an entity type's texts Postgres stops using the "
+            "HNSW index and sorts every vector instead. Higher reaches further down the result list at the cost "
+            "of a slower scan. Semantic exports are not capped."
         ),
     )
 

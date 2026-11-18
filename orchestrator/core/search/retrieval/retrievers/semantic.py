@@ -16,7 +16,7 @@ from collections.abc import Sequence
 from sqlalchemy import Select, and_, cast, func, literal, or_, select
 from sqlalchemy.sql.expression import ColumnElement
 
-from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.db.models import AiSearchEmbedding, AiSearchIndex
 from orchestrator.core.search.core.types import EntityType, SearchMetadata
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
@@ -65,8 +65,14 @@ class SemanticRetriever(Retriever):
             entity_title = AiSearchIndex.entity_title
             value = AiSearchIndex.value
             path = AiSearchIndex.path
-            dist = AiSearchIndex.embedding.l2_distance(self.vector_query)
-            from_clause = AiSearchIndex.__table__.join(cand, cand.c.entity_id == AiSearchIndex.entity_id)
+            dist = AiSearchEmbedding.embedding.l2_distance(self.vector_query)
+            from_clause = AiSearchIndex.__table__.join(cand, cand.c.entity_id == AiSearchIndex.entity_id).join(
+                AiSearchEmbedding,
+                and_(
+                    AiSearchEmbedding.entity_type == AiSearchIndex.entity_type,
+                    AiSearchEmbedding.embedding_hash == AiSearchIndex.embedding_hash,
+                ),
+            )
 
         raw_min = func.min(dist).over(partition_by=entity_id)
 
@@ -95,8 +101,6 @@ class SemanticRetriever(Retriever):
             .select_from(from_clause)
             .distinct(entity_id, entity_title)
         )
-        if not use_bounded_plan:
-            combined_query = combined_query.where(AiSearchIndex.embedding.isnot(None))
         final_query = combined_query.subquery("ranked_semantic")
 
         stmt = select(
@@ -112,31 +116,45 @@ class SemanticRetriever(Retriever):
         return stmt.order_by(final_query.c.score.desc().nulls_last(), final_query.c.entity_id.asc())
 
     def _candidate_window(self, candidate_query: Select) -> Select:
-        """Index fields closest to the query embedding, capped at `candidates_limit`.
+        """Candidate index fields whose text is among the `candidates_limit` texts closest to the query embedding.
 
-        The candidate conditions are applied *inside* the index scan (see `_restrict_to_candidates`),
-        so the iterative HNSW scan keeps walking until it has `candidates_limit` matching rows. The
-        entity type is rendered as a literal so the planner can prove the predicate of that type's
-        partial HNSW index whatever plan cache is in use.
+        The limit counts distinct embedded texts, not index rows, so a text shared by thousands of entities takes
+        one place and cannot fill the window. Every candidate row of the window's texts is ranked, uncapped.
         """
-        distance = AiSearchIndex.embedding.l2_distance(self.vector_query)
-        stmt = (
-            select(
-                AiSearchIndex.entity_id,
-                AiSearchIndex.entity_title,
-                AiSearchIndex.path,
-                AiSearchIndex.value,
-                distance.label("semantic_distance"),
-            )
-            .select_from(AiSearchIndex)
-            .where(
-                and_(
-                    AiSearchIndex.embedding.isnot(None),
-                    AiSearchIndex.entity_type == literal(self.entity_type.value, literal_execute=True),  # type: ignore[union-attr]
-                )
-            )
+        # A literal, so the planner can prove the predicate of that type's partial HNSW index.
+        entity_type = literal(self.entity_type.value, literal_execute=True)  # type: ignore[union-attr]
+        distance = AiSearchEmbedding.embedding.l2_distance(self.vector_query)
+        rows_with_text = select(AiSearchIndex.entity_id).where(
+            AiSearchIndex.entity_type == AiSearchEmbedding.entity_type,
+            AiSearchIndex.embedding_hash == AiSearchEmbedding.embedding_hash,
         )
-        return self._restrict_to_candidates(stmt, candidate_query).order_by(distance.asc()).limit(self.candidates_limit)
+        # The candidate conditions run inside the scan, so it keeps walking until the window is full and an orphaned
+        # vector never takes a place.
+        nearest_texts = (
+            select(AiSearchEmbedding.embedding_hash, distance.label("semantic_distance"))
+            .where(
+                AiSearchEmbedding.entity_type == entity_type,
+                self._restrict_to_candidates(rows_with_text, candidate_query).correlate(AiSearchEmbedding).exists(),
+            )
+            .order_by(distance.asc())
+            .limit(self.candidates_limit)
+            .subquery("semantic_texts")
+        )
+        stmt = select(
+            AiSearchIndex.entity_id,
+            AiSearchIndex.entity_title,
+            AiSearchIndex.path,
+            AiSearchIndex.value,
+            nearest_texts.c.semantic_distance,
+        ).join_from(
+            AiSearchIndex,
+            nearest_texts,
+            and_(
+                AiSearchIndex.entity_type == entity_type,
+                AiSearchIndex.embedding_hash == nearest_texts.c.embedding_hash,
+            ),
+        )
+        return self._restrict_to_candidates(stmt, candidate_query)
 
     @property
     def metadata(self) -> SearchMetadata:

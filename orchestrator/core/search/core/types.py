@@ -354,4 +354,10 @@ class IndexableRecord(TypedDict):
     value: Any
     value_type: Any
     content_hash: str
-    embedding: list[float] | None
+    embedding_hash: str | None
+
+
+class EmbeddingRecord(TypedDict):
+    entity_type: str
+    embedding_hash: str
+    embedding: list[float]
