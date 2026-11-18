@@ -13,6 +13,8 @@
 
 """The semantic retriever against a real pgvector database, bounded plan and exhaustive plan."""
 
+import json
+from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
@@ -31,9 +33,16 @@ from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.semantic import SemanticRetriever
 from orchestrator.core.search.retrieval.session import HNSW_ITERATIVE_SCAN
 from orchestrator.core.settings import llm_settings
+from test.integration_tests.search.retrieval._semantic_dataset import (
+    QUERIES,
+    SNAPSHOT_DIMENSION,
+    embed,
+    seed_corpus,
+)
 
 DIMENSION = llm_settings.EMBEDDING_DIMENSION
 ENTITY_TYPES = ("SUBSCRIPTION", "PRODUCT", "WORKFLOW", "PROCESS")
+SNAPSHOT = Path(__file__).parent / "semantic_scores.json"
 
 
 def _basis_vector(index: int) -> list[float]:
@@ -195,3 +204,37 @@ async def test_pagination_stops_at_the_edge_of_the_window(indexed_vectors, async
     assert first.has_more is True
     assert [result.entity_id for result in second.results] == [str(indexed_vectors[1])]
     assert second.has_more is False
+
+
+def _scores(candidates_limit: int | None, query_text: str) -> list[tuple[str, float]]:
+    """The retriever's ranking of the corpus for a query, as `(entity_id, score)` in ranking order."""
+    query = SelectQuery(
+        entity_type=EntityType.SUBSCRIPTION, query_text=query_text, retriever=RetrieverType.SEMANTIC, limit=100
+    )
+    retriever = SemanticRetriever(embed(query_text), None, EntityType.SUBSCRIPTION, candidates_limit=candidates_limit)
+    rows = db.session.execute(retriever.apply(build_candidate_query(query))).mappings().all()
+    return [(str(row["entity_id"]), float(row["score"])) for row in rows]
+
+
+@pytest.mark.skipif(
+    DIMENSION != SNAPSHOT_DIMENSION,
+    reason=f"semantic_scores.json was recorded with EMBEDDING_DIMENSION={SNAPSHOT_DIMENSION}, the vectors of the "
+    "corpus depend on it",
+)
+@pytest.mark.parametrize("query_text", [pytest.param(query, id=query.replace(" ", "_")) for query in QUERIES])
+def test_semantic_scores_match_snapshot(query_text):
+    """Every entity keeps the score the exhaustive plan gave it in `semantic_scores.json`.
+
+    A query missing from the file is recorded and fails once. To re-record, delete its entry and rerun.
+    """
+    seed_corpus(db.session)
+    db.session.commit()
+    ranking = _scores(None, query_text)
+
+    recorded = json.loads(SNAPSHOT.read_text()) if SNAPSHOT.exists() else {}
+    if query_text not in recorded:
+        SNAPSHOT.write_text(json.dumps({**recorded, query_text: dict(ranking)}, indent=2, sort_keys=True) + "\n")
+        pytest.fail(f"Recorded the scores of {query_text!r} in {SNAPSHOT.name}, review and commit them, then rerun")
+
+    assert dict(ranking) == pytest.approx(recorded[query_text], abs=1e-6)
+    assert [score for _, score in ranking] == sorted((score for _, score in ranking), reverse=True)
