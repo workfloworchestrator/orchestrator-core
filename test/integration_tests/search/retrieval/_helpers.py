@@ -16,9 +16,9 @@
 from orchestrator.core.search.core.types import BooleanOperator, FilterOp, UIType
 from orchestrator.core.search.filters import EqualityFilter, FilterTree, PathFilter
 from orchestrator.core.settings import llm_settings
-from test.integration_tests.search._helpers import index_row
+from test.integration_tests.search._helpers import index_row, seed_rows
 
-__all__ = ["and_tree", "eq_leaf", "index_row", "vec"]
+__all__ = ["and_tree", "eq_leaf", "index_row", "seed_rows", "vec"]
 
 
 def vec(axis: int) -> list[float]:

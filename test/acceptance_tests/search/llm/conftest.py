@@ -248,7 +248,7 @@ async def indexed_subscriptions(test_subscriptions, mock_embeddings, embedding_f
             if embedding is None:
                 raise ValueError(f"No embedding found for subscription '{sub.description}' in ground_truth.json. ")
 
-            index_subscription(sub, embedding, session, subscription_index=idx)
+            await index_subscription(sub, embedding, session, subscription_index=idx)
 
         await session.commit()
 

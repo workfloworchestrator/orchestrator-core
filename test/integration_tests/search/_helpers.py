@@ -13,13 +13,23 @@
 
 """Shared builder for seeding rows in the search index from integration tests."""
 
+from collections.abc import Iterable
+from typing import NamedTuple
 from uuid import UUID
 
-from sqlalchemy_utils import Ltree
-
-from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.db import db
 from orchestrator.core.search.core.types import EntityType, FieldType
-from orchestrator.core.search.indexing.indexer import Indexer
+from test.integration_tests.search._embeddings import add_indexed_row
+
+
+class SeededRow(NamedTuple):
+    entity_id: UUID | str
+    path: str
+    value: str
+    title: str
+    embedding: list[float] | None
+    entity_type: EntityType
+    value_type: FieldType
 
 
 def index_row(
@@ -31,15 +41,21 @@ def index_row(
     *,
     entity_type: EntityType = EntityType.SUBSCRIPTION,
     value_type: FieldType = FieldType.STRING,
-) -> AiSearchIndex:
-    """Build an `AiSearchIndex` row with the content hash the indexer would compute, so it reads as real data."""
-    return AiSearchIndex(
-        entity_type=entity_type,
-        entity_id=entity_id,
-        entity_title=title,
-        path=Ltree(path),
-        value=value,
-        value_type=value_type,
-        content_hash=Indexer._compute_content_hash(path, value, value_type, title),
-        embedding=embedding,
-    )
+) -> SeededRow:
+    """Describe an index row, with the vector of its text when it carries one. `seed_rows` writes them."""
+    return SeededRow(entity_id, path, value, title, embedding, entity_type, value_type)
+
+
+def seed_rows(rows: Iterable[SeededRow]) -> None:
+    """Add the index rows, and the vectors of those that carry one, to the test session."""
+    for row in rows:  # a side effect per row, not a collection that is built
+        add_indexed_row(
+            db.session,
+            entity_type=row.entity_type,
+            entity_id=row.entity_id,
+            path=row.path,
+            value=row.value,
+            embedding=row.embedding,
+            title=row.title,
+            value_type=row.value_type,
+        )

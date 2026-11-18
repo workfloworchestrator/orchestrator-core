@@ -27,7 +27,7 @@ from orchestrator.core.search.core.types import EntityType, RetrieverType
 from orchestrator.core.search.filters import FilterTree
 from orchestrator.core.search.query import engine
 from orchestrator.core.search.query.queries import SelectQuery
-from test.integration_tests.search.retrieval._helpers import and_tree, eq_leaf, index_row, vec
+from test.integration_tests.search.retrieval._helpers import and_tree, eq_leaf, index_row, seed_rows, vec
 
 QUERY_TEXT = "Coffee grinder CG-2000-XL"
 
@@ -40,7 +40,7 @@ class Seeded:
 
 @pytest.fixture
 def seeded() -> type[Seeded]:
-    db.session.add_all(
+    seed_rows(
         [
             index_row(Seeded.exact, "subscription.description", QUERY_TEXT, "exact", vec(0)),
             index_row(Seeded.exact, "subscription.status", "active", "exact"),

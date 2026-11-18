@@ -52,6 +52,7 @@ async def reindex_with_model(model_config, target_dimension: int, console) -> No
     console.print(f"Resizing embedding column to {target_dimension} dimensions...")
     async with db.async_session() as session:
         await session.execute(text("TRUNCATE TABLE ai_search_index CASCADE"))
+        await session.execute(text("TRUNCATE TABLE ai_search_embeddings CASCADE"))
         await session.execute(text("TRUNCATE TABLE search_queries CASCADE"))
         await session.commit()
 
@@ -71,7 +72,7 @@ async def reindex_with_model(model_config, target_dimension: int, console) -> No
         for subscription in subscriptions:
             sub_id = str(subscription.subscription_id)
             if sub_id in embedding_map:
-                index_subscription(subscription, embedding_map[sub_id], session)
+                await index_subscription(subscription, embedding_map[sub_id], session)
 
         await session.commit()
 
