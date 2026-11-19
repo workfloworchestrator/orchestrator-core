@@ -58,7 +58,8 @@ dependencies = [
     "pydantic-forms>=2.9.0",
     "pydantic-settings~=2.16.0",
     "pydantic[email]~=2.14.2",
-    "python-dateutil>=2.9.0",
+    "python-dateutil==4.0.0; python_version < '3.15'",
+    "python-dateutil>=2.9.0; python_version >= '3.15'",  # litellm>=1.109 -> botocore caps python-dateutil<3
     "python-rapidjson>=1.26,<1.27",
     "pytz>=2025",
     "redis==8.1.0",
@@ -71,7 +72,8 @@ dependencies = [
     "tabulate==0.10.0",
     "typer==0.29.1",
     "uvicorn[standard]~=0.53.0",
-    "litellm>=1.109.0",
+    "litellm>=1.80.0; python_version < '3.15'",
+    "litellm>=1.109.0; python_version >= '3.15'",  # first litellm release supporting Python 3.15
     "celery-types>=0.26.0",
 ]
 
