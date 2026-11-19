@@ -78,8 +78,8 @@ just tox -e py313  # unit test a single version
 ```
 
 This creates the venv for each version within `.tox/` and reuses it on
-subsequent runs. Obviously this requires a bit
-more diskspace than only having one venv, so be aware about that.
+subsequent runs. This requires a bit more disk space than only having
+one venv, so be aware of that.
 
 !!! info
     If you prefer using only one .venv in the repository root then you can
@@ -94,10 +94,6 @@ Example output, last 5 lines of `just tox`:
   py314: OK (45.38=setup[2.98]+cmd[42.39] seconds)
   congratulations :) (186.33 seconds)
 ```
-
-Each version gets its own virtualenv under `.tox/` (`.tox/py311`, `.tox/py313`,
-…). They are created on first use and reused afterwards, so only the first run
-is slow. If a Python version is missing, uv downloads it.
 
 Arguments after `--` are passed to pytest:
 
