@@ -8,7 +8,7 @@ license-files = ["LICENSE"]
 authors = [
     { name = "SURF", email = "automation-beheer@surf.nl" }
 ]
-requires-python = ">=3.11,<3.15"
+requires-python = ">=3.11,<3.16"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Web Environment",
@@ -25,6 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python",
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Internet :: WWW/HTTP",
@@ -57,7 +58,8 @@ dependencies = [
     "pydantic-forms>=2.9.0",
     "pydantic-settings~=2.16.0",
     "pydantic[email]~=2.14.2",
-    "python-dateutil==4.0.0",
+    "python-dateutil==4.0.0; python_version < '3.15'",
+    "python-dateutil>=2.9.0; python_version >= '3.15'",  # litellm>=1.109 -> botocore caps python-dateutil<3
     "python-rapidjson>=1.26,<1.27",
     "pytz>=2025",
     "redis==8.1.0",
@@ -70,7 +72,8 @@ dependencies = [
     "tabulate==0.10.0",
     "typer==0.29.1",
     "uvicorn[standard]~=0.53.0",
-    "litellm>=1.80.0",
+    "litellm>=1.80.0; python_version < '3.15'",
+    "litellm>=1.109.0; python_version >= '3.15'",  # first litellm release supporting Python 3.15
     "celery-types>=0.26.0",
 ]
 
@@ -123,7 +126,7 @@ dev = [
     "mypy-extensions>=1.1.0",
     "prek>=0.5.5",
     "pydocstyle>=6.3.0",
-    "pyinstrument>=5.0.2",
+    "pyinstrument>=5.0.2; python_version < '3.15'",  # no cp315 wheel yet, sdist needs a C compiler
     "pytest==9.2.0",
     "pytest-asyncio==1.4.1.post1",
     "pytest-celery>=1.2.1",
@@ -255,7 +258,8 @@ exclude-newer = "3 days"
 # certifi is exempt so the emSign CA distrust (GHSA-6q48-6c7w-9gw2) is picked up immediately.
 exclude-newer-package = { certifi = false, pydantic-forms = false, nwa-stdlib = false, oauth2-lib = false }
 override-dependencies = [
-    "grpcio==1.76.0",  # Force grpcio 1.76.0 for Python 3.14 wheel support
+    # deepdiff<9.2 caps cachebox<6, which has no cp315 wheel. Replace with deepdiff>=9.2.0 once it clears exclude-newer.
+    "cachebox>=6.1.2",
 ]
 
 [tool.uv.build-backend]
