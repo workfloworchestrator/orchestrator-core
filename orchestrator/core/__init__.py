@@ -17,12 +17,16 @@ from importlib.metadata import version
 
 __version__: str = version("orchestrator-core")
 
-
-from structlog import get_logger
-
-logger = get_logger(__name__)
-
-logger.info("Starting the orchestrator", version=__version__)
+# PEP 810 (Python 3.15+): listed modules become lazy automatically, so importing
+# this package no longer pays the full app-stack cost at CLI startup.
+# On Python <3.15, __lazy_modules__ is silently ignored by the interpreter and
+# these imports remain eager. CLI startup improvement requires Python 3.15+.
+# PEP 810: https://peps.python.org/pep-0810/
+__lazy_modules__ = [
+    "orchestrator.core.app",
+    "orchestrator.core.settings",
+    "orchestrator.core.workflow",
+]
 
 # App settings must resolve before OrchestratorCore
 from orchestrator.core.settings import app_settings, llm_settings

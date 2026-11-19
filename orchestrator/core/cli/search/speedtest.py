@@ -15,6 +15,15 @@ import asyncio
 import time
 from typing import Any
 
+# PEP 810: deferred on Python 3.15+; silently ignored on <3.15.
+# Only defer rich (pure UI library); search.query and search.retrieval.retrievers
+# share a circular dependency that requires them to load together.
+__lazy_modules__ = [
+    "rich.console",
+    "rich.progress",
+    "rich.table",
+]
+
 import structlog
 import typer
 from rich.console import Console

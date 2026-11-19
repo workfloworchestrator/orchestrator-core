@@ -13,6 +13,14 @@
 
 from typing import cast
 
+# PEP 810: deferred on Python 3.15+; silently ignored on <3.15.
+__lazy_modules__ = [
+    "sqlalchemy",
+    "sqlalchemy.engine",
+    "sqlalchemy.exc",
+    "orchestrator.core.db.models",
+]
+
 import structlog
 import typer
 from sqlalchemy import delete, text
