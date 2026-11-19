@@ -14,80 +14,34 @@
 """This is the orchestrator workflow engine."""
 
 from importlib.metadata import version
-from typing import TYPE_CHECKING
 
 __version__: str = version("orchestrator-core")
 
-if TYPE_CHECKING:
-    # This is to make mypy happy (import concrete types for type_checking)
-    from orchestrator.core.app import OrchestratorCore
-    from orchestrator.core.settings import app_settings, llm_settings
-    from orchestrator.core.workflow import (
-        begin,
-        conditional,
-        done,
-        focussteps,
-        inputstep,
-        retrystep,
-        step,
-        steplens,
-        workflow,
-    )
-
 # PEP 810 (Python 3.15+): listed modules become lazy automatically, so importing
 # this package no longer pays the full app-stack cost at CLI startup.
-# On Python <3.15, __lazy_modules__ is silently ignored by the interpreter; the
-# __getattr__ below (PEP 562, supported since Python 3.7) provides equivalent
-# deferred loading and is what actually eliminates the eager import cost on current
-# Python versions.  Both mechanisms together keep CLI startup fast today and will
-# stay correct after the 3.15 upgrade.
+# On Python <3.15, __lazy_modules__ is silently ignored by the interpreter and
+# these imports remain eager. CLI startup improvement requires Python 3.15+.
 # PEP 810: https://peps.python.org/pep-0810/
-# PEP 562: https://peps.python.org/pep-0562/
 __lazy_modules__ = [
     "orchestrator.core.app",
     "orchestrator.core.settings",
     "orchestrator.core.workflow",
 ]
 
-
-def __getattr__(name: str) -> object:
-    """Defer heavy submodule imports until their attributes are first accessed.
-
-    This is the active mechanism for Python <3.15.  It prevents ``orchestrator.core.app``
-    (and the full FastAPI/Strawberry/SQLAlchemy stack it pulls in) from loading just
-    because the CLI does ``import orchestrator.core``.
-
-    See: https://peps.python.org/pep-0562/
-    """
-    if name in ("app_settings", "llm_settings"):
-        from orchestrator.core.settings import app_settings, llm_settings
-
-        globals()["app_settings"] = app_settings
-        globals()["llm_settings"] = llm_settings
-        return globals()[name]
-    if name == "OrchestratorCore":
-        from orchestrator.core.app import OrchestratorCore
-
-        globals()["OrchestratorCore"] = OrchestratorCore
-        return OrchestratorCore
-    if name in ("begin", "conditional", "done", "focussteps", "inputstep", "retrystep", "step", "steplens", "workflow"):
-        import orchestrator.core.workflow as _wf
-
-        for attr in (
-            "begin",
-            "conditional",
-            "done",
-            "focussteps",
-            "inputstep",
-            "retrystep",
-            "step",
-            "steplens",
-            "workflow",
-        ):
-            globals()[attr] = getattr(_wf, attr)
-        return globals()[name]
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
+# App settings must resolve before OrchestratorCore
+from orchestrator.core.settings import app_settings, llm_settings
+from orchestrator.core.app import OrchestratorCore
+from orchestrator.core.workflow import (
+    begin,
+    conditional,
+    done,
+    focussteps,
+    inputstep,
+    retrystep,
+    step,
+    steplens,
+    workflow,
+)
 
 __all__ = [
     "OrchestratorCore",
