@@ -31,6 +31,11 @@ jobs:
           version: "0.13.8"
           python-version: ${{ matrix.python-version }}
 
+      - name: Install the project
+        # --all-extras: [project.optional-dependencies]
+        # --dev: group 'dev' from [dependency-groups]
+        run: uv sync --all-extras --dev
+
       - name: Assert no integration env vars leak into the unit suite
         # Hard contract: unit tests must run with no Postgres, no Redis, no
         # Docker. If anything sets DATABASE_URI / CACHE_URI in the environment
@@ -43,14 +48,9 @@ jobs:
           fi
 
       - name: Run unit tests + doctests (no Postgres, no Redis)
-        # Runs through tox (see tox.ini) so CI and local runs share one entry
-        # point. tox-uv's uv-venv-lock-runner syncs the env from uv.lock.
-        # tox and tox-uv are pinned, like the uv version above.
         run: |
           unset DATABASE_URI CACHE_URI
-          env_name="py$(echo '${{ matrix.python-version }}' | tr -d .)"
-          uvx --with tox-uv==1.37.9 tox==4.67.15 run -e "$env_name" -- \
-            test/unit_tests orchestrator/core scripts/check_diataxis.py \
+          uv run pytest test/unit_tests orchestrator/core scripts/check_diataxis.py \
             --cov-branch --cov=orchestrator --cov-report=xml \
             --ignore=orchestrator/core/devtools \
             --ignore=examples --ignore=docs \
