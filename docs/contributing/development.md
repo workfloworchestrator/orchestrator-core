@@ -63,17 +63,36 @@ This runs every test under `test/unit_tests/` plus the doctests in
 `orchestrator/core`. No Postgres, no Redis, no Docker — fast feedback for
 day-to-day development.
 
-### Run unit tests on multiple Python versions
+#### Run unit tests against multiple Python versions
 <!-- diataxis: how-to -->
 
-orchestrator-core supports Python 3.11–3.14. To run the unit suite against all
-of them without recreating `.venv` each time, use [tox](https://tox.wiki) with
-the `tox-uv` plugin; the configuration is in `tox.ini`:
+To easily run the unit tests suite against all supported Python versions
+we are using [tox](https://tox.wiki) with the `tox-uv` plugin.
+
+Example usage:
 
 ```shell
-just tox           # all supported versions, one after the other
-just tox -p        # all supported versions, in parallel
-just tox -e py313  # a single version
+just tox           # unit test all supported versions, one by one
+just tox -p        # unit test all supported versions, in parallel
+just tox -e py313  # unit test a single version
+```
+
+This creates the venv for each version within `.tox/` and reuses it on
+subsequent runs. Obviously this requires a bit
+more diskspace than only having one venv, so be aware about that.
+
+!!! info
+    If you prefer using only one .venv in the repository root then you can
+    test a specific version with `uv run --python 3.11 pytest test/unit_tests`.
+
+Example output, last 5 lines of `just tox`:
+
+```shell
+  py311: OK (43.39=setup[4.27]+cmd[39.12] seconds)
+  py312: OK (52.98=setup[2.47]+cmd[50.50] seconds)
+  py313: OK (44.54=setup[2.12]+cmd[42.43] seconds)
+  py314: OK (45.38=setup[2.98]+cmd[42.39] seconds)
+  congratulations :) (186.33 seconds)
 ```
 
 Each version gets its own virtualenv under `.tox/` (`.tox/py311`, `.tox/py313`,
@@ -87,11 +106,8 @@ just tox -e py313 -- test/unit_tests -x
 just tox -p -- test/unit_tests -q -p no:warnings
 ```
 
-The recipe is a thin wrapper around `uvx --with tox-uv tox`, which you can also
-call directly. tox does not inherit your shell environment: the environments
-only set `ENVIRONMENT=TESTING`, and `DATABASE_URI` / `CACHE_URI` are
-deliberately left unset, so this is for the unit suite only, not for the
-integration or acceptance tests above. CI runs the unit suite this way too.
+!!! note
+    This only works for the unit tests.
 
 ### Run integration tests
 <!-- diataxis: -->
