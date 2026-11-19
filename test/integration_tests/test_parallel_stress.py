@@ -21,12 +21,14 @@ session fixture.
 TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
 """
 
+import sys
 import time
 from itertools import accumulate
 from typing import cast
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 
@@ -34,6 +36,7 @@ from orchestrator.core.db import ProcessStepRelationTable, ProcessStepTable, Pro
 from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
 from orchestrator.core.services.parallel import _find_parallel_step
 from orchestrator.core.services.processes import SYSTEM_USER
+from orchestrator.core.settings import app_settings
 from orchestrator.core.testing import (
     WorkflowInstanceForTests,
     assert_complete,
@@ -76,6 +79,22 @@ def db_session(database):
 # ---------------------------------------------------------------------------
 
 _wf_counter = 0
+
+
+@pytest.fixture
+def branch_executor_sizes(monkeypatch):
+    """Record the real executor argument without changing the executor or pool behavior."""
+    sizes = []
+    workflow_module = sys.modules["orchestrator.core.workflow"]
+    real_executor = workflow_module.ThreadPoolExecutor
+
+    def recording_executor(*args, max_workers=None, **kwargs):
+        if max_workers is not None:
+            sizes.append(max_workers)
+        return real_executor(*args, max_workers=max_workers, **kwargs)
+
+    monkeypatch.setattr(workflow_module, "ThreadPoolExecutor", recording_executor)
+    return sizes
 
 
 def register_test_workflow(wf):
@@ -905,15 +924,9 @@ def test_ten_branch_parallel() -> None:
 
 
 @pytest.mark.workflow
-def test_twenty_item_map_parallel() -> None:
-    """map_parallel over a list of 20 items with concurrency verification.
-
-    Verifies:
-    - Workflow completes successfully
-    - Fork step has branch_count=20 and branches_completed=20
-    - All 20 branch indices present in ProcessStepRelationTable
-    - Execution is concurrent (20 items sleeping 0.05s each should complete in <2s)
-    """
+def test_twenty_item_map_parallel(monkeypatch, branch_executor_sizes) -> None:
+    """20 default-concurrent branches complete concurrently with five workers."""
+    monkeypatch.setattr(app_settings, "MAX_WORKERS", 5)
 
     @workflow()
     def twenty_item_wf():
@@ -927,8 +940,10 @@ def test_twenty_item_map_parallel() -> None:
         elapsed = time.monotonic() - start
         assert_complete(result)
 
-        # Concurrency check: 20 * 0.05s = 1s sequential; concurrent should be much faster
-        assert elapsed < 2.0, f"Expected concurrent execution to finish in <2s, took {elapsed:.2f}s"
+        # Five workers require at least four 0.05-second batches; do not reject a loaded runner for being slow.
+        assert elapsed >= 0.15, f"Expected at least four batches with five workers, took {elapsed:.2f}s"
+        # The recorded executor size is the concurrency proof, not elapsed time alone.
+        assert branch_executor_sizes == [5]
 
         # DB: one fork step for "Scale FE"
         fork_steps = _get_fork_steps(pstat.process_id)
@@ -945,21 +960,50 @@ def test_twenty_item_map_parallel() -> None:
 
 
 @pytest.mark.workflow
-def test_max_workers_throttling() -> None:
-    """map_parallel with max_workers=2 throttles concurrency.
+def test_map_parallel_default_fan_out_exceeds_connection_pool(monkeypatch, branch_executor_sizes) -> None:
+    """Fans out beyond the pool without pool exhaustion, using bounded threads rather than one per branch."""
+    monkeypatch.setattr(app_settings, "MAX_WORKERS", 5)
+    branch_count = 80
 
-    With 10 items each sleeping 0.05s and max_workers=2, execution should take
-    ~0.25s (5 batches of 2), not ~0.05s (full parallelism) and not ~0.5s (sequential).
+    @step("Reserve item")
+    def reserve_item(item):
+        return {"reserved_item": item}
 
-    Verifies:
-    - Workflow completes correctly
-    - Throttled execution takes longer than fully parallel but less than sequential
-    - All 10 branches persisted in DB
-    """
+    @step("Process reserved item")
+    def process_reserved_item(reserved_item):
+        return {"processed_item": reserved_item}
+
+    @workflow()
+    def wide_fan_out_wf():
+        return init >> map_parallel("Wider than pool", "items", begin >> reserve_item >> process_reserved_item) >> done
+
+    with register_test_workflow(wide_fan_out_wf) as wf_table:
+        pstat = create_new_process_stat(wf_table, {"items": list(range(branch_count))})
+        result = runwf(pstat, store([]))
+
+        assert_complete(result)
+        assert branch_executor_sizes == [app_settings.MAX_WORKERS]
+        fork_steps = _get_fork_steps(pstat.process_id)
+        assert len(fork_steps) == 1
+        fork = fork_steps[0]
+        assert fork.branches_completed == branch_count
+        relations = _get_relations(fork.step_id)
+        assert len(relations) == branch_count * 2  # reserve_item and process_reserved_item; begin is not logged
+        assert {relation.branch_index for relation in relations} == set(range(branch_count))
+        child_ids = [relation.child_step_id for relation in relations if relation.order_id == 1]
+        child_steps = db.session.scalars(select(ProcessStepTable).where(ProcessStepTable.step_id.in_(child_ids))).all()
+        assert len(child_steps) == branch_count
+        assert all(step_row.status == "success" for step_row in child_steps)
+
+
+@pytest.mark.workflow
+def test_max_concurrency_throttling(monkeypatch, branch_executor_sizes) -> None:
+    """The branch executor receives an explicit limit of two; completion is not used as a concurrency proxy."""
+    monkeypatch.setattr(app_settings, "MAX_WORKERS", 5)
 
     @workflow()
     def throttled_wf():
-        return init >> map_parallel("Throttled", "items", begin >> slow_item_step, max_workers=2) >> done
+        return init >> map_parallel("Throttled", "items", begin >> slow_item_step, max_concurrency=2) >> done
 
     with register_test_workflow(throttled_wf) as wf_table:
         log: list = []
@@ -969,10 +1013,10 @@ def test_max_workers_throttling() -> None:
         elapsed = time.monotonic() - start
         assert_complete(result)
 
-        # Throttling check: 10 items, max_workers=2, each 0.05s -> ~0.25s minimum (5 batches)
-        assert elapsed >= 0.2, f"Should be throttled by max_workers=2, but finished in {elapsed:.2f}s"
-        # Should still be faster than fully sequential (10 * 0.05s = 0.5s)
-        assert elapsed < 2.0, f"Should not be sequential, took {elapsed:.2f}s"
+        # Two workers must take at least five 0.05-second batches; no upper bound rejects a loaded runner.
+        assert elapsed >= 0.2, f"Should be throttled by max_concurrency=2, but finished in {elapsed:.2f}s"
+        # The recorded executor size proves bounded, non-serial execution.
+        assert branch_executor_sizes == [2]
 
         # DB: one fork step for "Throttled"
         fork_steps = _get_fork_steps(pstat.process_id)

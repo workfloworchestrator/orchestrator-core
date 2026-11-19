@@ -42,8 +42,8 @@ NEW_TASK = "tasks.new_task"
 NEW_WORKFLOW = "tasks.new_workflow"
 RESUME_TASK = "tasks.resume_task"
 RESUME_WORKFLOW = "tasks.resume_workflow"
-EXECUTE_PARALLEL_BRANCH = "tasks.execute_parallel_branch"  # TODO suffix _TASK and _task for consistency
-EXECUTE_PARALLEL_BRANCH_WORKFLOW = "tasks.execute_parallel_branch_workflow"
+EXECUTE_PARALLEL_BRANCH_TASK = "tasks.execute_parallel_branch_task"
+EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK = "tasks.execute_parallel_branch_workflow_task"
 
 
 def get_celery_task(task_name: str) -> Any:
@@ -69,8 +69,8 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
         NEW_WORKFLOW: {"queue": "new_workflows"},
         RESUME_TASK: {"queue": "resume_tasks"},
         RESUME_WORKFLOW: {"queue": "resume_workflows"},
-        EXECUTE_PARALLEL_BRANCH: {"queue": app_settings.PARALLEL_BRANCH_QUEUE},
-        EXECUTE_PARALLEL_BRANCH_WORKFLOW: {"queue": app_settings.PARALLEL_BRANCH_WORKFLOW_QUEUE},
+        EXECUTE_PARALLEL_BRANCH_TASK: {"queue": app_settings.PARALLEL_BRANCH_QUEUE},
+        EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK: {"queue": app_settings.PARALLEL_BRANCH_WORKFLOW_QUEUE},
     }
 
     register_custom_serializer()
@@ -162,8 +162,8 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
         else:
             return process_id
 
-    @celery_task(name=EXECUTE_PARALLEL_BRANCH)
-    def execute_parallel_branch(
+    @celery_task(name=EXECUTE_PARALLEL_BRANCH_TASK)
+    def execute_parallel_branch_task(
         process_id: UUID,
         branch_index: int,
         fork_step_id: UUID,
@@ -173,8 +173,8 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
     ) -> UUID | None:
         return _run_parallel_branch(process_id, branch_index, fork_step_id, initial_state, user, seed_state)
 
-    @celery_task(name=EXECUTE_PARALLEL_BRANCH_WORKFLOW)
-    def execute_parallel_branch_workflow(
+    @celery_task(name=EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK)
+    def execute_parallel_branch_workflow_task(
         process_id: UUID,
         branch_index: int,
         fork_step_id: UUID,

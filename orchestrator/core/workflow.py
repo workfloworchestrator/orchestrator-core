@@ -41,6 +41,7 @@ import strawberry
 import structlog
 from deprecated import deprecated
 from more_itertools import duplicates_everseen, unique_everseen
+from sqlalchemy.pool import QueuePool
 from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
@@ -48,6 +49,7 @@ from nwastdlib import const, identity
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessStepTable, db, transactional
+from orchestrator.core.db.database import ENGINE_ARGUMENTS
 from orchestrator.core.services.settings import get_engine_settings_table
 from orchestrator.core.settings import app_settings
 from orchestrator.core.targets import Target
@@ -865,12 +867,12 @@ def _dispatch_worker_branches(
     the parent workflow. Picks the task or workflow queue based on ``is_task``.
     """
     from orchestrator.core.services.tasks import (
-        EXECUTE_PARALLEL_BRANCH,
-        EXECUTE_PARALLEL_BRANCH_WORKFLOW,
+        EXECUTE_PARALLEL_BRANCH_TASK,
+        EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK,
         get_celery_task,
     )
 
-    task_name = EXECUTE_PARALLEL_BRANCH if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW
+    task_name = EXECUTE_PARALLEL_BRANCH_TASK if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK
     trigger_task = get_celery_task(task_name)
 
     from orchestrator.core.services.parallel import _succeeded_branch_indices
@@ -917,19 +919,58 @@ def _update_fork_step(fork_step_id: UUID, status: str, state: State, n_branches:
         db.session.commit()
 
 
-# TODO AI analysed the following:
-#  Pool deadlock with parallel steps (relevant to this branch)
-#   - _run_threadpool_branches (workflow.py:795) defaults to max_workers = len(pending), so a map_parallel over 200 items opens 200 threads at once.
-#   - Each thread calls db.database_scope() and checks out its own connection.
-#   - Meanwhile the parent thread keeps its connection, because its transaction is still open under transactional.
-#   - _create_fork_step and _update_fork_step each check out a further connection.
-#   Running MAX_WORKERS=5 workflows, each fanning out, lets parents hold connections while their branches wait for one.
-#   The branches give up after pool_timeout with a TimeoutError, and the result is either a 30-second stall followed by
-#   failed branches, or a full deadlock with nested forks.
-#   Suggestions:
-#   - Use a bounded default for max_workers instead of len(pending), or cap it against pool_size + max_overflow.
-#   - Document the per-process peak as roughly anyio threads (40) + MAX_WORKERS × (1 + max branches) + scheduler threads.
-#   - Add a test that runs a fan-out wider than the pool.
+# Fixed share of the synchronous DB pool reserved for HTTP requests, the scheduler and other non-fork users.
+_NON_FORK_POOL_RESERVE_FRACTION = 4
+
+
+@functools.lru_cache(maxsize=None)
+def _warn_about_default_concurrency_budget(capacity: int, max_workers: int, requested: int, budget: int) -> None:
+    logger.warning(
+        "Reducing parallel branch concurrency to the connection-pool budget",
+        requested_concurrency=requested,
+        branch_budget=budget,
+        connection_pool_capacity=capacity,
+        max_workers=max_workers,
+    )
+
+
+def _check_max_concurrency(value: int | None) -> None:
+    if value is not None and value <= 0:
+        raise ValueError("max_concurrency must be greater than 0")
+
+
+def _max_parallel_workers(
+    pending: int,
+    max_concurrency: int | None,
+    pool_size: int,
+    max_overflow: int,
+    max_workers: int,
+) -> int:
+    """Bound one fork's branch threads by the synchronous connection pool."""
+    _check_max_concurrency(max_concurrency)
+
+    capacity = pool_size + max_overflow
+    non_fork_reserve = max(4, capacity // _NON_FORK_POOL_RESERVE_FRACTION)
+    # One process-level quarter (at least four connections) is excluded from all fork budgets for HTTP/scheduler;
+    # subtract one parent connection per fork.
+    # Fork create/update database scopes do not overlap running branches, so they only imply extra slack.
+    # The floor allows serial execution for very high MAX_WORKERS or a small pool; a warning makes that explicit.
+    branch_budget = max(1, (capacity - non_fork_reserve) // max_workers - 1)
+    requested = max_concurrency if max_concurrency is not None else max_workers
+    if min(pending, requested) > branch_budget:
+        if max_concurrency is None:
+            _warn_about_default_concurrency_budget(capacity, max_workers, requested, branch_budget)
+        else:
+            logger.warning(
+                "Reducing parallel branch concurrency to the connection-pool budget",
+                requested_concurrency=requested,
+                branch_budget=branch_budget,
+                connection_pool_capacity=capacity,
+                max_workers=max_workers,
+            )
+    return min(pending, requested, branch_budget)
+
+
 def _run_threadpool_branches(
     branches: list[StepList],
     initial_state: State,
@@ -937,7 +978,7 @@ def _run_threadpool_branches(
     process_id: UUID | None,
     fork_step_id: UUID | None,
     current_user: str,
-    max_workers: int | None = None,
+    max_concurrency: int | None = None,
     seeds: list[State] | None = None,
 ) -> Process:
     """Execute branches in a thread pool and collect results synchronously.
@@ -960,7 +1001,12 @@ def _run_threadpool_branches(
     branch_results: list[Process | None] = [None] * n_branches
 
     if pending:
-        workers = max_workers if max_workers is not None else len(pending)
+        pool = db.engine.pool
+        pool_size = pool.size() if isinstance(pool, QueuePool) else cast(int, ENGINE_ARGUMENTS["pool_size"])
+        max_overflow = getattr(pool, "_max_overflow", cast(int, ENGINE_ARGUMENTS.get("max_overflow", 0)))
+        workers = _max_parallel_workers(
+            len(pending), max_concurrency, pool_size, max_overflow, app_settings.MAX_WORKERS
+        )
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {
                 executor.submit(
@@ -1015,7 +1061,7 @@ def _run_threadpool_branches(
 def _exec_parallel_branches(
     branching: BranchSpec,
     initial_state: State,
-    max_workers: int | None = None,
+    max_concurrency: int | None = None,
     seeds: list[State] | None = None,
 ) -> Process:
     """Execute the branches of ``branching``, dispatching to worker or threadpool based on EXECUTOR setting."""
@@ -1057,7 +1103,7 @@ def _exec_parallel_branches(
                 process_id,
                 fork_step_id,
                 current_user,
-                max_workers=max_workers,
+                max_concurrency=max_concurrency,
                 seeds=seeds,
             )
 
@@ -1066,9 +1112,10 @@ def _make_parallel_step(
     name: str,
     branches: list[StepList],
     retry_auth_callback: Authorizer | None = None,
-    max_workers: int | None = None,
+    max_concurrency: int | None = None,
 ) -> Step:
     """Create a parallel step from a list of branches (internal implementation)."""
+    _check_max_concurrency(max_concurrency)
     if len(branches) < 2:
         raise ValueError("parallel() requires at least 2 branches")
 
@@ -1091,7 +1138,7 @@ def _make_parallel_step(
 
     def func(initial_state: State) -> Process:
         with transactional(db, logger):
-            return _exec_parallel_branches(branching, initial_state, max_workers=max_workers)
+            return _exec_parallel_branches(branching, initial_state, max_concurrency=max_concurrency)
 
     return make_step_function(func, name, retry_auth_callback=retry_auth_callback, branching=branching)
 
@@ -1116,7 +1163,7 @@ def parallel(
     name: str,
     *branches: StepList | Step,
     retry_auth_callback: Authorizer | None = None,
-    max_workers: int | None = None,  # TODO better name for this (max_concurrency, concurrency_limit, ..)
+    max_concurrency: int | None = None,
 ) -> Step:
     """Execute multiple step sequences in parallel.
 
@@ -1130,7 +1177,9 @@ def parallel(
         name: Name for this parallel group (shown in logs/UI)
         *branches: multiple Step or StepList to execute concurrently
         retry_auth_callback: Authorization callback for retrying on failure
-        max_workers: Max concurrent threads (None = number of branches)
+        max_concurrency: Maximum concurrent branch threads. Defaults to ``MAX_WORKERS`` and, together with
+            explicit values, is capped by the DB connection budget. Ignored with ``EXECUTOR=worker``;
+            worker concurrency controls execution there.
 
     Returns:
         A Step that can be composed with >> operator
@@ -1138,10 +1187,11 @@ def parallel(
     Raises:
         ValueError: If fewer than 2 branches provided
         ValueError: If any branch contains an inputstep
+        ValueError: If ``max_concurrency`` is not positive
     """
     branch_steplists = [begin >> branch for branch in branches]
     return _make_parallel_step(
-        name, list(branch_steplists), retry_auth_callback=retry_auth_callback, max_workers=max_workers
+        name, list(branch_steplists), retry_auth_callback=retry_auth_callback, max_concurrency=max_concurrency
     )
 
 
@@ -1149,12 +1199,12 @@ def map_parallel(
     name: str,
     items_key: str,
     branch: StepList | Step,
-    max_workers: int | None = None,  # TODO better name for this (max_concurrency, concurrency_limit, ..)
+    max_concurrency: int | None = None,
 ) -> Step:
     """Map the Step or StepList to all items in ``state[items_key]``.
 
-    At runtime the step reads ``state[items_key]`` and spawns one thread per item.
-    Each thread runs a deep copy of *branch* with the item merged into its initial state:
+    At runtime the step reads ``state[items_key]`` and schedules one branch per item.
+    Each branch runs a deep copy of *branch* with the item merged into its initial state:
 
     - **Dict items** are merged directly: ``initial_state | item``.
       The item's keys become available as ordinary step arguments in that branch.
@@ -1186,20 +1236,35 @@ def map_parallel(
                 >> link_ports
                 >> done
             )
-        # TODO example for a StepList with more than 1 step
+
+    Example of a multi-step ``StepList``::
+
+        @step("Reserve port")
+        def reserve_port(port_id, vlan):
+            return call_reservation_api(port_id, vlan)
+
+        map_parallel(
+            "Provision ports",
+            "ports",
+            begin >> reserve_port >> provision_port,
+        )
 
     Args:
         name: Name for the parallel group (shown in logs/UI).
         items_key: Key in the workflow state whose value is the list to iterate over.
         branch: Step or StepList executed once per item, with the item merged into state.
-        max_workers: Max concurrent threads. Defaults to the number of items.
+        max_concurrency: Maximum concurrent item branches. Defaults to ``MAX_WORKERS`` and, together with
+            explicit values, is capped by the DB connection budget. Ignored with ``EXECUTOR=worker``;
+            worker concurrency controls execution there.
 
     Returns:
         A Step that can be composed with the ``>>`` operator.
 
     Raises:
         ValueError: If ``state[items_key]`` is not iterable at runtime.
+        ValueError: If ``max_concurrency`` is not positive.
     """
+    _check_max_concurrency(max_concurrency)
     branch_steplist = begin >> branch
     branching = BranchSpec(name, BranchKind.MAP_PARALLEL, (branch_steplist,))
 
@@ -1218,7 +1283,7 @@ def map_parallel(
                 item if isinstance(item, dict) else {"item": item, "item_index": idx} for idx, item in enumerate(items)
             ]
 
-            return _exec_parallel_branches(branching, initial_state, max_workers=max_workers, seeds=seeds)
+            return _exec_parallel_branches(branching, initial_state, max_concurrency=max_concurrency, seeds=seeds)
 
     return make_step_function(func, name, branching=branching)
 

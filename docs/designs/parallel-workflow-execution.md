@@ -259,7 +259,7 @@ All parallel tracking — branch results, completion counts, branch-to-fork rela
 The execution strategy is determined by the global `app_settings.EXECUTOR` setting. The engine dispatches to the appropriate executor at the fork point:
 
 ```python
-def _exec_parallel_branches(branching, initial_state, max_workers=None, seeds=None):
+def _exec_parallel_branches(branching, initial_state, max_concurrency=None, seeds=None):
     pstat = process_stat_var.get(None)
     process_id = pstat.process_id if pstat else None
     branches = list(branching.branches)
@@ -304,9 +304,14 @@ Each branch runs in its own thread with its own database session (via `database_
 
 ```python
 def _run_threadpool_branches(branches, initial_state, name, process_id,
-                             fork_step_id, current_user, max_workers=None, seeds=None):
+                             fork_step_id, current_user, max_concurrency=None, seeds=None):
     n_branches = len(seeds) if seeds else len(branches)
-    workers = max_workers if max_workers is not None else n_branches
+    pending = [idx for idx in range(n_branches) if idx not in already_succeeded]
+    db_pool = db.engine.pool
+    workers = _max_parallel_workers(
+        len(pending), max_concurrency,
+        db_pool.size(), db_pool._max_overflow, app_settings.MAX_WORKERS
+    )
     branch_results = [None] * n_branches
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -449,7 +454,7 @@ When `EXECUTOR == ExecutorType.WORKER`, parallel branches are submitted as Celer
 ```python
 def _dispatch_worker_branches(branches, initial_state, process_id,
                                current_user, fork_step_id, is_task, seeds=None):
-    task_name = EXECUTE_PARALLEL_BRANCH if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW
+    task_name = EXECUTE_PARALLEL_BRANCH_TASK if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK
     trigger_task = get_celery_task(task_name)
 
     for idx, _ in enumerate(branches):
@@ -581,7 +586,7 @@ begin >> step_a | begin >> step_b
 `foreach_parallel` is built on the same infrastructure as `parallel`, wrapped in `transactional`:
 
 ```python
-def foreach_parallel(name, items_key, branch, max_workers=None):
+def foreach_parallel(name, items_key, branch, max_concurrency=None):
     def func(initial_state):
         with transactional(db, logger):
             raw = initial_state.get(items_key)
@@ -596,7 +601,7 @@ def foreach_parallel(name, items_key, branch, max_workers=None):
                 for idx, item in enumerate(items)
             ]
             return _exec_parallel_branches(branching, initial_state,
-                                           max_workers=max_workers, seeds=seeds)
+                                           max_concurrency=max_concurrency, seeds=seeds)
 
     # MAP_PARALLEL is a template kind: one branch list that runs once per item
     return make_step_function(func, name, branching=BranchSpec(name, BranchKind.MAP_PARALLEL, (branch,)))
@@ -746,7 +751,15 @@ A later migration (`06300482cd05`) adds
 ## 8. Resolved Questions
 
 1. **State merging**: Branch results are NOT merged — they stay in DB. Post-parallel steps receive pre-parallel state.
-2. **Max branches**: No hard limit; `max_workers` parameter controls thread pool size
+2. **Max branches**: `max_concurrency` controls one threadpool fork, defaulting to `MAX_WORKERS` and capped at
+   `max(1, (capacity - max(4, capacity // 4)) // MAX_WORKERS - 1)`, where capacity is `pool_size + max_overflow`.
+   The fixed non-fork reserve protects HTTP/scheduler and other users of the shared pool; the `- 1` is the parent
+   connection. Fork create/update scopes do not overlap running branches, so they only imply extra slack. Above
+   the budget, requests are throttled when pending work needs more than the budget: explicit requests warn once
+   per fork; capped defaults warn once per process and `(capacity, MAX_WORKERS)` pair. A serial floor handles high
+   `MAX_WORKERS` values. The cap reduces, but does not guarantee against, pool exhaustion.
+   Nested forks and multiple processes are not globally bounded. Celery dispatches one task per branch and ignores
+   `max_concurrency`; worker concurrency controls execution there.
 3. **Thread safety**: Each branch gets its own session + connection via `db.database_scope()`
 4. **Fork step visibility**: Created via separate `database_scope()` with real commit, visible to branch threads
 5. **Celery step serialization**: Reference by `workflow_key + parallel_group_name + branch_index`; reconstruct on worker

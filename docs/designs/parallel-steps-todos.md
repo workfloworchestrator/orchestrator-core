@@ -121,7 +121,7 @@ has a starting point.
     template.
   - Keep `BranchSpec` generic, so loop steps can reuse it: it holds the structure of a branching step, not how it runs.
     Execution options (`max_concurrency` and the items key of `map_parallel`; `until`, `limit` and `on_error` of a
-    loop) stay in the step function built by the beta DSL, as `max_workers` does today. The stable class then doesn't
+    loop) stay in the step function built by the beta DSL, as `max_concurrency` does today. The stable class then doesn't
     change when a beta API changes.
   - Add `branching: BranchSpec | None = None` to the `Step` Protocol, in the same way as `importance` and
     `retry_auth_callback`, and set it through a new `make_step_function` parameter.
@@ -150,21 +150,15 @@ Status: done.
 ## Phase 6: Public API and defaults
 <!-- diataxis: how-to -->
 
-- `workflow.py:985, 1018`: *better name for `max_workers`.*
-  Rename to `max_concurrency` on `parallel()`, `map_parallel()` and the internal functions. Document that it only
-  applies to the threadpool executor and is ignored with `EXECUTOR=worker`. Update `docs/designs` and the workflow docs.
-- `workflow.py:770`: *AI analysis: connection-pool deadlock.*
-  - When `max_concurrency` is not given, use a bounded default instead of `len(pending)`, capped against the
-    connection pool (`pool_size` 60 plus `max_overflow`, in `db/database.py:191`).
-  - Add an integration test with a fan-out wider than the pool.
-  - Replace the TODO block with a short comment explaining the cap, and document the peak number of connections in
-    the docs for the `MAX_WORKERS` setting.
-- `workflow.py:1055`: *example for a `StepList` with more than one step.*
-  Add a second example to the `map_parallel` docstring, e.g. `begin >> reserve_port >> provision_port`.
-- `services/tasks.py:45`: *`_TASK` / `_task` suffix for consistency.*
-  Rename to `EXECUTE_PARALLEL_BRANCH_TASK = "tasks.execute_parallel_branch_task"` with the function
-  `execute_parallel_branch_task`, in line with `NEW_TASK`/`RESUME_TASK`. The task names aren't released, so rename
-  the Celery routing strings too. Update the queue routing in `initialise_celery` and the tests.
+Status: done.
+
+`max_concurrency` applies only to threadpool execution and defaults to `MAX_WORKERS`. Each fork is bounded by
+`max(1, (capacity - max(4, capacity // 4)) // MAX_WORKERS - 1)`, where capacity is `pool_size + max_overflow`.
+The fixed reserve protects HTTP/scheduler and other non-fork pool users, but does not guarantee against pool
+exhaustion. Pending requests above the budget are throttled; explicit requests warn per fork and defaults once per
+process and `(capacity, MAX_WORKERS)` pair. Nested forks are not globally bounded. Worker execution ignores this
+option and dispatches one Celery task per branch.
+
 
 ## Phase 7: Restructure
 <!-- diataxis: how-to -->

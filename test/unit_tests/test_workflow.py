@@ -28,6 +28,9 @@ from orchestrator.core.workflow import (
     Waiting,
     _dispatch_worker_branches,
     _iter_parallel_group_names,
+    _max_parallel_workers,
+    _run_threadpool_branches,
+    _warn_about_default_concurrency_budget,
     callback_step,
     conditional,
     done,
@@ -43,6 +46,98 @@ from orchestrator.core.workflow import (
     _worst_status as worst_status,
 )
 from pydantic_forms.core import FormPage
+
+
+@pytest.mark.parametrize(
+    "pending, max_concurrency, pool_size, max_overflow, max_workers, expected",
+    [
+        pytest.param(200, None, 60, 10, 5, 5, id="defaults-to-outer-worker-count"),
+        pytest.param(200, 200, 60, 10, 5, 9, id="explicit-value-capped-by-shared-connection-budget"),
+        pytest.param(3, None, 60, 10, 5, 3, id="does-not-exceed-pending-branches"),
+        pytest.param(2, 20, 1, 0, 200, 1, id="small-pool-still-runs-serially"),
+    ],
+)
+def test_max_parallel_workers(pending, max_concurrency, pool_size, max_overflow, max_workers, expected):
+    workers = _max_parallel_workers(pending, max_concurrency, pool_size, max_overflow, max_workers)
+
+    assert workers == expected
+
+
+@pytest.mark.parametrize("max_concurrency", [0, -1])
+def test_max_parallel_workers_rejects_non_positive_explicit_value(max_concurrency):
+    with pytest.raises(ValueError, match="max_concurrency must be greater than 0"):
+        _max_parallel_workers(10, max_concurrency, 60, 10, 5)
+
+
+@pytest.mark.parametrize(
+    "max_concurrency, max_workers",
+    [
+        pytest.param(200, 5, id="explicit-concurrency-above-budget"),
+        pytest.param(None, 18, id="serial-floor-for-large-worker-count"),
+    ],
+)
+def test_max_parallel_workers_warns_once_when_budget_throttles(max_concurrency, max_workers):
+    _warn_about_default_concurrency_budget.cache_clear()
+    with patch("orchestrator.core.workflow.logger") as mock_logger:
+        workers = [
+            _max_parallel_workers(200, max_concurrency, 60, 10, max_workers),
+            _max_parallel_workers(200, max_concurrency, 60, 10, max_workers),
+        ]
+
+    expected_requested = max_concurrency if max_concurrency is not None else max_workers
+    expected_budget = 9 if max_workers == 5 else 1
+    assert workers == [expected_budget] * 2
+    attempted_calls = 2 if max_concurrency is not None else 1
+    assert mock_logger.warning.call_count == attempted_calls
+    if max_concurrency is None:
+        assert _warn_about_default_concurrency_budget.cache_info().hits == 1
+    mock_logger.warning.assert_called_with(
+        "Reducing parallel branch concurrency to the connection-pool budget",
+        requested_concurrency=expected_requested,
+        branch_budget=expected_budget,
+        connection_pool_capacity=70,
+        max_workers=max_workers,
+    )
+
+
+def test_max_parallel_workers_does_not_warn_when_pending_fits_budget():
+    _warn_about_default_concurrency_budget.cache_clear()
+    with patch("orchestrator.core.workflow.logger") as mock_logger:
+        assert _max_parallel_workers(5, 200, 60, 10, 5) == 5
+        assert _max_parallel_workers(1, None, 60, 10, 18) == 1
+
+    mock_logger.warning.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "construct",
+    [
+        pytest.param(
+            lambda: parallel("Parallel", begin >> _step_a, begin >> _step_b, max_concurrency=0), id="parallel"
+        ),
+        pytest.param(lambda: map_parallel("Map", "items", begin >> _step_a, max_concurrency=-1), id="map-parallel"),
+    ],
+)
+def test_parallel_step_rejects_non_positive_concurrency_at_definition(construct):
+    with pytest.raises(ValueError, match="max_concurrency must be greater than 0"):
+        construct()
+
+
+@patch("orchestrator.core.workflow.ThreadPoolExecutor")
+@patch("orchestrator.core.workflow.db")
+def test_threadpool_rejects_non_positive_concurrency_before_creating_executor(_mock_db, mock_executor):
+    with pytest.raises(ValueError, match="max_concurrency must be greater than 0"):
+        _run_threadpool_branches(
+            branches=[StepList([_step_a]), StepList([_step_b])],
+            initial_state={},
+            name="test",
+            process_id=None,
+            fork_step_id=None,
+            current_user="",
+            max_concurrency=0,
+        )
+
+    mock_executor.assert_not_called()
 
 
 @step("Step A")
@@ -300,9 +395,12 @@ def test_worker_branches_submits_tasks_and_returns_waiting(
     assert mock_task.delay.call_count == 2
 
     # Verify correct task name was requested
-    from orchestrator.core.services.tasks import EXECUTE_PARALLEL_BRANCH, EXECUTE_PARALLEL_BRANCH_WORKFLOW
+    from orchestrator.core.services.tasks import (
+        EXECUTE_PARALLEL_BRANCH_TASK,
+        EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK,
+    )
 
-    expected_task = EXECUTE_PARALLEL_BRANCH if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW
+    expected_task = EXECUTE_PARALLEL_BRANCH_TASK if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK
     mock_get_task.assert_called_once_with(expected_task)
 
 

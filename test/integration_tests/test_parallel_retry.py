@@ -233,7 +233,7 @@ def test_nested_parallel_in_map_parallel_retries_only_its_own_failed_branches() 
     Here item 0's ``Provision`` fails and item 1's ``Record`` fails. On retry, item 0 must run its ``Provision``
     again (and fail again), while item 1 only re-runs ``Record``. Today item 0's new ``Inner`` fork inherits
     item 1's successful ``Provision`` branch instead, so item 0 completes without re-running it.
-    ``max_workers=1`` keeps the item order deterministic.
+    ``max_concurrency=1`` keeps the item order deterministic.
 
     Strict xfail: once the prior-fork lookup is scoped to the enclosing branch (see
     ``docs/designs/parallel-steps-todos.md``, phase 1), this test passes and the marker must be removed.
@@ -269,7 +269,7 @@ def test_nested_parallel_in_map_parallel_retries_only_its_own_failed_branches() 
                 "Items",
                 "items",
                 begin >> parallel("Inner", begin >> provision, begin >> record),
-                max_workers=1,
+                max_concurrency=1,
             )
             >> done
         )
