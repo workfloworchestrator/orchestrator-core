@@ -162,6 +162,22 @@ dev = [
 requires = ["uv_build>=0.13,<0.14"]
 build-backend = "uv_build"
 
+[tool.tox]
+# Keep in sync with `requires-python`
+env_list = ["py311", "py312", "py313", "py314"]
+requires = ["tox-uv"]
+
+[tool.tox.env_run_base]
+# One locked uv environment per Python version in .tox/<env>, reusing uv.lock
+# and the local uv cache. Re-run after dependency changes to refresh them.
+runner = "uv-venv-lock-runner"
+uv_sync_flags = ["--all-groups", "--all-extras"]
+# tox does not inherit the parent environment. The unit suite only needs
+# ENVIRONMENT=TESTING; DATABASE_URI / CACHE_URI are deliberately not passed so
+# the tests never touch a real Postgres or Redis.
+set_env = { ENVIRONMENT = "TESTING" }
+commands = [["pytest", { replace = "posargs", default = ["test/unit_tests"], extend = true }]]
+
 [tool.ruff]
 exclude = [
     ".git",
