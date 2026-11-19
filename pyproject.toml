@@ -86,7 +86,7 @@ celery = [
     "celery~=5.6.0",
 ]
 mcp = [
-    "fastmcp>=4.1.0",  # 3.15 support added in 4.1.0
+    "fastmcp>=2.0.0",
 ]
 # Test helpers in orchestrator.core.testing for downstream test suites
 testing = [
@@ -124,7 +124,7 @@ dev = [
     "mypy-extensions>=1.1.0",
     "prek>=0.5.5",
     "pydocstyle>=6.3.0",
-    "pyinstrument>=5.0.2; python_version < '3.15'",
+    "pyinstrument>=5.0.2",
     "pytest==9.2.0",
     "pytest-asyncio==1.4.1.post1",
     "pytest-celery>=1.2.1",
@@ -218,6 +218,7 @@ ignore = [
     "N815",
     "N802",
 ]
+select = ["ASYNC", "B", "C", "D", "E", "F", "I", "N", "RET", "S", "T", "TID", "W"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -255,14 +256,8 @@ exclude-newer = "3 days"
 # certifi is exempt so the emSign CA distrust (GHSA-6q48-6c7w-9gw2) is picked up immediately.
 exclude-newer-package = { certifi = false, pydantic-forms = false, nwa-stdlib = false, oauth2-lib = false }
 override-dependencies = [
-    "grpcio==1.85.1", # Force grpcio 1.85.1 for Python 3.15 wheel support
-    "cachebox>=6.1.2", # force cachebox 6.x for Python 3.15 support
-    "httptools>=0.9.0", # Force httptools 0.9.0+ for Python 3.15 wheel support (0.8.0 has no cp315 wheel)
-    "regex>=2026.9.3", # Force regex 2026.9.3+ for Python 3.15 wheel support (2026.7.19 has no cp315 wheel)
-    "jiter>=0.19.0", # Force jiter 0.19.0+ for Python 3.15 wheel support (0.16.0 has no cp315 wheel)
-    "uvloop>=0.23.0", # Force uvloop 0.23.0+ for Python 3.15 wheel support (0.22.1 has no cp315 wheel)
-    "markupsafe>=3.0.4", # Force MarkupSafe 3.0.4+ for Python 3.15 wheel support (3.0.3 has no cp315 wheel)
-    "tiktoken>=0.14.0", # Force tiktoken 0.14.0+ for Python 3.15 wheel support (0.13.0 has no cp315 wheel)
+    # deepdiff<9.2 caps cachebox<6, which has no cp315 wheel. Replace with deepdiff>=9.2.0 once it clears exclude-newer.
+    "cachebox>=6.1.2",
 ]
 
 [tool.uv.build-backend]
