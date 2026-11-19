@@ -63,6 +63,36 @@ This runs every test under `test/unit_tests/` plus the doctests in
 `orchestrator/core`. No Postgres, no Redis, no Docker — fast feedback for
 day-to-day development.
 
+### Run unit tests on multiple Python versions
+<!-- diataxis: how-to -->
+
+orchestrator-core supports Python 3.11–3.14. To run the unit suite against all
+of them without recreating `.venv` each time, use [tox](https://tox.wiki) with
+the `tox-uv` plugin; the configuration is in `tox.ini`:
+
+```shell
+just tox           # all supported versions, one after the other
+just tox -p        # all supported versions, in parallel
+just tox -e py313  # a single version
+```
+
+Each version gets its own virtualenv under `.tox/` (`.tox/py311`, `.tox/py313`,
+…). They are created on first use and reused afterwards, so only the first run
+is slow. If a Python version is missing, uv downloads it.
+
+Arguments after `--` are passed to pytest:
+
+```shell
+just tox -e py313 -- test/unit_tests -x
+just tox -p -- test/unit_tests -q -p no:warnings
+```
+
+The recipe is a thin wrapper around `uvx --with tox-uv tox`, which you can also
+call directly. tox does not inherit your shell environment: the environments
+only set `ENVIRONMENT=TESTING`, and `DATABASE_URI` / `CACHE_URI` are
+deliberately left unset, so this is for the unit suite only, not for the
+integration or acceptance tests above. CI runs the unit suite this way too.
+
 ### Run integration tests
 <!-- diataxis: -->
 

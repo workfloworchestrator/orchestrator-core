@@ -10,6 +10,7 @@
 ```bash
 uv run pytest test/unit_tests          # unit tests
 uv run pytest test/integration_tests   # integration tests
+just tox                               # unit tests on all supported Python versions (tox + tox-uv)
 uv run mypy orchestrator               # type check
 uv run ruff check orchestrator         # lint
 uv run ruff format orchestrator        # format
