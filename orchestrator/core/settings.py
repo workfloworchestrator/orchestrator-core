@@ -105,7 +105,14 @@ class AppSettings(BaseSettings):
             "Overridden by a pool_timeout patched into ENGINE_ARGUMENTS."
         ),
     )
-    MAX_WORKERS: int = 5
+    MAX_WORKERS: PositiveInt = Field(
+        5,
+        description=(
+            "Maximum concurrent outer workflows in the threadpool, and the default concurrency of each parallel "
+            "fork (default 5). Fork concurrency is capped by the DB pool budget (see the workflow docs). Nested "
+            "forks and multiple processes are not globally bounded."
+        ),
+    )
     WORKER_STATUS_INTERVAL: int = Field(
         5, description="Interval in seconds for updating worker status count in the background monitor"
     )

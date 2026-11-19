@@ -28,8 +28,8 @@ import pytest
 import orchestrator.core.services.tasks as tasks_module
 from orchestrator.core.schemas.engine_settings import WorkerStatus
 from orchestrator.core.services.tasks import (
-    EXECUTE_PARALLEL_BRANCH,
-    EXECUTE_PARALLEL_BRANCH_WORKFLOW,
+    EXECUTE_PARALLEL_BRANCH_TASK,
+    EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK,
     NEW_TASK,
     NEW_WORKFLOW,
     RESUME_TASK,
@@ -137,8 +137,8 @@ def test_initialise_celery_sets_task_routes():
         NEW_WORKFLOW: {"queue": "new_workflows"},
         RESUME_TASK: {"queue": "resume_tasks"},
         RESUME_WORKFLOW: {"queue": "resume_workflows"},
-        EXECUTE_PARALLEL_BRANCH: {"queue": "new_tasks"},
-        EXECUTE_PARALLEL_BRANCH_WORKFLOW: {"queue": "new_workflows"},
+        EXECUTE_PARALLEL_BRANCH_TASK: {"queue": "new_tasks"},
+        EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK: {"queue": "new_workflows"},
     }
 
 

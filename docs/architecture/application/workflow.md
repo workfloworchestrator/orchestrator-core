@@ -1,11 +1,11 @@
 ---
 # tutorial | how-to | reference | explanation | mixed
-diataxis:
+diataxis: mixed
 reviewed: false
 ---
 
 # What is a workflow and how does it work?
-<!-- diataxis: -->
+<!-- diataxis: mixed -->
 
 The workflow engine is the core of the software, it has been created to execute a number of functions.
 
@@ -106,7 +106,7 @@ Tasks are workflows that aren't associated with any subscriptions, and can be ru
 Learn about tasks and scheduling [here][tasks-and-scheduling].
 
 ## Workflow Steps
-<!-- diataxis: -->
+<!-- diataxis: mixed -->
 
 Workflows are composed of one or more **steps**, where each step is executed sequentially by the workflow engine and are the fundamental building blocks of workflows.
 
@@ -143,6 +143,7 @@ For a practical example of how to define reusable workflow steps—and how to le
 
 
 ### Parallel Steps
+<!-- diataxis: reference -->
 
 The workflow engine supports two kinds of parallel execution, both implemented as a fork/join pattern: the engine forks the state into isolated copies for each branch, executes them concurrently, and joins the results back into a single state.
 
@@ -152,6 +153,7 @@ Parallel execution supports two backends:
 - **Celery** (distributed): When `EXECUTOR=celery`, each branch is submitted as a separate Celery task. The parent workflow suspends (`Waiting`) until all branches complete. The last branch to finish atomically detects completion and resumes the parent workflow.
 
 #### Static parallel — fixed branches
+<!-- diataxis: reference -->
 
 Use when the set of branches is known at definition time (e.g., always provision port A and port B together).
 
@@ -184,11 +186,13 @@ def create_dual_port():
     par = parallel("Provision ports",
                    begin >> provision_port_a,
                    begin >> provision_port_b,
-                   retry_auth_callback=my_callback)
+                   retry_auth_callback=my_callback,
+                   max_concurrency=4)
     return init >> par >> link_ports >> done
 ```
 
 #### Dynamic parallel — one branch per item
+<!-- diataxis: reference -->
 
 Use when the number of branches depends on a runtime list in the workflow state (e.g., provision one port per item in `state["ports"]`).
 
@@ -227,9 +231,10 @@ Each item in the list becomes the seed state for one branch:
 Seed keys are injected into the branch's initial state as input-only context for that branch's steps.
 
 #### Behavior (both kinds)
+<!-- diataxis: reference -->
 
 - **State isolation**: Each branch receives a deep copy of the input state. Mutations in one branch do not affect other branches.
-- **Concurrent execution**: Branches execute concurrently. With ThreadPool, each branch runs in its own thread with an isolated database session (via `db.database_scope()`). With Celery, each branch runs as an independent worker task.
+- **Concurrent execution**: With ThreadPool, `max_concurrency` defaults to `MAX_WORKERS` and bounds each fork. With Celery (`EXECUTOR=celery`, `ExecutorType.WORKER`), each pending branch is submitted as a task; `max_concurrency` is ignored and worker concurrency controls execution.
 - **Per-branch DB logging**: Each branch writes its own `ProcessStepTable` rows, linked to the parent fork step via `ProcessStepRelationTable`. This gives fine-grained visibility into branch execution and enables the UI to render parallel branches as a tree.
 - **No state merging**: Branch results are **not** merged back into the main workflow state. Each branch's final state is persisted in its own `ProcessStepTable` row, linked to the fork step via `ProcessStepRelationTable`. The main workflow continues with its pre-fork state. Branch results are accessible via the DB (and visible in the UI) but do not pollute the parent state.
 - **Error propagation**: If any branch fails, the entire parallel group fails. All branches run to completion before the worst status is determined. Status priority is: Failed > Waiting > Suspend > AwaitingCallback > Success.
@@ -238,7 +243,18 @@ Seed keys are injected into the branch's initial state as input-only context for
 - **Three or more branches**: The `|` operator chains naturally: `a | b | c` creates three parallel branches.
 - **Empty list** (`map_parallel`): An empty `items_key` list returns `Success` with the unchanged state — no threads are created.
 
+**Pool sizing**: ThreadPool `max_concurrency` must be positive. The sync pool is shared with HTTP requests, the
+scheduler and other non-fork users; one process-level `max(4, capacity // 4)` connections are excluded from fork
+budgets for them, where `capacity = pool_size + max_overflow`. Each fork allows
+`max(1, (capacity - reserve) // MAX_WORKERS - 1)` threads, reducing but not guaranteeing against pool exhaustion.
+The final `- 1` covers the parent connection; fork create/update scopes do not overlap running branches, so their
+extra slack is not a permanent reservation. A request above the budget is throttled; an explicit value logs once
+per fork, while a capped default logs once per process for each `(capacity, MAX_WORKERS)` combination. High
+`MAX_WORKERS` values may fall back to serial forks. With defaults (capacity 70, `MAX_WORKERS=5`), the budget is 9
+and the default request is 5. Nested forks and multiple processes are not globally bounded.
+
 #### Database schema
+<!-- diataxis: -->
 
 Parallel execution introduces:
 
@@ -246,6 +262,7 @@ Parallel execution introduces:
 - **Fork step columns on `ProcessStepTable`**: `branch_count` (total branch count), `branch_kind` (`parallel` for `parallel()`, `map_parallel` for `map_parallel()`, NULL for ordinary steps) and `branches_completed` (branches finished so far, used for atomic last-finisher detection with Celery). A check constraint requires `branch_kind` and `branch_count` to be set together. In the API, `branch_kind` is the `BranchKind` enum, which serializes to those same strings.
 
 #### Celery configuration
+<!-- diataxis: -->
 
 When using Celery execution, parallel branches are routed to configurable queues:
 
