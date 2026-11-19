@@ -116,7 +116,8 @@ class Indexer:
         5) Build batches: buffer the distinct unseen texts of embeddable fields and track
             a running token count, flushing when the next text would exceed the token
             budget (model max context - safety margin). All other records accumulate in
-            parallel and do not affect flushing.
+            parallel and do not affect flushing. A text sent to the API costs no call
+            again in the same run, also when it failed; the next run retries it.
         6) Insert the new vectors of each batch, then UPSERT its index rows (skip in dry_run).
         7) Commit transaction (auto on context exit).
         8) Repeat until the stream is exhausted.
@@ -143,12 +144,16 @@ class Indexer:
         self.embedding_model = llm_settings.EMBEDDING_MODEL
         self.logger = logger.bind(entity_kind=config.entity_kind.value)
         self._entity_titles: dict[str, str] = {}
+        # Texts sent to the embedding API in this run. A failed text gets no vector, so without this the next chunk
+        # would send it again. Cleared per run, so the next run retries it.
+        self._attempted_embedding_hashes: set[str] = set()
 
     def run(self, entities: Iterable[DatabaseEntity]) -> int:
         """Orchestrates the entire indexing process."""
         chunk: list[DatabaseEntity] = []
         total_records_processed = 0
         total_identical_records = 0
+        self._attempted_embedding_hashes = set()
 
         write_scope = db.database_scope() if not self.dry_run else nullcontext()
 
@@ -393,13 +398,15 @@ class Indexer:
     ) -> Generator[IndexBatch, None, None]:
         """Buffers the distinct unseen texts by token count and yields batches of records plus new vectors.
 
-        Without a session every text counts as unseen. A text that is stored or buffered already costs no API call.
+        Without a session every text counts as unseen. A text that is stored, buffered or attempted earlier in this
+        run costs no API call.
         """
         fields = list(fields_to_upsert)
         embeddable_hashes = {
             self._embedding_hash(field) for _, field in fields if field.value_type.is_embeddable(field.value)
         }
         handled = self._existing_embedding_hashes(embeddable_hashes, session) if session else set()
+        handled |= self._attempted_embedding_hashes
 
         pending_texts: dict[str, str] = {}
         records: list[IndexableRecord] = []
@@ -436,7 +443,8 @@ class Indexer:
     ) -> Iterator[tuple[str, ExtractedField, str | None, int | None]]:
         """Yields `(entity_id, field, embedding_hash, tokens)` and drops fields that cannot be embedded.
 
-        `tokens` is None when no new vector is needed. A text joins `handled` when its first field is yielded.
+        `tokens` is None when no new vector is needed. A text joins `handled` and `_attempted_embedding_hashes` when
+        its first field is yielded, so a failed request is not retried later in the same run.
         """
         # Not a comprehension: `handled` is read while it is built, as it decides whether the next field is counted.
         for entity_id, field in fields:
@@ -447,6 +455,7 @@ class Indexer:
                 item_tokens = self._count_tokens(field, max_ctx)
                 if item_tokens is not None:
                     handled.add(embedding_hash)
+                    self._attempted_embedding_hashes.add(embedding_hash)
                     yield entity_id, field, embedding_hash, item_tokens
 
     def _count_tokens(self, field: ExtractedField, max_ctx: int) -> int | None:

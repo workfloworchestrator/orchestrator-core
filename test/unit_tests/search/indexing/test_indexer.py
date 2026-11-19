@@ -655,6 +655,58 @@ def test_upsert_mixed_embeddable_and_non_embeddable(indexer: Indexer) -> None:
     assert len(batches[0].embeddings) == 1
 
 
+def test_upsert_failed_text_is_not_retried_in_a_later_chunk(indexer: Indexer) -> None:
+    """An outage sends a repeated text once per run, not once per chunk, while its records are still written."""
+    repeated = _embeddable_field("root.description", "Same text for every entity")
+    chunks = [[(ENTITY_ID, repeated)], [(ENTITY_ID, repeated)]]
+
+    with (
+        patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
+        patch("litellm.utils.get_max_tokens", return_value=100),
+        patch("litellm.utils.encode", return_value=[1, 2]),
+        patch(
+            "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
+            return_value=[[]],
+        ) as mock_embed,
+    ):
+        mock_llm.EMBEDDING_SAFE_MARGIN_PERCENT = 0.0
+        mock_llm.EMBEDDING_MAX_BATCH_SIZE = None
+        batches = [batch for chunk in chunks for batch in indexer._generate_upsert_batches(chunk)]
+
+    assert mock_embed.call_count == 1
+    assert [len(batch.records) for batch in batches] == [1, 1]
+    assert all(batch.embeddings == [] for batch in batches)
+
+
+def test_upsert_failed_text_is_retried_on_the_next_run(indexer: Indexer) -> None:
+    """The attempted texts of a run do not carry over, so the next run sends the text again."""
+    field = _embeddable_field()
+
+    def failing_then_working_api(texts: list[str], dry_run: bool) -> list[list[float]]:
+        return [[]] if mock_embed.call_count == 1 else [[0.1, 0.2]]
+
+    with (
+        patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
+        patch("litellm.utils.get_max_tokens", return_value=100),
+        patch("litellm.utils.encode", return_value=[1, 2]),
+        patch(
+            "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
+            side_effect=failing_then_working_api,
+        ) as mock_embed,
+    ):
+        mock_llm.EMBEDDING_SAFE_MARGIN_PERCENT = 0.0
+        mock_llm.EMBEDDING_MAX_BATCH_SIZE = None
+        assert list(indexer._generate_upsert_batches([(ENTITY_ID, field)]))[0].embeddings == []
+        assert mock_embed.call_count == 1
+
+        # What run() does at the start of a new run.
+        indexer._attempted_embedding_hashes = set()
+        batches = list(indexer._generate_upsert_batches([(ENTITY_ID, field)]))
+
+    assert mock_embed.call_count == 2
+    assert len(batches[0].embeddings) == 1
+
+
 # ---------------------------------------------------------------------------
 # Indexer._flush_buffer
 # ---------------------------------------------------------------------------
