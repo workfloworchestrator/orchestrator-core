@@ -15,7 +15,13 @@ import json
 from http import HTTPStatus
 from uuid import uuid4
 
-from test.integration_tests.config import GRAPHQL_ENDPOINT
+import pytest
+
+from orchestrator.core.schedules.service import index_schedule
+from orchestrator.core.services.workflows import get_workflow_by_name
+from test.integration_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
+
+WORKFLOW_NAME = "task_resume_workflows"
 
 
 def get_scheduled_tasks_query(
@@ -318,3 +324,52 @@ def test_scheduled_tasks_invalid_sort(
     assert len(result["errors"]) == 1
     assert result["errors"][0]["message"] == expected_error_msg
     assert len(scheduled_tasks) == 4
+
+
+@pytest.mark.search
+def test_scheduled_tasks_search_returns_the_matching_schedules(
+    test_client_graphql, clear_all_scheduler_jobs, create_schedules_via_api
+):
+    clear_all_scheduler_jobs()
+    schedule_id = str(uuid4())
+    create_schedules_via_api(job_name="Resume nightly", workflow_name=WORKFLOW_NAME, schedule_id=schedule_id)
+    other_schedule_id = str(uuid4())
+    create_schedules_via_api(job_name="Clean up", workflow_name="task_clean_up_tasks", schedule_id=other_schedule_id)
+    index_schedule(schedule_id)
+    index_schedule(other_schedule_id)
+    query = """
+    query ScheduleSearch($search: ResourceSearchInput) {
+        scheduledTasks(search: $search) {
+            page { id workflowId name trigger }
+            searchEdges { node { id } matchingFields { path text } }
+            searchMetadata { searchType }
+            pageInfo { hasNextPage hasPreviousPage totalItems }
+        }
+    }
+    """
+    search_filter = {
+        "path": "schedule.workflow_name",
+        "condition": {"op": "EQ", "value": WORKFLOW_NAME},
+        "valueKind": "STRING",
+    }
+    data = json.dumps({"query": query, "variables": {"search": {"filters": {"op": "AND", "filters": [search_filter]}}}})
+
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers=GRAPHQL_HEADERS)
+
+    assert response.status_code == HTTPStatus.OK
+    result = response.json()
+    assert "errors" not in result
+    connection = result["data"]["scheduledTasks"]
+    assert connection["page"] == [
+        {
+            "id": schedule_id,
+            "workflowId": str(get_workflow_by_name(WORKFLOW_NAME).workflow_id),
+            "name": "Resume nightly",
+            "trigger": "interval[1:00:00]",
+        }
+    ]
+    assert connection["searchEdges"] == [
+        {"node": {"id": schedule_id}, "matchingFields": [{"path": "schedule.workflow_name", "text": WORKFLOW_NAME}]}
+    ]
+    assert connection["searchMetadata"]["searchType"] == "structured"
+    assert connection["pageInfo"] == {"hasNextPage": False, "hasPreviousPage": False, "totalItems": 1}

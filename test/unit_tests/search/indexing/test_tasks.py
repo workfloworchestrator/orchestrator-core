@@ -19,6 +19,7 @@ forwarding, and progress toggling.
 
 from contextlib import contextmanager
 from unittest.mock import MagicMock, call, patch
+from uuid import UUID
 
 import pytest
 
@@ -236,6 +237,33 @@ def test_run_indexing_show_progress_false_skips_entity_count():
         run_indexing_for_entity(EntityType.SUBSCRIPTION, show_progress=False)
 
     mock_count.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("entity_id", "entities", "dry_run", "expected_indexed", "expected_removed"),
+    [
+        pytest.param(VALID_UUID, [object()], False, True, False, id="existing-entity-is-indexed"),
+        pytest.param(VALID_UUID, [], False, False, True, id="missing-entity-is-removed"),
+        pytest.param(VALID_UUID, [], True, False, False, id="dry-run-removes-nothing"),
+        pytest.param("not-a-uuid", [], False, False, False, id="non-uuid-id-cannot-be-indexed"),
+        pytest.param(None, [], False, True, False, id="no-entity-id-never-removes"),
+    ],
+)
+def test_run_indexing_removes_a_missing_entity_from_the_index(
+    entity_id, entities, dry_run, expected_indexed, expected_removed
+):
+    registry = _make_mock_registry_config(_make_mock_stmt())
+    mock_db = MagicMock()
+    mock_db.session.execute.return_value.scalars.return_value = iter(entities)
+    mock_indexer_cls = MagicMock()
+
+    _run_indexing(registry, mock_db, mock_indexer_cls, entity_id=entity_id, dry_run=dry_run)
+
+    assert mock_indexer_cls.return_value.run.call_count == expected_indexed
+    assert mock_db.session.commit.call_count == expected_removed
+    if expected_removed:
+        delete_stmt = mock_db.session.execute.call_args.args[0]
+        assert delete_stmt.compile().params == {"entity_type_1": "SUBSCRIPTION", "entity_id_1": UUID(VALID_UUID)}
 
 
 # ---------------------------------------------------------------------------
