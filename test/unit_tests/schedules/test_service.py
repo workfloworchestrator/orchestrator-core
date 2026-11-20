@@ -14,6 +14,7 @@
 """Tests for load_schedules, the entry point for registering schedules from code, and for schedule indexing."""
 
 import importlib
+import threading
 import warnings
 from unittest import mock
 from uuid import NAMESPACE_DNS, uuid5
@@ -22,7 +23,7 @@ import pytest
 from structlog.testing import capture_logs
 
 import orchestrator.core.schedules as schedules
-from orchestrator.core.schedules.service import index_schedule, load_schedules
+from orchestrator.core.schedules.service import index_schedule, load_schedules, submit_schedule_index
 
 SCHEDULE_ID = "990e8400-e29b-41d4-a716-446655440000"
 
@@ -143,3 +144,66 @@ def test_index_schedule_raises_when_indexing_is_strict(mock_run_indexing, monkey
 
     with pytest.raises(RuntimeError, match="index unavailable"):
         index_schedule(SCHEDULE_ID)
+
+
+WAIT = 10
+
+
+@pytest.fixture
+def mock_database_scope():
+    with mock.patch("orchestrator.core.schedules.service.db") as mock_db:
+        yield mock_db.database_scope
+
+
+def test_submit_schedule_index_indexes_on_the_index_thread_in_a_database_scope(mock_database_scope):
+    index_threads: list[str] = []
+
+    def record_thread(schedule_id: str) -> None:
+        mock_database_scope.return_value.__enter__.assert_called_once_with()
+        index_threads.append(threading.current_thread().name)
+
+    with mock.patch("orchestrator.core.schedules.service.index_schedule", side_effect=record_thread) as mock_index:
+        submit_schedule_index(SCHEDULE_ID).result(timeout=WAIT)
+
+    mock_index.assert_called_once_with(SCHEDULE_ID)
+    (index_thread,) = index_threads
+    assert index_thread.startswith("schedule-index")
+    assert index_thread != threading.current_thread().name
+
+
+def test_submit_schedule_index_does_not_wait_and_keeps_the_submission_order(mock_database_scope):
+    """A slow update blocks neither the caller nor the order: the next update only starts after it finished."""
+    release_first = threading.Event()
+    events: list[str] = []
+
+    def slow_first_index(schedule_id: str) -> None:
+        events.append(f"start {schedule_id}")
+        assert schedule_id != "first" or release_first.wait(timeout=WAIT)
+        events.append(f"end {schedule_id}")
+
+    with mock.patch("orchestrator.core.schedules.service.index_schedule", side_effect=slow_first_index):
+        first = submit_schedule_index("first")
+        second = submit_schedule_index("second")
+        returned_before_indexing_finished = not first.done() and not second.done()
+        release_first.set()
+        second.result(timeout=WAIT)
+
+    assert returned_before_indexing_finished
+    assert events == ["start first", "end first", "start second", "end second"]
+
+
+def test_submit_schedule_index_logs_a_failure_and_keeps_indexing(mock_database_scope):
+    with (
+        mock.patch(
+            "orchestrator.core.schedules.service.index_schedule", side_effect=[RuntimeError("index unavailable"), None]
+        ) as mock_index,
+        capture_logs() as logs,
+    ):
+        failed = submit_schedule_index("failing")
+        submit_schedule_index("next").result(timeout=WAIT)
+
+    assert isinstance(failed.exception(timeout=WAIT), RuntimeError)
+    assert [(log["event"], log["log_level"], log["schedule_id"]) for log in logs] == [
+        ("Failed to index schedule in the background", "error", "failing")
+    ]
+    assert mock_index.call_args_list == [mock.call("failing"), mock.call("next")]

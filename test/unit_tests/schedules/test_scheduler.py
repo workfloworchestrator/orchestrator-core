@@ -53,10 +53,10 @@ def create_payload(**options) -> APSchedulerJobCreate:
 
 
 @pytest.fixture(autouse=True)
-def mock_index_schedule() -> Iterator[mock.Mock]:
+def mock_submit_schedule_index() -> Iterator[mock.Mock]:
     """Keep the search index out of these tests; schedule changes would otherwise reach for the database."""
-    with mock.patch("orchestrator.core.schedules.service.index_schedule") as mock_index:
-        yield mock_index
+    with mock.patch("orchestrator.core.schedules.service.submit_schedule_index") as mock_submit:
+        yield mock_submit
 
 
 @pytest.fixture
@@ -152,10 +152,10 @@ def _delete_schedule(scheduler_connection: mock.Mock) -> str:
         pytest.param(_delete_schedule, id="delete"),
     ],
 )
-def test_schedule_changes_update_the_search_index(known_workflow, mock_index_schedule, change_schedule):
+def test_schedule_changes_queue_a_search_index_update(known_workflow, mock_submit_schedule_index, change_schedule):
     schedule_id = change_schedule(mock.Mock())
 
-    mock_index_schedule.assert_called_once_with(schedule_id)
+    mock_submit_schedule_index.assert_called_once_with(schedule_id)
 
 
 @pytest.mark.parametrize(
@@ -177,10 +177,7 @@ def test_schedule_is_indexed_after_the_scheduler_stored_the_outcome_of_a_run(tri
         indexed.set()
 
     scheduled_at = datetime.now(timezone.utc)
-    with (
-        mock.patch("orchestrator.core.schedules.scheduler.db"),
-        mock.patch("orchestrator.core.schedules.scheduler.index_schedule", side_effect=record_stored_job),
-    ):
+    with mock.patch("orchestrator.core.schedules.scheduler.submit_schedule_index", side_effect=record_stored_job):
         scheduler_connection.add_job(
             lambda: None, trigger, id="schedule-1", next_run_time=scheduled_at, misfire_grace_time=60, **trigger_kwargs
         )

@@ -127,7 +127,8 @@ Indexing is triggered from four places:
 - **The scheduler**: a schedule is re-indexed when the scheduler creates or updates it and each time it
   submits it for a run, which moves its next run time. Deleting a schedule, or a run that leaves it without
   further run times, removes it from the index. Only schedules made through the API or `load_schedules`
-  are indexed. Failures are logged and swallowed unless `SEARCH_INDEXING_STRICT` is set.
+  are indexed. These updates run in the background, one at a time and in order, so the scheduler never waits
+  for them and the index can briefly lag behind. Failures are always logged and never stop the scheduler.
 - **The CLI**: see [Building and refreshing the index](#building-and-refreshing-the-index).
 
 ### Searching (read path)

@@ -37,6 +37,7 @@ from orchestrator.core.schedules.service import (
     add_unique_scheduled_task_to_queue,
     deserialize_payload,
     get_linker_entries_by_schedule_ids,
+    index_schedule,
     run_start_workflow_scheduler_task,
     serialize_payload,
     workflow_scheduler_queue,
@@ -50,6 +51,13 @@ from orchestrator.core.schemas.schedules import (
     APSchedulerJobUpdate,
 )
 from orchestrator.core.services.workflows import get_workflow_by_name
+
+
+@pytest.fixture(autouse=True)
+def index_schedules_inline():
+    """Index on the test's own thread and database session instead of on the background index thread."""
+    with patch("orchestrator.core.schedules.service.submit_schedule_index", side_effect=index_schedule):
+        yield
 
 
 def test_serialize_deserialize_payload_create():
