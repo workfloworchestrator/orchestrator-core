@@ -42,6 +42,8 @@ from orchestrator.core.db import (
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
 from orchestrator.core.schemas import SubscriptionWorkflowListsSchema
 from orchestrator.core.schemas.subscription import SubscriptionDomainModelSchema, SubscriptionWithMetadata
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.indexing.hooks import reindex_entity
 from orchestrator.core.security import authenticate
 from orchestrator.core.services.subscriptions import (
     format_extended_domain_model,
@@ -223,6 +225,7 @@ async def subscription_set_in_sync(
             if not failed_processes_list:
                 subscription.insync = True
                 await session.commit()
+                await reindex_entity(EntityType.SUBSCRIPTION, subscription_id)
                 logger.info("Subscription set in sync", user=current_user)
                 await invalidate_subscription_cache(subscription.subscription_id)
             else:
