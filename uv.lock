@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.11, <3.15"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -14,10 +14,10 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P3D"
 
 [options.exclude-newer-package]
+pydantic-forms = false
 certifi = false
 nwa-stdlib = false
 oauth2-lib = false
-pydantic-forms = false
 
 [manifest]
 overrides = [{ name = "grpcio", specifier = "==1.76.0" }]
@@ -2872,7 +2872,7 @@ wheels = [
 
 [[package]]
 name = "orchestrator-core"
-version = "5.7.0a3"
+version = "5.7.0a4"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
@@ -3014,7 +3014,7 @@ requires-dist = [
     { name = "prometheus-client", specifier = "==0.25.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.3" },
     { name = "pydantic", extras = ["email"], specifier = "~=2.14.2" },
-    { name = "pydantic-forms", specifier = ">=2.10.0" },
+    { name = "pydantic-forms", specifier = ">=2.10.1" },
     { name = "pydantic-settings", specifier = "~=2.16.0" },
     { name = "pytest", marker = "extra == 'testing'", specifier = ">=8.0" },
     { name = "python-dateutil", specifier = "==4.0.0" },
@@ -3719,16 +3719,16 @@ wheels = [
 
 [[package]]
 name = "pydantic-forms"
-version = "2.10.0"
+version = "2.10.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "more-itertools" },
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-i18n" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2d/94/2460978297267ceedabbda7c78ef6ced6338ccc1ee13b1dd4ce455bdc9b3/pydantic_forms-2.10.0.tar.gz", hash = "sha256:8fa0c34fd901bc34871543af1a871a165616e263f7dda176897249aee33aae3e", size = 70304, upload-time = "2026-11-04T10:40:13.377Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ab/79/3fc567fd93fd6e2338a71b9955da462345e57c518d47cc1cd81324024789/pydantic_forms-2.10.1.tar.gz", hash = "sha256:b563a49d9ccb12845dbbc82fb0ec4acd12361627039e843130d64fec3ff85a8b", size = 70705, upload-time = "2026-11-20T12:50:16.556Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/24/42/015e42395e0212ff883f17a66981576f2fe59ace555b4c9bca865ab8d71c/pydantic_forms-2.10.0-py3-none-any.whl", hash = "sha256:60e214ea1c45b7a9d2bdf662a74fc48453ade9912ca1f764fe42436e3c198d6f", size = 63281, upload-time = "2026-11-04T10:40:11.987Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/fa/323cae3e2d46d21f98dabe53df047df7706849a8032cc7d880ecfc96aa0a/pydantic_forms-2.10.1-py3-none-any.whl", hash = "sha256:61599613a480ad960051bfd65554c8932244052db93c295a8d9c255c1c959405", size = 63589, upload-time = "2026-11-20T12:50:15.202Z" },
 ]
 
 [[package]]
@@ -4521,8 +4521,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography" },
-    { name = "jeepney" },
+    { name = "cryptography", marker = "(python_full_version < '3.12' and sys_platform == 'emscripten') or (python_full_version >= '3.14' and sys_platform == 'emscripten') or (sys_platform != 'emscripten' and sys_platform != 'win32')" },
+    { name = "jeepney", marker = "(python_full_version < '3.12' and sys_platform == 'emscripten') or (python_full_version >= '3.14' and sys_platform == 'emscripten') or (sys_platform != 'emscripten' and sys_platform != 'win32')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
