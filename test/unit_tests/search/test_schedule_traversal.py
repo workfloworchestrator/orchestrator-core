@@ -86,12 +86,23 @@ def test_traverse_schedule_skips_unset_job_fields(overrides, missing_path):
     assert _get_fields(_job(**overrides)) == expected
 
 
+def test_traverse_schedule_whose_job_no_longer_exists_yields_no_fields():
+    assert _get_fields(None) == {}
+
+
 @pytest.mark.parametrize(
-    "job",
+    ("get_job", "expected_error"),
     [
-        pytest.param(None, id="job-no-longer-exists"),
-        pytest.param(SimpleNamespace(name="No trigger"), id="job-cannot-be-loaded"),
+        pytest.param({"side_effect": ConnectionError("database unavailable")}, ConnectionError, id="job-read-fails"),
+        pytest.param({"return_value": SimpleNamespace(name="No trigger")}, AttributeError, id="job-cannot-be-loaded"),
     ],
 )
-def test_traverse_schedule_without_usable_job_yields_no_fields(job):
-    assert _get_fields(job) == {}
+def test_traverse_schedule_raises_when_the_job_cannot_be_read(get_job, expected_error):
+    """A failed read must not look like a job that is gone: no fields would erase the schedule from the index."""
+    config = ENTITY_CONFIG_REGISTRY[EntityType.SCHEDULE]
+
+    with (
+        patch("orchestrator.core.schedules.scheduler.get_scheduler_task", **get_job),
+        pytest.raises(expected_error),
+    ):
+        config.traverser.get_fields(entity=_schedule(), pk_name=config.pk_name, root_name=config.root_name)

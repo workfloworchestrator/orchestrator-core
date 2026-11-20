@@ -22,7 +22,11 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from orchestrator.core.db import db
 from orchestrator.core.db.models import WorkflowApschedulerJob
-from orchestrator.core.schedules.scheduler import enrich_with_workflow_id, get_scheduler
+from orchestrator.core.schedules.scheduler import (
+    enrich_with_workflow_id,
+    get_scheduler,
+    get_scheduler_tasks_by_ids,
+)
 from orchestrator.core.schedules.service import (
     SCHEDULER_QUEUE,
     _add_scheduled_task,
@@ -372,6 +376,29 @@ def test_workflow_scheduler_queue_delete(mock_delete, mock_update, mock_create):
     mock_delete.assert_called_once()
     mock_update.assert_not_called()
     mock_create.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("requested", "expected"),
+    [
+        pytest.param(["first", "second"], {"first", "second"}, id="several-jobs"),
+        pytest.param(["second"], {"second"}, id="one-of-many"),
+        pytest.param(["first", "unknown"], {"first"}, id="unknown-id-is-left-out"),
+        pytest.param(["unknown"], set(), id="only-unknown-ids"),
+        pytest.param([], set(), id="no-ids"),
+    ],
+)
+def test_get_scheduler_tasks_by_ids_loads_only_the_requested_jobs(
+    scheduler_with_jobs, clear_all_scheduler_jobs, requested, expected
+):
+    clear_all_scheduler_jobs()
+    schedule_ids = {name: str(uuid4()) for name in ("first", "second", "third")}
+    for name, schedule_id in schedule_ids.items():
+        scheduler_with_jobs(job_name=name, schedule_id=schedule_id)
+
+    jobs = get_scheduler_tasks_by_ids([schedule_ids.get(name, str(uuid4())) for name in requested])
+
+    assert {job.name for job in jobs} == expected
 
 
 def test_enrich_schedule_with_workflow_id(scheduler_with_jobs, clear_all_scheduler_jobs):

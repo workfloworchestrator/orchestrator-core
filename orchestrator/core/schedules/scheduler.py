@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Collection
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Generator
@@ -80,9 +81,30 @@ scheduler.add_listener(log_missed_job, EVENT_JOB_MISSED)
 scheduler.add_listener(index_submitted_schedule, EVENT_JOB_SUBMITTED)
 
 
+class OrchestratorJobStore(SQLAlchemyJobStore):
+    """SQLAlchemy job store that can also load a chosen set of jobs."""
+
+    def get_jobs_by_ids(self, job_ids: Collection[str]) -> list[Job]:
+        """Return the jobs with the given ids, like `get_all_jobs` does for every job.
+
+        Args:
+            job_ids: The APScheduler job ids to load. Ids without a job are left out.
+        """
+        if not job_ids:
+            return []
+
+        # `jobs_t` is APScheduler's jobs table; `_get_jobs` adds each condition to the WHERE clause of its query.
+        job_id_column = self.jobs_t.c.id
+        is_requested_job = job_id_column.in_(job_ids)
+        jobs = self._get_jobs(is_requested_job)
+        # Same ordering as `get_all_jobs`: paused jobs (no next run time) go last.
+        self._fix_paused_jobs_sorting(jobs)
+        return jobs
+
+
 @contextmanager
-def get_scheduler_store() -> Generator[SQLAlchemyJobStore, Any, None]:
-    store = SQLAlchemyJobStore(engine=db.engine)
+def get_scheduler_store() -> Generator[OrchestratorJobStore, Any, None]:
+    store = OrchestratorJobStore(engine=db.engine)
     try:
         yield store
     finally:
@@ -92,6 +114,11 @@ def get_scheduler_store() -> Generator[SQLAlchemyJobStore, Any, None]:
 def get_all_scheduler_tasks() -> list[Job]:
     with get_scheduler_store() as scheduler_store:
         return scheduler_store.get_all_jobs()
+
+
+def get_scheduler_tasks_by_ids(job_ids: Collection[str]) -> list[Job]:
+    with get_scheduler_store() as scheduler_store:
+        return scheduler_store.get_jobs_by_ids(job_ids)
 
 
 def get_scheduler_task(job_id: str) -> Job | None:

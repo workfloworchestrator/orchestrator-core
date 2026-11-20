@@ -378,11 +378,12 @@ class ScheduleTraverser(BaseTraverser):
 
     @classmethod
     def _load_model(cls, schedule: WorkflowApschedulerJob) -> ScheduleIndexSchema | None:
-        """Load the schedule model, None (no fields) when its APScheduler job no longer exists."""
-        try:
-            return load_schedule_index_schema(schedule)
-        except Exception as e:
-            raise ModelLoadError(f"Failed to load ScheduleIndexSchema for schedule_id '{schedule.schedule_id}'") from e
+        """Load the schedule model, None (no fields) when its APScheduler job no longer exists.
+
+        A failure to read the job is not wrapped in `ModelLoadError`: `get_fields` turns that error into "no fields",
+        and the indexer would then delete the schedule's index records as if the job were gone.
+        """
+        return load_schedule_index_schema(schedule)
 
 
 class ProductBlockTraverser(BaseTraverser):
