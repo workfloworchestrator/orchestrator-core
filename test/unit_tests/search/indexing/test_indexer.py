@@ -1049,12 +1049,11 @@ def test_determine_changes_marks_a_changed_title_as_changed_without_the_lookup(
 
 
 def test_existing_embedding_hashes_scopes_to_entity_type_and_batches(mock_config: MagicMock) -> None:
-    idx = _make_indexer(mock_config)
+    idx = _make_indexer(mock_config, chunk_size=2)
     session = MagicMock()
     session.scalars.side_effect = [["a", "b"], ["c"]]
 
-    with patch("orchestrator.core.search.indexing.indexer.HASH_LOOKUP_BATCH_SIZE", 2):
-        found = idx._existing_embedding_hashes({"a", "b", "c", "d"}, session)
+    found = idx._existing_embedding_hashes({"a", "b", "c", "d"}, session)
 
     assert found == {"a", "b", "c"}
     assert session.scalars.call_count == 2
