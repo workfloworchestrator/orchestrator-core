@@ -66,6 +66,7 @@ On top of these, [AI / Hybrid Search](ai-search.md#what-you-can-search-and-where
 Tool names map 1:1 to the route's `operation_id`; tool descriptions come from the route's docstring; parameter schemas come from the route's Pydantic request model.
 
 ## Workflow form pages for agents
+<!-- diataxis: reference -->
 
 `get_workflow_form` walks a workflow's form page by page. Each result describes one page as `schema`: the page's JSON Schema as one self-contained document, the same schema the browser renders but with every `$ref` replaced by its definition (a model that contains itself keeps its `$ref` and its entry under `$defs`). Read `properties` and `required` for what to submit. A property's `title` and `description` are the field's label and help text as the frontend shows them, from core's form translations in the `language` asked (default `en-GB`); a field without one keeps the schema's own title. A property with `readOnly: true` (a label, a divider, a summary table, a subscription shown for context) is shown to a person and takes no value: submit nothing for it. `enum` lists the values a property takes and, where a value has a label that differs from it, `options` maps value to label: submit the value. `format: "accept"` is a confirmation and takes `"ACCEPTED"`. A nullable property is an `anyOf` with `{"type": "null"}`. The form's widget hints (`format`, `uniforms` / `extraProperties`) are in the schema as the browser gets them; the products a `productId` field allows, for instance, are under `uniforms.productIds`.
 
