@@ -1,11 +1,11 @@
 ---
 # tutorial | how-to | reference | explanation | mixed
-diataxis:
+diataxis: mixed
 reviewed: false
 ---
 
 # MCP Server
-<!-- diataxis: -->
+<!-- diataxis: mixed -->
 
 The `orchestrator-core` ships with an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that exposes a curated subset of REST operations as **tools** for LLM agents. It is mounted on the FastAPI app at `/mcp` and shares the same authentication/authorization chain as the rest of the API.
 
@@ -77,13 +77,15 @@ A field that says where its options are fetched (pydantic-forms' `OptionsSource`
 The walk and the schema are pydantic-forms': `pydantic_forms.core.walk_form` gives the next page, the result or the rejected page; `pydantic_forms.core.page_schema(page, inline_refs=True)` renders the page; `pydantic_forms.core.form_errors` turns a rejection into `errors`. Core keeps no copy of them.
 
 ## Extending
-<!-- diataxis: -->
+<!-- diataxis: how-to -->
 
-To expose a new tool, add a FastAPI route tagged with `AgentTag.EXPOSED`. The route is then picked up automatically on the next app start — no MCP-specific glue code required.
+Expose a FastAPI route by adding `AGENT_EXPOSED_TAG` to its `tags`, and declare its behavior through
+`openapi_extra`. Import the tag and annotation constants from `orchestrator.core.mcp.server`:
 
 ```python
-from orchestrator.core.agent_tags import AgentTag
 from fastapi import APIRouter
+
+from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, DESTRUCTIVE_TOOL
 
 router = APIRouter()
 
@@ -91,8 +93,9 @@ router = APIRouter()
 @router.post(
     "/cancel_process",
     response_model=CancelProcessResponse,
-    tags=[AgentTag.EXPOSED],
+    tags=[AGENT_EXPOSED_TAG],
     operation_id="cancel_process",
+    openapi_extra=DESTRUCTIVE_TOOL,
 )
 def cancel_process_endpoint(params: CancelProcessRequest) -> CancelProcessResponse:
     """Cancel a running workflow process.
@@ -102,39 +105,55 @@ def cancel_process_endpoint(params: CancelProcessRequest) -> CancelProcessRespon
     ...
 ```
 
+Use your application's request and response models and cancellation implementation in this example.
+Include the router in the FastAPI app before its MCP tools are built, then restart the app.
+
 Guidelines:
 
-* **Always set `operation_id`** — this becomes the MCP tool name.
-* **Write a docstring** — this becomes the tool description the LLM sees. Be explicit about preconditions and side effects.
-* **Use typed Pydantic models** for inputs/outputs — the parameter schema is derived from them.
-* **Add `AgentTag.LARGE`** when the response may contain many records, so clients can warn the agent to narrow before calling.
-* **Tag read-only `POST`/`PUT` routes `AgentTag.READONLY`** and irreversible mutations `AgentTag.DESTRUCTIVE` — these drive the tool's annotations (see below).
-* Prefer placing LLM-specific routes in `orchestrator/core/api/api_v1/endpoints/mcp_tools.py`. Use this when the existing REST shape is not LLM-friendly (e.g. flat positional filters, deprecated routes, oversized payloads). See the module docstring for the rationale of each existing curated tool.
+* **Always set `operation_id`**: this becomes the MCP tool name.
+* **Write a docstring**: this becomes the tool description the LLM sees. State preconditions and side effects.
+* **Use typed Pydantic models** for inputs and outputs: they define the parameter and response schemas.
+* **Declare behavior with `openapi_extra`**: use `READONLY_TOOL` for reads, `WRITE_TOOL` for non-idempotent
+  mutations, `IDEMPOTENT_WRITE_TOOL` for idempotent mutations, or `DESTRUCTIVE_TOOL` for irreversible operations.
+  Choose according to the route's behavior, not just its HTTP method.
+* Prefer placing LLM-specific routes in `orchestrator/core/api/api_v1/endpoints/mcp_tools.py` when the existing REST
+  shape is not LLM-friendly, for example because of positional filters, deprecated routes or oversized responses.
+  Describe large responses and useful ways to narrow them in the docstring.
 
-Routes without `AgentTag.EXPOSED` are excluded from the MCP surface, regardless of whether they are public REST endpoints.
+Routes without `AGENT_EXPOSED_TAG` are excluded from this MCP server's tools, regardless of whether they are
+public REST endpoints. Annotation hints do not replace authorization or collect approval from a person.
 
 ## Tool annotations
-<!-- diataxis: -->
+<!-- diataxis: reference -->
 
-Every generated tool carries [MCP `ToolAnnotations`](https://modelcontextprotocol.io/) so clients can reason about safety (e.g. auto-approve reads). They are stamped by `orchestrator.core.mcp.server._annotate` (the fastmcp `mcp_component_fn` hook), derived from each route's HTTP method plus its `AgentTag`s:
+The `openapi_extra` constants in `orchestrator.core.mcp.server` contain an `x-mcp-annotations` dictionary.
+`_build_component_fn` reads that dictionary from the app's OpenAPI specification, matches it by `operationId`,
+and applies it to the generated tool's [MCP `ToolAnnotations`](https://modelcontextprotocol.io/).
 
-* `readOnlyHint` — `GET` routes, or any route tagged `AgentTag.READONLY`.
-* `idempotentHint` — read-only routes, or `PUT`/`DELETE`.
-* `destructiveHint` — `DELETE` routes, or any route tagged `AgentTag.DESTRUCTIVE`.
-* `openWorldHint` — always `False` (the orchestrator acts on its own database, not an open external world).
-* `title` — a humanized form of the `operation_id` (e.g. `get_process_status` → "Get Process Status").
+| Constant | `readOnlyHint` | `idempotentHint` | `destructiveHint` | `openWorldHint` |
+| --- | --- | --- | --- | --- |
+| `READONLY_TOOL` | `True` | `True` | `False` | `False` |
+| `WRITE_TOOL` | `False` | `False` | `False` | `False` |
+| `IDEMPOTENT_WRITE_TOOL` | `False` | `True` | `False` | `False` |
+| `DESTRUCTIVE_TOOL` | `False` | `True` | `True` | `False` |
 
-The curated read tools in `mcp_tools.py` are `POST` routes, so they must be tagged `AgentTag.READONLY` to be marked safe; an irreversible action such as `abort_workflow_process` is tagged `AgentTag.DESTRUCTIVE`.
+For a route with this extension, `title` defaults to a humanized `operation_id`, such as
+`get_process_status` becoming "Get Process Status". An explicit `title` in the annotation dictionary overrides it.
+Without the extension, this callback leaves the generated component's annotations unchanged; it does not infer
+these hints from the HTTP method.
+
+The curated read tools in `mcp_tools.py` use `POST` with `openapi_extra=READONLY_TOOL`. An irreversible operation
+such as `abort_workflow_process` uses `openapi_extra=DESTRUCTIVE_TOOL`.
 
 ## Implementation
-<!-- diataxis: -->
+<!-- diataxis: explanation -->
 
 The mount logic lives in `orchestrator/core/mcp/server.py`:
 
 ```text
 OrchestratorCore (FastAPI)
   └── /mcp  (Starlette sub-app, fastmcp streamable HTTP)
-        └── FastMCP.from_fastapi(app, route_maps=[EXPOSED → TOOL, * → EXCLUDE])
+        └── FastMCP.from_fastapi(app, route_maps=[AGENT_EXPOSED_TAG → TOOL, * → EXCLUDE])
               └── in-process httpx (ASGITransport) → FastAPI route
                     └── Depends(authorize)
 ```
