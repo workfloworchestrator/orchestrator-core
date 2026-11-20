@@ -26,6 +26,11 @@ pytest *pytest_args:
     @just sync
     uv run pytest {{pytest_args}}
 
+# Run unit tests on all supported Python versions via tox (each version gets its own env in .tox/).
+# Examples: `just tox`, `just tox -p`, `just tox -e py313 -- test/unit_tests -x`
+tox *tox_args:
+    uvx --with tox-uv tox {{tox_args}}
+
 # Start the bundled Postgres + Redis docker-compose stack (alternative to
 # testcontainers; export DATABASE_URI / CACHE_URI before `just pytest`).
 pytest-support-start:
