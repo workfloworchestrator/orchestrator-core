@@ -128,6 +128,26 @@ def plan_of(stmt):
     return one(plans)
 
 
+def plan_of_statement(stmt):
+    """The plan of `stmt` with its own bound parameters, also for a CTE, which `plan_of` does not take.
+
+    Nothing is timed.
+    """
+    conn = db.session.connection()
+    plans = []
+
+    def explain(_conn, cursor, statement, parameters, _context, _executemany):
+        cursor.execute(f"EXPLAIN (FORMAT JSON) {statement}", parameters)
+        plans.append(cursor.fetchone()[0][0]["Plan"])
+
+    event.listen(conn, "before_cursor_execute", explain)
+    try:
+        conn.execute(stmt).all()
+    finally:
+        event.remove(conn, "before_cursor_execute", explain)
+    return one(plans)
+
+
 def plan_nodes(node):
     yield node
     for child in node.get("Plans", []):

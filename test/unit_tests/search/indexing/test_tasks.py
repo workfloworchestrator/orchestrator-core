@@ -166,6 +166,25 @@ def test_run_indexing_entity_id_forwarded():
 
 
 @pytest.mark.parametrize(
+    ("entity_id", "expected"),
+    [
+        pytest.param(None, True, id="full_run_cleans_up"),
+        pytest.param(VALID_UUID, False, id="single_entity_does_not"),
+    ],
+)
+def test_run_indexing_cleans_up_orphans_only_for_full_runs(entity_id, expected):
+    config = MagicMock()
+    config.get_all_query.return_value = _make_mock_stmt()
+    mock_db = MagicMock()
+    mock_db.session.execute.return_value.scalars.return_value = iter([])
+    mock_indexer_cls = MagicMock(return_value=MagicMock())
+
+    _run_indexing({EntityType.SUBSCRIPTION: config}, mock_db, mock_indexer_cls, entity_id=entity_id)
+
+    assert mock_indexer_cls.call_args.kwargs["cleanup_orphans"] is expected
+
+
+@pytest.mark.parametrize(
     ("dry_run", "force_index"),
     [
         pytest.param(True, False, id="dry_run_only"),

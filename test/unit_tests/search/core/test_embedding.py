@@ -17,6 +17,7 @@ Covers batch embedding, dry-run mode, truncation, sorting, error handling,
 and async query embedding.
 """
 
+import hashlib
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -24,7 +25,12 @@ import httpx
 import litellm.exceptions as llm_exc
 import pytest
 
-from orchestrator.core.search.core.embedding import EmbeddingIndexer, QueryEmbedder, prewarm_embedding_dependencies
+from orchestrator.core.search.core.embedding import (
+    EmbeddingIndexer,
+    QueryEmbedder,
+    compute_embedding_hash,
+    prewarm_embedding_dependencies,
+)
 
 pytestmark = pytest.mark.search
 
@@ -301,3 +307,26 @@ def test_prewarm_imports_litellm_when_enabled():
         prewarm_embedding_dependencies()
 
     assert "litellm" in sys.modules
+
+
+# ---------------------------------------------------------------------------
+# compute_embedding_hash
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("left", "right", "equal"),
+    [
+        pytest.param(("m", "A: B"), ("m", "a: b"), True, id="case-insensitive"),
+        pytest.param(("m", "a: b"), ("n", "a: b"), False, id="different-model"),
+        pytest.param(("m", "a: b"), ("m", "a: c"), False, id="different-text"),
+        pytest.param(("m", "é: Ü"), ("m", "É: ü"), True, id="unicode-case"),
+        pytest.param(("ab", "c"), ("a", "bc"), False, id="separator-keeps-model-and-text-apart"),
+    ],
+)
+def test_compute_embedding_hash_equality(left: tuple[str, str], right: tuple[str, str], equal: bool) -> None:
+    assert (compute_embedding_hash(*left) == compute_embedding_hash(*right)) is equal
+
+
+def test_compute_embedding_hash_exact_value() -> None:
+    assert compute_embedding_hash("m", "a: b") == hashlib.sha256(b"m\x00a: b").hexdigest()

@@ -132,7 +132,7 @@ async def record_ground_truth():
     async with db.async_session() as session:
         for sub in subscriptions:
             embedding = entity_embeddings[sub.description.lower()]
-            index_subscription(sub, embedding, session)
+            await index_subscription(sub, embedding, session)
         await session.commit()
     console.print(f"[green]✓[/green] Indexed {len(subscriptions)} subscriptions")
 

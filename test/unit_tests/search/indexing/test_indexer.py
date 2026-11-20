@@ -25,8 +25,9 @@ from uuid import UUID
 import pytest
 from sqlalchemy_utils.types.ltree import Ltree
 
-from orchestrator.core.search.core.types import EntityType, ExtractedField, FieldType, IndexableRecord
-from orchestrator.core.search.indexing.indexer import Indexer, _maybe_begin, _maybe_progress
+from orchestrator.core.search.core.embedding import compute_embedding_hash
+from orchestrator.core.search.core.types import EmbeddingRecord, EntityType, ExtractedField, FieldType, IndexableRecord
+from orchestrator.core.search.indexing.indexer import IndexBatch, Indexer, StoredHashes, _maybe_begin, _maybe_progress
 
 pytestmark = pytest.mark.search
 
@@ -313,18 +314,51 @@ def test_process_chunk_with_fields_executes_batches(mock_config: MagicMock, mock
         "value": "Hello",
         "value_type": FieldType.STRING,
         "content_hash": "abc",
-        "embedding": [0.1],
+        "embedding_hash": None,
     }
 
     with (
         patch.object(idx, "_determine_changes", return_value=([("eid", MagicMock())], [], 0)),
-        patch.object(idx, "_generate_upsert_batches", return_value=iter([[fake_record]])),
+        patch.object(idx, "_generate_upsert_batches", return_value=iter([IndexBatch([fake_record], [])])),
     ):
         processed, identical = idx._process_chunk([mock_entity], session=mock_session)
 
     mock_session.execute.assert_called_once()
     assert processed == 1
     assert identical == 0
+
+
+def test_process_chunk_inserts_embeddings_before_the_index_rows(mock_config: MagicMock, mock_entity: MagicMock) -> None:
+    """The vectors of a batch are written before the rows that point at them, in the same session."""
+    idx = Indexer(config=mock_config, dry_run=False, force_index=True, chunk_size=10)
+    mock_session = MagicMock()
+    record = MagicMock()
+    embedding = MagicMock()
+
+    with (
+        patch.object(idx, "_determine_changes", return_value=([("eid", MagicMock())], [], 0)),
+        patch.object(idx, "_generate_upsert_batches", return_value=iter([IndexBatch([record], [embedding])])),
+    ):
+        idx._process_chunk([mock_entity], session=mock_session)
+
+    assert [call.args[1] for call in mock_session.execute.call_args_list] == [[embedding], [record]]
+    assert mock_session.execute.call_args_list[0].args[0].table.name == "ai_search_embeddings"
+    assert mock_session.execute.call_args_list[1].args[0].table.name == "ai_search_index"
+
+
+def test_write_batch_inserts_embeddings_sorted_by_hash(indexer: Indexer) -> None:
+    """Concurrent runs that share new hashes must take the row locks in one order, or they can deadlock."""
+    mock_session = MagicMock()
+    unsorted = [
+        EmbeddingRecord(entity_type="SUBSCRIPTION", embedding_hash=embedding_hash, embedding=[0.1])
+        for embedding_hash in ("c", "a", "b")
+    ]
+    indexer.dry_run = False
+
+    indexer._write_batch(IndexBatch([], list(unsorted)), mock_session, MagicMock(), MagicMock())
+
+    inserted = mock_session.execute.call_args_list[0].args[1]
+    assert [row["embedding_hash"] for row in inserted] == ["a", "b", "c"]
 
 
 def test_process_chunk_dry_run_does_not_execute(indexer: Indexer, mock_entity: MagicMock) -> None:
@@ -338,12 +372,12 @@ def test_process_chunk_dry_run_does_not_execute(indexer: Indexer, mock_entity: M
         "value": "Hello",
         "value_type": FieldType.STRING,
         "content_hash": "abc",
-        "embedding": None,
+        "embedding_hash": None,
     }
 
     with (
         patch.object(indexer, "_determine_changes", return_value=([("eid", MagicMock())], [], 0)),
-        patch.object(indexer, "_generate_upsert_batches", return_value=iter([[fake_record]])),
+        patch.object(indexer, "_generate_upsert_batches", return_value=iter([IndexBatch([fake_record], [])])),
     ):
         processed, identical = indexer._process_chunk([mock_entity], session=mock_session)
 
@@ -424,9 +458,9 @@ _ENTITY_ID_1 = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 _ENTITY_ID_2 = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 
 _HASH_DB_ROWS = [
-    (_ENTITY_ID_1, "root.name", "hash_name_1"),
-    (_ENTITY_ID_1, "root.status", "hash_status_1"),
-    (_ENTITY_ID_2, "root.name", "hash_name_2"),
+    (_ENTITY_ID_1, "root.name", "hash_name_1", "emb_name_1"),
+    (_ENTITY_ID_1, "root.status", "hash_status_1", None),
+    (_ENTITY_ID_2, "root.name", "hash_name_2", "emb_name_2"),
 ]
 
 
@@ -437,8 +471,11 @@ def test_get_all_existing_hashes_returns_dict_of_dicts(indexer: Indexer) -> None
     result = indexer._get_all_existing_hashes([_ENTITY_ID_1, _ENTITY_ID_2], mock_session)
 
     assert set(result.keys()) == {_ENTITY_ID_1, _ENTITY_ID_2}
-    assert result[_ENTITY_ID_1] == {"root.name": "hash_name_1", "root.status": "hash_status_1"}
-    assert result[_ENTITY_ID_2] == {"root.name": "hash_name_2"}
+    assert result[_ENTITY_ID_1] == {
+        "root.name": StoredHashes("hash_name_1", "emb_name_1"),
+        "root.status": StoredHashes("hash_status_1", None),
+    }
+    assert result[_ENTITY_ID_2] == {"root.name": StoredHashes("hash_name_2", "emb_name_2")}
 
 
 def test_get_all_existing_hashes_no_rows_gets_empty_inner_dict(indexer: Indexer) -> None:
@@ -457,13 +494,13 @@ def test_get_all_existing_hashes_path_values_are_stringified(indexer: Indexer) -
     ltree_path = Ltree("root.description")
 
     mock_session.execute.return_value.all.return_value = [
-        (ENTITY_ID, ltree_path, "hash123"),
+        (ENTITY_ID, ltree_path, "hash123", "emb123"),
     ]
 
     result = indexer._get_all_existing_hashes([ENTITY_ID], mock_session)
 
     assert str(ltree_path) in result[ENTITY_ID]
-    assert result[ENTITY_ID][str(ltree_path)] == "hash123"
+    assert result[ENTITY_ID][str(ltree_path)] == StoredHashes("hash123", "emb123")
 
 
 # ---------------------------------------------------------------------------
@@ -484,8 +521,9 @@ def test_upsert_non_embeddable_field_accumulated_directly(indexer: Indexer) -> N
         batches = list(indexer._generate_upsert_batches(fields))
 
     assert len(batches) == 1
-    assert len(batches[0]) == 1
-    assert batches[0][0]["embedding"] is None
+    assert len(batches[0].records) == 1
+    assert batches[0].records[0]["embedding_hash"] is None
+    assert batches[0].embeddings == []
 
 
 def test_upsert_embeddable_field_with_embedding(indexer: Indexer) -> None:
@@ -506,7 +544,9 @@ def test_upsert_embeddable_field_with_embedding(indexer: Indexer) -> None:
         batches = list(indexer._generate_upsert_batches(fields))
 
     assert len(batches) == 1
-    assert batches[0][0]["embedding"] == [0.1, 0.2]
+    assert batches[0].records[0]["embedding_hash"] == batches[0].embeddings[0]["embedding_hash"]
+    assert batches[0].embeddings[0]["embedding"] == [0.1, 0.2]
+    assert batches[0].embeddings[0]["entity_type"] == EntityType.SUBSCRIPTION.value
 
 
 _TOKEN_BUDGET_FIELD_1 = _embeddable_field("root.desc", "First text")
@@ -611,7 +651,60 @@ def test_upsert_mixed_embeddable_and_non_embeddable(indexer: Indexer) -> None:
         batches = list(indexer._generate_upsert_batches(_MIXED_FIELDS))
 
     assert len(batches) == 1
-    assert len(batches[0]) == 2
+    assert len(batches[0].records) == 2
+    assert len(batches[0].embeddings) == 1
+
+
+def test_upsert_failed_text_is_not_retried_in_a_later_chunk(indexer: Indexer) -> None:
+    """An outage sends a repeated text once per run, not once per chunk, while its records are still written."""
+    repeated = _embeddable_field("root.description", "Same text for every entity")
+    chunks = [[(ENTITY_ID, repeated)], [(ENTITY_ID, repeated)]]
+
+    with (
+        patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
+        patch("litellm.utils.get_max_tokens", return_value=100),
+        patch("litellm.utils.encode", return_value=[1, 2]),
+        patch(
+            "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
+            return_value=[[]],
+        ) as mock_embed,
+    ):
+        mock_llm.EMBEDDING_SAFE_MARGIN_PERCENT = 0.0
+        mock_llm.EMBEDDING_MAX_BATCH_SIZE = None
+        batches = [batch for chunk in chunks for batch in indexer._generate_upsert_batches(chunk)]
+
+    assert mock_embed.call_count == 1
+    assert [len(batch.records) for batch in batches] == [1, 1]
+    assert all(batch.embeddings == [] for batch in batches)
+
+
+def test_upsert_failed_text_is_retried_on_the_next_run(indexer: Indexer) -> None:
+    """The attempted texts of a run do not carry over, so the next run sends the text again."""
+    field = _embeddable_field()
+
+    def failing_then_working_api(texts: list[str], dry_run: bool) -> list[list[float]]:
+        return [[]] if mock_embed.call_count == 1 else [[0.1, 0.2]]
+
+    with (
+        patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
+        patch("litellm.utils.get_max_tokens", return_value=100),
+        patch("litellm.utils.encode", return_value=[1, 2]),
+        patch(
+            "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
+            side_effect=failing_then_working_api,
+        ) as mock_embed,
+    ):
+        mock_llm.EMBEDDING_SAFE_MARGIN_PERCENT = 0.0
+        mock_llm.EMBEDDING_MAX_BATCH_SIZE = None
+        assert list(indexer._generate_upsert_batches([(ENTITY_ID, field)]))[0].embeddings == []
+        assert mock_embed.call_count == 1
+
+        # What run() does at the start of a new run.
+        indexer._attempted_embedding_hashes = set()
+        batches = list(indexer._generate_upsert_batches([(ENTITY_ID, field)]))
+
+    assert mock_embed.call_count == 2
+    assert len(batches[0].embeddings) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -619,7 +712,7 @@ def test_upsert_mixed_embeddable_and_non_embeddable(indexer: Indexer) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_flush_buffer_empty_embeddable_returns_non_embeddable_only(indexer: Indexer) -> None:
+def test_flush_buffer_without_pending_texts_returns_records_and_skips_the_api(indexer: Indexer) -> None:
     non_emb_record: IndexableRecord = {
         "entity_id": ENTITY_ID,
         "entity_type": EntityType.SUBSCRIPTION.value,
@@ -628,61 +721,48 @@ def test_flush_buffer_empty_embeddable_returns_non_embeddable_only(indexer: Inde
         "value": "true",
         "value_type": FieldType.BOOLEAN,
         "content_hash": "somehash",
-        "embedding": None,
+        "embedding_hash": None,
     }
-    result = indexer._flush_buffer([], [non_emb_record])
-    assert result == [non_emb_record]
+    with patch("orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch") as mock_embed:
+        result = indexer._flush_buffer({}, [non_emb_record])
+
+    mock_embed.assert_not_called()
+    assert result == IndexBatch([non_emb_record], [])
 
 
 def test_flush_buffer_empty_both_returns_empty(indexer: Indexer) -> None:
-    result = indexer._flush_buffer([], [])
-    assert result == []
+    assert indexer._flush_buffer({}, []) == IndexBatch([], [])
 
 
-def test_flush_buffer_with_embeddable_items(indexer: Indexer) -> None:
-    field = _embeddable_field()
-    buffer = [(ENTITY_ID, field)]
-
+def test_flush_buffer_embeds_pending_texts_by_hash(indexer: Indexer) -> None:
     with patch(
         "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
-        return_value=[[0.1, 0.2]],
+        return_value=[[0.1, 0.2], [0.3, 0.4]],
     ) as mock_embed:
-        result = indexer._flush_buffer(buffer, [])
+        result = indexer._flush_buffer({"h1": "root.a: text a", "h2": "root.b: text b"}, [])
 
-    mock_embed.assert_called_once()
-    assert len(result) == 1
-    assert result[0]["embedding"] == [0.1, 0.2]
+    mock_embed.assert_called_once_with(["root.a: text a", "root.b: text b"], True)
+    assert result.embeddings == [
+        {"entity_type": "SUBSCRIPTION", "embedding_hash": "h1", "embedding": [0.1, 0.2]},
+        {"entity_type": "SUBSCRIPTION", "embedding_hash": "h2", "embedding": [0.3, 0.4]},
+    ]
 
 
-def test_flush_buffer_combined_embeddable_and_non_embeddable(indexer: Indexer) -> None:
-    field = _embeddable_field()
-    buffer = [(ENTITY_ID, field)]
-    non_emb_record: IndexableRecord = {
-        "entity_id": ENTITY_ID,
-        "entity_type": EntityType.SUBSCRIPTION.value,
-        "entity_title": ENTITY_TITLE,
-        "path": Ltree("root.insync"),
-        "value": "true",
-        "value_type": FieldType.BOOLEAN,
-        "content_hash": "somehash",
-        "embedding": None,
-    }
+def test_flush_buffer_keeps_records_and_skips_empty_vectors(indexer: Indexer) -> None:
+    """A failed text keeps its index record, and gets no embeddings row so that the next run retries it."""
+    record = indexer._make_indexable_record(_embeddable_field("root.a", "text a"), ENTITY_ID, "h1")
 
     with patch(
         "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
-        return_value=[[0.5]],
+        return_value=[[], [0.3]],
     ):
-        result = indexer._flush_buffer(buffer, [non_emb_record])
+        result = indexer._flush_buffer({"h1": "root.a: text a", "h2": "root.b: text b"}, [record])
 
-    assert len(result) == 2
-    assert result[0]["embedding"] is None
-    assert result[1]["embedding"] == [0.5]
+    assert result.records == [record]
+    assert [e["embedding_hash"] for e in result.embeddings] == ["h2"]
 
 
-_MISMATCH_BUFFER = [
-    (ENTITY_ID, _embeddable_field("root.a", "text a")),
-    (ENTITY_ID, _embeddable_field("root.b", "text b")),
-]
+_MISMATCH_PENDING = {"h1": "root.a: text a", "h2": "root.b: text b"}
 
 
 def test_flush_buffer_embedding_count_mismatch_raises(indexer: Indexer) -> None:
@@ -693,26 +773,22 @@ def test_flush_buffer_embedding_count_mismatch_raises(indexer: Indexer) -> None:
         ),
         pytest.raises(ValueError, match="Embedding mismatch"),
     ):
-        indexer._flush_buffer(_MISMATCH_BUFFER, [])
+        indexer._flush_buffer(_MISMATCH_PENDING, [])
 
 
 def test_flush_buffer_dry_run_embeddings_are_empty(mock_config: MagicMock) -> None:
-    """EmbeddingIndexer returns [] per text in dry_run; make sure no mismatch."""
+    """EmbeddingIndexer returns [] per text in dry_run, which must not count as a mismatch."""
     idx = Indexer(config=mock_config, dry_run=True, force_index=False, chunk_size=10)
     idx._entity_titles[ENTITY_ID] = ENTITY_TITLE
-
-    field = _embeddable_field()
-    buffer = [(ENTITY_ID, field)]
+    record = idx._make_indexable_record(_embeddable_field(), ENTITY_ID, "h1")
 
     with patch(
         "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
         return_value=[[]],
     ):
-        result = idx._flush_buffer(buffer, [])
+        result = idx._flush_buffer({"h1": "root.description: Hello world"}, [record])
 
-    assert len(result) == 1
-    # embedding=[] is falsy -> stored as None in _make_indexable_record
-    assert result[0]["embedding"] is None
+    assert result == IndexBatch([record], [])
 
 
 # ---------------------------------------------------------------------------
@@ -812,9 +888,8 @@ def test_content_hash_different_entity_title() -> None:
 
 def test_make_indexable_record_fields_populated(indexer: Indexer) -> None:
     field = ExtractedField(path="root.description", value="Hello", value_type=FieldType.STRING)
-    embedding = [0.1, 0.2, 0.3]
 
-    record = indexer._make_indexable_record(field, ENTITY_ID, embedding)
+    record = indexer._make_indexable_record(field, ENTITY_ID, "some-hash")
 
     assert record["entity_id"] == ENTITY_ID
     assert record["entity_type"] == EntityType.SUBSCRIPTION.value
@@ -824,21 +899,8 @@ def test_make_indexable_record_fields_populated(indexer: Indexer) -> None:
     assert record["value_type"] == FieldType.STRING
     assert isinstance(record["content_hash"], str)
     assert len(record["content_hash"]) == 64
-    assert record["embedding"] == embedding
-
-
-@pytest.mark.parametrize(
-    "embedding",
-    [
-        pytest.param([], id="empty_list"),
-        pytest.param(None, id="none"),
-    ],
-)
-def test_make_indexable_record_falsy_embedding_stored_as_none(indexer: Indexer, embedding: list | None) -> None:
-    """Falsy embeddings ([] or None) are stored as None."""
-    field = ExtractedField(path="root.description", value="Hello", value_type=FieldType.STRING)
-    record = indexer._make_indexable_record(field, ENTITY_ID, embedding)
-    assert record["embedding"] is None
+    assert record["embedding_hash"] == "some-hash"
+    assert "embedding" not in record
 
 
 def test_make_indexable_record_path_wrapped_in_ltree(indexer: Indexer) -> None:
@@ -853,3 +915,225 @@ def test_make_indexable_record_hash_matches_compute(indexer: Indexer) -> None:
     record = indexer._make_indexable_record(field, ENTITY_ID, None)
     expected_hash = Indexer._compute_content_hash(field.path, field.value, field.value_type, ENTITY_TITLE)
     assert record["content_hash"] == expected_hash
+
+
+# ---------------------------------------------------------------------------
+# Embedding deduplication
+# ---------------------------------------------------------------------------
+
+_OTHER_ENTITY_IDS = [f"00000000-0000-0000-0000-00000000000{i}" for i in range(1, 6)]
+
+
+@contextmanager
+def _embedding_api():
+    """Stub litellm and the embedding API, which answers one vector per text."""
+    with (
+        patch("litellm.utils.get_max_tokens", return_value=8191),
+        patch("litellm.utils.encode", return_value=[1, 2]),
+        patch(
+            "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
+            side_effect=lambda texts, dry_run: [[0.1] for _ in texts],
+        ) as api,
+    ):
+        yield api
+
+
+def _indexer_with_titles(mock_config: MagicMock, entity_ids: list[str]) -> Indexer:
+    idx = _make_indexer(mock_config, dry_run=False)
+    idx._entity_titles.update(dict.fromkeys(entity_ids, ENTITY_TITLE))
+    return idx
+
+
+def test_identical_texts_embedded_once(mock_config: MagicMock) -> None:
+    idx = _indexer_with_titles(mock_config, _OTHER_ENTITY_IDS)
+    fields = [(entity_id, _embeddable_field("root.tag", "noc")) for entity_id in _OTHER_ENTITY_IDS]
+
+    with _embedding_api() as api:
+        batches = list(idx._generate_upsert_batches(fields))
+
+    api.assert_called_once()
+    assert api.call_args.args[0] == ["root.tag: noc"]
+    assert len(batches) == 1
+    assert len(batches[0].embeddings) == 1
+    assert {record["embedding_hash"] for record in batches[0].records} == {batches[0].embeddings[0]["embedding_hash"]}
+    assert len(batches[0].records) == 5
+
+
+@pytest.mark.parametrize(
+    ("values", "distinct_texts"),
+    [
+        pytest.param(["NOC", "noc"], 1, id="case_differs"),
+        pytest.param(["NOC", "Noc", "noc", "nOC"], 1, id="mixed_case"),
+        pytest.param(["noc", "noc2"], 2, id="different_text"),
+    ],
+)
+def test_case_insensitive_dedupe(mock_config: MagicMock, values: list[str], distinct_texts: int) -> None:
+    idx = _indexer_with_titles(mock_config, _OTHER_ENTITY_IDS)
+    fields = [(entity_id, _embeddable_field("root.tag", value)) for entity_id, value in zip(_OTHER_ENTITY_IDS, values)]
+
+    with _embedding_api() as api:
+        batches = list(idx._generate_upsert_batches(fields))
+
+    assert len(api.call_args.args[0]) == distinct_texts
+    assert len(batches[0].embeddings) == distinct_texts
+    assert len(batches[0].records) == len(values)
+
+
+def test_known_hash_not_re_embedded(mock_config: MagicMock) -> None:
+    idx = _indexer_with_titles(mock_config, [ENTITY_ID])
+    known = _embeddable_field("root.tag", "noc")
+    unknown = _embeddable_field("root.tag", "other")
+    known_hash = idx._embedding_hash(known)
+
+    with (
+        _embedding_api() as api,
+        patch.object(idx, "_existing_embedding_hashes", return_value={known_hash}),
+    ):
+        batches = list(idx._generate_upsert_batches([(ENTITY_ID, known), (ENTITY_ID, unknown)], MagicMock()))
+
+    assert api.call_args.args[0] == ["root.tag: other"]
+    assert [record["embedding_hash"] for record in batches[0].records] == [known_hash, idx._embedding_hash(unknown)]
+    assert [e["embedding_hash"] for e in batches[0].embeddings] == [idx._embedding_hash(unknown)]
+
+
+def test_only_known_hashes_never_calls_the_api(mock_config: MagicMock) -> None:
+    idx = _indexer_with_titles(mock_config, [ENTITY_ID])
+    field = _embeddable_field("root.tag", "noc")
+
+    with (
+        _embedding_api() as api,
+        patch.object(idx, "_existing_embedding_hashes", return_value={idx._embedding_hash(field)}),
+    ):
+        batches = list(idx._generate_upsert_batches([(ENTITY_ID, field)], MagicMock()))
+
+    api.assert_not_called()
+    assert batches == [IndexBatch(batches[0].records, [])]
+    assert len(batches[0].records) == 1
+
+
+def test_text_is_not_embedded_again_in_a_later_batch(mock_config: MagicMock) -> None:
+    """A text flushed in an earlier batch of the same run counts as handled, or it is sent twice."""
+    idx = _indexer_with_titles(mock_config, [ENTITY_ID])
+    fields = [
+        (ENTITY_ID, _embeddable_field("root.a", "x")),
+        (ENTITY_ID, _embeddable_field("root.b", "y")),
+        (ENTITY_ID, _embeddable_field("root.a", "x")),
+    ]
+
+    with _embedding_api() as api, patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm:
+        mock_llm.EMBEDDING_SAFE_MARGIN_PERCENT = 0.0
+        mock_llm.EMBEDDING_MAX_BATCH_SIZE = 1
+        batches = list(idx._generate_upsert_batches(fields))
+
+    assert [call.args[0] for call in api.call_args_list] == [["root.a: x"], ["root.b: y"]]
+    assert [len(batch.records) for batch in batches] == [1, 2]
+
+
+@pytest.mark.parametrize(
+    ("api_enabled", "dry_run", "stored_matches", "vector_stored", "expected_changed"),
+    [
+        pytest.param(False, False, False, False, 0, id="api_disabled_marks_nothing_changed"),
+        pytest.param(True, True, False, False, 0, id="dry_run_marks_nothing_changed"),
+        pytest.param(True, False, True, True, 0, id="vector_present"),
+        pytest.param(True, False, True, False, 2, id="vector_missing_after_failed_batch"),
+        pytest.param(True, False, False, True, 2, id="stored_hash_differs_after_model_switch"),
+        pytest.param(True, False, False, False, 2, id="never_embedded"),
+    ],
+)
+def test_determine_changes_embedding_rule(
+    mock_config: MagicMock,
+    mock_entity: MagicMock,
+    mock_fields: list[ExtractedField],
+    api_enabled: bool,
+    dry_run: bool,
+    stored_matches: bool,
+    vector_stored: bool,
+    expected_changed: int,
+) -> None:
+    idx = _make_indexer(mock_config, dry_run=dry_run)
+    current_hashes = {field.path: idx._embedding_hash(field) for field in mock_fields}
+    stored = {
+        ENTITY_ID: {
+            field.path: StoredHashes(
+                Indexer._compute_content_hash(field.path, field.value, field.value_type, ENTITY_TITLE),
+                (current_hashes[field.path] if stored_matches else "old-model-hash")
+                if field.value_type.is_embeddable(field.value)
+                else None,
+            )
+            for field in mock_fields
+        }
+    }
+
+    with (
+        patch("orchestrator.core.search.indexing.indexer.llm_settings.EMBEDDING_API_ENABLED", api_enabled),
+        patch.object(idx, "_get_all_existing_hashes", return_value=stored),
+        patch.object(
+            idx, "_existing_embedding_hashes", return_value=set(current_hashes.values()) if vector_stored else set()
+        ) as lookup,
+    ):
+        changed, deleted, identical = idx._determine_changes([mock_entity], session=MagicMock())
+
+    assert len(changed) == expected_changed
+    assert deleted == []
+    assert identical == len(mock_fields) - expected_changed
+    assert lookup.called is (api_enabled and not dry_run)
+
+
+def test_determine_changes_marks_a_changed_title_as_changed_without_the_lookup(
+    mock_config: MagicMock, mock_entity: MagicMock, mock_fields: list[ExtractedField]
+) -> None:
+    """The content hash includes the entity title, so a title change rewrites every row of the entity."""
+    idx = _make_indexer(mock_config, dry_run=True)
+    stored = {
+        ENTITY_ID: {
+            field.path: StoredHashes(
+                Indexer._compute_content_hash(field.path, field.value, field.value_type, "Old title"), None
+            )
+            for field in mock_fields
+        }
+    }
+
+    with patch.object(idx, "_get_all_existing_hashes", return_value=stored):
+        changed, _, identical = idx._determine_changes([mock_entity], session=MagicMock())
+
+    assert len(changed) == len(mock_fields)
+    assert identical == 0
+
+
+def test_existing_embedding_hashes_scopes_to_entity_type_and_batches(mock_config: MagicMock) -> None:
+    idx = _make_indexer(mock_config, chunk_size=2)
+    session = MagicMock()
+    session.scalars.side_effect = [["a", "b"], ["c"]]
+
+    found = idx._existing_embedding_hashes({"a", "b", "c", "d"}, session)
+
+    assert found == {"a", "b", "c"}
+    assert session.scalars.call_count == 2
+    assert "ai_search_embeddings.entity_type" in str(session.scalars.call_args.args[0])
+    assert session.scalars.call_args.args[0].compile().params["entity_type_1"] == "SUBSCRIPTION"
+
+
+def test_existing_embedding_hashes_empty_set_runs_no_query(mock_config: MagicMock) -> None:
+    session = MagicMock()
+    assert _make_indexer(mock_config)._existing_embedding_hashes(set(), session) == set()
+    session.scalars.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("model_id", "other_model_id", "same"),
+    [
+        pytest.param("model-a", "model-a", True, id="same_model"),
+        pytest.param("model-a", "model-b", False, id="model_switch"),
+    ],
+)
+def test_embedding_hash_uses_the_model_captured_at_init(
+    indexer: Indexer, model_id: str, other_model_id: str, same: bool
+) -> None:
+    field = _embeddable_field("root.tag", "NOC")
+    with patch.object(indexer, "embedding_model", model_id):
+        first = indexer._embedding_hash(field)
+    with patch.object(indexer, "embedding_model", other_model_id):
+        second = indexer._embedding_hash(field)
+
+    assert first == compute_embedding_hash(model_id, "root.tag: NOC")
+    assert (first == second) is same
