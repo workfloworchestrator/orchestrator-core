@@ -187,11 +187,9 @@ def _safe_linked_subscription_ids(process_id: UUID) -> set[str]:
 
 
 def index_process_and_subscriptions(process_id: UUID, result: "WFProcess") -> None:
-    """Index a process and every subscription referenced by its final state or linked to it.
+    """Index a process and every subscription referenced by its state or linked to it.
 
-    Called whenever a process exits: completed, failed, aborted, suspended or awaiting callback.
-    Runs after the process' final status has been committed, so the indexed record carries the
-    real terminal status. Subscription ids come from two sources, because neither alone suffices:
+    Subscription ids come from two sources, because neither alone suffices:
     - The result state.
       - Empty when a step raises: the error record replaces the state.
     - The `processes_subscriptions` link table.
@@ -204,7 +202,7 @@ def index_process_and_subscriptions(process_id: UUID, result: "WFProcess") -> No
 
     Args:
         process_id: The process to index.
-        result: Final process value; `unwrap()` provides the state to scan for subscriptions.
+        result: Current process value; `unwrap()` provides the state to scan for subscriptions.
 
     Raises:
         Exception: Only when `llm_settings.SEARCH_INDEXING_STRICT` is True, and then only for the

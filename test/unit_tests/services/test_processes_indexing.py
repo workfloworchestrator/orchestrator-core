@@ -11,14 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for process-exit indexing wiring in the processes service."""
+"""Tests for process-create and process-exit indexing wiring in the processes service."""
 
+from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 
-from orchestrator.core.services.processes import _run_process_async
+from orchestrator.core.services.processes import _run_process_async, create_process
 from orchestrator.core.settings import ExecutorType, app_settings, llm_settings
 from orchestrator.core.workflow import Process as WFProcess
 from orchestrator.core.workflow import Success
@@ -98,3 +99,25 @@ def test_run_process_async_strict_indexing_failure_is_not_masked_as_workflow_fai
         _run_process_async(process_id, workflow)
 
     assert not any("Unknown workflow failure" in str(c) for c in mock_logger.exception.call_args_list)
+
+
+@patch("orchestrator.core.services.processes.index_process_and_subscriptions")
+@patch("orchestrator.core.services.processes.store_input_state")
+@patch("orchestrator.core.services.processes._db_create_process")
+@patch("orchestrator.core.services.processes.post_form", side_effect=lambda form, initial, inputs: {})
+@patch("orchestrator.core.services.processes.get_workflow")
+def test_create_process_indexes_after_the_transaction_commits(
+    mock_get_workflow, mock_post_form, mock_db_create, mock_store_input_state, mock_index
+):
+    """The process and its linked subscriptions are indexed on create, from outside the transaction."""
+    mock_get_workflow.return_value = SimpleNamespace(
+        name="create_node", run_predicate=None, target="CREATE", initial_input_form=[], steps=[]
+    )
+
+    with patch("orchestrator.core.services.processes.db"):
+        pstat = create_process("create_node", user_inputs=[{"subscription_id": None}])
+
+    mock_index.assert_called_once()
+    indexed_process_id, indexed_result = mock_index.call_args[0]
+    assert indexed_process_id == pstat.process_id
+    assert indexed_result.unwrap()["workflow_name"] == "create_node"

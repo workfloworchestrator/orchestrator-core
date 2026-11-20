@@ -124,7 +124,9 @@ def test_remove_tasks(task):
 
     from orchestrator.core.db.models import AiSearchIndex
 
-    ai_indexes = db.session.scalars(select(AiSearchIndex)).all()
+    # The clean-up process itself is indexed on create and again when it exits, so its own rows
+    # (field count is an implementation detail) are excluded; what is left must be the seeded rows.
+    ai_indexes = db.session.scalars(select(AiSearchIndex).where(AiSearchIndex.entity_id != res["process_id"])).all()
     # 2 deleted, 1 left
     assert len(ai_indexes) == 1
 
