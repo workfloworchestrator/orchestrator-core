@@ -36,9 +36,6 @@ from orchestrator.core.settings import llm_settings
 
 logger = structlog.get_logger(__name__)
 
-# Keeps the IN list of one lookup well below the 65535 bind parameter limit of the driver.
-HASH_LOOKUP_BATCH_SIZE = 10_000
-
 
 class IndexBatch(NamedTuple):
     """What one flush writes: the index rows, and the vectors they point at that are not stored yet."""
@@ -389,7 +386,7 @@ class Indexer:
                 )
             )
 
-        return {found for batch in chunked(sorted(hashes), HASH_LOOKUP_BATCH_SIZE) for found in stored(batch)}
+        return {found for batch in chunked(sorted(hashes), self.chunk_size) for found in stored(batch)}
 
     def _generate_upsert_batches(
         self, fields_to_upsert: Iterable[tuple[str, ExtractedField]], session: Session | None = None
