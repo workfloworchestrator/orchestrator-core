@@ -84,8 +84,8 @@ Decision: one transaction for the increment and the fork update, committed right
   into the same integration-test rewrite, asserting the behaviour through `run_worker_branch` instead of a mocked `db`.
 
 **Out of scope:** a worker that crashes after its branch steps are committed and before the join leaves the process
-stuck in Waiting. Track it in a separate issue. Add a test here that documents the current behaviour, so the follow-up
-has a starting point.
+stuck in Waiting. See [Open points](#open-points). Add a test here that documents the current behaviour, so the
+follow-up has a starting point.
 
 ## Phase 3: Branch results and branch lookup
 <!-- diataxis: how-to -->
@@ -154,10 +154,10 @@ Status: done.
 
 `max_concurrency` applies only to threadpool execution and defaults to `MAX_WORKERS`. Each fork is bounded by
 `max(1, (capacity - max(4, capacity // 4)) // MAX_WORKERS - 1)`, where capacity is `pool_size + max_overflow`.
-The fixed reserve protects HTTP/scheduler and other non-fork pool users, but does not guarantee against pool
-exhaustion. Pending requests above the budget are throttled; explicit requests warn per fork and defaults once per
-process and `(capacity, MAX_WORKERS)` pair. Nested forks are not globally bounded. Worker execution ignores this
-option and dispatches one Celery task per branch.
+The fixed reserve protects HTTP/scheduler and other non-fork users of the synchronous database connection pool, but
+does not guarantee against database connection pool exhaustion. Pending requests above the budget are throttled;
+explicit requests warn per fork and defaults once per process and `(capacity, MAX_WORKERS)` pair. Nested forks are not
+globally bounded. Worker execution ignores this option and dispatches one Celery task per branch.
 
 
 ## Phase 7: Restructure
@@ -186,48 +186,24 @@ Do this last, as pure moves, so the earlier diffs stay readable.
   |---|---|
   | `test_parallel_celery_integration.py`, `test_parallel_retry.py` | `integration_tests/beta/parallel/`, as tests of `worker.py` |
   | `test_parallel_db.py`, `test_parallel_workflow.py`, `test_parallel_executor.py` | `integration_tests/beta/parallel/` (merge the single test in `test_parallel_executor.py` into one of the others) |
-  | `test_parallel_stress.py` | `acceptance_tests/`, or `integration_tests/beta/parallel/` behind a slow marker; replace its use of the private `_find_parallel_step` |
+  | `test_parallel_stress.py` | `acceptance_tests/`, or `integration_tests/beta/parallel/` behind a slow marker; replace its use of the private `_find_step_by_group_name` |
   | `test/unit_tests/services/test_parallel.py`, parallel tests in `test/unit_tests/test_workflow.py` | `unit_tests/beta/parallel/` |
-
-## Findings for later investigation
-<!-- diataxis: explanation -->
-
-### Nested parallel steps on the worker path (found in phase 3)
-
-A parallel step nested in a branch of another parallel step probably doesn't work with `EXECUTOR=worker`. This was
-found while writing a test for `process_stat_var` in phase 3, and has not been confirmed with separate worker
-processes: the eager, single-process Celery test setup shares the context variable between tasks, so the test could
-not tell real behaviour apart from artefacts of that setup.
-
-The behaviour was already there before phase 1 (`ba445ebb`); phases 1 to 4 did not cause it.
-
-What the code does today:
-
-- The outer branch runs on a worker through `run_worker_branch`. When it reaches the nested parallel step,
-  `_exec_parallel_branches` creates an inner fork row, dispatches the inner branches and returns `Waiting`.
-  `branch_dblogstep` records that `Waiting` as the outer branch's step, and `_exec_steps` stops the branch there,
-  because only `Success` and `Skipped` continue. Nothing resumes the outer branch later.
-- The outer branch then counts as finished. The outer join (`_resolve_fork_step`) takes `Waiting` as its worst result,
-  through `_collect_branch_results` and `_worst_status`.
-- The last inner branch runs `_resolve_fork_step` for the inner fork, and then `_resume(process_id, user)`. That
-  resumes the whole process (`resume_process`, `load_process`, `runwf`), not the outer branch, while the outer
-  parallel step may still be running. `load_process` only sees main-log rows (`_main_log_steps` leaves out branch
-  rows), so `_recoverwf` doesn't know about the outer branch at all.
-
-In the test setup, the inner fork row ended up `waiting` although both inner branches completed.
-
-To investigate:
-
-- Confirm the behaviour with separate worker processes (Redis and real Celery workers).
-- Decide whether a nested fork should resume its parent branch instead of the process, or whether nested parallel
-  steps are rejected on the worker path until that works. The threadpool path is probably not affected, because it
-  waits for the inner branches within the same call.
-- Decide this before phase 7, which moves the worker code to `beta/parallel/worker.py`.
 
 ## Not part of this plan
 <!-- diataxis: reference -->
 
 - `orchestrator/core/workflows/utils.py:124` (translations, #549): unrelated to this branch.
-- Recovery of forks stuck in Waiting after a worker crash: separate issue, see phase 2.
-- Nested parallel steps on the worker path: see
-  [Findings for later investigation](#nested-parallel-steps-on-the-worker-path-found-in-phase-3).
+
+## Open points
+<!-- diataxis: how-to -->
+
+These open points are tracked in
+[workfloworchestrator/orchestrator-core#1780](https://github.com/workfloworchestrator/orchestrator-core/issues/1780):
+
+- **Worker crash before the parallel join:** a worker that crashes after its branch steps are committed and before the
+  join leaves the process stuck in `Waiting`. Determine how to detect and recover this state, and add a test that
+  documents the current behaviour.
+- **Nested parallel steps on the worker path:** an outer branch stops with `Waiting` at a nested parallel step, but
+  completing the inner fork resumes the whole process instead of the outer branch. Confirm the behaviour with separate
+  Celery workers and Redis, then either resume the parent branch correctly or reject nested parallel steps on the
+  worker path until supported. Decide this before phase 7 moves the worker code to `beta/parallel/worker.py`.

@@ -153,6 +153,7 @@ def test_show_serializes_branch_kind_as_stored_string(
     test_client, started_process, branch_kind, expected_branch_kind
 ) -> None:
     """The REST API emits the BranchKind value ("parallel"), not its name ("PARALLEL")."""
+    # given
     db.session.add(
         ProcessStepTable(
             process_id=started_process,
@@ -166,8 +167,10 @@ def test_show_serializes_branch_kind_as_stored_string(
     )
     db.session.commit()
 
+    # when
     response = test_client.get(f"/api/processes/{started_process}")
 
+    # then
     assert HTTPStatus.OK == response.status_code
     steps = response.json()["steps"]
     fork_step = next(step for step in steps if step["name"] == "Fork")

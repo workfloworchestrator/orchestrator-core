@@ -34,7 +34,6 @@ from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 
 from orchestrator.core.db import ProcessStepRelationTable, ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
-from orchestrator.core.services.parallel import _find_parallel_step
 from orchestrator.core.services.processes import SYSTEM_USER
 from orchestrator.core.settings import app_settings
 from orchestrator.core.testing import (
@@ -48,6 +47,7 @@ from orchestrator.core.workflow import (
     ProcessStat,
     ProcessStatus,
     Success,
+    _find_step_by_group_name,
     begin,
     conditional,
     done,
@@ -240,6 +240,7 @@ def test_two_level_nested_parallel() -> None:
     - Inner parallel executes correctly (results visible in branch steps)
     """
 
+    # given
     @workflow()
     def nested_2_level_wf():
         return (
@@ -253,7 +254,10 @@ def test_two_level_nested_parallel() -> None:
         )
 
     with WorkflowInstanceForTests(nested_2_level_wf, "nested_2_level_wf"):
+        # when
         result, pstat, _step_log = run_workflow("nested_2_level_wf", [{}])
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -318,6 +322,7 @@ def test_three_level_nested_parallel() -> None:
     - All nested branches execute without error
     """
 
+    # given
     @workflow()
     def nested_3_level_wf():
         return (
@@ -331,7 +336,10 @@ def test_three_level_nested_parallel() -> None:
         )
 
     with WorkflowInstanceForTests(nested_3_level_wf, "nested_3_level_wf"):
+        # when
         result, pstat, _step_log = run_workflow("nested_3_level_wf", [{}])
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -441,6 +449,7 @@ def test_parallel_with_map_parallel_branch() -> None:
     - Both the dynamic branch and the static branch execute correctly
     """
 
+    # given
     @workflow()
     def mixed_parallel_map_parallel_wf():
         return (
@@ -454,7 +463,10 @@ def test_parallel_with_map_parallel_branch() -> None:
         )
 
     with WorkflowInstanceForTests(mixed_parallel_map_parallel_wf, "mixed_parallel_map_parallel_wf"):
+        # when
         result, pstat, _step_log = run_workflow("mixed_parallel_map_parallel_wf", [{}])
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -499,6 +511,7 @@ def test_map_parallel_with_parallel_inside() -> None:
     - Branch results are NOT merged into main state
     """
 
+    # given
     @workflow()
     def map_parallel_with_inner_parallel_wf():
         return (
@@ -514,7 +527,11 @@ def test_map_parallel_with_parallel_inside() -> None:
     with register_test_workflow(map_parallel_with_inner_parallel_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {"items": [{"tag": "a"}, {"tag": "b"}, {"tag": "c"}]})
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -560,6 +577,7 @@ def test_sequential_parallel_map_parallel_chain() -> None:
     - Initial state key "values" is preserved through all blocks
     """
 
+    # given
     @workflow()
     def chain_wf():
         return (
@@ -573,7 +591,11 @@ def test_sequential_parallel_map_parallel_chain() -> None:
     with register_test_workflow(chain_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {"values": [1, 2, 3]})
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -651,6 +673,7 @@ def test_map_parallel_nested(groups: list[dict], expected_outer_branches: int) -
     - Initial state preserved
     """
 
+    # given
     @workflow()
     def nested_map_parallel_wf():
         return (
@@ -666,7 +689,11 @@ def test_map_parallel_nested(groups: list[dict], expected_outer_branches: int) -
     with register_test_workflow(nested_map_parallel_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {"groups": groups})
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -769,6 +796,7 @@ def test_asymmetric_branch_lengths(branch_lengths: list[int], expected_relations
     - Each branch has the expected number of ProcessStepRelationTable rows
     - Branch results are NOT merged into main state
     """
+    # given
     # Build branches with non-overlapping step pool offsets
     offsets = [0, *accumulate(branch_lengths[:-1])]
     branches = tuple(_build_branch(length, offset) for length, offset in zip(branch_lengths, offsets))
@@ -780,7 +808,11 @@ def test_asymmetric_branch_lengths(branch_lengths: list[int], expected_relations
     with register_test_workflow(asymmetric_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -832,6 +864,7 @@ def test_asymmetric_order_ids_sequential(branch_lengths: list[int]) -> None:
     - No gaps or duplicates in order_ids within a branch
     - Branches with different lengths have independent order_id sequences
     """
+    # given
     offsets = [0, *accumulate(branch_lengths[:-1])]
     branches = tuple(_build_branch(length, offset) for length, offset in zip(branch_lengths, offsets))
 
@@ -842,7 +875,11 @@ def test_asymmetric_order_ids_sequential(branch_lengths: list[int]) -> None:
     with register_test_workflow(order_id_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_complete(result)
 
         fork_steps = _get_fork_steps(pstat.process_id)
@@ -887,6 +924,7 @@ def test_ten_branch_parallel() -> None:
     - All branch steps have status "success"
     """
 
+    # given
     @workflow()
     def ten_branch_wf():
         return init >> parallel("Ten branches", *[begin >> chain_steps[i] for i in range(10)]) >> done
@@ -894,7 +932,11 @@ def test_ten_branch_parallel() -> None:
     with register_test_workflow(ten_branch_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -926,6 +968,7 @@ def test_ten_branch_parallel() -> None:
 @pytest.mark.workflow
 def test_twenty_item_map_parallel(monkeypatch, branch_executor_sizes) -> None:
     """20 default-concurrent branches complete concurrently with five workers."""
+    # given
     monkeypatch.setattr(app_settings, "MAX_WORKERS", 5)
 
     @workflow()
@@ -936,8 +979,12 @@ def test_twenty_item_map_parallel(monkeypatch, branch_executor_sizes) -> None:
         log: list = []
         pstat = create_new_process_stat(wf_table, {"items": list(range(20))})
         start = time.monotonic()
+
+        # when
         result = runwf(pstat, store(log))
         elapsed = time.monotonic() - start
+
+        # then
         assert_complete(result)
 
         # Five workers require at least four 0.05-second batches; do not reject a loaded runner for being slow.
@@ -962,6 +1009,7 @@ def test_twenty_item_map_parallel(monkeypatch, branch_executor_sizes) -> None:
 @pytest.mark.workflow
 def test_map_parallel_default_fan_out_exceeds_connection_pool(monkeypatch, branch_executor_sizes) -> None:
     """Fans out beyond the pool without pool exhaustion, using bounded threads rather than one per branch."""
+    # given
     monkeypatch.setattr(app_settings, "MAX_WORKERS", 5)
     branch_count = 80
 
@@ -979,8 +1027,11 @@ def test_map_parallel_default_fan_out_exceeds_connection_pool(monkeypatch, branc
 
     with register_test_workflow(wide_fan_out_wf) as wf_table:
         pstat = create_new_process_stat(wf_table, {"items": list(range(branch_count))})
+
+        # when
         result = runwf(pstat, store([]))
 
+        # then
         assert_complete(result)
         assert branch_executor_sizes == [app_settings.MAX_WORKERS]
         fork_steps = _get_fork_steps(pstat.process_id)
@@ -999,6 +1050,7 @@ def test_map_parallel_default_fan_out_exceeds_connection_pool(monkeypatch, branc
 @pytest.mark.workflow
 def test_max_concurrency_throttling(monkeypatch, branch_executor_sizes) -> None:
     """The branch executor receives an explicit limit of two; completion is not used as a concurrency proxy."""
+    # given
     monkeypatch.setattr(app_settings, "MAX_WORKERS", 5)
 
     @workflow()
@@ -1009,8 +1061,12 @@ def test_max_concurrency_throttling(monkeypatch, branch_executor_sizes) -> None:
         log: list = []
         pstat = create_new_process_stat(wf_table, {"items": list(range(10))})
         start = time.monotonic()
+
+        # when
         result = runwf(pstat, store(log))
         elapsed = time.monotonic() - start
+
+        # then
         assert_complete(result)
 
         # Two workers must take at least five 0.05-second batches; no upper bound rejects a loaded runner.
@@ -1084,6 +1140,7 @@ def test_error_in_inner_nested_parallel_propagates_to_outer() -> None:
     - Outer fork step exists in DB (created before branches ran)
     """
 
+    # given
     @workflow()
     def error_nested_wf():
         return (
@@ -1097,7 +1154,10 @@ def test_error_in_inner_nested_parallel_propagates_to_outer() -> None:
         )
 
     with WorkflowInstanceForTests(error_nested_wf, "error_nested_wf"):
+        # when
         result, pstat, _step_log = run_workflow("error_nested_wf", [{}])
+
+        # then
         assert_failed(result)
 
         # Both outer and inner fork steps should exist
@@ -1122,6 +1182,7 @@ def test_error_in_map_parallel_nested_inside_parallel() -> None:
     - Outer fork step exists in DB
     """
 
+    # given
     @workflow()
     def error_fe_in_parallel_wf():
         return (
@@ -1137,7 +1198,11 @@ def test_error_in_map_parallel_nested_inside_parallel() -> None:
     with register_test_workflow(error_fe_in_parallel_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {"items": ["good", "bad", "fine"]})
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_failed(result)
 
         # Outer and inner (FE Fail) fork steps should exist
@@ -1163,6 +1228,7 @@ def test_retryable_step_inside_nested_parallel_returns_waiting() -> None:
     - Fork step exists in DB
     """
 
+    # given
     @workflow()
     def retry_nested_wf():
         return (
@@ -1176,7 +1242,10 @@ def test_retryable_step_inside_nested_parallel_returns_waiting() -> None:
         )
 
     with WorkflowInstanceForTests(retry_nested_wf, "retry_nested_wf"):
+        # when
         result, pstat, _step_log = run_workflow("retry_nested_wf", [{}])
+
+        # then
         assert_waiting(result)
 
         # Outer and inner retry fork steps should exist
@@ -1201,6 +1270,7 @@ def test_mixed_one_nested_group_fails_another_succeeds_outer_fails() -> None:
     - Outer fork step exists in DB
     """
 
+    # given
     @workflow()
     def mixed_fail_wf():
         return (
@@ -1214,7 +1284,10 @@ def test_mixed_one_nested_group_fails_another_succeeds_outer_fails() -> None:
         )
 
     with WorkflowInstanceForTests(mixed_fail_wf, "mixed_fail_wf"):
+        # when
         result, pstat, _step_log = run_workflow("mixed_fail_wf", [{}])
+
+        # then
         assert_failed(result)
 
         # Outer + two inner fork steps should exist
@@ -1242,6 +1315,7 @@ def test_partial_db_state_consistent_after_failure() -> None:
     - Branch steps linked via relations have consistent status values
     """
 
+    # given
     @workflow()
     def partial_fail_wf():
         return (
@@ -1255,7 +1329,10 @@ def test_partial_db_state_consistent_after_failure() -> None:
         )
 
     with WorkflowInstanceForTests(partial_fail_wf, "partial_fail_wf"):
+        # when
         result, pstat, _step_log = run_workflow("partial_fail_wf", [{}])
+
+        # then
         assert_failed(result)
 
         # Fork step must exist
@@ -1326,6 +1403,7 @@ def test_map_parallel_single_item() -> None:
     - Exactly one branch (index 0) in ProcessStepRelationTable
     """
 
+    # given
     @workflow()
     def single_item_fe_wf():
         return init >> map_parallel("SingleFE", "items", begin >> scalar_echo) >> done
@@ -1333,7 +1411,11 @@ def test_map_parallel_single_item() -> None:
     with register_test_workflow(single_item_fe_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {"items": [42]})
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -1368,6 +1450,7 @@ def test_back_to_back_parallel_blocks() -> None:
     - Each fork step has the correct branch count
     """
 
+    # given
     @workflow()
     def back_to_back_wf():
         return (
@@ -1380,7 +1463,11 @@ def test_back_to_back_parallel_blocks() -> None:
     with register_test_workflow(back_to_back_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_complete(result)
 
         # DB: two fork steps (P1 and P2)
@@ -1406,6 +1493,7 @@ def test_large_state_through_parallel() -> None:
     Verifies deep copy doesn't corrupt state — all original keys survive post-parallel.
     """
 
+    # given
     @workflow()
     def large_state_wf():
         return init >> parallel("Large", begin >> noop_step, begin >> noop_step) >> done
@@ -1415,7 +1503,11 @@ def test_large_state_through_parallel() -> None:
     with register_test_workflow(large_state_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, large_state)
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -1443,6 +1535,7 @@ def test_conditional_step_inside_parallel_branch() -> None:
     - The conditional_target step is skipped (its result key absent from branch state)
     - Fork step exists in DB with correct branch count
     """
+    # given
     skip_always = conditional(lambda _state: False)
 
     @workflow()
@@ -1460,7 +1553,11 @@ def test_conditional_step_inside_parallel_branch() -> None:
     with register_test_workflow(conditional_parallel_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -1486,6 +1583,7 @@ def test_map_parallel_with_scalar_items() -> None:
     and the workflow completes correctly for all items.
     """
 
+    # given
     @workflow()
     def scalar_fe_wf():
         return init >> map_parallel("ScalarFE", "values", begin >> scalar_echo) >> done
@@ -1493,7 +1591,11 @@ def test_map_parallel_with_scalar_items() -> None:
     with register_test_workflow(scalar_fe_wf) as wf_table:
         log: list = []
         pstat = create_new_process_stat(wf_table, {"values": [10, 20, 30, 40, 50]})
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -1521,6 +1623,7 @@ def test_parallel_branches_return_empty_dicts() -> None:
     Verifies this doesn't break the merge logic or cause any issues.
     """
 
+    # given
     @workflow()
     def empty_branches_wf():
         return init >> parallel("Empty", begin >> empty_branch_step, begin >> empty_branch_step) >> done
@@ -1529,7 +1632,11 @@ def test_parallel_branches_return_empty_dicts() -> None:
         log: list = []
         initial = {"sentinel": "preserved"}
         pstat = create_new_process_stat(wf_table, initial)
+
+        # when
         result = runwf(pstat, store(log))
+
+        # then
         assert_complete(result)
         state = result.unwrap()
 
@@ -1550,12 +1657,12 @@ def test_parallel_branches_return_empty_dicts() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _find_parallel_step unit tests
+# _find_step_by_group_name unit tests
 # ---------------------------------------------------------------------------
 
 
 def _make_find_wf(name: str):
-    """Factory for workflow definitions used by _find_parallel_step tests."""
+    """Factory for workflow definitions used by _find_step_by_group_name tests."""
     match name:
         case "flat":
 
@@ -1627,14 +1734,14 @@ def _make_find_wf(name: str):
         pytest.param("flat", "DoesNotExist", False, id="missing-returns-none"),
     ],
 )
-def test_find_parallel_step(wf_key: str, search_name: str, expected_found: bool) -> None:
-    """_find_parallel_step finds (or not) a parallel step at various nesting depths."""
+def test_find_step_by_group_name(wf_key: str, search_name: str, expected_found: bool) -> None:
+    """_find_step_by_group_name finds (or not) a parallel step at various nesting depths."""
     wf_func, wf_name = _make_find_wf(wf_key)
 
     with WorkflowInstanceForTests(wf_func, wf_name):
         wf = get_workflow(wf_name)
         assert wf is not None
-        result = _find_parallel_step(wf.steps, search_name)
+        result = _find_step_by_group_name(wf.steps, search_name)
 
         if expected_found:
             assert result is not None, f"Expected to find '{search_name}' but got None"

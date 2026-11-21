@@ -82,8 +82,8 @@ class AppSettings(BaseSettings):
         5,
         description=(
             "Maximum concurrent outer workflows in the threadpool, and the default concurrency of each parallel "
-            "fork (default 5). Fork concurrency is capped by the DB pool budget (see the workflow docs). Nested "
-            "forks and multiple processes are not globally bounded."
+            "fork (default 5). Fork concurrency is capped by the synchronous database connection pool budget (see "
+            "the workflow docs). Nested forks and multiple processes are not globally bounded."
         ),
     )
     WORKER_STATUS_INTERVAL: int = Field(

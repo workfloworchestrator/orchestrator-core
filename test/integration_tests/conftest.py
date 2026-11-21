@@ -27,9 +27,6 @@ pytest_plugins = ["orchestrator.core.testing.fixtures", "test.integration_tests.
 from collections.abc import Iterator  # noqa: E402
 
 import pytest  # noqa: E402
-from sqlalchemy import create_engine, text  # noqa: E402
-from sqlalchemy.engine import Engine  # noqa: E402
-from sqlalchemy.engine.url import make_url  # noqa: E402
 
 from test.integration_tests._async_session import session_joined_async  # noqa: E402
 from test.integration_tests._fixtures import (  # noqa: E402
@@ -76,46 +73,3 @@ async def async_session(fastapi_app, db_session):
 
     async with session_joined_async() as session:
         yield session
-
-
-@pytest.fixture()
-def throwaway_migrate_uri(db_uri: str) -> Iterator[str]:
-    """A URI of an empty database next to the test database, to run migrations against.
-
-    Tests that exercise migrations need a schema of their own, so they can upgrade, downgrade and upgrade again
-    without disturbing the test database. The database is dropped afterwards.
-
-    The name is derived from the per-xdist-worker test database, so concurrent workers do not share (and drop) each
-    other's database. The migration chain is pointed at it through its alembic config, not through the settings.
-    """
-    url = make_url(db_uri)
-    scratch_name = f"{url.database}-migrate"
-    scratch_uri = url.set(database=scratch_name).render_as_string(hide_password=False)
-
-    def admin_engine() -> Engine:
-        return create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
-
-    def drop(conn) -> None:
-        conn.execute(
-            text(
-                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-                "WHERE datname = :dbname AND pid <> pg_backend_pid()"
-            ),
-            {"dbname": scratch_name},
-        )
-        conn.execute(text(f'DROP DATABASE IF EXISTS "{scratch_name}";'))
-
-    admin = admin_engine()
-    with admin.connect() as conn:
-        drop(conn)
-        conn.execute(
-            text(f'CREATE DATABASE "{scratch_name}" LOCALE_PROVIDER icu ICU_LOCALE "en-US" TEMPLATE template0;')
-        )
-    admin.dispose()
-
-    yield scratch_uri
-
-    admin = admin_engine()
-    with admin.connect() as conn:
-        drop(conn)
-    admin.dispose()

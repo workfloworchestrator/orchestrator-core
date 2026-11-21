@@ -29,6 +29,8 @@ down_revision = "bfa6c728afd9"
 branch_labels = None
 depends_on = None
 
+CONSTRAINT_NAME = "ck_process_steps_branch_kind_count_set_together"
+
 
 def upgrade() -> None:
     op.add_column("process_steps", sa.Column("branch_count", sa.Integer(), nullable=True))
@@ -37,6 +39,7 @@ def upgrade() -> None:
         "process_steps",
         sa.Column("branches_completed", sa.Integer(), nullable=False, server_default=sa.text("0")),
     )
+    op.create_check_constraint(CONSTRAINT_NAME, "process_steps", "(branch_kind IS NULL) = (branch_count IS NULL)")
     op.create_table(
         "process_step_relations",
         sa.Column(
@@ -58,6 +61,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_constraint(CONSTRAINT_NAME, "process_steps", type_="check")
     op.drop_index("process_step_relation_p_c_o_ix", table_name="process_step_relations")
     op.drop_table("process_step_relations")
     op.drop_column("process_steps", "branches_completed")

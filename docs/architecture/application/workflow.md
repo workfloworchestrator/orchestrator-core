@@ -157,23 +157,12 @@ Parallel execution supports two backends:
 
 Use when the set of branches is known at definition time (e.g., always provision port A and port B together).
 
-**Pipe operator (unnamed)**:
-```python
-@create_workflow(...)
-def create_dual_port():
-    return init >> (
-        (begin >> provision_port_a)
-        | (begin >> provision_port_b)
-    ) >> link_ports >> done
-```
-
-**Dict naming (named)**:
+**Dict naming** — one key with a list of branches:
 ```python
 @create_workflow(...)
 def create_dual_port():
     return init >> {
-        "Provision ports": (begin >> provision_port_a)
-                           | (begin >> provision_port_b)
+        "Provision ports": [begin >> provision_port_a, begin >> provision_port_b]
     } >> link_ports >> done
 ```
 
@@ -190,6 +179,9 @@ def create_dual_port():
                    max_concurrency=4)
     return init >> par >> link_ports >> done
 ```
+
+Every parallel step has an explicit name, either as the dict key or as the first argument of `parallel()` and
+`map_parallel()`.
 
 #### Dynamic parallel — one branch per item
 <!-- diataxis: reference -->
@@ -234,19 +226,20 @@ Seed keys are injected into the branch's initial state as input-only context for
 <!-- diataxis: reference -->
 
 - **State isolation**: Each branch receives a deep copy of the input state. Mutations in one branch do not affect other branches.
-- **Concurrent execution**: With ThreadPool, `max_concurrency` defaults to `MAX_WORKERS` and bounds each fork. With Celery (`EXECUTOR=celery`, `ExecutorType.WORKER`), each pending branch is submitted as a task; `max_concurrency` is ignored and worker concurrency controls execution.
+- **Concurrent execution**: With ThreadPool, `max_concurrency` defaults to `MAX_WORKERS` and bounds the threadpool executor's threads per fork. With Celery (`EXECUTOR=celery`, `ExecutorType.WORKER`), each pending branch is submitted as a task; `max_concurrency` is ignored and worker concurrency controls execution.
 - **Per-branch DB logging**: Each branch writes its own `ProcessStepTable` rows, linked to the parent fork step via `ProcessStepRelationTable`. This gives fine-grained visibility into branch execution and enables the UI to render parallel branches as a tree.
 - **No state merging**: Branch results are **not** merged back into the main workflow state. Each branch's final state is persisted in its own `ProcessStepTable` row, linked to the fork step via `ProcessStepRelationTable`. The main workflow continues with its pre-fork state. Branch results are accessible via the DB (and visible in the UI) but do not pollute the parent state.
 - **Error propagation**: If any branch fails, the entire parallel group fails. All branches run to completion before the worst status is determined. Status priority is: Failed > Waiting > Suspend > AwaitingCallback > Success.
 - **No user interaction in branches**: Parallel branches must not contain `inputstep` or `callback_step` steps. This is validated at workflow definition time.
-- **Logging**: The parallel group creates a fork step in the process log. Named groups use the provided name; unnamed groups get an auto-generated name from the branch step names. Branch sub-steps appear as child rows linked via `ProcessStepRelationTable`.
-- **Three or more branches**: The `|` operator chains naturally: `a | b | c` creates three parallel branches.
+- **Logging**: The parallel group creates a fork step in the process log, named after the parallel step's name. That name is required and must be unique within the workflow; it is the step's only identifier at runtime. Branch sub-steps appear as child rows linked via `ProcessStepRelationTable`.
+- **Three or more branches**: Pass more branches to `parallel(name, a, b, c)`, or add more entries to the dict's list.
 - **Empty list** (`map_parallel`): An empty `items_key` list returns `Success` with the unchanged state — no threads are created.
 
-**Pool sizing**: ThreadPool `max_concurrency` must be positive. The sync pool is shared with HTTP requests, the
-scheduler and other non-fork users; one process-level `max(4, capacity // 4)` connections are excluded from fork
-budgets for them, where `capacity = pool_size + max_overflow`. Each fork allows
-`max(1, (capacity - reserve) // MAX_WORKERS - 1)` threads, reducing but not guaranteeing against pool exhaustion.
+**Database connection pool sizing**: ThreadPool `max_concurrency` must be positive. The synchronous database
+connection pool is shared with HTTP requests, the scheduler and other non-fork users; one process-level
+`max(4, capacity // 4)` connections are excluded from fork budgets for them, where `capacity = pool_size +
+max_overflow`. Each fork allows `max(1, (capacity - reserve) // MAX_WORKERS - 1)` threads, reducing but not
+guaranteeing against database connection pool exhaustion.
 The final `- 1` covers the parent connection; fork create/update scopes do not overlap running branches, so their
 extra slack is not a permanent reservation. A request above the budget is throttled; an explicit value logs once
 per fork, while a capped default logs once per process for each `(capacity, MAX_WORKERS)` combination. High
