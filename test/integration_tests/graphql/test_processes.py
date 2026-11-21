@@ -17,6 +17,9 @@ from unittest.mock import patch
 import pytest
 
 from orchestrator.core import app_settings
+from orchestrator.core.db import ProcessStepTable, db
+from orchestrator.core.db.models import ProcessStepRelationTable
+from orchestrator.core.workflow import BranchKind
 from test.integration_tests.config import GRAPHQL_ENDPOINT
 from test.integration_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 
@@ -701,3 +704,126 @@ def test_processes_step_importance(test_client_graphql, mocked_processes, mocked
     # Steps without an explicit importance, executed and pending, default to "default"
     assert steps
     assert {step["importance"] for step in steps} == {"default"}
+
+
+@pytest.mark.parametrize(
+    "step_fields,expected_child_steps",
+    [
+        pytest.param("name status", None, id="child-steps-not-selected"),
+        pytest.param(
+            "name status childSteps { name status }", [{"name": "Branch", "status": "success"}], id="selected"
+        ),
+    ],
+)
+def test_processes_steps_of_parallel_fork(
+    test_client_graphql, mocked_processes, mocked_processes_resumeall, step_fields, expected_child_steps
+):
+    """Fork steps only get their branch steps when the query selects `childSteps`, and the query works either way."""
+    # given
+    process_id = mocked_processes[0]
+    fork = ProcessStepTable(
+        process_id=process_id,
+        name="Fork",
+        status="success",
+        state={},
+        branch_count=1,
+        branch_kind=BranchKind.PARALLEL,
+        branches_completed=1,
+    )
+    branch = ProcessStepTable(process_id=process_id, name="Branch", status="success", state={})
+    db.session.add_all([fork, branch])
+    db.session.flush()
+    db.session.add(
+        ProcessStepRelationTable(parent_step_id=fork.step_id, child_step_id=branch.step_id, order_id=0, branch_index=0)
+    )
+    db.session.commit()
+
+    data = get_processes_state_updates_and_delta(
+        filter_by=[{"field": "processId", "value": str(process_id)}], step_fields=step_fields
+    )
+
+    # when
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
+
+    # then
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    assert "errors" not in result
+    steps = result["data"]["processes"]["page"][0]["steps"]
+    fork_step = next(step for step in steps if step["name"] == "Fork")
+    assert fork_step.get("childSteps") == expected_child_steps
+
+
+@pytest.mark.parametrize(
+    "branch_kind,expected_branch_kind",
+    [
+        pytest.param(BranchKind.PARALLEL, "parallel", id="parallel"),
+        pytest.param(BranchKind.MAP_PARALLEL, "map_parallel", id="map-parallel"),
+    ],
+)
+def test_processes_branch_kind_is_a_graphql_enum(
+    test_client_graphql, mocked_processes, mocked_processes_resumeall, branch_kind, expected_branch_kind
+):
+    """`branchKind` is a GraphQL enum whose values keep the stored strings, so the wire format does not change."""
+    # given
+    process_id = mocked_processes[0]
+    db.session.add(
+        ProcessStepTable(
+            process_id=process_id,
+            name="Fork",
+            status="success",
+            state={},
+            branch_count=2,
+            branch_kind=branch_kind,
+            branches_completed=2,
+        )
+    )
+    db.session.commit()
+
+    data = get_processes_state_updates_and_delta(
+        filter_by=[{"field": "processId", "value": str(process_id)}], step_fields="name branchKind"
+    )
+
+    # when
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
+
+    # then
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    assert "errors" not in result
+    steps = result["data"]["processes"]["page"][0]["steps"]
+    fork_step = next(step for step in steps if step["name"] == "Fork")
+    assert fork_step["branchKind"] == expected_branch_kind
+    # Ordinary steps serialize as null
+    ordinary_steps = [step for step in steps if step["name"] != "Fork"]
+    assert ordinary_steps
+    assert all(step["branchKind"] is None for step in ordinary_steps)
+
+
+def test_graphql_schema_defines_branch_kind_enum(test_client_graphql):
+    """Introspection shows `branchKind` as an enum type with the stored strings as values."""
+    # given
+    query = """
+query {
+  branchKind: __type(name: "BranchKind") {
+    kind
+    enumValues { name }
+  }
+  stepType: __type(name: "ProcessStepType") {
+    fields { name type { kind name ofType { name } } }
+  }
+}
+"""
+    # when
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, json={"query": query})
+
+    # then
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    assert "errors" not in result
+    branch_kind = result["data"]["branchKind"]
+    assert branch_kind["kind"] == "ENUM"
+    assert {value["name"] for value in branch_kind["enumValues"]} == {"parallel", "map_parallel"}
+
+    branch_kind_field = next(field for field in result["data"]["stepType"]["fields"] if field["name"] == "branchKind")
+    assert branch_kind_field["type"] == {"kind": "ENUM", "name": "BranchKind", "ofType": None}

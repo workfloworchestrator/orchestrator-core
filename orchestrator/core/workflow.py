@@ -19,7 +19,10 @@ import functools
 import inspect
 import secrets
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from contextvars import copy_context
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from itertools import dropwhile
 from typing import (
@@ -37,13 +40,16 @@ from uuid import UUID
 import strawberry
 import structlog
 from deprecated import deprecated
+from more_itertools import duplicates_everseen, unique_everseen
+from sqlalchemy.pool import QueuePool
 from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
 from nwastdlib import const, identity
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.core.config.assignee import Assignee
-from orchestrator.core.db import db, transactional
+from orchestrator.core.db import ProcessStepTable, db, transactional
+from orchestrator.core.db.database import ENGINE_ARGUMENTS
 from orchestrator.core.services.settings import get_engine_settings_table
 from orchestrator.core.settings import app_settings
 from orchestrator.core.targets import Target
@@ -72,6 +78,7 @@ StepLogFuncInternal = Callable[["Step", "Process"], "Process"]
 StepToProcessFunc = Callable[[State], "Process"]
 
 step_log_fn_var: contextvars.ContextVar[StepLogFuncInternal] = contextvars.ContextVar("log_step_fn")
+process_stat_var: contextvars.ContextVar["ProcessStat"] = contextvars.ContextVar("process_stat")
 
 DEFAULT_CALLBACK_ROUTE_KEY = "callback_route"
 CALLBACK_TOKEN_KEY = "__callback_token"  # noqa: S105
@@ -95,6 +102,9 @@ class Step(Protocol):
     assignee: Assignee | None
     resume_auth_callback: Authorizer | None = None
     retry_auth_callback: Authorizer | None = None
+    branching: BranchSpec | None = None
+    sub_steps: StepList | None = None
+    is_callback_step: bool = False
 
     def __call__(self, state: State) -> Process: ...
 
@@ -153,7 +163,16 @@ def make_step_function(
     resume_auth_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
     importance: StepImportance = StepImportance.DEFAULT,
+    *,
+    branching: BranchSpec | None = None,
+    sub_steps: StepList | None = None,
+    is_callback_step: bool = False,
 ) -> Step:
+    """Turn ``f`` into a :class:`Step`, setting every :class:`Step` attribute.
+
+    Every attribute is set, including those that default to ``None``: a ``Step`` annotation on the ``Step`` Protocol
+    only exists for type checkers, so a step that skips an attribute would break code that reads it.
+    """
     step_func = cast(Step, f)
 
     step_func.name = name
@@ -162,6 +181,9 @@ def make_step_function(
     step_func.resume_auth_callback = resume_auth_callback
     step_func.retry_auth_callback = retry_auth_callback
     step_func.importance = importance
+    step_func.branching = branching
+    step_func.sub_steps = sub_steps
+    step_func.is_callback_step = is_callback_step
     return step_func
 
 
@@ -202,18 +224,28 @@ class StepList(list[Step]):
             retval = type(self)(retval)
         return retval
 
-    def __rshift__(self, other: StepList | Step) -> StepList:
+    def __rshift__(self, other: StepList | Step | dict) -> StepList:
         if isinstance(other, Step):
             return StepList([*self, other])
-
         if isinstance(other, StepList):
             return StepList([*self, *other])
-
-        if hasattr(other, "__name__"):  # type: ignore
+        if isinstance(other, dict):
+            return self._rshift_dict(other)
+        if hasattr(other, "__name__"):  # type:ignore[unreachable]
             raise ValueError(
                 f"Expected @step decorated function or type Step or StepList, got {type(other)} with name {other.__name__} instead."
             )
         raise ValueError(f"Expected @step decorated function or type Step or StepList, got {type(other)} instead.")
+
+    def _rshift_dict(self, other: dict) -> StepList:
+        if len(other) != 1:
+            raise ValueError("Parallel dict must have exactly one key (the name)")
+        name, value = next(iter(other.items()))
+        if not isinstance(name, str):
+            raise ValueError(f"Parallel dict key must be a string, got {type(name)}")
+        if isinstance(value, list) and all(isinstance(v, StepList) for v in value):
+            return StepList([*self, _make_parallel_step(name, value)])
+        raise ValueError(f"Parallel dict value must be list[StepList], got {type(value)}")
 
     def __str__(self) -> str:
         return f"StepList [{', '.join(x.name for x in self)}]"
@@ -250,6 +282,99 @@ def default_user_inputs() -> list[State]:
     return [{}]
 
 
+def _child_step_lists(s: Step) -> Iterator[StepList]:
+    """Yield the nested step lists of a step: its branches and its sub steps, if any."""
+    if (branching := s.branching) is not None:
+        yield from branching.branches
+    if (sub_steps := s.sub_steps) is not None:
+        yield sub_steps
+
+
+def _iter_steps(steps: StepList) -> Iterator[Step]:
+    """Yield every step in ``steps``, depth-first, including steps nested in branches and step groups."""
+    for s in steps:
+        yield s
+        for child in _child_step_lists(s):
+            yield from _iter_steps(child)
+
+
+def _iter_parallel_group_names(steps: StepList) -> Iterator[str]:
+    """Yield the group name of every branching step in ``steps``, in tree order."""
+    for s in _iter_steps(steps):
+        if (branching := s.branching) is not None:
+            yield branching.name
+
+
+def _validate_unique_parallel_group_names(steps: StepList) -> None:
+    """Raise ``ValueError`` when two branching steps in the tree share a group name.
+
+    Supports the beta parallel steps (``parallel`` and ``map_parallel``). A group name identifies a branching step
+    when a worker rebuilds a branch from it (:func:`_find_step_by_group_name`), so a definition that reuses a name
+    cannot reliably look up its branch.
+
+    This is a definition-time check only. It does not make the group name unique per fork row at runtime: a
+    parallel step nested in a ``map_parallel`` template is defined once but creates one fork row per item, and
+    those rows share ``(process_id, name, branch_kind)``. Retries of such a nested group can therefore inherit
+    successful branches from a sibling item's fork row. Scoping the prior-fork lookup to the enclosing branch is
+    tracked in https://github.com/workfloworchestrator/orchestrator-core/issues/1780, with a strict-xfail test of the
+    intended behaviour.
+    """
+    if duplicates := list(unique_everseen(duplicates_everseen(_iter_parallel_group_names(steps)))):
+        raise ValueError(
+            f"Duplicate parallel group name(s) {duplicates!r}. Parallel group names must be unique within a "
+            "workflow, as they are used to look up the parallel step when a branch is retried or resumed."
+        )
+
+
+def _find_step_by_group_name(steps: StepList, group_name: str) -> Step | None:
+    """Return the first step in ``steps`` whose ``branching`` has group name ``group_name``, or None.
+
+    Walks the step tree depth-first over each step's ``branching`` and ``sub_steps``. Group names are unique within a
+    workflow, validated when the workflow is built by :func:`_validate_unique_parallel_group_names`, so there is
+    exactly one match. Without that check this first-match lookup could find a different branching step with the same
+    name.
+    """
+    return next(
+        (s for s in _iter_steps(steps) if s.branching is not None and s.branching.name == group_name),
+        None,
+    )
+
+
+def _assert_parallel_step_is_visible(steps: StepList, branching: BranchSpec) -> None:
+    """Check that the step tree walk can see the branching step that is about to run.
+
+    The uniqueness check in :func:`_validate_unique_parallel_group_names` only covers steps the walk reaches. A
+    branching step that a wrapper hides (inside a user wrapper that does not copy the step's attributes, or hiding
+    its sub steps) is not checked, and a worker cannot look it up by name. Failing here turns that into an error on
+    the step's first run, instead of a worker rebuilding the wrong branch or failing obscurely.
+
+    The comparison is on ``branching``, by identity, not on the step: ``conditional`` and ``steplens`` return a
+    wrapper around the step, so the step object that runs is not the one in the workflow's step list. Value equality
+    would also pass for two different ``parallel()`` calls with the same branches.
+
+    Args:
+        steps: The workflow's step list, as passed to :func:`make_workflow`.
+        branching: The :class:`BranchSpec` of the branching step that is running.
+
+    Raises:
+        ValueError: If no step in ``steps`` carries ``branching.name``, or if the one that does has another
+            :class:`BranchSpec`.
+    """
+    found = _find_step_by_group_name(steps, branching.name)
+    if found is None:
+        raise ValueError(
+            f"Parallel group '{branching.name}' is not visible in the workflow's step tree, so a worker cannot look "
+            "it up and duplicate group names inside it go undetected. A parallel step inside a custom step wrapper "
+            "that doesn't copy the step's attributes is not supported."
+        )
+
+    if found.branching is not branching:
+        raise ValueError(
+            f"Parallel group name '{branching.name}' is reused by a parallel step with different branches. Group "
+            "names must be unique within a workflow."
+        )
+
+
 def make_workflow(
     f: Callable,
     description: str,
@@ -279,6 +404,8 @@ def make_workflow(
 
     wf.initial_input_form = _handle_simple_input_form_generator(initial_input_form)
     wf.target = target
+    # Supports the beta parallel steps (parallel, map_parallel), so it runs for every workflow make_workflow builds.
+    _validate_unique_parallel_group_names(steps)
     wf.steps = steps
     wf.run_predicate = run_predicate
 
@@ -446,7 +573,22 @@ def step_group(
         importance: Importance of the group. The sub steps all log into the group's single process step row, so
             this, not the sub steps' own importance, is what clients see.
     """
+    return _step_group(name, steps, extract_form, retry_auth_callback, importance)
 
+
+def _step_group(
+    name: str,
+    steps: StepList,
+    extract_form: bool = True,
+    retry_auth_callback: Authorizer | None = None,
+    importance: StepImportance = StepImportance.DEFAULT,
+    *,
+    is_callback_step: bool = False,
+) -> Step:
+    """Build a step group, optionally marked as the step that :func:`callback_step` returns.
+
+    :func:`step_group` is the public entry point; it keeps its signature free of internal flags.
+    """
     steps = _extend_step_group_steps(name, steps)
 
     def func(initial_state: State) -> Process:
@@ -480,7 +622,687 @@ def step_group(
 
     # Make sure we return a form is a sub step has a form
     form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
-    return make_step_function(func, name, form, retry_auth_callback=retry_auth_callback, importance=importance)
+    return make_step_function(
+        func,
+        name,
+        form,
+        retry_auth_callback=retry_auth_callback,
+        importance=importance,
+        sub_steps=steps,
+        is_callback_step=is_callback_step,
+    )
+
+
+def _rewrap_step(step: Step, f: Callable[[Step], Callable[[State], Process]]) -> Step:
+    """Wrap ``step`` in a new step function returned by ``f``, copying every :class:`Step` attribute.
+
+    ``make_step_function`` sets the attributes it is given and resets the rest, so passing only a subset would drop
+    them. ``branching`` and ``sub_steps`` in particular have to survive: they are how the tree walk and a worker find
+    this step and its child steps.
+
+    Args:
+        step: The step to wrap.
+        f: Given ``step``, returns the function that becomes the wrapper's ``__call__``.
+    """
+    return make_step_function(
+        f(step),
+        step.name,
+        step.form,
+        step.assignee,
+        resume_auth_callback=step.resume_auth_callback,
+        retry_auth_callback=step.retry_auth_callback,
+        importance=step.importance,
+        branching=step.branching,
+        sub_steps=step.sub_steps,
+        is_callback_step=step.is_callback_step,
+    )
+
+
+_STATUS_PRIORITY: list[str] = ["isfailed", "iswaiting", "issuspend", "isawaitingcallback"]
+
+
+def _worst_status(branch_results: list[Process]) -> Process | None:
+    """Return the branch with the worst non-success status, or None if all succeeded."""
+    return next(
+        (result for check in _STATUS_PRIORITY for result in branch_results if getattr(result, check)()),
+        None,
+    )
+
+
+def branch_step_name(branch_index: int, step_name: str) -> str:
+    """Return the name of a branch step's row in the process log.
+
+    Args:
+        branch_index: Index of the branch the step belongs to.
+        step_name: Name of the step itself.
+
+    Returns:
+        The step name prefixed with the branch, for example ``"[Branch 0] Provision"``.
+    """
+    return f"[Branch {branch_index}] {step_name}"
+
+
+def _make_branch_dblogstep(
+    process_id: UUID,
+    parent_step_id: UUID,
+    branch_index: int,
+    current_user: str,
+    seed_state: State | None = None,
+) -> StepLogFuncInternal:
+    """Create a step logger for a parallel branch that writes its own ProcessStepTable rows.
+
+    Each branch step is persisted individually and linked to the parent fork step
+    via ProcessStepRelationTable. The seed_state is stored on the first relation
+    so the join can strip seed keys from branch results.
+
+    Starts the per-branch ``order_id`` counter above any existing order_ids for this
+    (fork, branch_index) so retry attempts are sortable as "latest" by
+    ``_collect_branch_results`` (which picks the row with the highest order_id per
+    branch_index).
+    """
+    import itertools
+
+    from sqlalchemy import func, select
+
+    from orchestrator.core.db.models import ProcessStepRelationTable
+
+    existing_max = db.session.scalars(
+        select(func.max(ProcessStepRelationTable.order_id)).where(
+            ProcessStepRelationTable.parent_step_id == parent_step_id,
+            ProcessStepRelationTable.branch_index == branch_index,
+        )
+    ).first()
+    order_counter = itertools.count(existing_max + 1 if existing_max is not None else 0)
+
+    def branch_dblogstep(step_: Step, p: Process) -> Process:
+        step_state = p.unwrap()
+        step_name = step_state.pop("__step_name_override", step_.name)
+
+        child_step = ProcessStepTable(
+            process_id=process_id,
+            name=branch_step_name(branch_index, step_name),
+            status=p.status,
+            state=step_state,
+            created_by=current_user,
+        )
+        db.session.add(child_step)
+        db.session.flush()
+
+        order_id = next(order_counter)
+        relation = ProcessStepRelationTable(
+            parent_step_id=parent_step_id,
+            child_step_id=child_step.step_id,
+            order_id=order_id,
+            branch_index=branch_index,
+            seed_state=seed_state if order_id == 0 else None,
+        )
+        db.session.add(relation)
+        db.session.commit()
+        return p.__class__(child_step.state)
+
+    return branch_dblogstep
+
+
+def _run_branch(
+    branch: StepList,
+    initial_state: State,
+    *,
+    process_id: UUID | None = None,
+    parent_step_id: UUID | None = None,
+    branch_index: int = 0,
+    current_user: str = "",
+    state_seed: State | None = None,
+) -> Process:
+    """Execute a single parallel branch in its own database scope.
+
+    Args:
+        branch: The step list to execute.
+        initial_state: The base state to deep-copy for this branch.
+        process_id: Process ID for DB logging (None = no DB logging).
+        parent_step_id: Fork step ID to link child steps to.
+        branch_index: Index of this branch (0-based).
+        current_user: User who started the workflow.
+        state_seed: Optional per-branch state overrides (used by map_parallel).
+    """
+    with db.database_scope():
+        branch_state = deepcopy(initial_state)
+        if state_seed is not None:
+            branch_state.update(state_seed)
+
+        branch_logstep: StepLogFuncInternal = (
+            _make_branch_dblogstep(process_id, parent_step_id, branch_index, current_user, seed_state=state_seed)
+            if process_id is not None and parent_step_id is not None
+            else lambda step_, p: p  # noqa: E731
+        )
+
+        return _exec_steps(branch, Success(branch_state), branch_logstep)
+
+
+def _create_fork_step(
+    process_id: UUID,
+    name: str,
+    initial_state: State,
+    total_branches: int,
+    current_user: str,
+    branch_kind: BranchKind,
+) -> UUID:
+    """Create a new fork step for this (process, branch group).
+
+    Always inserts a fresh fork row — mirrors orchestrator-core's existing retry
+    pattern where each new attempt of a step gets its own row, leaving prior
+    failed rows untouched as history. When a prior *failed* fork for the same
+    parallel group exists, its successful branch relations are inherited by the
+    new fork so ``fork.child_steps`` and the atomic join logic see the full set
+    of resolved branches; the failed/pending branches are re-dispatched.
+
+    Uses a separate ``database_scope()`` session so the change is committed
+    independently of the caller's transaction. This ensures the fork step is
+    visible to branch threads that run on their own connections from the
+    synchronous database connection pool of ``db.engine``.
+
+    Returns the fork step_id (not the ORM object) to avoid stale-object issues.
+    """
+    from sqlalchemy import select
+
+    from orchestrator.core.db.models import ProcessStepRelationTable
+    from orchestrator.core.services.parallel import _latest_branch_results, _select_branch_relations
+
+    with db.database_scope():
+        prior_failed = db.session.scalars(
+            select(ProcessStepTable)
+            .where(
+                ProcessStepTable.process_id == process_id,
+                ProcessStepTable.name == name,
+                ProcessStepTable.branch_kind == branch_kind,
+                ProcessStepTable.status == StepStatus.FAILED,
+            )
+            .order_by(ProcessStepTable.completed_at.desc())
+            .limit(1)
+        ).first()
+
+        inherited_relations: list[ProcessStepRelationTable] = []
+        succeeded_branches: set[int] = set()
+        if prior_failed is not None:
+            # Re-inherit the steps of the branches that succeeded in the prior fork, as they were recorded there: the
+            # latest step of each branch determines its result, and the earlier ones are its history. One query reads
+            # the relations; each copy keeps its own order_id, which is part of the primary key, so the copy order
+            # doesn't matter.
+            relations = _select_branch_relations(prior_failed.step_id)
+            succeeded_branches = {
+                idx for idx, result in _latest_branch_results(relations).items() if result.issuccess()
+            }
+            inherited_relations = [rel for rel in relations if rel.branch_index in succeeded_branches]
+
+        now = nowtz()
+        fork_step = ProcessStepTable(
+            process_id=process_id,
+            name=name,
+            status=StepStatus.SUCCESS,
+            state=initial_state,
+            created_by=current_user,
+            branch_count=total_branches,
+            branch_kind=branch_kind,
+            branches_completed=len(succeeded_branches),
+            started_at=now,
+            completed_at=now,
+        )
+        db.session.add(fork_step)
+        db.session.flush()
+
+        db.session.add_all(
+            ProcessStepRelationTable(
+                parent_step_id=fork_step.step_id,
+                child_step_id=rel.child_step_id,
+                order_id=rel.order_id,
+                branch_index=rel.branch_index,
+                seed_state=rel.seed_state,
+            )
+            for rel in inherited_relations
+        )
+        db.session.commit()
+        return fork_step.step_id
+
+
+# TODO move to separate module along with parent caller _exec_parallel_branches and make public
+def _dispatch_worker_branches(
+    branches: list[StepList],
+    initial_state: State,
+    process_id: UUID,
+    current_user: str,
+    fork_step_id: UUID,
+    is_task: bool,
+    seeds: list[State] | None = None,
+) -> Process:
+    """Submit parallel branches as worker tasks and return Waiting.
+
+    The parent workflow suspends (Waiting). Each branch executes in its own worker
+    task. The last finisher detects completion via atomic counter and resumes
+    the parent workflow. Picks the task or workflow queue based on ``is_task``.
+    """
+    from orchestrator.core.services.tasks import (
+        EXECUTE_PARALLEL_BRANCH_TASK,
+        EXECUTE_PARALLEL_BRANCH_WORKFLOW,
+        get_celery_task,
+    )
+
+    task_name = EXECUTE_PARALLEL_BRANCH_TASK if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW
+    trigger_task = get_celery_task(task_name)
+
+    from orchestrator.core.services.parallel import _succeeded_branch_indices
+
+    n_branches = len(seeds) if seeds else len(branches)
+    already_succeeded = _succeeded_branch_indices(fork_step_id)
+    pending = [idx for idx in range(n_branches) if idx not in already_succeeded]
+    for idx in pending:
+        branch_initial = (initial_state | seeds[idx]) if seeds else initial_state
+        seed = seeds[idx] if seeds else None
+        trigger_task.delay(process_id, idx, fork_step_id, branch_initial, current_user, seed)
+
+    # __replace_last_state tells safe_logstep to update the fork row in-place
+    # rather than write a separate Waiting main-log row alongside it.
+    return Waiting(
+        initial_state
+        | {
+            "__parallel_waiting": True,
+            "__fork_step_id": str(fork_step_id),
+            "__replace_last_state": True,
+        }
+    )
+
+
+def _update_fork_step(fork_step_id: UUID, status: str, state: State, n_branches: int) -> None:
+    """Update the fork step status via direct SQL UPDATE.
+
+    Uses a separate ``database_scope()`` session so the UPDATE is committed
+    independently, bypassing ``disable_commit`` on the caller's session.
+    """
+    from sqlalchemy import update
+
+    with db.database_scope():
+        stmt = (
+            update(ProcessStepTable)
+            .where(ProcessStepTable.step_id == fork_step_id)
+            .values(
+                status=status,
+                state=state,
+                branches_completed=n_branches,
+            )
+        )
+        db.session.execute(stmt)
+        db.session.commit()
+
+
+# Fixed share of the synchronous database connection pool of `db.engine` reserved for HTTP requests, the scheduler and
+# other non-fork users.
+_NON_FORK_POOL_RESERVE_FRACTION = 4
+
+
+@functools.lru_cache(maxsize=None)
+def _warn_about_default_concurrency_budget(capacity: int, max_workers: int, requested: int, budget: int) -> None:
+    logger.warning(
+        "Reducing parallel branch concurrency to the connection-pool budget",
+        requested_concurrency=requested,
+        branch_budget=budget,
+        connection_pool_capacity=capacity,
+        max_workers=max_workers,
+    )
+
+
+def _check_max_concurrency(value: int | None) -> None:
+    if value is not None and value <= 0:
+        raise ValueError("max_concurrency must be greater than 0")
+
+
+def _max_parallel_workers(pending: int, max_concurrency: int | None) -> int:
+    """Bound one fork's branch threads by the synchronous database connection pool of ``db.engine``."""
+    _check_max_concurrency(max_concurrency)
+
+    pool = db.engine.pool
+    pool_size = pool.size() if isinstance(pool, QueuePool) else cast(int, ENGINE_ARGUMENTS["pool_size"])
+    max_overflow = getattr(pool, "_max_overflow", cast(int, ENGINE_ARGUMENTS.get("max_overflow", 0)))
+    max_workers = app_settings.MAX_WORKERS
+
+    capacity = pool_size + max_overflow
+    non_fork_reserve = max(4, capacity // _NON_FORK_POOL_RESERVE_FRACTION)
+    # One process-level quarter (at least four connections) is excluded from all fork budgets for HTTP/scheduler;
+    # subtract one parent connection per fork.
+    # Fork create/update database scopes do not overlap running branches, so they only imply extra slack.
+    # The floor allows serial execution for very high MAX_WORKERS or a small synchronous database connection pool; a
+    # warning makes that explicit.
+    branch_budget = max(1, (capacity - non_fork_reserve) // max_workers - 1)
+    requested = max_concurrency if max_concurrency is not None else max_workers
+    if min(pending, requested) > branch_budget:
+        if max_concurrency is None:
+            _warn_about_default_concurrency_budget(capacity, max_workers, requested, branch_budget)
+        else:
+            logger.warning(
+                "Reducing parallel branch concurrency to the connection-pool budget",
+                requested_concurrency=requested,
+                branch_budget=branch_budget,
+                connection_pool_capacity=capacity,
+                max_workers=max_workers,
+            )
+    return min(pending, requested, branch_budget)
+
+
+def _run_threadpool_branches(
+    branches: list[StepList],
+    initial_state: State,
+    name: str,
+    process_id: UUID | None,
+    fork_step_id: UUID | None,
+    current_user: str,
+    max_concurrency: int | None = None,
+    seeds: list[State] | None = None,
+) -> Process:
+    """Execute branches in a thread pool and collect results synchronously.
+
+    On retry, branches that already succeeded on a prior attempt (recorded under the
+    same fork via ``ProcessStepRelationTable``) are skipped. The aggregate result is
+    computed from each branch's *latest* attempt in the DB so successful prior
+    branches contribute alongside the freshly-executed pending ones.
+    """
+    from orchestrator.core.services.parallel import (
+        _collect_branch_results,
+        _succeeded_branch_indices,
+    )
+
+    n_branches = len(seeds) if seeds else len(branches)
+
+    already_succeeded = _succeeded_branch_indices(fork_step_id) if fork_step_id is not None else set()
+    pending = [idx for idx in range(n_branches) if idx not in already_succeeded]
+
+    branch_results: list[Process | None] = [None] * n_branches
+
+    if pending:
+        workers = _max_parallel_workers(len(pending), max_concurrency)
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(
+                    copy_context().run,
+                    _run_branch,
+                    branches[idx] if len(branches) > 1 else branches[0],
+                    initial_state,
+                    process_id=process_id,
+                    parent_step_id=fork_step_id,
+                    branch_index=idx,
+                    current_user=current_user,
+                    state_seed=seeds[idx] if seeds else None,
+                ): idx
+                for idx in pending
+            }
+
+            def _collect_result(future: Future[Process]) -> None:
+                idx = futures[future]
+                try:
+                    branch_results[idx] = future.result()
+                except Exception as e:
+                    logger.error("Parallel branch exception", branch_idx=idx, parallel_group=name)
+                    branch_results[idx] = Failed(error_state_to_dict(e))
+
+            for future in as_completed(futures):
+                _collect_result(future)
+
+    parallel_start_time = nowtz().timestamp()
+
+    # Aggregate from the DB so previously-succeeded branches contribute to the worst-status
+    # calculation alongside the branches that just ran in this attempt.
+    if fork_step_id is not None:
+        results = list(_collect_branch_results(fork_step_id).values())
+    else:
+        results = [r for r in branch_results if r is not None]
+
+    worst = _worst_status(results)
+
+    if fork_step_id is not None:
+        fork_status = worst.status if worst is not None else StepStatus.SUCCESS
+        _update_fork_step(fork_step_id, fork_status, initial_state, n_branches)
+
+    # Tell safe_logstep to update the fork row in-place rather than write a
+    # separate main-log row (which would collide with the fork by name).
+    if worst is not None:
+        return worst.__class__(worst.unwrap() | {"__replace_last_state": True})
+
+    return Success(initial_state | {"__replace_last_state": True, "__last_step_started_at": parallel_start_time})
+
+
+# TODO move to separate module with submodules for threadpool/celery executor
+def _exec_parallel_branches(
+    branching: BranchSpec,
+    initial_state: State,
+    max_concurrency: int | None = None,
+    seeds: list[State] | None = None,
+) -> Process:
+    """Execute the branches of ``branching``, dispatching to worker or threadpool based on EXECUTOR setting."""
+    from orchestrator.core.settings import ExecutorType, app_settings
+
+    pstat = process_stat_var.get(None)
+    process_id = pstat.process_id if pstat else None
+    current_user = pstat.current_user if pstat else ""
+    # A template kind runs its one list per seed; the other kinds have one list per branch.
+    branches = list(branching.branches)
+    n_branches = len(seeds) if seeds else len(branches)
+
+    # Refuse to run a parallel step that the workflow's step tree walk cannot see. See
+    # _assert_parallel_step_is_visible for why that matters.
+    if pstat is not None:
+        _assert_parallel_step_is_visible(pstat.workflow.steps, branching)
+
+    fork_step_id = (
+        _create_fork_step(process_id, branching.name, initial_state, n_branches, current_user, branching.kind)
+        if process_id
+        else None
+    )
+
+    match app_settings.EXECUTOR:
+        case ExecutorType.WORKER if process_id is not None and fork_step_id is not None:
+            from orchestrator.core.services.workflows import get_workflow_by_name
+
+            wf_table = get_workflow_by_name(pstat.workflow.name) if pstat else None
+            is_task = wf_table.is_task if wf_table else False
+            return _dispatch_worker_branches(
+                branches, initial_state, process_id, current_user, fork_step_id, is_task, seeds=seeds
+            )
+
+        case _:
+            return _run_threadpool_branches(
+                branches,
+                initial_state,
+                branching.name,
+                process_id,
+                fork_step_id,
+                current_user,
+                max_concurrency=max_concurrency,
+                seeds=seeds,
+            )
+
+
+def _make_parallel_step(
+    name: str,
+    branches: list[StepList],
+    retry_auth_callback: Authorizer | None = None,
+    max_concurrency: int | None = None,
+) -> Step:
+    """Create a parallel step from a list of branches (internal implementation)."""
+    _check_max_concurrency(max_concurrency)
+    if len(branches) < 2:
+        raise ValueError("parallel() requires at least 2 branches")
+
+    # Validate no inputsteps or callback steps in branches
+    def _validate_branch_step(branch_idx: int, s: Step) -> bool:
+        if s.form is not None:
+            raise ValueError(
+                f"Parallel branches must not contain inputsteps. Found inputstep '{s.name}' in branch {branch_idx}."
+            )
+        if s.is_callback_step:
+            raise ValueError(
+                f"Parallel branches must not contain callback steps. "
+                f"Found callback_step '{s.name}' in branch {branch_idx}."
+            )
+        return False
+
+    any(_validate_branch_step(idx, s) for idx, branch in enumerate(branches) for s in branch)
+
+    branching = BranchSpec(name, BranchKind.PARALLEL, tuple(branches))
+
+    def func(initial_state: State) -> Process:
+        with transactional(db, logger):
+            return _exec_parallel_branches(branching, initial_state, max_concurrency=max_concurrency)
+
+    return make_step_function(func, name, retry_auth_callback=retry_auth_callback, branching=branching)
+
+
+def reconstruct_branch(parallel_step: Step, branch_index: int) -> StepList:
+    """Return the step list to run for ``branch_index`` of ``parallel_step``, for a Celery worker.
+
+    Args:
+        parallel_step: A step created by :func:`_make_parallel_step` or :func:`map_parallel`.
+        branch_index: Zero-based index of the branch to reconstruct.
+
+    Raises:
+        ValueError: If ``parallel_step`` doesn't fan out, so it has no branch to reconstruct.
+        IndexError: If ``branch_index`` is out of range (static parallel only).
+    """
+    if parallel_step.branching is None:
+        raise ValueError(f"Step '{parallel_step.name}' is not a parallel step")
+    return parallel_step.branching.reconstruct_branch(branch_index)
+
+
+def parallel(
+    name: str,
+    *branches: StepList | Step,
+    retry_auth_callback: Authorizer | None = None,
+    max_concurrency: int | None = None,
+) -> Step:
+    """Execute multiple step sequences in parallel.
+
+    Each branch receives a deep copy of the current state. Branch results are
+    persisted individually in the DB (via ``ProcessStepRelationTable``) and are
+    **not** merged back into the main workflow state. The step after the parallel
+    block receives the pre-parallel state. Branch data can be accessed from the DB
+    via ``fork_step.child_steps``.
+
+    Args:
+        name: Name of the parallel step. It is the step's only identifier within the workflow at runtime: it names
+            the fork step row, a worker uses it to look up the step and rebuild a branch, and a retry uses it to find
+            the earlier failed fork to inherit successful branches from. It must therefore be unique within the
+            workflow, including in nested branches, step groups and ``map_parallel`` templates; ``make_workflow``
+            raises ``ValueError`` on a duplicate name.
+        *branches: multiple Step or StepList to execute concurrently
+        retry_auth_callback: Authorization callback for retrying on failure
+        max_concurrency: Maximum concurrent branch threads. Defaults to ``MAX_WORKERS`` and, together with
+            explicit values, is capped by the synchronous database connection pool budget. Ignored with
+            ``EXECUTOR=worker``; worker concurrency controls execution there.
+
+    Returns:
+        A Step that can be composed with >> operator
+
+    Raises:
+        ValueError: If fewer than 2 branches provided
+        ValueError: If any branch contains an inputstep
+        ValueError: If ``max_concurrency`` is not positive
+    """
+    branch_steplists = [begin >> branch for branch in branches]
+    return _make_parallel_step(
+        name, list(branch_steplists), retry_auth_callback=retry_auth_callback, max_concurrency=max_concurrency
+    )
+
+
+def map_parallel(
+    name: str,
+    items_key: str,
+    branch: StepList | Step,
+    max_concurrency: int | None = None,
+) -> Step:
+    """Map the Step or StepList to all items in ``state[items_key]``.
+
+    At runtime the step reads ``state[items_key]`` and schedules one branch per item.
+    Each branch runs a deep copy of *branch* with the item merged into its initial state:
+
+    - **Dict items** are merged directly: ``initial_state | item``.
+      The item's keys become available as ordinary step arguments in that branch.
+    - **Non-dict items** are injected under ``{"item": <value>, "item_index": <int>}``.
+
+    Branch results are persisted individually in the DB (via ``ProcessStepRelationTable``)
+    and are **not** merged back into the main workflow state. The step after the foreach
+    block receives the pre-parallel state. Branch data can be accessed from the DB
+    via ``fork_step.child_steps``.
+
+    Example::
+
+        @step("Fetch ports")
+        def fetch_ports():
+            return {"ports": [{"port_id": "p1", "vlan": 100},
+                               {"port_id": "p2", "vlan": 200}]}
+
+        @step("Provision port")
+        def provision_port(port_id, vlan):
+            result = call_provisioning_api(port_id, vlan)
+            return {f"port_{port_id}_result": result}
+
+        @workflow("Provision dual port", target=Target.CREATE)
+        def provision_dual():
+            return (
+                init
+                >> fetch_ports
+                >> map_parallel("Provision ports", "ports", provision_port)
+                >> link_ports
+                >> done
+            )
+
+    Example of a multi-step ``StepList``::
+
+        @step("Reserve port")
+        def reserve_port(port_id, vlan):
+            return call_reservation_api(port_id, vlan)
+
+        map_parallel(
+            "Provision ports",
+            "ports",
+            begin >> reserve_port >> provision_port,
+        )
+
+    Args:
+        name: Name of the parallel step. It is the step's only identifier within the workflow at runtime: it names
+            the fork step row, a worker uses it to look up the step and rebuild a branch, and a retry uses it to find
+            the earlier failed fork to inherit successful branches from. It must therefore be unique within the
+            workflow, including in nested branches, step groups and ``map_parallel`` templates; ``make_workflow``
+            raises ``ValueError`` on a duplicate.
+        items_key: Key in the workflow state whose value is the list to iterate over.
+        branch: Step or StepList executed once per item, with the item merged into state.
+        max_concurrency: Maximum concurrent item branches. Defaults to ``MAX_WORKERS`` and, together with
+            explicit values, is capped by the synchronous database connection pool budget. Ignored with
+            ``EXECUTOR=worker``; worker concurrency controls execution there.
+
+    Returns:
+        A Step that can be composed with the ``>>`` operator.
+
+    Raises:
+        ValueError: If ``state[items_key]`` is not iterable at runtime.
+        ValueError: If ``max_concurrency`` is not positive.
+    """
+    _check_max_concurrency(max_concurrency)
+    branch_steplist = begin >> branch
+    branching = BranchSpec(name, BranchKind.MAP_PARALLEL, (branch_steplist,))
+
+    def func(initial_state: State) -> Process:
+        with transactional(db, logger):
+            raw = initial_state.get(items_key)
+            if raw is None:
+                raise ValueError(f"map_parallel: key '{items_key}' not found in state")
+            items = list(raw)
+
+            if not items:
+                return Success(initial_state)
+
+            # Build per-item seeds — dict items are used as-is; scalars get a wrapper.
+            seeds: list[State] = [
+                item if isinstance(item, dict) else {"item": item, "item_index": idx} for idx, item in enumerate(items)
+            ]
+
+            return _exec_parallel_branches(branching, initial_state, max_concurrency=max_concurrency, seeds=seeds)
+
+    return make_step_function(func, name, branching=branching)
 
 
 def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
@@ -542,10 +1364,11 @@ def callback_step(
     create_endpoint_step = step(f"{name} - Create endpoint")(_create_endpoint_step(key=callback_route_key))
     await_step = _awaitstep(f"{name} - Await callback", result_key=result_key, timeout=timeout)
     cleanup_step = step(f"{name} - Cleanup callback step")(lambda: {"__remove_keys": [CALLBACK_TOKEN_KEY]})
-    return step_group(
+    return _step_group(
         name=name,
         steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step >> cleanup_step,
         importance=importance,
+        is_callback_step=True,
     )
 
 
@@ -579,14 +1402,14 @@ def conditional(p: Callable[[State], bool]) -> Callable[..., StepList]:
         else:
             steps = steps_or_func
 
-        def wrap(step: Step) -> Step:
+        def wrapped(step: Step) -> Callable[[State], Process]:
             @functools.wraps(step)
             def wrapper(state: State) -> Process:
                 return step(state) if p(state) else Skipped(state)
 
-            return make_step_function(wrapper, step.name, step.form, step.assignee, importance=step.importance)
+            return wrapper
 
-        return steps.map(wrap)
+        return steps.map(lambda step: _rewrap_step(step, wrapped))
 
     return _conditional
 
@@ -594,7 +1417,7 @@ def conditional(p: Callable[[State], bool]) -> Callable[..., StepList]:
 def steplens(get: Callable[[State], State], set: Callable[[State], Callable[[State], State]]) -> Callable[[Step], Step]:
     """Update a step list to zoom its input state using get and update its output state using set."""
 
-    def wrap(step: Step) -> Step:
+    def wrapped(step: Step) -> Callable[[State], Process]:
         @functools.wraps(step)
         def wrapper(state: State) -> Process:
             sub_state = get(state)
@@ -605,9 +1428,9 @@ def steplens(get: Callable[[State], State], set: Callable[[State], Callable[[Sta
                 return result
             return result.map(set(state))
 
-        return make_step_function(wrapper, step.name, step.form, step.assignee, importance=step.importance)
+        return wrapper
 
-    return wrap
+    return lambda step: _rewrap_step(step, wrapped)
 
 
 def focussteps(key: str) -> Callable[[Step | StepList], StepList]:
@@ -735,6 +1558,43 @@ class ProcessStatus(strEnum):
     INCONSISTENT_DATA = "inconsistent_data"
     COMPLETED = "completed"
     RESUMED = "resumed"
+
+
+@strawberry.enum(name="BranchKind", graphql_name_from="value")
+class BranchKind(strEnum):
+    """Kind of step that fans out into child steps; stored in ``ProcessStepTable.branch_kind``."""
+
+    PARALLEL = "parallel"
+    MAP_PARALLEL = "map_parallel"
+
+
+@dataclass(frozen=True)
+class BranchSpec:
+    """The structure of a step that fans out into child steps, exposed as :attr:`Step.branching`.
+
+    It holds only the structure, not how the branches run: execution options such as the concurrency limit and the
+    ``map_parallel`` items key live in the step function that the DSL builds.
+
+    Args:
+        name: Group name of the branching step, used to look the step up when a branch is retried or resumed.
+        kind: The kind of fan-out.
+        branches: The step lists that run per branch. Template kinds (``MAP_PARALLEL``, and later ``LOOP``) hold the
+            single template they run for every item.
+    """
+
+    name: str
+    kind: BranchKind
+    branches: tuple[StepList, ...]
+
+    def reconstruct_branch(self, branch_index: int) -> StepList:
+        """Return the step list to run for ``branch_index``.
+
+        Raises:
+            IndexError: If ``branch_index`` is out of range, which only a non-template kind can be.
+        """
+        if self.kind == BranchKind.MAP_PARALLEL:
+            return self.branches[0]
+        return self.branches[branch_index]
 
 
 class StepStatus(strEnum):
@@ -1612,53 +2472,57 @@ def capture_workflow_failure(err: Any) -> None:
             pass
 
 
+def _exec_step(
+    process: Process,
+    step_: Step,
+    dblogstep: StepLogFuncInternal,
+    consolelogger: BoundLogger,
+) -> Process:
+    """Execute a single workflow step, returning the resulting Process."""
+    consolelogger = consolelogger.bind(step_name=step_.name)
+    mutationlogger = log_mutations(process.unwrap())
+
+    try:
+        with transactional(db, logger):
+            engine_status = get_engine_settings_table()
+            if engine_status.global_lock:
+                consolelogger.info(
+                    "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
+                )
+                return process
+
+        process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
+        step_result_process = process.execute_step(step_)
+    except Exception as e:
+        consolelogger.error("An exception occurred while executing the workflow step.", exc_info=e)
+        step_result_process = Failed(e)
+
+    # Convert ErrorState to ErrorDict when Failed or Waiting before writing to the database
+    # as bare exceptions are not JSON serializable
+    result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
+    result_to_log.on_success(mutationlogger).on_failed(log_workflow_failure).on_waiting(log_workflow_failure)
+
+    # Capture the original exception that caused the workflow to fail
+    step_result_process.on_failed(capture_workflow_failure)
+
+    with transactional(db, logger):
+        process = dblogstep(step_, result_to_log)
+    consolelogger.debug("Workflow step executed.", process_status=process.status)
+    return process
+
+
 def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFuncInternal) -> Process:
     """Execute the workflow steps one by one until a Process state other than Success or Skipped is reached."""
     consolelogger = cond_bind(logger, starting_process.unwrap(), "reporter", "created_by")
-    process = starting_process
-    for step in steps:
-        # Check if we need to continue with the process
-        if not (process.issuccess() or process.isskipped()):
-            break
-
-        consolelogger = consolelogger.bind(step_name=step.name)
-
-        # Debug logging of step information
-        mutationlogger = log_mutations(process.unwrap())
-
-        # Execute step
-        try:
-            with transactional(db, logger):
-                engine_status = get_engine_settings_table()
-                if engine_status.global_lock:
-                    # Exiting from thread workflow engine is Paused or Pausing
-                    consolelogger.info(
-                        "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
-                    )
-                    return process
-
-            process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
-            step_result_process = process.execute_step(step)
-        except Exception as e:
-            consolelogger.error("An exception occurred while executing the workflow step.", exc_info=e)
-            step_result_process = Failed(e)
-
-        # write the new process state after the step execution to the database
-        # Convert ErrorState to ErrorDict when Failed or Waiting before writing to the database
-        # as bare exceptions are not JSON serializable
-        result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
-        result_to_log.on_success(mutationlogger).on_failed(log_workflow_failure).on_waiting(log_workflow_failure)
-
-        # Capture the original exception that caused the workflow to fail
-        step_result_process.on_failed(capture_workflow_failure)
-
-        with transactional(db, logger):
-            process = dblogstep(step, result_to_log)
-        # If database logging failed, the workflow should fail. When it was successful just continue with the
-        # result of the executed step.
-        consolelogger.debug("Workflow step executed.", process_status=process.status)
-
-    return process
+    return functools.reduce(
+        lambda process, step_: (
+            _exec_step(process, step_, dblogstep, consolelogger)
+            if process.issuccess() or process.isskipped()
+            else process
+        ),
+        steps,
+        starting_process,
+    )
 
 
 def runwf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
@@ -1686,6 +2550,7 @@ def runwf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
     # This enables recursive step execution of sub steps with the same StepLogFunc.
     # Should probably be refactored at some point as contextvars is a kind of global state.
     step_log_fn_var.set(_logstep)
+    process_stat_var.set(pstat)
     executed_steps = _exec_steps(steps, next_state, _logstep)
     if executed_steps.overall_status == ProcessStatus.FAILED:
         invalidate_status_counts()
