@@ -29,7 +29,17 @@ from sqlalchemy.orm import selectinload
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.testing import WorkflowInstanceForTests, assert_complete, run_workflow
-from orchestrator.core.workflow import BranchKind, begin, done, init, map_parallel, parallel, step, workflow
+from orchestrator.core.workflow import (
+    BranchKind,
+    begin,
+    branch_step_name,
+    done,
+    init,
+    map_parallel,
+    parallel,
+    step,
+    workflow,
+)
 
 
 @step("Int Branch A")
@@ -161,8 +171,8 @@ def test_branch_step_names_include_branch_index(parallel_workflow_run) -> None:
     )
     assert len(branch_steps) >= 2
     names = [s.name for s in branch_steps]
-    assert any("[Branch 0]" in n for n in names)
-    assert any("[Branch 1]" in n for n in names)
+    assert branch_step_name(0, int_branch_a.name) in names
+    assert branch_step_name(1, int_branch_b.name) in names
 
 
 # --- New tests ---
@@ -191,8 +201,8 @@ def test_fork_step_child_steps_via_association_proxy(parallel_workflow_run) -> N
     assert len(child_steps) == 2
 
     child_names = {cs.name for cs in child_steps}
-    assert any("[Branch 0]" in n for n in child_names)
-    assert any("[Branch 1]" in n for n in child_names)
+    assert branch_step_name(0, int_branch_a.name) in child_names
+    assert branch_step_name(1, int_branch_b.name) in child_names
 
     for cs in child_steps:
         assert cs.status == "success"
@@ -203,6 +213,7 @@ def test_fork_step_child_steps_via_association_proxy(parallel_workflow_run) -> N
 def test_multi_step_branches_create_ordered_relations() -> None:
     """Workflow with 2 branches of 2 steps each creates 4 relation rows with sequential order_ids."""
 
+    # given
     @workflow()
     def multi_step_branch_wf():
         return (
@@ -212,7 +223,10 @@ def test_multi_step_branches_create_ordered_relations() -> None:
         )
 
     with WorkflowInstanceForTests(multi_step_branch_wf, "multi_step_branch_wf"):
+        # when
         result, pstat, _step_log = run_workflow("multi_step_branch_wf", [{}])
+
+        # then
         assert_complete(result)
 
         fork_step = _get_fork_step(pstat.process_id)
@@ -256,6 +270,7 @@ def test_branch_step_states_contain_branch_results(parallel_workflow_run) -> Non
 def test_map_parallel_creates_per_item_branch_relations() -> None:
     """map_parallel over 3 items creates 3 branches with correct tracking."""
 
+    # given
     @step("Seed Items")
     def seed_items() -> dict:
         return {"items": ["alpha", "beta", "gamma"]}
@@ -265,7 +280,10 @@ def test_map_parallel_creates_per_item_branch_relations() -> None:
         return init >> seed_items >> map_parallel("Per item", "items", begin >> process_item) >> done
 
     with WorkflowInstanceForTests(foreach_wf, "foreach_wf"):
+        # when
         result, pstat, _step_log = run_workflow("foreach_wf", [{}])
+
+        # then
         assert_complete(result)
 
         fork_step = _get_fork_step(pstat.process_id)
@@ -300,7 +318,7 @@ def test_cascade_delete_removes_branch_relations(parallel_workflow_run) -> None:
     assert relations_after == 0
 
 
-# --- Fork column check constraint (migration 06300482cd05) ---
+# --- Fork column check constraint (migration 18a7c2676fd3) ---
 
 
 @pytest.fixture()
@@ -343,7 +361,7 @@ def test_step_accepts_both_or_neither_fork_column(empty_process, branch_kind, br
     ],
 )
 def test_step_rejects_half_set_fork_columns(empty_process, branch_kind, branch_count) -> None:
-    """The check constraint from migration 06300482cd05 refuses a step with only one of the fork columns."""
+    """The check constraint from migration 18a7c2676fd3 refuses a step with only one of the fork columns."""
     with (
         pytest.raises(IntegrityError, match="ck_process_steps_branch_kind_count_set_together"),
         db.session.begin_nested(),

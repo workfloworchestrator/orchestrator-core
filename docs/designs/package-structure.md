@@ -120,7 +120,7 @@ orchestrator/core/beta/
     ├── engine.py        _exec_parallel_branches (executor selection)                       → execution/parallel/
     ├── threadpool.py    _run_branch, _run_threadpool_branches                              → execution/parallel/
     └── worker.py        _dispatch_worker_branches, run_worker_branch, _resolve_fork_step, _resume,
-                         _resolve_branch_from_db, _find_parallel_step,
+                         _resolve_branch_from_db,
                          _atomic_increment_completed (from services/parallel.py)           → execution/parallel/
 ```
 

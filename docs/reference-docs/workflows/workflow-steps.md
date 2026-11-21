@@ -24,7 +24,6 @@ Workflows are what actually takes a product definition and populates your domain
         - conditional
         - parallel
         - map_parallel
-        - ParallelStepList
 
 ## Step Importance
 

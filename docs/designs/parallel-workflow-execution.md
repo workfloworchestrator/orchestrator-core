@@ -25,13 +25,15 @@ Two patterns are needed:
 
 Two complementary primitives cover both patterns.
 
-#### 3.1.1 Static parallel: `|` Operator, Dict Naming, and `parallel()`
+#### 3.1.1 Static parallel: dict naming and `parallel()`
 
-Parallel execution is expressed using the `|` (pipe) operator between `StepList` branches, with an optional name via dict syntax. It is implemented as a special `step_group` variant — from the outside it looks like a single step.
+Static parallel is expressed in two ways: a dict right after `>>`, whose single key names the parallel step and whose
+value lists the branches, or the `parallel()` function. It is implemented as a special `step_group` variant — from the
+outside it looks like a single step.
 
-#### Syntax A: Unnamed parallel (auto-generated name)
+#### Syntax A: Dict naming
 
-Use the `|` operator directly between branches:
+`StepList.__rshift__` recognises a dict of one entry: a string name with a list of `StepList` branches.
 
 ```python
 from orchestrator.core.workflow import step, begin, init, done, workflow
@@ -54,36 +56,18 @@ def create_dual_port():
     return (
         init
         >> provision_initial_data
-        >> (
-            (begin >> provision_port_a)
-            | (begin >> provision_port_b)
-        )
-        >> link_ports
-        >> done
-    )
-```
-
-#### Syntax B: Named parallel (dict syntax)
-
-Wrap the `|` expression in a dict to provide a name for logging and UI:
-
-```python
-@workflow("Create Dual Port", target=Target.CREATE)
-def create_dual_port():
-    return (
-        init
-        >> provision_initial_data
         >> {
-            "Provision both ports":
-                (begin >> provision_port_a)
-                | (begin >> provision_port_b)
+            "Provision both ports": [
+                begin >> provision_port_a,
+                begin >> provision_port_b,
+            ]
         }
         >> link_ports
         >> done
     )
 ```
 
-#### Syntax C: `parallel()` function (explicit, full control)
+#### Syntax B: `parallel()` function (explicit, full control)
 
 For advanced options like `retry_auth_callback`, a `parallel()` function is also available:
 
@@ -106,13 +90,12 @@ def create_dual_port():
 ```
 
 **Key properties (static parallel):**
-- The `|` operator on `StepList` creates a `ParallelStepList` — a container of branches
-- `StepList.__rshift__` recognizes both `ParallelStepList` and `dict[str, ParallelStepList]`
-- `parallel()` function remains available for advanced options
+- Every parallel step has an explicit name: the dict key or the first argument of `parallel()`
+- `StepList.__rshift__` recognizes `dict[str, list[StepList]]` (one key, a string name, one `StepList` per branch)
 - Branches share the **same input state** (the state at the fork point, deep-copied per branch)
 - Branch results are **NOT merged** back into the main workflow state — they are persisted in the DB
 - The step after the parallel block receives the **pre-parallel (initial) state**
-- Existing workflows that don't use `|` or `parallel()` are completely unaffected
+- Existing workflows that don't use the dict form or `parallel()` are completely unaffected
 
 #### 3.1.2 Dynamic parallel: `foreach_parallel()`
 
@@ -159,7 +142,7 @@ def provision_n_ports():
 
 ### 3.2 Visual Representation
 
-**Static parallel** (`parallel()` / `|` operator) — fixed branches, defined at definition time:
+**Static parallel** (`parallel()` / dict naming) — fixed branches, defined at definition time:
 
 ```
     ┌──────────────────────┐
@@ -307,11 +290,9 @@ def _run_threadpool_branches(branches, initial_state, name, process_id,
                              fork_step_id, current_user, max_concurrency=None, seeds=None):
     n_branches = len(seeds) if seeds else len(branches)
     pending = [idx for idx in range(n_branches) if idx not in already_succeeded]
-    db_pool = db.engine.pool
-    workers = _max_parallel_workers(
-        len(pending), max_concurrency,
-        db_pool.size(), db_pool._max_overflow, app_settings.MAX_WORKERS
-    )
+    # Self-contained: _max_parallel_workers reads the synchronous database connection pool of db.engine and
+    # MAX_WORKERS itself.
+    workers = _max_parallel_workers(len(pending), max_concurrency)
     branch_results = [None] * n_branches
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -344,7 +325,7 @@ def _run_threadpool_branches(branches, initial_state, name, process_id,
 
 #### Fork Step Creation with `database_scope()`
 
-The fork step must be visible to branch threads before they start. Since branch threads get their own connections from the pool, the fork step must be committed to the DB independently of the caller's transaction (which may have `disable_commit` active from `transactional`).
+The fork step must be visible to branch threads before they start. Since branch threads get their own connections from the synchronous database connection pool of `db.engine`, the fork step must be committed to the DB independently of the caller's transaction (which may have `disable_commit` active from `transactional`).
 
 `_create_fork_step` uses a separate `database_scope()` session to commit the fork step on its own connection:
 
@@ -391,7 +372,7 @@ def _make_branch_dblogstep(process_id, parent_step_id, branch_index, current_use
     def branch_dblogstep(step_, p):
         child_step = ProcessStepTable(
             process_id=process_id,
-            name=f"[Branch {branch_index}] {step_name}",
+            name=branch_step_name(branch_index, step_name),
             status=p.status,
             state=step_state,
             created_by=current_user,
@@ -434,7 +415,7 @@ def _run_branch(branch, initial_state, *, process_id, parent_step_id, branch_ind
 
 #### DB Session Isolation via `db.database_scope()`
 
-The `Database` class uses `ContextVar`-scoped sessions. Each branch thread calls `db.database_scope()` to create a new UUID token, giving it an isolated session with its own connection from the pool.
+The `Database` class uses `ContextVar`-scoped sessions. Each branch thread calls `db.database_scope()` to create a new UUID token, giving it an isolated session with its own connection from the synchronous database connection pool.
 
 #### Thread Safety Analysis
 
@@ -454,7 +435,7 @@ When `EXECUTOR == ExecutorType.WORKER`, parallel branches are submitted as Celer
 ```python
 def _dispatch_worker_branches(branches, initial_state, process_id,
                                current_user, fork_step_id, is_task, seeds=None):
-    task_name = EXECUTE_PARALLEL_BRANCH_TASK if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK
+    task_name = EXECUTE_PARALLEL_BRANCH_TASK if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW
     trigger_task = get_celery_task(task_name)
 
     for idx, _ in enumerate(branches):
@@ -479,7 +460,7 @@ def _resolve_branch_from_db(fork_step_id, process_id, branch_index):
     )
     wf = get_workflow(workflow_key)
 
-    parallel_step = _find_parallel_step(wf.steps, parallel_group_name)
+    parallel_step = _find_step_by_group_name(wf.steps, parallel_group_name)
     return parallel_group_name, reconstruct_branch(parallel_step, branch_index), wf
 ```
 
@@ -509,7 +490,7 @@ with transactional(db, logger):
     completed, total = _atomic_increment_completed(fork_step_id)
     is_last_branch = total is not None and completed >= total
     if is_last_branch:
-        _resolve_fork_step(process_id=process_id, fork_step_id=fork_step_id,
+        _resolve_fork_step(fork_step_id=fork_step_id,
                            initial_state=initial_state)
 
 if is_last_branch:
@@ -537,49 +518,25 @@ Parallel branches **must not contain `inputstep`s or `callback_step`s**. Both ar
 
 A `ValueError` is raised if either is found inside a `parallel()` block.
 
-### 4.5 `ParallelStepList` and Operator Overloads
+### 4.5 `StepList.__rshift__` — Recognizing the Dict Form
 
-#### 4.5.1 `ParallelStepList` — The `|` Result Type
-
-A new container type that holds the branches of a parallel block. Created by the `|` operator on `StepList`:
-
-```python
-class ParallelStepList:
-    def __init__(self, branches: list[StepList]) -> None:
-        if len(branches) < 2:
-            raise ValueError("ParallelStepList requires at least 2 branches")
-        self.branches = branches
-
-    def __or__(self, other: StepList | ParallelStepList) -> ParallelStepList:
-        if isinstance(other, ParallelStepList):
-            return ParallelStepList([*self.branches, *other.branches])
-        if isinstance(other, StepList):
-            return ParallelStepList([*self.branches, other])
-        raise ValueError(f"Cannot use | with {type(other)}")
-```
-
-#### 4.5.2 `StepList.__or__` — Creating Parallel Branches
+There is no separate branch container type and no `|` operator. A parallel block is written as a dict right after
+`>>`: one key with the step's name and one `StepList` per branch. `StepList._rshift_dict` checks that form (exactly one
+key, a string name, a list of `StepList`) and calls `_make_parallel_step` to create a single `Step` that encapsulates
+the parallel execution:
 
 ```python
 class StepList(list[Step]):
-    def __or__(self, other: StepList | ParallelStepList) -> ParallelStepList:
-        if isinstance(other, ParallelStepList):
-            return ParallelStepList([self, *other.branches])
-        if isinstance(other, StepList):
-            return ParallelStepList([self, other])
-        raise ValueError(f"Cannot use | with {type(other)}")
+    def _rshift_dict(self, other: dict) -> StepList:
+        if len(other) != 1:
+            raise ValueError("Parallel dict must have exactly one key (the name)")
+        name, value = next(iter(other.items()))
+        if not isinstance(name, str):
+            raise ValueError(f"Parallel dict key must be a string, got {type(name)}")
+        if isinstance(value, list) and all(isinstance(v, StepList) for v in value):
+            return StepList([*self, _make_parallel_step(name, value)])
+        raise ValueError(f"Parallel dict value must be list[StepList], got {type(value)}")
 ```
-
-**Operator precedence note:** Python's `>>` binds tighter than `|`, so:
-```python
-begin >> step_a | begin >> step_b
-# parses as:
-(begin >> step_a) | (begin >> step_b)
-```
-
-#### 4.5.3 `StepList.__rshift__` — Recognizing Parallel and Dict
-
-`__rshift__` handles `ParallelStepList` and `dict[str, ParallelStepList]` by calling `_make_parallel_step` to create a single `Step` that encapsulates the parallel execution.
 
 ### 4.6 `foreach_parallel` — Internal Design
 
@@ -701,7 +658,7 @@ def downgrade() -> None:
     op.drop_column("process_steps", "branch_kind")
 ```
 
-A later migration (`06300482cd05`) adds
+The same migration adds
 `CHECK ((branch_kind IS NULL) = (branch_count IS NULL))`, because a fork step always sets both columns in one insert.
 
 ### 4.8 API Impact
@@ -720,7 +677,7 @@ A later migration (`06300482cd05`) adds
 
 | File | Purpose |
 |------|---------|
-| `orchestrator/workflow.py` | Core parallel engine: `_make_parallel_step`, `_exec_parallel_branches`, `_run_threadpool_branches`, `_dispatch_worker_branches`, `_run_branch`, `_create_fork_step`, `_update_fork_step`, `_worst_status`, `_make_branch_dblogstep`, `reconstruct_branch`, `parallel()`, `foreach_parallel()`, `ParallelStepList` |
+| `orchestrator/workflow.py` | Core parallel engine: `_make_parallel_step`, `_exec_parallel_branches`, `_run_threadpool_branches`, `_dispatch_worker_branches`, `_run_branch`, `_create_fork_step`, `_update_fork_step`, `_worst_status`, `branch_step_name`, `_make_branch_dblogstep`, `reconstruct_branch`, `parallel()`, `foreach_parallel()` |
 | `orchestrator/services/parallel.py` | Celery worker branch execution: `run_worker_branch`, `_atomic_increment_completed`, `_collect_branch_results`, `_resolve_branch_from_db`, `_resolve_fork_step`, `_resume` |
 | `orchestrator/db/models.py` | `ProcessStepTable` (parallel columns), `ProcessStepRelationTable` |
 | `orchestrator/utils/enrich_process.py` | `enrich_step_details` — recursive serialization of fork + child steps for API |
@@ -732,8 +689,8 @@ A later migration (`06300482cd05`) adds
 
 | Aspect | Impact | Notes |
 |--------|--------|-------|
-| `StepList` class | Additive | New `__or__` method added; existing methods unchanged |
-| `>>` operator | Extended | Now also accepts `ParallelStepList` and `dict`; existing behavior unchanged |
+| `StepList` class | Additive | No new public methods; `>>` also accepts a one-key dict of branches (private `_rshift_dict`) |
+| `>>` operator | Extended | Now also accepts `dict[str, list[StepList]]`; existing behavior unchanged |
 | `ProcessStepTable` schema | Additive | Two new nullable columns; existing rows unaffected |
 | `ProcessStepRelationTable` | New | New table; no impact on existing data |
 | `parallel()` / `foreach_parallel()` | New | New functions; no changes to existing workflows |
@@ -753,11 +710,12 @@ A later migration (`06300482cd05`) adds
 1. **State merging**: Branch results are NOT merged — they stay in DB. Post-parallel steps receive pre-parallel state.
 2. **Max branches**: `max_concurrency` controls one threadpool fork, defaulting to `MAX_WORKERS` and capped at
    `max(1, (capacity - max(4, capacity // 4)) // MAX_WORKERS - 1)`, where capacity is `pool_size + max_overflow`.
-   The fixed non-fork reserve protects HTTP/scheduler and other users of the shared pool; the `- 1` is the parent
-   connection. Fork create/update scopes do not overlap running branches, so they only imply extra slack. Above
-   the budget, requests are throttled when pending work needs more than the budget: explicit requests warn once
-   per fork; capped defaults warn once per process and `(capacity, MAX_WORKERS)` pair. A serial floor handles high
-   `MAX_WORKERS` values. The cap reduces, but does not guarantee against, pool exhaustion.
+   The fixed non-fork reserve protects HTTP/scheduler and other users of the shared synchronous database connection
+   pool; the `- 1` is the parent connection. Fork create/update scopes do not overlap running branches, so they only
+   imply extra slack. Above the budget, requests are throttled when pending work needs more than the budget: explicit
+   requests warn once per fork; capped defaults warn once per process and `(capacity, MAX_WORKERS)` pair. A serial
+   floor handles high `MAX_WORKERS` values. The cap reduces, but does not guarantee against, database connection pool
+   exhaustion.
    Nested forks and multiple processes are not globally bounded. Celery dispatches one task per branch and ignores
    `max_concurrency`; worker concurrency controls execution there.
 3. **Thread safety**: Each branch gets its own session + connection via `db.database_scope()`

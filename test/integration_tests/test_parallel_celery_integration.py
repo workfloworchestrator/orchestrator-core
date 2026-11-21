@@ -45,6 +45,7 @@ from orchestrator.core.workflow import (
     Process,
     ProcessStat,
     begin,
+    branch_step_name,
     conditional,
     done,
     init,
@@ -68,21 +69,6 @@ def cel_branch_a() -> dict:
 @step("Celery Branch B")
 def cel_branch_b() -> dict:
     return {"cel_b": "done"}
-
-
-@step("Multi A1")
-def multi_a1() -> dict:
-    return {"a1": "first"}
-
-
-@step("Multi A2")
-def multi_a2(a1: str) -> dict:
-    return {"a2": f"{a1}_second"}
-
-
-@step("Multi B1")
-def multi_b1() -> dict:
-    return {"b1": "only"}
 
 
 @step("Seq Step")
@@ -138,6 +124,7 @@ def _get_all_steps(process_id: object) -> list[ProcessStepTable]:
 def test_atomic_increment_completed_with_real_db() -> None:
     """Run a 2-branch parallel workflow, reset counter, then verify atomic increment."""
 
+    # given
     @workflow()
     def cel_incr_wf():
         return init >> parallel("incr group", begin >> cel_branch_a, begin >> cel_branch_b) >> done
@@ -154,9 +141,11 @@ def test_atomic_increment_completed_with_real_db() -> None:
         fork_step.branches_completed = 0
         db.session.commit()
 
+        # when
         first_completed, first_total = _atomic_increment_completed(fork_step.step_id)
         second_completed, second_total = _atomic_increment_completed(fork_step.step_id)
 
+        # then
         assert (first_completed, first_total) == (1, 2)
         assert (second_completed, second_total) == (2, 2)
         # The function must not commit; its caller owns the transaction.
@@ -164,64 +153,10 @@ def test_atomic_increment_completed_with_real_db() -> None:
 
 
 @pytest.mark.celery
-def test_collect_branch_results_from_real_db() -> None:
-    """Run a 2-branch parallel workflow and collect branch results from DB."""
-
-    @workflow()
-    def cel_collect_wf():
-        return init >> parallel("collect group", begin >> cel_branch_a, begin >> cel_branch_b) >> done
-
-    with WorkflowInstanceForTests(cel_collect_wf, "cel_collect_wf"):
-        result, pstat, _step_log = run_workflow("cel_collect_wf", [{}])
-        assert_complete(result)
-
-        fork_step = _get_fork_step(pstat.process_id)
-        branch_results = _collect_branch_results(fork_step.step_id)
-
-        # Results are keyed by branch_index
-        assert list(branch_results) == [0, 1]
-
-        # Both branches should have succeeded
-        assert branch_results[0].issuccess()
-        assert branch_results[1].issuccess()
-
-        # Collect all state keys across branches
-        all_state_keys = {key for result in branch_results.values() for key in result.unwrap()}
-        assert "cel_a" in all_state_keys
-        assert "cel_b" in all_state_keys
-
-
-@pytest.mark.celery
-def test_collect_branch_results_multi_step_returns_last_step() -> None:
-    """Branch with multiple steps returns accumulated state from the last step."""
-
-    @workflow()
-    def cel_multi_step_wf():
-        return init >> parallel("multi step group", begin >> multi_a1 >> multi_a2, begin >> multi_b1) >> done
-
-    with WorkflowInstanceForTests(cel_multi_step_wf, "cel_multi_step_wf"):
-        result, pstat, _step_log = run_workflow("cel_multi_step_wf", [{}])
-        assert_complete(result)
-
-        fork_step = _get_fork_step(pstat.process_id)
-        branch_results = _collect_branch_results(fork_step.step_id)
-
-        assert set(branch_results) == {0, 1}
-
-        # Branch 0 has 2 steps (multi_a1 >> multi_a2); the last step's state should have both keys
-        branch_0_state = branch_results[0].unwrap()
-        assert "a1" in branch_0_state
-        assert "a2" in branch_0_state
-        assert branch_0_state["a2"] == "first_second"
-
-        # Branch 1 has 1 step
-        assert "b1" in branch_results[1].unwrap()
-
-
-@pytest.mark.celery
 def test_resolve_branch_from_db_finds_correct_branch() -> None:
     """Resolve branch metadata from DB after running a parallel workflow."""
 
+    # given
     @workflow()
     def cel_resolve_wf():
         return init >> parallel("resolve group", begin >> cel_branch_a, begin >> cel_branch_b) >> done
@@ -232,7 +167,10 @@ def test_resolve_branch_from_db_finds_correct_branch() -> None:
 
         fork_step = _get_fork_step(pstat.process_id)
 
+        # when
         group_name_0, branch_steps_0, wf_0 = _resolve_branch_from_db(fork_step.step_id, pstat.process_id, 0)
+
+        # then
         assert group_name_0 == "resolve group"
         assert len(branch_steps_0) > 0
         assert wf_0 is not None
@@ -254,6 +192,7 @@ def test_resolve_branch_from_db_invalid_fork_step_raises() -> None:
 def test_map_parallel_branch_results_in_db() -> None:
     """map_parallel over 3 dict items creates 3 branches with correct per-item states."""
 
+    # given
     @workflow()
     def cel_foreach_wf():
         return init >> seed_fe_items >> map_parallel("fe group", "items", begin >> process_fe_item) >> done
@@ -263,8 +202,11 @@ def test_map_parallel_branch_results_in_db() -> None:
         assert_complete(result)
 
         fork_step = _get_fork_step(pstat.process_id)
+
+        # when
         branch_results = _collect_branch_results(fork_step.step_id)
 
+        # then
         assert len(branch_results) == 3
 
         # Verify branch indices
@@ -286,6 +228,7 @@ def test_full_parallel_workflow_db_state_after_completion() -> None:
     DB rows and the step_log for the full sequence.
     """
 
+    # given
     @workflow()
     def cel_full_wf():
         return (
@@ -297,7 +240,10 @@ def test_full_parallel_workflow_db_state_after_completion() -> None:
         )
 
     with WorkflowInstanceForTests(cel_full_wf, "cel_full_wf"):
+        # when
         result, pstat, step_log = run_workflow("cel_full_wf", [{}])
+
+        # then
         assert_complete(result)
 
         # Verify workflow sequence via step_log (in-memory).
@@ -319,8 +265,7 @@ def test_full_parallel_workflow_db_state_after_completion() -> None:
         assert len(child_steps) == 2
 
         child_names = {cs.name for cs in child_steps}
-        assert any("[Branch 0]" in n for n in child_names)
-        assert any("[Branch 1]" in n for n in child_names)
+        assert child_names == {branch_step_name(0, cel_branch_a.name), branch_step_name(1, cel_branch_b.name)}
 
         # Verify branch steps are in DB
         all_db_steps = _get_all_steps(pstat.process_id)
@@ -338,6 +283,7 @@ def test_full_parallel_workflow_db_state_after_completion() -> None:
 def test_map_parallel_worker_dispatches_all_branches(setup_test_celery) -> None:  # noqa: ARG001 — initialises Celery for WORKER-mode dispatch
     """With EXECUTOR=WORKER, map_parallel must dispatch and execute every branch, not just the first."""
 
+    # given
     call_log: list[int] = []
 
     @step("Track FE Item")
@@ -381,8 +327,10 @@ def test_map_parallel_worker_dispatches_all_branches(setup_test_celery) -> None:
         patch("orchestrator.core.services.processes.get_execution_context", return_value=noop_execution_context),
     ):
         with WorkflowInstanceForTests(fe_worker_wf, "fe_worker_wf"):
+            # when
             result, pstat, _step_log = run_workflow("fe_worker_wf", [{}])
 
+            # then
             # WORKER mode returns Waiting: the parent workflow suspends while branches
             # execute asynchronously. In eager mode the branches have already completed
             # by the time delay() returns, so we verify branch execution via the DB.
@@ -430,6 +378,7 @@ def test_parallel_branch_failure_does_not_retry_with_worker(setup_test_celery) -
     commit invalidates the shared test connection's transaction when a branch fails.
     """
 
+    # given
     fail_call_count = 0
     post_parallel_call_count = 0
 
@@ -460,8 +409,10 @@ def test_parallel_branch_failure_does_not_retry_with_worker(setup_test_celery) -
     ALL_WORKFLOWS["fail_worker_wf"] = WorkflowInstanceForTests(fail_worker_wf, "fail_worker_wf")
     wf_table = store_workflow(fail_worker_wf, name="fail_worker_wf")
     try:
+        # when
         result, pstat, step_log = run_workflow("fail_worker_wf", [{}])
 
+        # then
         # Workflow must reach a terminal non-success state
         assert not result.issuccess(), f"Expected failure but got success: {result}"
         assert not result.iswaiting(), f"Workflow stuck in Waiting (retry loop?): {result}"
@@ -510,6 +461,7 @@ def test_map_parallel_single_branch_failure_with_worker(setup_test_celery) -> No
     the approach taken in ``test_parallel_branch_failure_does_not_retry_with_worker``.
     """
 
+    # given
     executed_indices: list[int] = []
 
     @step("Maybe Fail Item")
@@ -532,8 +484,10 @@ def test_map_parallel_single_branch_failure_with_worker(setup_test_celery) -> No
     ALL_WORKFLOWS["fe_fail_worker_wf"] = WorkflowInstanceForTests(fe_fail_worker_wf, "fe_fail_worker_wf")
     wf_table = store_workflow(fe_fail_worker_wf, name="fe_fail_worker_wf")
     try:
+        # when
         result, pstat, step_log = run_workflow("fe_fail_worker_wf", [{}])
 
+        # then
         # Workflow must reach a terminal non-success state
         assert not result.issuccess(), f"Expected failure but got success: {result}"
         assert not result.iswaiting(), f"Workflow stuck in Waiting (retry loop?): {result}"
@@ -576,6 +530,7 @@ def test_worker_resume_after_parallel_executes_remaining_steps(setup_test_celery
     after the workflow returns Waiting.
     """
 
+    # given
     resume_final_called = False
 
     @step("Resume Branch A")
@@ -627,12 +582,15 @@ def test_worker_resume_after_parallel_executes_remaining_steps(setup_test_celery
             patch("orchestrator.core.services.parallel.run_worker_branch", _scoped_run_worker_branch),
             patch("orchestrator.core.services.processes.get_execution_context", return_value=noop_execution_context),
         ):
-            # Phase 1: Start the workflow — it will suspend at the parallel step (Waiting)
+            # First run: start the workflow — it will suspend at the parallel step (Waiting)
             # Use create_process + runwf with safe_logstep so steps are persisted to DB
             # (load_process reads from DB, so in-memory step_log won't work).
             pstat = create_process("resume_worker_wf", [{}])
+
+            # when
             result = runwf(pstat, partial(safe_logstep))
 
+            # then
             # WORKER mode: parent suspends while branches run asynchronously
             assert result.iswaiting(), f"Expected Waiting (WORKER mode), but was: {result}"
 
@@ -648,7 +606,7 @@ def test_worker_resume_after_parallel_executes_remaining_steps(setup_test_celery
             fork_step.status = "success"
             db.session.commit()
 
-            # Phase 2: Simulate the Celery resume by loading process from DB and running remaining steps
+            # Resume: simulate the Celery resume by loading the process from DB and running the remaining steps
             process = db.session.get(ProcessTable, pstat.process_id)
             assert process is not None, "Process not found in DB"
 
@@ -697,6 +655,7 @@ def test_join_writes_no_duplicate_main_row(setup_test_celery) -> None:  # noqa: 
     overwrites the fork in-place, and ``_resolve_fork_step`` resolves the same row.
     """
 
+    # given
     @step("Join Branch A")
     def join_branch_a() -> dict:
         return {"ja": "done"}
@@ -729,8 +688,11 @@ def test_join_writes_no_duplicate_main_row(setup_test_celery) -> None:  # noqa: 
     ):
         with WorkflowInstanceForTests(join_update_wf, "join_update_wf"):
             pstat = create_process("join_update_wf", [{}])
+
+            # when
             result = runwf(pstat, partial(safe_logstep))
 
+            # then
             assert result.iswaiting(), f"Expected Waiting (WORKER mode), but was: {result}"
 
             db.session.expire_all()
@@ -754,6 +716,7 @@ def test_join_writes_no_duplicate_main_row(setup_test_celery) -> None:  # noqa: 
 def test_load_process_excludes_fork_and_branch_steps() -> None:
     """load_process must not include fork steps or branch child steps in the recovered log."""
 
+    # given
     @workflow()
     def load_process_wf():
         return init >> parallel("lp group", begin >> cel_branch_a, begin >> cel_branch_b) >> final_step >> done
@@ -762,7 +725,11 @@ def test_load_process_excludes_fork_and_branch_steps() -> None:
         # Use create_process + runwf with safe_logstep so steps are persisted to DB
         # (load_process reads from DB, so the in-memory step_log from run_workflow won't work)
         pstat = create_process("load_process_wf", [{}])
+
+        # when
         result = runwf(pstat, partial(safe_logstep))
+
+        # then
         assert_complete(result)
 
         # Verify fork/branch steps exist in DB (precondition)
@@ -781,10 +748,9 @@ def test_load_process_excludes_fork_and_branch_steps() -> None:
 
 # --- Tests: parallel steps wrapped by conditional or step_group ---
 #
-# conditional() copies the wrapped step's attributes (functools.wraps), so the step tree walk sees a parallel step
-# inside it and the worker can rebuild its branch from the group name. step_group keeps its sub-steps in a closure,
-# so a parallel step inside it is invisible; the strict-xfail test below asserts the intended behaviour once phase 4
-# adds Step.sub_steps.
+# Both wrappers expose the parallel step to the step tree walk: conditional() copies the wrapped step's attributes
+# (functools.wraps), and step_group/callback_step keep their sub steps on ``Step.sub_steps``. A worker can therefore
+# look the parallel step up by its group name and rebuild its branch.
 
 
 def _run_worker_branch_inline(**kwargs) -> None:

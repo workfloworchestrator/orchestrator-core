@@ -35,14 +35,12 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 
-import orchestrator.core.services.parallel as parallel_service
-import orchestrator.core.services.processes as processes_service
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
 from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.services.executors.types import ExecutorFunction
-from orchestrator.core.services.parallel import _resolve_fork_step, run_worker_branch
+from orchestrator.core.services.parallel import run_worker_branch
 from orchestrator.core.services.processes import SYSTEM_USER, create_process, load_process, safe_logstep
 from orchestrator.core.settings import ExecutorType, app_settings
 from orchestrator.core.testing import (
@@ -60,6 +58,7 @@ from orchestrator.core.workflow import (
     Success,
     _assert_parallel_step_is_visible,
     begin,
+    branch_step_name,
     callback_step,
     conditional,
     done,
@@ -68,7 +67,6 @@ from orchestrator.core.workflow import (
     make_step_function,
     map_parallel,
     parallel,
-    process_stat_var,
     retrystep,
     runwf,
     step,
@@ -208,6 +206,7 @@ def failing_branch_step():
 
 def test_dict_with_list_of_steplists():
     """{"name": [branch_a, branch_b]} also works as alternative."""
+    # given
     wf = workflow()(
         lambda: (
             init
@@ -224,8 +223,11 @@ def test_dict_with_list_of_steplists():
     with register_test_workflow(wf) as wf_table:
         log = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_complete(result)
     state = result.unwrap()
     assert "a1" not in state
@@ -270,6 +272,7 @@ def test_two_branches_pass_initial_state():
 
 def test_multi_step_branches():
     """Branches with multiple steps each execute fully; state is not merged."""
+    # given
     wf = workflow()(
         lambda: (
             init
@@ -285,8 +288,11 @@ def test_multi_step_branches():
     with register_test_workflow(wf) as wf_table:
         log = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_complete(result)
     state = result.unwrap()
     assert "a1" not in state
@@ -295,49 +301,10 @@ def test_multi_step_branches():
     assert "b2" not in state
 
 
-@pytest.mark.parametrize(
-    "make_workflow",
-    [
-        pytest.param(
-            lambda: (
-                init
-                >> seq_before
-                >> parallel("branch a and b", begin >> branch_a_step1, begin >> branch_b_step1)
-                >> done
-            ),
-            id="parallel",
-        ),
-        pytest.param(
-            lambda: init >> map_parallel("branch a and b", "items", begin >> branch_a_step1) >> done,
-            id="map-parallel",
-        ),
-    ],
-)
-def test_step_updates_look_up_branch_children_scoped_to_the_process(make_workflow):
-    """Every step write excludes the branch children through a subquery scoped to its own process."""
-    wf = workflow()(make_workflow)
-
-    with register_test_workflow(wf) as wf_table:
-        pstat = create_new_process_stat(wf_table, {"items": ["alpha"]})
-
-        def logstep(stat, step_, process):
-            return safe_logstep(stat, step_, process, broadcast_func=lambda *_: None)
-
-        # The real select is still called; the wrapper only records the calls.
-        with patch.object(
-            processes_service,
-            "_branch_child_step_ids_select",
-            wraps=processes_service._branch_child_step_ids_select,
-        ) as branch_child_step_ids_select:
-            result = runwf(pstat, logstep)
-
-    assert_complete(result)
-    assert {call.args for call in branch_child_step_ids_select.call_args_list} == {(pstat.process_id,)}
-
-
 def test_three_branches():
     """Three or more branches work correctly; state is not merged."""
 
+    # given
     @step("Branch C")
     def branch_c():
         return {"c1": "done"}
@@ -353,8 +320,11 @@ def test_three_branches():
     with register_test_workflow(wf) as wf_table:
         log = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_complete(result)
     state = result.unwrap()
     assert "a1" not in state
@@ -368,6 +338,7 @@ def test_three_branches():
 def test_branches_dont_see_each_others_mutations():
     """Each branch gets a deep copy of state; mutations don't leak."""
 
+    # given
     @step("Mutate shared key A")
     def mutate_a(shared_list):
         return {"result_a": len(shared_list), "a_list": [*shared_list, "a"]}
@@ -381,8 +352,11 @@ def test_branches_dont_see_each_others_mutations():
     with register_test_workflow(wf) as wf_table:
         log = []
         pstat = create_new_process_stat(wf_table, {"shared_list": [1, 2, 3]})
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_complete(result)
     state = result.unwrap()
     # Initial state preserved, branch results not merged
@@ -575,6 +549,7 @@ def test_parallel_inside_step_group_runs():
 
 def test_parallel_inside_step_group_fails_the_safety_net():
     """A wrapper that hides its sub steps fails loudly instead of running a parallel step unchecked."""
+    # given
     par = parallel("Unreachable", begin >> branch_a_step1, begin >> branch_b_step1)
 
     @wraps(par)
@@ -590,8 +565,11 @@ def test_parallel_inside_step_group_fails_the_safety_net():
     with register_test_workflow(wf) as wf_table:
         log = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_failed(result)
     assert "not visible in the workflow's step tree" in str(result.unwrap())
 
@@ -629,6 +607,7 @@ def test_parallel_step_missing_from_the_step_list_fails_the_safety_net():
 
 def test_parallel_after_step_group():
     """Parallel block works after a step_group."""
+    # given
     group = step_group("Group", begin >> branch_a_step1)
 
     @step("Independent C")
@@ -640,8 +619,11 @@ def test_parallel_after_step_group():
     with register_test_workflow(wf) as wf_table:
         log = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_complete(result)
     state = result.unwrap()
     # step_group result IS in state (it's not a parallel branch)
@@ -654,6 +636,7 @@ def test_parallel_after_step_group():
 def test_multiple_parallel_blocks_in_sequence():
     """Multiple parallel blocks can appear in the same workflow."""
 
+    # given
     @step("Step D")
     def step_d():
         return {"d": True}
@@ -674,8 +657,11 @@ def test_multiple_parallel_blocks_in_sequence():
     with register_test_workflow(wf) as wf_table:
         log = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_complete(result)
     state = result.unwrap()
     assert "a1" not in state
@@ -690,6 +676,7 @@ def test_multiple_parallel_blocks_in_sequence():
 def test_branches_receive_state_from_previous_step():
     """Each branch sees state produced by the step before the parallel block."""
 
+    # given
     @step("Setup")
     def setup():
         return {"x": 42, "y": "hello"}
@@ -707,8 +694,11 @@ def test_branches_receive_state_from_previous_step():
     with register_test_workflow(wf) as wf_table:
         log = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_complete(result)
     state = result.unwrap()
     # Pre-parallel state preserved
@@ -742,6 +732,7 @@ def test_named_parallel_group_appears_in_log():
 
 def test_branch_exception_does_not_crash_other_branches():
     """One branch raising does not prevent other branches from completing."""
+    # given
     side_effects: list[str] = []
 
     @step("Good branch")
@@ -759,14 +750,18 @@ def test_branch_exception_does_not_crash_other_branches():
     with register_test_workflow(wf) as wf_table:
         log = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_failed(result)
     assert "good_completed" in side_effects, "Good branch should have completed despite other branch failing"
 
 
 def test_each_branch_has_own_db_session():
     """Each branch thread should get its own database session via database_scope."""
+    # given
     session_ids: list[int] = []
     lock = threading.Lock()
 
@@ -787,8 +782,11 @@ def test_each_branch_has_own_db_session():
     with register_test_workflow(wf) as wf_table:
         log = []
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_complete(result)
     assert len(session_ids) == 2
     assert session_ids[0] != session_ids[1], "Each branch should have a distinct database session"
@@ -796,6 +794,7 @@ def test_each_branch_has_own_db_session():
 
 def test_deepcopy_isolation_with_threads():
     """Branches receive deep-copied state; shared mutable objects are independent copies."""
+    # given
     observed_lengths: list[int] = []
     lock = threading.Lock()
 
@@ -816,8 +815,11 @@ def test_deepcopy_isolation_with_threads():
     with register_test_workflow(wf) as wf_table:
         log = []
         pstat = create_new_process_stat(wf_table, {"items": [1, 2, 3]})
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_complete(result)
     state = result.unwrap()
     assert all(length == 3 for length in observed_lengths)
@@ -833,6 +835,7 @@ def test_deepcopy_isolation_with_threads():
 def test_map_parallel_dict_items_seed_branch_state():
     """Dict items are merged into each branch's initial state; results stay in DB."""
 
+    # given
     @step("Use seeded keys")
     def use_seeded(port_id, vlan):
         return {f"result_{port_id}": vlan * 2}
@@ -844,8 +847,11 @@ def test_map_parallel_dict_items_seed_branch_state():
         pstat = create_new_process_stat(
             wf_table, {"ports": [{"port_id": "p1", "vlan": 100}, {"port_id": "p2", "vlan": 200}]}
         )
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_complete(result)
     state = result.unwrap()
     # Branch results NOT merged; initial state preserved
@@ -857,6 +863,7 @@ def test_map_parallel_dict_items_seed_branch_state():
 def test_map_parallel_scalar_items_injected_as_item_and_index():
     """Scalar items are injected as {"item": value, "item_index": idx}; results stay in DB."""
 
+    # given
     @step("Use scalar item")
     def use_scalar(item, item_index):
         return {f"out_{item_index}": item * 10}
@@ -866,8 +873,11 @@ def test_map_parallel_scalar_items_injected_as_item_and_index():
     with register_test_workflow(wf) as wf_table:
         log = []
         pstat = create_new_process_stat(wf_table, {"values": [3, 7, 11]})
+
+        # when
         result = runwf(pstat, store(log))
 
+    # then
     assert_complete(result)
     state = result.unwrap()
     # Branch results NOT merged; initial state preserved
@@ -997,6 +1007,7 @@ def test_parallel_join_preserves_branch_row_state(branch_count):
     fork step's original timestamps when updating it.
     """
 
+    # given
     @step("Capture item")
     def capture_item(item, item_index):
         return {f"branch_{item_index}_done": True, f"branch_{item_index}_label": item}
@@ -1009,7 +1020,11 @@ def test_parallel_join_preserves_branch_row_state(branch_count):
 
     with register_test_workflow(wf) as wf_table:
         pstat = create_new_process_stat(wf_table, {})
+
+        # when
         result = runwf(pstat, partial(safe_logstep))
+
+        # then
         assert_complete(result)
 
         # Queries must happen before the context manager exits — it cascade-deletes
@@ -1045,6 +1060,57 @@ def test_parallel_join_preserves_branch_row_state(branch_count):
         )
 
 
+# --- Test: the last step of a branch decides the branch result ---
+
+
+def test_last_step_of_a_branch_decides_the_branch_result():
+    """A multi-step branch counts as failed when its last step failed, and fails the parallel step with it.
+
+    Only the latest step of a branch (the highest order_id) is its result; the earlier, successful steps of the
+    branch are its history.
+    """
+
+    # given
+    @step("Succeeding First Step")
+    def succeeding_first_step():
+        return {"first": "done"}
+
+    @step("Failing Last Step")
+    def failing_last_step():
+        raise ValueError("last step fails")
+
+    @workflow()
+    def last_step_decides_wf():
+        return (
+            init
+            >> parallel(
+                "Last step decides",
+                begin >> succeeding_first_step >> failing_last_step,
+                begin >> branch_b_step1,
+            )
+            >> done
+        )
+
+    with register_test_workflow(last_step_decides_wf) as wf_table:
+        pstat = create_new_process_stat(wf_table, {})
+
+        # when
+        result = runwf(pstat, partial(safe_logstep))
+
+        # then
+        assert_failed(result)
+        db.session.expire_all()
+        fork_step = (
+            db.session.query(ProcessStepTable)
+            .filter(
+                ProcessStepTable.process_id == pstat.process_id,
+                ProcessStepTable.name == "Last step decides",
+            )
+            .one()
+        )
+        assert fork_step.status == StepStatus.FAILED
+
+
 # --- Test: the transaction around the join in run_worker_branch ---
 #
 # The worker path runs each branch through ``run_worker_branch``. The increment of ``branches_completed`` and, for the
@@ -1076,7 +1142,7 @@ def _make_branch_result(fork_step: ProcessStepTable, branch_index: int, status: 
     """Link a finished branch step to the fork, as the branch's DB step logger would."""
     child_step = ProcessStepTable(
         process_id=fork_step.process_id,
-        name=f"[Branch {branch_index}] {fork_step.name}",
+        name=branch_step_name(branch_index, fork_step.name),
         status=status,
         state={"branch": branch_index},
         created_by=SYSTEM_USER,
@@ -1110,18 +1176,32 @@ class _ResumeCalls:
 
 
 @contextmanager
-def _worker_branch_environment(workflow_key: str, join_group: str = "Worker join group") -> Iterator[_ResumeCalls]:
-    """Register a workflow with a two-branch parallel step and stub the resume dispatch of ``run_worker_branch``."""
+def _worker_branch_environment(
+    workflow_key: str, join_group: str = "Worker join group", wf=None
+) -> Iterator[_ResumeCalls]:
+    """Register a workflow with a two-branch parallel step and stub the resume dispatch of ``run_worker_branch``.
+
+    Args:
+        workflow_key: Name to register the workflow under.
+        join_group: Group name of the default two-branch parallel step; ignored when ``wf`` is given.
+        wf: The workflow to register instead of the default one.
+
+    Yields:
+        The stub that records resume calls.
+    """
     resume_calls = _ResumeCalls()
 
-    par = parallel(join_group, begin >> branch_a_step1, begin >> branch_b_step1)
+    if wf is None:
+        par = parallel(join_group, begin >> branch_a_step1, begin >> branch_b_step1)
 
-    @workflow()
-    def worker_join_wf():
-        return init >> par >> done
+        @workflow()
+        def worker_join_wf():
+            return init >> par >> done
+
+        wf = worker_join_wf
 
     with (
-        WorkflowInstanceForTests(worker_join_wf, workflow_key),
+        WorkflowInstanceForTests(wf, workflow_key),
         patch("orchestrator.core.services.processes.get_execution_context", return_value=resume_calls),
     ):
         yield resume_calls
@@ -1130,11 +1210,13 @@ def _worker_branch_environment(workflow_key: str, join_group: str = "Worker join
 def test_run_worker_branch_non_last_branch_increments_without_resuming():
     """A branch that is not the last one increments the counter, leaves the fork unresolved and doesn't resume."""
     with _worker_branch_environment("worker_join_non_last_wf") as resume_calls:
+        # given
         pstat = create_process("worker_join_non_last_wf", [{}])
         initial_state = pstat.state.unwrap()
         fork_step = _make_fork_step(pstat.process_id, "Worker join group", branch_count=2, state=initial_state)
         _make_branch_result(fork_step, branch_index=0, status=StepStatus.SUCCESS)
 
+        # when
         run_worker_branch(
             process_id=pstat.process_id,
             branch_index=0,
@@ -1143,6 +1225,7 @@ def test_run_worker_branch_non_last_branch_increments_without_resuming():
             user=SYSTEM_USER,
         )
 
+        # then
         db.session.expire_all()
         fork_step = db.session.get(ProcessStepTable, fork_step.step_id)
         assert fork_step.branches_completed == 1
@@ -1153,18 +1236,23 @@ def test_run_worker_branch_non_last_branch_increments_without_resuming():
 
 
 @pytest.mark.parametrize(
-    "branch_status, expected_status",
+    "branch_status",
     [
-        pytest.param(StepStatus.SUCCESS, StepStatus.SUCCESS, id="all-succeeded"),
-        pytest.param(StepStatus.FAILED, StepStatus.FAILED, id="one-failed"),
-        pytest.param(StepStatus.WAITING, StepStatus.WAITING, id="one-waiting"),
-        pytest.param(StepStatus.AWAITING_CALLBACK, StepStatus.AWAITING_CALLBACK, id="one-awaiting-callback"),
-        pytest.param(StepStatus.SUSPEND, StepStatus.SUSPEND, id="one-suspend"),
+        pytest.param(StepStatus.SUCCESS, id="all-succeeded"),
+        pytest.param(StepStatus.FAILED, id="one-failed"),
+        pytest.param(StepStatus.WAITING, id="one-waiting"),
+        pytest.param(StepStatus.AWAITING_CALLBACK, id="one-awaiting-callback"),
+        pytest.param(StepStatus.SUSPEND, id="one-suspend"),
     ],
 )
-def test_run_worker_branch_last_finisher_resolves_fork_and_resumes_once(branch_status, expected_status):
-    """The last finisher sets the fork's status from the worst branch and resumes the process exactly once."""
+def test_run_worker_branch_last_finisher_resolves_fork_and_resumes_once(branch_status):
+    """The last finisher sets the fork's status from the worst branch and resumes the process exactly once.
+
+    Branch 1, the last finisher, always succeeds, so branch 0's status is the worst of the two and the fork ends up
+    with it; with both successful that is ``success``.
+    """
     with _worker_branch_environment("worker_join_last_wf") as resume_calls:
+        # given
         pstat = create_process("worker_join_last_wf", [{}])
         initial_state = pstat.state.unwrap()
         fork_step = _make_fork_step(pstat.process_id, "Worker join group", branch_count=2, state=initial_state)
@@ -1176,6 +1264,7 @@ def test_run_worker_branch_last_finisher_resolves_fork_and_resumes_once(branch_s
         )
         db.session.commit()
 
+        # when
         # Branch 1 is the last finisher and succeeds.
         run_worker_branch(
             process_id=pstat.process_id,
@@ -1185,105 +1274,153 @@ def test_run_worker_branch_last_finisher_resolves_fork_and_resumes_once(branch_s
             user=SYSTEM_USER,
         )
 
+        # then
         db.session.expire_all()
         fork_step = db.session.get(ProcessStepTable, fork_step.step_id)
         assert fork_step.branches_completed == 2
-        assert fork_step.status == expected_status
+        assert fork_step.status == branch_status
         assert resume_calls.process_ids == [pstat.process_id]
 
 
-def test_run_worker_branch_makes_the_process_available_to_nested_parallel_steps():
-    """While a branch runs, ``process_stat_var`` holds this process, its user and its workflow.
+def test_run_worker_branch_runs_a_nested_parallel_step_under_its_process():
+    """A parallel step nested in a worker branch runs, and creates its own fork row under the same process.
 
-    A parallel step nested in a branch has no other way to know its process: ``_exec_parallel_branches`` reads
-    ``process_id``, ``current_user`` and ``workflow.name`` from the context variable to create the nested fork and
-    dispatch its branches, and looks the workflow up by name on the worker. Resolving one branch therefore has to
-    install it before the branch executes.
+    ``run_worker_branch`` installs ``process_stat_var`` before the branch runs. A nested parallel step reads
+    ``process_id``, ``current_user`` and ``workflow.name`` from it to create the nested fork row and dispatch its
+    branches. Without it, ``_exec_parallel_branches`` gets ``process_id = None``, writes no fork row and runs the
+    nested branches without database logging.
     """
-    seen: list[ProcessStat | None] = []
 
-    with _worker_branch_environment("worker_nested_context_wf"):
-        pstat = create_process("worker_nested_context_wf", [{}])
-        initial_state = pstat.state.unwrap()
-        fork_step = _make_fork_step(pstat.process_id, "Worker join group", branch_count=1, state=initial_state)
+    # given
+    @step("Nested Other Branch Step")
+    def nested_other_branch_step():
+        return {"nested_other": "done"}
 
-        # Stand in for the branch's steps and record the process context the worker set up for them.
-        with patch.object(
-            parallel_service, "_exec_steps", side_effect=lambda *_args: seen.append(process_stat_var.get(None))
-        ):
-            run_worker_branch(
-                process_id=pstat.process_id,
-                branch_index=0,
-                fork_step_id=fork_step.step_id,
-                initial_state=initial_state,
-                user=TEST_USER,
+    @workflow()
+    def worker_nested_parallel_wf():
+        return (
+            init
+            >> parallel(
+                "Outer",
+                begin >> parallel("Inner", begin >> branch_a_step1, begin >> branch_b_step1),
+                begin >> nested_other_branch_step,
             )
+            >> done
+        )
 
-    assert len(seen) == 1, "the branch must have been executed once"
-    branch_stat = seen[0]
-    assert branch_stat is not None, "a nested parallel step in the branch would not find its process"
-    assert branch_stat.process_id == pstat.process_id
-    assert branch_stat.current_user == TEST_USER
-    assert branch_stat.workflow.name == "worker_nested_context_wf"
+    with _worker_branch_environment("worker_nested_parallel_wf", wf=worker_nested_parallel_wf) as resume_calls:
+        pstat = create_process("worker_nested_parallel_wf", [{}])
+        initial_state = pstat.state.unwrap()
+        outer_fork = _make_fork_step(pstat.process_id, "Outer", branch_count=2, state=initial_state)
+
+        # when
+        run_worker_branch(
+            process_id=pstat.process_id,
+            branch_index=0,
+            fork_step_id=outer_fork.step_id,
+            initial_state=initial_state,
+            user=TEST_USER,
+        )
+
+        # then
+        db.session.expire_all()
+        inner_forks = (
+            db.session.query(ProcessStepTable)
+            .filter(
+                ProcessStepTable.process_id == pstat.process_id,
+                ProcessStepTable.name == "Inner",
+                ProcessStepTable.branch_kind == BranchKind.PARALLEL,
+            )
+            .all()
+        )
+        assert len(inner_forks) == 1
+        inner_fork = inner_forks[0]
+        assert inner_fork.created_by == TEST_USER
+        assert inner_fork.branch_count == 2
+        assert inner_fork.status == StepStatus.SUCCESS
+
+        outer_fork = db.session.get(ProcessStepTable, outer_fork.step_id)
+        assert outer_fork.branches_completed == 1
+        # The branch that ran is not the last of the outer fork, so nothing resumes.
+        assert resume_calls.process_ids == []
 
 
 def test_run_worker_branch_failing_resume_leaves_fork_resolved():
     """A failing RESUME must not undo the join: the fork row is committed before the hand-off.
 
-    If the fork update were rolled back with a failing resume, the fork would stay ``waiting``. The parallel step then
-    looks undone, and a manual resume would run every branch again.
+    The failure comes from the real RESUME executor: the process is still ``created``, so the Celery resume executor
+    refuses to set it to ``resumed``. If the fork update were rolled back with that failure, the fork would stay
+    ``waiting``. The parallel step then looks undone, and a manual resume would run every branch again.
+
+    Only the Celery task lookup is stubbed, which is where the executor leaves for the worker: without initialised
+    Celery it raises ``AssertionError`` before it ever checks the status.
     """
-    with _worker_branch_environment("worker_join_failing_resume_wf") as resume_calls:
-        pstat = create_process("worker_join_failing_resume_wf", [{}])
-        initial_state = pstat.state.unwrap()
-        fork_step = _make_fork_step(pstat.process_id, "Worker join group", branch_count=1, state=initial_state)
+    # given
+    task = MagicMock()
 
+    @workflow()
+    def worker_failing_resume_wf():
+        return init >> parallel("Failing resume group", begin >> branch_a_step1, begin >> branch_b_step1) >> done
+
+    with WorkflowInstanceForTests(worker_failing_resume_wf, "worker_failing_resume_wf"):
         with (
-            patch.object(resume_calls, "resume", side_effect=AssertionError("incorrect status to resume")),
-            pytest.raises(AssertionError, match="incorrect status to resume"),
+            patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
+            patch("orchestrator.core.services.tasks.get_celery_task", return_value=task),
         ):
-            run_worker_branch(
-                process_id=pstat.process_id,
-                branch_index=0,
-                fork_step_id=fork_step.step_id,
-                initial_state=initial_state,
-                user=SYSTEM_USER,
-            )
+            pstat = create_process("worker_failing_resume_wf", [{}])
+            initial_state = pstat.state.unwrap()
+            # The only branch of the fork; the fork row itself records how many branches it waits for.
+            fork_step = _make_fork_step(pstat.process_id, "Failing resume group", branch_count=1, state=initial_state)
 
+            # when
+            with pytest.raises(ValueError, match="Process has incorrect status to resume: created"):
+                run_worker_branch(
+                    process_id=pstat.process_id,
+                    branch_index=0,
+                    fork_step_id=fork_step.step_id,
+                    initial_state=initial_state,
+                    user=SYSTEM_USER,
+                )
+
+        # then
         db.session.expire_all()
         fork_step = db.session.get(ProcessStepTable, fork_step.step_id)
         assert fork_step.branches_completed == 1
         assert fork_step.status == StepStatus.SUCCESS
+        task.apply_async.assert_not_called()
+        task.delay.assert_not_called()
 
 
-def test_resolve_fork_step_missing_fork_step_raises_and_logs_ids():
-    """A missing fork step must not be skipped: the process would resume with the parallel step unresolved.
+def test_run_worker_branch_with_unknown_fork_step_raises():
+    """A worker that is handed a fork step that does not exist fails instead of resuming the process.
 
-    In practice the counter update already fails on a missing fork row, so this is exercised on the fork lookup
-    directly.
+    The branch lookup runs first: the fork row names the parallel step, so without it there is nothing to run. The
+    process must not be resumed with the parallel step unresolved.
     """
-    process_id = uuid4()
-    fork_step_id = uuid4()
-    logger_mock = MagicMock()
+    with _worker_branch_environment("worker_unknown_fork_wf") as resume_calls:
+        # given
+        pstat = create_process("worker_unknown_fork_wf", [{}])
+        initial_state = pstat.state.unwrap()
+        fork_step_id = uuid4()
 
-    with (
-        patch.object(parallel_service, "logger", logger_mock),
-        pytest.raises(ValueError, match=f"Fork step {fork_step_id} not found"),
-    ):
-        _resolve_fork_step(process_id=process_id, fork_step_id=fork_step_id, initial_state={})
+        # when
+        with pytest.raises(ValueError, match=f"Fork step {fork_step_id} not found"):
+            run_worker_branch(
+                process_id=pstat.process_id,
+                branch_index=0,
+                fork_step_id=fork_step_id,
+                initial_state=initial_state,
+                user=SYSTEM_USER,
+            )
 
-    # The ids make the stuck process findable.
-    logger_mock.error.assert_called_once_with(
-        "Fork step not found while resolving parallel branches",
-        process_id=str(process_id),
-        fork_step_id=str(fork_step_id),
-    )
+    # then
+    assert resume_calls.process_ids == []
 
 
 # --- Test: current behaviour when a worker crashes before the join ---
 #
-# Out of scope for the transaction around the join (see docs/designs/parallel-steps-todos.md, phase 2); recovery is
-# tracked separately. This test documents what happens today, so the follow-up has a starting point.
+# A worker that commits its branch and then dies before the join leaves the process Waiting; recovery is tracked
+# separately. This test documents what happens today, so the follow-up has a starting point.
 
 
 def test_worker_crash_before_the_join_leaves_the_process_stuck_in_waiting():
@@ -1293,6 +1430,16 @@ def test_worker_crash_before_the_join_leaves_the_process_stuck_in_waiting():
     stubbed, so no branch runs. Then one branch commits its result and its increment, and the worker dies before the
     join; the other branch never reports. Nobody resolves the fork row: it stays ``waiting`` with one branch completed,
     the process stays Waiting, and a resume runs the whole parallel step again instead of just the missing branch.
+
+    From ``runwf`` to the patched ``get_celery_task``, the call path is::
+
+        runwf → _exec_steps → _exec_step → process.execute_step
+              → (the parallel step's func) → _exec_parallel_branches
+              → _create_fork_step, then _dispatch_worker_branches → get_celery_task
+
+    ``_dispatch_worker_branches`` imports ``get_celery_task`` inside the function, at call time, so patching it on
+    ``orchestrator.core.services.tasks`` is seen here; a module-level import would have bound the real one already and
+    would need Celery to be initialised.
     """
     task = MagicMock()
 
@@ -1301,14 +1448,18 @@ def test_worker_crash_before_the_join_leaves_the_process_stuck_in_waiting():
         return init >> parallel("Worker crash group", begin >> branch_a_step1, begin >> branch_b_step1) >> done
 
     with WorkflowInstanceForTests(worker_crash_wf, "worker_crash_wf"):
+        # given
         with (
             patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
             # Dispatching the branch tasks returns without running them, as the workers would run them out of band.
             patch("orchestrator.core.services.tasks.get_celery_task", return_value=task),
         ):
             pstat = create_process("worker_crash_wf", [{}])
+
+            # when
             result = runwf(pstat, partial(safe_logstep))
 
+        # then
         assert result.iswaiting(), f"Expected Waiting (WORKER mode), but was: {result}"
         assert len(task.delay.call_args_list) == 2, "both branches must be dispatched"
 

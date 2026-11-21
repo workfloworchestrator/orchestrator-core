@@ -39,6 +39,7 @@ from orchestrator.core.services.processes import create_process, load_process, s
 from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.workflow import (
     begin,
+    branch_step_name,
     done,
     init,
     map_parallel,
@@ -92,6 +93,7 @@ def test_threadpool_failure_does_not_duplicate_main_log_row() -> None:
     main-log entry for the parallel step).
     """
 
+    # given
     @step("Boom")
     def boom() -> dict:
         raise ValueError("boom")
@@ -102,7 +104,11 @@ def test_threadpool_failure_does_not_duplicate_main_log_row() -> None:
 
     with WorkflowInstanceForTests(failing_threadpool_wf, "failing_threadpool_wf"):
         pstat = create_process("failing_threadpool_wf", [{}])
+
+        # when
         result = runwf(pstat, partial(safe_logstep))
+
+        # then
         assert result.isfailed(), f"expected failed, got {result}"
 
         rows = _rows_with_name(pstat.process_id, "Fan out")
@@ -119,6 +125,7 @@ def test_retry_preserves_history_and_only_reruns_failed_branches() -> None:
     flaky branch must run twice (once failed, once succeeded). All four child
     rows (1 success + 1 failed + 1 success) are kept in the DB.
     """
+    # given
     invocations: dict[str, int] = {"good": 0, "flaky": 0}
 
     @step("Counted Good")
@@ -145,7 +152,11 @@ def test_retry_preserves_history_and_only_reruns_failed_branches() -> None:
         db.session.expire_all()
         process = db.session.get(ProcessTable, pstat.process_id)
         assert process is not None
+
+        # when
         retry_result = runwf(load_process(process), partial(safe_logstep))
+
+        # then
         assert retry_result.iscomplete()
 
         assert invocations["good"] == 1, f"good branch should run once, ran {invocations['good']} times"
@@ -155,7 +166,7 @@ def test_retry_preserves_history_and_only_reruns_failed_branches() -> None:
             db.session.query(ProcessStepTable)
             .filter(
                 ProcessStepTable.process_id == pstat.process_id,
-                ProcessStepTable.name == "[Branch 0] Counted Good",
+                ProcessStepTable.name == branch_step_name(0, "Counted Good"),
             )
             .all()
         )
@@ -163,7 +174,7 @@ def test_retry_preserves_history_and_only_reruns_failed_branches() -> None:
             db.session.query(ProcessStepTable)
             .filter(
                 ProcessStepTable.process_id == pstat.process_id,
-                ProcessStepTable.name == "[Branch 1] Counted Flaky",
+                ProcessStepTable.name == branch_step_name(1, "Counted Flaky"),
             )
             .all()
         )
@@ -175,6 +186,7 @@ def test_retry_preserves_history_and_only_reruns_failed_branches() -> None:
 @pytest.mark.workflow
 def test_threadpool_retry_preserves_old_fork_and_adds_new_one() -> None:
 
+    # given
     attempts = {"count": 0}
 
     @step("Flaky")
@@ -197,7 +209,11 @@ def test_threadpool_retry_preserves_old_fork_and_adds_new_one() -> None:
         process = db.session.get(ProcessTable, pstat.process_id)
         assert process is not None
         loaded_pstat = load_process(process)
+
+        # when
         retry_result = runwf(loaded_pstat, partial(safe_logstep))
+
+        # then
         assert retry_result.iscomplete(), f"expected retry to complete, got {retry_result}"
 
         forks = sorted(_fork_rows(pstat.process_id, "Fan out"), key=lambda f: f.completed_at)
@@ -219,7 +235,10 @@ def test_threadpool_retry_preserves_old_fork_and_adds_new_one() -> None:
 
 @pytest.mark.workflow
 @pytest.mark.xfail(
-    reason="Known gap: the prior-fork lookup of a nested parallel in a map_parallel template is not scoped to its item",
+    reason=(
+        "Known gap (https://github.com/workfloworchestrator/orchestrator-core/issues/1780): the prior-fork lookup of "
+        "a nested parallel in a map_parallel template is not scoped to its item"
+    ),
     strict=True,
 )
 def test_nested_parallel_in_map_parallel_retries_only_its_own_failed_branches() -> None:
@@ -227,17 +246,21 @@ def test_nested_parallel_in_map_parallel_retries_only_its_own_failed_branches() 
 
     ``parallel("Inner", ...)`` is defined once inside a ``map_parallel`` template, so the definition-time
     uniqueness check passes. At runtime every item creates its own ``Inner`` fork row, and all of those rows
-    share ``(process_id, name, branch_kind)``. ``_create_fork_step`` currently picks the most recent *failed*
-    ``Inner`` fork of the whole process, which can belong to a sibling item, and inherits its successful branches.
+    share ``(process_id, name, branch_kind)``, because the group name is the only identifier of the step at
+    runtime: a worker looks the step up by it, and a retry finds the earlier failed fork by it.
 
-    Here item 0's ``Provision`` fails and item 1's ``Record`` fails. On retry, item 0 must run its ``Provision``
-    again (and fail again), while item 1 only re-runs ``Record``. Today item 0's new ``Inner`` fork inherits
-    item 1's successful ``Provision`` branch instead, so item 0 completes without re-running it.
-    ``max_concurrency=1`` keeps the item order deterministic.
+    Here item 0's ``Provision`` fails and item 1's ``Record`` fails, so both items leave a failed ``Inner`` fork.
+    With ``max_concurrency=1``, item 0 runs and then item 1, so item 1's failed ``Inner`` fork is the newest
+    failed ``Inner`` row of the process. On the retry, ``_create_fork_step`` looks for the newest failed fork by
+    ``(process_id, name, branch_kind)`` only, so item 0's new ``Inner`` fork picks item 1's failed fork. It copies
+    that fork's successful branch 0 (item 1's ``Provision``) and skips branch 0. Item 0's own ``Provision`` never
+    runs again, and item 0 succeeds although its provisioning never did.
 
-    Strict xfail: once the prior-fork lookup is scoped to the enclosing branch (see
-    ``docs/designs/parallel-steps-todos.md``, phase 1), this test passes and the marker must be removed.
+    The test asserts the intended behaviour: only item 0's own failed branch re-runs. Scoping the prior-fork
+    lookup to the enclosing branch is tracked in
+    https://github.com/workfloworchestrator/orchestrator-core/issues/1780.
     """
+    # given
     provision_attempts: dict[int, int] = {}
     inner_fork_ids: list = []
 
@@ -285,8 +308,11 @@ def test_nested_parallel_in_map_parallel_retries_only_its_own_failed_branches() 
 
         process = db.session.get(ProcessTable, pstat.process_id)
         assert process is not None
+
+        # when
         retry_result = runwf(load_process(process), partial(safe_logstep))
 
+        # then
         # Item 0's Provision is re-run and fails again; item 1 inherits its own successful Provision.
         assert provision_attempts == {0: 2, 1: 1}, (
             f"expected only item 0's failed Provision to be re-run on retry, got {provision_attempts}"

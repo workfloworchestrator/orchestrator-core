@@ -719,6 +719,7 @@ def test_processes_steps_of_parallel_fork(
     test_client_graphql, mocked_processes, mocked_processes_resumeall, step_fields, expected_child_steps
 ):
     """Fork steps only get their branch steps when the query selects `childSteps`, and the query works either way."""
+    # given
     process_id = mocked_processes[0]
     fork = ProcessStepTable(
         process_id=process_id,
@@ -740,8 +741,11 @@ def test_processes_steps_of_parallel_fork(
     data = get_processes_state_updates_and_delta(
         filter_by=[{"field": "processId", "value": str(process_id)}], step_fields=step_fields
     )
+
+    # when
     response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
+    # then
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     assert "errors" not in result
@@ -761,6 +765,7 @@ def test_processes_branch_kind_is_a_graphql_enum(
     test_client_graphql, mocked_processes, mocked_processes_resumeall, branch_kind, expected_branch_kind
 ):
     """`branchKind` is a GraphQL enum whose values keep the stored strings, so the wire format does not change."""
+    # given
     process_id = mocked_processes[0]
     db.session.add(
         ProcessStepTable(
@@ -778,8 +783,11 @@ def test_processes_branch_kind_is_a_graphql_enum(
     data = get_processes_state_updates_and_delta(
         filter_by=[{"field": "processId", "value": str(process_id)}], step_fields="name branchKind"
     )
+
+    # when
     response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
 
+    # then
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     assert "errors" not in result
@@ -794,6 +802,7 @@ def test_processes_branch_kind_is_a_graphql_enum(
 
 def test_graphql_schema_defines_branch_kind_enum(test_client_graphql):
     """Introspection shows `branchKind` as an enum type with the stored strings as values."""
+    # given
     query = """
 query {
   branchKind: __type(name: "BranchKind") {
@@ -805,8 +814,10 @@ query {
   }
 }
 """
+    # when
     response = test_client_graphql.post(GRAPHQL_ENDPOINT, json={"query": query})
 
+    # then
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     assert "errors" not in result

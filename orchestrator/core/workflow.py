@@ -308,14 +308,16 @@ def _iter_parallel_group_names(steps: StepList) -> Iterator[str]:
 def _validate_unique_parallel_group_names(steps: StepList) -> None:
     """Raise ``ValueError`` when two branching steps in the tree share a group name.
 
-    A group name identifies a branching step when a worker rebuilds a branch from it
-    (:func:`_find_parallel_step`), so a definition that reuses a name cannot reliably look up its branch.
+    Supports the beta parallel steps (``parallel`` and ``map_parallel``). A group name identifies a branching step
+    when a worker rebuilds a branch from it (:func:`_find_step_by_group_name`), so a definition that reuses a name
+    cannot reliably look up its branch.
 
     This is a definition-time check only. It does not make the group name unique per fork row at runtime: a
     parallel step nested in a ``map_parallel`` template is defined once but creates one fork row per item, and
     those rows share ``(process_id, name, branch_kind)``. Retries of such a nested group can therefore inherit
     successful branches from a sibling item's fork row. Scoping the prior-fork lookup to the enclosing branch is
-    tracked in ``docs/designs/parallel-steps-todos.md``, with a strict-xfail test of the intended behaviour.
+    tracked in https://github.com/workfloworchestrator/orchestrator-core/issues/1780, with a strict-xfail test of the
+    intended behaviour.
     """
     if duplicates := list(unique_everseen(duplicates_everseen(_iter_parallel_group_names(steps)))):
         raise ValueError(
@@ -325,7 +327,13 @@ def _validate_unique_parallel_group_names(steps: StepList) -> None:
 
 
 def _find_step_by_group_name(steps: StepList, group_name: str) -> Step | None:
-    """Return the first step in ``steps`` whose ``branching`` has group name ``group_name``, or None."""
+    """Return the first step in ``steps`` whose ``branching`` has group name ``group_name``, or None.
+
+    Walks the step tree depth-first over each step's ``branching`` and ``sub_steps``. Group names are unique within a
+    workflow, validated when the workflow is built by :func:`_validate_unique_parallel_group_names`, so there is
+    exactly one match. Without that check this first-match lookup could find a different branching step with the same
+    name.
+    """
     return next(
         (s for s in _iter_steps(steps) if s.branching is not None and s.branching.name == group_name),
         None,
@@ -396,6 +404,7 @@ def make_workflow(
 
     wf.initial_input_form = _handle_simple_input_form_generator(initial_input_form)
     wf.target = target
+    # Supports the beta parallel steps (parallel, map_parallel), so it runs for every workflow make_workflow builds.
     _validate_unique_parallel_group_names(steps)
     wf.steps = steps
     wf.run_predicate = run_predicate
@@ -660,6 +669,19 @@ def _worst_status(branch_results: list[Process]) -> Process | None:
     )
 
 
+def branch_step_name(branch_index: int, step_name: str) -> str:
+    """Return the name of a branch step's row in the process log.
+
+    Args:
+        branch_index: Index of the branch the step belongs to.
+        step_name: Name of the step itself.
+
+    Returns:
+        The step name prefixed with the branch, for example ``"[Branch 0] Provision"``.
+    """
+    return f"[Branch {branch_index}] {step_name}"
+
+
 def _make_branch_dblogstep(
     process_id: UUID,
     parent_step_id: UUID,
@@ -698,7 +720,7 @@ def _make_branch_dblogstep(
 
         child_step = ProcessStepTable(
             process_id=process_id,
-            name=f"[Branch {branch_index}] {step_name}",
+            name=branch_step_name(branch_index, step_name),
             status=p.status,
             state=step_state,
             created_by=current_user,
@@ -775,14 +797,15 @@ def _create_fork_step(
 
     Uses a separate ``database_scope()`` session so the change is committed
     independently of the caller's transaction. This ensures the fork step is
-    visible to branch threads that run on their own connections from the pool.
+    visible to branch threads that run on their own connections from the
+    synchronous database connection pool of ``db.engine``.
 
     Returns the fork step_id (not the ORM object) to avoid stale-object issues.
     """
     from sqlalchemy import select
 
     from orchestrator.core.db.models import ProcessStepRelationTable
-    from orchestrator.core.services.parallel import _succeeded_branch_indices
+    from orchestrator.core.services.parallel import _latest_branch_results, _select_branch_relations
 
     with db.database_scope():
         prior_failed = db.session.scalars(
@@ -800,25 +823,15 @@ def _create_fork_step(
         inherited_relations: list[ProcessStepRelationTable] = []
         succeeded_branches: set[int] = set()
         if prior_failed is not None:
-            # Re-inherit the steps of the branches that succeeded in the prior fork, as they were recorded there, in
-            # their original order: the latest step of each branch determines its result, and the earlier ones are its
-            # history.
-            succeeded_branches = _succeeded_branch_indices(prior_failed.step_id)
-            inherited_relations = list(
-                db.session.execute(
-                    select(ProcessStepRelationTable)
-                    .where(
-                        ProcessStepRelationTable.parent_step_id == prior_failed.step_id,
-                        ProcessStepRelationTable.branch_index.in_(succeeded_branches),
-                    )
-                    .order_by(
-                        ProcessStepRelationTable.branch_index,
-                        ProcessStepRelationTable.order_id,
-                    )
-                )
-                .scalars()
-                .all()
-            )
+            # Re-inherit the steps of the branches that succeeded in the prior fork, as they were recorded there: the
+            # latest step of each branch determines its result, and the earlier ones are its history. One query reads
+            # the relations; each copy keeps its own order_id, which is part of the primary key, so the copy order
+            # doesn't matter.
+            relations = _select_branch_relations(prior_failed.step_id)
+            succeeded_branches = {
+                idx for idx, result in _latest_branch_results(relations).items() if result.issuccess()
+            }
+            inherited_relations = [rel for rel in relations if rel.branch_index in succeeded_branches]
 
         now = nowtz()
         fork_step = ProcessStepTable(
@@ -868,11 +881,11 @@ def _dispatch_worker_branches(
     """
     from orchestrator.core.services.tasks import (
         EXECUTE_PARALLEL_BRANCH_TASK,
-        EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK,
+        EXECUTE_PARALLEL_BRANCH_WORKFLOW,
         get_celery_task,
     )
 
-    task_name = EXECUTE_PARALLEL_BRANCH_TASK if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK
+    task_name = EXECUTE_PARALLEL_BRANCH_TASK if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW
     trigger_task = get_celery_task(task_name)
 
     from orchestrator.core.services.parallel import _succeeded_branch_indices
@@ -919,7 +932,8 @@ def _update_fork_step(fork_step_id: UUID, status: str, state: State, n_branches:
         db.session.commit()
 
 
-# Fixed share of the synchronous DB pool reserved for HTTP requests, the scheduler and other non-fork users.
+# Fixed share of the synchronous database connection pool of `db.engine` reserved for HTTP requests, the scheduler and
+# other non-fork users.
 _NON_FORK_POOL_RESERVE_FRACTION = 4
 
 
@@ -939,22 +953,22 @@ def _check_max_concurrency(value: int | None) -> None:
         raise ValueError("max_concurrency must be greater than 0")
 
 
-def _max_parallel_workers(
-    pending: int,
-    max_concurrency: int | None,
-    pool_size: int,
-    max_overflow: int,
-    max_workers: int,
-) -> int:
-    """Bound one fork's branch threads by the synchronous connection pool."""
+def _max_parallel_workers(pending: int, max_concurrency: int | None) -> int:
+    """Bound one fork's branch threads by the synchronous database connection pool of ``db.engine``."""
     _check_max_concurrency(max_concurrency)
+
+    pool = db.engine.pool
+    pool_size = pool.size() if isinstance(pool, QueuePool) else cast(int, ENGINE_ARGUMENTS["pool_size"])
+    max_overflow = getattr(pool, "_max_overflow", cast(int, ENGINE_ARGUMENTS.get("max_overflow", 0)))
+    max_workers = app_settings.MAX_WORKERS
 
     capacity = pool_size + max_overflow
     non_fork_reserve = max(4, capacity // _NON_FORK_POOL_RESERVE_FRACTION)
     # One process-level quarter (at least four connections) is excluded from all fork budgets for HTTP/scheduler;
     # subtract one parent connection per fork.
     # Fork create/update database scopes do not overlap running branches, so they only imply extra slack.
-    # The floor allows serial execution for very high MAX_WORKERS or a small pool; a warning makes that explicit.
+    # The floor allows serial execution for very high MAX_WORKERS or a small synchronous database connection pool; a
+    # warning makes that explicit.
     branch_budget = max(1, (capacity - non_fork_reserve) // max_workers - 1)
     requested = max_concurrency if max_concurrency is not None else max_workers
     if min(pending, requested) > branch_budget:
@@ -1001,12 +1015,7 @@ def _run_threadpool_branches(
     branch_results: list[Process | None] = [None] * n_branches
 
     if pending:
-        pool = db.engine.pool
-        pool_size = pool.size() if isinstance(pool, QueuePool) else cast(int, ENGINE_ARGUMENTS["pool_size"])
-        max_overflow = getattr(pool, "_max_overflow", cast(int, ENGINE_ARGUMENTS.get("max_overflow", 0)))
-        workers = _max_parallel_workers(
-            len(pending), max_concurrency, pool_size, max_overflow, app_settings.MAX_WORKERS
-        )
+        workers = _max_parallel_workers(len(pending), max_concurrency)
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {
                 executor.submit(
@@ -1174,12 +1183,16 @@ def parallel(
     via ``fork_step.child_steps``.
 
     Args:
-        name: Name for this parallel group (shown in logs/UI)
+        name: Name of the parallel step. It is the step's only identifier within the workflow at runtime: it names
+            the fork step row, a worker uses it to look up the step and rebuild a branch, and a retry uses it to find
+            the earlier failed fork to inherit successful branches from. It must therefore be unique within the
+            workflow, including in nested branches, step groups and ``map_parallel`` templates; ``make_workflow``
+            raises ``ValueError`` on a duplicate name.
         *branches: multiple Step or StepList to execute concurrently
         retry_auth_callback: Authorization callback for retrying on failure
         max_concurrency: Maximum concurrent branch threads. Defaults to ``MAX_WORKERS`` and, together with
-            explicit values, is capped by the DB connection budget. Ignored with ``EXECUTOR=worker``;
-            worker concurrency controls execution there.
+            explicit values, is capped by the synchronous database connection pool budget. Ignored with
+            ``EXECUTOR=worker``; worker concurrency controls execution there.
 
     Returns:
         A Step that can be composed with >> operator
@@ -1250,12 +1263,16 @@ def map_parallel(
         )
 
     Args:
-        name: Name for the parallel group (shown in logs/UI).
+        name: Name of the parallel step. It is the step's only identifier within the workflow at runtime: it names
+            the fork step row, a worker uses it to look up the step and rebuild a branch, and a retry uses it to find
+            the earlier failed fork to inherit successful branches from. It must therefore be unique within the
+            workflow, including in nested branches, step groups and ``map_parallel`` templates; ``make_workflow``
+            raises ``ValueError`` on a duplicate.
         items_key: Key in the workflow state whose value is the list to iterate over.
         branch: Step or StepList executed once per item, with the item merged into state.
         max_concurrency: Maximum concurrent item branches. Defaults to ``MAX_WORKERS`` and, together with
-            explicit values, is capped by the DB connection budget. Ignored with ``EXECUTOR=worker``;
-            worker concurrency controls execution there.
+            explicit values, is capped by the synchronous database connection pool budget. Ignored with
+            ``EXECUTOR=worker``; worker concurrency controls execution there.
 
     Returns:
         A Step that can be composed with the ``>>`` operator.

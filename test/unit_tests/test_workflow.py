@@ -10,13 +10,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.pool import NullPool, QueuePool
 
 from orchestrator.core import begin, parallel, step
 from orchestrator.core.config.assignee import Assignee
+from orchestrator.core.settings import app_settings
 from orchestrator.core.workflow import (
     AwaitingCallback,
     Failed,
@@ -27,10 +32,10 @@ from orchestrator.core.workflow import (
     Suspend,
     Waiting,
     _dispatch_worker_branches,
-    _iter_parallel_group_names,
     _max_parallel_workers,
     _run_threadpool_branches,
     _warn_about_default_concurrency_budget,
+    branch_step_name,
     callback_step,
     conditional,
     done,
@@ -46,6 +51,40 @@ from orchestrator.core.workflow import (
     _worst_status as worst_status,
 )
 from pydantic_forms.core import FormPage
+from pydantic_forms.types import FormGenerator, State
+
+
+class _EngineWithPool:
+    """Stand-in for ``db.engine`` that only exposes the connection pool ``_max_parallel_workers`` reads."""
+
+    def __init__(self, pool) -> None:
+        self.pool = pool
+
+
+class _DbWithPool:
+    """Stand-in for the ``db`` object with a given ``engine.pool``."""
+
+    def __init__(self, pool) -> None:
+        self.engine = _EngineWithPool(pool)
+
+
+def _queue_pool(pool_size: int, max_overflow: int) -> QueuePool:
+    """A real ``QueuePool`` that connects only on checkout, so tests never open a connection."""
+
+    def connect_only_on_checkout() -> Any:
+        raise AssertionError("the test pool must not open a connection")
+
+    return QueuePool(connect_only_on_checkout, pool_size=pool_size, max_overflow=max_overflow)
+
+
+@contextmanager
+def _connection_pool(pool, max_workers: int) -> Iterator[None]:
+    """Make ``_max_parallel_workers`` read ``pool`` as the engine pool and ``max_workers`` as ``MAX_WORKERS``."""
+    with (
+        patch("orchestrator.core.workflow.db", _DbWithPool(pool)),
+        patch.object(app_settings, "MAX_WORKERS", max_workers),
+    ):
+        yield
 
 
 @pytest.mark.parametrize(
@@ -58,15 +97,29 @@ from pydantic_forms.core import FormPage
     ],
 )
 def test_max_parallel_workers(pending, max_concurrency, pool_size, max_overflow, max_workers, expected):
-    workers = _max_parallel_workers(pending, max_concurrency, pool_size, max_overflow, max_workers)
+    with _connection_pool(_queue_pool(pool_size, max_overflow), max_workers):
+        # when
+        workers = _max_parallel_workers(pending, max_concurrency)
 
+    # then
     assert workers == expected
+
+
+def test_max_parallel_workers_falls_back_to_engine_arguments_for_a_non_queue_pool():
+    """A pool that has no size or overflow of its own (``NullPool``) uses the engine arguments instead."""
+    with _connection_pool(NullPool(lambda: None), max_workers=5):
+        # when
+        workers = _max_parallel_workers(200, 200)
+
+    # then
+    # ENGINE_ARGUMENTS: pool_size 60, no max_overflow -> capacity 60, reserve 15, (60 - 15) // 5 - 1 == 8
+    assert workers == 8
 
 
 @pytest.mark.parametrize("max_concurrency", [0, -1])
 def test_max_parallel_workers_rejects_non_positive_explicit_value(max_concurrency):
     with pytest.raises(ValueError, match="max_concurrency must be greater than 0"):
-        _max_parallel_workers(10, max_concurrency, 60, 10, 5)
+        _max_parallel_workers(10, max_concurrency)
 
 
 @pytest.mark.parametrize(
@@ -77,13 +130,17 @@ def test_max_parallel_workers_rejects_non_positive_explicit_value(max_concurrenc
     ],
 )
 def test_max_parallel_workers_warns_once_when_budget_throttles(max_concurrency, max_workers):
+    # given
     _warn_about_default_concurrency_budget.cache_clear()
-    with patch("orchestrator.core.workflow.logger") as mock_logger:
+
+    # when
+    with _connection_pool(_queue_pool(60, 10), max_workers), patch("orchestrator.core.workflow.logger") as mock_logger:
         workers = [
-            _max_parallel_workers(200, max_concurrency, 60, 10, max_workers),
-            _max_parallel_workers(200, max_concurrency, 60, 10, max_workers),
+            _max_parallel_workers(200, max_concurrency),
+            _max_parallel_workers(200, max_concurrency),
         ]
 
+    # then
     expected_requested = max_concurrency if max_concurrency is not None else max_workers
     expected_budget = 9 if max_workers == 5 else 1
     assert workers == [expected_budget] * 2
@@ -102,11 +159,35 @@ def test_max_parallel_workers_warns_once_when_budget_throttles(max_concurrency, 
 
 def test_max_parallel_workers_does_not_warn_when_pending_fits_budget():
     _warn_about_default_concurrency_budget.cache_clear()
-    with patch("orchestrator.core.workflow.logger") as mock_logger:
-        assert _max_parallel_workers(5, 200, 60, 10, 5) == 5
-        assert _max_parallel_workers(1, None, 60, 10, 18) == 1
+    with (
+        _connection_pool(_queue_pool(60, 10), max_workers=5),
+        patch("orchestrator.core.workflow.logger") as mock_logger,
+    ):
+        # when
+        assert _max_parallel_workers(5, 200) == 5
 
+    # then
     mock_logger.warning.assert_not_called()
+
+    with (
+        _connection_pool(_queue_pool(60, 10), max_workers=18),
+        patch("orchestrator.core.workflow.logger") as mock_logger,
+    ):
+        # when
+        assert _max_parallel_workers(1, None) == 1
+
+    # then
+    mock_logger.warning.assert_not_called()
+
+
+@step("Step A")
+def _step_a() -> dict:
+    return {"a": 1}
+
+
+@step("Step B")
+def _step_b() -> dict:
+    return {"b": 2}
 
 
 @pytest.mark.parametrize(
@@ -138,16 +219,6 @@ def test_threadpool_rejects_non_positive_concurrency_before_creating_executor(_m
         )
 
     mock_executor.assert_not_called()
-
-
-@step("Step A")
-def _step_a() -> dict:
-    return {"a": 1}
-
-
-@step("Step B")
-def _step_b() -> dict:
-    return {"b": 2}
 
 
 @pytest.mark.parametrize(
@@ -335,33 +406,20 @@ def test_duplicate_group_name_reported_once_per_name() -> None:
             )
 
 
-def test_distinct_group_names_at_any_depth_are_allowed() -> None:
-    """Distinct group names, nested or not, are accepted; the tree walk yields them in order."""
-
-    @workflow()
-    def distinct_names_wf():
-        return (
-            init
-            >> parallel(
-                "Outer",
-                begin >> _step_a >> parallel("Inner", begin >> _step_a, begin >> _step_b),
-                begin >> _step_b,
-            )
-            >> map_parallel("Per item", "items", begin >> _step_a)
-            >> done
-        )
-
-    assert list(_iter_parallel_group_names(distinct_names_wf.steps)) == ["Outer", "Inner", "Per item"]
+# -- branch step names --
 
 
-def test_workflow_without_parallel_steps_is_allowed() -> None:
-    """A workflow without parallel steps has no group names to check."""
-
-    @workflow()
-    def no_parallel_wf():
-        return init >> _step_a >> done
-
-    assert list(_iter_parallel_group_names(no_parallel_wf.steps)) == []
+@pytest.mark.parametrize(
+    "branch_index, step_name, expected",
+    [
+        pytest.param(0, "Provision", "[Branch 0] Provision", id="first-branch"),
+        pytest.param(12, "[x] y", "[Branch 12] [x] y", id="keeps-brackets-in-the-step-name"),
+        pytest.param(1, "", "[Branch 1] ", id="empty-step-name"),
+    ],
+)
+def test_branch_step_name_prefixes_the_branch_index(branch_index: int, step_name: str, expected: str) -> None:
+    """A branch step row is named after its step, prefixed with the branch the step belongs to."""
+    assert branch_step_name(branch_index, step_name) == expected
 
 
 # -- executor dispatch --
@@ -374,12 +432,14 @@ def test_workflow_without_parallel_steps_is_allowed() -> None:
 def test_worker_branches_submits_tasks_and_returns_waiting(
     mock_get_task: MagicMock, _mock_succeeded: MagicMock, is_task: bool
 ) -> None:
+    # given
     mock_task = MagicMock()
     mock_get_task.return_value = mock_task
 
     fork_id = uuid4()
     process_id = uuid4()
 
+    # when
     result = _dispatch_worker_branches(
         branches=[StepList([_step_a]), StepList([_step_b])],
         initial_state={"x": 1},
@@ -389,6 +449,7 @@ def test_worker_branches_submits_tasks_and_returns_waiting(
         is_task=is_task,
     )
 
+    # then
     assert isinstance(result, Waiting)
     assert result.unwrap()["__parallel_waiting"] is True
     assert result.unwrap()["__fork_step_id"] == str(fork_id)
@@ -397,10 +458,10 @@ def test_worker_branches_submits_tasks_and_returns_waiting(
     # Verify correct task name was requested
     from orchestrator.core.services.tasks import (
         EXECUTE_PARALLEL_BRANCH_TASK,
-        EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK,
+        EXECUTE_PARALLEL_BRANCH_WORKFLOW,
     )
 
-    expected_task = EXECUTE_PARALLEL_BRANCH_TASK if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW_TASK
+    expected_task = EXECUTE_PARALLEL_BRANCH_TASK if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW
     mock_get_task.assert_called_once_with(expected_task)
 
 
@@ -409,6 +470,12 @@ def test_worker_branches_submits_tasks_and_returns_waiting(
 
 class _Form(FormPage):
     answer: int
+
+
+def _form_generator(state: State) -> FormGenerator:
+    """A form generator that yields ``_Form``, the shape ``make_step_function`` expects for ``form``."""
+    user_input = yield _Form
+    return user_input.model_dump()
 
 
 async def _retry_allow(_context) -> bool:
@@ -449,7 +516,7 @@ def _step_attributes(step_fn: Step) -> tuple:
             lambda: make_step_function(
                 lambda state: Success(state),
                 "Plain",
-                _Form,
+                _form_generator,
                 Assignee.NOC,
                 resume_auth_callback=_resume_allow,
                 retry_auth_callback=_retry_allow,
@@ -482,14 +549,20 @@ def test_wrapping_a_step_copies_every_step_attribute(rewrap, step_fn_factory) ->
 
 def test_step_group_and_callback_step_expose_their_sub_steps() -> None:
     """step_group stores its steps on the Step, so the tree walk reaches them; callback_step is one too."""
-    group = step_group("Group", begin >> _step_a)
+    # given
+    inner = begin >> _step_a
+
+    # when
+    group = step_group("Group", inner)
+    cb = callback_step("Callback", action_step=_step_a, validate_step=_step_b)
+
+    # then
     # The group's own Enter step and the given steps, followed by its Exit step.
     assert group.sub_steps is not None
     assert [s.name for s in group.sub_steps] == ["Group - Enter", "Step A", "Group - Exit"]
     assert group.branching is None
     assert not group.is_callback_step
 
-    cb = callback_step("Callback", action_step=_step_a, validate_step=_step_b)
     assert cb.is_callback_step
     assert cb.sub_steps is not None
     assert [s.name for s in cb.sub_steps] == [

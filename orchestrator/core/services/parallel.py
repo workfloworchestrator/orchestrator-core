@@ -21,6 +21,7 @@ Handles:
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from uuid import UUID
 
@@ -36,7 +37,6 @@ from orchestrator.core.workflow import (
     _STATUSES,
     Process,
     ProcessStat,
-    Step,
     StepList,
     StepStatus,
     Success,
@@ -70,11 +70,11 @@ def _atomic_increment_completed(fork_step_id: UUID) -> tuple[int, int | None]:
     return completed, total
 
 
-def _collect_branch_results(fork_step_id: UUID) -> dict[int, Process]:
-    """Collect the latest branch result per branch index from DB via ProcessStepRelationTable.
+def _select_branch_relations(fork_step_id: UUID) -> Sequence[ProcessStepRelationTable]:
+    """Return the relations of ``fork_step_id``, latest step first within each branch.
 
-    Takes the last step per branch (highest order_id) as the branch result and converts its status
-    back into the matching ``Process``, so callers can compare results without converting themselves.
+    The ``child_step`` is eagerly loaded because it is ``lazy="raise"``; callers read its status and state. One query
+    serves both the latest result per branch and the relations to inherit on a retry.
     """
     stmt = (
         select(ProcessStepRelationTable)
@@ -82,13 +82,24 @@ def _collect_branch_results(fork_step_id: UUID) -> dict[int, Process]:
         .options(joinedload(ProcessStepRelationTable.child_step))
         .order_by(ProcessStepRelationTable.branch_index, ProcessStepRelationTable.order_id.desc())
     )
-    relations = db.session.execute(stmt).scalars().all()
+    return db.session.execute(stmt).scalars().all()
 
-    latest_per_branch = unique_everseen(relations, key=lambda rel: rel.branch_index)
+
+def _latest_branch_results(relations: Iterable[ProcessStepRelationTable]) -> dict[int, Process]:
+    """Convert relations ordered latest-first into the latest result per branch index.
+
+    Takes the first step per branch (the highest ``order_id``) as the branch result and converts its status back into
+    the matching ``Process``, so callers can compare results without converting themselves.
+    """
     return {
         rel.branch_index: _STATUSES.get(StepStatus(rel.child_step.status), Success)(rel.child_step.state)
-        for rel in latest_per_branch
+        for rel in unique_everseen(relations, key=lambda rel: rel.branch_index)
     }
+
+
+def _collect_branch_results(fork_step_id: UUID) -> dict[int, Process]:
+    """Collect the latest branch result per branch index from DB via ProcessStepRelationTable."""
+    return _latest_branch_results(_select_branch_relations(fork_step_id))
 
 
 def _succeeded_branch_indices(fork_step_id: UUID) -> set[int]:
@@ -100,31 +111,14 @@ def _succeeded_branch_indices(fork_step_id: UUID) -> set[int]:
     return {idx for idx, result in _collect_branch_results(fork_step_id).items() if result.issuccess()}
 
 
-def _find_parallel_step(steps: StepList, group_name: str) -> Step | None:
-    """Recursively search steps (and their branches and sub steps) for a group name.
-
-    Walks the step tree depth-first over each step's ``branching`` and ``sub_steps``.
-
-    Group names are unique within a workflow, validated when the workflow is built by
-    :func:`_validate_unique_parallel_group_names`, so there is exactly one match. Without that check this
-    first-match lookup could rebuild a branch from a different branching step with the same name.
-
-    Args:
-        steps: A StepList (iterable of Step functions) to search.
-        group_name: The group name to find.
-
-    Returns:
-        The Step whose ``branching`` has this name, or None if not found.
-    """
-    return _find_step_by_group_name(steps, group_name)
-
-
 def _resolve_branch_from_db(fork_step_id: UUID, process_id: UUID, branch_index: int) -> tuple[str, StepList, Workflow]:
     """Derive the workflow key, branch step list, and workflow from the fork step in DB.
 
     The fork step's ``name`` stores the parallel group name, and the process's
     workflow relationship provides the workflow key. This avoids passing workflow
     metadata through the Celery task arguments.
+
+    An unknown fork step is rejected here with ``ValueError``, before the branch runs.
 
     Returns:
         (parallel_group_name, branch_step_list, workflow)
@@ -147,7 +141,7 @@ def _resolve_branch_from_db(fork_step_id: UUID, process_id: UUID, branch_index: 
     if wf is None:
         raise ValueError(f"Workflow '{workflow_key}' not found")
 
-    parallel_step = _find_parallel_step(wf.steps, parallel_group_name)
+    parallel_step = _find_step_by_group_name(wf.steps, parallel_group_name)
     if parallel_step is None:
         raise ValueError(f"Parallel group '{parallel_group_name}' not found in workflow '{workflow_key}'")
 
@@ -209,7 +203,7 @@ def run_worker_branch(
         )
 
         if is_last_branch:
-            _resolve_fork_step(process_id=process_id, fork_step_id=fork_step_id, initial_state=initial_state)
+            _resolve_fork_step(fork_step_id=fork_step_id, initial_state=initial_state)
 
     # The commit above is the hand-off point, so the process is only resumed after it.
     if is_last_branch:
@@ -218,7 +212,6 @@ def run_worker_branch(
 
 def _resolve_fork_step(
     *,
-    process_id: UUID,
     fork_step_id: UUID,
     initial_state: dict,
 ) -> None:
@@ -231,20 +224,8 @@ def _resolve_fork_step(
 
     Does not commit and does not resume: the caller commits the fork update together
     with the branch increment, and resumes the parent workflow afterwards.
-
-    Raises:
-        ValueError: If the fork step does not exist. Resolving nothing would resume the process with the parallel
-            step still unresolved.
     """
-    fork_step = db.session.get(ProcessStepTable, fork_step_id)
-    if fork_step is None:
-        # The counter update matches no row, so in practice this does not happen; keep the check as a guard.
-        logger.error(
-            "Fork step not found while resolving parallel branches",
-            process_id=str(process_id),
-            fork_step_id=str(fork_step_id),
-        )
-        raise ValueError(f"Fork step {fork_step_id} not found")
+    fork_step = db.session.get_one(ProcessStepTable, fork_step_id)
 
     worst = _worst_status(list(_collect_branch_results(fork_step_id).values()))
 
