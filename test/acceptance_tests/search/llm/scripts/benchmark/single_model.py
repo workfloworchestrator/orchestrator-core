@@ -107,7 +107,7 @@ async def benchmark_single_model(
     from orchestrator.core.search.core.types import EntityType
     from orchestrator.core.search.query import engine
     from orchestrator.core.search.query.queries import SelectQuery
-    from orchestrator.core.settings import llm_settings
+    from orchestrator.core.settings import app_settings, llm_settings
     from test.acceptance_tests.search.llm.helpers import ModelConfig, load_benchmark_queries
     from test.acceptance_tests.search.llm.scripts.benchmark.benchmark import BenchmarkResult
     from test.acceptance_tests.search.llm.scripts.benchmark.metrics import (
@@ -115,7 +115,7 @@ async def benchmark_single_model(
         calculate_top_k_overlap,
     )
 
-    db.update(Database(database_uri))  # type: ignore[attr-defined]
+    db.update(Database(database_uri, app_settings))  # type: ignore[attr-defined]
 
     llm_settings.EMBEDDING_MODEL = model_id
     llm_settings.EMBEDDING_DIMENSION = target_dimension

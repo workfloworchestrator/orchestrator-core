@@ -34,6 +34,7 @@ from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from sentry_sdk.integrations.strawberry import StrawberryIntegration
 from sentry_sdk.integrations.threading import ThreadingIntegration
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -51,7 +52,11 @@ from orchestrator.core.db.listeners import monitor_sqlalchemy_queries
 from orchestrator.core.db.loaders import init_model_loaders
 from orchestrator.core.distlock import init_distlock_manager
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
-from orchestrator.core.exception_handlers import problem_detail_handler, query_validation_handler
+from orchestrator.core.exception_handlers import (
+    database_timeout_handler,
+    problem_detail_handler,
+    query_validation_handler,
+)
 from orchestrator.core.graphql import Mutation, Query, create_graphql_router
 from orchestrator.core.graphql.schema import ContextGetterFactory
 from orchestrator.core.graphql.schemas.subscription import SubscriptionInterface
@@ -211,6 +216,7 @@ class OrchestratorCore(FastAPI):
         self.add_exception_handler(FormException, form_error_handler)  # type: ignore[arg-type]
         self.add_exception_handler(ProblemDetailException, problem_detail_handler)  # type: ignore[arg-type]
         self.add_exception_handler(QueryValidationError, query_validation_handler)  # type: ignore[arg-type]
+        self.add_exception_handler(SQLAlchemyTimeoutError, database_timeout_handler)  # type: ignore[arg-type]
         add_exception_handler(self)
 
         if base_settings.ENABLE_PROMETHEUS_METRICS_ENDPOINT:

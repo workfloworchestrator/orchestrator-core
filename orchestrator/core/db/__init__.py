@@ -88,7 +88,7 @@ def init_database(settings: AppSettings) -> Database:
     db_uri = str(settings.DATABASE_URI.get_secret_value())
     warn_db_uri_scheme(db_uri)
 
-    wrapped_db.update(Database(db_uri))
+    wrapped_db.update(Database(db_uri, settings))
     return db
 
 

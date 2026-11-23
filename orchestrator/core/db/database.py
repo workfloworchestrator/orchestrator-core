@@ -12,7 +12,7 @@
 # limitations under the License.
 
 import warnings
-from collections.abc import Callable, Generator, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, ClassVar, cast
@@ -28,6 +28,13 @@ from sqlalchemy.sql.schema import MetaData
 from starlette.types import ASGIApp, Receive, Scope, Send
 from structlog.stdlib import BoundLogger
 
+from orchestrator.core.settings import (
+    DATABASE_MAX_OVERFLOW_DEFAULT,
+    DATABASE_POOL_SIZE_DEFAULT,
+    DATABASE_POOL_TIMEOUT_DEFAULT,
+    AppSettings,
+    app_settings,
+)
 from orchestrator.core.utils.json import json_dumps, json_loads
 
 MESSAGE_COMMIT_ATTEMPTED_WHILE_DISABLED = (
@@ -188,11 +195,38 @@ class WrappedSession(Session):
 ENGINE_ARGUMENTS = {
     "connect_args": {"connect_timeout": 10, "options": "-c timezone=UTC"},
     "pool_pre_ping": True,
-    "pool_size": 60,
+    "pool_size": DATABASE_POOL_SIZE_DEFAULT,
     "json_serializer": json_dumps,
     "json_deserializer": json_loads,
 }
 SESSION_ARGUMENTS = {"class_": WrappedSession, "autocommit": False, "autoflush": True, "query_cls": SearchQuery}
+
+POOL_SETTINGS: dict[str, tuple[str, int]] = {
+    "pool_size": ("DATABASE_POOL_SIZE", DATABASE_POOL_SIZE_DEFAULT),
+    "max_overflow": ("DATABASE_MAX_OVERFLOW", DATABASE_MAX_OVERFLOW_DEFAULT),
+    "pool_timeout": ("DATABASE_POOL_TIMEOUT", DATABASE_POOL_TIMEOUT_DEFAULT),
+}
+
+
+def make_engine_arguments(pool_settings: AppSettings) -> dict[str, Any]:
+    """Return ENGINE_ARGUMENTS with the pool settings from ``pool_settings`` applied.
+
+    A pool key that a downstream orchestrator patched into ENGINE_ARGUMENTS to a value other than the default wins
+    over the setting, which keeps those patches working. ENGINE_ARGUMENTS is read at call time because it may be
+    replaced wholesale.
+
+    Args:
+        pool_settings: The AppSettings to read the pool settings from.
+
+    Returns:
+        The keyword arguments for ``create_engine()``.
+    """
+    engine_arguments = dict(ENGINE_ARGUMENTS)
+
+    for engine_key, (setting_name, default) in POOL_SETTINGS.items():
+        if engine_arguments.get(engine_key, default) == default:
+            engine_arguments[engine_key] = getattr(pool_settings, setting_name)
+    return engine_arguments
 
 
 class Database:
@@ -210,13 +244,14 @@ class Database:
     wrap a ``WrappedSession``, so the commit-disable safeguard is available in both modes.
     """
 
-    def __init__(self, db_url: str) -> None:
+    def __init__(self, db_url: str, pool_settings: AppSettings | None = None) -> None:
         self.request_context: ContextVar[str] = ContextVar("request_context", default="")
-        self.engine = create_engine(db_url, **ENGINE_ARGUMENTS)
+        engine_arguments = make_engine_arguments(pool_settings or app_settings)
+        self.engine = create_engine(db_url, **engine_arguments)
         self.session_factory = sessionmaker(
             bind=self.engine, class_=WrappedSession, autocommit=False, autoflush=True, query_cls=SearchQuery
         )
-        self.async_engine = create_async_engine(db_url, **ENGINE_ARGUMENTS)
+        self.async_engine = create_async_engine(db_url, **engine_arguments)
         self.async_session_factory = async_sessionmaker(
             bind=self.async_engine, sync_session_class=WrappedSession, expire_on_commit=False
         )
@@ -284,7 +319,7 @@ class DBSessionMiddleware:
 
 
 @contextmanager
-def disable_commit(db: Database, log: BoundLogger) -> Iterator:
+def disable_commit(db: Database, log: BoundLogger) -> Generator[None]:
     # If `db.session` already has its `commit` method disabled we won't try disabling *and* restoring it again.
     if db.session.is_commit_disabled():
         yield
@@ -302,7 +337,7 @@ def disable_commit(db: Database, log: BoundLogger) -> Iterator:
 
 
 @contextmanager
-def transactional(db: Database, log: BoundLogger) -> Iterator:
+def transactional(db: Database, log: BoundLogger) -> Generator[None]:
     """Run the context in an implicit transaction with automatic rollback or commit.
 
     It will roll back in case of error, commit otherwise. It will also disable the `commit()` method
