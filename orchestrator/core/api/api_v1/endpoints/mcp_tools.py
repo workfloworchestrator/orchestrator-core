@@ -44,12 +44,13 @@ Why these are curated rather than auto-generated from the existing REST API:
   enumerate without criteria; this gives agents a deterministic listing.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from http import HTTPStatus
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
 import structlog
+from fastapi import Request
 from fastapi.param_functions import Body, Depends
 from fastapi.routing import APIRouter
 from pydantic import ValidationError
@@ -82,6 +83,8 @@ from orchestrator.core.schemas.mcp_search import (
     SearchToolResultItem,
 )
 from orchestrator.core.schemas.mcp_tools import (
+    FormFieldOption,
+    GetWorkflowFormOptionsRequest,
     GetWorkflowFormRequest,
     ListRecentProcessesRequest,
     ListSubscriptionsRequest,
@@ -94,6 +97,7 @@ from orchestrator.core.schemas.mcp_tools import (
     SubscriptionDetails,
     SubscriptionIdRequest,
     SubscriptionSummary,
+    WorkflowFormOptions,
     WorkflowFormPage,
 )
 from orchestrator.core.schemas.workflow import SubscriptionWorkflowListsSchema, WorkflowSchema
@@ -113,6 +117,15 @@ from orchestrator.core.search.query.validation import (
     validate_order_by_fields,
     validate_temporal_grouping_field,
 )
+from orchestrator.core.services.forms import (
+    Fetch,
+    judge_submitted,
+    options_of,
+    own_api,
+    sourced_fields,
+    walk,
+    write_options,
+)
 from orchestrator.core.services.processes import get_process_async, load_process
 from orchestrator.core.services.subscriptions import get_subscription_async, subscription_workflows
 from orchestrator.core.services.translations import form_field_labels, label_schema
@@ -120,8 +133,9 @@ from orchestrator.core.services.workflows import get_workflows_async
 from orchestrator.core.utils.enrich_process import enrich_process
 from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.workflows import get_workflow
-from pydantic_forms.core import Complete, FormFieldError, NextPage, Rejected, form_errors, page_schema, walk_form
+from pydantic_forms.core import Complete, FormFieldError, NextPage, Rejected, form_errors, page_schema
 from pydantic_forms.types import InputForm
+from pydantic_forms.utils.schema import DEPENDS_ON, OPTIONS_SOURCE
 
 logger = structlog.get_logger(__name__)
 
@@ -161,7 +175,7 @@ async def list_workflows_endpoint(
     operation_id="get_workflow_form",
     openapi_extra=READONLY_TOOL,
 )
-async def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> WorkflowFormPage:
+async def get_workflow_form_endpoint(params: GetWorkflowFormRequest, request: Request) -> WorkflowFormPage:
     """Get a workflow's input form page by page, each page as a JSON Schema to fill.
 
     Forms are multi-page and a later page depends on the answers before it, so walk them: call with the
@@ -171,7 +185,10 @@ async def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> Workflow
     property with ``readOnly: true`` is shown to a person and takes no value: submit nothing for it. ``enum``
     lists the values a property takes; where a value has a label, ``options`` maps value to label: submit
     the value. ``format: "accept"`` is a confirmation: submit ``"ACCEPTED"``. A nullable property is an
-    ``anyOf`` with ``{"type": "null"}``.
+    ``anyOf`` with ``{"type": "null"}``. A property with ``optionsSource`` has a list of options too long for
+    the schema, or one that depends on another field of the page: find its value with
+    ``get_workflow_form_options`` and submit one it returned, anything else is rejected. ``labels`` then says
+    how the values of the page just accepted are shown to a person.
 
     A page that does not validate is a tool error, or with ``verdict="result"`` a result with
     ``status: "rejected"``, ``errors`` (``loc``, ``msg``, ``type``) naming the values to fix, and that page's
@@ -184,38 +201,103 @@ async def get_workflow_form_endpoint(params: GetWorkflowFormRequest) -> Workflow
     wf = get_workflow(params.workflow_key)
     if not wf:
         raise_status(HTTPStatus.NOT_FOUND, f"Workflow '{params.workflow_key}' does not exist")
-    initial_state: dict[str, Any] = {"workflow_name": params.workflow_key, "workflow_target": wf.target}
     user_inputs = params.page_inputs or []
-    # Form generators use the sync database session, so the walk runs off the event loop.
-    outcome = await run_in_threadpool(walk_form, wf.initial_input_form, initial_state, user_inputs)
-    match outcome:
+    fetch = own_api(request)
+
+    async def page(
+        model: InputForm, index: int, errors: Sequence[FormFieldError] = (), **more: Any
+    ) -> WorkflowFormPage:
+        return await _form_page(model, index, errors, fetch=fetch, language=params.language, **more)
+
+    before, strangers, labels = await judge_submitted(wf, params.workflow_key, user_inputs, fetch)
+    if before is not None and strangers:
+        if params.verdict == "error":
+            raise_status(HTTPStatus.BAD_REQUEST, "; ".join(f"{e.loc[0]}: {e.msg}" for e in strangers))
+        return await page(before.model, before.index, strangers, values=user_inputs[-1])
+    match await walk(wf, params.workflow_key, user_inputs):
         case Complete():
-            return WorkflowFormPage(page=len(user_inputs), complete=True, status="complete")
+            return WorkflowFormPage(page=len(user_inputs), complete=True, status="complete", labels=labels)
         case NextPage(model=model, index=index):
-            return _form_page(model, index, "next", language=params.language)
+            return await page(model, index, labels=labels)
         case Rejected(model=model, index=index, error=error):
             if params.verdict == "error":
                 raise error
-            return _form_page(model, index, "rejected", form_errors(error), language=params.language)
+            return await page(model, index, form_errors(error), values=user_inputs[index])
 
 
-def _form_page(
+async def _form_page(
     model: InputForm,
     index: int,
-    status: Literal["next", "rejected"],
     errors: Sequence[FormFieldError] = (),
     *,
+    fetch: Fetch,
     language: str,
+    values: Mapping[str, Any] | None = None,
+    labels: Mapping[str, Any] | None = None,
 ) -> WorkflowFormPage:
-    """One page of the walk: its schema as one self-contained document, labelled as the frontend shows it, and the verdict when it was rejected."""
+    """One page of the walk: its schema as one self-contained document, labelled as the frontend shows it, and the verdict when it was rejected.
+
+    A short sourced list is written into the schema as a choice; ``values`` are the page's own, where a
+    source depends on one.
+    """
     title = model.model_config.get("title")
+    schema = label_schema(page_schema(model, inline_refs=True), form_field_labels(language))
     return WorkflowFormPage(
         page=index,
         complete=False,
-        status=status,
+        status="rejected" if errors else "next",
         title=None if title in (None, "unknown") else title,  # "unknown" is pydantic-forms' placeholder
-        schema=label_schema(page_schema(model, inline_refs=True), form_field_labels(language)),
+        schema=await write_options(schema, values or {}, fetch),
         errors=list(errors),
+        labels=dict(labels or {}),
+    )
+
+
+@router.post(
+    "/get_workflow_form_options",
+    response_model=WorkflowFormOptions,
+    tags=[AGENT_EXPOSED_TAG],
+    operation_id="get_workflow_form_options",
+    openapi_extra=READONLY_TOOL,
+)
+async def get_workflow_form_options_endpoint(
+    params: GetWorkflowFormOptionsRequest, request: Request
+) -> WorkflowFormOptions:
+    """Find the options of a form field whose page schema carries ``optionsSource`` instead of a list.
+
+    Such a field's list is too long for the schema, or depends on another field of the page. Pass the pages
+    filled before the field's page in ``page_inputs`` (as for ``get_workflow_form``) and the field's name; for
+    a field that depends on another field of its page, pass that field's value in ``page_values``. A list of
+    at most ``limit`` options comes back whole: pick the one meant. A longer list is narrowed to the options
+    that fit the words in ``search``. Submit the ``value`` of an option; its ``label`` is what a person
+    reads. Only a value among the field's options is accepted for it.
+    """
+    wf = get_workflow(params.workflow_key)
+    if not wf:
+        raise_status(HTTPStatus.NOT_FOUND, f"Workflow '{params.workflow_key}' does not exist")
+    outcome = await walk(wf, params.workflow_key, params.page_inputs or [])
+    if not isinstance(outcome, NextPage):
+        raise_status(HTTPStatus.BAD_REQUEST, "page_inputs must be the accepted pages before the field's page")
+    schema = page_schema(outcome.model, inline_refs=True)
+    if (node := sourced_fields(schema).get(params.field)) is None:
+        raise_status(
+            HTTPStatus.BAD_REQUEST,
+            f"Field '{params.field}' has no options source on this page: its options, if any, are in the page schema",
+        )
+    source = node[OPTIONS_SOURCE]
+    try:
+        options = await options_of(source, params.page_values, own_api(request), params.search, params.limit)
+    except Exception as exc:
+        raise_status(HTTPStatus.BAD_GATEWAY, f"The options of '{params.field}' could not be read: {exc}")
+    if options is None:
+        needs = ", ".join(source.get(DEPENDS_ON) or {})
+        raise_status(
+            HTTPStatus.BAD_REQUEST, f"The options of '{params.field}' depend on {needs}: pass it in page_values"
+        )
+    return WorkflowFormOptions(
+        field=params.field,
+        options=[FormFieldOption(value=option.value, label=option.label) for option in options[: params.limit]],
+        total=len(options),
     )
 
 

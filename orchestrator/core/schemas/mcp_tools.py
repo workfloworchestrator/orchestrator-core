@@ -62,6 +62,36 @@ class GetWorkflowFormRequest(OrchestratorBaseModel):
     )
 
 
+class GetWorkflowFormOptionsRequest(OrchestratorBaseModel):
+    workflow_key: str = Field(description='Workflow name in snake_case (e.g. "create_node", "modify_note").')
+    page_inputs: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="The form pages filled before the page the field is on. Pass `[]` or omit for the first page.",
+    )
+    field: str = Field(description="The field, by its property name on the page.")
+    search: str | None = Field(
+        default=None,
+        description="Words the option should fit, such as part of a name; only used when the list is longer than "
+        "`limit`. Omit for the first options.",
+    )
+    page_values: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Values already known for other fields of the same page, for a field whose options depend on one.",
+    )
+    limit: int = Field(default=50, ge=1, le=100, description="Maximum number of options to return.")
+
+
+class FormFieldOption(OrchestratorBaseModel):
+    value: str | int = Field(description="What to submit for the field.")
+    label: str = Field(description="How the option is shown to a person.")
+
+
+class WorkflowFormOptions(OrchestratorBaseModel):
+    field: str
+    options: list[FormFieldOption]
+    total: int = Field(description="How many options fit; more than `options` holds when the list was cut at `limit`.")
+
+
 class SubscriptionIdRequest(OrchestratorBaseModel):
     subscription_id: str = Field(description="UUID of the subscription.")
 
@@ -103,7 +133,13 @@ class WorkflowFormPage(OrchestratorBaseModel):
         description="The page as one self-contained JSON Schema: the values to submit, every reference inlined. "
         "A property's `title` and `description` are the field's label and help text as the frontend shows them. "
         "A property with `readOnly: true` is shown and takes no value; `enum` lists the values a property takes "
-        'and `options` their labels; `format: "accept"` takes `"ACCEPTED"`. `null` when complete.',
+        'and `options` their labels; `format: "accept"` takes `"ACCEPTED"`. A property with `optionsSource` takes '
+        "a value found with `get_workflow_form_options`. `null` when complete.",
+    )
+    labels: dict[str, Any] = Field(
+        default_factory=dict,
+        description="For the page just accepted (the last of `page_inputs`): how each value that came from "
+        "`get_workflow_form_options` is shown to a person, by field.",
     )
     errors: list[FormFieldError] = Field(
         default_factory=list, description='The verdict on a rejected page; empty unless `status` is "rejected".'
