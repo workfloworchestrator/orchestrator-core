@@ -40,20 +40,37 @@ inner httpx call, which fastmcp does NOT do by default, its
 The ``_forward_auth_header`` httpx request hook below
 re-injects it. See https://github.com/jlowin/fastmcp/issues/2817.
 
+Errors: fastmcp logs a failed tool call only as ``Error calling tool '<name>'``. The
+``_log_failed_tool_call`` httpx response hook logs why: the route, the status and the
+route's ``detail``. Request bodies are never logged (a tool's arguments can carry form
+input), and a validation error is logged by location, type and message — FastAPI's
+``input`` field, the rejected value itself, is dropped.
+
 Transport: streamable HTTP.
 """
 
+import json
+from http import HTTPStatus
 from itertools import chain
 from typing import TYPE_CHECKING, Any
 
 import httpx
+import structlog
 from fastapi import FastAPI
 from starlette.applications import Starlette
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
 
+logger = structlog.get_logger(__name__)
+
 MCP_MOUNT_PATH = "/mcp"
+
+# How much of a failed call's error detail to log.
+MAX_LOGGED_DETAIL = 2000
+
+# The parts of a FastAPI validation error that say what was wrong without repeating the value.
+_VALIDATION_ERROR_FIELDS = ("loc", "type", "msg")
 
 # FastAPI tag that gates MCP exposure: tag a route with this to surface it as an
 # MCP tool. Routes without it are excluded. Routes import this from here.
@@ -117,6 +134,43 @@ async def _forward_auth_header(request: httpx.Request) -> None:
     for key, value in auth_headers.items():
         if key not in request.headers:
             request.headers[key] = value
+
+
+async def _log_failed_tool_call(response: httpx.Response) -> None:
+    """Httpx response hook: log why a tool call failed, which fastmcp's own error log does not say."""
+    if response.is_success:
+        return
+    await response.aread()
+    logger.warning(
+        "MCP tool call failed",
+        tool=response.request.url.path,
+        status_code=HTTPStatus(response.status_code),
+        detail=_error_detail(response),
+    )
+
+
+def _error_detail(response: httpx.Response) -> Any:
+    """The route's error ``detail`` without echoed input values, else the raw body; truncated."""
+    try:
+        body = response.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return response.text[:MAX_LOGGED_DETAIL]
+    match body:
+        case {"detail": str(detail)}:
+            return detail[:MAX_LOGGED_DETAIL]
+        case {"detail": list(errors)}:
+            return [_without_input(error) for error in errors]
+        case _:
+            return str(body)[:MAX_LOGGED_DETAIL]
+
+
+def _without_input(error: Any) -> Any:
+    """A validation error entry reduced to where and why; anything else as a truncated string."""
+    match error:
+        case dict():
+            return {key: error[key] for key in _VALIDATION_ERROR_FIELDS if key in error}
+        case _:
+            return str(error)[:MAX_LOGGED_DETAIL]
 
 
 def _humanize(name: str) -> str:
@@ -183,7 +237,7 @@ def build_mcp(app: FastAPI) -> "FastMCP":  # noqa: F821 (TYPE_CHECKING-only impo
             RouteMap(mcp_type=MCPType.EXCLUDE),
         ],
         mcp_component_fn=_build_component_fn(app),
-        httpx_client_kwargs={"event_hooks": {"request": [_forward_auth_header]}},
+        httpx_client_kwargs={"event_hooks": {"request": [_forward_auth_header], "response": [_log_failed_tool_call]}},
     )
 
 
