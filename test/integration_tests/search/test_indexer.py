@@ -17,14 +17,19 @@ Content hashing, text preparation, record creation, change detection,
 force index, token counting, dry run, batch generation, and error handling.
 """
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 import pytest
+from sqlalchemy import delete, select
 from sqlalchemy_utils.types.ltree import Ltree
 
+from orchestrator.core.db import db
+from orchestrator.core.db.models import AiSearchEmbedding, AiSearchIndex
 from orchestrator.core.search.core.types import EntityType, ExtractedField, FieldType
-from orchestrator.core.search.indexing.indexer import Indexer
+from orchestrator.core.search.indexing.indexer import Indexer, StoredHashes
+from orchestrator.core.settings import llm_settings
 
 # Test constants
 ENTITY_ID = "12345678-1234-1234-1234-123456789abc"
@@ -77,7 +82,9 @@ def matching_hashes(mock_fields):
     """Hashes that match mock_entity fields."""
     return {
         ENTITY_ID: {
-            field.path: Indexer._compute_content_hash(field.path, field.value, field.value_type, ENTITY_TITLE)
+            field.path: StoredHashes(
+                Indexer._compute_content_hash(field.path, field.value, field.value_type, ENTITY_TITLE), None
+            )
             for field in mock_fields
         }
     }
@@ -128,12 +135,11 @@ def test_prepare_text_for_embedding():
 # ---------------------------------------------------------------------------
 
 
-def test_make_indexable_record_with_embedding(indexer):
-    """Test creating an indexable record with embedding."""
+def test_make_indexable_record_with_embedding_hash(indexer):
+    """Test creating an indexable record that points at an embedding."""
     field = ExtractedField(path="description", value="Test value", value_type=FieldType.STRING)
-    embedding = [0.1, 0.2, 0.3]
 
-    record = indexer._make_indexable_record(field, ENTITY_ID, embedding)
+    record = indexer._make_indexable_record(field, ENTITY_ID, "some-hash")
 
     assert record["entity_id"] == ENTITY_ID
     assert record["entity_type"] == EntityType.SUBSCRIPTION.value
@@ -141,7 +147,7 @@ def test_make_indexable_record_with_embedding(indexer):
     assert record["path"] == Ltree("description")
     assert record["value"] == "Test value"
     assert record["value_type"] == FieldType.STRING
-    assert record["embedding"] == embedding
+    assert record["embedding_hash"] == "some-hash"
     assert isinstance(record["content_hash"], str)
     assert len(record["content_hash"]) == 64
 
@@ -183,11 +189,15 @@ def test_force_index_ignores_existing_hashes(mock_config, mock_entity):
 
     existing_hashes = {
         ENTITY_ID: {
-            "description": Indexer._compute_content_hash(
-                "description", "Test subscription", FieldType.STRING, ENTITY_TITLE
+            "description": StoredHashes(
+                Indexer._compute_content_hash("description", "Test subscription", FieldType.STRING, ENTITY_TITLE), None
             ),
-            "status": Indexer._compute_content_hash("status", "active", FieldType.STRING, ENTITY_TITLE),
-            "insync": Indexer._compute_content_hash("insync", "true", FieldType.BOOLEAN, ENTITY_TITLE),
+            "status": StoredHashes(
+                Indexer._compute_content_hash("status", "active", FieldType.STRING, ENTITY_TITLE), None
+            ),
+            "insync": StoredHashes(
+                Indexer._compute_content_hash("insync", "true", FieldType.BOOLEAN, ENTITY_TITLE), None
+            ),
         }
     }
 
@@ -277,8 +287,9 @@ def test_generate_upsert_batches(indexer, field_path, field_value, field_type):
         batches = list(indexer._generate_upsert_batches(fields_to_upsert))
 
     assert len(batches) == 1
-    assert len(batches[0]) == 1
-    assert (batches[0][0]["embedding"] is not None) == should_have_embedding
+    assert len(batches[0].records) == 1
+    assert (batches[0].records[0]["embedding_hash"] is not None) == should_have_embedding
+    assert len(batches[0].embeddings) == should_have_embedding
 
 
 # ---------------------------------------------------------------------------
@@ -313,10 +324,7 @@ def test_field_exceeds_context_window(indexer):
     assert batches == []
 
 
-_MISMATCH_BUFFER = [
-    (ENTITY_ID, ExtractedField(path="description", value="Text 1", value_type=FieldType.STRING)),
-    (ENTITY_ID, ExtractedField(path="title", value="Text 2", value_type=FieldType.STRING)),
-]
+_MISMATCH_PENDING = {"hash-1": "description: Text 1", "hash-2": "title: Text 2"}
 
 
 def test_embedding_count_mismatch_raises_error(indexer):
@@ -328,4 +336,276 @@ def test_embedding_count_mismatch_raises_error(indexer):
         ),
         pytest.raises(ValueError, match="Embedding mismatch"),
     ):
-        indexer._flush_buffer(_MISMATCH_BUFFER, [])
+        indexer._flush_buffer(_MISMATCH_PENDING, [])
+
+
+# ---------------------------------------------------------------------------
+# Embeddings in the database
+# ---------------------------------------------------------------------------
+
+ENTITY_UUIDS = [UUID(f"00000000-0000-0000-0000-00000000000{i}") for i in range(1, 4)]
+
+
+def _vector(text: str) -> list[float]:
+    return [float(len(text))] + [0.0] * (llm_settings.EMBEDDING_DIMENSION - 1)
+
+
+def _working_api(texts: list[str], dry_run: bool) -> list[list[float]]:
+    return [_vector(text) for text in texts]
+
+
+def _failing_api(texts: list[str], dry_run: bool) -> list[list[float]]:
+    return [[] for _ in texts]
+
+
+@pytest.fixture
+def api_enabled():
+    with patch.object(llm_settings, "EMBEDDING_API_ENABLED", True):
+        yield
+
+
+@pytest.fixture
+def embedding_api():
+    """Stub litellm tokenization and the embedding API, which works until a test swaps its side effect."""
+    with (
+        patch("litellm.utils.get_max_tokens", return_value=8191),
+        patch("litellm.utils.encode", return_value=[1]),
+        patch(
+            "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch",
+            side_effect=_working_api,
+        ) as api,
+    ):
+        yield api
+
+
+def _index(
+    fields: list[ExtractedField],
+    title: str = ENTITY_TITLE,
+    entity_ids: list[UUID] = ENTITY_UUIDS,
+    cleanup_orphans: bool = False,
+    force_index: bool = False,
+) -> int:
+    """Index the same fields for each entity, for real, in the test database."""
+    config = MagicMock()
+    config.entity_kind = EntityType.SUBSCRIPTION
+    config.pk_name = "entity_id"
+    config.root_name = "subscription"
+    config.traverser.get_fields.return_value = fields
+    config.get_title_from_fields.return_value = title
+    entities = [SimpleNamespace(entity_id=entity_id) for entity_id in entity_ids]
+    indexer = Indexer(
+        config=config, dry_run=False, force_index=force_index, chunk_size=10, cleanup_orphans=cleanup_orphans
+    )
+    return indexer.run(entities)  # type: ignore[arg-type]
+
+
+def _stored_embedding_hashes() -> set[str]:
+    return set(db.session.scalars(select(AiSearchEmbedding.embedding_hash)))
+
+
+def _index_rows() -> list[AiSearchIndex]:
+    return list(db.session.scalars(select(AiSearchIndex).order_by(AiSearchIndex.entity_id, AiSearchIndex.path)))
+
+
+def _sent_texts(api: MagicMock) -> list[str]:
+    return [text for call in api.call_args_list for text in call.args[0]]
+
+
+_TEXT_FIELDS = [
+    ExtractedField(path="description", value="Alpha", value_type=FieldType.STRING),
+    ExtractedField(path="name", value="Beta", value_type=FieldType.STRING),
+    ExtractedField(path="insync", value="true", value_type=FieldType.BOOLEAN),
+]
+
+
+@pytest.mark.usefixtures("api_enabled")
+def test_title_change_embeds_nothing(embedding_api):
+    _index(_TEXT_FIELDS, title="Old title")
+    old_content_hashes = {row.content_hash for row in _index_rows()}
+    embedding_api.reset_mock()
+
+    processed = _index(_TEXT_FIELDS, title="New title")
+
+    embedding_api.assert_not_called()
+    assert processed == 9
+    rows = _index_rows()
+    assert {row.entity_title for row in rows} == {"New title"}
+    assert {row.content_hash for row in rows}.isdisjoint(old_content_hashes)
+    assert len(_stored_embedding_hashes()) == 2
+
+
+@pytest.mark.usefixtures("api_enabled")
+def test_model_switch_reembeds_distinct_texts_once(embedding_api):
+    _index(_TEXT_FIELDS)
+    hashes_before = {row.embedding_hash for row in _index_rows()} - {None}
+
+    embedding_api.reset_mock()
+    with patch.object(llm_settings, "EMBEDDING_MODEL", "another/embedding-model"):
+        processed = _index(_TEXT_FIELDS)
+
+    assert sorted(_sent_texts(embedding_api)) == ["description: Alpha", "name: Beta"]
+    assert processed == 6
+    hashes_after = {row.embedding_hash for row in _index_rows()} - {None}
+    assert len(hashes_after) == 2
+    assert hashes_after.isdisjoint(hashes_before)
+    assert hashes_after <= _stored_embedding_hashes()
+
+
+@pytest.mark.usefixtures("api_enabled")
+def test_failed_batch_retried(embedding_api):
+    embedding_api.side_effect = _failing_api
+    assert _index(_TEXT_FIELDS) == 9
+
+    # No vector was stored, so the rows carry no hash and the next run tries the texts again.
+    assert _stored_embedding_hashes() == set()
+    assert {row.embedding_hash for row in _index_rows()} == {None}
+
+    embedding_api.reset_mock()
+    embedding_api.side_effect = _working_api
+    assert _index(_TEXT_FIELDS) == 6  # the 3 rows that lost their hash, not the one without a vector
+
+    assert sorted(_sent_texts(embedding_api)) == ["description: Alpha", "name: Beta"]
+    assert len(_stored_embedding_hashes()) == 2
+    assert {row.embedding_hash for row in _index_rows() if row.path != Ltree("insync")} == _stored_embedding_hashes()
+
+    embedding_api.reset_mock()
+    assert _index(_TEXT_FIELDS) == 0
+    embedding_api.assert_not_called()
+
+
+@pytest.mark.usefixtures("api_enabled")
+def test_vector_deleted_by_a_concurrent_run_is_embedded_on_the_next_run(embedding_api):
+    """A reused vector that a concurrent full run deletes before the commit heals on the next run."""
+    _index(_TEXT_FIELDS, title="Old title")
+    embedding_api.reset_mock()
+
+    real_write = Indexer._write_batches
+
+    def write_after_the_delete(self, batches, session):
+        session.execute(delete(AiSearchEmbedding))
+        real_write(self, batches, session)
+
+    with patch.object(Indexer, "_write_batches", autospec=True, side_effect=write_after_the_delete):
+        _index(_TEXT_FIELDS, title="New title")
+
+    embedding_api.assert_not_called()
+    assert _stored_embedding_hashes() == set()
+
+    assert _index(_TEXT_FIELDS, title="New title") == 6
+    assert sorted(_sent_texts(embedding_api)) == ["description: Alpha", "name: Beta"]
+    assert {row.embedding_hash for row in _index_rows() if row.path != Ltree("insync")} == _stored_embedding_hashes()
+
+
+@pytest.mark.usefixtures("api_enabled")
+def test_force_index_embeds_every_text_again_and_replaces_the_vectors(embedding_api):
+    _index(_TEXT_FIELDS)
+    old_vectors = {row.embedding_hash: list(row.embedding) for row in db.session.scalars(select(AiSearchEmbedding))}
+    assert len(old_vectors) == 2
+    embedding_api.reset_mock()
+    embedding_api.side_effect = lambda texts, dry_run: (
+        [[2.0] + [0.0] * (llm_settings.EMBEDDING_DIMENSION - 1)] * len(texts)
+    )
+
+    processed = _index(_TEXT_FIELDS, force_index=True)
+
+    assert processed == 9
+    assert sorted(_sent_texts(embedding_api)) == ["description: Alpha", "name: Beta"]  # once per run, not per row
+    db.session.expire_all()
+    new_vectors = {row.embedding_hash: list(row.embedding) for row in db.session.scalars(select(AiSearchEmbedding))}
+    assert new_vectors.keys() == old_vectors.keys()
+    assert all(vector[0] == 2.0 for vector in new_vectors.values())
+    assert {row.embedding_hash for row in _index_rows() if row.path != Ltree("insync")} == set(new_vectors)
+
+
+@pytest.mark.usefixtures("api_enabled")
+def test_force_index_keeps_the_stored_vector_when_the_text_fails(embedding_api):
+    _index(_TEXT_FIELDS)
+    old_vectors = {row.embedding_hash: list(row.embedding) for row in db.session.scalars(select(AiSearchEmbedding))}
+    embedding_api.side_effect = _failing_api
+
+    _index(_TEXT_FIELDS, force_index=True)
+
+    db.session.expire_all()
+    assert {
+        row.embedding_hash: list(row.embedding) for row in db.session.scalars(select(AiSearchEmbedding))
+    } == old_vectors
+
+
+@pytest.mark.usefixtures("api_enabled")
+def test_partial_failure_only_embeds_missing(embedding_api):
+    embedding_api.side_effect = lambda texts, dry_run: [[] if text == "name: Beta" else _vector(text) for text in texts]
+    _index(_TEXT_FIELDS)
+    assert len(_stored_embedding_hashes()) == 1
+
+    embedding_api.reset_mock()
+    embedding_api.side_effect = _working_api
+    processed = _index(_TEXT_FIELDS)
+
+    assert _sent_texts(embedding_api) == ["name: Beta"]
+    assert processed == 3  # only the rows of the text that was missing
+    assert len(_stored_embedding_hashes()) == 2
+
+
+def test_api_disabled_second_run_changes_nothing(embedding_api):
+    # The real API call answers with empty vectors when the API is disabled.
+    embedding_api.side_effect = _failing_api
+    with patch.object(llm_settings, "EMBEDDING_API_ENABLED", False):
+        assert _index(_TEXT_FIELDS) == 9
+        assert _stored_embedding_hashes() == set()
+
+        assert _index(_TEXT_FIELDS) == 0
+
+    # The vectors are bound at write time, so a text without a vector leaves a row without a hash.
+    assert {row.embedding_hash is None for row in _index_rows()} == {True}
+
+
+def _seed_embedding(entity_type: EntityType, embedding_hash: str) -> None:
+    db.session.add(
+        AiSearchEmbedding(
+            entity_type=entity_type.value, embedding_hash=embedding_hash, embedding=_vector(embedding_hash)
+        )
+    )
+    db.session.commit()
+
+
+def _stored_embedding_keys() -> set[tuple[str, str]]:
+    return {
+        (entity_type, embedding_hash)
+        for entity_type, embedding_hash in db.session.execute(
+            select(AiSearchEmbedding.entity_type, AiSearchEmbedding.embedding_hash)
+        )
+    }
+
+
+@pytest.mark.usefixtures("api_enabled")
+def test_orphans_deleted_for_indexed_type_only(embedding_api):
+    _index(_TEXT_FIELDS)
+    referenced = _stored_embedding_hashes()
+    _seed_embedding(EntityType.SUBSCRIPTION, "orphan-subscription")
+    _seed_embedding(EntityType.PRODUCT, "orphan-product")
+
+    _index(_TEXT_FIELDS, cleanup_orphans=True)
+
+    assert _stored_embedding_keys() == {(EntityType.SUBSCRIPTION.value, h) for h in referenced} | {
+        (EntityType.PRODUCT.value, "orphan-product")
+    }
+
+
+@pytest.mark.usefixtures("api_enabled")
+def test_run_without_cleanup_keeps_orphans(embedding_api):
+    _seed_embedding(EntityType.SUBSCRIPTION, "orphan-subscription")
+
+    _index(_TEXT_FIELDS, entity_ids=ENTITY_UUIDS[:1])
+
+    assert (EntityType.SUBSCRIPTION.value, "orphan-subscription") in _stored_embedding_keys()
+
+
+@pytest.mark.usefixtures("api_enabled")
+def test_dry_run_deletes_nothing(embedding_api):
+    _seed_embedding(EntityType.SUBSCRIPTION, "orphan-subscription")
+    config = MagicMock()
+    config.entity_kind = EntityType.SUBSCRIPTION
+
+    Indexer(config=config, dry_run=True, force_index=False, chunk_size=10, cleanup_orphans=True).run([])
+
+    assert _stored_embedding_keys() == {(EntityType.SUBSCRIPTION.value, "orphan-subscription")}

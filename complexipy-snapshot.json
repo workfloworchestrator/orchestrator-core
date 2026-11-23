@@ -136,16 +136,6 @@
     ]
   },
   {
-    "path": "orchestrator/core/search/indexing/indexer.py",
-    "file_name": "indexer.py",
-    "functions": [
-      {
-        "name": "Indexer::_generate_upsert_batches",
-        "complexity": 18
-      }
-    ]
-  },
-  {
     "path": "orchestrator/core/search/indexing/traverse.py",
     "file_name": "traverse.py",
     "functions": [

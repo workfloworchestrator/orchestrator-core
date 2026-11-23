@@ -20,7 +20,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.core.db import db
-from orchestrator.core.db.models import AiSearchIndex, SearchQueryTable
+from orchestrator.core.db.models import AiSearchEmbedding, AiSearchIndex, SearchQueryTable
 from orchestrator.core.settings import llm_settings
 
 logger = structlog.get_logger(__name__)
@@ -35,24 +35,20 @@ app = typer.Typer(
 
 
 def get_current_embedding_dimension() -> int | None:
-    """Get the current dimension of the embedding column from ai_search_index table.
+    """Get the dimension of the embedding column of the ai_search_embeddings table.
+
+    Read from the column definition because the table is empty when the embedding API is or was disabled.
 
     Returns:
-        Current dimension size or None if no records exist or column doesn't exist
+        Current dimension size or None if the column or the table doesn't exist
     """
     try:
         query = text(
-            """
-            SELECT vector_dims(embedding) as dimension
-            FROM ai_search_index
-            WHERE embedding IS NOT NULL
-            LIMIT 1
-        """
+            "SELECT atttypmod FROM pg_attribute WHERE attrelid = CAST('ai_search_embeddings' AS regclass)"
+            " AND attname = 'embedding' AND NOT attisdropped"
         )
-        result = db.session.execute(query).fetchone()
-        if result and result[0]:
-            return result[0]
-        return None
+        dimension = db.session.execute(query).scalar_one_or_none()
+        return dimension if dimension and dimension > 0 else None
 
     except SQLAlchemyError as e:
         logger.error("Failed to get current embedding dimension", error=str(e))
@@ -60,17 +56,21 @@ def get_current_embedding_dimension() -> int | None:
 
 
 def drop_all_embeddings() -> tuple[int, int]:
-    """Drop all records from ai_search_index and search_queries tables.
+    """Drop all records from ai_search_embeddings, ai_search_index and search_queries tables.
+
+    The index rows go too, because they would point at hashes that no longer exist.
 
     Returns:
         Tuple of (ai_search_index records deleted, search_queries records deleted)
     """
     try:
         index_deleted = cast(CursorResult, db.session.execute(delete(AiSearchIndex))).rowcount
+        embeddings_deleted = cast(CursorResult, db.session.execute(delete(AiSearchEmbedding))).rowcount
         query_deleted = cast(CursorResult, db.session.execute(delete(SearchQueryTable))).rowcount
         db.session.commit()
         logger.info(
-            f"Deleted {index_deleted} records from ai_search_index and {query_deleted} records from search_queries"
+            f"Deleted {index_deleted} records from ai_search_index, {embeddings_deleted} records from "
+            f"ai_search_embeddings and {query_deleted} records from search_queries"
         )
         return index_deleted, query_deleted
 
@@ -81,14 +81,16 @@ def drop_all_embeddings() -> tuple[int, int]:
 
 
 def alter_embedding_column_dimension(new_dimension: int) -> None:
-    """Alter the embedding columns in both ai_search_index and search_queries tables.
+    """Alter the embedding columns in both ai_search_embeddings and search_queries tables.
 
     Args:
         new_dimension: New vector dimension size
     """
     try:
-        db.session.execute(text("ALTER TABLE ai_search_index DROP COLUMN IF EXISTS embedding"))
-        db.session.execute(text(f"ALTER TABLE ai_search_index ADD COLUMN embedding vector({new_dimension})"))
+        db.session.execute(text("ALTER TABLE ai_search_embeddings DROP COLUMN IF EXISTS embedding"))
+        db.session.execute(
+            text(f"ALTER TABLE ai_search_embeddings ADD COLUMN embedding vector({new_dimension}) NOT NULL")
+        )
 
         db.session.execute(text("ALTER TABLE search_queries DROP COLUMN IF EXISTS query_embedding"))
         db.session.execute(text(f"ALTER TABLE search_queries ADD COLUMN query_embedding vector({new_dimension})"))
@@ -97,7 +99,9 @@ def alter_embedding_column_dimension(new_dimension: int) -> None:
 
         db.session.close()
 
-        logger.info(f"Altered embedding columns to dimension {new_dimension} in ai_search_index and search_queries")
+        logger.info(
+            f"Altered embedding columns to dimension {new_dimension} in ai_search_embeddings and search_queries"
+        )
 
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -106,25 +110,24 @@ def alter_embedding_column_dimension(new_dimension: int) -> None:
 
 
 def rebuild_hnsw_indexes() -> None:
-    """Rebuild HNSW indexes on ai_search_index table.
+    """Rebuild HNSW indexes on ai_search_embeddings table.
 
-    Creates partial HNSW indexes, one per entity type, with embedding IS NOT NULL filter.
-    This is called after resizing the embedding column to rebuild the indexes that were
-    dropped when the column was recreated.
+    Creates partial HNSW indexes, one per entity type. This is called after resizing the embedding column to
+    rebuild the indexes that were dropped when the column was recreated.
     """
 
     def create_partial_index(entity_type: str) -> str:
-        index_name = f"ix_flat_embed_hnsw_{entity_type.lower()}"
+        index_name = f"ix_ai_search_embeddings_hnsw_{entity_type.lower()}"
         return (
-            f"CREATE INDEX IF NOT EXISTS {index_name} ON ai_search_index "
-            f"{HNSW_OPTIONS} WHERE entity_type = '{entity_type}' AND embedding IS NOT NULL"
+            f"CREATE INDEX IF NOT EXISTS {index_name} ON ai_search_embeddings "
+            f"{HNSW_OPTIONS} WHERE entity_type = '{entity_type}'"
         )
 
     try:
         for query in map(create_partial_index, ENTITY_TYPES):
             db.session.execute(text(query))
         db.session.commit()
-        logger.info(f"Rebuilt {len(ENTITY_TYPES)} HNSW indexes on ai_search_index")
+        logger.info(f"Rebuilt {len(ENTITY_TYPES)} HNSW indexes on ai_search_embeddings")
 
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -134,7 +137,7 @@ def rebuild_hnsw_indexes() -> None:
 
 @app.command("resize")
 def resize_embeddings_command() -> None:
-    """Resize vector dimensions of embedding columns in ai_search_index and search_queries tables.
+    """Resize vector dimensions of embedding columns in ai_search_embeddings and search_queries tables.
 
     Compares the current embedding dimension in the database with the configured
     dimension in llm_settings. If they differ, drops all records, alters both
@@ -160,7 +163,8 @@ def resize_embeddings_command() -> None:
     logger.info("Dimension mismatch detected", current_dimension=current_dimension, new_dimension=new_dimension)
 
     if not typer.confirm(
-        "This will DELETE ALL RECORDS from ai_search_index and search_queries tables and alter embedding columns. Continue?"
+        "This will DELETE ALL RECORDS from ai_search_index, ai_search_embeddings and search_queries tables "
+        "and alter embedding columns. Continue?"
     ):
         logger.info("Operation cancelled by user")
         return

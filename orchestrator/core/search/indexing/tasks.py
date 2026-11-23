@@ -77,6 +77,7 @@ def run_indexing_for_entity(
         chunk_size=chunk_size,
         show_progress=show_progress,
         total_count=total_count,
+        cleanup_orphans=entity_id is None,
     )
 
     with cache_subscription_models():
