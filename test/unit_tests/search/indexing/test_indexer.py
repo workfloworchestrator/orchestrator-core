@@ -785,29 +785,61 @@ def test_upsert_failed_text_is_not_retried_in_a_later_chunk(indexer: Indexer) ->
 
 
 @pytest.mark.parametrize(
-    ("force_index", "expected_texts", "lookups"),
+    ("force_index", "dry_run", "api_enabled", "handled", "lookups"),
     [
-        pytest.param(False, [], 1, id="stored_vector_is_reused"),
-        pytest.param(True, ["root.a: v"], 0, id="force_index_embeds_it_again"),
+        pytest.param(False, False, True, True, 1, id="stored_vector_is_handled"),
+        pytest.param(False, False, False, True, 1, id="stored_vector_is_handled_with_the_api_disabled"),
+        pytest.param(True, False, True, False, 0, id="force_index_handles_nothing"),
+        pytest.param(False, True, True, False, 0, id="dry_run_handles_nothing"),
     ],
 )
-def test_upsert_batches_reuse_stored_vectors_unless_force_index(
-    indexer: Indexer, force_index: bool, expected_texts: list[str], lookups: int
+def test_determine_changes_marks_the_stored_vectors_as_handled(
+    mock_config: MagicMock,
+    mock_entity: MagicMock,
+    force_index: bool,
+    dry_run: bool,
+    api_enabled: bool,
+    handled: bool,
+    lookups: int,
 ) -> None:
-    indexer.force_index = force_index
-    field = ExtractedField(path="root.a", value="v", value_type=FieldType.STRING)
-    stored = {compute_embedding_hash(EMBEDDING_MODEL, "root.a: v")}
+    """One lookup per chunk serves change detection and the batches, so nothing is passed between them."""
+    idx = Indexer(config=mock_config, dry_run=dry_run, force_index=force_index, chunk_size=10)
+    stored = {idx._embedding_hash(field) for field in mock_config.traverser.get_fields.return_value}
 
     with (
-        patch("litellm.utils.get_max_tokens", return_value=100),
-        patch("litellm.utils.encode", return_value=[1]),
-        patch.object(indexer, "_existing_embedding_hashes", return_value=stored) as lookup,
-        patch(_API, side_effect=lambda texts, dry_run: [[0.1] for _ in texts]) as api,
+        patch("orchestrator.core.search.indexing.indexer.llm_settings.EMBEDDING_API_ENABLED", api_enabled),
+        patch.object(idx, "_get_all_existing_hashes", return_value={}),
+        patch.object(idx, "_existing_embedding_hashes", return_value=stored) as lookup,
     ):
-        list(indexer._generate_upsert_batches([(ENTITY_ID, field)], MagicMock()))
+        idx._determine_changes([mock_entity], session=MagicMock())
 
     assert lookup.call_count == lookups
-    assert [text for call in api.call_args_list for text in call.args[0]] == expected_texts
+    assert (idx._handled_embedding_hashes == stored) is handled
+    assert handled or idx._handled_embedding_hashes == set()
+
+
+def test_stored_vector_costs_no_api_call_and_force_index_embeds_it_again(
+    mock_config: MagicMock, mock_entity: MagicMock
+) -> None:
+    field = ExtractedField(path="root.a", value="v", value_type=FieldType.STRING)
+    mock_config.traverser.get_fields.return_value = [field]
+    texts_sent: list[list[str]] = []
+
+    for force_index in (False, True):
+        idx = Indexer(config=mock_config, dry_run=False, force_index=force_index, chunk_size=10)
+        stored = {idx._embedding_hash(field)}
+        with (
+            patch("litellm.utils.get_max_tokens", return_value=100),
+            patch("litellm.utils.encode", return_value=[1]),
+            patch.object(idx, "_get_all_existing_hashes", return_value={}),
+            patch.object(idx, "_existing_embedding_hashes", return_value=stored),
+            patch.object(idx, "_write_batches"),
+            patch(_API, side_effect=lambda texts, dry_run: [[0.1] for _ in texts]) as api,
+        ):
+            idx._process_chunk([mock_entity], session=MagicMock())
+        texts_sent.append([text for call in api.call_args_list for text in call.args[0]])
+
+    assert texts_sent == [[], ["root.a: v"]]
 
 
 def test_upsert_failed_text_is_retried_on_the_next_run(indexer: Indexer) -> None:
@@ -832,7 +864,7 @@ def test_upsert_failed_text_is_retried_on_the_next_run(indexer: Indexer) -> None
         assert mock_embed.call_count == 1
 
         # What run() does at the start of a new run.
-        indexer._attempted_embedding_hashes = set()
+        indexer._handled_embedding_hashes = set()
         batches = list(indexer._generate_upsert_batches([(ENTITY_ID, field)]))
 
     assert mock_embed.call_count == 2
@@ -1118,11 +1150,10 @@ def test_known_hash_not_re_embedded(mock_config: MagicMock) -> None:
     unknown = _embeddable_field("root.tag", "other")
     known_hash = idx._embedding_hash(known)
 
-    with (
-        _embedding_api() as api,
-        patch.object(idx, "_existing_embedding_hashes", return_value={known_hash}),
-    ):
-        batches = list(idx._generate_upsert_batches([(ENTITY_ID, known), (ENTITY_ID, unknown)], MagicMock()))
+    idx._handled_embedding_hashes.add(known_hash)
+
+    with _embedding_api() as api:
+        batches = list(idx._generate_upsert_batches([(ENTITY_ID, known), (ENTITY_ID, unknown)]))
 
     assert api.call_args.args[0] == ["root.tag: other"]
     assert [record["embedding_hash"] for record in batches[0].records] == [known_hash, idx._embedding_hash(unknown)]
@@ -1133,11 +1164,10 @@ def test_only_known_hashes_never_calls_the_api(mock_config: MagicMock) -> None:
     idx = _indexer_with_titles(mock_config, [ENTITY_ID])
     field = _embeddable_field("root.tag", "noc")
 
-    with (
-        _embedding_api() as api,
-        patch.object(idx, "_existing_embedding_hashes", return_value={idx._embedding_hash(field)}),
-    ):
-        batches = list(idx._generate_upsert_batches([(ENTITY_ID, field)], MagicMock()))
+    idx._handled_embedding_hashes.add(idx._embedding_hash(field))
+
+    with _embedding_api() as api:
+        batches = list(idx._generate_upsert_batches([(ENTITY_ID, field)]))
 
     api.assert_not_called()
     assert batches == [IndexBatch(batches[0].records, [])]
@@ -1209,7 +1239,7 @@ def test_determine_changes_embedding_rule(
     assert len(changed) == expected_changed
     assert deleted == []
     assert identical == len(mock_fields) - expected_changed
-    assert lookup.called is (api_enabled and not dry_run)
+    assert lookup.called is (not dry_run)
 
 
 def test_determine_changes_marks_a_changed_title_as_changed_without_the_lookup(

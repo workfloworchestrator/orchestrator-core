@@ -147,10 +147,11 @@ class Indexer:
         self.embedding_model = llm_settings.EMBEDDING_MODEL
         self.logger = logger.bind(entity_kind=config.entity_kind.value)
         self._entity_titles: dict[str, str] = {}
-        # Texts sent to the embedding API in this run. A failed text gets no vector, so without this the next chunk
-        # would send it again. Cleared per run, so the next run retries it.
-        self._attempted_embedding_hashes: set[str] = set()
-        # The attempted texts that got no vector. Their rows are written without the hash.
+        # Hashes of the texts that need no embedding call for the rest of this run: those that already have a stored
+        # vector, and those already sent to the API, also when the call failed. Reset per run, so a failed text is
+        # retried by the next run.
+        self._handled_embedding_hashes: set[str] = set()
+        # The sent texts that got no vector. Their rows are written without the hash.
         self._failed_embedding_hashes: set[str] = set()
 
     def run(self, entities: Iterable[DatabaseEntity]) -> int:
@@ -158,7 +159,7 @@ class Indexer:
         chunk: list[DatabaseEntity] = []
         total_records_processed = 0
         total_identical_records = 0
-        self._attempted_embedding_hashes = set()
+        self._handled_embedding_hashes = set()
         self._failed_embedding_hashes = set()
 
         write_scope = db.database_scope() if not self.dry_run else nullcontext()
@@ -243,7 +244,7 @@ class Indexer:
         if fields_to_upsert:
             # The chunk is collected first: building a batch calls the embedding API, and the vectors of the whole
             # chunk are inserted in one hash order.
-            batches = list(self._generate_upsert_batches(fields_to_upsert, session))
+            batches = list(self._generate_upsert_batches(fields_to_upsert))
             self._write_batches(batches, session)
 
         return len(fields_to_upsert), identical_count
@@ -289,7 +290,10 @@ class Indexer:
     def _determine_changes(
         self, entities: list[DatabaseEntity], session: Session | None = None
     ) -> tuple[list[tuple[str, ExtractedField]], list[tuple[str, Ltree]], int]:
-        """Identifies all changes across all entities using pre-fetched data."""
+        """Identifies all changes across all entities using pre-fetched data.
+
+        The stored vectors are marked as handled, so their texts cost no API call.
+        """
         entity_ids = [str(getattr(e, self.config.pk_name)) for e in entities]
         read_session = session or db.session
         existing_hashes = {} if self.force_index else self._get_all_existing_hashes(entity_ids, read_session)
@@ -302,7 +306,10 @@ class Indexer:
 
         stored_embedding_hashes = self._stored_hashes_of_embeddable_fields(fields_by_entity, read_session)
 
-        fields_to_upsert = self._changed_fields(fields_by_entity, titles, existing_hashes, stored_embedding_hashes)
+        # A missing vector is a change only when the API can make it.
+        vectors_expected = stored_embedding_hashes if llm_settings.EMBEDDING_API_ENABLED else None
+        fields_to_upsert = self._changed_fields(fields_by_entity, titles, existing_hashes, vectors_expected)
+        self._handled_embedding_hashes |= stored_embedding_hashes or set()
         paths_to_delete = self._stale_paths(fields_by_entity, existing_hashes)
         identical_records_count = sum(len(fields) for fields in fields_by_entity.values()) - len(fields_to_upsert)
 
@@ -348,21 +355,19 @@ class Indexer:
     def _stored_hashes_of_embeddable_fields(
         self, fields_by_entity: dict[str, list[ExtractedField]], session: Session
     ) -> set[str] | None:
-        """The stored vector hashes among the embeddable fields, or None when a missing vector is not a change.
+        """The stored vector hashes among the embeddable fields, or None when nothing is looked up.
 
-        None without a working API (a missing vector is expected) and with force_index (every row is rewritten).
+        None in a dry run (no writes) and with force_index (every text is embedded again and replaces its vector).
         """
-        if not llm_settings.EMBEDDING_API_ENABLED or self.dry_run or self.force_index:
+        if self.dry_run or self.force_index:
             return None
         return self._existing_embedding_hashes(
-            {
-                self._embedding_hash(field)
-                for fields in fields_by_entity.values()
-                for field in fields
-                if field.value_type.is_embeddable(field.value)
-            },
-            session,
+            self._embeddable_hashes(chain.from_iterable(fields_by_entity.values())), session
         )
+
+    def _embeddable_hashes(self, fields: Iterable[ExtractedField]) -> set[str]:
+        """The vector hashes of the embeddable fields."""
+        return {self._embedding_hash(field) for field in fields if field.value_type.is_embeddable(field.value)}
 
     def _is_changed(
         self, field: ExtractedField, title: str, stored: StoredHashes | None, stored_embedding_hashes: set[str] | None
@@ -421,18 +426,14 @@ class Indexer:
         return {found for batch in chunked(sorted(hashes), self.chunk_size) for found in stored(batch)}
 
     def _generate_upsert_batches(
-        self, fields_to_upsert: Iterable[tuple[str, ExtractedField]], session: Session | None = None
+        self, fields_to_upsert: Iterable[tuple[str, ExtractedField]]
     ) -> Generator[IndexBatch, None, None]:
         """Buffers the distinct unseen texts by token count and yields batches of records plus new vectors.
 
-        Without a session every text counts as unseen, and so does every text with `force_index`. A text that is
-        stored, buffered or attempted earlier in this run costs no API call.
+        A text that is stored, buffered or sent earlier in this run is in `_handled_embedding_hashes` and costs no
+        API call.
         """
         fields = list(fields_to_upsert)
-        embeddable_hashes = {
-            self._embedding_hash(field) for _, field in fields if field.value_type.is_embeddable(field.value)
-        }
-        handled = self._reusable_embedding_hashes(embeddable_hashes, session) | self._attempted_embedding_hashes
 
         pending_texts: dict[str, str] = {}
         records: list[IndexableRecord] = []
@@ -444,7 +445,7 @@ class Indexer:
 
         max_batch_size = llm_settings.EMBEDDING_MAX_BATCH_SIZE
 
-        for entity_id, field, embedding_hash, item_tokens in self._price_fields(fields, handled, max_ctx):
+        for entity_id, field, embedding_hash, item_tokens in self._price_fields(fields, max_ctx):
             if item_tokens is None:
                 records.append(self._make_indexable_record(field, entity_id, embedding_hash))
             else:
@@ -464,33 +465,22 @@ class Indexer:
         if pending_texts or records:
             yield self._flush_buffer(pending_texts, records)
 
-    def _reusable_embedding_hashes(self, hashes: set[str], session: Session | None) -> set[str]:
-        """The subset of `hashes` whose stored vector is reused, so its text costs no API call.
-
-        Empty without a session, and with `force_index`: every distinct text is embedded again, once per run.
-        """
-        if session is None or self.force_index:
-            return set()
-        return self._existing_embedding_hashes(hashes, session)
-
     def _price_fields(
-        self, fields: list[tuple[str, ExtractedField]], handled: set[str], max_ctx: int
+        self, fields: list[tuple[str, ExtractedField]], max_ctx: int
     ) -> Iterator[tuple[str, ExtractedField, str | None, int | None]]:
         """Yields `(entity_id, field, embedding_hash, tokens)` and drops fields that cannot be embedded.
 
-        `tokens` is None when no new vector is needed. A text joins `handled` and `_attempted_embedding_hashes` when
-        its first field is yielded, so a failed request is not retried later in the same run.
+        `tokens` is None when no new vector is needed. A text joins `_handled_embedding_hashes` when its first field
+        is yielded, so a failed request is not retried later in the same run.
         """
-        # Not a comprehension: `handled` is read while it is built, as it decides whether the next field is counted.
         for entity_id, field in fields:
             embedding_hash = self._embedding_hash(field) if field.value_type.is_embeddable(field.value) else None
-            if embedding_hash is None or embedding_hash in handled:
+            if embedding_hash is None or embedding_hash in self._handled_embedding_hashes:
                 yield entity_id, field, embedding_hash, None
             else:
                 item_tokens = self._count_tokens(field, max_ctx)
                 if item_tokens is not None:
-                    handled.add(embedding_hash)
-                    self._attempted_embedding_hashes.add(embedding_hash)
+                    self._handled_embedding_hashes.add(embedding_hash)
                     yield entity_id, field, embedding_hash, item_tokens
 
     def _count_tokens(self, field: ExtractedField, max_ctx: int) -> int | None:
