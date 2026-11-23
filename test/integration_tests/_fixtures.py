@@ -174,6 +174,11 @@ CUSTOMER_ID: str = "2f47f65a-0911-e511-80d0-005056956c1a"
 
 CLI_OPT_MONITOR_SQLALCHEMY = "--monitor-sqlalchemy"
 
+# litellm fetches its model cost map from GitHub on import. The indexer imports litellm lazily for
+# token counting, so indexing a process in a test triggers that request: under pytest-httpx it fails
+# the test, otherwise it is a slow network call. Set before any litellm import to use the local map.
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+
 
 def pytest_addoption(parser):
     """Define custom pytest commandline options."""
