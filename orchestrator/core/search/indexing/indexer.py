@@ -98,8 +98,7 @@ class Indexer:
             ORM table, and traverser.
         dry_run (bool): If True, skip DELETE/UPSERT statements and external
             embedding calls.
-        force_index (bool): If True, ignore existing hashes and reindex all
-            fields for each entity.
+        force_index (bool): If True, re-index all fields for each entity and re-embed every text.
         chunk_size (int): Number of entities to process per batch. Defaults to 1000.
         cleanup_orphans (bool): If True, delete unreferenced embeddings after a full run of the entity type.
 
@@ -274,7 +273,10 @@ class Indexer:
         vectors |= self._embed_deleted_vectors(records, vectors.keys(), session)
 
         if vectors:
-            session.execute(self._get_embedding_insert_statement(), [vectors[key] for key in sorted(vectors)])
+            session.execute(
+                self._get_embedding_insert_statement(replace=self.force_index),
+                [vectors[key] for key in sorted(vectors)],
+            )
 
     def _upsert_rows(self, batches: list[IndexBatch], session: Session) -> None:
         upsert_stmt = self._get_upsert_statement()
@@ -458,15 +460,14 @@ class Indexer:
     ) -> Generator[IndexBatch, None, None]:
         """Buffers the distinct unseen texts by token count and yields batches of records plus new vectors.
 
-        Without a session every text counts as unseen. A text that is stored, buffered or attempted earlier in this
-        run costs no API call.
+        Without a session every text counts as unseen, and so does every text with `force_index`. A text that is
+        stored, buffered or attempted earlier in this run costs no API call.
         """
         fields = list(fields_to_upsert)
         embeddable_hashes = {
             self._embedding_hash(field) for _, field in fields if field.value_type.is_embeddable(field.value)
         }
-        handled = self._existing_embedding_hashes(embeddable_hashes, session) if session else set()
-        handled |= self._attempted_embedding_hashes
+        handled = self._reusable_embedding_hashes(embeddable_hashes, session) | self._attempted_embedding_hashes
 
         pending_texts: dict[str, str] = {}
         records: list[IndexableRecord] = []
@@ -497,6 +498,15 @@ class Indexer:
 
         if pending_texts or records:
             yield self._flush_buffer(pending_texts, records)
+
+    def _reusable_embedding_hashes(self, hashes: set[str], session: Session | None) -> set[str]:
+        """The subset of `hashes` whose stored vector is reused, so its text costs no API call.
+
+        Empty without a session, and with `force_index`: every distinct text is embedded again, once per run.
+        """
+        if session is None or self.force_index:
+            return set()
+        return self._existing_embedding_hashes(hashes, session)
 
     def _price_fields(
         self, fields: list[tuple[str, ExtractedField]], handled: set[str], max_ctx: int
@@ -626,7 +636,17 @@ class Indexer:
         )
 
     @staticmethod
-    @lru_cache(maxsize=1)
-    def _get_embedding_insert_statement() -> Insert:
-        # A concurrent run may have stored the same text, and both vectors are equally valid.
-        return insert(AiSearchEmbedding).on_conflict_do_nothing()
+    @lru_cache(maxsize=2)
+    def _get_embedding_insert_statement(replace: bool = False) -> Insert:
+        """The insert of new vectors.
+
+        A concurrent run may have stored the same text, and both vectors are equally valid, so a conflict keeps the
+        stored one. With `replace` (force_index) the new vector must win, because the stored one is what is refreshed.
+        """
+        stmt = insert(AiSearchEmbedding)
+        if not replace:
+            return stmt.on_conflict_do_nothing()
+        return stmt.on_conflict_do_update(
+            index_elements=[AiSearchEmbedding.entity_type, AiSearchEmbedding.embedding_hash],
+            set_={AiSearchEmbedding.embedding: stmt.excluded.embedding},
+        )

@@ -383,6 +383,7 @@ def _index(
     title: str = ENTITY_TITLE,
     entity_ids: list[UUID] = ENTITY_UUIDS,
     cleanup_orphans: bool = False,
+    force_index: bool = False,
 ) -> int:
     """Index the same fields for each entity, for real, in the test database."""
     config = MagicMock()
@@ -392,7 +393,9 @@ def _index(
     config.traverser.get_fields.return_value = fields
     config.get_title_from_fields.return_value = title
     entities = [SimpleNamespace(entity_id=entity_id) for entity_id in entity_ids]
-    indexer = Indexer(config=config, dry_run=False, force_index=False, chunk_size=10, cleanup_orphans=cleanup_orphans)
+    indexer = Indexer(
+        config=config, dry_run=False, force_index=force_index, chunk_size=10, cleanup_orphans=cleanup_orphans
+    )
     return indexer.run(entities)  # type: ignore[arg-type]
 
 
@@ -503,6 +506,41 @@ def test_vector_deleted_by_a_concurrent_run(embedding_api, api, expect_hash):
     else:
         assert stored == set()
         assert {row.embedding_hash for row in rows_with_text} == {None}
+
+
+@pytest.mark.usefixtures("api_enabled")
+def test_force_index_embeds_every_text_again_and_replaces_the_vectors(embedding_api):
+    _index(_TEXT_FIELDS)
+    old_vectors = {row.embedding_hash: list(row.embedding) for row in db.session.scalars(select(AiSearchEmbedding))}
+    assert len(old_vectors) == 2
+    embedding_api.reset_mock()
+    embedding_api.side_effect = lambda texts, dry_run: (
+        [[2.0] + [0.0] * (llm_settings.EMBEDDING_DIMENSION - 1)] * len(texts)
+    )
+
+    processed = _index(_TEXT_FIELDS, force_index=True)
+
+    assert processed == 9
+    assert sorted(_sent_texts(embedding_api)) == ["description: Alpha", "name: Beta"]  # once per run, not per row
+    db.session.expire_all()
+    new_vectors = {row.embedding_hash: list(row.embedding) for row in db.session.scalars(select(AiSearchEmbedding))}
+    assert new_vectors.keys() == old_vectors.keys()
+    assert all(vector[0] == 2.0 for vector in new_vectors.values())
+    assert {row.embedding_hash for row in _index_rows() if row.path != Ltree("insync")} == set(new_vectors)
+
+
+@pytest.mark.usefixtures("api_enabled")
+def test_force_index_keeps_the_stored_vector_when_the_text_fails(embedding_api):
+    _index(_TEXT_FIELDS)
+    old_vectors = {row.embedding_hash: list(row.embedding) for row in db.session.scalars(select(AiSearchEmbedding))}
+    embedding_api.side_effect = _failing_api
+
+    _index(_TEXT_FIELDS, force_index=True)
+
+    db.session.expire_all()
+    assert {
+        row.embedding_hash: list(row.embedding) for row in db.session.scalars(select(AiSearchEmbedding))
+    } == old_vectors
 
 
 @pytest.mark.usefixtures("api_enabled")

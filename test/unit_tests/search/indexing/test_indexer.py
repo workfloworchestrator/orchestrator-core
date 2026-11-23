@@ -23,6 +23,7 @@ from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 import pytest
+from sqlalchemy.dialects import postgresql
 from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.core.search.core.embedding import compute_embedding_hash
@@ -399,6 +400,34 @@ def test_write_batches_inserts_the_vectors_of_all_batches_in_one_sorted_statemen
     assert [name for name, _ in statements] == ["ai_search_embeddings", "ai_search_index", "ai_search_index"]
     assert [row["embedding_hash"] for row in statements[0][1]] == ["a", "z"]
     assert [rows for _, rows in statements[1:]] == [[first], [second]]
+
+
+def _conflict_clause(statement) -> str:
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+    return sql[sql.index("ON CONFLICT") :]
+
+
+def test_embedding_insert_statement_keeps_the_stored_vector_by_default() -> None:
+    assert _conflict_clause(Indexer._get_embedding_insert_statement()) == "ON CONFLICT DO NOTHING"
+
+
+def test_embedding_insert_statement_replaces_the_stored_vector_with_replace() -> None:
+    clause = _conflict_clause(Indexer._get_embedding_insert_statement(replace=True))
+
+    assert clause == "ON CONFLICT (entity_type, embedding_hash) DO UPDATE SET embedding = excluded.embedding"
+
+
+@pytest.mark.parametrize("force_index", [False, True], ids=["no_force", "force_index"])
+def test_write_batches_picks_the_insert_statement_by_force_index(indexer: Indexer, force_index: bool) -> None:
+    mock_session = MagicMock()
+    indexer.dry_run = False
+    indexer.force_index = force_index
+
+    with patch.object(indexer, "_existing_embedding_hashes", return_value=set()):
+        indexer._write_batches([IndexBatch([_record("a", "h")], [_embedding("h")])], mock_session)
+
+    clause = _conflict_clause(mock_session.execute.call_args_list[0].args[0])
+    assert clause.endswith("DO UPDATE SET embedding = excluded.embedding") is force_index
 
 
 def test_write_batches_without_vectors_writes_only_the_rows(indexer: Indexer) -> None:
@@ -843,6 +872,32 @@ def test_upsert_failed_text_is_not_retried_in_a_later_chunk(indexer: Indexer) ->
     assert mock_embed.call_count == 1
     assert [len(batch.records) for batch in batches] == [1, 1]
     assert all(batch.embeddings == [] for batch in batches)
+
+
+@pytest.mark.parametrize(
+    ("force_index", "expected_texts", "lookups"),
+    [
+        pytest.param(False, [], 1, id="stored_vector_is_reused"),
+        pytest.param(True, ["root.a: v"], 0, id="force_index_embeds_it_again"),
+    ],
+)
+def test_upsert_batches_reuse_stored_vectors_unless_force_index(
+    indexer: Indexer, force_index: bool, expected_texts: list[str], lookups: int
+) -> None:
+    indexer.force_index = force_index
+    field = ExtractedField(path="root.a", value="v", value_type=FieldType.STRING)
+    stored = {compute_embedding_hash(EMBEDDING_MODEL, "root.a: v")}
+
+    with (
+        patch("litellm.utils.get_max_tokens", return_value=100),
+        patch("litellm.utils.encode", return_value=[1]),
+        patch.object(indexer, "_existing_embedding_hashes", return_value=stored) as lookup,
+        patch(_API, side_effect=lambda texts, dry_run: [[0.1] for _ in texts]) as api,
+    ):
+        list(indexer._generate_upsert_batches([(ENTITY_ID, field)], MagicMock()))
+
+    assert lookup.call_count == lookups
+    assert [text for call in api.call_args_list for text in call.args[0]] == expected_texts
 
 
 def test_upsert_failed_text_is_retried_on_the_next_run(indexer: Indexer) -> None:

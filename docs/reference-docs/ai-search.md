@@ -128,7 +128,8 @@ Each field is hashed. Only fields whose hash changed are written, and paths that
 longer produces are deleted, so re-indexing an unchanged entity does almost no work. Text values
 are embedded in batches sized against the embedding model's context window. Each distinct text is
 embedded once per run, however many fields carry it, and texts that already have a stored vector are
-not sent to the API at all. Everything that is not embeddable is stored with no embedding hash.
+not sent to the API at all, unless `--force-index` is given: it embeds every distinct text again and replaces
+the stored vectors. Everything that is not embeddable is stored with no embedding hash.
 
 **Retry.** The index row stores its embedding hash only when the vector is stored. When the embedding
 call failed or the API is disabled, the row is written without a hash, and a field with no stored hash is treated as changed
@@ -336,7 +337,7 @@ Each of the per-entity commands above accepts:
 | Option                | Effect                                                     |
 |-----------------------|------------------------------------------------------------|
 | `--<entity>-id UUID`  | index a single entity, e.g. `--subscription-id`             |
-| `--force-index`       | re-index every field, ignoring the content hashes           |
+| `--force-index`       | re-index every field and re-embed every text                |
 | `--dry-run`           | make no database writes and no embedding calls              |
 | `--show-progress`     | show a progress bar                                        |
 
