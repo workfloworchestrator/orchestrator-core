@@ -29,9 +29,10 @@ These tests verify that:
 from __future__ import annotations
 
 import json
+from collections.abc import MutableMapping
 from http import HTTPStatus
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -582,7 +583,7 @@ def _app_with_failing_tool(status: HTTPStatus) -> FastAPI:
     return app
 
 
-async def _call_and_capture(status: HTTPStatus, arguments: dict | None = None) -> list[dict]:
+async def _call_and_capture(status: HTTPStatus, arguments: dict | None = None) -> list[MutableMapping[str, Any]]:
     from fastmcp import Client
     from structlog.testing import capture_logs
 
