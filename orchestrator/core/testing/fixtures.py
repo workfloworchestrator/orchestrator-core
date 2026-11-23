@@ -40,7 +40,6 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
 
-import httpx
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -128,20 +127,23 @@ def run_migrations(db_uri: str, alembic_cfg: Config | None = None) -> None:
 class JsonTestClient(TestClient):
     """Starlette test client that serializes ``json=`` with the orchestrator JSON encoder (UUIDs, datetimes, ...)."""
 
+    # Typed as Any: starlette's TestClient builds on httpx2 when installed and falls back to httpx, so neither
+    # library's types can be named here.
     def request(
         self,
         method: str,
-        url: httpx._types.URLTypes,
-        data: Any | None = None,
-        headers: dict[str, str] | None = None,
+        url: Any,
+        data: Any = None,
+        headers: Any = None,
         json: Any = None,
+        content: Any = None,
         **kwargs: Any,
-    ) -> httpx.Response:
+    ) -> Any:
         if json is None:
-            return super().request(method, url, data=data, headers=headers, **kwargs)
+            return super().request(method, url, content=content, data=data, headers=headers, **kwargs)
 
         json_headers = {**(headers or {}), "Content-Type": "application/json"}
-        return super().request(method, url, data=json_dumps(json).encode(), headers=json_headers, **kwargs)  # type: ignore[arg-type]
+        return super().request(method, url, content=json_dumps(json).encode(), headers=json_headers, **kwargs)
 
 
 @contextmanager

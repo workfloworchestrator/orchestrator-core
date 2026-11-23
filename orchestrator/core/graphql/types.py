@@ -11,10 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import MutableMapping
 from ipaddress import IPv4Address, IPv4Interface, IPv6Address, IPv6Interface
 
 # Map some Orchestrator types to scalars
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 import strawberry
 from graphql import GraphQLError, GraphQLNamedType
@@ -136,7 +137,8 @@ IPv6InterfaceType = strawberry.scalar(
 
 # TODO: Remove Hack to prevent the error: `Redefinition of reserved type 'Int'`
 if hasattr(GraphQLNamedType, "reserved_types"):
-    GraphQLNamedType.reserved_types.pop("Int", None)
+    # graphql-core annotates reserved_types as an immutable Mapping, but it is a plain dict at runtime
+    cast(MutableMapping[str, GraphQLNamedType], GraphQLNamedType.reserved_types).pop("Int", None)
 
 IntType = strawberry.scalar(
     name="Int",
