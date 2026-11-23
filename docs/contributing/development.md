@@ -63,6 +63,48 @@ This runs every test under `test/unit_tests/` plus the doctests in
 `orchestrator/core`. No Postgres, no Redis, no Docker — fast feedback for
 day-to-day development.
 
+#### Run unit tests against multiple Python versions
+<!-- diataxis: how-to -->
+
+To easily run the unit tests suite against all supported Python versions
+we are using [tox](https://tox.wiki) with the `tox-uv` plugin.
+
+Example usage:
+
+```shell
+just tox           # unit test all supported versions, one by one
+just tox -p        # unit test all supported versions, in parallel
+just tox -e py313  # unit test a single version
+```
+
+This creates the venv for each version within `.tox/` and reuses it on
+subsequent runs. This requires a bit more disk space than only having
+one venv, so be aware of that.
+
+!!! info
+    If you prefer using only one .venv in the repository root then you can
+    test a specific version with `uv run --python 3.11 pytest test/unit_tests`.
+
+Example output, last 5 lines of `just tox`:
+
+```shell
+  py311: OK (43.39=setup[4.27]+cmd[39.12] seconds)
+  py312: OK (52.98=setup[2.47]+cmd[50.50] seconds)
+  py313: OK (44.54=setup[2.12]+cmd[42.43] seconds)
+  py314: OK (45.38=setup[2.98]+cmd[42.39] seconds)
+  congratulations :) (186.33 seconds)
+```
+
+Arguments after `--` are passed to pytest:
+
+```shell
+just tox -e py313 -- test/unit_tests -x
+just tox -p -- test/unit_tests -q -p no:warnings
+```
+
+!!! note
+    This only works for the unit tests.
+
 ### Run integration tests
 <!-- diataxis: -->
 
