@@ -11,12 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Collection
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Generator
 
 import structlog
-from apscheduler.events import EVENT_JOB_MISSED, JobExecutionEvent
+from apscheduler.events import EVENT_JOB_MISSED, EVENT_JOB_SUBMITTED, JobExecutionEvent, JobSubmissionEvent
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.sqlalchemy import Job, SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -28,7 +29,7 @@ from orchestrator.core.db.filters import Filter
 from orchestrator.core.db.filters.filters import CallableErrorHandler
 from orchestrator.core.db.sorting import Sort
 from orchestrator.core.db.sorting.sorting import SortOrder
-from orchestrator.core.schedules.service import get_linker_entries_by_schedule_ids
+from orchestrator.core.schedules.service import get_linker_entries_by_schedule_ids, submit_schedule_index
 from orchestrator.core.settings import app_settings
 from orchestrator.core.utils.helpers import camel_to_snake, to_camel
 
@@ -60,13 +61,50 @@ def log_missed_job(event: JobExecutionEvent) -> None:
     )
 
 
+def index_submitted_schedule(event: JobSubmissionEvent) -> None:
+    """Update the search index of a schedule that was just handed to an executor, as its next run time changed.
+
+    APScheduler calls this listener on the scheduler thread, after it stored the job's new next run time or removed
+    a job that has no run times left. The update is only queued here and runs on the index worker thread: a schedule
+    that is not in the index yet needs an embedding call, and waiting for that on the scheduler thread would make
+    other jobs miss their misfire_grace_time. Indexing reads the job through a job store of its own, so it never
+    takes the scheduler's job store lock (see `log_missed_job`).
+
+    Args:
+        event: The ``EVENT_JOB_SUBMITTED`` event.
+    """
+    submit_schedule_index(event.job_id)
+
+
 scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
 scheduler.add_listener(log_missed_job, EVENT_JOB_MISSED)
+scheduler.add_listener(index_submitted_schedule, EVENT_JOB_SUBMITTED)
+
+
+class OrchestratorJobStore(SQLAlchemyJobStore):
+    """SQLAlchemy job store that can also load a chosen set of jobs."""
+
+    def get_jobs_by_ids(self, job_ids: Collection[str]) -> list[Job]:
+        """Return the jobs with the given ids, like `get_all_jobs` does for every job.
+
+        Args:
+            job_ids: The APScheduler job ids to load. Ids without a job are left out.
+        """
+        if not job_ids:
+            return []
+
+        # `jobs_t` is APScheduler's jobs table; `_get_jobs` adds each condition to the WHERE clause of its query.
+        job_id_column = self.jobs_t.c.id
+        is_requested_job = job_id_column.in_(job_ids)
+        jobs = self._get_jobs(is_requested_job)
+        # Same ordering as `get_all_jobs`: paused jobs (no next run time) go last.
+        self._fix_paused_jobs_sorting(jobs)
+        return jobs
 
 
 @contextmanager
-def get_scheduler_store() -> Generator[SQLAlchemyJobStore, Any, None]:
-    store = SQLAlchemyJobStore(engine=db.engine)
+def get_scheduler_store() -> Generator[OrchestratorJobStore, Any, None]:
+    store = OrchestratorJobStore(engine=db.engine)
     try:
         yield store
     finally:
@@ -76,6 +114,11 @@ def get_scheduler_store() -> Generator[SQLAlchemyJobStore, Any, None]:
 def get_all_scheduler_tasks() -> list[Job]:
     with get_scheduler_store() as scheduler_store:
         return scheduler_store.get_all_jobs()
+
+
+def get_scheduler_tasks_by_ids(job_ids: Collection[str]) -> list[Job]:
+    with get_scheduler_store() as scheduler_store:
+        return scheduler_store.get_jobs_by_ids(job_ids)
 
 
 def get_scheduler_task(job_id: str) -> Job | None:

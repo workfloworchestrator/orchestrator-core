@@ -27,6 +27,7 @@ from orchestrator.core.db import (
     WorkflowTable,
 )
 from orchestrator.core.db.database import BaseModel
+from orchestrator.core.db.models import WorkflowApschedulerJob
 from orchestrator.core.search.core.types import EntityType, ExtractedField
 from orchestrator.core.search.indexing.traverse import (
     BaseTraverser,
@@ -34,6 +35,7 @@ from orchestrator.core.search.indexing.traverse import (
     ProductBlockTraverser,
     ProductTraverser,
     ResourceTypeTraverser,
+    ScheduleTraverser,
     SubscriptionTraverser,
     WorkflowTraverser,
 )
@@ -101,6 +103,23 @@ class WorkflowConfig(EntityConfig[WorkflowTable]):
         if entity_id:
             pk_column = getattr(self.table, self.pk_name)
             query = query.where(pk_column == UUID(entity_id))
+        return query
+
+
+@dataclass(frozen=True)
+class ScheduleConfig(EntityConfig[WorkflowApschedulerJob]):
+    """Schedules are the rows of the workflow/APScheduler linker table, eager loaded with their workflow.
+
+    The table holds the schedules made through the API or `load_schedules`, whose ids are UUIDs. The id column
+    is a string, so it is compared as one.
+    """
+
+    def get_all_query(self, entity_id: str | None = None) -> Select:
+        from sqlalchemy.orm import selectinload
+
+        query = select(self.table).options(selectinload(self.table.workflow))
+        if entity_id:
+            query = query.where(self.table.schedule_id == entity_id)
         return query
 
 
@@ -187,5 +206,13 @@ ENTITY_CONFIG_REGISTRY: dict[EntityType, EntityConfig] = {
         pk_name="resource_type_id",
         root_name="resource_type",
         title_paths=["resource_type.description", "resource_type.resource_type"],
+    ),
+    EntityType.SCHEDULE: ScheduleConfig(
+        entity_kind=EntityType.SCHEDULE,
+        table=WorkflowApschedulerJob,
+        traverser=ScheduleTraverser,
+        pk_name="schedule_id",
+        root_name="schedule",
+        title_paths=["schedule.name", "schedule.workflow_description", "schedule.workflow_name"],
     ),
 }

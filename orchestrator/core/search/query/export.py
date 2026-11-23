@@ -28,8 +28,9 @@ from orchestrator.core.db import (
     WorkflowTable,
     db,
 )
-from orchestrator.core.db.models import ProductBlockRelationTable
+from orchestrator.core.db.models import ProductBlockRelationTable, WorkflowApschedulerJob
 from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.schemas.schedule import load_schedule_index_schema
 
 
 def fetch_subscription_export_data(entity_ids: list[str]) -> list[dict]:
@@ -244,6 +245,26 @@ def fetch_resource_type_export_data(entity_ids: list[str]) -> list[dict]:
     ]
 
 
+def fetch_schedule_export_data(entity_ids: list[str]) -> list[dict]:
+    """Fetch schedule data for export.
+
+    Args:
+        entity_ids: List of schedule IDs as strings
+
+    Returns:
+        List of flattened schedule dictionaries with the fields of ScheduleIndexSchema. Schedules whose
+        APScheduler job no longer exists are left out.
+    """
+    stmt = (
+        select(WorkflowApschedulerJob)
+        .options(selectinload(WorkflowApschedulerJob.workflow))
+        .filter(WorkflowApschedulerJob.schedule_id.in_(entity_ids))
+    )
+    schedules = map(load_schedule_index_schema, db.session.scalars(stmt).all())
+
+    return [schedule.model_dump(mode="json") for schedule in schedules if schedule]
+
+
 def fetch_export_data(entity_type: EntityType, entity_ids: list[str]) -> list[dict]:
     """Fetch export data for any entity type.
 
@@ -270,6 +291,8 @@ def fetch_export_data(entity_type: EntityType, entity_ids: list[str]) -> list[di
             return fetch_product_block_export_data(entity_ids)
         case EntityType.RESOURCE_TYPE:
             return fetch_resource_type_export_data(entity_ids)
+        case EntityType.SCHEDULE:
+            return fetch_schedule_export_data(entity_ids)
         case _:
             raise ValueError(f"Unsupported entity type: {entity_type}")
 

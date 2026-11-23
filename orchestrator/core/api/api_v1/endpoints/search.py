@@ -202,6 +202,19 @@ async def search_resource_types(
     )
 
 
+@router.post("/schedules", response_model=SearchResultsSchema[SearchResult])
+async def search_schedules(
+    request: SearchRequest,
+    cursor: str | None = None,
+    include_columns: bool = True,
+    session: AsyncSession = Depends(get_async_session),
+) -> SearchResultsSchema[SearchResult]:
+    """Search the schedules made through the API or `load_schedules`."""
+    return await _perform_search_and_fetch(
+        session, EntityType.SCHEDULE, request, cursor, include_columns=include_columns
+    )
+
+
 class SearchExportEntity(str, Enum):
     """Entity path segments that support `POST /search/{entity}/export`."""
 
@@ -211,6 +224,7 @@ class SearchExportEntity(str, Enum):
     PROCESSES = "processes"
     PRODUCT_BLOCKS = "product_blocks"
     RESOURCE_TYPES = "resource_types"
+    SCHEDULES = "schedules"
 
 
 EXPORT_ENTITY_TYPES: dict[SearchExportEntity, EntityType] = {
@@ -220,6 +234,7 @@ EXPORT_ENTITY_TYPES: dict[SearchExportEntity, EntityType] = {
     SearchExportEntity.PROCESSES: EntityType.PROCESS,
     SearchExportEntity.PRODUCT_BLOCKS: EntityType.PRODUCT_BLOCK,
     SearchExportEntity.RESOURCE_TYPES: EntityType.RESOURCE_TYPE,
+    SearchExportEntity.SCHEDULES: EntityType.SCHEDULE,
 }
 
 
