@@ -21,6 +21,7 @@ from orchestrator.core.search.core.types import EntityType, SearchMetadata
 from orchestrator.core.search.retrieval.pagination import PageCursor
 from orchestrator.core.search.retrieval.retrievers.base import Retriever
 from orchestrator.core.search.retrieval.session import HNSW_ITERATIVE_SCAN, SessionSetting
+from orchestrator.core.settings import llm_settings
 
 
 class SemanticRetriever(Retriever):
@@ -116,10 +117,11 @@ class SemanticRetriever(Retriever):
         return stmt.order_by(final_query.c.score.desc().nulls_last(), final_query.c.entity_id.asc())
 
     def _candidate_window(self, candidate_query: Select) -> Select:
-        """Candidate index fields whose text is among the `candidates_limit` texts closest to the query embedding.
+        """The `candidates_limit` index rows nearest to the query embedding, within the window of distinct texts.
 
-        The limit counts distinct embedded texts, not index rows, so a text shared by thousands of entities takes
-        one place and cannot fill the window. Every candidate row of the window's texts is ranked, uncapped.
+        `SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT` counts distinct embedded texts, not index rows, so a text shared by
+        thousands of entities takes one place and cannot fill the text window. `candidates_limit` then bounds what
+        those texts pull in, nearest first, so a shared text cannot make the ranking grow with its entity count.
         """
         # A literal, so the planner can prove the predicate of that type's partial HNSW index.
         entity_type = literal(self.entity_type.value, literal_execute=True)  # type: ignore[union-attr]
@@ -137,7 +139,7 @@ class SemanticRetriever(Retriever):
                 self._restrict_to_candidates(rows_with_text, candidate_query).correlate(AiSearchEmbedding).exists(),
             )
             .order_by(distance.asc())
-            .limit(self.candidates_limit)
+            .limit(llm_settings.SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT)
             .subquery("semantic_texts")
         )
         stmt = select(
@@ -154,7 +156,11 @@ class SemanticRetriever(Retriever):
                 AiSearchIndex.embedding_hash == nearest_texts.c.embedding_hash,
             ),
         )
-        return self._restrict_to_candidates(stmt, candidate_query)
+        return (
+            self._restrict_to_candidates(stmt, candidate_query)
+            .order_by(nearest_texts.c.semantic_distance.asc(), AiSearchIndex.entity_id.asc(), AiSearchIndex.path.asc())
+            .limit(self.candidates_limit)
+        )
 
     @property
     def metadata(self) -> SearchMetadata:

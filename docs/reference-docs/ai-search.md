@@ -507,14 +507,17 @@ joining the candidate set, so `ix_flat_value_trgm` drives the plan even under a 
 `1 / (1 + min(embedding <-> query_vector))`, so a smaller distance gives a higher score, bounded
 to `[0, 1]`.
 
-It runs one of two plans. Interactive searches take the `SEARCH_SEMANTIC_CANDIDATE_LIMIT` distinct texts
+It runs one of two plans. Interactive searches take the `SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT` distinct texts
 nearest the query embedding straight from the entity type's partial HNSW index on
 `ai_search_embeddings`, join them to the index rows that carry them, apply the structured filters,
-and rank only those. A text that many entities share takes one place in the window, and every
-matching field with that text is ranked. Ranking within the window is exact, only which texts enter
-the window is approximate, and the window bounds how deep pagination can reach. Exports keep the exhaustive plan, which scores every embedded field of every candidate and
+and rank the `SEARCH_SEMANTIC_CANDIDATE_LIMIT` nearest of those rows. A text that many entities share
+takes one place in the text window, and every matching field with that text is a candidate for the
+row window, but the row cap keeps a common text from making the ranking grow with the number of
+entities that carry it. Ranking within the window is exact, only which texts and rows enter the
+window is approximate, and the window bounds how deep pagination can reach. Exports keep the
+exhaustive plan, which scores every embedded field of every candidate and
 needs a sequential scan: an export is a single query, without a cursor, for up to `SEARCH_MAX_EXPORT_LIMIT`
-(default 1000) entities, and a bounded window of texts cannot guarantee that many distinct entities.
+(default 1000) entities, and bounded windows of texts and rows cannot guarantee that many distinct entities.
 
 **Structured**: no relevance ranking (`score = 1.0`); results are ordered by an optional
 `order_by` field materialized from the index rows.
@@ -527,10 +530,10 @@ entity with its score and the field to highlight, and fuses the two rankings:
 
 - the **fuzzy retriever** ranks every entity with a trigram match on the full query text by its best
   `word_similarity`;
-- the **semantic retriever** ranks the entities in its bounded window (the fields that carry one of
-  the `SEARCH_SEMANTIC_CANDIDATE_LIMIT` distinct texts closest to the query embedding, read from that
+- the **semantic retriever** ranks the `SEARCH_SEMANTIC_CANDIDATE_LIMIT` nearest fields that carry one of
+  the `SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT` distinct texts closest to the query embedding (read from that
   entity type's HNSW index), or every embedded entity when the query is an export or asks for more entities
-  than the window holds, exactly as it does on its own.
+  than the windows hold, exactly as it does on its own.
 
 Each side is dense-ranked on its own (equal scores share a rank). Equal fuzzy scores are ordered by
 the depth of the matching path, so an entity whose own description matches ranks above entities that
@@ -684,19 +687,18 @@ All embedding settings live in `LLMSettings` (`orchestrator/core/settings.py`).
 | `EMBEDDING_MAX_BATCH_SIZE`              | `None`                           | maximum items per embedding batch (`None` = unlimited)      |
 | `LLM_MAX_RETRIES` / `LLM_TIMEOUT`       | `3` / `30`                       | LiteLLM retry and timeout, used during indexing             |
 | `LLM_FORCE_EXTENSION_MIGRATION`         | `False`                          | force `CREATE EXTENSION` in the search migration            |
-| `SEARCH_SEMANTIC_CANDIDATE_LIMIT`       | `300`                            | distinct texts the semantic retriever, and the hybrid retriever's semantic source, read from the HNSW index per search (see below), which bounds how deep pagination reaches |
+| `SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT`  | `100`                            | distinct texts the semantic retriever, and the hybrid retriever's semantic source, read from the HNSW index per search (see below) |
+| `SEARCH_SEMANTIC_CANDIDATE_LIMIT`       | `2000`                           | index rows those texts may rank per search, nearest first (see below), which also bounds how deep pagination reaches |
 | `SEARCH_MAX_EXPORT_LIMIT`               | `1000`                           | maximum and default `limit` of an export (`POST /{entity}/export`, saved-query export); normal search stays capped at 100 |
 
-`SEARCH_SEMANTIC_CANDIDATE_LIMIT` counts distinct texts, not index rows, and every matching field with
-one of those texts is ranked. The default is small because an entity type has far fewer distinct texts
-than fields. Above about 2% of a type's distinct texts Postgres stops using the HNSW index and sorts
-every vector instead, so a higher value reaches further down the result list but makes the scan slower.
+`SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT` counts distinct texts, not index rows. The default limits scan
+breadth because an entity type has far fewer distinct texts than fields. Above about 2% of a type's
+distinct texts Postgres stops using the HNSW index and sorts every vector instead, so a higher value
+reaches further down the result list but makes the scan slower.
 
-!!! warning "Changed default"
-
-    The default was `2000` and counted index rows. It is now `300` and counts distinct texts. If you
-    tuned the old value, revisit it. A value carried over unchanged is a much larger window than
-    before and can push the search off the HNSW index.
+`SEARCH_SEMANTIC_CANDIDATE_LIMIT` caps the joined rows, nearest first with ties broken by `entity_id`
+and `path`, so a shared text cannot make ranking grow with its entity count. Raise it only to page deeper
+through such a text. Exports use neither cap.
 
 Live queries do not use `LLM_MAX_RETRIES`/`LLM_TIMEOUT`: they embed with a 5-second timeout and no
 retries, because a slow search is worse than one without semantic ranking.

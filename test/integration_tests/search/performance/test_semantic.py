@@ -93,8 +93,9 @@ def seeded_vectors():
         db.session.execute(text("SELECT set_config(:name, :value, true)"), {"name": name, "value": value})
 
 
-def test_unfiltered_window_is_read_from_the_hnsw_index(seeded_vectors):
+def test_unfiltered_window_is_read_from_the_hnsw_index(seeded_vectors, monkeypatch):
     """Sorting every vector of the type instead reads the whole table per search, however small the window."""
+    monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT", WINDOW)
     query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text="active", retriever=RetrieverType.SEMANTIC)
     vector = db.session.execute(
         text(
@@ -102,7 +103,7 @@ def test_unfiltered_window_is_read_from_the_hnsw_index(seeded_vectors):
         )
     ).scalar_one()
     retriever = SemanticRetriever(
-        [float(v) for v in vector.strip("[]").split(",")], None, EntityType.SUBSCRIPTION, candidates_limit=WINDOW
+        [float(v) for v in vector.strip("[]").split(",")], None, EntityType.SUBSCRIPTION, candidates_limit=2000
     )
 
     plan = plan_of_statement(retriever.apply(build_candidate_query(query)).limit(query.limit))

@@ -125,16 +125,17 @@ def test_migration_creates_a_partial_hnsw_index_per_entity_type():
         assert f"entity_type = '{entity_type}'" in definitions[f"ix_ai_search_embeddings_hnsw_{entity_type.lower()}"]
 
 
-def test_orphan_embedding_does_not_take_a_place_in_the_window(indexed_vectors):
+def test_orphan_embedding_does_not_take_a_place_in_the_window(indexed_vectors, monkeypatch):
     """An embeddings row that no index row points at must not take a place in the window.
 
     The orphan is the nearest vector, so in a window of two it would leave one entity to rank.
     """
+    monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT", 2)
     query_vector = _basis_vector(0)
     query_vector[5] = 0.05
     db.session.add(AiSearchEmbedding(entity_type="SUBSCRIPTION", embedding_hash="orphan", embedding=query_vector))
     db.session.commit()
-    retriever = SemanticRetriever(query_vector, None, EntityType.SUBSCRIPTION, candidates_limit=2)
+    retriever = SemanticRetriever(query_vector, None, EntityType.SUBSCRIPTION, candidates_limit=100)
 
     assert _run(retriever, _semantic_query()) == [str(i) for i in indexed_vectors[:2]]
 
@@ -203,7 +204,7 @@ async def test_search_applies_the_iterative_scan_setting(indexed_vectors, async_
 
 async def test_pagination_stops_at_the_edge_of_the_window(indexed_vectors, async_session, monkeypatch):
     """Past the window there is nothing to page into: `has_more` turns false rather than returning gaps."""
-    monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_LIMIT", 2)
+    monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT", 2)
     query = _semantic_query(limit=1)
 
     first = await engine.execute_search(query, async_session, query_embedding=_basis_vector(0))
@@ -259,11 +260,12 @@ COMMON_TEXT_ROWS = 30
 TEXTS_IN_WINDOW = 4
 
 
-def test_common_text_does_not_fill_window():
+def test_common_text_does_not_fill_window(monkeypatch):
     """The window counts distinct texts, so a text shared by many entities takes one place, not one per row.
 
     Here 30 rows share the nearest text and the window of 4 texts still reaches the other 3 entities.
     """
+    monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT", TEXTS_IN_WINDOW)
     common = [uuid4() for _ in range(COMMON_TEXT_ROWS)]
     others = [uuid4() for _ in range(5)]
     for entity_id in common:  # a side effect per row, not a collection that is built
@@ -273,11 +275,47 @@ def test_common_text_does_not_fill_window():
         embedding = [weight if i == 0 else (1.0 - weight if i == rank + 1 else 0.0) for i in range(DIMENSION)]
         _add_row(entity_id, "subscription.description", f"description {rank}", f"other {rank}", embedding)
     db.session.commit()
-    retriever = SemanticRetriever(_basis_vector(0), None, EntityType.SUBSCRIPTION, candidates_limit=TEXTS_IN_WINDOW)
+    retriever = SemanticRetriever(_basis_vector(0), None, EntityType.SUBSCRIPTION, candidates_limit=100)
 
     ranked = _run(retriever, _semantic_query(limit=100))
 
     assert ranked == sorted(str(i) for i in common) + [str(i) for i in others[: TEXTS_IN_WINDOW - 1]]
+
+
+ROW_CAP = 5
+
+
+def test_row_cap_bounds_the_rows_ranked(monkeypatch):
+    """Rows ranked stay bounded even when one text fills the window with rows of many entities.
+
+    All 30 entities share the nearest text, which takes one of the window's places, so without a row cap every
+    one of their rows reaches the ranking.
+    """
+    monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT", TEXTS_IN_WINDOW)
+    common = [uuid4() for _ in range(COMMON_TEXT_ROWS)]
+    for entity_id in common:  # a side effect per row, not a collection that is built
+        _add_row(entity_id, "subscription.status", "active", "common", _basis_vector(0))
+    db.session.commit()
+    retriever = SemanticRetriever(_basis_vector(0), None, EntityType.SUBSCRIPTION, candidates_limit=ROW_CAP)
+
+    ranked = _run(retriever, _semantic_query(limit=100))
+
+    assert ranked == sorted(str(i) for i in common)[:ROW_CAP]
+
+
+def test_row_cap_does_not_apply_to_the_exhaustive_plan(monkeypatch):
+    """Exports rank every embedded field; a row cap would silently truncate them."""
+    monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_LIMIT", ROW_CAP)
+    monkeypatch.setattr(llm_settings, "SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT", TEXTS_IN_WINDOW)
+    common = [uuid4() for _ in range(COMMON_TEXT_ROWS)]
+    for entity_id in common:  # a side effect per row, not a collection that is built
+        _add_row(entity_id, "subscription.status", "active", "common", _basis_vector(0))
+    db.session.commit()
+    retriever = SemanticRetriever(_basis_vector(0), None, candidates_limit=None)
+
+    ranked = _run(retriever, _semantic_query(limit=100))
+
+    assert ranked == sorted(str(i) for i in common)
 
 
 @pytest.mark.parametrize("entity_type", [pytest.param(EntityType(t), id=t.lower()) for t in ENTITY_TYPES])

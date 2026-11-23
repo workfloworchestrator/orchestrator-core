@@ -194,16 +194,26 @@ class LLMSettings(BaseSettings):
     LLM_FORCE_EXTENSION_MIGRATION: bool = False
 
     # Retrieval behaviour
-    SEARCH_SEMANTIC_CANDIDATE_LIMIT: int = Field(
-        300,
+    SEARCH_SEMANTIC_CANDIDATE_TEXT_LIMIT: int = Field(
+        100,
         gt=0,
         description=(
             "How many distinct field texts the semantic retriever, and the semantic source of the hybrid "
-            "retriever, pull from the HNSW index per search. Every matching field with one of those texts is "
-            "ranked, so a text many entities share takes one place. The default is small because there are far "
-            "fewer distinct texts than fields: above about 2% of an entity type's texts Postgres stops using the "
-            "HNSW index and sorts every vector instead. Higher reaches further down the result list at the cost "
-            "of a slower scan. Semantic exports are not capped."
+            "retriever, pull from the HNSW index per search. A text many entities share takes one place. The "
+            "default is small because there are far fewer distinct texts than fields: above about 2% of an "
+            "entity type's texts Postgres stops using the HNSW index and sorts every vector instead. Higher "
+            "reaches further down the result list at the cost of a slower scan. Semantic exports are not capped."
+        ),
+    )
+    SEARCH_SEMANTIC_CANDIDATE_LIMIT: int = Field(
+        2000,
+        gt=0,
+        description=(
+            "How many index rows the semantic retriever, and the semantic source of the hybrid retriever, rank "
+            "per search. The window of distinct texts can cover many more rows than it has places, because one "
+            "shared text stands for every field that carries it; this caps those rows, nearest first, so a common "
+            "text cannot inflate the ranking. Raise it only to reach deeper through a shared text. Semantic "
+            "exports are not capped."
         ),
     )
 
