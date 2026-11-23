@@ -2911,7 +2911,7 @@ wheels = [
 
 [[package]]
 name = "orchestrator-core"
-version = "5.7.0a3"
+version = "5.7.0a4"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
@@ -3054,7 +3054,7 @@ requires-dist = [
     { name = "prometheus-client", specifier = "==0.25.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.3" },
     { name = "pydantic", extras = ["email"], specifier = "~=2.14.2" },
-    { name = "pydantic-forms", specifier = ">=2.9.0" },
+    { name = "pydantic-forms", specifier = ">=2.10.1" },
     { name = "pydantic-settings", specifier = "~=2.16.0" },
     { name = "pytest", marker = "extra == 'testing'", specifier = ">=8.0" },
     { name = "python-dateutil", specifier = "==4.0.0" },
@@ -3738,16 +3738,16 @@ wheels = [
 
 [[package]]
 name = "pydantic-forms"
-version = "2.10.0"
+version = "2.10.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "more-itertools" },
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-i18n" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2d/94/2460978297267ceedabbda7c78ef6ced6338ccc1ee13b1dd4ce455bdc9b3/pydantic_forms-2.10.0.tar.gz", hash = "sha256:8fa0c34fd901bc34871543af1a871a165616e263f7dda176897249aee33aae3e", size = 70304, upload-time = "2026-11-04T10:40:13.377Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ab/79/3fc567fd93fd6e2338a71b9955da462345e57c518d47cc1cd81324024789/pydantic_forms-2.10.1.tar.gz", hash = "sha256:b563a49d9ccb12845dbbc82fb0ec4acd12361627039e843130d64fec3ff85a8b", size = 70705, upload-time = "2026-11-20T12:50:16.556Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/24/42/015e42395e0212ff883f17a66981576f2fe59ace555b4c9bca865ab8d71c/pydantic_forms-2.10.0-py3-none-any.whl", hash = "sha256:60e214ea1c45b7a9d2bdf662a74fc48453ade9912ca1f764fe42436e3c198d6f", size = 63281, upload-time = "2026-11-04T10:40:11.987Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/fa/323cae3e2d46d21f98dabe53df047df7706849a8032cc7d880ecfc96aa0a/pydantic_forms-2.10.1-py3-none-any.whl", hash = "sha256:61599613a480ad960051bfd65554c8932244052db93c295a8d9c255c1c959405", size = 63589, upload-time = "2026-11-20T12:50:15.202Z" },
 ]
 
 [[package]]
