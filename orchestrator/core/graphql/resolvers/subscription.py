@@ -21,6 +21,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import contains_eager
 from starlette.concurrency import run_in_threadpool
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
+from strawberry.types.base import get_object_definition
 
 from nwastdlib.asyncio import gather_nice
 from orchestrator.core.db import ProductTable, SubscriptionTable, db
@@ -63,13 +64,16 @@ from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.utils.get_subscription_dict import get_subscription_dict
 
 logger = structlog.get_logger(__name__)
+
+
+def _field_names(strawberry_type: type) -> list[str]:
+    # Read the strawberry definition, not __annotations__: newer strawberry versions leave resolver fields out of it
+    return [to_lower_camel(field.python_name) for field in get_object_definition(strawberry_type, strict=True).fields]
+
+
 # Note: we can make this more fancy by adding metadata to the field annotation that indicates if a resolver
 # needs subscription details or not, and use that information here. Left as an exercise for the reader.
-base_sub_props = tuple(
-    [to_lower_camel(key) for key in SubscriptionInterface.__annotations__]
-    + [to_lower_camel(key) for key in ProductModelGraphql.__annotations__]
-    + ["__typename"]
-)
+base_sub_props = (*_field_names(SubscriptionInterface), *_field_names(ProductModelGraphql), "__typename")
 
 _is_subscription_detailed = is_query_detailed(base_sub_props, ("SubscriptionInterface",))
 
