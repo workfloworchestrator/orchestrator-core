@@ -12,10 +12,11 @@
 # limitations under the License.
 
 import hashlib
-from collections.abc import Generator, Iterable, Iterator
+from collections.abc import Collection, Generator, Iterable, Iterator
 from contextlib import contextmanager, nullcontext
 from functools import lru_cache
-from operator import itemgetter
+from itertools import chain
+from operator import attrgetter
 from typing import Any, NamedTuple
 
 import structlog
@@ -88,9 +89,9 @@ class Indexer:
     the embedding API. They are buffered against a token budget (model context
     window minus a safety margin) and flushed when the next text would exceed it.
 
-    Each flush (or end-of-chunk) emits an `IndexBatch`. New vectors are inserted before
-    the rows that reference them, in the same chunk transaction. A failed text keeps
-    its row with the hash, so the next run embeds it again.
+    Each flush (or end-of-chunk) emits an `IndexBatch`. All batches of a chunk are built before any is written. The
+    new vectors of the chunk are then inserted in one pass sorted by hash, before the rows that reference them, in the
+    same chunk transaction. A text without a vector is written without its hash, so the next run embeds it again.
 
     Args:
         config (EntityConfig): Registry config describing the entity kind,
@@ -107,6 +108,8 @@ class Indexer:
           a transaction (`Session.begin()`).
         - Read queries use the passed session when available, otherwise the
           generic `db.session`.
+        - The batches of a chunk are written together, so the embedding calls of a
+          chunk happen before its writes and no lock is held across an API call.
 
     Workflow:
         1) Stream entities (yield_per=chunk_size) and accumulate into a chunk.
@@ -118,7 +121,8 @@ class Indexer:
             budget (model max context - safety margin). All other records accumulate in
             parallel and do not affect flushing. A text sent to the API costs no call
             again in the same run, also when it failed; the next run retries it.
-        6) Insert the new vectors of each batch, then UPSERT its index rows (skip in dry_run).
+        6) Embed again the stored vectors that a concurrent run deleted, insert all new vectors of the chunk
+            sorted by hash, then UPSERT the index rows of each batch (skip in dry_run).
         7) Commit transaction (auto on context exit).
         8) Repeat until the stream is exhausted.
         9) If `cleanup_orphans`, delete the embeddings that no index row points at (skip in dry_run).
@@ -147,6 +151,8 @@ class Indexer:
         # Texts sent to the embedding API in this run. A failed text gets no vector, so without this the next chunk
         # would send it again. Cleared per run, so the next run retries it.
         self._attempted_embedding_hashes: set[str] = set()
+        # The attempted texts that got no vector. Their rows are written without the hash.
+        self._failed_embedding_hashes: set[str] = set()
 
     def run(self, entities: Iterable[DatabaseEntity]) -> int:
         """Orchestrates the entire indexing process."""
@@ -154,6 +160,7 @@ class Indexer:
         total_records_processed = 0
         total_identical_records = 0
         self._attempted_embedding_hashes = set()
+        self._failed_embedding_hashes = set()
 
         write_scope = db.database_scope() if not self.dry_run else nullcontext()
 
@@ -235,29 +242,82 @@ class Indexer:
             self._execute_batched_deletes(paths_to_delete, session)
 
         if fields_to_upsert:
-            upsert_stmt = self._get_upsert_statement()
-            embedding_stmt = self._get_embedding_insert_statement()
-            batch_generator = self._generate_upsert_batches(fields_to_upsert, session)
-
-            # A side effect per batch: the generator is lazy and each batch must be written before the next is built.
-            for batch in batch_generator:
-                self._write_batch(batch, session, upsert_stmt, embedding_stmt)
+            # The chunk is collected first: building a batch calls the embedding API, and the vectors of the whole
+            # chunk are inserted in one hash order.
+            batches = list(self._generate_upsert_batches(fields_to_upsert, session))
+            self._write_batches(batches, session)
 
         return len(fields_to_upsert), identical_count
 
-    def _write_batch(
-        self, batch: IndexBatch, session: Session | None, upsert_stmt: Insert, embedding_stmt: Insert
-    ) -> None:
+    def _write_batches(self, batches: list[IndexBatch], session: Session | None) -> None:
+        """Insert the new vectors of a chunk sorted by hash, then upsert the index rows of each batch.
+
+        Runs overlap, for example the hook of a finished process and `index all`. All of them insert their vectors
+        in hash order, so they lock shared rows in the same order and cannot deadlock. A run that waits for a hash
+        is delayed until the other chunk commits.
+        """
         if self.dry_run:
+            self._log_dry_run(batches)
+        elif session is not None:
+            self._insert_vectors(batches, session)
+            self._upsert_rows(batches, session)
+
+    def _log_dry_run(self, batches: list[IndexBatch]) -> None:
+        for batch in batches:
             self.logger.debug(f"Dry Run: Would upsert {len(batch.records)} records.")
-        elif session:
-            if batch.embeddings:
-                # Runs overlap, for example the hook of a finished process and `index all`. Sorted so they lock shared
-                # new hashes in the same order and cannot deadlock inside one statement. Across batches they can
-                # still wait for each other.
-                session.execute(embedding_stmt, sorted(batch.embeddings, key=itemgetter("embedding_hash")))
-            if batch.records:
-                session.execute(upsert_stmt, batch.records)
+
+    def _insert_vectors(self, batches: list[IndexBatch], session: Session) -> None:
+        """Insert the new vectors of the chunk in one statement sorted by hash, plus those a concurrent run deleted."""
+        records = list(chain.from_iterable(batch.records for batch in batches))
+        embeddings = chain.from_iterable(batch.embeddings for batch in batches)
+        vectors = {embedding["embedding_hash"]: embedding for embedding in embeddings}
+        vectors |= self._embed_deleted_vectors(records, vectors.keys(), session)
+
+        if vectors:
+            session.execute(self._get_embedding_insert_statement(), [vectors[key] for key in sorted(vectors)])
+
+    def _upsert_rows(self, batches: list[IndexBatch], session: Session) -> None:
+        upsert_stmt = self._get_upsert_statement()
+        for batch in filter(attrgetter("records"), batches):
+            session.execute(upsert_stmt, [self._without_failed_hash(record) for record in batch.records])
+
+    def _embed_deleted_vectors(
+        self, records: list[IndexableRecord], new_hashes: Collection[str], session: Session
+    ) -> dict[str, EmbeddingRecord]:
+        """Embed again the vectors that the records reuse but a concurrent full run deleted as orphans.
+
+        One lookup per chunk. The vectors this chunk makes itself and the texts that failed earlier are not checked.
+        A text that fails here is not sent again in this run, and its rows are written without the hash.
+        """
+        reused = {record["embedding_hash"] for record in records if record["embedding_hash"] is not None} - (
+            set(new_hashes) | self._failed_embedding_hashes
+        )
+        gone = reused - self._existing_embedding_hashes(reused, session)
+        texts = {
+            record["embedding_hash"]: self._record_text(record)
+            for record in records
+            if record["embedding_hash"] in gone
+        }
+        if not texts:
+            return {}
+
+        self.logger.debug(f"Embedding {len(texts)} vectors again that a concurrent run deleted.")
+        batch_size = llm_settings.EMBEDDING_MAX_BATCH_SIZE or len(texts)
+        return {
+            embedding["embedding_hash"]: embedding
+            for part in chunked(texts.items(), batch_size)
+            for embedding in self._embed(dict(part))
+        }
+
+    def _record_text(self, record: IndexableRecord) -> str:
+        return self._prepare_text_for_embedding(
+            ExtractedField(path=str(record["path"]), value=record["value"], value_type=record["value_type"])
+        )
+
+    def _without_failed_hash(self, record: IndexableRecord) -> IndexableRecord:
+        if record["embedding_hash"] in self._failed_embedding_hashes:
+            return {**record, "embedding_hash": None}
+        return record
 
     def _determine_changes(
         self, entities: list[DatabaseEntity], session: Session | None = None
@@ -480,26 +540,31 @@ class Indexer:
         """Embeds the buffered texts and combines them with the buffered records into one batch.
 
         Returns:
-            The batch. A text whose vector came back empty gets no embedding, its records still carry the hash.
+            The batch. A text whose vector came back empty gets no embedding and is remembered as failed, so the
+            rows that point at it are written without its hash.
 
         Raises:
             ValueError: If the API returns another number of vectors than texts.
         """
-        if not pending_texts:
-            return IndexBatch(records, [])
+        return IndexBatch(records, self._embed(pending_texts))
 
-        vectors = EmbeddingIndexer.get_embeddings_from_api_batch(list(pending_texts.values()), self.dry_run)
+    def _embed(self, texts_by_hash: dict[str, str]) -> list[EmbeddingRecord]:
+        """Embeds the texts in one API call. The texts that get no vector are added to the failed hashes."""
+        if not texts_by_hash:
+            return []
 
-        if len(pending_texts) != len(vectors):
-            raise ValueError(f"Embedding mismatch: sent {len(pending_texts)}, received {len(vectors)}")
+        vectors = EmbeddingIndexer.get_embeddings_from_api_batch(list(texts_by_hash.values()), self.dry_run)
+
+        if len(texts_by_hash) != len(vectors):
+            raise ValueError(f"Embedding mismatch: sent {len(texts_by_hash)}, received {len(vectors)}")
 
         entity_type = self.config.entity_kind.value
-        embeddings = [
-            EmbeddingRecord(entity_type=entity_type, embedding_hash=embedding_hash, embedding=vector)
-            for embedding_hash, vector in zip(pending_texts, vectors)
+        self._failed_embedding_hashes.update(key for key, vector in zip(texts_by_hash, vectors) if not vector)
+        return [
+            EmbeddingRecord(entity_type=entity_type, embedding_hash=key, embedding=vector)
+            for key, vector in zip(texts_by_hash, vectors)
             if vector
         ]
-        return IndexBatch(records, embeddings)
 
     def _get_max_tokens(self) -> int:
         """Gets max tokens, using a fallback from settings if necessary."""

@@ -91,6 +91,19 @@ def _non_embeddable_field(path: str = "root.insync", value: str = "true") -> Ext
     return ExtractedField(path=path, value=value, value_type=FieldType.BOOLEAN)
 
 
+def _record(entity_id: str, embedding_hash: str | None) -> IndexableRecord:
+    return {
+        "entity_id": entity_id,
+        "entity_type": EntityType.SUBSCRIPTION.value,
+        "entity_title": ENTITY_TITLE,
+        "path": Ltree(f"root.{entity_id}"),
+        "value": "v",
+        "value_type": FieldType.STRING,
+        "content_hash": "abc",
+        "embedding_hash": embedding_hash,
+    }
+
+
 # ---------------------------------------------------------------------------
 # _maybe_begin
 # ---------------------------------------------------------------------------
@@ -328,37 +341,191 @@ def test_process_chunk_with_fields_executes_batches(mock_config: MagicMock, mock
     assert identical == 0
 
 
-def test_process_chunk_inserts_embeddings_before_the_index_rows(mock_config: MagicMock, mock_entity: MagicMock) -> None:
-    """The vectors of a batch are written before the rows that point at them, in the same session."""
+_API = "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch"
+
+
+def _embedding(embedding_hash: str) -> EmbeddingRecord:
+    return EmbeddingRecord(entity_type="SUBSCRIPTION", embedding_hash=embedding_hash, embedding=[0.1])
+
+
+def _hash_of(entity_id: str) -> str:
+    return compute_embedding_hash(EMBEDDING_MODEL, f"root.{entity_id}: v")
+
+
+def _statements(session: MagicMock) -> list[tuple[str, list]]:
+    return [(call.args[0].table.name, call.args[1]) for call in session.execute.call_args_list]
+
+
+def test_process_chunk_collects_the_chunk_before_writing(mock_config: MagicMock, mock_entity: MagicMock) -> None:
+    """Every batch is built (embedding included) before the first write, so no lock is held across an API call."""
     idx = Indexer(config=mock_config, dry_run=False, force_index=True, chunk_size=10)
     mock_session = MagicMock()
-    record = MagicMock()
-    embedding = MagicMock()
+    first, second = _record("a", "a-hash"), _record("b", "b-hash")
+    built: list[int] = []
+
+    def batches():
+        built.append(1)
+        yield IndexBatch([first], [_embedding("a-hash")])
+        built.append(1)
+        yield IndexBatch([second], [_embedding("b-hash")])
+
+    def execute(*args):
+        assert len(built) == 2  # both batches existed before the first write
+
+    mock_session.execute.side_effect = execute
 
     with (
         patch.object(idx, "_determine_changes", return_value=([("eid", MagicMock())], [], 0)),
-        patch.object(idx, "_generate_upsert_batches", return_value=iter([IndexBatch([record], [embedding])])),
+        patch.object(idx, "_generate_upsert_batches", side_effect=lambda *args: batches()),
+        patch.object(idx, "_existing_embedding_hashes", return_value=set()),
     ):
         idx._process_chunk([mock_entity], session=mock_session)
 
-    assert [call.args[1] for call in mock_session.execute.call_args_list] == [[embedding], [record]]
-    assert mock_session.execute.call_args_list[0].args[0].table.name == "ai_search_embeddings"
-    assert mock_session.execute.call_args_list[1].args[0].table.name == "ai_search_index"
+    assert mock_session.execute.call_count == 3
 
 
-def test_write_batch_inserts_embeddings_sorted_by_hash(indexer: Indexer) -> None:
-    """Concurrent runs that share new hashes must take the row locks in one order, or they can deadlock."""
+def test_write_batches_inserts_the_vectors_of_all_batches_in_one_sorted_statement(indexer: Indexer) -> None:
+    """Batches in field order must not decide the lock order: one statement, sorted by hash, then the rows."""
     mock_session = MagicMock()
-    unsorted = [
-        EmbeddingRecord(entity_type="SUBSCRIPTION", embedding_hash=embedding_hash, embedding=[0.1])
-        for embedding_hash in ("c", "a", "b")
-    ]
+    first, second = _record("a", "z"), _record("b", "a")
     indexer.dry_run = False
 
-    indexer._write_batch(IndexBatch([], list(unsorted)), mock_session, MagicMock(), MagicMock())
+    with patch.object(indexer, "_existing_embedding_hashes", return_value=set()):
+        indexer._write_batches(
+            [IndexBatch([first], [_embedding("z")]), IndexBatch([second], [_embedding("a")])], mock_session
+        )
 
-    inserted = mock_session.execute.call_args_list[0].args[1]
-    assert [row["embedding_hash"] for row in inserted] == ["a", "b", "c"]
+    statements = _statements(mock_session)
+    assert [name for name, _ in statements] == ["ai_search_embeddings", "ai_search_index", "ai_search_index"]
+    assert [row["embedding_hash"] for row in statements[0][1]] == ["a", "z"]
+    assert [rows for _, rows in statements[1:]] == [[first], [second]]
+
+
+def test_write_batches_without_vectors_writes_only_the_rows(indexer: Indexer) -> None:
+    mock_session = MagicMock()
+    record = _record("a", None)
+    indexer.dry_run = False
+
+    indexer._write_batches([IndexBatch([record], [])], mock_session)
+
+    assert _statements(mock_session) == [("ai_search_index", [record])]
+
+
+@pytest.mark.parametrize("session", [None, MagicMock()], ids=["no_session", "with_session"])
+def test_write_batches_dry_run_executes_nothing(indexer: Indexer, session) -> None:
+    with patch(_API) as api:
+        indexer._write_batches([IndexBatch([_record("a", "h")], [_embedding("h")])], session)
+
+    api.assert_not_called()
+    if session:
+        session.execute.assert_not_called()
+
+
+def test_write_batches_without_session_writes_nothing(indexer: Indexer) -> None:
+    indexer.dry_run = False
+    with patch.object(indexer, "_existing_embedding_hashes") as lookup:
+        indexer._write_batches([IndexBatch([_record("a", "h")], [])], None)
+
+    lookup.assert_not_called()
+
+
+def test_write_batches_checks_the_reused_vectors_once_per_chunk(indexer: Indexer) -> None:
+    """The common case: one lookup for the chunk, no API call, the records are written unchanged."""
+    mock_session = MagicMock()
+    records = [_record(entity_id, _hash_of(entity_id)) for entity_id in "abc"]
+    indexer.dry_run = False
+
+    with (
+        patch.object(indexer, "_existing_embedding_hashes", return_value={_hash_of(e) for e in "abc"}) as lookup,
+        patch(_API) as api,
+    ):
+        indexer._write_batches([IndexBatch(records[:2], []), IndexBatch(records[2:], [])], mock_session)
+
+    lookup.assert_called_once()
+    api.assert_not_called()
+    assert _statements(mock_session) == [("ai_search_index", records[:2]), ("ai_search_index", records[2:])]
+
+
+def test_write_batches_does_not_check_the_vectors_it_makes_itself(indexer: Indexer) -> None:
+    mock_session = MagicMock()
+    indexer.dry_run = False
+
+    with patch.object(indexer, "_existing_embedding_hashes", return_value=set()) as lookup:
+        indexer._write_batches([IndexBatch([_record("a", "h")], [_embedding("h")])], mock_session)
+
+    assert lookup.call_args.args[0] == set()
+
+
+def test_write_batches_embeds_a_deleted_vector_once_and_inserts_it_sorted_with_the_rest(indexer: Indexer) -> None:
+    """A concurrent run deleted a reused vector: one API call for the text, rows keep their hash."""
+    mock_session = MagicMock()
+    gone = _hash_of("a")
+    records = [_record("a", gone), _record("a", gone)]
+    fresh = _record("z", "zzz")
+    indexer.dry_run = False
+
+    with (
+        patch.object(indexer, "_existing_embedding_hashes", return_value=set()),
+        patch(_API, return_value=[[0.5]]) as api,
+    ):
+        indexer._write_batches([IndexBatch(records + [fresh], [_embedding("zzz")])], mock_session)
+
+    api.assert_called_once_with(["root.a: v"], False)
+    statements = _statements(mock_session)
+    assert [row["embedding_hash"] for row in statements[0][1]] == sorted([gone, "zzz"])
+    assert statements[1][1] == [*records, fresh]
+    assert indexer._failed_embedding_hashes == set()
+
+
+def test_write_batches_embeds_deleted_vectors_in_api_batches(indexer: Indexer) -> None:
+    mock_session = MagicMock()
+    records = [_record(entity_id, _hash_of(entity_id)) for entity_id in "abc"]
+    indexer.dry_run = False
+
+    with (
+        patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
+        patch.object(indexer, "_existing_embedding_hashes", return_value=set()),
+        patch(_API, side_effect=lambda texts, dry_run: [[0.5] for _ in texts]) as api,
+    ):
+        mock_llm.EMBEDDING_MAX_BATCH_SIZE = 2
+        indexer._write_batches([IndexBatch(records, [])], mock_session)
+
+    assert sorted(len(call.args[0]) for call in api.call_args_list) == [1, 2]
+    assert len(_statements(mock_session)[0][1]) == 3
+
+
+def test_write_batches_drops_the_hash_when_a_deleted_vector_cannot_be_made_again(indexer: Indexer) -> None:
+    """Without a vector the rows are written without the hash, and the text is not sent again in this run."""
+    mock_session = MagicMock()
+    gone = _hash_of("a")
+    first, second = _record("a", gone), _record("b", None)
+    indexer.dry_run = False
+
+    with (
+        patch.object(indexer, "_existing_embedding_hashes", return_value=set()),
+        patch(_API, return_value=[[]]) as api,
+    ):
+        indexer._write_batches([IndexBatch([first, second], [])], mock_session)
+        indexer._write_batches([IndexBatch([first], [])], mock_session)
+
+    api.assert_called_once()
+    assert [name for name, _ in _statements(mock_session)] == ["ai_search_index", "ai_search_index"]
+    assert _statements(mock_session)[0][1][0]["embedding_hash"] is None
+    assert _statements(mock_session)[1][1][0]["embedding_hash"] is None
+    assert _statements(mock_session)[0][1][1] is second
+
+
+def test_write_batches_drops_the_hash_of_a_text_that_failed_in_the_batch(indexer: Indexer) -> None:
+    mock_session = MagicMock()
+    record = _record("a", "h")
+    indexer.dry_run = False
+    indexer._failed_embedding_hashes.add("h")
+
+    with patch.object(indexer, "_existing_embedding_hashes", return_value=set()) as lookup:
+        indexer._write_batches([IndexBatch([record], [])], mock_session)
+
+    assert lookup.call_args.args[0] == set()
+    assert _statements(mock_session) == [("ai_search_index", [{**record, "embedding_hash": None}])]
 
 
 def test_process_chunk_dry_run_does_not_execute(indexer: Indexer, mock_entity: MagicMock) -> None:
@@ -760,6 +927,7 @@ def test_flush_buffer_keeps_records_and_skips_empty_vectors(indexer: Indexer) ->
 
     assert result.records == [record]
     assert [e["embedding_hash"] for e in result.embeddings] == ["h2"]
+    assert indexer._failed_embedding_hashes == {"h1"}
 
 
 _MISMATCH_PENDING = {"h1": "root.a: text a", "h2": "root.b: text b"}

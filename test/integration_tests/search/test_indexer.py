@@ -22,7 +22,7 @@ from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.core.db import db
@@ -453,13 +453,13 @@ def test_failed_batch_retried(embedding_api):
     embedding_api.side_effect = _failing_api
     assert _index(_TEXT_FIELDS) == 9
 
-    failed_rows = _index_rows()
-    assert {row.embedding_hash is None for row in failed_rows if row.path != Ltree("insync")} == {False}
+    # No vector was stored, so the rows carry no hash and the next run tries the texts again.
     assert _stored_embedding_hashes() == set()
+    assert {row.embedding_hash for row in _index_rows()} == {None}
 
     embedding_api.reset_mock()
     embedding_api.side_effect = _working_api
-    assert _index(_TEXT_FIELDS) == 6
+    assert _index(_TEXT_FIELDS) == 6  # the 3 rows that lost their hash, not the one without a vector
 
     assert sorted(_sent_texts(embedding_api)) == ["description: Alpha", "name: Beta"]
     assert len(_stored_embedding_hashes()) == 2
@@ -468,6 +468,41 @@ def test_failed_batch_retried(embedding_api):
     embedding_api.reset_mock()
     assert _index(_TEXT_FIELDS) == 0
     embedding_api.assert_not_called()
+
+
+@pytest.mark.usefixtures("api_enabled")
+@pytest.mark.parametrize(
+    ("api", "expect_hash"),
+    [pytest.param(_working_api, True, id="embedded_again"), pytest.param(_failing_api, False, id="retried_next_run")],
+)
+def test_vector_deleted_by_a_concurrent_run(embedding_api, api, expect_hash):
+    """A reused vector that is gone at write time is embedded again, or its rows lose the hash."""
+    _index(_TEXT_FIELDS, title="Old title")
+    assert len(_stored_embedding_hashes()) == 2
+    embedding_api.reset_mock()
+    embedding_api.side_effect = api
+
+    real_write = Indexer._write_batches
+
+    def write_after_the_delete(self, batches, session):
+        # Like a concurrent full run: it deleted the vectors as orphans after this run found them.
+        session.execute(delete(AiSearchEmbedding))
+        real_write(self, batches, session)
+
+    with patch.object(Indexer, "_write_batches", autospec=True, side_effect=write_after_the_delete):
+        processed = _index(_TEXT_FIELDS, title="New title")
+
+    assert processed == 9
+    assert embedding_api.call_count == 1  # one call for the chunk, whatever the number of rows
+    assert sorted(_sent_texts(embedding_api)) == ["description: Alpha", "name: Beta"]
+    rows_with_text = [row for row in _index_rows() if row.path != Ltree("insync")]
+    stored = _stored_embedding_hashes()
+    if expect_hash:
+        assert len(stored) == 2
+        assert {row.embedding_hash for row in rows_with_text} == stored
+    else:
+        assert stored == set()
+        assert {row.embedding_hash for row in rows_with_text} == {None}
 
 
 @pytest.mark.usefixtures("api_enabled")
@@ -494,7 +529,8 @@ def test_api_disabled_second_run_changes_nothing(embedding_api):
 
         assert _index(_TEXT_FIELDS) == 0
 
-    assert {row.embedding_hash is None for row in _index_rows()} == {False, True}
+    # The vectors are bound at write time, so a text without a vector leaves a row without a hash.
+    assert {row.embedding_hash is None for row in _index_rows()} == {True}
 
 
 def _seed_embedding(entity_type: EntityType, embedding_hash: str) -> None:

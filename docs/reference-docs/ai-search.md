@@ -130,10 +130,10 @@ are embedded in batches sized against the embedding model's context window. Each
 embedded once per run, however many fields carry it, and texts that already have a stored vector are
 not sent to the API at all. Everything that is not embeddable is stored with no embedding hash.
 
-**Retry.** The index row stores its embedding hash even when the embedding call failed or the API is
-disabled. A field whose hash has no row in `ai_search_embeddings` is treated as changed on the next
-run, so a plain re-index embeds exactly the texts that are still missing, without `--force-index`.
-Rows whose text already has a vector are skipped.
+**Retry.** The index row stores its embedding hash only when the vector is stored. When the embedding
+call failed or the API is disabled, the row is written without a hash, and a field with no stored hash is treated as changed
+on the next run. A plain re-index therefore embeds exactly the texts that are still missing, without
+`--force-index`. Rows whose text already has a vector are skipped.
 
 **Cleanup.** The vectors of a chunk are written in the same transaction as the index rows that
 reference them. At the end of a full run of one entity type, which is a run that is not limited to one
@@ -145,11 +145,15 @@ reuses can be deleted by a full run before the concurrent run commits its index 
 itself, because the next run treats a hash without an embeddings row as changed and embeds the text
 again.
 
-**Concurrent runs.** New vectors are inserted with `ON CONFLICT DO NOTHING`, sorted by embedding
-hash, so two runs inserting overlapping hashes in one batch take the row locks in the same order and
-cannot deadlock. The chunk transaction stays open until the chunk is done, though, so a run that
-inserts a hash another run inserted earlier in its own open chunk waits until that run commits. Two
-runs that index the same entity type at the same time can therefore slow each other down.
+**Concurrent runs.** The batches of a chunk are built, embedding calls included, before the chunk is written.
+New vectors of the whole chunk are then inserted in one statement with `ON CONFLICT DO NOTHING`, sorted by hash, before
+the index rows. Every run locks shared rows in the same order, so two runs that overlap in a hash cannot deadlock,
+whatever the embedding batch size. The chunk transaction stays open until the chunk commits, so a run waiting on a
+hash is delayed until then, not aborted.
+
+A vector that was stored when the chunk was built is used without an API call. One lookup per chunk checks that it
+is still there; if a concurrent full run deleted it as an orphan, the text is embedded again in the chunk's
+insert, which makes the window small. If that fails, the rows are written without a hash and the next run retries.
 
 Indexing is triggered from three places:
 
