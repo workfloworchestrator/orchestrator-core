@@ -474,38 +474,26 @@ def test_failed_batch_retried(embedding_api):
 
 
 @pytest.mark.usefixtures("api_enabled")
-@pytest.mark.parametrize(
-    ("api", "expect_hash"),
-    [pytest.param(_working_api, True, id="embedded_again"), pytest.param(_failing_api, False, id="retried_next_run")],
-)
-def test_vector_deleted_by_a_concurrent_run(embedding_api, api, expect_hash):
-    """A reused vector that is gone at write time is embedded again, or its rows lose the hash."""
+def test_vector_deleted_by_a_concurrent_run_is_embedded_on_the_next_run(embedding_api):
+    """A reused vector that a concurrent full run deletes before the commit heals on the next run."""
     _index(_TEXT_FIELDS, title="Old title")
-    assert len(_stored_embedding_hashes()) == 2
     embedding_api.reset_mock()
-    embedding_api.side_effect = api
 
     real_write = Indexer._write_batches
 
     def write_after_the_delete(self, batches, session):
-        # Like a concurrent full run: it deleted the vectors as orphans after this run found them.
         session.execute(delete(AiSearchEmbedding))
         real_write(self, batches, session)
 
     with patch.object(Indexer, "_write_batches", autospec=True, side_effect=write_after_the_delete):
-        processed = _index(_TEXT_FIELDS, title="New title")
+        _index(_TEXT_FIELDS, title="New title")
 
-    assert processed == 9
-    assert embedding_api.call_count == 1  # one call for the chunk, whatever the number of rows
+    embedding_api.assert_not_called()
+    assert _stored_embedding_hashes() == set()
+
+    assert _index(_TEXT_FIELDS, title="New title") == 6
     assert sorted(_sent_texts(embedding_api)) == ["description: Alpha", "name: Beta"]
-    rows_with_text = [row for row in _index_rows() if row.path != Ltree("insync")]
-    stored = _stored_embedding_hashes()
-    if expect_hash:
-        assert len(stored) == 2
-        assert {row.embedding_hash for row in rows_with_text} == stored
-    else:
-        assert stored == set()
-        assert {row.embedding_hash for row in rows_with_text} == {None}
+    assert {row.embedding_hash for row in _index_rows() if row.path != Ltree("insync")} == _stored_embedding_hashes()
 
 
 @pytest.mark.usefixtures("api_enabled")

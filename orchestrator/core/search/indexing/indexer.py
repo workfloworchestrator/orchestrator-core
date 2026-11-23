@@ -12,7 +12,7 @@
 # limitations under the License.
 
 import hashlib
-from collections.abc import Collection, Generator, Iterable, Iterator
+from collections.abc import Generator, Iterable, Iterator
 from contextlib import contextmanager, nullcontext
 from functools import lru_cache
 from itertools import chain
@@ -120,8 +120,8 @@ class Indexer:
             budget (model max context - safety margin). All other records accumulate in
             parallel and do not affect flushing. A text sent to the API costs no call
             again in the same run, also when it failed; the next run retries it.
-        6) Embed again the stored vectors that a concurrent run deleted, insert all new vectors of the chunk
-            sorted by hash, then UPSERT the index rows of each batch (skip in dry_run).
+        6) Insert all new vectors of the chunk sorted by hash, then UPSERT the index rows of each batch
+            (skip in dry_run).
         7) Commit transaction (auto on context exit).
         8) Repeat until the stream is exhausted.
         9) If `cleanup_orphans`, delete the embeddings that no index row points at (skip in dry_run).
@@ -266,11 +266,9 @@ class Indexer:
             self.logger.debug(f"Dry Run: Would upsert {len(batch.records)} records.")
 
     def _insert_vectors(self, batches: list[IndexBatch], session: Session) -> None:
-        """Insert the new vectors of the chunk in one statement sorted by hash, plus those a concurrent run deleted."""
-        records = list(chain.from_iterable(batch.records for batch in batches))
+        """Insert the new vectors of the chunk in one statement sorted by hash."""
         embeddings = chain.from_iterable(batch.embeddings for batch in batches)
         vectors = {embedding["embedding_hash"]: embedding for embedding in embeddings}
-        vectors |= self._embed_deleted_vectors(records, vectors.keys(), session)
 
         if vectors:
             session.execute(
@@ -282,39 +280,6 @@ class Indexer:
         upsert_stmt = self._get_upsert_statement()
         for batch in filter(attrgetter("records"), batches):
             session.execute(upsert_stmt, [self._without_failed_hash(record) for record in batch.records])
-
-    def _embed_deleted_vectors(
-        self, records: list[IndexableRecord], new_hashes: Collection[str], session: Session
-    ) -> dict[str, EmbeddingRecord]:
-        """Embed again the vectors that the records reuse but a concurrent full run deleted as orphans.
-
-        One lookup per chunk. The vectors this chunk makes itself and the texts that failed earlier are not checked.
-        A text that fails here is not sent again in this run, and its rows are written without the hash.
-        """
-        reused = {record["embedding_hash"] for record in records if record["embedding_hash"] is not None} - (
-            set(new_hashes) | self._failed_embedding_hashes
-        )
-        gone = reused - self._existing_embedding_hashes(reused, session)
-        texts = {
-            record["embedding_hash"]: self._record_text(record)
-            for record in records
-            if record["embedding_hash"] in gone
-        }
-        if not texts:
-            return {}
-
-        self.logger.debug(f"Embedding {len(texts)} vectors again that a concurrent run deleted.")
-        batch_size = llm_settings.EMBEDDING_MAX_BATCH_SIZE or len(texts)
-        return {
-            embedding["embedding_hash"]: embedding
-            for part in chunked(texts.items(), batch_size)
-            for embedding in self._embed(dict(part))
-        }
-
-    def _record_text(self, record: IndexableRecord) -> str:
-        return self._prepare_text_for_embedding(
-            ExtractedField(path=str(record["path"]), value=record["value"], value_type=record["value_type"])
-        )
 
     def _without_failed_hash(self, record: IndexableRecord) -> IndexableRecord:
         if record["embedding_hash"] in self._failed_embedding_hashes:

@@ -152,10 +152,6 @@ the index rows. Every run locks shared rows in the same order, so two runs that 
 whatever the embedding batch size. The chunk transaction stays open until the chunk commits, so a run waiting on a
 hash is delayed until then, not aborted.
 
-A vector that was stored when the chunk was built is used without an API call. One lookup per chunk checks that it
-is still there; if a concurrent full run deleted it as an orphan, the text is embedded again in the chunk's
-insert, which makes the window small. If that fails, the rows are written without a hash and the next run retries.
-
 Indexing is triggered from three places:
 
 - **Process exit**: whenever a process reaches a normal exit through the workflow engine — completed, failed,
