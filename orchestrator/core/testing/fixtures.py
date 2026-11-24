@@ -261,7 +261,7 @@ def database(db_uri: str, alembic_config: Config) -> Iterator[None]:
     db_to_create = url.database
     engine = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
     with closing(engine.connect()) as conn:
-        conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
+        conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}" WITH (FORCE);'))
         conn.execute(
             text(f'CREATE DATABASE "{db_to_create}" LOCALE_PROVIDER icu ICU_LOCALE "en-US" TEMPLATE template0;')
         )
