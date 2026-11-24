@@ -13,6 +13,14 @@
 
 from typing import cast
 
+
+__lazy_modules__ = [
+    "sqlalchemy",
+    "sqlalchemy.engine",
+    "sqlalchemy.exc",
+    "orchestrator.core.db.models",
+]
+
 import structlog
 import typer
 from sqlalchemy import delete, text

@@ -16,6 +16,19 @@ import subprocess
 from pathlib import Path
 from typing import Callable
 
+
+__lazy_modules__ = [
+    "yaml",
+    "jinja2",
+    "orchestrator.core.cli.generator.generator.helpers",
+    "orchestrator.core.cli.generator.generator.migration",
+    "orchestrator.core.cli.generator.generator.product",
+    "orchestrator.core.cli.generator.generator.product_block",
+    "orchestrator.core.cli.generator.generator.settings",
+    "orchestrator.core.cli.generator.generator.unittest",
+    "orchestrator.core.cli.generator.generator.workflow",
+]
+
 import structlog
 import typer
 import yaml

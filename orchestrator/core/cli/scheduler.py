@@ -15,6 +15,15 @@ import time
 from collections.abc import Iterator
 from typing import Any
 
+
+__lazy_modules__ = [
+    "apscheduler.job",
+    "redis",
+    "orchestrator.core.schedules.scheduler",
+    "orchestrator.core.schedules.service",
+    "orchestrator.core.utils.redis_client",
+]
+
 import typer
 from apscheduler.job import Job
 from redis import Redis

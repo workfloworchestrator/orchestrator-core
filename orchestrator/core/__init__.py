@@ -17,12 +17,10 @@ from importlib.metadata import version
 
 __version__: str = version("orchestrator-core")
 
-
-from structlog import get_logger
-
-logger = get_logger(__name__)
-
-logger.info("Starting the orchestrator", version=__version__)
+__lazy_modules__ = [
+    "orchestrator.core.app",
+    "orchestrator.core.settings",
+]
 
 # App settings must resolve before OrchestratorCore
 from orchestrator.core.settings import app_settings, llm_settings

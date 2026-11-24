@@ -18,7 +18,7 @@ oauth2-lib = false
 pydantic-forms = false
 
 [manifest]
-overrides = [{ name = "cachebox", specifier = ">=6.1.2" }]
+overrides = [{ name = "cachebox", marker = "python_full_version >= '3.15'", specifier = ">=6.1.2" }]
 
 [[package]]
 name = "aiofile"
@@ -1317,7 +1317,7 @@ name = "deepdiff"
 version = "9.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cachebox" },
+    { name = "cachebox", marker = "python_full_version >= '3.15'" },
     { name = "orderly-set" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f9/6b/6a4a5aaf38535eb332c2856aa08e73ed7c549d0851b1215401af0a2db1a7/deepdiff-9.1.0.tar.gz", hash = "sha256:07e9e366fab4297755153c4eab795ad4ef3cbd0d51660e847f5751c6bd727687", size = 382149, upload-time = "2026-05-15T20:18:05.751Z" }

@@ -13,6 +13,11 @@
 
 from typing import Annotated
 
+__lazy_modules__ = [
+    "orchestrator.core.search.core.types",
+    "orchestrator.core.search.indexing",
+]
+
 import typer
 
 from orchestrator.core.search.core.types import EntityType

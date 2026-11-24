@@ -16,6 +16,22 @@ import os
 from shutil import copyfile
 from typing import Annotated
 
+__lazy_modules__ = [
+    "jinja2",
+    "alembic",
+    "alembic.command",
+    "alembic.config",
+    "sqlalchemy",
+    "orchestrator.core.cli.generate",
+    "orchestrator.core.cli.generator.generator.migration",
+    "orchestrator.core.cli.migrate_domain_models",
+    "orchestrator.core.cli.migrate_tasks",
+    "orchestrator.core.cli.migrate_workflows",
+    "orchestrator.core.cli.migration_helpers",
+    "orchestrator.core.db.models",
+    "orchestrator.core.search.indexing",
+]
+
 import jinja2
 import typer
 from alembic import command

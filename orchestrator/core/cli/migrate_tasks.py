@@ -16,6 +16,14 @@ import operator
 from collections.abc import Iterable
 from typing import TypeVar, cast
 
+
+__lazy_modules__ = [
+    "tabulate",
+    "orchestrator.core.targets",
+    "orchestrator.core.workflow",
+    "orchestrator.core.workflows",
+]
+
 import structlog
 from sqlalchemy import select
 from tabulate import tabulate
