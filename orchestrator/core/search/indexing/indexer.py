@@ -18,7 +18,7 @@ from functools import lru_cache
 from typing import Any
 
 import structlog
-from sqlalchemy import delete, select, tuple_
+from sqlalchemy import delete, select, text, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.dialects.postgresql.dml import Insert
 from sqlalchemy.orm import Session
@@ -33,6 +33,10 @@ from orchestrator.core.search.indexing.traverse import DatabaseEntity
 from orchestrator.core.settings import llm_settings
 
 logger = structlog.get_logger(__name__)
+
+_SEARCH_INDEX_WRITE_LOCK = text(
+    "SELECT pg_advisory_xact_lock(hashtext('orchestrator.search.indexer'), hashtext(:entity_type))"
+)
 
 
 @contextmanager
@@ -89,6 +93,8 @@ class Indexer:
     Notes:
         - Non-dry-run runs open a write session and wrap each processed chunk in
           a transaction (`Session.begin()`).
+        - Writes for the same entity kind are serialized per transaction. This prevents
+          concurrent chunks from deadlocking in the `ai_search_paths` maintenance trigger.
         - Read queries use the passed session when available, otherwise the
           generic `db.session`.
 
@@ -96,14 +102,15 @@ class Indexer:
         1) Stream entities (yield_per=chunk_size) and accumulate into a chunk.
         2) Begin transaction for the chunk.
         3) determine_changes() → fields_to_upsert, paths_to_delete.
-        4) Delete stale paths.
-        5) Build UPSERT batches with a two-list buffer:
+        4) Acquire an entity-kind write lock when the chunk has changes.
+        5) Delete stale paths.
+        6) Build UPSERT batches with a two-list buffer:
         - Embeddable list (STRING): track running token count; flush when next item
             would exceed the token budget (model max context - safety margin).
         - Non-embeddable list: accumulate in parallel; does not affect flushing.
-        6) Execute UPSERT for each batch (skip in dry_run).
-        7) Commit transaction (auto on context exit).
-        8) Repeat until the stream is exhausted.
+        7) Execute UPSERT for each batch (skip in dry_run).
+        8) Commit transaction (auto on context exit).
+        9) Repeat until the stream is exhausted.
     """
 
     def __init__(
@@ -179,6 +186,9 @@ class Indexer:
 
         fields_to_upsert, paths_to_delete, identical_count = self._determine_changes(entity_chunk, session)
 
+        if session is not None and not self.dry_run and (fields_to_upsert or paths_to_delete):
+            self._acquire_write_lock(session)
+
         if paths_to_delete and session is not None:
             self.logger.debug(f"Deleting {len(paths_to_delete)} stale records in chunk.")
             self._execute_batched_deletes(paths_to_delete, session)
@@ -194,6 +204,15 @@ class Indexer:
                     session.execute(upsert_stmt, batch)
 
         return len(fields_to_upsert), identical_count
+
+    def _acquire_write_lock(self, session: Session) -> None:
+        """Serialize writes for this entity type within the current transaction.
+
+        The `ai_search_paths` trigger updates shared path rows. A bulk chunk and a
+        single-entity chunk can touch those rows in opposite orders and deadlock.
+        Entity types use separate locks because their trigger keys cannot overlap.
+        """
+        session.execute(_SEARCH_INDEX_WRITE_LOCK, {"entity_type": self.config.entity_kind.value})
 
     def _determine_changes(
         self, entities: list[DatabaseEntity], session: Session | None = None

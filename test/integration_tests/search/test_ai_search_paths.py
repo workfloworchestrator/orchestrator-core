@@ -13,16 +13,20 @@
 
 """Integration tests for the trigger-maintained ai_search_paths distinct-paths table."""
 
+from threading import Barrier, BrokenBarrierError, Thread
+from unittest.mock import MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import delete, text, update
+from sqlalchemy.orm import Session
 from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.core.db import db
 from orchestrator.core.db.models import AiSearchIndex
-from orchestrator.core.search.core.types import EntityType, FieldType
+from orchestrator.core.search.core.types import EntityType, ExtractedField, FieldType
 from orchestrator.core.search.indexing import rebuild_search_paths
+from orchestrator.core.search.indexing.indexer import Indexer
 from orchestrator.core.search.query.builder import build_paths_query, process_path_rows
 
 
@@ -60,6 +64,74 @@ def _refcount(path: str, value_type: FieldType, entity_type: str = "SUBSCRIPTION
         {"et": entity_type, "p": path, "vt": value_type.value},
     ).fetchone()
     return row[0] if row else None
+
+
+class _SplitBatchSession:
+    """Split a two-row executemany so concurrent trigger writes interleave."""
+
+    def __init__(self, session: Session, barrier: Barrier) -> None:
+        self.session = session
+        self.barrier = barrier
+
+    def execute(self, statement, params=None, **kwargs):
+        if isinstance(params, list) and len(params) == 2:
+            self.session.execute(statement, [params[0]], **kwargs)
+            try:
+                self.barrier.wait(timeout=0.25)
+            except BrokenBarrierError:
+                pass
+            return self.session.execute(statement, [params[1]], **kwargs)
+        return self.session.execute(statement, params, **kwargs)
+
+
+def test_concurrent_index_chunks_for_same_entity_type_do_not_deadlock():
+    barrier = Barrier(2)
+    errors: list[Exception] = []
+    entity_ids = [uuid4() for _ in range(4)]
+
+    def index(paths: tuple[str, str], ids: list[UUID]) -> None:
+        config = MagicMock()
+        config.entity_kind = EntityType.PROCESS
+        indexer = Indexer(config=config, dry_run=False, force_index=True)
+        fields = [
+            (str(entity_id), ExtractedField(path=path, value="true", value_type=FieldType.BOOLEAN))
+            for entity_id, path in zip(ids, paths)
+        ]
+
+        def determine_changes(*_args):
+            indexer._entity_titles.update((entity_id, "process") for entity_id, _field in fields)
+            return fields, [], 0
+
+        try:
+            with Session(db.wrapped_database.engine) as session, session.begin():
+                session.execute(text("SET LOCAL deadlock_timeout = '50ms'"))
+                with patch.object(indexer, "_determine_changes", side_effect=determine_changes):
+                    indexer._process_chunk([MagicMock()], session=_SplitBatchSession(session, barrier))
+        except Exception as error:
+            errors.append(error)
+
+    threads = [
+        Thread(
+            target=index,
+            args=(("process.deadlock_a", "process.deadlock_b"), entity_ids[:2]),
+        ),
+        Thread(
+            target=index,
+            args=(("process.deadlock_b", "process.deadlock_a"), entity_ids[2:]),
+        ),
+    ]
+
+    try:
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=5)
+
+        assert all(not thread.is_alive() for thread in threads)
+        assert errors == []
+    finally:
+        with db.wrapped_database.engine.begin() as connection:
+            connection.execute(delete(AiSearchIndex).where(AiSearchIndex.entity_id.in_(entity_ids)))
 
 
 def test_insert_creates_path_with_refcount_one():

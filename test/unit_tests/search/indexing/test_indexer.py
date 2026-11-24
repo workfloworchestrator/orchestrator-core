@@ -322,7 +322,7 @@ def test_process_chunk_with_fields_executes_batches(mock_config: MagicMock, mock
     ):
         processed, identical = idx._process_chunk([mock_entity], session=mock_session)
 
-    mock_session.execute.assert_called_once()
+    assert mock_session.execute.call_count == 2
     assert processed == 1
     assert identical == 0
 
