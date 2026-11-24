@@ -32,14 +32,24 @@ class ScheduleIndexSchema(OrchestratorBaseModel):
     workflow_description: str | None = None
     workflow_target: Target
     is_task: bool
+    subscription_id: UUID | None = None
+    subscription_description: str | None = None
 
     @classmethod
-    def from_schedule(cls, schedule: WorkflowApschedulerJob, job: Any) -> "ScheduleIndexSchema":
+    def from_schedule(
+        cls,
+        schedule: WorkflowApschedulerJob,
+        job: Any,
+        subscription_id: UUID | None = None,
+        subscription_description: str | None = None,
+    ) -> "ScheduleIndexSchema":
         """Combine a linker row with its APScheduler job.
 
         Args:
             schedule: The linker row, with its workflow loaded.
             job: The APScheduler `Job` with id `schedule.schedule_id`.
+            subscription_id: The subscription the job runs with, when it has one.
+            subscription_description: The description of that subscription.
         """
         workflow = schedule.workflow
         return cls(
@@ -52,13 +62,32 @@ class ScheduleIndexSchema(OrchestratorBaseModel):
             workflow_description=workflow.description,
             workflow_target=workflow.target,
             is_task=workflow.is_task,
+            subscription_id=subscription_id,
+            subscription_description=subscription_description,
         )
+
+
+def _as_uuid(value: str | None) -> UUID | None:
+    """Return the value as a UUID, or None when it is missing or not one."""
+    try:
+        return UUID(value) if value else None
+    except ValueError:
+        return None
 
 
 def load_schedule_index_schema(schedule: WorkflowApschedulerJob) -> ScheduleIndexSchema | None:
     """Return the indexable form of a linker row, or None when its APScheduler job no longer exists."""
     # Imported lazily: the scheduler module imports the process service, which imports search indexing.
-    from orchestrator.core.schedules.scheduler import get_scheduler_task
+    from orchestrator.core.schedules.scheduler import (
+        get_scheduler_task,
+        get_subscription_description,
+        scheduled_task_inputs,
+    )
 
-    job = get_scheduler_task(schedule.schedule_id)
-    return ScheduleIndexSchema.from_schedule(schedule, job) if job else None
+    if not (job := get_scheduler_task(schedule.schedule_id)):
+        return None
+
+    subscription_id, _ = scheduled_task_inputs(job)
+    description = get_subscription_description(subscription_id)
+    # Job inputs are free-form: a subscription id that is not a UUID is left out of the index.
+    return ScheduleIndexSchema.from_schedule(schedule, job, _as_uuid(subscription_id), description)

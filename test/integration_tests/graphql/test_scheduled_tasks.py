@@ -17,6 +17,7 @@ from uuid import uuid4
 
 import pytest
 
+from orchestrator.core.schedules.scheduler import get_scheduler
 from orchestrator.core.schedules.service import index_schedule
 from orchestrator.core.services.workflows import get_workflow_by_name
 from test.integration_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
@@ -40,6 +41,9 @@ query ScheduledTasksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!
       name
       nextRunTime
       trigger
+      subscriptionId
+      subscriptionDescription
+      formInputs
     }
     pageInfo {
       endCursor
@@ -283,6 +287,63 @@ def test_scheduled_tasks_sort_by(
     assert [job["name"] for job in scheduled_tasks] == expected_workflows
 
 
+def test_scheduled_tasks_include_subscription_and_form_inputs(
+    test_client_graphql, scheduler_with_jobs, clear_all_scheduler_jobs, create_schedules_via_api
+):
+    clear_all_scheduler_jobs()
+
+    create_schedules_via_api(schedule_id=f"{uuid4()}")
+    no_inputs_id = f"{uuid4()}"
+    create_schedules_via_api(schedule_id=no_inputs_id)
+
+    with get_scheduler() as scheduler:
+        scheduler.get_job(no_inputs_id).modify(kwargs={"workflow_name": "task_resume_workflows"})
+
+    data = get_scheduled_tasks_query()
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
+
+    assert HTTPStatus.OK == response.status_code, response.text
+    result = response.json()
+    assert "errors" not in result
+    by_id = {job["id"]: job for job in result["data"]["scheduledTasks"]["page"]}
+
+    assert by_id[no_inputs_id]["subscriptionId"] is None
+    assert by_id[no_inputs_id]["subscriptionDescription"] is None
+    assert by_id[no_inputs_id]["formInputs"] == []
+
+
+def test_scheduled_tasks_include_subscription_data(
+    test_client_graphql,
+    scheduler_with_jobs,
+    clear_all_scheduler_jobs,
+    create_schedules_via_api,
+    product_type_1_subscription_factory,
+):
+    clear_all_scheduler_jobs()
+    subscription_id = product_type_1_subscription_factory(description="Scheduled maintenance subscription")
+
+    schedule_id = f"{uuid4()}"
+    create_schedules_via_api(schedule_id=schedule_id)
+    with get_scheduler() as scheduler:
+        scheduler.get_job(schedule_id).modify(
+            kwargs={
+                "workflow_name": "task_resume_workflows",
+                "user_inputs": [{"subscription_id": subscription_id, "note": "from test"}],
+            }
+        )
+
+    data = get_scheduled_tasks_query()
+    response = test_client_graphql.post(GRAPHQL_ENDPOINT, content=data, headers={"Content-Type": "application/json"})
+
+    assert HTTPStatus.OK == response.status_code, response.text
+    result = response.json()
+    assert "errors" not in result
+    (job,) = result["data"]["scheduledTasks"]["page"]
+    assert job["subscriptionId"] == subscription_id
+    assert job["subscriptionDescription"] == "Scheduled maintenance subscription"
+    assert job["formInputs"] == [{"subscription_id": subscription_id, "note": "from test"}]
+
+
 def test_scheduled_tasks_invalid_sort(
     test_client_graphql, scheduler_with_jobs, clear_all_scheduler_jobs, create_schedules_via_api
 ):
@@ -328,11 +389,16 @@ def test_scheduled_tasks_invalid_sort(
 
 @pytest.mark.search
 def test_scheduled_tasks_search_returns_the_matching_schedules(
-    test_client_graphql, clear_all_scheduler_jobs, create_schedules_via_api
+    test_client_graphql, clear_all_scheduler_jobs, create_schedules_via_api, product_type_1_subscription_factory
 ):
     clear_all_scheduler_jobs()
+    subscription_id = product_type_1_subscription_factory(description="Scheduled maintenance subscription")
     schedule_id = str(uuid4())
     create_schedules_via_api(job_name="Resume nightly", workflow_name=WORKFLOW_NAME, schedule_id=schedule_id)
+    with get_scheduler() as scheduler:
+        scheduler.get_job(schedule_id).modify(
+            kwargs={"workflow_name": WORKFLOW_NAME, "user_inputs": [{"subscription_id": subscription_id}]}
+        )
     other_schedule_id = str(uuid4())
     create_schedules_via_api(job_name="Clean up", workflow_name="task_clean_up_tasks", schedule_id=other_schedule_id)
     index_schedule(schedule_id)
@@ -340,7 +406,7 @@ def test_scheduled_tasks_search_returns_the_matching_schedules(
     query = """
     query ScheduleSearch($search: ResourceSearchInput) {
         scheduledTasks(search: $search) {
-            page { id workflowId name trigger }
+            page { id workflowId name trigger subscriptionId subscriptionDescription }
             searchEdges { node { id } matchingFields { path text } }
             searchMetadata { searchType }
             pageInfo { hasNextPage hasPreviousPage totalItems }
@@ -366,6 +432,8 @@ def test_scheduled_tasks_search_returns_the_matching_schedules(
             "workflowId": str(get_workflow_by_name(WORKFLOW_NAME).workflow_id),
             "name": "Resume nightly",
             "trigger": "interval[1:00:00]",
+            "subscriptionId": subscription_id,
+            "subscriptionDescription": "Scheduled maintenance subscription",
         }
     ]
     assert connection["searchEdges"] == [

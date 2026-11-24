@@ -22,7 +22,7 @@ from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.sqlalchemy import Job, SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from more_itertools import partition
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from orchestrator.core.db import db
 from orchestrator.core.db.filters import Filter
@@ -30,8 +30,10 @@ from orchestrator.core.db.filters.filters import CallableErrorHandler
 from orchestrator.core.db.sorting import Sort
 from orchestrator.core.db.sorting.sorting import SortOrder
 from orchestrator.core.schedules.service import get_linker_entries_by_schedule_ids, submit_schedule_index
+from orchestrator.core.services.subscriptions import get_subscription
 from orchestrator.core.settings import app_settings
 from orchestrator.core.utils.helpers import camel_to_snake, to_camel
+from pydantic_forms.types import State
 
 logger = structlog.get_logger(__name__)
 
@@ -147,9 +149,13 @@ class ScheduledTask(BaseModel):
     name: str | None = None
     next_run_time: datetime | None = None
     trigger: str
+    subscription_id: str | None = None
+    subscription_description: str | None = None
+    form_inputs: list[State] = Field(default_factory=list)
 
 
-scheduled_task_keys = set(ScheduledTask.model_fields.keys())
+SCHEDULED_TASK_NON_FILTERABLE_KEYS: set[str] = {"subscription_id", "subscription_description", "form_inputs"}
+scheduled_task_keys = set(ScheduledTask.model_fields.keys()) - SCHEDULED_TASK_NON_FILTERABLE_KEYS
 scheduled_task_filter_keys = sorted(scheduled_task_keys | {to_camel(key) for key in scheduled_task_keys})
 scheduled_task_sort_keys = scheduled_task_filter_keys
 
@@ -230,31 +236,103 @@ def default_error_handler(message: str, **context) -> None:  # type: ignore
     raise ValueError(f"{message} {_format_context(context)}")
 
 
-def enrich_with_workflow_id(
-    scheduled_tasks: list[ScheduledTask],
-    include_decorator_scheduled_tasks: bool = False,
-) -> list[ScheduledTask]:
-    """Adds workflow_id to scheduled tasks via linker table.
+def get_workflow_ids_by_job_id(jobs: list[Job]) -> dict[str, str]:
+    """Return the workflow_id the linker table records for each of the jobs, keyed by job id.
 
-    If include_decorator_scheduled_tasks is False, tasks without a workflow_id in the linker table
-    are excluded from the result.
+    Jobs without an entry, such as those created by the scheduler decorator, are left out: they are not API managed.
     """
-    schedule_ids = [task.id for task in scheduled_tasks]
-
-    entries = {
-        str(entry.schedule_id): str(entry.workflow_id) for entry in get_linker_entries_by_schedule_ids(schedule_ids)
+    return {
+        str(entry.schedule_id): str(entry.workflow_id)
+        for entry in get_linker_entries_by_schedule_ids([job.id for job in jobs])
     }
 
-    return [
-        ScheduledTask(
-            id=task.id,
-            workflow_id=workflow_id,
-            name=task.name,
-            next_run_time=task.next_run_time,
-            trigger=str(task.trigger),
+
+def scheduled_task_inputs(job: Any) -> tuple[str | None, list[State]]:
+    """Derive the subscription and form inputs a scheduled job will run with.
+
+    The inputs live in the job's kwargs, under ``user_inputs``: the same list ``run_start_workflow_scheduler_task``
+    posts as the workflow's form. Jobs added without kwargs (by the decorator) or with inputs of another shape have
+    none.
+
+    Args:
+        job: The APScheduler job, or any object exposing ``kwargs``.
+
+    Returns:
+        The ``subscription_id`` of the first input when it is a non-empty string, and the input states.
+    """
+    user_inputs = (getattr(job, "kwargs", None) or {}).get("user_inputs")
+    if not isinstance(user_inputs, list):
+        return None, []
+    inputs = [item for item in user_inputs if isinstance(item, dict)]
+    subscription_id = inputs[0].get("subscription_id") if inputs else None
+    return (subscription_id if isinstance(subscription_id, str) and subscription_id else None), inputs
+
+
+def get_subscription_description(subscription_id: str | None) -> str | None:
+    """Return the description of a subscription, or None when there is no id or no such subscription.
+
+    A deleted or malformed subscription id is logged rather than raised: the schedule that runs with it is still worth
+    reporting. Failures to read the database are not caught.
+    """
+    if not subscription_id:
+        return None
+    try:
+        return get_subscription(subscription_id).description
+    except ValueError as e:
+        logger.warning(
+            "Could not look up the description of a schedule's subscription",
+            subscription_id=subscription_id,
+            error=str(e),
         )
-        for task in scheduled_tasks
-        if (workflow_id := entries.get(task.id)) is not None or include_decorator_scheduled_tasks
+        return None
+
+
+def scheduled_task_from_job(task: Any, workflow_id: str | None) -> ScheduledTask:
+    """Build the GraphQL-facing task for an APScheduler job, including the inputs it will run with.
+
+    This looks up the description of the task's subscription, so build tasks only for the jobs that are reported.
+
+    Args:
+        task: The APScheduler job, or any object exposing ``id``, ``name``, ``next_run_time``, ``trigger`` and
+            optionally ``kwargs``.
+        workflow_id: The workflow the linker table records for the job, or None when it records none.
+
+    Returns:
+        The task as the query reports it.
+    """
+    subscription_id, form_inputs = scheduled_task_inputs(task)
+    return ScheduledTask(
+        id=task.id,
+        workflow_id=workflow_id,
+        name=task.name,
+        next_run_time=task.next_run_time,
+        trigger=str(task.trigger),
+        subscription_id=subscription_id,
+        subscription_description=get_subscription_description(subscription_id),
+        form_inputs=form_inputs,
+    )
+
+
+def scheduled_tasks_from_jobs(
+    jobs: list[Job],
+    include_decorator_scheduled_tasks: bool = False,
+) -> list[ScheduledTask]:
+    """Build the GraphQL-facing tasks for APScheduler jobs, adding each one's workflow_id from the linker table.
+
+    Args:
+        jobs: The APScheduler jobs to build tasks for.
+        include_decorator_scheduled_tasks: Whether to keep jobs without a workflow_id in the linker table. When False,
+            those jobs are excluded from the result.
+
+    Returns:
+        The tasks of the jobs that have a workflow_id, or of all jobs when decorator tasks are included.
+    """
+    workflow_ids = get_workflow_ids_by_job_id(jobs)
+
+    return [
+        scheduled_task_from_job(job, workflow_ids.get(job.id))
+        for job in jobs
+        if job.id in workflow_ids or include_decorator_scheduled_tasks
     ]
 
 
@@ -268,18 +346,11 @@ def get_scheduler_tasks(
     scheduled_tasks = get_all_scheduler_tasks()
     scheduled_tasks = filter_scheduled_tasks(scheduled_tasks, error_handler, filter_by)
     scheduled_tasks = sort_scheduled_tasks(scheduled_tasks, error_handler, sort_by)
-    scheduled_tasks = enrich_with_workflow_id(scheduled_tasks)
 
-    total = len(scheduled_tasks)
-    paginated_tasks = scheduled_tasks[after : after + first + 1]
+    workflow_ids = get_workflow_ids_by_job_id(scheduled_tasks)
+    api_managed_jobs = [job for job in scheduled_tasks if job.id in workflow_ids]
+    total = len(api_managed_jobs)
+    # One job more than the page, to tell whether a next page follows.
+    page_jobs = api_managed_jobs[after : after + first + 1]
 
-    return [
-        ScheduledTask(
-            id=task.id,
-            workflow_id=task.workflow_id,
-            name=task.name,
-            next_run_time=task.next_run_time,
-            trigger=str(task.trigger),
-        )
-        for task in paginated_tasks
-    ], total
+    return [scheduled_task_from_job(job, workflow_ids[job.id]) for job in page_jobs], total

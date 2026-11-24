@@ -33,9 +33,18 @@ from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from structlog.testing import capture_logs
 
-from orchestrator.core.schedules.scheduler import index_submitted_schedule, job_defaults, log_missed_job
+from orchestrator.core.schedules.scheduler import (
+    get_scheduler_tasks,
+    get_subscription_description,
+    index_submitted_schedule,
+    job_defaults,
+    log_missed_job,
+    scheduled_task_inputs,
+    scheduled_tasks_from_jobs,
+)
 from orchestrator.core.schedules.service import _add_scheduled_task, _delete_scheduled_task, _update_scheduled_task
 from orchestrator.core.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
+from orchestrator.core.utils.errors import DBInternalError
 
 JOB_COUNT = 25
 # Roughly the time start_process takes; with one thread, JOB_COUNT jobs take ~2.5s, far beyond the 1s default grace.
@@ -273,3 +282,164 @@ def test_jobs_missed_with_default_grace_time_are_reported(known_workflow):
     assert missed, "with a single thread and the 1s default grace time some jobs should be missed"
     assert len(executed) + len(missed) == JOB_COUNT
     assert sorted(log["schedule_id"] for log in error_logs) == sorted(missed)
+
+
+def _job(kwargs=None):
+    return SimpleNamespace(id="job-1", name="Job", trigger="interval(hours=1)", kwargs=kwargs)
+
+
+@pytest.mark.parametrize(
+    "job,expected",
+    [
+        pytest.param(_job(None), (None, []), id="no-kwargs"),
+        pytest.param(_job({}), (None, []), id="no-user-inputs"),
+        pytest.param(_job({"workflow_name": "wf"}), (None, []), id="only-workflow-name"),
+        pytest.param(_job({"user_inputs": {}}), (None, []), id="user-inputs-not-a-list"),
+        pytest.param(_job({"user_inputs": []}), (None, []), id="empty-user-inputs"),
+        pytest.param(_job({"user_inputs": [{"a": 1}]}), (None, [{"a": 1}]), id="input-without-subscription"),
+        pytest.param(
+            _job({"user_inputs": [{"subscription_id": "abc", "a": 1}, {"b": 2}]}),
+            ("abc", [{"subscription_id": "abc", "a": 1}, {"b": 2}]),
+            id="with-subscription",
+        ),
+        pytest.param(
+            _job({"user_inputs": [{"subscription_id": ""}]}), (None, [{"subscription_id": ""}]), id="empty-subscription"
+        ),
+        pytest.param(
+            _job({"user_inputs": [{"subscription_id": 5}]}), (None, [{"subscription_id": 5}]), id="non-str-subscription"
+        ),
+    ],
+)
+def test_scheduled_task_inputs(job, expected):
+    assert scheduled_task_inputs(job) == expected
+
+
+def test_scheduled_task_inputs_on_object_without_kwargs_attribute():
+    assert scheduled_task_inputs(SimpleNamespace(id="job-1")) == (None, [])
+
+
+def test_scheduled_tasks_from_jobs_populates_inputs():
+    mock_linker = mock.patch(
+        "orchestrator.core.schedules.scheduler.get_linker_entries_by_schedule_ids",
+        return_value=[SimpleNamespace(schedule_id="job-1", workflow_id=uuid4())],
+    )
+    job = SimpleNamespace(
+        id="job-1",
+        name="Job",
+        trigger="interval(hours=1)",
+        next_run_time=None,
+        kwargs={"workflow_name": "wf", "user_inputs": [{"subscription_id": "abc"}]},
+    )
+
+    with mock_linker:
+        (task,) = scheduled_tasks_from_jobs([job])
+
+    assert task.subscription_id == "abc"
+    assert task.form_inputs == [{"subscription_id": "abc"}]
+
+
+@mock.patch("orchestrator.core.schedules.scheduler.get_subscription")
+def test_get_subscription_description_of_an_unknown_subscription_is_none_and_logged(mock_get_subscription):
+    mock_get_subscription.side_effect = ValueError("Subscription with sub-1 does not exist in the database")
+
+    with capture_logs() as logs:
+        assert get_subscription_description("sub-1") is None
+
+    (warning,) = [log for log in logs if log["log_level"] == "warning"]
+    assert warning["subscription_id"] == "sub-1"
+
+
+@mock.patch("orchestrator.core.schedules.scheduler.get_subscription")
+def test_get_subscription_description_does_not_hide_database_failures(mock_get_subscription):
+    mock_get_subscription.side_effect = DBInternalError("Database error while looking up subscription")
+
+    with pytest.raises(DBInternalError):
+        get_subscription_description("sub-1")
+
+
+@mock.patch("orchestrator.core.schedules.scheduler.get_all_scheduler_tasks")
+@mock.patch("orchestrator.core.schedules.scheduler.get_linker_entries_by_schedule_ids")
+def test_get_scheduler_tasks_only_builds_the_tasks_of_the_page(mock_linker, mock_all):
+    """Describing a task costs a query, so tasks are built after paging: the page plus the one deciding hasNextPage."""
+    mock_all.return_value = [_job_with_inputs(f"job-{index}", f"sub-{index}") for index in range(5)]
+    mock_linker.return_value = [SimpleNamespace(schedule_id=f"job-{index}", workflow_id=uuid4()) for index in range(5)]
+    get_subscription = mock.Mock(side_effect=lambda subscription_id: SimpleNamespace(description=subscription_id))
+
+    with mock.patch("orchestrator.core.schedules.scheduler.get_subscription", get_subscription):
+        tasks, total = get_scheduler_tasks(first=2, after=1)
+
+    assert total == 5
+    assert [(task.id, task.subscription_description) for task in tasks] == [
+        ("job-1", "sub-1"),
+        ("job-2", "sub-2"),
+        ("job-3", "sub-3"),
+    ]
+    assert [call.args for call in get_subscription.call_args_list] == [("sub-1",), ("sub-2",), ("sub-3",)]
+
+
+@mock.patch("orchestrator.core.schedules.scheduler.get_linker_entries_by_schedule_ids")
+def test_scheduled_tasks_from_jobs_keeps_decorator_jobs_when_included(mock_linker):
+    mock_linker.return_value = [SimpleNamespace(schedule_id="job-1", workflow_id="wf-id")]
+    jobs = [_job_with_inputs("job-1"), _job_with_inputs("decorator")]
+
+    tasks = scheduled_tasks_from_jobs(jobs, include_decorator_scheduled_tasks=True)
+
+    assert [(task.id, task.workflow_id) for task in tasks] == [("job-1", "wf-id"), ("decorator", None)]
+
+
+def _job_with_inputs(job_id, subscription_id=None):
+    user_inputs = [{"subscription_id": subscription_id}] if subscription_id else []
+    return SimpleNamespace(
+        id=job_id,
+        name=job_id.title(),
+        trigger="interval(hours=1)",
+        next_run_time=None,
+        kwargs={"workflow_name": "wf", "user_inputs": user_inputs},
+    )
+
+
+@mock.patch("orchestrator.core.schedules.scheduler.get_linker_entries_by_schedule_ids")
+@mock.patch("orchestrator.core.schedules.scheduler.get_all_scheduler_tasks")
+def test_get_scheduler_tasks_returns_api_managed_tasks_with_their_inputs(mock_all, mock_linker):
+    """Decorator-only jobs are left out of both the page and the total, and the page keeps its linker workflow_id."""
+    workflow_ids = {job_id: uuid4() for job_id in ("job-1", "job-2", "job-3")}
+    mock_all.return_value = [
+        _job_with_inputs("job-1", "sub-1"),
+        _job_with_inputs("decorator-only"),
+        _job_with_inputs("job-2"),
+        _job_with_inputs("job-3", "sub-3"),
+    ]
+    mock_linker.return_value = [
+        SimpleNamespace(schedule_id=job_id, workflow_id=workflow_id) for job_id, workflow_id in workflow_ids.items()
+    ]
+
+    tasks, total = get_scheduler_tasks(first=2)
+
+    assert total == 3
+    assert [task.id for task in tasks] == ["job-1", "job-2", "job-3"]
+    assert [task.workflow_id for task in tasks] == [str(workflow_ids[job_id]) for job_id in ("job-1", "job-2", "job-3")]
+    assert [task.subscription_id for task in tasks] == ["sub-1", None, "sub-3"]
+
+
+@mock.patch("orchestrator.core.schedules.scheduler.get_linker_entries_by_schedule_ids")
+@mock.patch("orchestrator.core.schedules.scheduler.get_all_scheduler_tasks")
+def test_get_scheduler_tasks_reads_the_linker_table_once(mock_all, mock_linker):
+    """The page is built from the linker rows already read, so a page fetch costs one query."""
+    mock_all.return_value = [_job_with_inputs("job-1"), _job_with_inputs("job-2")]
+    mock_linker.return_value = [SimpleNamespace(schedule_id="job-1", workflow_id=uuid4())]
+
+    get_scheduler_tasks()
+
+    mock_linker.assert_called_once()
+
+
+@mock.patch("orchestrator.core.schedules.scheduler.get_linker_entries_by_schedule_ids")
+@mock.patch("orchestrator.core.schedules.scheduler.get_all_scheduler_tasks")
+def test_get_scheduler_tasks_paginates_the_api_managed_tasks(mock_all, mock_linker):
+    mock_all.return_value = [_job_with_inputs(f"job-{index}") for index in range(5)]
+    mock_linker.return_value = [SimpleNamespace(schedule_id=f"job-{index}", workflow_id=uuid4()) for index in range(5)]
+
+    task_ids, total = get_scheduler_tasks(first=2, after=2)
+
+    assert total == 5
+    assert [task.id for task in task_ids] == ["job-2", "job-3", "job-4"]

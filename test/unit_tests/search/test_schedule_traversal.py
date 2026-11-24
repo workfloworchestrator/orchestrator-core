@@ -29,6 +29,7 @@ from orchestrator.core.targets import Target
 pytestmark = pytest.mark.search
 
 _SCHEDULE_ID = "990e8400-e29b-41d4-a716-446655440000"
+_SUBSCRIPTION_ID = "880e8400-e29b-41d4-a716-446655440000"
 _WORKFLOW_ID = UUID("770e8400-e29b-41d4-a716-446655440000")
 _NEXT_RUN_TIME = datetime(2026, 11, 12, 1, 0, tzinfo=UTC)
 
@@ -42,6 +43,8 @@ _EXPECTED_FIELDS = {
     "schedule.workflow_description": ("Validate products", FieldType.STRING),
     "schedule.workflow_target": ("SYSTEM", FieldType.STRING),
     "schedule.is_task": ("True", FieldType.BOOLEAN),
+    "schedule.subscription_id": (_SUBSCRIPTION_ID, FieldType.UUID),
+    "schedule.subscription_description": ("My subscription", FieldType.STRING),
 }
 
 
@@ -57,13 +60,28 @@ def _schedule() -> WorkflowApschedulerJob:
 
 
 def _job(**overrides):
-    job = {"name": "Nightly validation", "trigger": "cron[hour='1']", "next_run_time": _NEXT_RUN_TIME}
+    job = {
+        "name": "Nightly validation",
+        "trigger": "cron[hour='1']",
+        "next_run_time": _NEXT_RUN_TIME,
+        "kwargs": {"workflow_name": "task_validate_products", "user_inputs": [{"subscription_id": _SUBSCRIPTION_ID}]},
+    }
     return SimpleNamespace(**(job | overrides))
+
+
+def _get_subscription(subscription_id):
+    """Like the real lookup: only a known subscription has a description, anything else is a ValueError."""
+    if subscription_id != _SUBSCRIPTION_ID:
+        raise ValueError(f"Invalid subscription id: {subscription_id}")
+    return SimpleNamespace(description="My subscription")
 
 
 def _get_fields(job):
     config = ENTITY_CONFIG_REGISTRY[EntityType.SCHEDULE]
-    with patch("orchestrator.core.schedules.scheduler.get_scheduler_task", return_value=job) as mock_get_job:
+    with (
+        patch("orchestrator.core.schedules.scheduler.get_scheduler_task", return_value=job) as mock_get_job,
+        patch("orchestrator.core.schedules.scheduler.get_subscription", side_effect=_get_subscription),
+    ):
         fields = config.traverser.get_fields(entity=_schedule(), pk_name=config.pk_name, root_name=config.root_name)
     mock_get_job.assert_called_once_with(_SCHEDULE_ID)
     return {field.path: (field.value, field.value_type) for field in fields}
@@ -71,6 +89,24 @@ def _get_fields(job):
 
 def test_traverse_schedule_combines_workflow_and_job():
     assert _get_fields(_job()) == _EXPECTED_FIELDS
+
+
+_NO_SUBSCRIPTION_FIELDS = ("schedule.subscription_id", "schedule.subscription_description")
+
+
+@pytest.mark.parametrize(
+    "user_inputs",
+    [
+        pytest.param([], id="no-inputs"),
+        pytest.param([{"note": "no subscription"}], id="no-subscription"),
+        pytest.param([{"subscription_id": "not-a-uuid"}], id="malformed-subscription-id"),
+    ],
+)
+def test_traverse_schedule_without_a_usable_subscription_indexes_no_subscription_fields(user_inputs):
+    """Job inputs are free-form: a missing or malformed subscription id is not indexed, and does not fail indexing."""
+    fields = _get_fields(_job(kwargs={"user_inputs": user_inputs}))
+
+    assert fields == {path: field for path, field in _EXPECTED_FIELDS.items() if path not in _NO_SUBSCRIPTION_FIELDS}
 
 
 @pytest.mark.parametrize(
