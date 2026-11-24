@@ -13,7 +13,7 @@
 
 """Tests for websocket module init: WrappedWebSocketManager (enabled/disabled delegation, raising when unconfigured), broadcast helpers, and sync wrappers."""
 
-from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
+from unittest.mock import AsyncMock, MagicMock, call, create_autospec, patch
 from uuid import uuid4
 
 import pytest
@@ -26,6 +26,8 @@ from orchestrator.core.websocket import (
     broadcast_invalidate_status_counts_async,
     broadcast_process_update_to_websocket,
     broadcast_process_update_to_websocket_async,
+    broadcast_schedule_update_to_websocket,
+    broadcast_schedule_update_to_websocket_async,
     empty_fn,
     init_websocket_manager,
     invalidate_subscription_cache,
@@ -263,6 +265,42 @@ async def test_broadcast_process_update_async(enabled: bool, expected_call_count
         assert mock_wsm.broadcast_data.await_count == expected_call_count
 
 
+@pytest.mark.parametrize(
+    "schedule_id,expected_cache_objects",
+    [
+        pytest.param(
+            "schedule-1",
+            [{"type": "schedules", "id": "LIST"}, {"type": "schedules", "id": "schedule-1"}],
+            id="with-id",
+        ),
+        pytest.param(None, [{"type": "schedules", "id": "LIST"}], id="without-id"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_broadcast_schedule_update_async(schedule_id, expected_cache_objects):
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
+        mock_wsm.enabled = True
+        mock_wsm.broadcast_data = AsyncMock()
+
+        await broadcast_schedule_update_to_websocket_async(schedule_id)
+
+        assert mock_wsm.broadcast_data.await_args_list == [
+            call([WS_CHANNELS.EVENTS], {"name": "invalidateCache", "value": cache_object})
+            for cache_object in expected_cache_objects
+        ]
+
+
+@pytest.mark.asyncio
+async def test_broadcast_schedule_update_async_disabled():
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
+        mock_wsm.enabled = False
+        mock_wsm.broadcast_data = AsyncMock()
+
+        await broadcast_schedule_update_to_websocket_async("schedule-1")
+
+        mock_wsm.broadcast_data.assert_not_awaited()
+
+
 # --- sync wrappers ---
 
 
@@ -278,3 +316,30 @@ def test_sync_invalidate_subscription_cache(mock_anyio):
     sub_id = uuid4()
     sync_invalidate_subscription_cache(sub_id, True)
     mock_anyio.run.assert_called_once_with(invalidate_subscription_cache, sub_id, True)
+
+
+@pytest.mark.parametrize(
+    "schedule_id",
+    [
+        pytest.param("schedule-1", id="with-id"),
+        pytest.param(None, id="without-id"),
+    ],
+)
+@patch("orchestrator.core.websocket.anyio")
+def test_sync_broadcast_schedule_update(mock_anyio, schedule_id):
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
+        mock_wsm.enabled = True
+
+        broadcast_schedule_update_to_websocket(schedule_id)
+
+        mock_anyio.run.assert_called_once_with(broadcast_schedule_update_to_websocket_async, schedule_id)
+
+
+@patch("orchestrator.core.websocket.anyio")
+def test_sync_broadcast_schedule_update_disabled(mock_anyio):
+    with patch("orchestrator.core.websocket.websocket_manager") as mock_wsm:
+        mock_wsm.enabled = False
+
+        broadcast_schedule_update_to_websocket("schedule-1")
+
+        mock_anyio.run.assert_not_called()

@@ -32,6 +32,7 @@ from orchestrator.core.schedules.service import (
 )
 from orchestrator.core.settings import app_settings
 from orchestrator.core.utils.redis_client import create_redis_client
+from orchestrator.core.websocket import init_websocket_manager
 
 app: typer.Typer = typer.Typer()
 
@@ -91,6 +92,9 @@ def run() -> None:
             time.sleep(1)
 
         return None
+
+    # Schedule changes are broadcast from this process, so the WebSocketManager must be configured here too.
+    init_websocket_manager(app_settings)
 
     with get_scheduler() as scheduler_connection:
         redis_connection = create_redis_client(app_settings.CACHE_URI.get_secret_value())

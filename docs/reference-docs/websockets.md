@@ -88,6 +88,8 @@ Where `name` and `value` are one of the following combinations:
 | `"invalidateCache"`  | `{"type": "processes", "id": "<process UUID>"}`           | A process was started, updated or finished [1]        |
 | `"invalidateCache"`  | `{"type": "subscriptions", "id": "LIST"} `                | A subscription was created, updated or terminated [1] |
 | `"invalidateCache"`  | `{"type": "subscriptions", "id": "<subscription UUID>"} ` | A subscription was created, updated or terminated [1] |
+| `"invalidateCache"`  | `{"type": "schedules", "id": "LIST"} `                    | A schedule was created, updated or deleted [1]        |
+| `"invalidateCache"`  | `{"type": "schedules", "id": "<schedule UUID>"} `         | A schedule was created, updated or deleted [1]        |
 | `"invalidateCache"`  | `{"type": "processStatusCounts"} `                        | A process transitioned to/from a failed state [2]     |
 | `"invalidateCache"`  | `{"type": "engineStatus"} `                               | The workflow engine has been enabled or disabled      |
 

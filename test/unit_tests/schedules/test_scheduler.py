@@ -29,8 +29,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from structlog.testing import capture_logs
 
 from orchestrator.core.schedules.scheduler import job_defaults, log_missed_job
-from orchestrator.core.schedules.service import _add_scheduled_task, _update_scheduled_task
-from orchestrator.core.schemas.schedules import APSchedulerJobCreate, APSchedulerJobUpdate
+from orchestrator.core.schedules.service import _add_scheduled_task, _delete_scheduled_task, _update_scheduled_task
+from orchestrator.core.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
 
 JOB_COUNT = 25
 # Roughly the time start_process takes; with one thread, JOB_COUNT jobs take ~2.5s, far beyond the 1s default grace.
@@ -96,6 +96,40 @@ def test_update_scheduled_task_modifies_only_set_job_options(options, expected):
 
     job.reschedule.assert_not_called()
     job.modify.assert_called_once_with(**expected)
+
+
+def test_add_scheduled_task_broadcasts_the_new_schedule(known_workflow):
+    scheduler_connection = mock.Mock()
+
+    with mock.patch("orchestrator.core.schedules.service.broadcast_schedule_update_to_websocket") as broadcast:
+        _add_scheduled_task(create_payload(), scheduler_connection)
+
+    schedule_id = scheduler_connection.add_job.call_args.kwargs["id"]
+    broadcast.assert_called_once_with(schedule_id)
+
+
+def test_update_scheduled_task_broadcasts_the_schedule():
+    schedule_id = uuid4()
+    scheduler_connection = mock.Mock(get_job=mock.Mock(return_value=mock.Mock()))
+
+    with mock.patch("orchestrator.core.schedules.service.broadcast_schedule_update_to_websocket") as broadcast:
+        _update_scheduled_task(APSchedulerJobUpdate(schedule_id=schedule_id), scheduler_connection)
+
+    broadcast.assert_called_once_with(str(schedule_id))
+
+
+def test_delete_scheduled_task_broadcasts_the_schedule():
+    schedule_id = uuid4()
+    payload = APSchedulerJobDelete(workflow_id=uuid4(), schedule_id=schedule_id)
+    scheduler_connection = mock.Mock()
+
+    with (
+        mock.patch("orchestrator.core.schedules.service._delete_linker_entry"),
+        mock.patch("orchestrator.core.schedules.service.broadcast_schedule_update_to_websocket") as broadcast,
+    ):
+        _delete_scheduled_task(payload, scheduler_connection)
+
+    broadcast.assert_called_once_with(str(schedule_id))
 
 
 def test_job_options_are_applied_to_the_apscheduler_job(known_workflow):
