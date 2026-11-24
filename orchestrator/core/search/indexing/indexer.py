@@ -284,8 +284,12 @@ class Indexer:
 
                 if item_tokens > max_ctx:
                     self.logger.warning(
-                        "Field exceeds context; skipping.", path=field.path, tokens=item_tokens, max_ctx=max_ctx
+                        "Field exceeds context; indexing without embedding.",
+                        path=field.path,
+                        tokens=item_tokens,
+                        max_ctx=max_ctx,
                     )
+                    non_embeddable_records.append(self._make_indexable_record(field, entity_id, embedding=None))
                     continue
 
                 should_flush = embeddable_buffer and (

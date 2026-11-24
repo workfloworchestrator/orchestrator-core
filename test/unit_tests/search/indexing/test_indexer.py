@@ -558,7 +558,7 @@ def test_upsert_max_batch_size_triggers_flush(indexer: Indexer) -> None:
     assert len(batches) == 2
 
 
-def test_upsert_field_exceeds_max_context_is_skipped(indexer: Indexer) -> None:
+def test_upsert_field_exceeds_max_context_is_indexed_without_embedding(indexer: Indexer) -> None:
     field = _embeddable_field("root.huge", "lots of text")
     fields = [(ENTITY_ID, field)]
 
@@ -566,12 +566,23 @@ def test_upsert_field_exceeds_max_context_is_skipped(indexer: Indexer) -> None:
         patch("orchestrator.core.search.indexing.indexer.llm_settings") as mock_llm,
         patch("litellm.utils.get_max_tokens", return_value=100),
         patch("litellm.utils.encode", return_value=[1] * 200),  # > max_ctx=100
+        patch.object(indexer.logger, "warning") as warning,
+        patch(
+            "orchestrator.core.search.core.embedding.EmbeddingIndexer.get_embeddings_from_api_batch"
+        ) as get_embeddings,
     ):
         mock_llm.EMBEDDING_SAFE_MARGIN_PERCENT = 0.0
         mock_llm.EMBEDDING_MAX_BATCH_SIZE = None
         batches = list(indexer._generate_upsert_batches(fields))
 
-    assert batches == []
+    assert len(batches) == 1
+    assert len(batches[0]) == 1
+    assert batches[0][0]["value"] == field.value
+    assert batches[0][0]["embedding"] is None
+    get_embeddings.assert_not_called()
+    warning.assert_called_once_with(
+        "Field exceeds context; indexing without embedding.", path="root.huge", tokens=200, max_ctx=100
+    )
 
 
 def test_upsert_tokenization_failure_skips_field(indexer: Indexer) -> None:
