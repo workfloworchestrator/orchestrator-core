@@ -129,7 +129,7 @@ class JsonTestClient(TestClient):
 
     # Typed as Any: starlette's TestClient builds on httpx2 when installed and falls back to httpx, so neither
     # library's types can be named here.
-    def request(  # type: ignore[override]
+    def request(
         self,
         method: str,
         url: Any,
