@@ -16,7 +16,6 @@ import os
 from shutil import copyfile
 from typing import Annotated
 
-# PEP 810: deferred on Python 3.15+; silently ignored on <3.15.
 __lazy_modules__ = [
     "jinja2",
     "alembic",

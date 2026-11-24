@@ -13,7 +13,7 @@
 
 from typing import cast
 
-# PEP 810: deferred on Python 3.15+; silently ignored on <3.15.
+
 __lazy_modules__ = [
     "sqlalchemy",
     "sqlalchemy.engine",

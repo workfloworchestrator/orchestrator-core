@@ -16,7 +16,7 @@ import operator
 from collections.abc import Iterable
 from typing import TypeVar
 
-# PEP 810: deferred on Python 3.15+; silently ignored on <3.15.
+
 __lazy_modules__ = [
     "tabulate",
     "orchestrator.core.workflows",

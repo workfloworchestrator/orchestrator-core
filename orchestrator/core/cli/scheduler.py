@@ -15,7 +15,7 @@ import time
 from collections.abc import Iterator
 from typing import Any
 
-# PEP 810: deferred on Python 3.15+; silently ignored on <3.15.
+
 __lazy_modules__ = [
     "apscheduler.job",
     "redis",
