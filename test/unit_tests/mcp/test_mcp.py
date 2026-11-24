@@ -29,15 +29,16 @@ These tests verify that:
 from __future__ import annotations
 
 import json
+from collections.abc import MutableMapping
 from http import HTTPStatus
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from pydantic import ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.core.api.api_v1.endpoints import (
     mcp_tools,
@@ -563,3 +564,75 @@ async def test_list_workflows_takes_a_call_without_arguments(app_with_agent_rout
             await client.call_tool("list_workflows", {})
     listed.assert_awaited_once()
     assert listed.await_args is not None and listed.await_args.kwargs["filters"] is None
+
+
+class _LoggedParams(BaseModel):
+    group_by: list[str]
+
+
+def _app_with_failing_tool(status: HTTPStatus) -> FastAPI:
+    """An app whose single agent tool fails with ``status``, as core's validators do (detail = the reason)."""
+    app = FastAPI()
+
+    @app.post("/api/agent/aggregate", tags=[AGENT_EXPOSED_TAG], operation_id="aggregate")
+    async def aggregate(params: _LoggedParams) -> dict:
+        if status != HTTPStatus.OK:
+            raise HTTPException(status_code=status, detail=f"Path '{params.group_by[0]}' not found in database")
+        return {"results": []}
+
+    return app
+
+
+async def _call_and_capture(status: HTTPStatus, arguments: dict | None = None) -> list[MutableMapping[str, Any]]:
+    from fastmcp import Client
+    from structlog.testing import capture_logs
+
+    from orchestrator.core.mcp.server import build_mcp
+
+    with capture_logs() as logs:
+        async with Client(build_mcp(_app_with_failing_tool(status))) as client:
+            await client.call_tool(
+                "aggregate", arguments or {"group_by": ["subscription.port.node.node_type"]}, raise_on_error=False
+            )
+    return [entry for entry in logs if entry["event"] == "MCP tool call failed"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status",
+    [
+        pytest.param(HTTPStatus.UNPROCESSABLE_ENTITY, id="422"),
+        pytest.param(HTTPStatus.NOT_FOUND, id="404"),
+        pytest.param(HTTPStatus.INTERNAL_SERVER_ERROR, id="500"),
+    ],
+)
+async def test_a_failed_tool_call_logs_why(status: HTTPStatus) -> None:
+    pytest.importorskip("fastmcp")
+    (entry,) = await _call_and_capture(status, {"group_by": ["subscription.port.node.node_type"]})
+    assert entry["log_level"] == "warning"
+    assert (entry["tool"], entry["status_code"]) == ("/api/agent/aggregate", status.value)
+    assert entry["detail"] == "Path 'subscription.port.node.node_type' not found in database"
+    assert "arguments" not in entry  # request bodies can carry form input; the detail says why
+
+
+@pytest.mark.asyncio
+async def test_a_validation_error_is_logged_without_the_rejected_values() -> None:
+    pytest.importorskip("fastmcp")
+    rejected_value = "customer-contact@example.org"
+    (entry,) = await _call_and_capture(HTTPStatus.OK, {"group_by": [rejected_value, {"nested": rejected_value}]})
+    assert entry["status_code"] == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert rejected_value not in str(entry)
+    assert [(error["loc"], error["type"]) for error in entry["detail"]] == [(["body", "group_by", 1], "string_type")]
+
+
+@pytest.mark.asyncio
+async def test_a_long_error_detail_is_truncated() -> None:
+    pytest.importorskip("fastmcp")
+    (entry,) = await _call_and_capture(HTTPStatus.BAD_REQUEST, {"group_by": ["x" * 5000]})
+    assert len(entry["detail"]) <= 2000
+
+
+@pytest.mark.asyncio
+async def test_a_successful_tool_call_logs_nothing() -> None:
+    pytest.importorskip("fastmcp")
+    assert await _call_and_capture(HTTPStatus.OK) == []
