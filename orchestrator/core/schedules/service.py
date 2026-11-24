@@ -13,6 +13,7 @@
 import json
 from collections import Counter
 from collections.abc import Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -33,8 +34,11 @@ from orchestrator.core.schemas.schedules import (
     APSJobAdapter,
     build_trigger,
 )
+from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.indexing import run_indexing_for_entity
 from orchestrator.core.services.processes import start_process
 from orchestrator.core.services.workflows import get_workflow_by_name, get_workflow_by_workflow_id
+from orchestrator.core.settings import llm_settings
 from orchestrator.core.utils.errors import StartPredicateError
 from orchestrator.core.utils.redis_client import create_redis_asyncio_client, create_redis_client
 from orchestrator.core.websocket import broadcast_schedule_update_to_websocket
@@ -252,6 +256,62 @@ def _delete_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
     db.session.commit()
 
 
+def index_schedule(schedule_id: str) -> None:
+    """Bring the search index in line with one schedule.
+
+    Indexing a schedule that no longer exists removes it from the index. A schedule exists as long as it has
+    a linker entry; that entry disappears on delete and, through its foreign key, when APScheduler removes a
+    job that has no run times left.
+
+    Args:
+        schedule_id: The APScheduler job id.
+
+    Raises:
+        Exception: Only when `llm_settings.SEARCH_INDEXING_STRICT` is True. Otherwise failures are logged
+            and swallowed, so the search index never blocks scheduling.
+    """
+    try:
+        run_indexing_for_entity(EntityType.SCHEDULE, schedule_id)
+    except Exception as ex:
+        if llm_settings.SEARCH_INDEXING_STRICT:
+            raise
+        logger.warning("Failed to index schedule", schedule_id=schedule_id, error=str(ex))
+
+
+# One worker, so index updates run one at a time and in the order they were submitted.
+_schedule_index_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="schedule-index")
+
+
+def _index_schedule_in_background(schedule_id: str) -> None:
+    """Index one schedule on the index worker thread, which needs a database scope of its own."""
+    try:
+        with db.database_scope():
+            index_schedule(schedule_id)
+    except Exception:
+        logger.exception("Failed to index schedule in the background", schedule_id=schedule_id)
+        raise
+
+
+def submit_schedule_index(schedule_id: str) -> Future[None]:
+    """Queue a search index update for one schedule, without waiting for it.
+
+    Indexing can call the embedding API, which may take as long as its timeout. The scheduler thread and the thread
+    that processes schedule changes must not wait for that, or schedules run late and miss their grace time.
+
+    All updates run on one worker thread, in the order they were submitted. An update therefore never overtakes an
+    earlier one for the same schedule: the update that removes a finished schedule can't be undone by an older
+    update that is still writing.
+
+    Args:
+        schedule_id: The APScheduler job id.
+
+    Returns:
+        The pending update. It holds the error when indexing failed with `llm_settings.SEARCH_INDEXING_STRICT` set;
+        the error is logged either way, so the result can be ignored.
+    """
+    return _schedule_index_executor.submit(_index_schedule_in_background, schedule_id)
+
+
 def run_start_workflow_scheduler_task(workflow_name: str, user_inputs: list[State] | None = None) -> None:
     """Function to start a workflow from the scheduler.
 
@@ -315,6 +375,7 @@ def _add_scheduled_task(payload: APSchedulerJobCreate, scheduler_connection: Bas
 
     _add_linker_entry(workflow_id=payload.workflow_id, schedule_id=schedule_id)
     broadcast_schedule_update_to_websocket(schedule_id)
+    submit_schedule_index(schedule_id)
 
 
 def _build_trigger_on_update(trigger_name: str | None, trigger_kwargs: dict) -> BaseTrigger | None:
@@ -354,6 +415,7 @@ def _update_scheduled_task(payload: APSchedulerJobUpdate, scheduler_connection: 
 
     job.modify(**modify_kwargs)
     broadcast_schedule_update_to_websocket(schedule_id)
+    submit_schedule_index(schedule_id)
 
 
 def _delete_scheduled_task(payload: APSchedulerJobDelete, scheduler_connection: BaseScheduler) -> None:
@@ -368,6 +430,7 @@ def _delete_scheduled_task(payload: APSchedulerJobDelete, scheduler_connection: 
     schedule_id = str(payload.schedule_id)
     scheduler_connection.remove_job(job_id=schedule_id)
     _delete_linker_entry(workflow_id=payload.workflow_id, schedule_id=schedule_id)
+    submit_schedule_index(schedule_id)
 
     if payload.schedule_id is not None:
         broadcast_schedule_update_to_websocket(schedule_id)

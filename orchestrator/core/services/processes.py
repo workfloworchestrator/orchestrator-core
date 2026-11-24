@@ -628,6 +628,9 @@ def create_process(
             store_process_subscription_relation(process_id=process_id, subscription_id=subscription_id)
         store_input_state(process_id, state | initial_state, "initial_state")
 
+    # For a create workflow the subscription doesn't exist yet and will be indexed later.
+    index_process_and_subscriptions(process_id, pstat.state)
+
     return pstat
 
 

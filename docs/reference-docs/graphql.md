@@ -1286,10 +1286,11 @@ This can be controlled by setting the variable `FILTER_BY_MODE` can be set to a 
 
 ## Searching list resources
 
-The list resources `subscriptions`, `processes`, `products`, `productBlocks`, `workflows` and `resourceTypes`
-accept a `search` argument that runs the [AI / Hybrid Search](ai-search.md) engine. So do the relation fields
-`subscription.processes`, `subscription.inUseBySubscriptions`, `subscription.dependsOnSubscriptions` and
-`process.subscriptions`. There, the search only returns the related entities.
+The list resources `subscriptions`, `processes`, `products`, `productBlocks`, `workflows`, `resourceTypes` and
+`scheduledTasks` accept a `search` argument that runs the [AI / Hybrid Search](ai-search.md) engine. So do the
+relation fields `subscription.processes`, `subscription.inUseBySubscriptions`,
+`subscription.dependsOnSubscriptions` and `process.subscriptions`. There, the search only returns the related
+entities.
 
 `search` replaces the deprecated `filterBy`, `sortBy` and `query` arguments. Combining them with `search` returns a
 validation error.

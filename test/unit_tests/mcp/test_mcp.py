@@ -29,15 +29,16 @@ These tests verify that:
 from __future__ import annotations
 
 import json
+from collections.abc import MutableMapping
 from http import HTTPStatus
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated, Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from pydantic import ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.core.api.api_v1.endpoints import (
     mcp_tools,
@@ -69,6 +70,7 @@ EXPECTED_TOOL_NAMES = {
     "list_products",  # GET /api/products/
     "list_workflows",
     "get_workflow_form",
+    "get_workflow_form_options",
     "get_subscription_available_workflows",
     "get_process_status",
     "list_recent_processes",
@@ -335,17 +337,21 @@ def _port_form(state):
 _PORT_WORKFLOW = SimpleNamespace(initial_input_form=_port_form, target="CREATE")
 
 
-async def _form_tool(app: FastAPI, arguments: dict) -> dict:
-    """Call ``get_workflow_form`` for the port workflow through fastmcp; the structured result."""
+async def _call_tool(app: FastAPI, tool: str, workflow: SimpleNamespace, arguments: dict) -> dict:
+    """Call a form tool for ``workflow`` through fastmcp; the structured result."""
     from fastmcp import Client
 
     from orchestrator.core.mcp.server import build_mcp
 
-    with patch.object(mcp_tools, "get_workflow", return_value=_PORT_WORKFLOW):
+    with patch.object(mcp_tools, "get_workflow", return_value=workflow):
         async with Client(build_mcp(app)) as client:
-            result = await client.call_tool("get_workflow_form", {"workflow_key": "create_port", **arguments})
+            result = await client.call_tool(tool, {"workflow_key": "create_port", **arguments})
     assert result.structured_content is not None
     return result.structured_content
+
+
+async def _form_tool(app: FastAPI, arguments: dict) -> dict:
+    return await _call_tool(app, "get_workflow_form", _PORT_WORKFLOW, arguments)
 
 
 @pytest.mark.asyncio
@@ -397,6 +403,154 @@ async def test_a_rejected_page_is_an_error_or_a_result_as_asked(app_with_agent_r
     assert rejected["schema"] == first["schema"]  # the page to resubmit, labelled as it was served
 
 
+# --- sourced fields: a short list in the schema, a long one through the options tool ----------------------
+
+_CUSTOMERS = [{"id": f"c-{n:02d}", "name": f"Customer {n:02d}"} for n in range(30)]
+_NODES = {"ams": ["ams-1", "ams-2"], "utr": ["utr-1"]}
+_PORTS = [{"id": f"p-{n:03d}", "name": f"Port {n:03d}"} for n in range(100)]
+
+
+def _first_ports(q: str = "") -> list[dict]:
+    """A route that searches on the server: three rows at a time, of those ``q`` fits."""
+    return [port for port in _PORTS if q in port["name"]][:3]
+
+
+def _one_port(port: str) -> dict:
+    if (found := next((row for row in _PORTS if row["id"] == port), None)) is None:
+        raise HTTPException(status_code=404)
+    return found
+
+
+def _source(url: str, **more: str | dict) -> dict:
+    return {"json_schema_extra": {"optionsSource": {"url": url, **more}}}
+
+
+class _SourcedPage(FormPage):
+    customer: Annotated[str, Field(**_source("/options/customers", value="id", label="name"))]
+    location: Annotated[str, Field(**_source("/options/locations"))]
+    node: Annotated[str | None, Field(**_source("/options/nodes/{code}", dependsOn={"code": "1/location"}))] = None
+    broken: Annotated[str | None, Field(**_source("/options/missing"))] = None
+    port: Annotated[
+        str | None,
+        Field(**_source("/options/ports", search="q", lookup="/options/ports/{value}", value="id", label="name")),
+    ] = None
+    uplink: Annotated[str | None, Field(**_source("/options/ports", search="q", value="id", label="name"))] = None
+
+
+def _sourced_form(state):
+    yield _SourcedPage
+    return state
+
+
+_SOURCED_WORKFLOW = SimpleNamespace(initial_input_form=_sourced_form, target="CREATE")
+
+
+@pytest.fixture
+def app_with_options(app_with_agent_routes: FastAPI) -> FastAPI:
+    """The app with the routes the sourced page's fields point at."""
+    app_with_agent_routes.add_api_route("/options/customers", lambda: _CUSTOMERS)
+    app_with_agent_routes.add_api_route("/options/locations", lambda: list(_NODES))
+    app_with_agent_routes.add_api_route("/options/nodes/{code}", lambda code: _NODES[code])
+    app_with_agent_routes.add_api_route("/options/ports", _first_ports)
+    app_with_agent_routes.add_api_route("/options/ports/{port}", _one_port)
+    return app_with_agent_routes
+
+
+async def _sourced_tool(app: FastAPI, tool: str, arguments: dict) -> dict:
+    return await _call_tool(app, tool, _SOURCED_WORKFLOW, arguments)
+
+
+@pytest.mark.asyncio
+async def test_a_short_sourced_list_is_written_into_the_schema_and_a_long_one_is_left_to_the_tool(
+    app_with_options: FastAPI,
+) -> None:
+    pytest.importorskip("fastmcp")
+    properties = (await _sourced_tool(app_with_options, "get_workflow_form", {}))["schema"]["properties"]
+    assert properties["location"]["enum"] == ["ams", "utr"] and "optionsSource" not in properties["location"]
+    assert properties["location"]["options"] == {"ams": "ams", "utr": "utr"}
+    # too long, waiting for the location, unreadable, and searched on the server: each keeps its source
+    kept = ("customer", "node", "broken", "port", "uplink")
+    assert all("optionsSource" in json.dumps(properties[name]) for name in kept)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "arguments,values,total",
+    [
+        ({"field": "customer", "search": "customer 07"}, [f"c-{n:02d}" for n in range(30)], 30),  # fits: whole
+        ({"field": "customer", "search": "c-1", "limit": 5}, [f"c-{n}" for n in range(10, 15)], 10),
+        ({"field": "customer", "limit": 2}, ["c-00", "c-01"], 30),
+        ({"field": "node", "page_values": {"location": "ams"}}, ["ams-1", "ams-2"], 2),
+        ({"field": "port", "search": "077"}, ["p-077"], 1),  # searched by the source's own route
+    ],
+)
+async def test_the_options_tool_finds_a_sourced_fields_options(
+    app_with_options: FastAPI, arguments: dict, values: list[str], total: int
+) -> None:
+    pytest.importorskip("fastmcp")
+    found = await _sourced_tool(app_with_options, "get_workflow_form_options", arguments)
+    assert ([option["value"] for option in found["options"]], found["total"]) == (values, total)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "arguments,status,said",
+    [
+        ({"field": "node"}, "400", "depend on code"),
+        ({"field": "nothing"}, "400", "no options source"),
+        ({"field": "broken"}, "502", "could not be read"),
+        ({"field": "node", "page_values": {"location": ".."}}, "502", "would change the path"),
+        ({"field": "customer", "page_inputs": [{"customer": "c-01", "location": "ams"}]}, "400", "page_inputs"),
+    ],
+)
+async def test_the_options_tool_says_why_it_has_no_options(
+    app_with_options: FastAPI, arguments: dict, status: str, said: str
+) -> None:
+    pytest.importorskip("fastmcp")
+    from fastmcp.exceptions import ToolError
+
+    with pytest.raises(ToolError) as excinfo:
+        await _sourced_tool(app_with_options, "get_workflow_form_options", arguments)
+    assert status in str(excinfo.value) and said in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_a_sourced_value_nobody_was_offered_is_rejected_and_an_offered_one_is_labelled(
+    app_with_options: FastAPI,
+) -> None:
+    pytest.importorskip("fastmcp")
+    from fastmcp.exceptions import ToolError
+
+    invented = {"page_inputs": [{"customer": "Customer 07", "location": "ams", "node": "utr-1"}]}
+    rejected = await _sourced_tool(app_with_options, "get_workflow_form", {**invented, "verdict": "result"})
+    assert (rejected["status"], rejected["page"]) == ("rejected", 0)
+    assert [error["loc"] for error in rejected["errors"]] == [["customer"], ["node"]]
+    assert rejected["schema"]["properties"]["node"]["enum"] == ["ams-1", "ams-2"]  # the location is known now
+    with pytest.raises(ToolError) as excinfo:
+        await _sourced_tool(app_with_options, "get_workflow_form", invented)
+    assert "400" in str(excinfo.value) and "customer" in str(excinfo.value)
+    offered = {"page_inputs": [{"customer": "c-07", "location": "ams", "node": "ams-2", "broken": "anything"}]}
+    done = await _sourced_tool(app_with_options, "get_workflow_form", offered)
+    assert done["status"] == "complete"
+    assert done["labels"] == {"customer": "Customer 07", "location": "ams", "node": "ams-2"}  # unreadable: not judged
+
+
+@pytest.mark.asyncio
+async def test_a_searching_source_is_judged_through_its_lookup_and_not_at_all_without_one(
+    app_with_options: FastAPI,
+) -> None:
+    pytest.importorskip("fastmcp")
+    page = {"customer": "c-07", "location": "ams", "port": "p-077", "uplink": "p-077"}
+    done = await _sourced_tool(app_with_options, "get_workflow_form", {"page_inputs": [page]})
+    # Neither route lists p-077 without a term. The port has a lookup, so it is checked and labelled; the
+    # uplink has none, so it is accepted as it came.
+    assert done["status"] == "complete"
+    assert done["labels"] == {"customer": "Customer 07", "location": "ams", "port": "Port 077"}
+    invented = {"page_inputs": [{**page, "port": "p-999", "uplink": "p-999"}], "verdict": "result"}
+    rejected = await _sourced_tool(app_with_options, "get_workflow_form", invented)
+    assert [error["loc"] for error in rejected["errors"]] == [["port"]]
+
+
 @pytest.mark.asyncio
 async def test_list_workflows_takes_a_call_without_arguments(app_with_agent_routes: FastAPI) -> None:
     pytest.importorskip("fastmcp")
@@ -410,3 +564,75 @@ async def test_list_workflows_takes_a_call_without_arguments(app_with_agent_rout
             await client.call_tool("list_workflows", {})
     listed.assert_awaited_once()
     assert listed.await_args is not None and listed.await_args.kwargs["filters"] is None
+
+
+class _LoggedParams(BaseModel):
+    group_by: list[str]
+
+
+def _app_with_failing_tool(status: HTTPStatus) -> FastAPI:
+    """An app whose single agent tool fails with ``status``, as core's validators do (detail = the reason)."""
+    app = FastAPI()
+
+    @app.post("/api/agent/aggregate", tags=[AGENT_EXPOSED_TAG], operation_id="aggregate")
+    async def aggregate(params: _LoggedParams) -> dict:
+        if status != HTTPStatus.OK:
+            raise HTTPException(status_code=status, detail=f"Path '{params.group_by[0]}' not found in database")
+        return {"results": []}
+
+    return app
+
+
+async def _call_and_capture(status: HTTPStatus, arguments: dict | None = None) -> list[MutableMapping[str, Any]]:
+    from fastmcp import Client
+    from structlog.testing import capture_logs
+
+    from orchestrator.core.mcp.server import build_mcp
+
+    with capture_logs() as logs:
+        async with Client(build_mcp(_app_with_failing_tool(status))) as client:
+            await client.call_tool(
+                "aggregate", arguments or {"group_by": ["subscription.port.node.node_type"]}, raise_on_error=False
+            )
+    return [entry for entry in logs if entry["event"] == "MCP tool call failed"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status",
+    [
+        pytest.param(HTTPStatus.UNPROCESSABLE_ENTITY, id="422"),
+        pytest.param(HTTPStatus.NOT_FOUND, id="404"),
+        pytest.param(HTTPStatus.INTERNAL_SERVER_ERROR, id="500"),
+    ],
+)
+async def test_a_failed_tool_call_logs_why(status: HTTPStatus) -> None:
+    pytest.importorskip("fastmcp")
+    (entry,) = await _call_and_capture(status, {"group_by": ["subscription.port.node.node_type"]})
+    assert entry["log_level"] == "warning"
+    assert (entry["tool"], entry["status_code"]) == ("/api/agent/aggregate", status.value)
+    assert entry["detail"] == "Path 'subscription.port.node.node_type' not found in database"
+    assert "arguments" not in entry  # request bodies can carry form input; the detail says why
+
+
+@pytest.mark.asyncio
+async def test_a_validation_error_is_logged_without_the_rejected_values() -> None:
+    pytest.importorskip("fastmcp")
+    rejected_value = "customer-contact@example.org"
+    (entry,) = await _call_and_capture(HTTPStatus.OK, {"group_by": [rejected_value, {"nested": rejected_value}]})
+    assert entry["status_code"] == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert rejected_value not in str(entry)
+    assert [(error["loc"], error["type"]) for error in entry["detail"]] == [(["body", "group_by", 1], "string_type")]
+
+
+@pytest.mark.asyncio
+async def test_a_long_error_detail_is_truncated() -> None:
+    pytest.importorskip("fastmcp")
+    (entry,) = await _call_and_capture(HTTPStatus.BAD_REQUEST, {"group_by": ["x" * 5000]})
+    assert len(entry["detail"]) <= 2000
+
+
+@pytest.mark.asyncio
+async def test_a_successful_tool_call_logs_nothing() -> None:
+    pytest.importorskip("fastmcp")
+    assert await _call_and_capture(HTTPStatus.OK) == []

@@ -280,8 +280,8 @@ def test_workflow_still_referencing_the_deprecated_steps_runs(generic_subscripti
             assert _indexed_values(process_id)["process.last_status"] == ProcessStatus.COMPLETED
             assert _indexed_values(generic_subscription_1)
 
-            # Once per entity: the exit hook indexed, the deprecated steps stayed no-ops.
-            assert spy.call_count == 2
+            # Twice per entity: once when the process is created, once by the exit hook.
+            assert spy.call_count == 4
 
 
 def test_subscription_in_state_is_indexed(generic_subscription_1):
