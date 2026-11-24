@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Any, Generator
 
 import structlog
-from apscheduler.events import EVENT_JOB_MISSED, JobExecutionEvent
+from apscheduler.events import EVENT_JOB_MISSED, EVENT_JOB_SUBMITTED, JobExecutionEvent, JobSubmissionEvent
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.sqlalchemy import Job, SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -31,6 +31,7 @@ from orchestrator.core.db.sorting.sorting import SortOrder
 from orchestrator.core.schedules.service import get_linker_entries_by_schedule_ids
 from orchestrator.core.settings import app_settings
 from orchestrator.core.utils.helpers import camel_to_snake, to_camel
+from orchestrator.core.websocket import broadcast_schedule_update_to_websocket
 
 logger = structlog.get_logger(__name__)
 
@@ -60,8 +61,21 @@ def log_missed_job(event: JobExecutionEvent) -> None:
     )
 
 
+def broadcast_executed_schedule(event: JobSubmissionEvent) -> None:
+    """Broadcast that a scheduled task has been submitted for execution.
+
+    APScheduler dispatches this event after it has advanced the job's next run time, so clients
+    refetching the schedule see the new next run time.
+
+    Args:
+        event: The ``EVENT_JOB_SUBMITTED`` event.
+    """
+    broadcast_schedule_update_to_websocket(event.job_id)
+
+
 scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
 scheduler.add_listener(log_missed_job, EVENT_JOB_MISSED)
+scheduler.add_listener(broadcast_executed_schedule, EVENT_JOB_SUBMITTED)
 
 
 @contextmanager

@@ -23,12 +23,18 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
-from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_MISSED, JobExecutionEvent
+from apscheduler.events import (
+    EVENT_JOB_EXECUTED,
+    EVENT_JOB_MISSED,
+    EVENT_JOB_SUBMITTED,
+    JobExecutionEvent,
+    JobSubmissionEvent,
+)
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from structlog.testing import capture_logs
 
-from orchestrator.core.schedules.scheduler import job_defaults, log_missed_job
+from orchestrator.core.schedules.scheduler import broadcast_executed_schedule, job_defaults, log_missed_job
 from orchestrator.core.schedules.service import _add_scheduled_task, _delete_scheduled_task, _update_scheduled_task
 from orchestrator.core.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
 
@@ -162,6 +168,16 @@ def test_log_missed_job_logs_an_error_with_the_event_data():
             "scheduled_run_time": run_time,
         }
     ]
+
+
+def test_broadcast_executed_schedule_broadcasts_the_schedule_id():
+    schedule_id = "schedule-1"
+    event = JobSubmissionEvent(EVENT_JOB_SUBMITTED, schedule_id, "default", [datetime.now(timezone.utc)])
+
+    with mock.patch("orchestrator.core.schedules.scheduler.broadcast_schedule_update_to_websocket") as broadcast:
+        broadcast_executed_schedule(event)
+
+    broadcast.assert_called_once_with(schedule_id)
 
 
 def run_simultaneous_jobs(threads: int, **options) -> tuple[list[str], list[str], list[MutableMapping[str, Any]]]:
