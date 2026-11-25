@@ -72,7 +72,7 @@ configuration, so the corresponding setting still applies.
 <!-- diataxis: reference -->
 
 A request that waits longer than `DATABASE_POOL_TIMEOUT` for a connection gets `503 Service Unavailable` with a
-`Retry-After: 5` header. The details go to the log as `Database connection pool exhausted`:
+`Retry-After: 5` header:
 
 ```json
 {"detail": "The database connection pool is exhausted. Please try again later.", "status": 503, "title": "Service Unavailable"}
@@ -81,8 +81,24 @@ A request that waits longer than `DATABASE_POOL_TIMEOUT` for a connection gets `
 GraphQL cannot answer with a status code, so it returns `200` with the field in `errors` (`error_type`
 `internal_error`) and no data, so retry the query.
 
-The pool recovers as connections are returned, so many 503s mean the pool is too small or connections are held by
-slow queries: check for long-running transactions before raising the pool size.
+The log line says which timeout it was:
+
+| Log message | Meaning |
+|---|---|
+| `Database connection pool exhausted` | SQLAlchemy reported that the pool limit (`DATABASE_POOL_SIZE` + `DATABASE_MAX_OVERFLOW`) was reached and no connection was returned in time. |
+| `Timed out waiting for a database connection` | A timeout that SQLAlchemy did not report as a pool limit error. The cause is unknown. |
+
+An exhausted pool says that all connections were in use, not why. The pool recovers on its own as connections are
+returned, so occasional 503s during a load peak are expected. Persistent or frequent 503s have one of these causes:
+
+| Cause | What happens | What to check |
+|---|---|---|
+| Pool too small for the load | More concurrent requests than `DATABASE_POOL_SIZE` + `DATABASE_MAX_OVERFLOW` of one pool. | Whether the 503s follow the request volume. Raise the pool size only after ruling out the causes below, and keep the total below Postgres' `max_connections` (see above). |
+| Connections held too long | Slow queries or long-running transactions keep connections checked out, so the pool drains even under moderate load. | Long-running queries and transactions, for example in `pg_stat_activity`. |
+| Database not responding | Queries hang, for example during a failover or a lock pile-up, so connections never come back and every new request times out. | Whether the database is reachable and responsive, independent of the orchestrator. |
+
+A raised pool size does not help with the last two causes: it only postpones the timeouts, and adds load on a database
+that is already struggling.
 
 ## Multiple Heads
 <!-- diataxis: -->

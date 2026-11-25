@@ -28,6 +28,9 @@ PROBLEM_DETAIL_FIELDS = ("title", "type")
 
 DATABASE_UNAVAILABLE_MESSAGE = "The database connection pool is exhausted. Please try again later."
 
+# SQLAlchemy's error code for "QueuePool limit ... reached, connection timed out".
+POOL_LIMIT_ERROR_CODE = "3o7r"
+
 
 async def problem_detail_handler(request: Request, exc: ProblemDetailException) -> JSONResponse:
     headers = getattr(exc, "headers", None)
@@ -58,12 +61,17 @@ async def query_validation_handler(request: Request, exc: QueryValidationError) 
 
 
 async def database_timeout_handler(request: Request, exc: SQLAlchemyTimeoutError) -> JSONResponse:
-    """Answer an exhausted connection pool with a 503 instead of an unhandled 500.
+    """Answer a database connection timeout with a 503 instead of an unhandled 500.
 
-    GraphQL returns these in its ``errors`` list instead, since a resolver cannot set a status code.
+    Only SQLAlchemy's pool limit error is logged as an exhausted pool. GraphQL returns these in its ``errors`` list.
     """
+    message = (
+        "Database connection pool exhausted"
+        if exc.code == POOL_LIMIT_ERROR_CODE
+        else "Timed out waiting for a database connection"
+    )
     logger.warning(
-        "Database connection pool exhausted",
+        message,
         path=request.url.path,
         method=request.method,
         error=str(exc),
