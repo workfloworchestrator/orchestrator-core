@@ -70,7 +70,7 @@ dependencies = [
     "strawberry-graphql>=0.311.3",
     "structlog>=25.4.0",
     "tabulate==0.10.0",
-    "typer==0.29.1",
+    "typer==0.29.2",
     "uvicorn[standard]~=0.53.0",
     "litellm>=1.80.0; python_version < '3.15'",
     "litellm>=1.109.0; python_version >= '3.15'",  # first litellm release supporting Python 3.15
