@@ -44,8 +44,10 @@ the SQLAlchemy `Session` object:
 <!-- diataxis: reference -->
 
 Each process has two engines, each with its own pool: a synchronous one (used by synchronous endpoints, workflows and
-Celery tasks, via `db.session`) and an asynchronous one (used by async endpoints and GraphQL, via
-`db.async_session()`). The settings below apply to both pools alike.
+Celery tasks, via `db.session`) and an asynchronous one (used by async endpoints, via `db.async_session()`). GraphQL
+uses both: every operation opens an async session, and most resolvers query `db.session` in a thread pool. A GraphQL
+request can therefore exhaust the sync pool while the async pool still has room, or the other way around. The settings
+below apply to both pools alike.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -68,14 +70,19 @@ For backwards compatibility, a pool key patched into `ENGINE_ARGUMENTS` to a val
 overrides its setting. A patch equal to the default, such as `pool_size = 60`, is indistinguishable from the shipped
 configuration, so the corresponding setting still applies.
 
+The three settings only apply to a `QueuePool`, which is the default. If `ENGINE_ARGUMENTS` selects another pool, for
+example `{"poolclass": NullPool}` or an explicit `pool`, they are not passed to `create_engine()`. Which arguments that
+pool needs is up to you.
+
 ## Pool exhaustion
 <!-- diataxis: reference -->
 
-A request that waits longer than `DATABASE_POOL_TIMEOUT` for a connection gets `503 Service Unavailable` with a
-`Retry-After: 5` header:
+A request that times out waiting for a database connection, usually because it waited longer than
+`DATABASE_POOL_TIMEOUT` for one from the pool, gets `503 Service Unavailable` with a `Retry-After: 5` header. The message
+is the same for every such timeout:
 
 ```json
-{"detail": "The database connection pool is exhausted. Please try again later.", "status": 503, "title": "Service Unavailable"}
+{"detail": "The database is temporarily unavailable. Please try again later.", "status": 503, "title": "Service Unavailable"}
 ```
 
 GraphQL cannot answer with a status code, so it returns `200` with the field in `errors` (`error_type`

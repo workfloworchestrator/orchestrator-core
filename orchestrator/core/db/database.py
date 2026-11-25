@@ -24,6 +24,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import Query, Session, as_declarative, scoped_session, sessionmaker
+from sqlalchemy.pool import QueuePool
 from sqlalchemy.sql.schema import MetaData
 from starlette.types import ASGIApp, Receive, Scope, Send
 from structlog.stdlib import BoundLogger
@@ -208,12 +209,23 @@ POOL_SETTINGS: dict[str, tuple[str, int]] = {
 }
 
 
+def _supports_queue_pool_settings(engine_arguments: dict[str, Any]) -> bool:
+    """Whether ``pool_size``, ``max_overflow`` and ``pool_timeout`` are valid for the pool the arguments select.
+
+    Those options are QueuePool-only: SQLAlchemy raises a TypeError for them on e.g. NullPool or StaticPool. Without a
+    ``poolclass`` the dialect default is used, which is a QueuePool. An explicit ``pool`` instance is never touched.
+    """
+    poolclass = engine_arguments.get("poolclass")
+    return "pool" not in engine_arguments and (poolclass is None or issubclass(poolclass, QueuePool))
+
+
 def make_engine_arguments(pool_settings: AppSettings) -> dict[str, Any]:
     """Return ENGINE_ARGUMENTS with the pool settings from ``pool_settings`` applied.
 
     A pool key that a downstream orchestrator patched into ENGINE_ARGUMENTS to a value other than the default wins
     over the setting, which keeps those patches working. ENGINE_ARGUMENTS is read at call time because it may be
-    replaced wholesale.
+    replaced wholesale. When it selects a pool that is not a QueuePool, the pool settings do not apply and are not
+    added; what ENGINE_ARGUMENTS itself passes for that pool is left to the implementer.
 
     Args:
         pool_settings: The AppSettings to read the pool settings from.
@@ -222,6 +234,8 @@ def make_engine_arguments(pool_settings: AppSettings) -> dict[str, Any]:
         The keyword arguments for ``create_engine()``.
     """
     engine_arguments = dict(ENGINE_ARGUMENTS)
+    if not _supports_queue_pool_settings(engine_arguments):
+        return engine_arguments
 
     for engine_key, (setting_name, default) in POOL_SETTINGS.items():
         if engine_arguments.get(engine_key, default) == default:

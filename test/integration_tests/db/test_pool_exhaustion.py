@@ -20,6 +20,7 @@ test's own sessions on a separate connection, so this does not break the rest of
 
 import asyncio
 from http import HTTPStatus
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
@@ -36,6 +37,9 @@ from orchestrator.core.testing.fixtures import JsonTestClient
 POOL_TIMEOUT = 0.2
 
 REST_ENDPOINT = "/api/health/"  # The one REST endpoint that queries through the async engine.
+SEARCH_ENDPOINT = (
+    "/api/search/subscriptions"  # Runs its queries through the async session behind search_errors_to_http.
+)
 GRAPHQL_QUERY = "{ subscriptions(first: 1) { pageInfo { totalItems } } }"
 
 
@@ -79,14 +83,16 @@ def exhausted_async_pool():
     coroutine function: it returns the ``AsyncConnection`` immediately and only acquires a pooled connection when that
     object is started, so ``asyncio.run(db.async_engine.connect())`` gets an ``AsyncConnection`` where it expects a
     coroutine. The connection an async dialect hands out also has to be released from inside the greenlet that checked
-    it out, so teardown closes it the same way.
+    it out, so teardown closes it the same way. Releasing it only returns it to the pool; disposing the pool is what
+    closes the underlying connection, so that also runs in a greenlet.
     """
 
     async def _checkout() -> Connection:
         return await greenlet_spawn(db.async_engine.sync_engine.connect)
 
-    async def _release(connection: Connection) -> None:
+    async def _release(connection: Connection, pool: QueuePool) -> None:
         await greenlet_spawn(connection.close)
+        await greenlet_spawn(pool.dispose)
 
     original_pool = db.async_engine.pool
     replacement_pool = _single_connection_pool(original_pool._creator)
@@ -95,9 +101,8 @@ def exhausted_async_pool():
     try:
         yield
     finally:
-        asyncio.run(_release(held_connection))
+        asyncio.run(_release(held_connection, replacement_pool))
         db.async_engine.pool = original_pool
-        replacement_pool.dispose()
 
 
 @pytest.fixture
@@ -123,6 +128,25 @@ def test_async_endpoint_returns_503_when_the_pool_is_exhausted(client: TestClien
         "status": HTTPStatus.SERVICE_UNAVAILABLE.value,
         "title": HTTPStatus.SERVICE_UNAVAILABLE.phrase,
     }
+    assert response.headers["Retry-After"] == "5"
+
+
+def test_search_endpoint_returns_503_when_the_pool_is_exhausted(client: TestClient, exhausted_async_pool: None) -> None:
+    response = client.post(SEARCH_ENDPOINT, json={"query": "test", "retriever": "fuzzy"})
+
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
+    assert response.json()["detail"] == DATABASE_UNAVAILABLE_MESSAGE
+    assert response.headers["Retry-After"] == "5"
+
+
+def test_subscription_lookup_returns_503_when_the_pool_is_exhausted(
+    client: TestClient, exhausted_async_pool: None
+) -> None:
+    """``get_subscription_async`` must not turn the pool timeout into the 500 of a ``DBInternalError``."""
+    response = client.put(f"/api/subscriptions/{uuid4()}/set_in_sync")
+
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
+    assert response.json()["detail"] == DATABASE_UNAVAILABLE_MESSAGE
     assert response.headers["Retry-After"] == "5"
 
 

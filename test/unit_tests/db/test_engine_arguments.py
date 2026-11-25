@@ -19,6 +19,7 @@ from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.pool import AsyncAdaptedQueuePool, NullPool, QueuePool, StaticPool
 
 import orchestrator.core.db.database as database_module
 from orchestrator.core.db.database import Database, make_engine_arguments
@@ -175,6 +176,40 @@ def test_make_engine_arguments_survives_a_replaced_engine_arguments(engine_argum
     assert arguments["pool_size"] == DATABASE_POOL_SIZE_DEFAULT
     assert arguments["max_overflow"] == DATABASE_MAX_OVERFLOW_DEFAULT
     assert arguments["pool_timeout"] == DATABASE_POOL_TIMEOUT_DEFAULT
+
+
+@pytest.mark.parametrize(
+    "engine_arguments",
+    [
+        pytest.param({"poolclass": NullPool}, id="null-pool"),
+        pytest.param({"poolclass": StaticPool}, id="static-pool"),
+        pytest.param({"pool": object()}, id="pool-instance"),
+    ],
+)
+def test_make_engine_arguments_skips_pool_settings_for_a_non_queue_pool(engine_arguments) -> None:
+    """Replacing ENGINE_ARGUMENTS with a pool that has no queue must not get QueuePool-only options."""
+    with patch.object(database_module, "ENGINE_ARGUMENTS", engine_arguments):
+        arguments = make_engine_arguments(pool_settings(DATABASE_POOL_SIZE=3))
+
+    assert arguments == engine_arguments
+
+
+@pytest.mark.parametrize(
+    "poolclass",
+    [pytest.param(QueuePool, id="queue-pool"), pytest.param(AsyncAdaptedQueuePool, id="async-queue-pool")],
+)
+def test_make_engine_arguments_applies_pool_settings_to_a_queue_pool(poolclass) -> None:
+    with patch.object(database_module, "ENGINE_ARGUMENTS", {"poolclass": poolclass}):
+        arguments = make_engine_arguments(pool_settings(DATABASE_POOL_SIZE=3))
+
+    assert arguments["pool_size"] == 3
+
+
+def test_database_starts_with_a_null_pool_replacement() -> None:
+    with patch.object(database_module, "ENGINE_ARGUMENTS", {"poolclass": NullPool}):
+        db = Database(DB_URL, pool_settings())
+
+    assert isinstance(db.engine.pool, NullPool)
 
 
 # --- Database ---

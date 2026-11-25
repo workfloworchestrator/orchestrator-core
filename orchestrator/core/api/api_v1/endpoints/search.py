@@ -20,6 +20,7 @@ from uuid import UUID
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from orchestrator.core.db import SearchQueryTable, get_async_session
@@ -61,12 +62,13 @@ def search_errors_to_http(failure_message: str, **log_context: Any) -> Iterator[
     """Raise the errors of running a search as HTTPExceptions, shared by every search endpoint.
 
     Invalid input is a 422, a request that names nothing to search a 400 and a missing saved query a 404, all keeping
-    their message; an HTTPException raised inside passes through, anything else is logged with `log_context` and
-    reported as a 500 with `failure_message`.
+    their message; an HTTPException and a database connection timeout pass through (the latter is answered as a 503 by
+    the app's exception handler), anything else is logged with `log_context` and reported as a 500 with
+    `failure_message`.
     """
     try:
         yield
-    except HTTPException:
+    except (HTTPException, SQLAlchemyTimeoutError):
         raise
     except InvalidSearchPageError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e

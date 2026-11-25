@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 
 PROBLEM_DETAIL_FIELDS = ("title", "type")
 
-DATABASE_UNAVAILABLE_MESSAGE = "The database connection pool is exhausted. Please try again later."
+DATABASE_UNAVAILABLE_MESSAGE = "The database is temporarily unavailable. Please try again later."
 
 # SQLAlchemy's error code for "QueuePool limit ... reached, connection timed out".
 POOL_LIMIT_ERROR_CODE = "3o7r"

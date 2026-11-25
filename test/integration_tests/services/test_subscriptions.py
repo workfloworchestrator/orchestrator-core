@@ -89,7 +89,6 @@ async def test_get_subscription_async_invalid_id():
     [
         OperationalError("SELECT 1", {}, Exception()),
         InvalidRequestError("boom"),
-        SQLAlchemyTimeoutError("pool exhausted"),
         InterfaceError("connection already closed"),
     ],
 )
@@ -103,7 +102,6 @@ def test_get_subscription_by_id_raises_db_internal_error(error):
     [
         OperationalError("SELECT 1", {}, Exception()),
         InvalidRequestError("boom"),
-        SQLAlchemyTimeoutError("pool exhausted"),
         InterfaceError("connection already closed"),
     ],
 )
@@ -112,6 +110,21 @@ async def test_get_subscription_async_raises_db_internal_error(error):
         session.get = AsyncMock(side_effect=error)
 
         with pytest.raises(DBInternalError):
+            await get_subscription_async(CORRECT_SUBSCRIPTION, session)
+
+
+def test_get_subscription_lets_a_pool_timeout_escape():
+    error = SQLAlchemyTimeoutError("pool exhausted")
+    with patch.object(db.session, "get", side_effect=error), pytest.raises(SQLAlchemyTimeoutError):
+        get_subscription(CORRECT_SUBSCRIPTION)
+
+
+async def test_get_subscription_async_lets_a_pool_timeout_escape():
+    error = SQLAlchemyTimeoutError("pool exhausted")
+    async with session_joined_async() as session:
+        session.get = AsyncMock(side_effect=error)
+
+        with pytest.raises(SQLAlchemyTimeoutError):
             await get_subscription_async(CORRECT_SUBSCRIPTION, session)
 
 

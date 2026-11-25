@@ -14,6 +14,7 @@ from http import HTTPStatus
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 
 from orchestrator.core.api.api_v1.endpoints.search import search_errors_to_http
 from orchestrator.core.search.core.exceptions import (
@@ -50,3 +51,13 @@ def test_search_errors_to_http(error, status_code, detail):
 
     assert exc_info.value.status_code == status_code
     assert exc_info.value.detail == (detail or str(error))
+
+
+def test_search_errors_to_http_lets_database_timeouts_through():
+    error = SQLAlchemyTimeoutError("pool exhausted")
+
+    with pytest.raises(SQLAlchemyTimeoutError) as exc_info:
+        with search_errors_to_http("Search failed"):
+            raise error
+
+    assert exc_info.value is error
