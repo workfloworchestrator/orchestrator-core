@@ -367,6 +367,27 @@ def test_process_chunk_materializes_batches_before_lock(mock_config: MagicMock, 
     assert events == ["generate", "lock", "upsert"]
 
 
+def test_process_chunk_delete_only_skips_batch_generation(mock_config: MagicMock, mock_entity: MagicMock) -> None:
+    """A chunk with only stale paths to delete must not touch the embedding/batch pipeline."""
+    idx = Indexer(config=mock_config, dry_run=False, force_index=False, chunk_size=10)
+    mock_session = MagicMock()
+    stale = [(ENTITY_ID, Ltree("root.gone"))]
+    batch_builder = MagicMock()
+
+    with (
+        patch.object(idx, "_determine_changes", return_value=([], stale, 0)),
+        patch.object(idx, "_generate_upsert_batches", batch_builder),
+    ):
+        processed, identical = idx._process_chunk([mock_entity], session=mock_session)
+
+    batch_builder.assert_not_called()
+    assert processed == 0
+    assert identical == 0
+    executed = [str(c.args[0]) for c in mock_session.execute.call_args_list]
+    assert any("pg_advisory_xact_lock" in s for s in executed)
+    assert any(s.strip().upper().startswith("DELETE") for s in executed)
+
+
 def test_process_chunk_dry_run_does_not_execute(indexer: Indexer, mock_entity: MagicMock) -> None:
     """dry_run=True: batches are logged, session.execute is never called."""
     mock_session = MagicMock()

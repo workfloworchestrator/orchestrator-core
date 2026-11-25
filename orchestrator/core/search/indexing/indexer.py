@@ -204,8 +204,9 @@ class Indexer:
         fields_to_upsert, paths_to_delete, identical_count = self._determine_changes(entity_chunk, session)
 
         # Build all batches (embedding API calls happen here) before the lock so external
-        # latency does not stall same-type indexers waiting on the advisory lock.
-        batches = list(self._generate_upsert_batches(fields_to_upsert))
+        # latency does not stall same-type indexers waiting on the advisory lock. Delete-only
+        # chunks skip this entirely: they need neither embeddings nor the tokenization setup.
+        batches = list(self._generate_upsert_batches(fields_to_upsert)) if fields_to_upsert else []
 
         if session is not None and not self.dry_run and (fields_to_upsert or paths_to_delete):
             acquire_search_index_write_lock(session, self.config.entity_kind)
@@ -266,7 +267,11 @@ class Indexer:
         """Execute delete operations in batches to avoid PostgreSQL stack depth limits."""
         for i in range(0, len(paths_to_delete), self.chunk_size):
             batch = paths_to_delete[i : i + self.chunk_size]
-            delete_stmt = delete(AiSearchIndex).where(tuple_(AiSearchIndex.entity_id, AiSearchIndex.path).in_(batch))
+            delete_stmt = (
+                delete(AiSearchIndex)
+                .where(AiSearchIndex.entity_type == self.config.entity_kind.value)
+                .where(tuple_(AiSearchIndex.entity_id, AiSearchIndex.path).in_(batch))
+            )
             session.execute(delete_stmt)
             self.logger.debug(f"Deleted batch of {len(batch)} records.")
 
@@ -277,7 +282,10 @@ class Indexer:
 
         results = session.execute(
             select(AiSearchIndex.entity_id, AiSearchIndex.path, AiSearchIndex.content_hash).where(
-                AiSearchIndex.entity_id.in_(entity_ids)
+                AiSearchIndex.entity_id.in_(entity_ids),
+                # Keep the scan scoped to this indexer's entity type: rows of other types
+                # would be misread as stale paths and deleted without their type's lock.
+                AiSearchIndex.entity_type == self.config.entity_kind.value,
             )
         ).all()
 

@@ -19,7 +19,8 @@ from unittest.mock import MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import delete, text, update
+from sqlalchemy import delete, select, text, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from sqlalchemy_utils.types.ltree import Ltree
 
@@ -171,6 +172,45 @@ def test_remove_entity_from_index_waits_for_entity_type_write_lock():
     assert all(not thread.is_alive() for thread in threads)
     assert errors == []
     assert events == ["holder_committed", "remover_done"]
+
+
+def test_indexer_scans_and_deletes_only_its_own_entity_type():
+    """Hash scans and stale-path deletes must stay scoped to the indexer's own entity type.
+
+    `ai_search_paths` rows are keyed by (entity_type, path, value_type), so the
+    per-type advisory lock only serializes writes to the writer's own type's rows.
+    A delete that also touches another type's rows would update those shared path
+    rows without that type's lock.
+    """
+    entity_id = uuid4()
+    foreign_path = "process.foreign_type"
+    with db.wrapped_database.engine.begin() as conn:
+        conn.execute(
+            insert(AiSearchIndex),
+            {
+                "entity_id": entity_id,
+                "entity_type": EntityType.PROCESS.value,
+                "entity_title": "foreign",
+                "path": Ltree(foreign_path),
+                "value": "x",
+                "value_type": FieldType.STRING,
+                "content_hash": "deadbeef",
+            },
+        )
+    try:
+        config = MagicMock()
+        config.entity_kind = EntityType.SCHEDULE
+        indexer = Indexer(config=config, dry_run=False, force_index=False)
+        with Session(db.wrapped_database.engine) as session, session.begin():
+            hashes = indexer._get_all_existing_hashes([str(entity_id)], session)
+            assert hashes[str(entity_id)] == {}
+
+            indexer._execute_batched_deletes([(str(entity_id), Ltree(foreign_path))], session)
+            remaining = session.execute(select(AiSearchIndex).where(AiSearchIndex.entity_id == entity_id)).all()
+            assert len(remaining) == 1
+    finally:
+        with db.wrapped_database.engine.begin() as conn:
+            conn.execute(delete(AiSearchIndex).where(AiSearchIndex.entity_id == entity_id))
 
 
 def test_insert_creates_path_with_refcount_one():
