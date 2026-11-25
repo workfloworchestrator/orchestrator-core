@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from datetime import timedelta
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -19,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy_utils import Ltree
 
 from orchestrator.core.db import ProcessStepTable, ProcessTable, WorkflowTable, db
+from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.targets import Target
 from orchestrator.core.testing import assert_complete, assert_state, extract_state, run_workflow
 from orchestrator.core.utils.datetime import nowtz
@@ -139,3 +141,13 @@ def test_remove_tasks(task):
     assert sorted(p.workflow.name for p in processes) == sorted(
         ["nice and new task", "nice process", "task_clean_up_tasks"]
     )
+
+
+@pytest.mark.workflow
+def test_cleanup_ai_search_index_takes_write_lock(task):
+    """The cleanup step must serialize its DELETE with other PROCESS index writers via the advisory lock."""
+    with patch("orchestrator.core.workflows.tasks.cleanup_tasks_log.acquire_search_index_write_lock") as mock_lock:
+        result, process, step_log = run_workflow("task_clean_up_tasks", {})
+    assert_complete(result)
+    assert mock_lock.call_count == 1
+    assert mock_lock.call_args.args[1] is EntityType.PROCESS

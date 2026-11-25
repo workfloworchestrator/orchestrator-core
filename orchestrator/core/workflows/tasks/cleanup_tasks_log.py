@@ -22,6 +22,7 @@ from sqlalchemy.engine import CursorResult
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.search.indexing.indexer import acquire_search_index_write_lock
 from orchestrator.core.settings import app_settings, get_authorizers
 from orchestrator.core.targets import Target
 from orchestrator.core.utils.datetime import nowtz
@@ -56,6 +57,9 @@ def remove_tasks() -> State:
 def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
     count = 0
     if deleted_process_id_list:
+        # The DELETE fires the ai_search_paths trigger, so it must hold the same
+        # entity-type advisory lock as the indexer; the step's transaction commit releases it.
+        acquire_search_index_write_lock(db.session, EntityType.PROCESS)
         result = db.session.execute(
             delete(AiSearchIndex)
             .where(AiSearchIndex.entity_type == EntityType.PROCESS)
