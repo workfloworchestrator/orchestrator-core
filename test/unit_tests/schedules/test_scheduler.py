@@ -117,24 +117,26 @@ def test_update_scheduled_task_modifies_only_set_job_options(options, expected):
     job.modify.assert_called_once_with(**expected)
 
 
-def test_add_scheduled_task_broadcasts_the_new_schedule(known_workflow):
+def test_add_scheduled_task_broadcasts_the_new_schedule(known_workflow, mock_submit_schedule_index):
     scheduler_connection = mock.Mock()
 
-    with mock.patch("orchestrator.core.schedules.service.broadcast_schedule_update_to_websocket") as broadcast:
+    with mock.patch("orchestrator.core.schedules.service.broadcast_relay") as relay:
         _add_scheduled_task(create_payload(), scheduler_connection)
 
     schedule_id = scheduler_connection.add_job.call_args.kwargs["id"]
-    broadcast.assert_called_once_with(schedule_id)
+    relay.submit.assert_called_once_with(broadcast_schedule_update_to_websocket, schedule_id)
+    # Only queueing here means a failed broadcast cannot skip the index update.
+    mock_submit_schedule_index.assert_called_once_with(schedule_id)
 
 
 def test_update_scheduled_task_broadcasts_the_schedule():
     schedule_id = uuid4()
     scheduler_connection = mock.Mock(get_job=mock.Mock(return_value=mock.Mock()))
 
-    with mock.patch("orchestrator.core.schedules.service.broadcast_schedule_update_to_websocket") as broadcast:
+    with mock.patch("orchestrator.core.schedules.service.broadcast_relay") as relay:
         _update_scheduled_task(APSchedulerJobUpdate(schedule_id=schedule_id), scheduler_connection)
 
-    broadcast.assert_called_once_with(str(schedule_id))
+    relay.submit.assert_called_once_with(broadcast_schedule_update_to_websocket, str(schedule_id))
 
 
 def test_delete_scheduled_task_broadcasts_the_schedule():
@@ -144,11 +146,11 @@ def test_delete_scheduled_task_broadcasts_the_schedule():
 
     with (
         mock.patch("orchestrator.core.schedules.service._delete_linker_entry"),
-        mock.patch("orchestrator.core.schedules.service.broadcast_schedule_update_to_websocket") as broadcast,
+        mock.patch("orchestrator.core.schedules.service.broadcast_relay") as relay,
     ):
         _delete_scheduled_task(payload, scheduler_connection)
 
-    broadcast.assert_called_once_with(str(schedule_id))
+    relay.submit.assert_called_once_with(broadcast_schedule_update_to_websocket, str(schedule_id))
 
 
 def test_job_options_are_applied_to_the_apscheduler_job(known_workflow):
