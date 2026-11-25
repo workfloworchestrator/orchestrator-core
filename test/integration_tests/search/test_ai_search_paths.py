@@ -13,6 +13,7 @@
 
 """Integration tests for the trigger-maintained ai_search_paths distinct-paths table."""
 
+import time
 from threading import Barrier, BrokenBarrierError, Thread
 from unittest.mock import MagicMock, patch
 from uuid import UUID, uuid4
@@ -26,7 +27,8 @@ from orchestrator.core.db import db
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.types import EntityType, ExtractedField, FieldType
 from orchestrator.core.search.indexing import rebuild_search_paths
-from orchestrator.core.search.indexing.indexer import Indexer
+from orchestrator.core.search.indexing.indexer import Indexer, acquire_search_index_write_lock
+from orchestrator.core.search.indexing.tasks import _remove_entity_from_index
 from orchestrator.core.search.query.builder import build_paths_query, process_path_rows
 
 
@@ -132,6 +134,43 @@ def test_concurrent_index_chunks_for_same_entity_type_do_not_deadlock():
     finally:
         with db.wrapped_database.engine.begin() as connection:
             connection.execute(delete(AiSearchIndex).where(AiSearchIndex.entity_id.in_(entity_ids)))
+
+
+def test_remove_entity_from_index_waits_for_entity_type_write_lock():
+    """A deleted-entity removal must not write while another transaction holds the entity-type lock."""
+    barrier = Barrier(2, timeout=5)
+    events: list[str] = []
+    errors: list[Exception] = []
+    entity_id = uuid4()
+
+    def holder() -> None:
+        try:
+            with Session(db.wrapped_database.engine) as session, session.begin():
+                acquire_search_index_write_lock(session, EntityType.PROCESS)
+                barrier.wait()  # the lock is held once the remover is released
+                time.sleep(0.5)
+            events.append("holder_committed")
+        except Exception as error:
+            errors.append(error)
+
+    def remover() -> None:
+        try:
+            barrier.wait()
+            with Session(db.wrapped_database.engine) as session:
+                _remove_entity_from_index(EntityType.PROCESS, str(entity_id), dry_run=False, session=session)
+            events.append("remover_done")
+        except Exception as error:
+            errors.append(error)
+
+    threads = [Thread(target=holder), Thread(target=remover)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert errors == []
+    assert events == ["holder_committed", "remover_done"]
 
 
 def test_insert_creates_path_with_refcount_one():
