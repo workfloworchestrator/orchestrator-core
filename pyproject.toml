@@ -257,10 +257,6 @@ exclude-newer = "3 days"
 # Exempt our own libraries from the cooldown so their releases are available immediately.
 # certifi is exempt so the emSign CA distrust (GHSA-6q48-6c7w-9gw2) is picked up immediately.
 exclude-newer-package = { certifi = false, pydantic-forms = false, nwa-stdlib = false, oauth2-lib = false }
-override-dependencies = [
-    # deepdiff<9.2 caps cachebox<6, which has no cp315 wheel. Replace with deepdiff>=9.2.0 once it clears exclude-newer.
-    "cachebox>=6.1.2",
-]
 
 [tool.uv.build-backend]
 module-name = "orchestrator.core"
