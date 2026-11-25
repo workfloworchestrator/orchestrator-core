@@ -4,7 +4,7 @@
 - **Package**: `orchestrator-core` (SURF), module `orchestrator.core`
 - **Version**: see `pyproject.toml`
 - **Stack**: FastAPI, SQLAlchemy, Pydantic v2, Strawberry GraphQL, LiteLLM
-- **Python**: 3.11–3.14 | **Package manager**: `uv` | **Build**: `uv`
+- **Python**: 3.11–3.15 | **Package manager**: `uv` | **Build**: `uv`
 
 ## Common Commands
 ```bash
