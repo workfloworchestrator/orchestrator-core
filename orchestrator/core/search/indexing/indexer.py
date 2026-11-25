@@ -27,7 +27,7 @@ from sqlalchemy_utils.types.ltree import Ltree
 from orchestrator.core.db import db
 from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.search.core.embedding import EmbeddingIndexer
-from orchestrator.core.search.core.types import ExtractedField, IndexableRecord
+from orchestrator.core.search.core.types import EntityType, ExtractedField, IndexableRecord
 from orchestrator.core.search.indexing.registry import EntityConfig
 from orchestrator.core.search.indexing.traverse import DatabaseEntity
 from orchestrator.core.settings import llm_settings
@@ -37,6 +37,19 @@ logger = structlog.get_logger(__name__)
 _SEARCH_INDEX_WRITE_LOCK = text(
     "SELECT pg_advisory_xact_lock(hashtext('orchestrator.search.indexer'), hashtext(:entity_type))"
 )
+
+
+def acquire_search_index_write_lock(session: Session, entity_kind: EntityType) -> None:
+    """Serialize writes for this entity type within the current transaction.
+
+    The `ai_search_paths` trigger updates shared path rows. A bulk chunk and a
+    single-entity chunk can touch those rows in opposite orders and deadlock.
+    Entity types use separate locks because their trigger keys cannot overlap.
+
+    The lock is transaction-scoped: it is released when the caller's transaction
+    commits, so acquire it in the same transaction as the writes it protects.
+    """
+    session.execute(_SEARCH_INDEX_WRITE_LOCK, {"entity_type": entity_kind.value})
 
 
 @contextmanager
@@ -187,7 +200,7 @@ class Indexer:
         fields_to_upsert, paths_to_delete, identical_count = self._determine_changes(entity_chunk, session)
 
         if session is not None and not self.dry_run and (fields_to_upsert or paths_to_delete):
-            self._acquire_write_lock(session)
+            acquire_search_index_write_lock(session, self.config.entity_kind)
 
         if paths_to_delete and session is not None:
             self.logger.debug(f"Deleting {len(paths_to_delete)} stale records in chunk.")
@@ -204,15 +217,6 @@ class Indexer:
                     session.execute(upsert_stmt, batch)
 
         return len(fields_to_upsert), identical_count
-
-    def _acquire_write_lock(self, session: Session) -> None:
-        """Serialize writes for this entity type within the current transaction.
-
-        The `ai_search_paths` trigger updates shared path rows. A bulk chunk and a
-        single-entity chunk can touch those rows in opposite orders and deadlock.
-        Entity types use separate locks because their trigger keys cannot overlap.
-        """
-        session.execute(_SEARCH_INDEX_WRITE_LOCK, {"entity_type": self.config.entity_kind.value})
 
     def _determine_changes(
         self, entities: list[DatabaseEntity], session: Session | None = None
