@@ -42,6 +42,7 @@ from orchestrator.core.schedules.scheduler import (
 )
 from orchestrator.core.schedules.service import _add_scheduled_task, _delete_scheduled_task, _update_scheduled_task
 from orchestrator.core.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
+from orchestrator.core.websocket import broadcast_schedule_update_to_websocket
 
 JOB_COUNT = 25
 # Roughly the time start_process takes; with one thread, JOB_COUNT jobs take ~2.5s, far beyond the 1s default grace.
@@ -252,10 +253,10 @@ def test_broadcast_executed_schedule_broadcasts_the_schedule_id():
     schedule_id = "schedule-1"
     event = JobSubmissionEvent(EVENT_JOB_SUBMITTED, schedule_id, "default", [datetime.now(timezone.utc)])
 
-    with mock.patch("orchestrator.core.schedules.scheduler.broadcast_schedule_update_to_websocket") as broadcast:
+    with mock.patch("orchestrator.core.schedules.scheduler.broadcast_relay") as relay:
         broadcast_executed_schedule(event)
 
-    broadcast.assert_called_once_with(schedule_id)
+    relay.submit.assert_called_once_with(broadcast_schedule_update_to_websocket, schedule_id)
 
 
 def run_simultaneous_jobs(threads: int, **options) -> tuple[list[str], list[str], list[MutableMapping[str, Any]]]:

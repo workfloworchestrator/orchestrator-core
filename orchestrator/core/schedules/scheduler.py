@@ -32,7 +32,7 @@ from orchestrator.core.db.sorting.sorting import SortOrder
 from orchestrator.core.schedules.service import get_linker_entries_by_schedule_ids, submit_schedule_index
 from orchestrator.core.settings import app_settings
 from orchestrator.core.utils.helpers import camel_to_snake, to_camel
-from orchestrator.core.websocket import broadcast_schedule_update_to_websocket
+from orchestrator.core.websocket import broadcast_relay, broadcast_schedule_update_to_websocket
 
 logger = structlog.get_logger(__name__)
 
@@ -66,12 +66,14 @@ def broadcast_executed_schedule(event: JobSubmissionEvent) -> None:
     """Broadcast that a scheduled task has been submitted for execution.
 
     APScheduler dispatches this event after it has advanced the job's next run time, so clients
-    refetching the schedule see the new next run time.
+    refetching the schedule see the new next run time. The broadcast is only queued here and runs on the broadcast
+    relay thread: waiting for the broadcast server on the scheduler thread would make other jobs miss their
+    misfire_grace_time.
 
     Args:
         event: The ``EVENT_JOB_SUBMITTED`` event.
     """
-    broadcast_schedule_update_to_websocket(event.job_id)
+    broadcast_relay.submit(broadcast_schedule_update_to_websocket, event.job_id)
 
 
 def index_submitted_schedule(event: JobSubmissionEvent) -> None:
