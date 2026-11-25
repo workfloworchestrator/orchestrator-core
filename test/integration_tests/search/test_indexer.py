@@ -298,19 +298,27 @@ def test_tokenization_failure_skips_field(indexer):
     assert batches == []
 
 
-def test_field_exceeds_context_window(indexer):
-    """Test that fields exceeding context window are skipped."""
+def test_field_exceeds_context_window_is_indexed_without_embedding(indexer):
+    """Test that fields exceeding the current model's context window remain text-searchable."""
+    value = "Very long text" * 1000
     fields_to_upsert = [
-        (ENTITY_ID, ExtractedField(path="description", value="Very long text" * 1000, value_type=FieldType.STRING)),
+        (ENTITY_ID, ExtractedField(path="description", value=value, value_type=FieldType.STRING)),
     ]
 
     with (
         patch("litellm.utils.encode", return_value=[1] * 10000),
         patch.object(indexer, "_get_max_tokens", return_value=8191),
+        patch.object(indexer.logger, "warning") as warning,
     ):
         batches = list(indexer._generate_upsert_batches(fields_to_upsert))
 
-    assert batches == []
+    assert len(batches) == 1
+    assert len(batches[0]) == 1
+    assert batches[0][0]["value"] == value
+    assert batches[0][0]["embedding"] is None
+    warning.assert_called_once_with(
+        "Field exceeds context; indexing without embedding.", path="description", tokens=10000, max_ctx=8191
+    )
 
 
 _MISMATCH_BUFFER = [
