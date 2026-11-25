@@ -3,7 +3,16 @@ codecov:
     # This is the number of total jobs running codecov/codecov-action. Note: each matrix strategy counts as 1 job.
     # Doing this prevents code coverage failures after each job posts their results individually.
     # It also means less load on the codecov API.
-    after_n_builds: 10
+    #
+    # Keep this in sync when a coverage matrix changes. Current breakdown per CI run:
+    #   run-unit-tests.yml            5  (Python 3.11-3.15)
+    #   ci.yml (integration)          2  (3.11/pg15/redis7, 3.15/pg17/redis8; the
+    #                                    search-benchmark row uploads nothing)
+    #   run-cli-acceptance-tests.yml  2  (Python 3.14, 3.15)
+    #   run-celery-acceptance-tests.yml 3 (Python 3.13, 3.14, 3.15)
+    #   run-llm-acceptance-tests.yml  2  (Python 3.14, 3.15)
+    after_n_builds: 14
+
 ignore:
   - "docs"
   - "test"
