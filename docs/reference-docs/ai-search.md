@@ -1,11 +1,11 @@
 ---
 # tutorial | how-to | reference | explanation | mixed
-diataxis:
+diataxis: mixed
 reviewed: false
 ---
 
 # AI / Hybrid Search
-<!-- diataxis: -->
+<!-- diataxis: mixed -->
 
 AI / Hybrid Search finds subscriptions, products, processes and workflows by combining several
 kinds of matching (by meaning, by spelling, by structure and by exact value) over a single
@@ -245,7 +245,7 @@ put the id in the page cursor, which is also what keeps paging consistent while 
     `discover_filter_paths` → `get_valid_operators` → `search`/`aggregate` → `export_query`.
 
 ## Running it
-<!-- diataxis: -->
+<!-- diataxis: mixed -->
 
 ### Enabling embeddings
 <!-- diataxis: -->
@@ -274,7 +274,7 @@ way, except when a request names `semantic` or `hybrid` explicitly: those return
 than falling back. See [Searching](#searching-read-path).
 
 ### Building and refreshing the index
-<!-- diataxis: -->
+<!-- diataxis: mixed -->
 
 Workflows keep subscriptions and processes up to date on their own. Use the CLI for the initial
 build, and after bulk changes:
@@ -300,9 +300,10 @@ Each of the per-entity commands above accepts:
 | `--dry-run`           | make no database writes and no embedding calls              |
 | `--show-progress`     | show a progress bar                                        |
 
-To index every entity type in one go, use `python main.py index all`. It accepts only
-`--force-index`; the entity ID, `--dry-run` and `--show-progress` options are not available because it
-runs the per-entity commands with their defaults.
+To index every entity type in one go, use `python main.py index all`. It accepts `--force-index` and
+`--chunk-size` (a positive integer: entities per index transaction, default 200; lower it if a reindex
+with embeddings enabled needs too much memory). The entity ID, `--dry-run` and `--show-progress` options
+are not available.
 
 `python main.py index rebuild-paths` recomputes the
 [distinct-paths table](#the-distinct-paths-table) from scratch. It takes no options.

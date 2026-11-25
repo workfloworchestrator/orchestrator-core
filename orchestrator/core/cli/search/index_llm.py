@@ -17,6 +17,7 @@ import typer
 
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing import (
+    DEFAULT_BULK_CHUNK_SIZE,
     rebuild_search_paths,
     run_indexing_for_all_entities,
     run_indexing_for_entity,
@@ -31,6 +32,10 @@ EntityId = Annotated[str | None, typer.Option(help="UUID (default = all)")]
 DryRun = Annotated[bool, typer.Option(help="No DB writes")]
 ForceIndex = Annotated[bool, typer.Option(help="Force re-index (ignore hash cache)")]
 ShowProgress = Annotated[bool, typer.Option(help="Show per-entity progress")]
+ChunkSize = Annotated[
+    int,
+    typer.Option(min=1, help="Entities per index transaction; lower it if the reindex needs too much memory"),
+]
 
 
 @app.command("subscriptions")
@@ -272,20 +277,22 @@ def schedules_command(
 
 
 @app.command("all")
-def all_command(force_index: ForceIndex = False) -> None:
+def all_command(force_index: ForceIndex = False, chunk_size: ChunkSize = DEFAULT_BULK_CHUNK_SIZE) -> None:
     """Index all entity types and rebuild the ai_search_paths table.
 
     Args:
         force_index: Re-index every field, ignoring the content hashes.
+        chunk_size: Entities per index transaction (>= 1); with embeddings enabled, retained vector memory scales with it.
 
     CLI Options:
         ```shell
         Options:
             --force-index / --no-force-index  Force re-index (ignore hash cache)  [default: no-force-index]
+            --chunk-size <int range> [x>=1]   Positive number of entities per index transaction; lower it if the reindex needs too much memory  [default: 200]
             --help                            Show this message and exit.
         ```
     """
-    run_indexing_for_all_entities(force_index=force_index)
+    run_indexing_for_all_entities(force_index=force_index, chunk_size=chunk_size)
 
 
 @app.command("rebuild-paths")

@@ -29,6 +29,11 @@ from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 
 logger = structlog.get_logger(__name__)
 
+#: Entities per index transaction for bulk runs. Conservative because embedding batches of a
+#: chunk are materialized in memory before the write lock is taken; see
+#: `run_indexing_for_all_entities`.
+DEFAULT_BULK_CHUNK_SIZE = 200
+
 
 def _get_entity_count(stmt: Any) -> int | None:
     """Get total count of entities from a select statement."""
@@ -126,15 +131,34 @@ def _remove_entity_from_index(
     logger.debug("Removed deleted entity from the search index", entity_kind=entity_kind.value, entity_id=entity_id)
 
 
-def run_indexing_for_all_entities(force_index: bool = False) -> None:
+def run_indexing_for_all_entities(force_index: bool = False, chunk_size: int = DEFAULT_BULK_CHUNK_SIZE) -> None:
     """Index every registered entity type, then resynchronize the distinct-paths table.
 
     Unchanged fields are skipped via the hash cache, so this is cheap to run after every
     migration unless `force_index` is set.
+
+    Args:
+        force_index (bool): When True, re-indexes all fields regardless of existing hashes.
+        chunk_size (int): Entities per index transaction; must be >= 1. The default is
+            conservatively small because embedding batches of a chunk are materialized in
+            memory before the write lock is taken, so retained embedding-vector memory scales
+            as roughly chunk_size × embeddable fields per entity × 48 KiB per 1536-dim vector.
+            Raise it for thin data models or when embeddings are disabled; lower it on
+            memory-tight deployments. Changing the chunk size never duplicates embedding
+            inputs: each field that passes the embeddability and token checks is placed in
+            exactly one batch, but each chunk flushes its final batch at chunk end, so
+            smaller chunks can issue more (smaller) embedding API requests.
+
+    Raises:
+        ValueError: If `chunk_size` is less than 1; a zero or negative size would break or
+            silently skip stale-path delete batching.
     """
+    if chunk_size < 1:
+        raise ValueError(f"chunk_size must be >= 1, got {chunk_size}")
+
     for entity_kind in ENTITY_CONFIG_REGISTRY:
         logger.info("Indexing entities", entity_kind=entity_kind.value)
-        run_indexing_for_entity(entity_kind=entity_kind, force_index=force_index)
+        run_indexing_for_entity(entity_kind=entity_kind, force_index=force_index, chunk_size=chunk_size)
     rebuild_search_paths()
 
 

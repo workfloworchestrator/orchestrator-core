@@ -283,11 +283,54 @@ def test_run_indexing_for_all_entities_indexes_each_entity_then_rebuilds_paths(f
 
     assert manager.mock_calls == [
         *(
-            call.index_entity(entity_kind=entity_kind, force_index=force_index)
+            call.index_entity(entity_kind=entity_kind, force_index=force_index, chunk_size=200)
             for entity_kind in ENTITY_CONFIG_REGISTRY
         ),
         call.rebuild(),
     ]
+
+
+def test_run_indexing_for_all_entities_forwards_chunk_size_to_each_entity():
+    manager = MagicMock()
+    with (
+        patch("orchestrator.core.search.indexing.tasks.run_indexing_for_entity", manager.index_entity),
+        patch("orchestrator.core.search.indexing.tasks.rebuild_search_paths", manager.rebuild),
+    ):
+        run_indexing_for_all_entities(chunk_size=42)
+
+    assert manager.mock_calls == [
+        *(
+            call.index_entity(entity_kind=entity_kind, force_index=False, chunk_size=42)
+            for entity_kind in ENTITY_CONFIG_REGISTRY
+        ),
+        call.rebuild(),
+    ]
+
+
+def test_run_indexing_for_all_entities_bounds_default_chunk_size():
+    """The bulk default must stay memory-bounded: embedding batches are materialized in memory per chunk."""
+    manager = MagicMock()
+    with (
+        patch("orchestrator.core.search.indexing.tasks.run_indexing_for_entity", manager.index_entity),
+        patch("orchestrator.core.search.indexing.tasks.rebuild_search_paths", manager.rebuild),
+    ):
+        run_indexing_for_all_entities()
+
+    assert [c.kwargs["chunk_size"] for c in manager.index_entity.call_args_list] == [200] * len(ENTITY_CONFIG_REGISTRY)
+
+
+@pytest.mark.parametrize("bad_size", [pytest.param(0, id="zero"), pytest.param(-1, id="negative")])
+def test_run_indexing_for_all_entities_rejects_nonpositive_chunk_size(bad_size):
+    """A nonpositive size would break delete batching (range step 0) or silently skip deletes."""
+    manager = MagicMock()
+    with (
+        patch("orchestrator.core.search.indexing.tasks.run_indexing_for_entity", manager.index_entity),
+        patch("orchestrator.core.search.indexing.tasks.rebuild_search_paths", manager.rebuild),
+    ):
+        with pytest.raises(ValueError, match="chunk_size"):
+            run_indexing_for_all_entities(chunk_size=bad_size)
+
+    assert manager.mock_calls == []
 
 
 # ---------------------------------------------------------------------------

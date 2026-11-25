@@ -12,12 +12,14 @@
 # limitations under the License.
 
 from orchestrator.core.search.indexing.tasks import (
+    DEFAULT_BULK_CHUNK_SIZE,
     rebuild_search_paths,
     run_indexing_for_all_entities,
     run_indexing_for_entity,
 )
 
 __all__ = [
+    "DEFAULT_BULK_CHUNK_SIZE",
     "rebuild_search_paths",
     "run_indexing_for_all_entities",
     "run_indexing_for_entity",
