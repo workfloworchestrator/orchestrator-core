@@ -327,6 +327,46 @@ def test_process_chunk_with_fields_executes_batches(mock_config: MagicMock, mock
     assert identical == 0
 
 
+def test_process_chunk_materializes_batches_before_lock(mock_config: MagicMock, mock_entity: MagicMock) -> None:
+    """Upsert batches (and their embedding calls) are built before the advisory lock is taken."""
+    idx = Indexer(config=mock_config, dry_run=False, force_index=True, chunk_size=10)
+    idx._entity_titles[ENTITY_ID] = ENTITY_TITLE
+    events: list[str] = []
+
+    fake_record: IndexableRecord = {
+        "entity_id": ENTITY_ID,
+        "entity_type": EntityType.SUBSCRIPTION.value,
+        "entity_title": ENTITY_TITLE,
+        "path": Ltree("root.description"),
+        "value": "Hello",
+        "value_type": FieldType.STRING,
+        "content_hash": "abc",
+        "embedding": [0.1],
+    }
+
+    def batch_generator(_fields_to_upsert):
+        events.append("generate")
+        yield [fake_record]
+
+    mock_session = MagicMock()
+
+    def record_execute(stmt, params=None, **kwargs):
+        text_ = str(stmt)
+        if "pg_advisory_xact_lock" in text_:
+            events.append("lock")
+        elif "INSERT" in text_:
+            events.append("upsert")
+
+    mock_session.execute.side_effect = record_execute
+    with (
+        patch.object(idx, "_determine_changes", return_value=([("eid", MagicMock())], [], 0)),
+        patch.object(idx, "_generate_upsert_batches", side_effect=batch_generator),
+    ):
+        idx._process_chunk([mock_entity], session=mock_session)
+
+    assert events == ["generate", "lock", "upsert"]
+
+
 def test_process_chunk_dry_run_does_not_execute(indexer: Indexer, mock_entity: MagicMock) -> None:
     """dry_run=True: batches are logged, session.execute is never called."""
     mock_session = MagicMock()

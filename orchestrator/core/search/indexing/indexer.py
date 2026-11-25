@@ -108,6 +108,10 @@ class Indexer:
           a transaction (`Session.begin()`).
         - Writes for the same entity kind are serialized per transaction. This prevents
           concurrent chunks from deadlocking in the `ai_search_paths` maintenance trigger.
+        - Upsert batches are built (including embedding API calls) before the lock is
+          acquired, so embedding latency is not spent holding the lock. This holds one
+          chunk's worth of embedded records in memory before the first write; the chunk's
+          fields are already fully materialized by `determine_changes`.
         - Read queries use the passed session when available, otherwise the
           generic `db.session`.
 
@@ -115,12 +119,12 @@ class Indexer:
         1) Stream entities (yield_per=chunk_size) and accumulate into a chunk.
         2) Begin transaction for the chunk.
         3) determine_changes() → fields_to_upsert, paths_to_delete.
-        4) Acquire an entity-kind write lock when the chunk has changes.
-        5) Delete stale paths.
-        6) Build UPSERT batches with a two-list buffer:
+        4) Build UPSERT batches with a two-list buffer:
         - Embeddable list (STRING): track running token count; flush when next item
             would exceed the token budget (model max context - safety margin).
         - Non-embeddable list: accumulate in parallel; does not affect flushing.
+        5) Acquire an entity-kind write lock when the chunk has changes.
+        6) Delete stale paths.
         7) Execute UPSERT for each batch (skip in dry_run).
         8) Commit transaction (auto on context exit).
         9) Repeat until the stream is exhausted.
@@ -199,6 +203,10 @@ class Indexer:
 
         fields_to_upsert, paths_to_delete, identical_count = self._determine_changes(entity_chunk, session)
 
+        # Build all batches (embedding API calls happen here) before the lock so external
+        # latency does not stall same-type indexers waiting on the advisory lock.
+        batches = list(self._generate_upsert_batches(fields_to_upsert))
+
         if session is not None and not self.dry_run and (fields_to_upsert or paths_to_delete):
             acquire_search_index_write_lock(session, self.config.entity_kind)
 
@@ -208,9 +216,8 @@ class Indexer:
 
         if fields_to_upsert:
             upsert_stmt = self._get_upsert_statement()
-            batch_generator = self._generate_upsert_batches(fields_to_upsert)
 
-            for batch in batch_generator:
+            for batch in batches:
                 if self.dry_run:
                     self.logger.debug(f"Dry Run: Would upsert {len(batch)} records.")
                 elif batch and session:
