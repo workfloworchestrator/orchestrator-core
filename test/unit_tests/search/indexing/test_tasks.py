@@ -27,6 +27,7 @@ from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 from orchestrator.core.search.indexing.tasks import (
     _get_entity_count,
+    _remove_entity_from_index,
     run_indexing_for_all_entities,
     run_indexing_for_entity,
 )
@@ -287,3 +288,26 @@ def test_run_indexing_for_all_entities_indexes_each_entity_then_rebuilds_paths(f
         ),
         call.rebuild(),
     ]
+
+
+# ---------------------------------------------------------------------------
+# _remove_entity_from_index
+# ---------------------------------------------------------------------------
+
+
+def test_remove_entity_from_index_locks_before_delete() -> None:
+    """The entity-type advisory lock must be taken before the DELETE fires the trigger."""
+    mock_session = MagicMock()
+    _remove_entity_from_index(EntityType.PROCESS, VALID_UUID, dry_run=False, session=mock_session)
+    statements = [(str(c.args[0]), c.args[1] if len(c.args) > 1 else None) for c in mock_session.execute.call_args_list]
+    assert "pg_advisory_xact_lock" in statements[0][0]
+    assert statements[0][1] == {"entity_type": EntityType.PROCESS.value}
+    assert statements[1][0].strip().upper().startswith("DELETE")
+    mock_session.commit.assert_called_once()
+
+
+def test_remove_entity_from_index_dry_run_does_not_execute() -> None:
+    mock_session = MagicMock()
+    _remove_entity_from_index(EntityType.PROCESS, VALID_UUID, dry_run=True, session=mock_session)
+    mock_session.execute.assert_not_called()
+    mock_session.commit.assert_not_called()
