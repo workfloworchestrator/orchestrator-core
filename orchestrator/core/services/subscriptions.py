@@ -27,7 +27,6 @@ from more_itertools import first
 from psycopg import InterfaceError
 from sqlalchemy import Select, Text, cast, not_, select
 from sqlalchemy.exc import InvalidRequestError, OperationalError
-from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Query, aliased, joinedload
 from sqlalchemy.sql.expression import or_
@@ -64,7 +63,8 @@ logger = structlog.get_logger(__name__)
 
 T = TypeVar("T", bound=SubscriptionTable)
 
-_SUBSCRIPTION_LOOKUP_INFRA_ERRORS = (OperationalError, InvalidRequestError, SQLAlchemyTimeoutError, InterfaceError)
+# A pool timeout is deliberately not in here: it escapes unchanged so the app's exception handler can answer 503.
+_SUBSCRIPTION_LOOKUP_INFRA_ERRORS = (OperationalError, InvalidRequestError, InterfaceError)
 
 
 @overload
@@ -91,8 +91,9 @@ def get_subscription(
 
     Raises:
         ValueError: if the subscription_id is not a valid UUID or the Subscription does not exist.
-        DBInternalError: if the lookup failed for infrastructure reasons (lost connection, exhausted
-            pool, session misuse).
+        DBInternalError: if the lookup failed for infrastructure reasons (lost connection, session misuse).
+        sqlalchemy.exc.TimeoutError: if the connection pool is exhausted. Not wrapped, so the app's exception
+            handler can answer it as a 503.
 
     """
 
@@ -131,8 +132,9 @@ async def get_subscription_async(
 
     Raises:
         ValueError: if the subscription_id is not a valid UUID or the Subscription does not exist.
-        DBInternalError: if the lookup failed for infrastructure reasons (lost connection, exhausted
-            pool, session misuse).
+        DBInternalError: if the lookup failed for infrastructure reasons (lost connection, session misuse).
+        sqlalchemy.exc.TimeoutError: if the connection pool is exhausted. Not wrapped, so the app's exception
+            handler can answer it as a 503.
 
     """
 

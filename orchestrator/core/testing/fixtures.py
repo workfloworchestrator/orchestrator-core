@@ -54,7 +54,7 @@ from urllib3_mock import Responses
 
 from orchestrator.core.app import OrchestratorCore
 from orchestrator.core.db import db, get_async_session, warn_db_uri_scheme, wrapped_db
-from orchestrator.core.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
+from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, Database, SearchQuery, make_engine_arguments
 from orchestrator.core.settings import SecretPostgresDsn, app_settings
 from orchestrator.core.testing.services import ServiceURIs, patch_app_settings, provide_services
 from orchestrator.core.utils.json import json_dumps
@@ -256,7 +256,7 @@ def alembic_config(db_uri: str) -> Config:
 @pytest.fixture(scope="session")
 def database(db_uri: str, alembic_config: Config) -> Iterator[None]:
     """Create the test database, run the migrations, and drop the database at the end of the session."""
-    wrapped_db.update(Database(db_uri))
+    wrapped_db.update(Database(db_uri, app_settings))
     url = make_url(db_uri)
     db_to_create = url.database
     engine = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
@@ -268,7 +268,7 @@ def database(db_uri: str, alembic_config: Config) -> Iterator[None]:
 
     run_migrations(db_uri, alembic_config)
     test_database = _wrapped_database()
-    test_database.engine = create_engine(db_uri, **ENGINE_ARGUMENTS)
+    test_database.engine = create_engine(db_uri, **make_engine_arguments(app_settings))
 
     try:
         yield

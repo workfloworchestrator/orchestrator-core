@@ -49,6 +49,12 @@ class ExecutorType(strEnum):
     THREADPOOL = "threadpool"
 
 
+# Defaults for the connection pool settings (see ``orchestrator.core.db.database.make_engine_arguments``).
+DATABASE_POOL_SIZE_DEFAULT = 60
+DATABASE_MAX_OVERFLOW_DEFAULT = 10
+DATABASE_POOL_TIMEOUT_DEFAULT = 30
+
+
 class LifecycleValidationMode(strEnum):
     STRICT = "strict"
     LOOSE = "loose"
@@ -78,6 +84,27 @@ class AppSettings(BaseSettings):
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
     BASE_URL: str = "http://localhost:8080"  # Base URL for the API (used for generating export URLs)
     DATABASE_URI: SecretPostgresDsn = "postgresql+psycopg://nwa:nwa@localhost/orchestrator-core"  # type: ignore
+    DATABASE_POOL_SIZE: PositiveInt = Field(
+        DATABASE_POOL_SIZE_DEFAULT,
+        description=(
+            "Persistent connections per engine (sync and async). Each process has two engines. "
+            "Overridden by a pool_size patched into ENGINE_ARGUMENTS."
+        ),
+    )
+    DATABASE_MAX_OVERFLOW: NonNegativeInt = Field(
+        DATABASE_MAX_OVERFLOW_DEFAULT,
+        description=(
+            "Extra connections per engine above DATABASE_POOL_SIZE, closed when returned. 0 caps the pool. "
+            "Overridden by a max_overflow patched into ENGINE_ARGUMENTS."
+        ),
+    )
+    DATABASE_POOL_TIMEOUT: NonNegativeInt = Field(
+        DATABASE_POOL_TIMEOUT_DEFAULT,
+        description=(
+            "Seconds to wait for a connection before giving up with a 503. 0 fails fast. "
+            "Overridden by a pool_timeout patched into ENGINE_ARGUMENTS."
+        ),
+    )
     MAX_WORKERS: int = 5
     WORKER_STATUS_INTERVAL: int = Field(
         5, description="Interval in seconds for updating worker status count in the background monitor"

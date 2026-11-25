@@ -14,13 +14,22 @@
 
 from http import HTTPStatus
 
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from structlog import get_logger
 
 from orchestrator.core.api.error_handling import ProblemDetailException
 from orchestrator.core.search.query.exceptions import PathNotFoundError, QueryValidationError
 
+logger = get_logger(__name__)
+
 PROBLEM_DETAIL_FIELDS = ("title", "type")
+
+DATABASE_UNAVAILABLE_MESSAGE = "The database is temporarily unavailable. Please try again later."
+
+# SQLAlchemy's error code for "QueuePool limit ... reached, connection timed out".
+POOL_LIMIT_ERROR_CODE = "3o7r"
 
 
 async def problem_detail_handler(request: Request, exc: ProblemDetailException) -> JSONResponse:
@@ -49,3 +58,27 @@ async def query_validation_handler(request: Request, exc: QueryValidationError) 
     if isinstance(exc, PathNotFoundError):
         detail = f"{detail} Use discover_filter_paths to find valid paths."
     return JSONResponse({"detail": detail, "status": status.value, "title": status.phrase}, status_code=status.value)
+
+
+async def database_timeout_handler(request: Request, exc: SQLAlchemyTimeoutError) -> JSONResponse:
+    """Answer a database connection timeout with a 503 instead of an unhandled 500.
+
+    Only SQLAlchemy's pool limit error is logged as an exhausted pool. GraphQL returns these in its ``errors`` list.
+    """
+    message = (
+        "Database connection pool exhausted"
+        if exc.code == POOL_LIMIT_ERROR_CODE
+        else "Timed out waiting for a database connection"
+    )
+    logger.warning(
+        message,
+        path=request.url.path,
+        method=request.method,
+        error=str(exc),
+    )
+    status = HTTPStatus.SERVICE_UNAVAILABLE
+    return JSONResponse(
+        {"detail": DATABASE_UNAVAILABLE_MESSAGE, "status": status.value, "title": status.phrase},
+        status_code=status.value,
+        headers={"Retry-After": "5"},
+    )

@@ -73,6 +73,9 @@ process:
 | Setting | Default | Set it to | Why |
 |---|---|---|---|
 | `DATABASE_URI` | a local database | your database | |
+| `DATABASE_POOL_SIZE` | `60` | see [Connection pool](../reference-docs/database.md#connection-pool) | applies to both the sync and the async pool of a process, so each process can hold twice this many connections |
+| `DATABASE_MAX_OVERFLOW` | `10` | `5` | extra connections a process may open on top of the pool |
+| `DATABASE_POOL_TIMEOUT` | `30` | `10` | seconds to wait for a free connection before answering `503` |
 | `CACHE_URI` | `redis://localhost:6379/0` | your Redis/Valkey | |
 | `SESSION_SECRET` | random per process | one shared random value | with several API replicas, sessions break when a request reaches another replica |
 | `DISTLOCK_BACKEND` | `memory` | `redis` | locks must hold across processes |

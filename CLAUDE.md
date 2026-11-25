@@ -6,6 +6,10 @@
 - **Stack**: FastAPI, SQLAlchemy, Pydantic v2, Strawberry GraphQL, LiteLLM
 - **Python**: 3.11–3.15 | **Package manager**: `uv` | **Build**: `uv`
 
+## Database engines
+`Database` (`orchestrator/core/db/database.py`) owns two engines, sync and async, built from `ENGINE_ARGUMENTS`,
+which downstream orchestrators patch, so read it at call time. Pool settings: `docs/reference-docs/database.md`.
+
 ## Common Commands
 ```bash
 uv run pytest test/unit_tests          # unit tests
