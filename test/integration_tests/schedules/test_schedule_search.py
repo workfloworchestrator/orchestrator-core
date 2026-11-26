@@ -23,6 +23,7 @@ from sqlalchemy import select
 
 from orchestrator.core.db import db
 from orchestrator.core.db.models import AiSearchIndex
+from orchestrator.core.schedules.scheduler import get_scheduler
 from orchestrator.core.schedules.service import _delete_linker_entry, index_schedule
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.entity_lookup import ResolvedEntity, resolve_entity_id_prefix
@@ -71,6 +72,20 @@ def test_index_schedule_indexes_the_workflow_and_the_job(schedule_id):
     }
 
 
+def test_index_schedule_indexes_the_subscription_id(schedule_id, product_type_1_subscription_factory):
+    subscription_id = product_type_1_subscription_factory(description="Scheduled maintenance subscription")
+    with get_scheduler() as scheduler:
+        scheduler.get_job(schedule_id).modify(
+            kwargs={"workflow_name": WORKFLOW_NAME, "user_inputs": [{"subscription_id": subscription_id}]}
+        )
+
+    index_schedule(schedule_id)
+
+    fields = _indexed_fields(schedule_id)
+    assert fields["schedule.subscription_id"] == subscription_id
+    assert "schedule.subscription_description" not in fields
+
+
 def test_index_schedule_removes_a_schedule_that_no_longer_exists(schedule_id):
     index_schedule(schedule_id)
     workflow = get_workflow_by_name(WORKFLOW_NAME)
@@ -107,6 +122,7 @@ def test_schedule_export_returns_the_indexed_fields(schedule_id):
         "workflow_description": workflow.description,
         "workflow_target": "SYSTEM",
         "is_task": True,
+        "subscription_id": None,
     }
 
 

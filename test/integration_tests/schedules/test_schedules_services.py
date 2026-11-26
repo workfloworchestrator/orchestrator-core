@@ -23,9 +23,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 from orchestrator.core.db import db
 from orchestrator.core.db.models import WorkflowApschedulerJob
 from orchestrator.core.schedules.scheduler import (
-    enrich_with_workflow_id,
     get_scheduler,
     get_scheduler_tasks_by_ids,
+    scheduled_tasks_from_jobs,
 )
 from orchestrator.core.schedules.service import (
     SCHEDULER_QUEUE,
@@ -424,7 +424,7 @@ def test_enrich_schedule_with_workflow_id(scheduler_with_jobs, clear_all_schedul
     # Get all jobs from the scheduler
     with get_scheduler() as scheduler:
         jobs = scheduler.get_jobs()
-        enriched_tasks = enrich_with_workflow_id(jobs)
+        enriched_tasks = scheduled_tasks_from_jobs(jobs)
 
     assert len(enriched_tasks) == 1
     assert enriched_tasks[0].workflow_id == str(workflow.workflow_id)
@@ -448,7 +448,7 @@ def test_enrich_schedule_with_and_without_workflow_id(scheduler_with_jobs, clear
     # Get all jobs from the scheduler
     with get_scheduler() as scheduler:
         jobs = scheduler.get_jobs()
-        enriched_tasks = enrich_with_workflow_id(jobs)
+        enriched_tasks = scheduled_tasks_from_jobs(jobs)
 
     assert len(enriched_tasks) == 1
     assert enriched_tasks[0].workflow_id == str(workflow.workflow_id)
@@ -478,7 +478,7 @@ def test_enrich_all_schedule_with_workflow_id(scheduler_with_jobs, clear_all_sch
     # Get all jobs from the scheduler
     with get_scheduler() as scheduler:
         jobs = scheduler.get_jobs()
-        enriched_tasks = enrich_with_workflow_id(jobs)
+        enriched_tasks = scheduled_tasks_from_jobs(jobs)
 
     assert len(enriched_tasks) == 3
     assert enriched_tasks[0].workflow_id == str(workflow.workflow_id)

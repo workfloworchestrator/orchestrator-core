@@ -27,11 +27,11 @@ from orchestrator.core.graphql.types import GraphqlFilter, GraphqlSort, Orchestr
 from orchestrator.core.graphql.utils import create_resolver_error_handler, to_graphql_result_page
 from orchestrator.core.graphql.utils.is_query_detailed import is_querying_page_data
 from orchestrator.core.schedules.scheduler import (
-    enrich_with_workflow_id,
     get_scheduler_tasks,
     get_scheduler_tasks_by_ids,
     scheduled_task_filter_keys,
     scheduled_task_sort_keys,
+    scheduled_tasks_from_jobs,
 )
 from orchestrator.core.search.core.types import EntityType
 
@@ -66,7 +66,7 @@ def query_scheduled_tasks(
 @make_async
 def _load_scheduled_tasks(info: OrchestratorInfo, ids: Sequence[UUID]) -> dict[str, ScheduledTaskGraphql]:
     jobs = get_scheduler_tasks_by_ids(set(map(str, ids)))
-    return {task.id: ScheduledTaskGraphql.from_pydantic(task) for task in enrich_with_workflow_id(jobs)}
+    return {task.id: ScheduledTaskGraphql.from_pydantic(task) for task in scheduled_tasks_from_jobs(jobs)}
 
 
 async def resolve_scheduled_tasks(
