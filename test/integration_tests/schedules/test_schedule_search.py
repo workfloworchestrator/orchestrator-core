@@ -72,7 +72,7 @@ def test_index_schedule_indexes_the_workflow_and_the_job(schedule_id):
     }
 
 
-def test_index_schedule_indexes_the_subscription_it_runs_with(schedule_id, product_type_1_subscription_factory):
+def test_index_schedule_indexes_the_subscription_id(schedule_id, product_type_1_subscription_factory):
     subscription_id = product_type_1_subscription_factory(description="Scheduled maintenance subscription")
     with get_scheduler() as scheduler:
         scheduler.get_job(schedule_id).modify(
@@ -83,7 +83,7 @@ def test_index_schedule_indexes_the_subscription_it_runs_with(schedule_id, produ
 
     fields = _indexed_fields(schedule_id)
     assert fields["schedule.subscription_id"] == subscription_id
-    assert fields["schedule.subscription_description"] == "Scheduled maintenance subscription"
+    assert "schedule.subscription_description" not in fields
 
 
 def test_index_schedule_removes_a_schedule_that_no_longer_exists(schedule_id):
@@ -123,7 +123,6 @@ def test_schedule_export_returns_the_indexed_fields(schedule_id):
         "workflow_target": "SYSTEM",
         "is_task": True,
         "subscription_id": None,
-        "subscription_description": None,
     }
 
 

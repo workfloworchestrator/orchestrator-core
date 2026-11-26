@@ -44,7 +44,6 @@ _EXPECTED_FIELDS = {
     "schedule.workflow_target": ("SYSTEM", FieldType.STRING),
     "schedule.is_task": ("True", FieldType.BOOLEAN),
     "schedule.subscription_id": (_SUBSCRIPTION_ID, FieldType.UUID),
-    "schedule.subscription_description": ("My subscription", FieldType.STRING),
 }
 
 
@@ -69,19 +68,9 @@ def _job(**overrides):
     return SimpleNamespace(**(job | overrides))
 
 
-def _get_subscription(subscription_id):
-    """Like the real lookup: only a known subscription has a description, anything else is a ValueError."""
-    if subscription_id != _SUBSCRIPTION_ID:
-        raise ValueError(f"Invalid subscription id: {subscription_id}")
-    return SimpleNamespace(description="My subscription")
-
-
 def _get_fields(job):
     config = ENTITY_CONFIG_REGISTRY[EntityType.SCHEDULE]
-    with (
-        patch("orchestrator.core.schedules.scheduler.get_scheduler_task", return_value=job) as mock_get_job,
-        patch("orchestrator.core.schedules.scheduler.get_subscription", side_effect=_get_subscription),
-    ):
+    with patch("orchestrator.core.schedules.scheduler.get_scheduler_task", return_value=job) as mock_get_job:
         fields = config.traverser.get_fields(entity=_schedule(), pk_name=config.pk_name, root_name=config.root_name)
     mock_get_job.assert_called_once_with(_SCHEDULE_ID)
     return {field.path: (field.value, field.value_type) for field in fields}
@@ -89,9 +78,6 @@ def _get_fields(job):
 
 def test_traverse_schedule_combines_workflow_and_job():
     assert _get_fields(_job()) == _EXPECTED_FIELDS
-
-
-_NO_SUBSCRIPTION_FIELDS = ("schedule.subscription_id", "schedule.subscription_description")
 
 
 @pytest.mark.parametrize(
@@ -102,11 +88,11 @@ _NO_SUBSCRIPTION_FIELDS = ("schedule.subscription_id", "schedule.subscription_de
         pytest.param([{"subscription_id": "not-a-uuid"}], id="malformed-subscription-id"),
     ],
 )
-def test_traverse_schedule_without_a_usable_subscription_indexes_no_subscription_fields(user_inputs):
+def test_traverse_schedule_without_a_usable_subscription_indexes_no_subscription_id(user_inputs):
     """Job inputs are free-form: a missing or malformed subscription id is not indexed, and does not fail indexing."""
     fields = _get_fields(_job(kwargs={"user_inputs": user_inputs}))
 
-    assert fields == {path: field for path, field in _EXPECTED_FIELDS.items() if path not in _NO_SUBSCRIPTION_FIELDS}
+    assert fields == {path: field for path, field in _EXPECTED_FIELDS.items() if path != "schedule.subscription_id"}
 
 
 @pytest.mark.parametrize(
@@ -114,6 +100,7 @@ def test_traverse_schedule_without_a_usable_subscription_indexes_no_subscription
     [
         pytest.param({"next_run_time": None}, "schedule.next_run_time", id="paused-job-has-no-next-run-time"),
         pytest.param({"name": None}, "schedule.name", id="unnamed-job"),
+        pytest.param({"kwargs": {}}, "schedule.subscription_id", id="job-without-inputs-has-no-subscription"),
     ],
 )
 def test_traverse_schedule_skips_unset_job_fields(overrides, missing_path):
