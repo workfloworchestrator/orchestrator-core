@@ -12,11 +12,13 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Any
+from enum import StrEnum
+from typing import Annotated, Any, Self
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 
+from orchestrator.core.db.models import NOTE_LENGTH
 from orchestrator.core.schemas.base import OrchestratorBaseModel
 from orchestrator.core.schemas.product import ProductBaseSchema
 from orchestrator.core.schemas.product_block import ProductBlockSchema
@@ -95,6 +97,40 @@ class SubscriptionWithMetadata(SubscriptionSchema):
 
 class SubscriptionIdSchema(OrchestratorBaseModel):
     subscription_id: UUID
+
+
+class SubscriptionBulkAction(StrEnum):
+    NOTE = "note"
+    SET_IN_SYNC = "set_in_sync"
+    VALIDATE = "validate"
+    RECONCILE = "reconcile"
+
+
+class SubscriptionBulkSchema(OrchestratorBaseModel):
+    action: SubscriptionBulkAction
+    # Bounds the IN queries and the sequential workflow starts within one request
+    subscription_ids: Annotated[list[UUID], Field(min_length=1, max_length=1000)]
+    note: Annotated[str, Field(max_length=NOTE_LENGTH)] | None = None
+
+    @model_validator(mode="after")
+    def note_given_for_note_action(self) -> Self:
+        # `None` clears the note, so only an omitted field is an error
+        if self.action == SubscriptionBulkAction.NOTE and "note" not in self.model_fields_set:
+            raise ValueError("'note' is required for the 'note' action")
+        return self
+
+
+class SubscriptionBulkItemResult(OrchestratorBaseModel):
+    subscription_id: UUID
+    success: bool
+    error: str | None = None
+    process_ids: list[UUID] = []
+
+
+class SubscriptionBulkResultSchema(OrchestratorBaseModel):
+    action: SubscriptionBulkAction
+    count: int
+    results: list[SubscriptionBulkItemResult]
 
 
 class SubscriptionDomainModelSchema(SubscriptionSchema):

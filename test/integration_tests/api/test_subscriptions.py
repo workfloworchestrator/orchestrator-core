@@ -35,6 +35,7 @@ from orchestrator.core.db import (
 from orchestrator.core.db.models import SubscriptionInstanceRelationTable, WorkflowTable
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.search.core.types import EntityType
+from orchestrator.core.services.settings import get_engine_settings_table
 from orchestrator.core.services.subscriptions import (
     RELATION_RESOURCE_TYPES,
     _generate_etag,
@@ -986,3 +987,183 @@ def test_subscription_set_in_sync_db_error(mock_get_subscription_async, seed, te
     response = test_client.put(f"/api/subscriptions/{IP_PREFIX_SUBSCRIPTION_ID}/set_in_sync")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
     assert "abc-123" not in response.text
+
+
+BULK_START = "orchestrator.core.api.api_v1.endpoints.subscriptions.start_process"
+
+
+def _bulk(test_client, action, subscription_ids, **extra):
+    return test_client.post(
+        "/api/subscriptions/bulk",
+        json={"action": action, "subscription_ids": [str(sid) for sid in subscription_ids], **extra},
+    )
+
+
+def _product_id(subscription_id):
+    return db.session.get(SubscriptionTable, subscription_id).product_id
+
+
+@pytest.fixture
+def bulk_workflows(seed):
+    """Give the product of the IP prefix subscription two validate and one reconcile workflow."""
+
+    @workflow(target=Target.VALIDATE)
+    def bulk_validate_a():
+        return init >> done
+
+    @workflow(target=Target.VALIDATE)
+    def bulk_validate_b():
+        return init >> done
+
+    @workflow(target=Target.RECONCILE)
+    def bulk_reconcile():
+        return init >> done
+
+    with (
+        WorkflowInstanceForTests(bulk_validate_a, "bulk_validate_a") as validate_a,
+        WorkflowInstanceForTests(bulk_validate_b, "bulk_validate_b") as validate_b,
+        WorkflowInstanceForTests(bulk_reconcile, "bulk_reconcile") as reconcile,
+    ):
+        product = db.session.get(ProductTable, _product_id(IP_PREFIX_SUBSCRIPTION_ID))
+        product.workflows.extend([validate_a, validate_b, reconcile])
+        db.session.commit()
+        yield
+
+
+@pytest.mark.parametrize("note", ["bulk note", None])
+def test_bulk_note(seed, test_client, reindex, note):
+    ids = [IP_PREFIX_SUBSCRIPTION_ID, PORT_A_SUBSCRIPTION_ID]
+    db.session.get(SubscriptionTable, ids[0]).note = "old"
+    db.session.commit()
+
+    response = _bulk(test_client, "note", ids, note=note)
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["count"] == 2
+    assert [get_subscription(sid).note for sid in ids] == [note, note]
+    assert [call.args[1] for call in reindex.call_args_list] == ids
+
+
+def test_bulk_set_in_sync(seed, test_client, reindex):
+    unsynced, already_in_sync, failed = IP_PREFIX_SUBSCRIPTION_ID, PORT_A_SUBSCRIPTION_ID, SSP_SUBSCRIPTION_ID
+    unsync(unsynced)
+    unsync(failed)
+    _create_failed_process(failed)
+    db.session.commit()
+
+    response = _bulk(test_client, "set_in_sync", [unsynced, already_in_sync, failed])
+
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert body["count"] == 2
+    assert [(r["subscription_id"], r["success"]) for r in body["results"]] == [
+        (unsynced, True),
+        (already_in_sync, True),
+        (failed, False),
+    ]
+    assert "failed processes" in body["results"][2]["error"]
+    assert [get_subscription(sid).insync for sid in (unsynced, already_in_sync, failed)] == [True, True, False]
+    assert [call.args[1] for call in reindex.call_args_list] == [unsynced]
+
+
+@pytest.mark.parametrize("action, count", [("validate", 2), ("reconcile", 1)])
+def test_bulk_start_workflows(bulk_workflows, test_client, action, count):
+    process_ids = [uuid4() for _ in range(count)]
+    with mock.patch(BULK_START, side_effect=process_ids) as start:
+        response = _bulk(test_client, action, [IP_PREFIX_SUBSCRIPTION_ID])
+
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert body["count"] == 1
+    assert body["results"][0]["process_ids"] == [str(pid) for pid in process_ids]
+    assert {call.args[0] for call in start.call_args_list} == (
+        {"bulk_validate_a", "bulk_validate_b"} if action == "validate" else {"bulk_reconcile"}
+    )
+    assert all(call.args[1] == [{"subscription_id": IP_PREFIX_SUBSCRIPTION_ID}] for call in start.call_args_list)
+
+
+def test_bulk_validate_reports_missing_workflow(bulk_workflows, test_client):
+    with mock.patch(BULK_START, side_effect=[uuid4(), uuid4()]):
+        response = _bulk(test_client, "validate", [PORT_A_SUBSCRIPTION_ID, IP_PREFIX_SUBSCRIPTION_ID])
+
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert body["count"] == 1
+    missing, started = body["results"]
+    assert (missing["success"], missing["process_ids"]) == (False, [])
+    assert "No validate workflow for product 'PortAProduct'" in missing["error"]
+    assert started["success"] and len(started["process_ids"]) == 2
+
+
+def test_bulk_start_failure_is_reported_per_item(bulk_workflows, test_client):
+    first = uuid4()
+    with mock.patch(BULK_START, side_effect=[first, RuntimeError("boom")]):
+        response = _bulk(test_client, "validate", [IP_PREFIX_SUBSCRIPTION_ID])
+
+    result = response.json()["results"][0]
+    assert response.status_code == HTTPStatus.OK
+    assert (result["success"], result["error"], result["process_ids"]) == (False, "boom", [str(first)])
+
+
+def test_bulk_start_unauthorized(seed, test_client):
+    async def deny(_: AuthContext) -> bool:
+        return False
+
+    @workflow(target=Target.VALIDATE, authorize_callback=deny)
+    def bulk_forbidden():
+        return init >> done
+
+    with WorkflowInstanceForTests(bulk_forbidden, "bulk_forbidden") as wf:
+        db.session.get(ProductTable, _product_id(IP_PREFIX_SUBSCRIPTION_ID)).workflows.append(wf)
+        db.session.commit()
+        with mock.patch(BULK_START) as start:
+            response = _bulk(test_client, "validate", [IP_PREFIX_SUBSCRIPTION_ID])
+
+    result = response.json()["results"][0]
+    assert not result["success"]
+    assert "not authorized to start 'bulk_forbidden'" in result["error"]
+    start.assert_not_called()
+
+
+def test_bulk_start_engine_locked(bulk_workflows, test_client):
+    get_engine_settings_table().global_lock = True
+    db.session.flush()
+
+    with mock.patch(BULK_START) as start:
+        response = _bulk(test_client, "validate", [IP_PREFIX_SUBSCRIPTION_ID])
+
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
+    start.assert_not_called()
+
+
+def test_bulk_unknown_subscription(seed, test_client, reindex):
+    unknown = uuid4()
+
+    response = _bulk(test_client, "note", [IP_PREFIX_SUBSCRIPTION_ID, unknown], note="x")
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert str(unknown) in response.json()["detail"]
+    assert get_subscription(IP_PREFIX_SUBSCRIPTION_ID).note != "x"
+
+
+def test_bulk_ignores_duplicates(seed, test_client, reindex):
+    response = _bulk(test_client, "note", [IP_PREFIX_SUBSCRIPTION_ID] * 3, note="x")
+
+    assert response.json()["count"] == 1
+    assert len(response.json()["results"]) == 1
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param({"action": "note", "subscription_ids": [str(uuid4())]}, id="note-missing"),
+        pytest.param({"action": "validate", "subscription_ids": []}, id="no-subscriptions"),
+        pytest.param(
+            {"action": "validate", "subscription_ids": [str(uuid4()) for _ in range(1001)]}, id="too-many-subscriptions"
+        ),
+        pytest.param({"action": "terminate", "subscription_ids": [str(uuid4())]}, id="unknown-action"),
+    ],
+)
+def test_bulk_invalid_body(test_client, body):
+    response = test_client.post("/api/subscriptions/bulk", json=body)
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
