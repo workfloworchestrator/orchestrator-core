@@ -111,3 +111,19 @@ def test_stop_stops_the_worker():
     relay.stop()
 
     assert not relay.is_alive()
+
+
+def test_stop_drains_queued_broadcasts():
+    received: list[str] = []
+
+    def broadcast(value: str) -> None:
+        received.append(value)
+
+    relay = WebSocketBroadcastRelay()
+    relay.start()
+    for value in ("first", "second", "third"):
+        relay.submit(broadcast, value)
+    relay.stop()
+
+    assert received == ["first", "second", "third"]
+    assert not relay.is_alive()

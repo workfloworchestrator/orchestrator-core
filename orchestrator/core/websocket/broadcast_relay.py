@@ -75,7 +75,7 @@ class WebSocketBroadcastRelay(threading.Thread):
             with self._condition:
                 while not self._tasks and not self._shutdown:
                     self._condition.wait()
-                if self._shutdown:
+                if self._shutdown and not self._tasks:
                     break
 
                 broadcast, args = self._tasks.popleft()
@@ -88,11 +88,19 @@ class WebSocketBroadcastRelay(threading.Thread):
         logger.info("Shutdown websocket broadcast relay", dropped=self.dropped)
 
     def stop(self) -> None:
-        """Ask the worker to stop and wait for it, unless it is stuck in a broadcast."""
+        """Signal shutdown, drain the queued broadcasts, and wait up to JOIN_TIMEOUT for the worker.
+
+        Whatever is still queued when the timeout expires is dropped: the worker is a daemon thread, so it cannot
+        keep the process alive.
+        """
         with self._condition:
             self._shutdown = True
             self._condition.notify()
 
         self.join(timeout=self.JOIN_TIMEOUT)
         if self.is_alive():
-            logger.warning("Websocket broadcast relay did not stop in time", dropped=self.dropped)
+            logger.warning(
+                "Websocket broadcast relay did not stop in time",
+                dropped=self.dropped,
+                pending=len(self._tasks),
+            )
