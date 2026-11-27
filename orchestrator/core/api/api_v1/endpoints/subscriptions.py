@@ -322,13 +322,16 @@ async def _bulk_start_workflows(
             for sid, (names, error) in startable.items()
         ]
 
-    return await run_in_threadpool(run)
+    results = await run_in_threadpool(run)
+    await broadcast_invalidate_status_counts_async()
+    return results
 
 
-async def _reindex_subscriptions(subscription_ids: list[UUID]) -> None:
-    """Re-index changed subscriptions: note and insync are part of the search index."""
+async def _refresh_subscriptions(subscription_ids: list[UUID]) -> None:
+    """Re-index changed subscriptions (note and insync are part of the search index) and invalidate their caches."""
     for subscription_id in subscription_ids:
         await reindex_entity(EntityType.SUBSCRIPTION, subscription_id)
+        await invalidate_subscription_cache(subscription_id, invalidate_all=False)
 
 
 async def _bulk_set_note(
@@ -338,7 +341,7 @@ async def _bulk_set_note(
         update(SubscriptionTable).where(SubscriptionTable.subscription_id.in_(subscription_ids)).values(note=note)
     )
     await session.commit()
-    await _reindex_subscriptions(subscription_ids)
+    await _refresh_subscriptions(subscription_ids)
     return [SubscriptionBulkItemResult(subscription_id=sid, success=True) for sid in subscription_ids]
 
 
@@ -352,7 +355,7 @@ async def _bulk_set_in_sync(
             update(SubscriptionTable).where(SubscriptionTable.subscription_id.in_(to_sync)).values(insync=True)
         )
         await session.commit()
-    await _reindex_subscriptions(to_sync)
+    await _refresh_subscriptions(to_sync)
 
     return [
         SubscriptionBulkItemResult(
@@ -410,12 +413,6 @@ async def bulk_subscription_action(
             results = await _bulk_start_workflows(
                 request, subscriptions, BULK_WORKFLOW_TARGETS[data.action], user, user_model
             )
-
-    if data.action in (SubscriptionBulkAction.NOTE, SubscriptionBulkAction.SET_IN_SYNC):
-        for subscription_id in subscription_ids:
-            await invalidate_subscription_cache(subscription_id, invalidate_all=False)
-    else:
-        await broadcast_invalidate_status_counts_async()
 
     count = sum(result.success for result in results)
     return SubscriptionBulkResultSchema(action=data.action, count=count, results=results)
