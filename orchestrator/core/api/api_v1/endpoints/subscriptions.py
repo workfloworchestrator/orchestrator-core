@@ -17,12 +17,14 @@ import itertools
 from collections.abc import Callable
 from functools import partial
 from http import HTTPStatus
+from operator import attrgetter
 from typing import Any
 from uuid import UUID
 
 import structlog
 from fastapi import Body, Depends
 from fastapi.routing import APIRouter
+from more_itertools import map_reduce, unique_everseen
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import contains_eager, defer, joinedload
@@ -69,6 +71,7 @@ from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.utils.get_subscription_dict import get_subscription_dict
 from orchestrator.core.websocket import broadcast_invalidate_status_counts_async, invalidate_subscription_cache
+from orchestrator.core.workflow import ProcessStatus
 from orchestrator.core.workflows import get_workflow
 
 router = APIRouter()
@@ -213,17 +216,14 @@ async def _failed_processes_by_subscription(
         return {}
 
     stmt = (
-        select(ProcessSubscriptionTable)
+        select(ProcessSubscriptionTable.subscription_id, ProcessSubscriptionTable.process_id)
         .join(ProcessTable)
         .filter(ProcessSubscriptionTable.subscription_id.in_(subscription_ids))
         .filter(~ProcessTable.is_task)
-        .filter(ProcessTable.last_status != "completed")
-        .filter(ProcessTable.last_status != "aborted")
+        .filter(ProcessTable.last_status.not_in((ProcessStatus.COMPLETED, ProcessStatus.ABORTED)))
     )
-    failed: dict[UUID, list[str]] = {}
-    for p in await session.scalars(stmt):
-        failed.setdefault(p.subscription_id, []).append(str(p.process_id))
-    return failed
+    rows = await session.execute(stmt)
+    return dict(map_reduce(rows, keyfunc=attrgetter("subscription_id"), valuefunc=lambda row: str(row.process_id)))
 
 
 async def _failed_processes(subscription_id: UUID, session: AsyncSession) -> list[str]:
@@ -268,7 +268,7 @@ async def _actionable_subscriptions(subscription_ids: list[UUID]) -> dict[UUID, 
     Raises:
         HTTPException: 404 when a subscription is unknown.
     """
-    unique_ids = list(dict.fromkeys(subscription_ids))
+    unique_ids = list(unique_everseen(subscription_ids))
     stmt = (
         select(SubscriptionTable)
         .where(SubscriptionTable.subscription_id.in_(unique_ids))
@@ -309,20 +309,25 @@ async def _startable_workflows(
     return list(registered), None
 
 
+def _start_workflow(subscription_id: UUID, workflow_name: str, start: Callable[..., UUID]) -> UUID | Exception:
+    """Start one workflow for the subscription and return its process id, or the error when it fails to start."""
+    try:
+        return start(workflow_name, [{"subscription_id": str(subscription_id)}])
+    except Exception as e:
+        logger.exception("Bulk workflow start failed", subscription_id=subscription_id, workflow=workflow_name)
+        return e
+
+
 def _start_workflows(
     subscription_id: UUID, workflow_names: list[str], start: Callable[..., UUID]
 ) -> SubscriptionBulkItemResult:
-    """Start every workflow for the subscription; a failure is reported on the item instead of raised."""
-    process_ids: list[UUID] = []
-    for name in workflow_names:
-        try:
-            process_ids.append(start(name, [{"subscription_id": str(subscription_id)}]))
-        except Exception as e:
-            logger.exception("Bulk workflow start failed", subscription_id=subscription_id, workflow=name)
-            return SubscriptionBulkItemResult(
-                subscription_id=subscription_id, success=False, error=str(e), process_ids=process_ids
-            )
-    return SubscriptionBulkItemResult(subscription_id=subscription_id, success=True, process_ids=process_ids)
+    """Start every workflow for the subscription; failures are reported on the item instead of raised."""
+    outcomes = [_start_workflow(subscription_id, name, start) for name in workflow_names]
+    process_ids = [outcome for outcome in outcomes if isinstance(outcome, UUID)]
+    errors = [str(outcome) for outcome in outcomes if isinstance(outcome, Exception)]
+    return SubscriptionBulkItemResult(
+        subscription_id=subscription_id, success=not errors, error="; ".join(errors) or None, process_ids=process_ids
+    )
 
 
 async def _bulk_start_workflows(
@@ -337,28 +342,30 @@ async def _bulk_start_workflows(
     startable = {sid: await _startable_workflows(sub, target, user_model) for sid, sub in subscriptions.items()}
     start = partial(start_process, user=user, user_model=user_model, broadcast_func=api_broadcast_process_data(request))
 
+    def start_item(sid: UUID, names: list[str], error: str | None) -> SubscriptionBulkItemResult:
+        if error is not None:
+            return SubscriptionBulkItemResult(subscription_id=sid, success=False, error=error)
+        return _start_workflows(sid, names, start)
+
     def run() -> list[SubscriptionBulkItemResult]:
-        return [
-            (
-                _start_workflows(sid, names, start)
-                if error is None
-                else SubscriptionBulkItemResult(subscription_id=sid, success=False, error=error)
-            )
-            for sid, (names, error) in startable.items()
-        ]
+        return [start_item(sid, names, error) for sid, (names, error) in startable.items()]
 
     results = await run_in_threadpool(run)
     await broadcast_invalidate_status_counts_async()
     return results
 
 
+async def _update_subscriptions(subscription_ids: list[UUID], session: AsyncSession, **values: Any) -> None:
+    """Set `values` on the subscriptions in a single committed update."""
+    stmt = update(SubscriptionTable).where(SubscriptionTable.subscription_id.in_(subscription_ids)).values(**values)
+    await session.execute(stmt)
+    await session.commit()
+
+
 async def _bulk_set_note(
     subscription_ids: list[UUID], note: str | None, session: AsyncSession
 ) -> list[SubscriptionBulkItemResult]:
-    await session.execute(
-        update(SubscriptionTable).where(SubscriptionTable.subscription_id.in_(subscription_ids)).values(note=note)
-    )
-    await session.commit()
+    await _update_subscriptions(subscription_ids, session, note=note)
     await _refresh_subscriptions(subscription_ids)
     return [SubscriptionBulkItemResult(subscription_id=sid, success=True) for sid in subscription_ids]
 
@@ -369,11 +376,8 @@ async def _bulk_set_in_sync(
     failed = await _failed_processes_by_subscription(list(subscriptions), session)
     to_sync = [sid for sid, sub in subscriptions.items() if not sub.insync and sid not in failed]
     if to_sync:
-        await session.execute(
-            update(SubscriptionTable).where(SubscriptionTable.subscription_id.in_(to_sync)).values(insync=True)
-        )
-        await session.commit()
-    await _refresh_subscriptions(to_sync)
+        await _update_subscriptions(to_sync, session, insync=True)
+        await _refresh_subscriptions(to_sync)
 
     return [
         SubscriptionBulkItemResult(

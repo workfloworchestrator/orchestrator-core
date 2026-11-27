@@ -1123,14 +1123,17 @@ def test_bulk_validate_reports_missing_workflow(bulk_workflows, test_client):
     assert started["success"] and len(started["process_ids"]) == 2
 
 
-def test_bulk_start_failure_is_reported_per_item(bulk_workflows, test_client):
-    first = uuid4()
-    with mock.patch(BULK_START, side_effect=[first, RuntimeError("boom")]):
+@pytest.mark.parametrize("failing_index", [0, 1])
+def test_bulk_start_failure_is_reported_per_item(bulk_workflows, test_client, failing_index):
+    started = uuid4()
+    outcomes = [started]
+    outcomes.insert(failing_index, RuntimeError("boom"))
+    with mock.patch(BULK_START, side_effect=outcomes):
         response = _bulk(test_client, "validate", [IP_PREFIX_SUBSCRIPTION_ID])
 
     result = response.json()["results"][0]
     assert response.status_code == HTTPStatus.OK
-    assert (result["success"], result["error"], result["process_ids"]) == (False, "boom", [str(first)])
+    assert (result["success"], result["error"], result["process_ids"]) == (False, "boom", [str(started)])
 
 
 def test_bulk_start_unauthorized(seed, test_client):
