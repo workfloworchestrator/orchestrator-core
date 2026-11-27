@@ -62,7 +62,7 @@ dependencies = [
     "python-dateutil>=2.9.0; python_version >= '3.15'",  # litellm>=1.109 -> botocore caps python-dateutil<3
     "python-rapidjson>=1.26,<1.27",
     "pytz>=2025",
-    "redis==8.1.0",
+    "redis==8.2.0",
     "semver==3.1.2",
     "sentry-sdk[fastapi]>=2.29.1",
     "sqlalchemy[asyncio]==2.1.9",
