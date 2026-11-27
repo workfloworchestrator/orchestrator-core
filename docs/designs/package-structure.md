@@ -114,9 +114,10 @@ orchestrator/core/beta/
 ├── __init__.py          policy summary (this section, short)
 └── parallel/
     ├── __init__.py      public API: parallel, map_parallel
-    ├── dsl.py           parallel, map_parallel, _make_parallel_step, reconstruct_branch   → workflow/parallel.py
+    ├── dsl.py           parallel, map_parallel, _make_parallel_step                        → workflow/parallel.py
     ├── branching.py     _create_fork_step, _update_fork_step, _make_branch_dblogstep,
-    │                    _collect_branch_results, _succeeded_branch_indices, _worst_status → execution/branching/
+    │                    _collect_branch_results, _succeeded_branch_indices, _worst_status,
+    │                    reconstruct_branch, branch_step_name                               → execution/branching/
     ├── engine.py        _exec_parallel_branches (executor selection)                       → execution/parallel/
     ├── threadpool.py    _run_branch, _run_threadpool_branches                              → execution/parallel/
     └── worker.py        _dispatch_worker_branches, run_worker_branch, _resolve_fork_step, _resume,
@@ -137,6 +138,11 @@ These stay in stable code because they are generic branching support or fall und
 | child steps in `enrich_step_details` | `utils/enrich_process.py` |
 | `PARALLEL_BRANCH_QUEUE`, `PARALLEL_BRANCH_WORKFLOW_QUEUE` | `settings.py` |
 | `execute_parallel_branch*` task registration (wiring import) | `services/tasks.py` |
+| `StepList._rshift_dict`'s deferred `_make_parallel_step` import (wiring import; serves the `{"Name": [...]}` dict form, which is beta too) | `workflow.py` |
+
+`reconstruct_branch` and `branch_step_name` live in `branching.py` rather than `dsl.py`: they rebuild and name a
+branch from a `BranchSpec`, which is what `branching.py` owns, and `worker.py` needs them without importing the DSL.
+That keeps the module graph acyclic: `dsl → engine → {threadpool, worker} → branching`.
 
 `make_workflow` runs the group name check on every workflow, so the check, the walk and the step data they read
 (`BranchSpec`) are stable: stable code doesn't import beta code (see [Rules](#rules)). `BranchSpec` holds only the

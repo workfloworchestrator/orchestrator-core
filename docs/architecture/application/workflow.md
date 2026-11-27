@@ -142,22 +142,25 @@ For a practical example of how to define reusable workflow steps—and how to le
 👉 [Reusable step functions and single dispatch usage]
 
 
-### Parallel Steps
+### Parallel Steps {: .beta }
 <!-- diataxis: reference -->
 
 The workflow engine supports two kinds of parallel execution, both implemented as a fork/join pattern: the engine forks the state into isolated copies for each branch, executes them concurrently, and joins the results back into a single state.
+
+> **Beta.** Parallel steps are a beta feature: import them from `orchestrator.core.beta.parallel`. The API may change
+> incompatibly in a minor release; each such change is listed in the changelog and the upgrade guide.
 
 Parallel execution supports two backends:
 
 - **ThreadPool** (default): Branches run in-process using a `ThreadPoolExecutor`. Each branch thread gets its own database session via `db.database_scope()`.
 - **Celery** (distributed): When `EXECUTOR=celery`, each branch is submitted as a separate Celery task. The parent workflow suspends (`Waiting`) until all branches complete. The last branch to finish atomically detects completion and resumes the parent workflow.
 
-#### Static parallel — fixed branches
+#### Static parallel — fixed branches {: .beta }
 <!-- diataxis: reference -->
 
 Use when the set of branches is known at definition time (e.g., always provision port A and port B together).
 
-**Dict naming** — one key with a list of branches:
+**Dict naming** — one key with a list of branches (the dict form is beta too):
 ```python
 @create_workflow(...)
 def create_dual_port():
@@ -168,7 +171,7 @@ def create_dual_port():
 
 **Explicit `parallel()` function** (for advanced options like `retry_auth_callback`):
 ```python
-from orchestrator.core.workflow import parallel
+from orchestrator.core.beta.parallel import parallel
 
 @create_workflow(...)
 def create_dual_port():
@@ -183,13 +186,13 @@ def create_dual_port():
 Every parallel step has an explicit name, either as the dict key or as the first argument of `parallel()` and
 `map_parallel()`.
 
-#### Dynamic parallel — one branch per item
+#### Dynamic parallel — one branch per item {: .beta }
 <!-- diataxis: reference -->
 
 Use when the number of branches depends on a runtime list in the workflow state (e.g., provision one port per item in `state["ports"]`).
 
 ```python
-from orchestrator.core.workflow import map_parallel
+from orchestrator.core.beta.parallel import map_parallel
 
 
 @step("Fetch ports")
@@ -222,7 +225,7 @@ Each item in the list becomes the seed state for one branch:
 
 Seed keys are injected into the branch's initial state as input-only context for that branch's steps.
 
-#### Behavior (both kinds)
+#### Behavior (both kinds) {: .beta }
 <!-- diataxis: reference -->
 
 - **State isolation**: Each branch receives a deep copy of the input state. Mutations in one branch do not affect other branches.

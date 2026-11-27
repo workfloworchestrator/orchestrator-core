@@ -25,7 +25,6 @@ Covers three bugs surfaced by the SURF orchestrator parallel-demo workflow:
    failed retry, the old main-log row sits in ``failed`` state and is never
    updated to reflect the retry outcome.
 
-TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
 """
 
 from functools import partial
@@ -33,17 +32,21 @@ from functools import partial
 import pytest
 from sqlalchemy.orm import selectinload
 
+from orchestrator.core.beta.parallel import (
+    map_parallel,
+    parallel,
+)
+from orchestrator.core.beta.parallel.branching import (
+    branch_step_name,
+)
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.services.processes import create_process, load_process, safe_logstep
 from orchestrator.core.testing import WorkflowInstanceForTests
 from orchestrator.core.workflow import (
     begin,
-    branch_step_name,
     done,
     init,
-    map_parallel,
-    parallel,
     runwf,
     step,
     workflow,

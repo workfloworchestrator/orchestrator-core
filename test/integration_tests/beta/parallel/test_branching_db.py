@@ -16,7 +16,6 @@
 These tests verify that fork steps and branch step relations are
 correctly persisted in the database during parallel workflow execution.
 
-TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
 """
 
 from uuid import UUID, uuid4
@@ -26,17 +25,25 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
+from orchestrator.core.beta.parallel import (
+    map_parallel,
+    parallel,
+)
+from orchestrator.core.beta.parallel.branching import (
+    branch_step_name,
+)
+from orchestrator.core.beta.parallel.engine import _exec_parallel_branches
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.testing import WorkflowInstanceForTests, assert_complete, run_workflow
 from orchestrator.core.workflow import (
     BranchKind,
+    BranchSpec,
+    StepList,
     begin,
-    branch_step_name,
     done,
     init,
-    map_parallel,
-    parallel,
+    process_stat_var,
     step,
     workflow,
 )
@@ -392,3 +399,36 @@ def test_parallel_run_writes_no_half_set_fork_rows(parallel_workflow_run) -> Non
     ).all()
 
     assert half_set == []
+
+
+@step("Executor Default A")
+def _step_a() -> dict:
+    return {"a": 1}
+
+
+@step("Executor Default B")
+def _step_b() -> dict:
+    return {"b": 2}
+
+
+def test_threadpool_executor_is_default(db_session) -> None:  # noqa: ARG001 — fixture needed for db.database_scope
+    """The default executor runs a fork's branches in-process and returns their joined status.
+
+    Merged from the former ``test_parallel_executor.py``: it lives here because ``_exec_parallel_branches`` opens a
+    ``db.database_scope()`` per branch, which needs a real database connection.
+    """
+    # Clear any stale process context from previous tests so _exec_parallel_branches
+    # runs without fork-step creation (process_stat_var=None skips the DB write).
+    token = process_stat_var.set(None)  # type: ignore[arg-type]
+    try:
+        result = _exec_parallel_branches(
+            branching=BranchSpec(
+                "test",
+                BranchKind.PARALLEL,
+                (StepList([_step_a]), StepList([_step_b])),
+            ),
+            initial_state={},
+        )
+    finally:
+        process_stat_var.reset(token)
+    assert result.issuccess()

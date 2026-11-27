@@ -18,7 +18,9 @@ nested parallelism, mixed types, asymmetric branches, scale, error propagation,
 and edge cases. All tests run with real DB persistence via the engine-pool
 session fixture.
 
-TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
+Every test here is marked ``slow``: they are the heaviest integration tests in
+the suite. Select just them with ``-m slow``, or exclude them with
+``-m "not slow"``; the default run includes them.
 """
 
 import sys
@@ -32,6 +34,10 @@ from sqlalchemy import select
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 
+from orchestrator.core.beta.parallel import (
+    map_parallel,
+    parallel,
+)
 from orchestrator.core.db import ProcessStepRelationTable, ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
 from orchestrator.core.services.processes import SYSTEM_USER
@@ -47,19 +53,17 @@ from orchestrator.core.workflow import (
     ProcessStat,
     ProcessStatus,
     Success,
-    _find_step_by_group_name,
     begin,
     conditional,
     done,
     init,
-    map_parallel,
-    parallel,
     retrystep,
     runwf,
     step,
     workflow,
 )
-from orchestrator.core.workflows import get_workflow
+
+pytestmark = pytest.mark.slow
 
 
 @pytest.fixture(autouse=True)
@@ -85,7 +89,7 @@ _wf_counter = 0
 def branch_executor_sizes(monkeypatch):
     """Record the real executor argument without changing the executor or pool behavior."""
     sizes = []
-    workflow_module = sys.modules["orchestrator.core.workflow"]
+    workflow_module = sys.modules["orchestrator.core.beta.parallel.threadpool"]
     real_executor = workflow_module.ThreadPoolExecutor
 
     def recording_executor(*args, max_workers=None, **kwargs):
@@ -1654,98 +1658,3 @@ def test_parallel_branches_return_empty_dicts() -> None:
         relations = _get_relations(fork.step_id)
         branch_indices = {rel.branch_index for rel in relations}
         assert branch_indices == {0, 1}
-
-
-# ---------------------------------------------------------------------------
-# _find_step_by_group_name unit tests
-# ---------------------------------------------------------------------------
-
-
-def _make_find_wf(name: str):
-    """Factory for workflow definitions used by _find_step_by_group_name tests."""
-    match name:
-        case "flat":
-
-            @workflow()
-            def flat_wf():
-                return init >> parallel("TopLevel", begin >> outer_a, begin >> outer_b) >> done
-
-            return flat_wf, "flat_wf"
-        case "nested_parallel":
-
-            @workflow()
-            def nested_wf():
-                return (
-                    init
-                    >> parallel(
-                        "Outer",
-                        begin >> outer_a >> parallel("Inner", begin >> inner_x, begin >> inner_y),
-                        begin >> outer_b,
-                    )
-                    >> done
-                )
-
-            return nested_wf, "nested_find_wf"
-        case "nested_map_parallel":
-
-            @workflow()
-            def fe_nested_wf():
-                return (
-                    init
-                    >> map_parallel(
-                        "FEOuter",
-                        "items",
-                        begin >> parallel("InsideFE", begin >> inner_x, begin >> inner_y),
-                    )
-                    >> done
-                )
-
-            return fe_nested_wf, "fe_nested_find_wf"
-        case "three_levels":
-
-            @workflow()
-            def deep_wf():
-                return (
-                    init
-                    >> parallel(
-                        "L1",
-                        begin
-                        >> parallel("L2", begin >> parallel("L3", begin >> deep_p, begin >> deep_q), begin >> mid_m),
-                        begin >> top_c,
-                    )
-                    >> done
-                )
-
-            return deep_wf, "deep_find_wf"
-        case _:
-            raise ValueError(f"Unknown workflow: {name}")
-
-
-@pytest.mark.workflow
-@pytest.mark.parametrize(
-    ("wf_key", "search_name", "expected_found"),
-    [
-        pytest.param("flat", "TopLevel", True, id="top-level"),
-        pytest.param("nested_parallel", "Inner", True, id="nested-in-parallel-branch"),
-        pytest.param("nested_map_parallel", "InsideFE", True, id="nested-in-map_parallel-template"),
-        pytest.param("three_levels", "L1", True, id="3-levels-L1"),
-        pytest.param("three_levels", "L2", True, id="3-levels-L2"),
-        pytest.param("three_levels", "L3", True, id="3-levels-L3"),
-        pytest.param("flat", "DoesNotExist", False, id="missing-returns-none"),
-    ],
-)
-def test_find_step_by_group_name(wf_key: str, search_name: str, expected_found: bool) -> None:
-    """_find_step_by_group_name finds (or not) a parallel step at various nesting depths."""
-    wf_func, wf_name = _make_find_wf(wf_key)
-
-    with WorkflowInstanceForTests(wf_func, wf_name):
-        wf = get_workflow(wf_name)
-        assert wf is not None
-        result = _find_step_by_group_name(wf.steps, search_name)
-
-        if expected_found:
-            assert result is not None, f"Expected to find '{search_name}' but got None"
-            assert result.branching is not None
-            assert result.branching.name == search_name
-        else:
-            assert result is None, f"Expected None for '{search_name}' but found a step"

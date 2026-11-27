@@ -17,7 +17,6 @@ Branch results are NOT merged into the main workflow state. After a parallel
 block, the next step receives the pre-parallel (initial) state. Branch data
 is persisted in the DB and accessible via ProcessStepRelationTable / child_steps.
 
-TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
 """
 
 import threading
@@ -35,12 +34,19 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 
+from orchestrator.core.beta.parallel import (
+    map_parallel,
+    parallel,
+)
+from orchestrator.core.beta.parallel.branching import (
+    branch_step_name,
+)
+from orchestrator.core.beta.parallel.worker import run_worker_branch
 from orchestrator.core.config.assignee import Assignee
 from orchestrator.core.db import ProcessStepTable, ProcessTable, db
 from orchestrator.core.db.database import SESSION_ARGUMENTS, BaseModel, SearchQuery
 from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.services.executors.types import ExecutorFunction
-from orchestrator.core.services.parallel import run_worker_branch
 from orchestrator.core.services.processes import SYSTEM_USER, create_process, load_process, safe_logstep
 from orchestrator.core.settings import ExecutorType, app_settings
 from orchestrator.core.testing import (
@@ -58,15 +64,12 @@ from orchestrator.core.workflow import (
     Success,
     _assert_parallel_step_is_visible,
     begin,
-    branch_step_name,
     callback_step,
     conditional,
     done,
     init,
     inputstep,
     make_step_function,
-    map_parallel,
-    parallel,
     retrystep,
     runwf,
     step,

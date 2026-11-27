@@ -163,7 +163,21 @@ globally bounded. Worker execution ignores this option and dispatches one Celery
 ## Phase 7: Restructure
 <!-- diataxis: how-to -->
 
+Status: done.
+
 Do this last, as pure moves, so the earlier diffs stay readable.
+
+**Deviations from the destination table in [Parallel steps](package-structure.md#parallel-steps), both recorded there:**
+
+- `reconstruct_branch` and `branch_step_name` live in `branching.py`, not `dsl.py`: they rebuild and name a branch
+  from a `BranchSpec`, which `branching.py` owns, and `worker.py` needs them without importing the DSL. The module
+  graph stays acyclic: `dsl → engine → {threadpool, worker} → branching`.
+- `_dispatch_worker_branches` stayed in `worker.py`, next to `run_worker_branch`, mirroring how `threadpool.py` holds
+  both `_run_threadpool_branches` (parent side) and `_run_branch` (branch side). `engine.py` is executor selection
+  only.
+
+**Still open:** the nested parallel steps decision below. The worker code moved regardless, since this phase changes
+no behaviour; the decision changes what `worker.py` does, not where it lives.
 
 - `workflow.py:701`: *move to a separate module along with `_exec_parallel_branches` and make it public.*
   `workflow.py:866`: *move to a separate module with submodules for the threadpool/Celery executor.*

@@ -21,33 +21,34 @@ Handles:
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from uuid import UUID
 
 import structlog
-from more_itertools import unique_everseen
 from sqlalchemy import select, update
-from sqlalchemy.orm import joinedload
 
+from orchestrator.core.beta.parallel.branching import (
+    _collect_branch_results,
+    _make_branch_dblogstep,
+    _succeeded_branch_indices,
+    _worst_status,
+    reconstruct_branch,
+)
 from orchestrator.core.db import ProcessStepTable, ProcessTable, WorkflowTable, db
 from orchestrator.core.db.database import transactional
-from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.workflow import (
-    _STATUSES,
     Process,
     ProcessStat,
     StepList,
     StepStatus,
     Success,
+    Waiting,
     Workflow,
     _exec_steps,
     _find_step_by_group_name,
-    _make_branch_dblogstep,
-    _worst_status,
     process_stat_var,
-    reconstruct_branch,
 )
+from pydantic_forms.types import State
 
 logger = structlog.get_logger(__name__)
 
@@ -68,47 +69,6 @@ def _atomic_increment_completed(fork_step_id: UUID) -> tuple[int, int | None]:
     result = db.session.execute(stmt)
     completed, total = result.one()
     return completed, total
-
-
-def _select_branch_relations(fork_step_id: UUID) -> Sequence[ProcessStepRelationTable]:
-    """Return the relations of ``fork_step_id``, latest step first within each branch.
-
-    The ``child_step`` is eagerly loaded because it is ``lazy="raise"``; callers read its status and state. One query
-    serves both the latest result per branch and the relations to inherit on a retry.
-    """
-    stmt = (
-        select(ProcessStepRelationTable)
-        .where(ProcessStepRelationTable.parent_step_id == fork_step_id)
-        .options(joinedload(ProcessStepRelationTable.child_step))
-        .order_by(ProcessStepRelationTable.branch_index, ProcessStepRelationTable.order_id.desc())
-    )
-    return db.session.execute(stmt).scalars().all()
-
-
-def _latest_branch_results(relations: Iterable[ProcessStepRelationTable]) -> dict[int, Process]:
-    """Convert relations ordered latest-first into the latest result per branch index.
-
-    Takes the first step per branch (the highest ``order_id``) as the branch result and converts its status back into
-    the matching ``Process``, so callers can compare results without converting themselves.
-    """
-    return {
-        rel.branch_index: _STATUSES.get(StepStatus(rel.child_step.status), Success)(rel.child_step.state)
-        for rel in unique_everseen(relations, key=lambda rel: rel.branch_index)
-    }
-
-
-def _collect_branch_results(fork_step_id: UUID) -> dict[int, Process]:
-    """Collect the latest branch result per branch index from DB via ProcessStepRelationTable."""
-    return _latest_branch_results(_select_branch_relations(fork_step_id))
-
-
-def _succeeded_branch_indices(fork_step_id: UUID) -> set[int]:
-    """Return the set of branch indices whose most recent attempt succeeded.
-
-    Used by retry logic to skip branches that already completed successfully
-    on a previous attempt of the same parallel group.
-    """
-    return {idx for idx, result in _collect_branch_results(fork_step_id).items() if result.issuccess()}
 
 
 def _resolve_branch_from_db(fork_step_id: UUID, process_id: UUID, branch_index: int) -> tuple[str, StepList, Workflow]:
@@ -252,3 +212,47 @@ def _resume(process_id: UUID, user: str) -> None:
     process = _get_process(process_id)
     resume_func = get_execution_context()[ExecutorFunction.RESUME]
     resume_func(process, user=user)
+
+
+def _dispatch_worker_branches(
+    branches: list[StepList],
+    initial_state: State,
+    process_id: UUID,
+    current_user: str,
+    fork_step_id: UUID,
+    is_task: bool,
+    seeds: list[State] | None = None,
+) -> Process:
+    """Submit parallel branches as worker tasks and return Waiting.
+
+    The parent workflow suspends (Waiting). Each branch executes in its own worker
+    task. The last finisher detects completion via atomic counter and resumes
+    the parent workflow. Picks the task or workflow queue based on ``is_task``.
+    """
+    from orchestrator.core.services.tasks import (
+        EXECUTE_PARALLEL_BRANCH_TASK,
+        EXECUTE_PARALLEL_BRANCH_WORKFLOW,
+        get_celery_task,
+    )
+
+    task_name = EXECUTE_PARALLEL_BRANCH_TASK if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW
+    trigger_task = get_celery_task(task_name)
+
+    n_branches = len(seeds) if seeds else len(branches)
+    already_succeeded = _succeeded_branch_indices(fork_step_id)
+    pending = [idx for idx in range(n_branches) if idx not in already_succeeded]
+    for idx in pending:
+        branch_initial = (initial_state | seeds[idx]) if seeds else initial_state
+        seed = seeds[idx] if seeds else None
+        trigger_task.delay(process_id, idx, fork_step_id, branch_initial, current_user, seed)
+
+    # __replace_last_state tells safe_logstep to update the fork row in-place
+    # rather than write a separate Waiting main-log row alongside it.
+    return Waiting(
+        initial_state
+        | {
+            "__parallel_waiting": True,
+            "__fork_step_id": str(fork_step_id),
+            "__replace_last_state": True,
+        }
+    )

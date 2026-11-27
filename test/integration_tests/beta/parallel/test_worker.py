@@ -15,7 +15,6 @@
 
 Tests exercise real DB persistence through the parallel execution path.
 
-TODO: move to the correct place in the integration tests (in the module of the main function being tested) or to acceptance tests
 """
 
 from functools import partial
@@ -26,13 +25,20 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.orm import selectinload
 
-from orchestrator.core.db import ProcessStepTable, ProcessTable, db
-from orchestrator.core.db.models import ProcessStepRelationTable
-from orchestrator.core.services.parallel import (
-    _atomic_increment_completed,
+from orchestrator.core.beta.parallel import (
+    map_parallel,
+    parallel,
+)
+from orchestrator.core.beta.parallel.branching import (
     _collect_branch_results,
+    branch_step_name,
+)
+from orchestrator.core.beta.parallel.worker import (
+    _atomic_increment_completed,
     _resolve_branch_from_db,
 )
+from orchestrator.core.db import ProcessStepTable, ProcessTable, db
+from orchestrator.core.db.models import ProcessStepRelationTable
 from orchestrator.core.services.processes import create_process, load_process, safe_logstep
 from orchestrator.core.settings import ExecutorType, app_settings
 from orchestrator.core.testing import (
@@ -45,12 +51,9 @@ from orchestrator.core.workflow import (
     Process,
     ProcessStat,
     begin,
-    branch_step_name,
     conditional,
     done,
     init,
-    map_parallel,
-    parallel,
     runwf,
     step,
     step_group,
@@ -299,7 +302,7 @@ def test_map_parallel_worker_dispatches_all_branches(setup_test_celery) -> None:
     def fe_worker_wf():
         return init >> seed_fe_items_worker >> map_parallel("fe worker group", "items", begin >> track_fe_item) >> done
 
-    from orchestrator.core.services.parallel import run_worker_branch as _original_run_worker_branch
+    from orchestrator.core.beta.parallel.worker import run_worker_branch as _original_run_worker_branch
 
     resume_log: list[object] = []
 
@@ -322,7 +325,7 @@ def test_map_parallel_worker_dispatches_all_branches(setup_test_celery) -> None:
 
     with (
         patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
-        patch("orchestrator.core.services.parallel.run_worker_branch", _scoped_run_worker_branch),
+        patch("orchestrator.core.beta.parallel.worker.run_worker_branch", _scoped_run_worker_branch),
         # Stub only the resume dispatch so the fork lookup and the join's DB logic are tested.
         patch("orchestrator.core.services.processes.get_execution_context", return_value=noop_execution_context),
     ):
@@ -556,7 +559,7 @@ def test_worker_resume_after_parallel_executes_remaining_steps(setup_test_celery
             >> done
         )
 
-    from orchestrator.core.services.parallel import run_worker_branch as _original_run_worker_branch
+    from orchestrator.core.beta.parallel.worker import run_worker_branch as _original_run_worker_branch
 
     resume_log: list[object] = []
 
@@ -579,7 +582,7 @@ def test_worker_resume_after_parallel_executes_remaining_steps(setup_test_celery
     try:
         with (
             patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
-            patch("orchestrator.core.services.parallel.run_worker_branch", _scoped_run_worker_branch),
+            patch("orchestrator.core.beta.parallel.worker.run_worker_branch", _scoped_run_worker_branch),
             patch("orchestrator.core.services.processes.get_execution_context", return_value=noop_execution_context),
         ):
             # First run: start the workflow — it will suspend at the parallel step (Waiting)
@@ -668,7 +671,7 @@ def test_join_writes_no_duplicate_main_row(setup_test_celery) -> None:  # noqa: 
     def join_update_wf():
         return init >> parallel("join group", begin >> join_branch_a, begin >> join_branch_b) >> done
 
-    from orchestrator.core.services.parallel import run_worker_branch as _original_run_worker_branch
+    from orchestrator.core.beta.parallel.worker import run_worker_branch as _original_run_worker_branch
 
     resume_log: list[object] = []
 
@@ -683,7 +686,7 @@ def test_join_writes_no_duplicate_main_row(setup_test_celery) -> None:  # noqa: 
 
     with (
         patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
-        patch("orchestrator.core.services.parallel.run_worker_branch", _scoped_run_worker_branch),
+        patch("orchestrator.core.beta.parallel.worker.run_worker_branch", _scoped_run_worker_branch),
         patch("orchestrator.core.services.processes.get_execution_context", return_value=noop_execution_context),
     ):
         with WorkflowInstanceForTests(join_update_wf, "join_update_wf"):
@@ -759,7 +762,7 @@ def _run_worker_branch_inline(**kwargs) -> None:
     Each branch gets its own database session, matching production worker isolation. The resume dispatch is stubbed
     by the caller, so only the branch lookup and the join are exercised.
     """
-    from orchestrator.core.services.parallel import run_worker_branch
+    from orchestrator.core.beta.parallel.worker import run_worker_branch
 
     with db.database_scope():
         run_worker_branch(**kwargs)
@@ -782,7 +785,7 @@ def _run_on_worker(workflow_key: str) -> _WorkerRun:
 
     with (
         patch.object(app_settings, "EXECUTOR", ExecutorType.WORKER),
-        patch("orchestrator.core.services.parallel.run_worker_branch", _run_worker_branch_inline),
+        patch("orchestrator.core.beta.parallel.worker.run_worker_branch", _run_worker_branch_inline),
         patch(
             "orchestrator.core.services.processes.get_execution_context",
             return_value={"start": lambda *a, **kw: None, "resume": _noop_resume, "validate": lambda *a, **kw: None},

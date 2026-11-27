@@ -20,12 +20,12 @@ from celery.app.control import Inspect
 from celery.utils.log import get_task_logger
 from kombu.serialization import registry  # type: ignore[attr-defined]  # runtime-only, absent from celery-types stub
 
+from orchestrator.core.beta.parallel.worker import run_worker_branch
 from orchestrator.core.db import db
 from orchestrator.core.db.database import transactional
 from orchestrator.core.schemas.engine_settings import WorkerStatus
 from orchestrator.core.services.executors.threadpool import thread_resume_process, thread_start_process
 from orchestrator.core.services.flower import get_flower_worker_status
-from orchestrator.core.services.parallel import run_worker_branch
 from orchestrator.core.services.processes import _get_process, ensure_correct_process_status, load_process
 from orchestrator.core.settings import app_settings
 from orchestrator.core.types import BroadcastFunc

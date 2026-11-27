@@ -10,174 +10,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from collections.abc import Iterator
-from contextlib import contextmanager
-from typing import Any
-from unittest.mock import MagicMock, patch
-from uuid import uuid4
 
 import pytest
-from sqlalchemy.pool import NullPool, QueuePool
 
-from orchestrator.core import begin, parallel, step
+from orchestrator.core import begin, step
+from orchestrator.core.beta.parallel import map_parallel, parallel
 from orchestrator.core.config.assignee import Assignee
-from orchestrator.core.settings import app_settings
 from orchestrator.core.workflow import (
-    AwaitingCallback,
-    Failed,
     Step,
     StepImportance,
-    StepList,
     Success,
-    Suspend,
-    Waiting,
-    _dispatch_worker_branches,
-    _max_parallel_workers,
-    _run_threadpool_branches,
-    _warn_about_default_concurrency_budget,
-    branch_step_name,
     callback_step,
     conditional,
     done,
     focussteps,
     init,
     make_step_function,
-    map_parallel,
-    reconstruct_branch,
     step_group,
     workflow,
 )
-from orchestrator.core.workflow import (
-    _worst_status as worst_status,
-)
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, State
-
-
-class _EngineWithPool:
-    """Stand-in for ``db.engine`` that only exposes the connection pool ``_max_parallel_workers`` reads."""
-
-    def __init__(self, pool) -> None:
-        self.pool = pool
-
-
-class _DbWithPool:
-    """Stand-in for the ``db`` object with a given ``engine.pool``."""
-
-    def __init__(self, pool) -> None:
-        self.engine = _EngineWithPool(pool)
-
-
-def _queue_pool(pool_size: int, max_overflow: int) -> QueuePool:
-    """A real ``QueuePool`` that connects only on checkout, so tests never open a connection."""
-
-    def connect_only_on_checkout() -> Any:
-        raise AssertionError("the test pool must not open a connection")
-
-    return QueuePool(connect_only_on_checkout, pool_size=pool_size, max_overflow=max_overflow)
-
-
-@contextmanager
-def _connection_pool(pool, max_workers: int) -> Iterator[None]:
-    """Make ``_max_parallel_workers`` read ``pool`` as the engine pool and ``max_workers`` as ``MAX_WORKERS``."""
-    with (
-        patch("orchestrator.core.workflow.db", _DbWithPool(pool)),
-        patch.object(app_settings, "MAX_WORKERS", max_workers),
-    ):
-        yield
-
-
-@pytest.mark.parametrize(
-    "pending, max_concurrency, pool_size, max_overflow, max_workers, expected",
-    [
-        pytest.param(200, None, 60, 10, 5, 5, id="defaults-to-outer-worker-count"),
-        pytest.param(200, 200, 60, 10, 5, 9, id="explicit-value-capped-by-shared-connection-budget"),
-        pytest.param(3, None, 60, 10, 5, 3, id="does-not-exceed-pending-branches"),
-        pytest.param(2, 20, 1, 0, 200, 1, id="small-pool-still-runs-serially"),
-    ],
-)
-def test_max_parallel_workers(pending, max_concurrency, pool_size, max_overflow, max_workers, expected):
-    with _connection_pool(_queue_pool(pool_size, max_overflow), max_workers):
-        # when
-        workers = _max_parallel_workers(pending, max_concurrency)
-
-    # then
-    assert workers == expected
-
-
-def test_max_parallel_workers_falls_back_to_engine_arguments_for_a_non_queue_pool():
-    """A pool that has no size or overflow of its own (``NullPool``) uses the engine arguments instead."""
-    with _connection_pool(NullPool(lambda: None), max_workers=5):
-        # when
-        workers = _max_parallel_workers(200, 200)
-
-    # then
-    # ENGINE_ARGUMENTS: pool_size 60, no max_overflow -> capacity 60, reserve 15, (60 - 15) // 5 - 1 == 8
-    assert workers == 8
-
-
-@pytest.mark.parametrize("max_concurrency", [0, -1])
-def test_max_parallel_workers_rejects_non_positive_explicit_value(max_concurrency):
-    with pytest.raises(ValueError, match="max_concurrency must be greater than 0"):
-        _max_parallel_workers(10, max_concurrency)
-
-
-@pytest.mark.parametrize(
-    "max_concurrency, max_workers",
-    [
-        pytest.param(200, 5, id="explicit-concurrency-above-budget"),
-        pytest.param(None, 18, id="serial-floor-for-large-worker-count"),
-    ],
-)
-def test_max_parallel_workers_warns_once_when_budget_throttles(max_concurrency, max_workers):
-    # given
-    _warn_about_default_concurrency_budget.cache_clear()
-
-    # when
-    with _connection_pool(_queue_pool(60, 10), max_workers), patch("orchestrator.core.workflow.logger") as mock_logger:
-        workers = [
-            _max_parallel_workers(200, max_concurrency),
-            _max_parallel_workers(200, max_concurrency),
-        ]
-
-    # then
-    expected_requested = max_concurrency if max_concurrency is not None else max_workers
-    expected_budget = 9 if max_workers == 5 else 1
-    assert workers == [expected_budget] * 2
-    attempted_calls = 2 if max_concurrency is not None else 1
-    assert mock_logger.warning.call_count == attempted_calls
-    if max_concurrency is None:
-        assert _warn_about_default_concurrency_budget.cache_info().hits == 1
-    mock_logger.warning.assert_called_with(
-        "Reducing parallel branch concurrency to the connection-pool budget",
-        requested_concurrency=expected_requested,
-        branch_budget=expected_budget,
-        connection_pool_capacity=70,
-        max_workers=max_workers,
-    )
-
-
-def test_max_parallel_workers_does_not_warn_when_pending_fits_budget():
-    _warn_about_default_concurrency_budget.cache_clear()
-    with (
-        _connection_pool(_queue_pool(60, 10), max_workers=5),
-        patch("orchestrator.core.workflow.logger") as mock_logger,
-    ):
-        # when
-        assert _max_parallel_workers(5, 200) == 5
-
-    # then
-    mock_logger.warning.assert_not_called()
-
-    with (
-        _connection_pool(_queue_pool(60, 10), max_workers=18),
-        patch("orchestrator.core.workflow.logger") as mock_logger,
-    ):
-        # when
-        assert _max_parallel_workers(1, None) == 1
-
-    # then
-    mock_logger.warning.assert_not_called()
 
 
 @step("Step A")
@@ -188,136 +41,6 @@ def _step_a() -> dict:
 @step("Step B")
 def _step_b() -> dict:
     return {"b": 2}
-
-
-@pytest.mark.parametrize(
-    "construct",
-    [
-        pytest.param(
-            lambda: parallel("Parallel", begin >> _step_a, begin >> _step_b, max_concurrency=0), id="parallel"
-        ),
-        pytest.param(lambda: map_parallel("Map", "items", begin >> _step_a, max_concurrency=-1), id="map-parallel"),
-    ],
-)
-def test_parallel_step_rejects_non_positive_concurrency_at_definition(construct):
-    with pytest.raises(ValueError, match="max_concurrency must be greater than 0"):
-        construct()
-
-
-@patch("orchestrator.core.workflow.ThreadPoolExecutor")
-@patch("orchestrator.core.workflow.db")
-def test_threadpool_rejects_non_positive_concurrency_before_creating_executor(_mock_db, mock_executor):
-    with pytest.raises(ValueError, match="max_concurrency must be greater than 0"):
-        _run_threadpool_branches(
-            branches=[StepList([_step_a]), StepList([_step_b])],
-            initial_state={},
-            name="test",
-            process_id=None,
-            fork_step_id=None,
-            current_user="",
-            max_concurrency=0,
-        )
-
-    mock_executor.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    "results, expected_check",
-    [
-        ([Failed({"error": "boom"})], "isfailed"),
-        ([Waiting({"w": 1})], "iswaiting"),
-        ([Suspend({"s": 1})], "issuspend"),
-        ([AwaitingCallback({"ac": 1})], "isawaitingcallback"),
-        ([Success({"a": 1}), Success({"b": 2})], None),
-        ([Waiting({"w": 1}), Failed({"error": "x"})], "isfailed"),
-        ([Suspend({"s": 1}), Failed({"error": "x"})], "isfailed"),
-        ([AwaitingCallback({"ac": 1}), Failed({"error": "x"})], "isfailed"),
-        ([Suspend({"s": 1}), Waiting({"w": 1})], "iswaiting"),
-        ([AwaitingCallback({"ac": 1}), Waiting({"w": 1})], "iswaiting"),
-        ([AwaitingCallback({"ac": 1}), Suspend({"s": 1})], "issuspend"),
-        ([Success({"a": 1}), Waiting({"w": 1}), Failed({"error": "x"})], "isfailed"),
-        ([Success({"a": 1}), Suspend({"s": 1}), AwaitingCallback({"ac": 1})], "issuspend"),
-    ],
-    ids=[
-        "single-failed",
-        "single-waiting",
-        "single-suspend",
-        "single-awaiting-callback",
-        "all-success",
-        "waiting-and-failed",
-        "suspend-and-failed",
-        "awaiting-callback-and-failed",
-        "suspend-and-waiting",
-        "awaiting-callback-and-waiting",
-        "awaiting-callback-and-suspend",
-        "three-branches-failed-wins",
-        "three-branches-suspend-wins",
-    ],
-)
-def test_worst_status_priority(results: list, expected_check: str | None) -> None:
-    worst = worst_status(results)
-    if expected_check is None:
-        assert worst is None
-    else:
-        assert worst is not None
-        assert getattr(worst, expected_check)()
-
-
-def test_callback_step_in_parallel_raises() -> None:
-    from orchestrator.core.workflow import begin, callback_step, parallel, step
-
-    @step("CB Action")
-    def _cb_action() -> dict:
-        return {}
-
-    @step("CB Validate")
-    def _cb_validate() -> dict:
-        return {}
-
-    _test_callback = callback_step("Test callback", _cb_action, _cb_validate)
-
-    @step("Branch A")
-    def branch_a() -> dict:
-        return {"a": 1}
-
-    with pytest.raises(ValueError, match="callback"):
-        # Tests both a StepList and Step
-        parallel("Invalid parallel", begin >> branch_a, _test_callback)
-
-
-# -- reconstruct_branch --
-
-
-def test_reconstruct_branch_returns_step_list() -> None:
-    par_step = parallel("Test group", begin >> _step_a, begin >> _step_b)
-    branch = reconstruct_branch(par_step, 0)
-    assert len(branch) > 0
-
-
-def test_reconstruct_branch_returns_the_branch_at_the_index() -> None:
-    par_step = parallel("Test group", begin >> _step_a, begin >> _step_b)
-    assert par_step.branching is not None
-    assert reconstruct_branch(par_step, 1) == par_step.branching.branches[1]
-
-
-def test_reconstruct_branch_index_out_of_range_raises() -> None:
-    par_step = parallel("Test group", begin >> _step_a, begin >> _step_b)
-    with pytest.raises(IndexError):
-        reconstruct_branch(par_step, 5)
-
-
-def test_reconstruct_branch_of_a_step_that_does_not_branch_raises() -> None:
-    with pytest.raises(ValueError, match="not a parallel step"):
-        reconstruct_branch(_step_a, 0)
-
-
-@pytest.mark.parametrize("branch_index", [0, 1, 7])
-def test_reconstruct_branch_of_map_parallel_returns_the_template(branch_index: int) -> None:
-    """Every item of a map_parallel runs the same template, whatever the branch index."""
-    template = begin >> _step_a
-    step_fn = map_parallel("Per item", "items", template)
-
-    assert reconstruct_branch(step_fn, branch_index) == template
 
 
 def test_steps_without_branching_have_no_branches() -> None:
@@ -404,65 +127,6 @@ def test_duplicate_group_name_reported_once_per_name() -> None:
                 >> parallel("Trio", begin >> _step_a, begin >> _step_b)
                 >> done
             )
-
-
-# -- branch step names --
-
-
-@pytest.mark.parametrize(
-    "branch_index, step_name, expected",
-    [
-        pytest.param(0, "Provision", "[Branch 0] Provision", id="first-branch"),
-        pytest.param(12, "[x] y", "[Branch 12] [x] y", id="keeps-brackets-in-the-step-name"),
-        pytest.param(1, "", "[Branch 1] ", id="empty-step-name"),
-    ],
-)
-def test_branch_step_name_prefixes_the_branch_index(branch_index: int, step_name: str, expected: str) -> None:
-    """A branch step row is named after its step, prefixed with the branch the step belongs to."""
-    assert branch_step_name(branch_index, step_name) == expected
-
-
-# -- executor dispatch --
-
-
-# TODO move this when _dispatch_worker_branches itself is moved
-@pytest.mark.parametrize("is_task", [pytest.param(True, id="task"), pytest.param(False, id="workflow")])
-@patch("orchestrator.core.services.parallel._succeeded_branch_indices", return_value=set())
-@patch("orchestrator.core.services.tasks.get_celery_task")
-def test_worker_branches_submits_tasks_and_returns_waiting(
-    mock_get_task: MagicMock, _mock_succeeded: MagicMock, is_task: bool
-) -> None:
-    # given
-    mock_task = MagicMock()
-    mock_get_task.return_value = mock_task
-
-    fork_id = uuid4()
-    process_id = uuid4()
-
-    # when
-    result = _dispatch_worker_branches(
-        branches=[StepList([_step_a]), StepList([_step_b])],
-        initial_state={"x": 1},
-        process_id=process_id,
-        current_user="test_user",
-        fork_step_id=fork_id,
-        is_task=is_task,
-    )
-
-    # then
-    assert isinstance(result, Waiting)
-    assert result.unwrap()["__parallel_waiting"] is True
-    assert result.unwrap()["__fork_step_id"] == str(fork_id)
-    assert mock_task.delay.call_count == 2
-
-    # Verify correct task name was requested
-    from orchestrator.core.services.tasks import (
-        EXECUTE_PARALLEL_BRANCH_TASK,
-        EXECUTE_PARALLEL_BRANCH_WORKFLOW,
-    )
-
-    expected_task = EXECUTE_PARALLEL_BRANCH_TASK if is_task else EXECUTE_PARALLEL_BRANCH_WORKFLOW
-    mock_get_task.assert_called_once_with(expected_task)
 
 
 # -- typed step metadata --
