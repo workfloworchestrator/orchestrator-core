@@ -32,7 +32,7 @@ from orchestrator.core.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.core.db.models import SubscriptionInstanceRelationTable, WorkflowTable
+from orchestrator.core.db.models import NOTE_LENGTH, SubscriptionInstanceRelationTable, WorkflowTable
 from orchestrator.core.domain.base import SubscriptionModel
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.services.settings import get_engine_settings_table
@@ -1082,6 +1082,34 @@ def test_bulk_start_workflows(bulk_workflows, test_client, action, count):
     assert all(call.args[1] == [{"subscription_id": IP_PREFIX_SUBSCRIPTION_ID}] for call in start.call_args_list)
 
 
+def test_bulk_set_in_sync_check_disabled(seed, test_client, reindex):
+    unsync(IP_PREFIX_SUBSCRIPTION_ID)
+    _create_failed_process(IP_PREFIX_SUBSCRIPTION_ID)
+    db.session.commit()
+
+    with mock.patch("orchestrator.core.api.api_v1.endpoints.subscriptions.app_settings.DISABLE_INSYNC_CHECK", True):
+        response = _bulk(test_client, "set_in_sync", [IP_PREFIX_SUBSCRIPTION_ID])
+
+    assert response.json()["count"] == 1
+    assert get_subscription(IP_PREFIX_SUBSCRIPTION_ID).insync
+
+
+def test_bulk_start_ignores_unregistered_workflow(seed, test_client):
+    unregistered = WorkflowTable(
+        workflow_id=uuid4(), name="bulk_unregistered", description="not in code", target=Target.VALIDATE
+    )
+    db.session.get(ProductTable, _product_id(IP_PREFIX_SUBSCRIPTION_ID)).workflows.append(unregistered)
+    db.session.commit()
+
+    with mock.patch(BULK_START) as start:
+        response = _bulk(test_client, "validate", [IP_PREFIX_SUBSCRIPTION_ID])
+
+    result = response.json()["results"][0]
+    assert not result["success"]
+    assert "No validate workflow" in result["error"]
+    start.assert_not_called()
+
+
 def test_bulk_validate_reports_missing_workflow(bulk_workflows, test_client):
     with mock.patch(BULK_START, side_effect=[uuid4(), uuid4()]):
         response = _bulk(test_client, "validate", [PORT_A_SUBSCRIPTION_ID, IP_PREFIX_SUBSCRIPTION_ID])
@@ -1157,6 +1185,9 @@ def test_bulk_ignores_duplicates(seed, test_client, reindex):
     "body",
     [
         pytest.param({"action": "note", "subscription_ids": [str(uuid4())]}, id="note-missing"),
+        pytest.param(
+            {"action": "note", "subscription_ids": [str(uuid4())], "note": "x" * (NOTE_LENGTH + 1)}, id="note-too-long"
+        ),
         pytest.param({"action": "validate", "subscription_ids": []}, id="no-subscriptions"),
         pytest.param(
             {"action": "validate", "subscription_ids": [str(uuid4()) for _ in range(1001)]}, id="too-many-subscriptions"

@@ -262,6 +262,31 @@ async def subscription_set_in_sync(
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
+async def _actionable_subscriptions(subscription_ids: list[UUID]) -> dict[UUID, SubscriptionTable]:
+    """Return the requested subscriptions in request order, without duplicates.
+
+    Raises:
+        HTTPException: 404 when a subscription is unknown.
+    """
+    unique_ids = list(dict.fromkeys(subscription_ids))
+    stmt = (
+        select(SubscriptionTable)
+        .where(SubscriptionTable.subscription_id.in_(unique_ids))
+        .options(joinedload(SubscriptionTable.product).selectinload(ProductTable.workflows))
+    )
+    found = {s.subscription_id: s for s in await run_in_threadpool(lambda: db.session.scalars(stmt).all())}
+    if unknown := [sid for sid in unique_ids if sid not in found]:
+        raise_status(HTTPStatus.NOT_FOUND, f"Subscriptions not found: {', '.join(map(str, unknown))}")
+    return {sid: found[sid] for sid in unique_ids}
+
+
+async def _refresh_subscriptions(subscription_ids: list[UUID]) -> None:
+    """Re-index changed subscriptions (note and insync are part of the search index) and invalidate their caches."""
+    for subscription_id in subscription_ids:
+        await reindex_entity(EntityType.SUBSCRIPTION, subscription_id)
+        await invalidate_subscription_cache(subscription_id, invalidate_all=False)
+
+
 BULK_WORKFLOW_TARGETS = {
     SubscriptionBulkAction.VALIDATE: Target.VALIDATE,
     SubscriptionBulkAction.RECONCILE: Target.RECONCILE,
@@ -289,14 +314,14 @@ def _start_workflows(
 ) -> SubscriptionBulkItemResult:
     """Start every workflow for the subscription; a failure is reported on the item instead of raised."""
     process_ids: list[UUID] = []
-    try:
-        for name in workflow_names:
+    for name in workflow_names:
+        try:
             process_ids.append(start(name, [{"subscription_id": str(subscription_id)}]))
-    except Exception as e:
-        logger.exception("Bulk workflow start failed", subscription_id=subscription_id, started=len(process_ids))
-        return SubscriptionBulkItemResult(
-            subscription_id=subscription_id, success=False, error=str(e), process_ids=process_ids
-        )
+        except Exception as e:
+            logger.exception("Bulk workflow start failed", subscription_id=subscription_id, workflow=name)
+            return SubscriptionBulkItemResult(
+                subscription_id=subscription_id, success=False, error=str(e), process_ids=process_ids
+            )
     return SubscriptionBulkItemResult(subscription_id=subscription_id, success=True, process_ids=process_ids)
 
 
@@ -325,13 +350,6 @@ async def _bulk_start_workflows(
     results = await run_in_threadpool(run)
     await broadcast_invalidate_status_counts_async()
     return results
-
-
-async def _refresh_subscriptions(subscription_ids: list[UUID]) -> None:
-    """Re-index changed subscriptions (note and insync are part of the search index) and invalidate their caches."""
-    for subscription_id in subscription_ids:
-        await reindex_entity(EntityType.SUBSCRIPTION, subscription_id)
-        await invalidate_subscription_cache(subscription_id, invalidate_all=False)
 
 
 async def _bulk_set_note(
@@ -365,24 +383,6 @@ async def _bulk_set_in_sync(
         )
         for sid in subscriptions
     ]
-
-
-async def _actionable_subscriptions(subscription_ids: list[UUID]) -> dict[UUID, SubscriptionTable]:
-    """Return the requested subscriptions in request order, without duplicates.
-
-    Raises:
-        HTTPException: 404 when a subscription is unknown.
-    """
-    unique_ids = list(dict.fromkeys(subscription_ids))
-    stmt = (
-        select(SubscriptionTable)
-        .where(SubscriptionTable.subscription_id.in_(unique_ids))
-        .options(joinedload(SubscriptionTable.product).selectinload(ProductTable.workflows))
-    )
-    found = {s.subscription_id: s for s in await run_in_threadpool(lambda: db.session.scalars(stmt).all())}
-    if unknown := [sid for sid in unique_ids if sid not in found]:
-        raise_status(HTTPStatus.NOT_FOUND, f"Subscriptions not found: {', '.join(map(str, unknown))}")
-    return {sid: found[sid] for sid in unique_ids}
 
 
 @router.post("/bulk", response_model=SubscriptionBulkResultSchema)
