@@ -287,12 +287,6 @@ async def _refresh_subscriptions(subscription_ids: list[UUID]) -> None:
         await invalidate_subscription_cache(subscription_id, invalidate_all=False)
 
 
-BULK_WORKFLOW_TARGETS = {
-    SubscriptionBulkAction.VALIDATE: Target.VALIDATE,
-    SubscriptionBulkAction.RECONCILE: Target.RECONCILE,
-}
-
-
 async def _startable_workflows(
     subscription: SubscriptionTable, target: Target, user_model: OIDCUserModel | None
 ) -> tuple[list[str], str | None]:
@@ -407,15 +401,16 @@ async def bulk_subscription_action(
     """
     subscriptions = await _actionable_subscriptions(data.subscription_ids)
 
+    start_workflows = partial(_bulk_start_workflows, request, subscriptions, user=user, user_model=user_model)
     match data.action:
         case SubscriptionBulkAction.NOTE:
             results = await _bulk_set_note(list(subscriptions), data.note, session)
         case SubscriptionBulkAction.SET_IN_SYNC:
             results = await _bulk_set_in_sync(subscriptions, session)
-        case SubscriptionBulkAction.VALIDATE | SubscriptionBulkAction.RECONCILE:
-            results = await _bulk_start_workflows(
-                request, subscriptions, BULK_WORKFLOW_TARGETS[data.action], user, user_model
-            )
+        case SubscriptionBulkAction.VALIDATE:
+            results = await start_workflows(Target.VALIDATE)
+        case SubscriptionBulkAction.RECONCILE:
+            results = await start_workflows(Target.RECONCILE)
 
     count = sum(result.success for result in results)
     return SubscriptionBulkResultSchema(action=data.action, count=count, results=results)
