@@ -417,6 +417,5 @@ async def bulk_subscription_action(
     else:
         await broadcast_invalidate_status_counts_async()
 
-    return SubscriptionBulkResultSchema(
-        action=data.action, count=sum(result.success for result in results), results=results
-    )
+    count = sum(result.success for result in results)
+    return SubscriptionBulkResultSchema(action=data.action, count=count, results=results)
