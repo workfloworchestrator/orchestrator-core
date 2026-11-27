@@ -408,9 +408,9 @@ async def bulk_subscription_action(
         case SubscriptionBulkAction.SET_IN_SYNC:
             results = await _bulk_set_in_sync(subscriptions, session)
         case SubscriptionBulkAction.VALIDATE:
-            results = await start_workflows(Target.VALIDATE)
+            results = await start_workflows(target=Target.VALIDATE)
         case SubscriptionBulkAction.RECONCILE:
-            results = await start_workflows(Target.RECONCILE)
+            results = await start_workflows(target=Target.RECONCILE)
 
     count = sum(result.success for result in results)
     return SubscriptionBulkResultSchema(action=data.action, count=count, results=results)
