@@ -402,11 +402,10 @@ async def bulk_subscription_action(
     processes are returned per subscription.
     """
     subscriptions = await _actionable_subscriptions(data.subscription_ids)
-    subscription_ids = list(subscriptions)
 
     match data.action:
         case SubscriptionBulkAction.NOTE:
-            results = await _bulk_set_note(subscription_ids, data.note, session)
+            results = await _bulk_set_note(list(subscriptions), data.note, session)
         case SubscriptionBulkAction.SET_IN_SYNC:
             results = await _bulk_set_in_sync(subscriptions, session)
         case SubscriptionBulkAction.VALIDATE | SubscriptionBulkAction.RECONCILE:
