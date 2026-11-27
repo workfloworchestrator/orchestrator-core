@@ -19,7 +19,11 @@ so sibling trees (e.g. ``test/acceptance_tests/celery``) can load them via
 the same module is path-discovered AND named as a plugin.
 """
 
-pytest_plugins = ["orchestrator.core.testing.fixtures", "test.integration_tests._fixtures"]
+pytest_plugins = [
+    "orchestrator.core.testing.fixtures",
+    "test.integration_tests._fixtures",
+    "test.integration_tests._committing_session",
+]
 
 # Re-export non-fixture symbols (constants, classes, plain helpers) that
 # individual test files import by name. Fixtures and hooks are NOT

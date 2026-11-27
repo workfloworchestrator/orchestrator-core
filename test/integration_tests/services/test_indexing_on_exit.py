@@ -46,7 +46,7 @@ from orchestrator.core.workflows.steps import (
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import UUIDstr
 
-pytestmark = pytest.mark.search
+pytestmark = [pytest.mark.search, pytest.mark.usefixtures("committing_db_session")]
 
 
 @step("Succeeding step")

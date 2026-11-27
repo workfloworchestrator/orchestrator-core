@@ -154,7 +154,9 @@ def test_make_indexable_record_with_embedding(indexer):
 def test_determine_changes_new_entity(indexer, mock_entity):
     """Test detecting changes for a new entity (no existing data)."""
     with patch.object(indexer, "_get_all_existing_hashes", return_value={}):
-        fields_to_upsert, paths_to_delete, identical_count = indexer._determine_changes([mock_entity], session=None)
+        fields_to_upsert, paths_to_delete, identical_count, _baseline = indexer._determine_changes(
+            [mock_entity], session=None
+        )
 
     assert len(fields_to_upsert) == 3
     assert len(paths_to_delete) == 0
@@ -164,7 +166,9 @@ def test_determine_changes_new_entity(indexer, mock_entity):
 def test_determine_changes_identical_entity(indexer, mock_entity, matching_hashes):
     """Test detecting no changes when entity is identical."""
     with patch.object(indexer, "_get_all_existing_hashes", return_value=matching_hashes):
-        fields_to_upsert, paths_to_delete, identical_count = indexer._determine_changes([mock_entity], session=None)
+        fields_to_upsert, paths_to_delete, identical_count, _baseline = indexer._determine_changes(
+            [mock_entity], session=None
+        )
 
     assert len(fields_to_upsert) == 0
     assert len(paths_to_delete) == 0
@@ -192,7 +196,7 @@ def test_force_index_ignores_existing_hashes(mock_config, mock_entity):
     }
 
     with patch.object(force_indexer, "_get_all_existing_hashes", return_value=existing_hashes):
-        fields_to_upsert, paths_to_delete, identical_count = force_indexer._determine_changes(
+        fields_to_upsert, paths_to_delete, identical_count, _baseline = force_indexer._determine_changes(
             [mock_entity], session=None
         )
 
