@@ -192,6 +192,7 @@ def test_product_by_id_404(seed, test_client):
     assert HTTPStatus.NOT_FOUND == response.status_code
 
 
+@pytest.mark.usefixtures("committing_db_session")
 def test_update_description(seed, test_client):
     body = {
         "description": "BLABLA",
@@ -201,6 +202,7 @@ def test_update_description(seed, test_client):
     assert response.json()["description"] == "BLABLA"
 
 
+@pytest.mark.usefixtures("committing_db_session")
 def test_update_description_with_empty_body(seed, test_client):
     get_before = test_client.get(f"/api/products/{PRODUCT_ID}")
     body = {}
@@ -241,6 +243,7 @@ def test_product_by_id_returns_correct_data(seed, test_client):
     assert product["name"] == "LightPath"
 
 
+@pytest.mark.usefixtures("committing_db_session")
 def test_update_status(seed, test_client):
     """Patching status to a non-EOL value should succeed."""
     body = {"status": "phase out"}
@@ -259,6 +262,7 @@ def test_update_status_end_of_life_with_active_subscriptions(seed, test_client):
     assert "not in terminated state" in response.json()["detail"]
 
 
+@pytest.mark.usefixtures("committing_db_session")
 def test_update_status_end_of_life_with_terminated_subscriptions(seed, test_client):
     """Can set 'end of life' when all subscriptions are terminated."""
     subscription = db.session.get(SubscriptionTable, SUBSCRIPTION_ID)
@@ -280,6 +284,7 @@ def test_update_status_invalid_value(seed, test_client):
     assert HTTPStatus.UNPROCESSABLE_ENTITY == response.status_code
 
 
+@pytest.mark.usefixtures("committing_db_session")
 def test_update_description_and_status(seed, test_client):
     """Patching both description and status should update both."""
     body = {"description": "Updated", "status": "pre production"}

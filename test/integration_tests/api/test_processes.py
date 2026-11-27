@@ -1503,6 +1503,7 @@ def test_get_steps_to_evaluate_for_rbac_with_remaining_steps():
     assert result_names == ["step_x", "step_y", "step_z"]
 
 
+@pytest.mark.usefixtures("committing_db_session")
 def test_patch_process_add_note(test_client, started_process):
     response = test_client.patch(f"/api/processes/{started_process}", json={"note": "A Test Note"})
     assert HTTPStatus.OK == response.status_code
@@ -1510,6 +1511,7 @@ def test_patch_process_add_note(test_client, started_process):
     assert process["note"] == "A Test Note"
 
 
+@pytest.mark.usefixtures("committing_db_session")
 def test_patch_process_remove_note(test_client, started_process):
     with db.scoped_session():
         process_table = _get_process(started_process)
@@ -1526,6 +1528,7 @@ def test_patch_process_remove_note(test_client, started_process):
         assert process_table.note is None
 
 
+@pytest.mark.usefixtures("committing_db_session")
 def test_patch_process_update_note(test_client, started_process):
     with db.scoped_session():
         process_table = _get_process(started_process)
@@ -1546,6 +1549,7 @@ def _process_column(process_id, column):
     return db.session.scalar(select(column).where(ProcessTable.process_id == process_id))
 
 
+@pytest.mark.usefixtures("committing_db_session")
 @pytest.mark.parametrize("note", ["bulk note", None])
 def test_bulk_note(test_client, mocked_processes_resumeall, note):
     process_ids = mocked_processes_resumeall[:2]

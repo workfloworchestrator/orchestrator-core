@@ -327,6 +327,7 @@ def test_scheduled_tasks_invalid_sort(
 
 
 @pytest.mark.search
+@pytest.mark.usefixtures("committing_db_session")
 def test_scheduled_tasks_search_returns_the_matching_schedules(
     test_client_graphql, clear_all_scheduler_jobs, create_schedules_via_api
 ):

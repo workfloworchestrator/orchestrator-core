@@ -30,7 +30,7 @@ from orchestrator.core.search.indexing import run_indexing_for_entity
 from orchestrator.core.search.query.export import fetch_export_data
 from orchestrator.core.services.workflows import get_workflow_by_name
 
-pytestmark = pytest.mark.search
+pytestmark = [pytest.mark.search, pytest.mark.usefixtures("committing_db_session")]
 
 WORKFLOW_NAME = "task_resume_workflows"
 

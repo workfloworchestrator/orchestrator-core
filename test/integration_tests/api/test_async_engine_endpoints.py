@@ -234,6 +234,7 @@ def committed_product(committed_session):
     committed_session.commit()
 
 
+@pytest.mark.usefixtures("committing_db_session")
 def test_patch_process_note_serializes_workflow_name(async_engine_test_client, committed_process):
     """``PATCH /api/processes/{process_id}`` must serialize ``workflow_name``.
 
@@ -341,6 +342,7 @@ def test_patch_product_block_serializes_resource_types(async_engine_test_client,
     assert [rt["resource_type"] for rt in body["resource_types"]] == [STANDALONE_RESOURCE_TYPE_NAME]
 
 
+@pytest.mark.usefixtures("committing_db_session")
 @pytest.mark.parametrize(
     ("method", "body", "expected_status"),
     [

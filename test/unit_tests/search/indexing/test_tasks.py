@@ -23,6 +23,7 @@ from uuid import UUID
 
 import pytest
 
+from orchestrator.core.db.models import SubscriptionTable
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 from orchestrator.core.search.indexing.tasks import (
@@ -61,6 +62,8 @@ def _make_mock_registry_config(query_return: MagicMock) -> dict[EntityType, Magi
     """Return a mock ENTITY_CONFIG_REGISTRY dict with a single SUBSCRIPTION entry."""
     config = MagicMock()
     config.get_all_query.return_value = query_return
+    config.table = SubscriptionTable
+    config.pk_name = "subscription_id"
     return {EntityType.SUBSCRIPTION: config}
 
 
@@ -158,7 +161,7 @@ def test_run_indexing_entity_id_forwarded():
     registry = {EntityType.SUBSCRIPTION: config}
 
     mock_db = MagicMock()
-    mock_db.session.execute.return_value.scalars.return_value = iter([])
+    mock_db.session.execute.return_value.scalars.return_value = iter([object()])
     mock_indexer_cls = MagicMock(return_value=MagicMock())
     cache_ctx = MagicMock(return_value=_noop_context())
 
@@ -255,13 +258,15 @@ def test_run_indexing_removes_a_missing_entity_from_the_index(
 ):
     registry = _make_mock_registry_config(_make_mock_stmt())
     mock_db = MagicMock()
+    mock_db.session.in_transaction.return_value = False
+    mock_db.session.scalar.return_value = None
     mock_db.session.execute.return_value.scalars.return_value = iter(entities)
     mock_indexer_cls = MagicMock()
 
     _run_indexing(registry, mock_db, mock_indexer_cls, entity_id=entity_id, dry_run=dry_run)
 
     assert mock_indexer_cls.return_value.run.call_count == expected_indexed
-    assert mock_db.session.commit.call_count == expected_removed
+    assert mock_db.session.begin.call_count == expected_removed
     if expected_removed:
         delete_stmt = mock_db.session.execute.call_args.args[0]
         assert delete_stmt.compile().params == {"entity_type_1": "SUBSCRIPTION", "entity_id_1": UUID(VALID_UUID)}
@@ -341,12 +346,19 @@ def test_run_indexing_for_all_entities_rejects_nonpositive_chunk_size(bad_size):
 def test_remove_entity_from_index_locks_before_delete() -> None:
     """The entity-type advisory lock must be taken before the DELETE fires the trigger."""
     mock_session = MagicMock()
+    mock_session.in_transaction.return_value = False
+    mock_session.scalar.return_value = None
     _remove_entity_from_index(EntityType.PROCESS, VALID_UUID, dry_run=False, session=mock_session)
-    statements = [(str(c.args[0]), c.args[1] if len(c.args) > 1 else None) for c in mock_session.execute.call_args_list]
+    statements = [
+        (str(c.args[0]), c.args[1] if len(c.args) > 1 else None)
+        for c in mock_session.mock_calls
+        if c[0] in {"execute", "scalar"}
+    ]
     assert "pg_advisory_xact_lock" in statements[0][0]
     assert statements[0][1] == {"entity_type": EntityType.PROCESS.value}
-    assert statements[1][0].strip().upper().startswith("DELETE")
-    mock_session.commit.assert_called_once()
+    assert statements[1][0].strip().upper().startswith("SELECT")  # locked config-faithful existence recheck
+    assert statements[2][0].strip().upper().startswith("DELETE")
+    mock_session.begin.assert_called_once()
 
 
 def test_remove_entity_from_index_dry_run_does_not_execute() -> None:

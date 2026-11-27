@@ -14,6 +14,7 @@
 import contextlib
 from collections.abc import AsyncIterator
 
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from orchestrator.core.db import db
@@ -28,7 +29,17 @@ async def session_joined_async() -> AsyncIterator[AsyncSession]:
     and escape ``db_session``'s rollback, leaking into later tests. Binding an ``AsyncConnection``
     to the already-open sync test connection and joining it via a savepoint keeps this session's
     work inside that same outer transaction, so it rolls back with everything else.
+
+    Opt-in committing tests bind ambient sessions to the engine instead. Their
+    endpoints must own real async transactions too: a joined savepoint would commit
+    only the savepoint, then lose its writes when the ambient Session closes.
     """
+    if isinstance(db.session.get_bind(), Engine):
+        async with db.wrapped_database.async_session_factory() as session:
+            _lazy_load_guard.install(session)
+            yield session
+        return
+
     async_connection = AsyncConnection(db.wrapped_database.async_engine, sync_connection=db.session.connection())  # type: ignore
     async with AsyncSession(
         bind=async_connection,

@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import nullcontext
 from typing import Any
 from uuid import UUID
 
@@ -24,7 +25,7 @@ from orchestrator.core.db.models import AiSearchIndex
 from orchestrator.core.domain.context_cache import cache_subscription_models
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.core.validators import is_uuid
-from orchestrator.core.search.indexing.indexer import Indexer, acquire_search_index_write_lock
+from orchestrator.core.search.indexing.indexer import Indexer, _maybe_begin, acquire_search_index_write_lock
 from orchestrator.core.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 
 logger = structlog.get_logger(__name__)
@@ -78,26 +79,30 @@ def run_indexing_for_entity(
 
     stmt = config.get_all_query(entity_id)
 
-    total_count = _get_entity_count(stmt) if show_progress else None
+    read_session = db.session
+    # Protect the originating Session for the complete read/iteration pipeline,
+    # not just Indexer planning: counting and the initial execute can autoflush too.
+    with read_session.no_autoflush if dry_run else nullcontext():
+        total_count = _get_entity_count(stmt) if show_progress else None
 
-    stmt = stmt.execution_options(stream_results=True, yield_per=chunk_size)
-    entities = peekable(db.session.execute(stmt).scalars())
+        stmt = stmt.execution_options(stream_results=True, yield_per=chunk_size)
+        entities = peekable(read_session.execute(stmt).scalars())
 
-    if entity_id and not entities:
-        _remove_entity_from_index(entity_kind, entity_id, dry_run)
-        return
+        if entity_id and not entities:
+            _remove_entity_from_index(entity_kind, entity_id, dry_run)
+            return
 
-    indexer = Indexer(
-        config=config,
-        dry_run=dry_run,
-        force_index=force_index,
-        chunk_size=chunk_size,
-        show_progress=show_progress,
-        total_count=total_count,
-    )
+        indexer = Indexer(
+            config=config,
+            dry_run=dry_run,
+            force_index=force_index,
+            chunk_size=chunk_size,
+            show_progress=show_progress,
+            total_count=total_count,
+        )
 
-    with cache_subscription_models():
-        indexer.run(entities)
+        with cache_subscription_models():
+            indexer.run(entities)
 
 
 def _remove_entity_from_index(
@@ -111,23 +116,38 @@ def _remove_entity_from_index(
         entity_kind (EntityType): The entity type the id belongs to.
         entity_id (str): The entity to remove. An id that is not a UUID can't be in the index and is ignored.
         dry_run (bool): When True, nothing is deleted.
-        session (Optional[Session]): Session to write through; defaults to the shared `db.session`.
-            The advisory lock is held on this session's transaction.
+        session (Optional[Session]): Idle Session to own for this removal. By default
+            a fresh database scope supplies it. Active Session/external Connection
+            transactions and DBAPI AUTOCOMMIT are rejected, as in Indexer.run().
     """
     if dry_run or not is_uuid(entity_id):
         return
 
-    target = session or db.session
-    # The DELETE fires the ai_search_paths trigger, so it must be serialized by the
-    # same entity-type lock as Indexer writes; the commit below releases the lock.
-    acquire_search_index_write_lock(target, entity_kind)
-    target.execute(
-        delete(AiSearchIndex)
-        .where(AiSearchIndex.entity_type == entity_kind.value)
-        .where(AiSearchIndex.entity_id == UUID(entity_id))
-        .execution_options(synchronize_session=False)
-    )
-    target.commit()
+    # The originating stream query already autobegan its read Session. Removal
+    # must own a different write scope rather than commit/join that transaction.
+    with db.database_scope() if session is None else nullcontext():
+        target = session if session is not None else db.session
+        with _maybe_begin(target, allow_borrow=False):
+            config = ENTITY_CONFIG_REGISTRY[entity_kind]
+            indexer = Indexer(config=config, dry_run=False, force_index=False)
+            indexer._ensure_statement_fresh_isolation(target)
+            acquire_search_index_write_lock(target, entity_kind)
+            # A restore/recreate and newer hook can commit after the initial miss.
+            # Respect config filters (including soft deletion) and do not delete
+            # its newer index merely because the pre-lock stream found nothing.
+            # Let the config normalize UUID input while retaining plain-string
+            # schedule IDs. Compare existence, never input/returned ID spellings.
+            pk_column = getattr(config.table, config.pk_name)
+            source_query = config.get_all_query(entity_id).with_only_columns(pk_column)
+            if target.scalar(source_query) is not None:
+                logger.debug("Cancelled index removal: entity is indexable again", entity_id=entity_id)
+                return
+            target.execute(
+                delete(AiSearchIndex)
+                .where(AiSearchIndex.entity_type == entity_kind.value)
+                .where(AiSearchIndex.entity_id == UUID(entity_id))
+                .execution_options(synchronize_session=False)
+            )
     logger.debug("Removed deleted entity from the search index", entity_kind=entity_kind.value, entity_id=entity_id)
 
 
