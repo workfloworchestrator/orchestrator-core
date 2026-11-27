@@ -258,5 +258,15 @@
         "complexity": 30
       }
     ]
+  },
+  {
+    "path": "orchestrator/core/beta/parallel/threadpool.py",
+    "file_name": "threadpool.py",
+    "functions": [
+      {
+        "name": "_run_threadpool_branches",
+        "complexity": 23
+      }
+    ]
   }
 ]

@@ -1,11 +1,11 @@
 ---
 # tutorial | how-to | reference | explanation | mixed
-diataxis:
+diataxis: mixed
 reviewed: false
 ---
 
 # What is a workflow and how does it work?
-<!-- diataxis: -->
+<!-- diataxis: mixed -->
 
 The workflow engine is the core of the software, it has been created to execute a number of functions.
 
@@ -106,7 +106,7 @@ Tasks are workflows that aren't associated with any subscriptions, and can be ru
 Learn about tasks and scheduling [here][tasks-and-scheduling].
 
 ## Workflow Steps
-<!-- diataxis: -->
+<!-- diataxis: mixed -->
 
 Workflows are composed of one or more **steps**, where each step is executed sequentially by the workflow engine and are the fundamental building blocks of workflows.
 
@@ -142,6 +142,130 @@ For a practical example of how to define reusable workflow steps—and how to le
 👉 [Reusable step functions and single dispatch usage]
 
 
+### Parallel Steps {: .beta }
+<!-- diataxis: reference -->
+
+The workflow engine supports two kinds of parallel execution, both implemented as a fork/join pattern: the engine forks the state into isolated copies for each branch, executes them concurrently, and joins the results back into a single state.
+
+> **Beta.** Parallel steps are a beta feature: import them from `orchestrator.core.beta.parallel`. The API may change
+> incompatibly in a minor release; each such change is listed in the changelog and the upgrade guide.
+
+Parallel execution supports two backends:
+
+- **ThreadPool** (default): Branches run in-process using a `ThreadPoolExecutor`. Each branch thread gets its own database session via `db.database_scope()`.
+- **Celery** (distributed): When `EXECUTOR=celery`, each branch is submitted as a separate Celery task. The parent workflow suspends (`Waiting`) until all branches complete. The last branch to finish atomically detects completion and resumes the parent workflow.
+
+#### Static parallel — fixed branches {: .beta }
+<!-- diataxis: reference -->
+
+Use when the set of branches is known at definition time (e.g., always provision port A and port B together).
+
+**Dict naming** — one key with a list of branches (the dict form is beta too):
+```python
+@create_workflow(...)
+def create_dual_port():
+    return init >> {
+        "Provision ports": [begin >> provision_port_a, begin >> provision_port_b]
+    } >> link_ports >> done
+```
+
+**Explicit `parallel()` function** (for advanced options like `retry_auth_callback`):
+```python
+from orchestrator.core.beta.parallel import parallel
+
+@create_workflow(...)
+def create_dual_port():
+    par = parallel("Provision ports",
+                   begin >> provision_port_a,
+                   begin >> provision_port_b,
+                   retry_auth_callback=my_callback,
+                   max_concurrency=4)
+    return init >> par >> link_ports >> done
+```
+
+Every parallel step has an explicit name, either as the dict key or as the first argument of `parallel()` and
+`map_parallel()`.
+
+#### Dynamic parallel — one branch per item {: .beta }
+<!-- diataxis: reference -->
+
+Use when the number of branches depends on a runtime list in the workflow state (e.g., provision one port per item in `state["ports"]`).
+
+```python
+from orchestrator.core.beta.parallel import map_parallel
+
+
+@step("Fetch ports")
+def fetch_ports():
+  return {"ports": [{"port_id": "p1", "vlan": 100},
+                    {"port_id": "p2", "vlan": 200}]}
+
+
+@step("Provision port")
+def provision_port(port_id, vlan):  # injected from each item
+  result = call_provisioning_api(port_id, vlan)
+  return {f"port_{port_id}_result": result}  # distinct key per item
+
+
+@create_workflow(...)
+def provision_n_ports():
+  return (
+          init
+          >> fetch_ports
+          >> map_parallel("Provision ports", "ports", provision_port)
+          >> link_ports
+          >> done
+  )
+```
+
+Each item in the list becomes the seed state for one branch:
+
+- **Dict items** are merged directly into the branch's initial state: `initial_state | {"port_id": "p1", "vlan": 100}`.
+- **Scalar items** are injected as `{"item": <value>, "item_index": <int>}`.
+
+Seed keys are injected into the branch's initial state as input-only context for that branch's steps.
+
+#### Behavior (both kinds) {: .beta }
+<!-- diataxis: reference -->
+
+- **State isolation**: Each branch receives a deep copy of the input state. Mutations in one branch do not affect other branches.
+- **Concurrent execution**: With ThreadPool, `max_concurrency` defaults to `MAX_WORKERS` and bounds the threadpool executor's threads per fork. With Celery (`EXECUTOR=celery`, `ExecutorType.WORKER`), each pending branch is submitted as a task; `max_concurrency` is ignored and worker concurrency controls execution.
+- **Per-branch DB logging**: Each branch writes its own `ProcessStepTable` rows, linked to the parent fork step via `ProcessStepRelationTable`. This gives fine-grained visibility into branch execution and enables the UI to render parallel branches as a tree.
+- **No state merging**: Branch results are **not** merged back into the main workflow state. Each branch's final state is persisted in its own `ProcessStepTable` row, linked to the fork step via `ProcessStepRelationTable`. The main workflow continues with its pre-fork state. Branch results are accessible via the DB (and visible in the UI) but do not pollute the parent state.
+- **Error propagation**: If any branch fails, the entire parallel group fails. All branches run to completion before the worst status is determined. Status priority is: Failed > Waiting > Suspend > AwaitingCallback > Success.
+- **No user interaction in branches**: Parallel branches must not contain `inputstep` or `callback_step` steps. This is validated at workflow definition time.
+- **Logging**: The parallel group creates a fork step in the process log, named after the parallel step's name. That name is required and must be unique within the workflow; it is the step's only identifier at runtime. Branch sub-steps appear as child rows linked via `ProcessStepRelationTable`.
+- **Three or more branches**: Pass more branches to `parallel(name, a, b, c)`, or add more entries to the dict's list.
+- **Empty list** (`map_parallel`): An empty `items_key` list returns `Success` with the unchanged state — no threads are created.
+
+**Database connection pool sizing**: ThreadPool `max_concurrency` must be positive. The synchronous database
+connection pool is shared with HTTP requests, the scheduler and other non-fork users; one process-level
+`max(4, capacity // 4)` connections are excluded from fork budgets for them, where `capacity = pool_size +
+max_overflow`. Each fork allows `max(1, (capacity - reserve) // MAX_WORKERS - 1)` threads, reducing but not
+guaranteeing against database connection pool exhaustion.
+The final `- 1` covers the parent connection; fork create/update scopes do not overlap running branches, so their
+extra slack is not a permanent reservation. A request above the budget is throttled; an explicit value logs once
+per fork, while a capped default logs once per process for each `(capacity, MAX_WORKERS)` combination. High
+`MAX_WORKERS` values may fall back to serial forks. With defaults (capacity 70, `MAX_WORKERS=5`), the budget is 9
+and the default request is 5. Nested forks and multiple processes are not globally bounded.
+
+#### Database schema
+<!-- diataxis: -->
+
+Parallel execution introduces:
+
+- **`ProcessStepRelationTable`**: A join table linking parent (fork) steps to child (branch) steps with `parent_step_id`, `child_step_id`, `order_id`, and `branch_index` columns.
+- **Fork step columns on `ProcessStepTable`**: `branch_count` (total branch count), `branch_kind` (`parallel` for `parallel()`, `map_parallel` for `map_parallel()`, NULL for ordinary steps) and `branches_completed` (branches finished so far, used for atomic last-finisher detection with Celery). A check constraint requires `branch_kind` and `branch_count` to be set together. In the API, `branch_kind` is the `BranchKind` enum, which serializes to those same strings.
+
+#### Celery configuration
+<!-- diataxis: -->
+
+When using Celery execution, parallel branches are routed to configurable queues:
+
+- `PARALLEL_BRANCH_QUEUE`: Queue for parallel branch tasks (default: same as regular task queue).
+- `PARALLEL_BRANCH_WORKFLOW_QUEUE`: Queue for parallel branch workflow tasks (default: same as regular workflow queue).
+
+
 ### Execution parameters
 <!-- diataxis: -->
 
@@ -173,7 +297,7 @@ This behaviour can be changed in the `WF_USABLE_MAP` data structure:
 === "`orchestrator-core` < 5.0"
 
     ```python
-    from orchestrator.services.subscriptions import WF_USABLE_MAP
+    from orchestrator.core.services.subscriptions import WF_USABLE_MAP
 
     WF_USABLE_MAP.update(
         {
@@ -206,7 +330,7 @@ This behaviour can be changed in the `WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS` dat
 === "`orchestrator-core` < 5.0"
 
     ```python
-    from orchestrator.services.subscriptions import WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS
+    from orchestrator.core.services.subscriptions import WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS
 
     WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS.update(
         {
@@ -237,7 +361,7 @@ This behaviour can be changed with the `WF_USABLE_WHILE_OUT_OF_SYNC` data struct
 === "`orchestrator-core` < 5.0"
 
     ```python
-    from orchestrator.services.subscriptions import WF_USABLE_WHILE_OUT_OF_SYNC
+    from orchestrator.core.services.subscriptions import WF_USABLE_WHILE_OUT_OF_SYNC
 
     WF_USABLE_WHILE_OUT_OF_SYNC.extend(
         [

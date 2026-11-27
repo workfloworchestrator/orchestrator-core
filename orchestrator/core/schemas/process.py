@@ -23,7 +23,7 @@ from orchestrator.core.db.models import NOTE_LENGTH
 from orchestrator.core.schemas.base import OrchestratorBaseModel
 from orchestrator.core.schemas.subscription import SubscriptionSchema
 from orchestrator.core.targets import Target
-from orchestrator.core.workflow import ProcessStatus, StepImportance
+from orchestrator.core.workflow import BranchKind, ProcessStatus, StepImportance
 
 
 class ProcessIdSchema(OrchestratorBaseModel):
@@ -60,6 +60,10 @@ class ProcessStepSchema(OrchestratorBaseModel):
     importance: StepImportance = StepImportance.DEFAULT
     state: dict[str, Any] | None = None
     state_delta: dict[str, Any] | None = None
+    branch_count: int | None = Field(None, description="Number of branches of a fork step")
+    branch_kind: BranchKind | None = Field(None, description="Kind of fork step; null for ordinary steps")
+    branches_completed: int = Field(0, description="Number of finished branches of a fork step")
+    child_steps: list["ProcessStepSchema"] | None = None
 
 
 class ProcessSchema(ProcessBaseSchema):

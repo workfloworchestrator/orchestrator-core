@@ -46,6 +46,12 @@ def test_search_max_export_limit_must_be_positive(monkeypatch):
         AppSettings()
 
 
+@pytest.mark.parametrize("value", [0, -1])
+def test_max_workers_must_be_positive(value):
+    with pytest.raises(ValidationError, match="MAX_WORKERS"):
+        AppSettings(MAX_WORKERS=value)
+
+
 def test_celery_target_queues_defaults_to_empty_mapping():
     assert AppSettings().CELERY_TARGET_QUEUES == {}
 

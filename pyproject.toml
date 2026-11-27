@@ -314,6 +314,7 @@ markers = [
     "redis: Test requires a Redis cache",
     # Per-feature markers
     "workflow: Test that runs a complete workflow (Slow)",
+    "slow: Test that takes noticeably longer than the rest of its suite; select with -m slow or exclude with -m \"not slow\"",
     "acceptance: Acceptance Tests. Needs special handling.",
     "regression: Tests that cover bugs that are fixed to prevent them from regressing",
     "celery: Tests that require celery functionality",

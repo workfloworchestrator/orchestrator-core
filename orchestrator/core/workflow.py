@@ -19,7 +19,7 @@ import functools
 import inspect
 import secrets
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass
 from itertools import dropwhile
 from typing import (
@@ -37,6 +37,7 @@ from uuid import UUID
 import strawberry
 import structlog
 from deprecated import deprecated
+from more_itertools import duplicates_everseen, unique_everseen
 from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
@@ -72,6 +73,7 @@ StepLogFuncInternal = Callable[["Step", "Process"], "Process"]
 StepToProcessFunc = Callable[[State], "Process"]
 
 step_log_fn_var: contextvars.ContextVar[StepLogFuncInternal] = contextvars.ContextVar("log_step_fn")
+process_stat_var: contextvars.ContextVar["ProcessStat"] = contextvars.ContextVar("process_stat")
 
 DEFAULT_CALLBACK_ROUTE_KEY = "callback_route"
 CALLBACK_TOKEN_KEY = "__callback_token"  # noqa: S105
@@ -95,6 +97,9 @@ class Step(Protocol):
     assignee: Assignee | None
     resume_auth_callback: Authorizer | None = None
     retry_auth_callback: Authorizer | None = None
+    branching: BranchSpec | None = None
+    sub_steps: StepList | None = None
+    is_callback_step: bool = False
 
     def __call__(self, state: State) -> Process: ...
 
@@ -153,7 +158,16 @@ def make_step_function(
     resume_auth_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
     importance: StepImportance = StepImportance.DEFAULT,
+    *,
+    branching: BranchSpec | None = None,
+    sub_steps: StepList | None = None,
+    is_callback_step: bool = False,
 ) -> Step:
+    """Turn ``f`` into a :class:`Step`, setting every :class:`Step` attribute.
+
+    Every attribute is set, including those that default to ``None``: a ``Step`` annotation on the ``Step`` Protocol
+    only exists for type checkers, so a step that skips an attribute would break code that reads it.
+    """
     step_func = cast(Step, f)
 
     step_func.name = name
@@ -162,6 +176,9 @@ def make_step_function(
     step_func.resume_auth_callback = resume_auth_callback
     step_func.retry_auth_callback = retry_auth_callback
     step_func.importance = importance
+    step_func.branching = branching
+    step_func.sub_steps = sub_steps
+    step_func.is_callback_step = is_callback_step
     return step_func
 
 
@@ -202,18 +219,30 @@ class StepList(list[Step]):
             retval = type(self)(retval)
         return retval
 
-    def __rshift__(self, other: StepList | Step) -> StepList:
+    def __rshift__(self, other: StepList | Step | dict) -> StepList:
         if isinstance(other, Step):
             return StepList([*self, other])
-
         if isinstance(other, StepList):
             return StepList([*self, *other])
-
-        if hasattr(other, "__name__"):  # type: ignore
+        if isinstance(other, dict):
+            return self._rshift_dict(other)
+        if hasattr(other, "__name__"):  # type:ignore[unreachable]
             raise ValueError(
                 f"Expected @step decorated function or type Step or StepList, got {type(other)} with name {other.__name__} instead."
             )
         raise ValueError(f"Expected @step decorated function or type Step or StepList, got {type(other)} instead.")
+
+    def _rshift_dict(self, other: dict) -> StepList:
+        from orchestrator.core.beta.parallel.dsl import _make_parallel_step
+
+        if len(other) != 1:
+            raise ValueError("Parallel dict must have exactly one key (the name)")
+        name, value = next(iter(other.items()))
+        if not isinstance(name, str):
+            raise ValueError(f"Parallel dict key must be a string, got {type(name)}")
+        if isinstance(value, list) and all(isinstance(v, StepList) for v in value):
+            return StepList([*self, _make_parallel_step(name, value)])
+        raise ValueError(f"Parallel dict value must be list[StepList], got {type(value)}")
 
     def __str__(self) -> str:
         return f"StepList [{', '.join(x.name for x in self)}]"
@@ -250,6 +279,99 @@ def default_user_inputs() -> list[State]:
     return [{}]
 
 
+def _child_step_lists(s: Step) -> Iterator[StepList]:
+    """Yield the nested step lists of a step: its branches and its sub steps, if any."""
+    if (branching := s.branching) is not None:
+        yield from branching.branches
+    if (sub_steps := s.sub_steps) is not None:
+        yield sub_steps
+
+
+def _iter_steps(steps: StepList) -> Iterator[Step]:
+    """Yield every step in ``steps``, depth-first, including steps nested in branches and step groups."""
+    for s in steps:
+        yield s
+        for child in _child_step_lists(s):
+            yield from _iter_steps(child)
+
+
+def _iter_parallel_group_names(steps: StepList) -> Iterator[str]:
+    """Yield the group name of every branching step in ``steps``, in tree order."""
+    for s in _iter_steps(steps):
+        if (branching := s.branching) is not None:
+            yield branching.name
+
+
+def _validate_unique_parallel_group_names(steps: StepList) -> None:
+    """Raise ``ValueError`` when two branching steps in the tree share a group name.
+
+    Supports the beta parallel steps (``parallel`` and ``map_parallel``). A group name identifies a branching step
+    when a worker rebuilds a branch from it (:func:`_find_step_by_group_name`), so a definition that reuses a name
+    cannot reliably look up its branch.
+
+    This is a definition-time check only. It does not make the group name unique per fork row at runtime: a
+    parallel step nested in a ``map_parallel`` template is defined once but creates one fork row per item, and
+    those rows share ``(process_id, name, branch_kind)``. Retries of such a nested group can therefore inherit
+    successful branches from a sibling item's fork row. Scoping the prior-fork lookup to the enclosing branch is
+    tracked in https://github.com/workfloworchestrator/orchestrator-core/issues/1780, with a strict-xfail test of the
+    intended behaviour.
+    """
+    if duplicates := list(unique_everseen(duplicates_everseen(_iter_parallel_group_names(steps)))):
+        raise ValueError(
+            f"Duplicate parallel group name(s) {duplicates!r}. Parallel group names must be unique within a "
+            "workflow, as they are used to look up the parallel step when a branch is retried or resumed."
+        )
+
+
+def _find_step_by_group_name(steps: StepList, group_name: str) -> Step | None:
+    """Return the first step in ``steps`` whose ``branching`` has group name ``group_name``, or None.
+
+    Walks the step tree depth-first over each step's ``branching`` and ``sub_steps``. Group names are unique within a
+    workflow, validated when the workflow is built by :func:`_validate_unique_parallel_group_names`, so there is
+    exactly one match. Without that check this first-match lookup could find a different branching step with the same
+    name.
+    """
+    return next(
+        (s for s in _iter_steps(steps) if s.branching is not None and s.branching.name == group_name),
+        None,
+    )
+
+
+def _assert_parallel_step_is_visible(steps: StepList, branching: BranchSpec) -> None:
+    """Check that the step tree walk can see the branching step that is about to run.
+
+    The uniqueness check in :func:`_validate_unique_parallel_group_names` only covers steps the walk reaches. A
+    branching step that a wrapper hides (inside a user wrapper that does not copy the step's attributes, or hiding
+    its sub steps) is not checked, and a worker cannot look it up by name. Failing here turns that into an error on
+    the step's first run, instead of a worker rebuilding the wrong branch or failing obscurely.
+
+    The comparison is on ``branching``, by identity, not on the step: ``conditional`` and ``steplens`` return a
+    wrapper around the step, so the step object that runs is not the one in the workflow's step list. Value equality
+    would also pass for two different ``parallel()`` calls with the same branches.
+
+    Args:
+        steps: The workflow's step list, as passed to :func:`make_workflow`.
+        branching: The :class:`BranchSpec` of the branching step that is running.
+
+    Raises:
+        ValueError: If no step in ``steps`` carries ``branching.name``, or if the one that does has another
+            :class:`BranchSpec`.
+    """
+    found = _find_step_by_group_name(steps, branching.name)
+    if found is None:
+        raise ValueError(
+            f"Parallel group '{branching.name}' is not visible in the workflow's step tree, so a worker cannot look "
+            "it up and duplicate group names inside it go undetected. A parallel step inside a custom step wrapper "
+            "that doesn't copy the step's attributes is not supported."
+        )
+
+    if found.branching is not branching:
+        raise ValueError(
+            f"Parallel group name '{branching.name}' is reused by a parallel step with different branches. Group "
+            "names must be unique within a workflow."
+        )
+
+
 def make_workflow(
     f: Callable,
     description: str,
@@ -279,6 +401,8 @@ def make_workflow(
 
     wf.initial_input_form = _handle_simple_input_form_generator(initial_input_form)
     wf.target = target
+    # Supports the beta parallel steps (parallel, map_parallel), so it runs for every workflow make_workflow builds.
+    _validate_unique_parallel_group_names(steps)
     wf.steps = steps
     wf.run_predicate = run_predicate
 
@@ -446,7 +570,22 @@ def step_group(
         importance: Importance of the group. The sub steps all log into the group's single process step row, so
             this, not the sub steps' own importance, is what clients see.
     """
+    return _step_group(name, steps, extract_form, retry_auth_callback, importance)
 
+
+def _step_group(
+    name: str,
+    steps: StepList,
+    extract_form: bool = True,
+    retry_auth_callback: Authorizer | None = None,
+    importance: StepImportance = StepImportance.DEFAULT,
+    *,
+    is_callback_step: bool = False,
+) -> Step:
+    """Build a step group, optionally marked as the step that :func:`callback_step` returns.
+
+    :func:`step_group` is the public entry point; it keeps its signature free of internal flags.
+    """
     steps = _extend_step_group_steps(name, steps)
 
     def func(initial_state: State) -> Process:
@@ -480,7 +619,40 @@ def step_group(
 
     # Make sure we return a form is a sub step has a form
     form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
-    return make_step_function(func, name, form, retry_auth_callback=retry_auth_callback, importance=importance)
+    return make_step_function(
+        func,
+        name,
+        form,
+        retry_auth_callback=retry_auth_callback,
+        importance=importance,
+        sub_steps=steps,
+        is_callback_step=is_callback_step,
+    )
+
+
+def _rewrap_step(step: Step, f: Callable[[Step], Callable[[State], Process]]) -> Step:
+    """Wrap ``step`` in a new step function returned by ``f``, copying every :class:`Step` attribute.
+
+    ``make_step_function`` sets the attributes it is given and resets the rest, so passing only a subset would drop
+    them. ``branching`` and ``sub_steps`` in particular have to survive: they are how the tree walk and a worker find
+    this step and its child steps.
+
+    Args:
+        step: The step to wrap.
+        f: Given ``step``, returns the function that becomes the wrapper's ``__call__``.
+    """
+    return make_step_function(
+        f(step),
+        step.name,
+        step.form,
+        step.assignee,
+        resume_auth_callback=step.resume_auth_callback,
+        retry_auth_callback=step.retry_auth_callback,
+        importance=step.importance,
+        branching=step.branching,
+        sub_steps=step.sub_steps,
+        is_callback_step=step.is_callback_step,
+    )
 
 
 def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
@@ -542,10 +714,11 @@ def callback_step(
     create_endpoint_step = step(f"{name} - Create endpoint")(_create_endpoint_step(key=callback_route_key))
     await_step = _awaitstep(f"{name} - Await callback", result_key=result_key, timeout=timeout)
     cleanup_step = step(f"{name} - Cleanup callback step")(lambda: {"__remove_keys": [CALLBACK_TOKEN_KEY]})
-    return step_group(
+    return _step_group(
         name=name,
         steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step >> cleanup_step,
         importance=importance,
+        is_callback_step=True,
     )
 
 
@@ -579,14 +752,14 @@ def conditional(p: Callable[[State], bool]) -> Callable[..., StepList]:
         else:
             steps = steps_or_func
 
-        def wrap(step: Step) -> Step:
+        def wrapped(step: Step) -> Callable[[State], Process]:
             @functools.wraps(step)
             def wrapper(state: State) -> Process:
                 return step(state) if p(state) else Skipped(state)
 
-            return make_step_function(wrapper, step.name, step.form, step.assignee, importance=step.importance)
+            return wrapper
 
-        return steps.map(wrap)
+        return steps.map(lambda step: _rewrap_step(step, wrapped))
 
     return _conditional
 
@@ -594,7 +767,7 @@ def conditional(p: Callable[[State], bool]) -> Callable[..., StepList]:
 def steplens(get: Callable[[State], State], set: Callable[[State], Callable[[State], State]]) -> Callable[[Step], Step]:
     """Update a step list to zoom its input state using get and update its output state using set."""
 
-    def wrap(step: Step) -> Step:
+    def wrapped(step: Step) -> Callable[[State], Process]:
         @functools.wraps(step)
         def wrapper(state: State) -> Process:
             sub_state = get(state)
@@ -605,9 +778,9 @@ def steplens(get: Callable[[State], State], set: Callable[[State], Callable[[Sta
                 return result
             return result.map(set(state))
 
-        return make_step_function(wrapper, step.name, step.form, step.assignee, importance=step.importance)
+        return wrapper
 
-    return wrap
+    return lambda step: _rewrap_step(step, wrapped)
 
 
 def focussteps(key: str) -> Callable[[Step | StepList], StepList]:
@@ -735,6 +908,43 @@ class ProcessStatus(strEnum):
     INCONSISTENT_DATA = "inconsistent_data"
     COMPLETED = "completed"
     RESUMED = "resumed"
+
+
+@strawberry.enum(name="BranchKind", graphql_name_from="value")
+class BranchKind(strEnum):
+    """Kind of step that fans out into child steps; stored in ``ProcessStepTable.branch_kind``."""
+
+    PARALLEL = "parallel"
+    MAP_PARALLEL = "map_parallel"
+
+
+@dataclass(frozen=True)
+class BranchSpec:
+    """The structure of a step that fans out into child steps, exposed as :attr:`Step.branching`.
+
+    It holds only the structure, not how the branches run: execution options such as the concurrency limit and the
+    ``map_parallel`` items key live in the step function that the DSL builds.
+
+    Args:
+        name: Group name of the branching step, used to look the step up when a branch is retried or resumed.
+        kind: The kind of fan-out.
+        branches: The step lists that run per branch. Template kinds (``MAP_PARALLEL``, and later ``LOOP``) hold the
+            single template they run for every item.
+    """
+
+    name: str
+    kind: BranchKind
+    branches: tuple[StepList, ...]
+
+    def reconstruct_branch(self, branch_index: int) -> StepList:
+        """Return the step list to run for ``branch_index``.
+
+        Raises:
+            IndexError: If ``branch_index`` is out of range, which only a non-template kind can be.
+        """
+        if self.kind == BranchKind.MAP_PARALLEL:
+            return self.branches[0]
+        return self.branches[branch_index]
 
 
 class StepStatus(strEnum):
@@ -1612,53 +1822,57 @@ def capture_workflow_failure(err: Any) -> None:
             pass
 
 
+def _exec_step(
+    process: Process,
+    step_: Step,
+    dblogstep: StepLogFuncInternal,
+    consolelogger: BoundLogger,
+) -> Process:
+    """Execute a single workflow step, returning the resulting Process."""
+    consolelogger = consolelogger.bind(step_name=step_.name)
+    mutationlogger = log_mutations(process.unwrap())
+
+    try:
+        with transactional(db, logger):
+            engine_status = get_engine_settings_table()
+            if engine_status.global_lock:
+                consolelogger.info(
+                    "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
+                )
+                return process
+
+        process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
+        step_result_process = process.execute_step(step_)
+    except Exception as e:
+        consolelogger.error("An exception occurred while executing the workflow step.", exc_info=e)
+        step_result_process = Failed(e)
+
+    # Convert ErrorState to ErrorDict when Failed or Waiting before writing to the database
+    # as bare exceptions are not JSON serializable
+    result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
+    result_to_log.on_success(mutationlogger).on_failed(log_workflow_failure).on_waiting(log_workflow_failure)
+
+    # Capture the original exception that caused the workflow to fail
+    step_result_process.on_failed(capture_workflow_failure)
+
+    with transactional(db, logger):
+        process = dblogstep(step_, result_to_log)
+    consolelogger.debug("Workflow step executed.", process_status=process.status)
+    return process
+
+
 def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFuncInternal) -> Process:
     """Execute the workflow steps one by one until a Process state other than Success or Skipped is reached."""
     consolelogger = cond_bind(logger, starting_process.unwrap(), "reporter", "created_by")
-    process = starting_process
-    for step in steps:
-        # Check if we need to continue with the process
-        if not (process.issuccess() or process.isskipped()):
-            break
-
-        consolelogger = consolelogger.bind(step_name=step.name)
-
-        # Debug logging of step information
-        mutationlogger = log_mutations(process.unwrap())
-
-        # Execute step
-        try:
-            with transactional(db, logger):
-                engine_status = get_engine_settings_table()
-                if engine_status.global_lock:
-                    # Exiting from thread workflow engine is Paused or Pausing
-                    consolelogger.info(
-                        "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
-                    )
-                    return process
-
-            process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
-            step_result_process = process.execute_step(step)
-        except Exception as e:
-            consolelogger.error("An exception occurred while executing the workflow step.", exc_info=e)
-            step_result_process = Failed(e)
-
-        # write the new process state after the step execution to the database
-        # Convert ErrorState to ErrorDict when Failed or Waiting before writing to the database
-        # as bare exceptions are not JSON serializable
-        result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
-        result_to_log.on_success(mutationlogger).on_failed(log_workflow_failure).on_waiting(log_workflow_failure)
-
-        # Capture the original exception that caused the workflow to fail
-        step_result_process.on_failed(capture_workflow_failure)
-
-        with transactional(db, logger):
-            process = dblogstep(step, result_to_log)
-        # If database logging failed, the workflow should fail. When it was successful just continue with the
-        # result of the executed step.
-        consolelogger.debug("Workflow step executed.", process_status=process.status)
-
-    return process
+    return functools.reduce(
+        lambda process, step_: (
+            _exec_step(process, step_, dblogstep, consolelogger)
+            if process.issuccess() or process.isskipped()
+            else process
+        ),
+        steps,
+        starting_process,
+    )
 
 
 def runwf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
@@ -1686,6 +1900,7 @@ def runwf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
     # This enables recursive step execution of sub steps with the same StepLogFunc.
     # Should probably be refactored at some point as contextvars is a kind of global state.
     step_log_fn_var.set(_logstep)
+    process_stat_var.set(pstat)
     executed_steps = _exec_steps(steps, next_state, _logstep)
     if executed_steps.overall_status == ProcessStatus.FAILED:
         invalidate_status_counts()

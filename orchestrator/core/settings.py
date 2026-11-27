@@ -105,7 +105,14 @@ class AppSettings(BaseSettings):
             "Overridden by a pool_timeout patched into ENGINE_ARGUMENTS."
         ),
     )
-    MAX_WORKERS: int = 5
+    MAX_WORKERS: PositiveInt = Field(
+        5,
+        description=(
+            "Maximum concurrent outer workflows in the threadpool, and the default concurrency of each parallel "
+            "fork (default 5). Fork concurrency is capped by the synchronous database connection pool budget (see "
+            "the workflow docs). Nested forks and multiple processes are not globally bounded."
+        ),
+    )
     WORKER_STATUS_INTERVAL: int = Field(
         5, description="Interval in seconds for updating worker status count in the background monitor"
     )
@@ -165,6 +172,13 @@ class AppSettings(BaseSettings):
     EXPOSE_OAUTH_SETTINGS: bool = False
     LIFECYCLE_VALIDATION_MODE: LifecycleValidationMode = LifecycleValidationMode.LOOSE
     MCP_ENABLED: bool = False
+
+    PARALLEL_BRANCH_QUEUE: str = Field(
+        "new_tasks", description="Use this to override the celery queue for parallel branches in a task"
+    )
+    PARALLEL_BRANCH_WORKFLOW_QUEUE: str = Field(
+        "new_workflows", description="Use this to override the celery queue for parallel branches in a workflow"
+    )
     CELERY_TARGET_QUEUES: dict[Target, str] = Field(
         default_factory=dict,
         description=(
