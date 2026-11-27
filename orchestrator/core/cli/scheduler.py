@@ -32,6 +32,7 @@ from orchestrator.core.schedules.service import (
 )
 from orchestrator.core.settings import app_settings
 from orchestrator.core.utils.redis_client import create_redis_client
+from orchestrator.core.websocket import broadcast_relay, init_websocket_manager
 
 app: typer.Typer = typer.Typer()
 
@@ -92,15 +93,22 @@ def run() -> None:
 
         return None
 
-    with get_scheduler() as scheduler_connection:
-        redis_connection = create_redis_client(app_settings.CACHE_URI.get_secret_value())
-        while True:
-            item = _get_scheduled_task_item_from_queue(redis_connection)
-            if not item:
-                continue
+    # Schedule changes are broadcast from this process, so the WebSocketManager must be configured here too.
+    init_websocket_manager(app_settings)
+    broadcast_relay.start()
 
-            with db.database_scope():
-                workflow_scheduler_queue(item, scheduler_connection)
+    try:
+        with get_scheduler() as scheduler_connection:
+            redis_connection = create_redis_client(app_settings.CACHE_URI.get_secret_value())
+            while True:
+                item = _get_scheduled_task_item_from_queue(redis_connection)
+                if not item:
+                    continue
+
+                with db.database_scope():
+                    workflow_scheduler_queue(item, scheduler_connection)
+    finally:
+        broadcast_relay.stop()
 
 
 def _to_schedule_row(task: Job, *, api_managed_ids: set[str], verbose: bool) -> list[str]:

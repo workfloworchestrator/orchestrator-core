@@ -28,14 +28,21 @@ from apscheduler.events import (
     EVENT_JOB_MISSED,
     EVENT_JOB_SUBMITTED,
     JobExecutionEvent,
+    JobSubmissionEvent,
 )
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from structlog.testing import capture_logs
 
-from orchestrator.core.schedules.scheduler import index_submitted_schedule, job_defaults, log_missed_job
+from orchestrator.core.schedules.scheduler import (
+    broadcast_executed_schedule,
+    index_submitted_schedule,
+    job_defaults,
+    log_missed_job,
+)
 from orchestrator.core.schedules.service import _add_scheduled_task, _delete_scheduled_task, _update_scheduled_task
 from orchestrator.core.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
+from orchestrator.core.websocket import broadcast_schedule_update_to_websocket
 
 JOB_COUNT = 25
 # Roughly the time start_process takes; with one thread, JOB_COUNT jobs take ~2.5s, far beyond the 1s default grace.
@@ -108,6 +115,42 @@ def test_update_scheduled_task_modifies_only_set_job_options(options, expected):
 
     job.reschedule.assert_not_called()
     job.modify.assert_called_once_with(**expected)
+
+
+def test_add_scheduled_task_broadcasts_the_new_schedule(known_workflow, mock_submit_schedule_index):
+    scheduler_connection = mock.Mock()
+
+    with mock.patch("orchestrator.core.schedules.service.broadcast_relay") as relay:
+        _add_scheduled_task(create_payload(), scheduler_connection)
+
+    schedule_id = scheduler_connection.add_job.call_args.kwargs["id"]
+    relay.submit.assert_called_once_with(broadcast_schedule_update_to_websocket, schedule_id)
+    # Only queueing here means a failed broadcast cannot skip the index update.
+    mock_submit_schedule_index.assert_called_once_with(schedule_id)
+
+
+def test_update_scheduled_task_broadcasts_the_schedule():
+    schedule_id = uuid4()
+    scheduler_connection = mock.Mock(get_job=mock.Mock(return_value=mock.Mock()))
+
+    with mock.patch("orchestrator.core.schedules.service.broadcast_relay") as relay:
+        _update_scheduled_task(APSchedulerJobUpdate(schedule_id=schedule_id), scheduler_connection)
+
+    relay.submit.assert_called_once_with(broadcast_schedule_update_to_websocket, str(schedule_id))
+
+
+def test_delete_scheduled_task_broadcasts_the_schedule():
+    schedule_id = uuid4()
+    payload = APSchedulerJobDelete(workflow_id=uuid4(), schedule_id=schedule_id)
+    scheduler_connection = mock.Mock()
+
+    with (
+        mock.patch("orchestrator.core.schedules.service._delete_linker_entry"),
+        mock.patch("orchestrator.core.schedules.service.broadcast_relay") as relay,
+    ):
+        _delete_scheduled_task(payload, scheduler_connection)
+
+    relay.submit.assert_called_once_with(broadcast_schedule_update_to_websocket, str(schedule_id))
 
 
 def test_job_options_are_applied_to_the_apscheduler_job(known_workflow):
@@ -206,6 +249,16 @@ def test_log_missed_job_logs_an_error_with_the_event_data():
             "scheduled_run_time": run_time,
         }
     ]
+
+
+def test_broadcast_executed_schedule_broadcasts_the_schedule_id():
+    schedule_id = "schedule-1"
+    event = JobSubmissionEvent(EVENT_JOB_SUBMITTED, schedule_id, "default", [datetime.now(timezone.utc)])
+
+    with mock.patch("orchestrator.core.schedules.scheduler.broadcast_relay") as relay:
+        broadcast_executed_schedule(event)
+
+    relay.submit.assert_called_once_with(broadcast_schedule_update_to_websocket, schedule_id)
 
 
 def run_simultaneous_jobs(threads: int, **options) -> tuple[list[str], list[str], list[MutableMapping[str, Any]]]:

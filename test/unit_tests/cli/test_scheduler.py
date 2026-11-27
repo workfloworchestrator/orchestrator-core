@@ -61,6 +61,26 @@ def test_run_keyboard_interrupt_exits_130():
     assert result.exit_code == 130
 
 
+def test_run_fetches_item_then_stops_relay():
+    redis_conn = mock.Mock()
+    # Get through all the branches of the run loop: first return None (no message), then a message, then KeyboardInterrupt to exit.
+    redis_conn.brpop.side_effect = [None, ("scheduler", b"payload"), KeyboardInterrupt]
+
+    with (
+        mock.patch("orchestrator.core.cli.scheduler.get_scheduler"),
+        mock.patch("orchestrator.core.cli.scheduler.create_redis_client", return_value=redis_conn),
+        mock.patch("orchestrator.core.cli.scheduler.db"),
+        mock.patch("orchestrator.core.cli.scheduler.workflow_scheduler_queue") as queued,
+        mock.patch("orchestrator.core.cli.scheduler.broadcast_relay") as relay,
+    ):
+        result = runner.invoke(app, ["run"])
+
+    assert result.exit_code == 130
+    queued.assert_called_once()
+    relay.start.assert_called_once()
+    relay.stop.assert_called_once()
+
+
 # --- force ---
 
 

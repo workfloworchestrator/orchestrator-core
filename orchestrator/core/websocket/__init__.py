@@ -22,6 +22,7 @@ from structlog import get_logger
 from nwastdlib.asyncio import gather_nice
 from orchestrator.core.db import ProcessTable, db
 from orchestrator.core.settings import AppSettings, app_settings
+from orchestrator.core.websocket.broadcast_relay import WebSocketBroadcastRelay
 from orchestrator.core.websocket.websocket_manager import WebSocketManager
 from orchestrator.core.workflow import ProcessStatus
 from pydantic_forms.types import UUIDstr
@@ -84,6 +85,9 @@ class WrappedWebSocketManager:
 # You need to pass a modified AppSettings class to the OrchestratorCore class to init the WebSocketManager correctly
 wrapped_websocket_manager = WrappedWebSocketManager()
 websocket_manager = cast(WebSocketManager, wrapped_websocket_manager)
+
+# Run broadcasts off the calling thread; start it in processes that broadcast, such as the scheduler.
+broadcast_relay = WebSocketBroadcastRelay()
 
 
 # The Global WebSocketManager is set after calling this function
@@ -186,11 +190,38 @@ async def broadcast_process_update_to_websocket_async(
     await gather_nice(tasks, limit=10)
 
 
+def broadcast_schedule_update_to_websocket(schedule_id: str | None = None) -> None:
+    """Broadcast data of the current schedule to connected websocket clients."""
+    if not websocket_manager.enabled:
+        logger.debug(
+            "WebSocketManager is not enabled. Skip broadcasting through websocket.", schedule_id=str(schedule_id)
+        )
+        return
+
+    anyio.run(broadcast_schedule_update_to_websocket_async, schedule_id)
+
+
+async def broadcast_schedule_update_to_websocket_async(schedule_id: str | None = None) -> None:
+    """Broadcast data of the current schedule to connected websocket clients."""
+    if not websocket_manager.enabled:
+        logger.debug(
+            "WebSocketManager is not enabled. Skip broadcasting through websocket.", schedule_id=str(schedule_id)
+        )
+        return
+
+    await broadcast_invalidate_cache({"type": "schedules", "id": "LIST"})
+    if schedule_id is not None:
+        await broadcast_invalidate_cache({"type": "schedules", "id": schedule_id})
+
+
 __all__ = [
     "websocket_manager",
     "init_websocket_manager",
+    "broadcast_relay",
     "broadcast_process_update_to_websocket",
     "broadcast_process_update_to_websocket_async",
+    "broadcast_schedule_update_to_websocket",
+    "broadcast_schedule_update_to_websocket_async",
     "WS_CHANNELS",
     "broadcast_invalidate_status_counts",
     "broadcast_invalidate_status_counts_async",

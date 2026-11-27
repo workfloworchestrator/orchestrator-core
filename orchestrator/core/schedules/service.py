@@ -41,6 +41,7 @@ from orchestrator.core.services.workflows import get_workflow_by_name, get_workf
 from orchestrator.core.settings import llm_settings
 from orchestrator.core.utils.errors import StartPredicateError
 from orchestrator.core.utils.redis_client import create_redis_asyncio_client, create_redis_client
+from orchestrator.core.websocket import broadcast_relay, broadcast_schedule_update_to_websocket
 from pydantic_forms.exceptions import FormValidationError
 from pydantic_forms.types import State
 
@@ -373,6 +374,7 @@ def _add_scheduled_task(payload: APSchedulerJobCreate, scheduler_connection: Bas
     )
 
     _add_linker_entry(workflow_id=payload.workflow_id, schedule_id=schedule_id)
+    broadcast_relay.submit(broadcast_schedule_update_to_websocket, schedule_id)
     submit_schedule_index(schedule_id)
 
 
@@ -412,6 +414,7 @@ def _update_scheduled_task(payload: APSchedulerJobUpdate, scheduler_connection: 
         modify_kwargs["name"] = payload.name
 
     job.modify(**modify_kwargs)
+    broadcast_relay.submit(broadcast_schedule_update_to_websocket, schedule_id)
     submit_schedule_index(schedule_id)
 
 
@@ -428,6 +431,9 @@ def _delete_scheduled_task(payload: APSchedulerJobDelete, scheduler_connection: 
     scheduler_connection.remove_job(job_id=schedule_id)
     _delete_linker_entry(workflow_id=payload.workflow_id, schedule_id=schedule_id)
     submit_schedule_index(schedule_id)
+
+    if payload.schedule_id is not None:
+        broadcast_relay.submit(broadcast_schedule_update_to_websocket, schedule_id)
 
 
 def workflow_scheduler_queue(queue_item: tuple[str, bytes], scheduler_connection: BaseScheduler) -> None:
