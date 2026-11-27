@@ -35,6 +35,10 @@ from orchestrator.core.schemas.product import ProductBaseSchema, ProductSchema
 from orchestrator.core.schemas.product_block import ProductBlockBaseSchema
 from orchestrator.core.schemas.resource_type import ResourceTypeBaseSchema, ResourceTypeSchema
 from orchestrator.core.schemas.subscription import (
+    SubscriptionBulkAction,
+    SubscriptionBulkItemResult,
+    SubscriptionBulkResultSchema,
+    SubscriptionBulkSchema,
     SubscriptionDomainModelSchema,
     SubscriptionIdSchema,
     SubscriptionSchema,
@@ -81,4 +85,8 @@ __all__ = (
     "ProcessBulkItemResult",
     "ProcessBulkResultSchema",
     "ProcessBulkSchema",
+    "SubscriptionBulkAction",
+    "SubscriptionBulkItemResult",
+    "SubscriptionBulkResultSchema",
+    "SubscriptionBulkSchema",
 )

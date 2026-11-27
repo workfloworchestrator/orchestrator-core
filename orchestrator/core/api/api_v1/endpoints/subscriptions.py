@@ -14,14 +14,18 @@
 """Module that implements subscription related API endpoints."""
 
 import itertools
+from collections.abc import Callable
+from functools import partial
 from http import HTTPStatus
+from operator import attrgetter
 from typing import Any
 from uuid import UUID
 
 import structlog
-from fastapi import Depends
+from fastapi import Body, Depends
 from fastapi.routing import APIRouter
-from sqlalchemy import select
+from more_itertools import map_reduce, unique_everseen
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.concurrency import run_in_threadpool
@@ -29,6 +33,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator.core.api.api_v1.endpoints.processes import check_global_lock, user_name
 from orchestrator.core.api.error_handling import raise_status
 from orchestrator.core.api.helpers import add_response_range, add_subscription_search_query_filter
 from orchestrator.core.db import (
@@ -37,14 +42,23 @@ from orchestrator.core.db import (
     ProductTable,
     SubscriptionMetadataTable,
     SubscriptionTable,
+    db,
     get_async_session,
 )
 from orchestrator.core.mcp.server import AGENT_EXPOSED_TAG, READONLY_TOOL
-from orchestrator.core.schemas import SubscriptionWorkflowListsSchema
+from orchestrator.core.schemas import (
+    SubscriptionBulkAction,
+    SubscriptionBulkItemResult,
+    SubscriptionBulkResultSchema,
+    SubscriptionBulkSchema,
+    SubscriptionWorkflowListsSchema,
+)
 from orchestrator.core.schemas.subscription import SubscriptionDomainModelSchema, SubscriptionWithMetadata
 from orchestrator.core.search.core.types import EntityType
 from orchestrator.core.search.indexing.hooks import reindex_entity
 from orchestrator.core.security import authenticate
+from orchestrator.core.services.process_broadcast_thread import api_broadcast_process_data
+from orchestrator.core.services.processes import start_process
 from orchestrator.core.services.subscriptions import (
     format_extended_domain_model,
     format_special_types,
@@ -56,7 +70,8 @@ from orchestrator.core.targets import Target
 from orchestrator.core.utils.auth import AuthContext
 from orchestrator.core.utils.errors import DBInternalError
 from orchestrator.core.utils.get_subscription_dict import get_subscription_dict
-from orchestrator.core.websocket import invalidate_subscription_cache
+from orchestrator.core.websocket import broadcast_invalidate_status_counts_async, invalidate_subscription_cache
+from orchestrator.core.workflow import ProcessStatus
 from orchestrator.core.workflows import get_workflow
 
 router = APIRouter()
@@ -193,20 +208,26 @@ async def subscription_workflows_by_id(
     return await _authorized_subscription_workflows(subscription, current_user)
 
 
-async def _failed_processes(subscription_id: UUID, session: AsyncSession) -> list[str]:
+async def _failed_processes_by_subscription(
+    subscription_ids: list[UUID], session: AsyncSession
+) -> dict[UUID, list[str]]:
+    """Map each subscription to the ids of its processes that are neither completed nor aborted."""
     if app_settings.DISABLE_INSYNC_CHECK:
-        return []
+        return {}
 
     stmt = (
-        select(ProcessSubscriptionTable)
+        select(ProcessSubscriptionTable.subscription_id, ProcessSubscriptionTable.process_id)
         .join(ProcessTable)
-        .filter(ProcessSubscriptionTable.subscription_id == subscription_id)
+        .filter(ProcessSubscriptionTable.subscription_id.in_(subscription_ids))
         .filter(~ProcessTable.is_task)
-        .filter(ProcessTable.last_status != "completed")
-        .filter(ProcessTable.last_status != "aborted")
+        .filter(ProcessTable.last_status.not_in((ProcessStatus.COMPLETED, ProcessStatus.ABORTED)))
     )
-    _failed_processes = await session.scalars(stmt)
-    return [str(p.process_id) for p in _failed_processes]
+    rows = await session.execute(stmt)
+    return dict(map_reduce(rows, keyfunc=attrgetter("subscription_id"), valuefunc=lambda row: str(row.process_id)))
+
+
+async def _failed_processes(subscription_id: UUID, session: AsyncSession) -> list[str]:
+    return (await _failed_processes_by_subscription([subscription_id], session)).get(subscription_id, [])
 
 
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
@@ -239,3 +260,157 @@ async def subscription_set_in_sync(
         raise_status(HTTPStatus.NOT_FOUND, str(e))
     except DBInternalError:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR)
+
+
+async def _actionable_subscriptions(subscription_ids: list[UUID]) -> dict[UUID, SubscriptionTable]:
+    """Return the requested subscriptions in request order, without duplicates.
+
+    Raises:
+        HTTPException: 404 when a subscription is unknown.
+    """
+    unique_ids = list(unique_everseen(subscription_ids))
+    stmt = (
+        select(SubscriptionTable)
+        .where(SubscriptionTable.subscription_id.in_(unique_ids))
+        .options(joinedload(SubscriptionTable.product).selectinload(ProductTable.workflows))
+    )
+    found = {s.subscription_id: s for s in await run_in_threadpool(lambda: db.session.scalars(stmt).all())}
+    if unknown := [sid for sid in unique_ids if sid not in found]:
+        raise_status(HTTPStatus.NOT_FOUND, f"Subscriptions not found: {', '.join(map(str, unknown))}")
+    return {sid: found[sid] for sid in unique_ids}
+
+
+async def _refresh_subscriptions(subscription_ids: list[UUID]) -> None:
+    """Re-index changed subscriptions (note and insync are part of the search index) and invalidate their caches."""
+    for subscription_id in subscription_ids:
+        await reindex_entity(EntityType.SUBSCRIPTION, subscription_id)
+        await invalidate_subscription_cache(subscription_id, invalidate_all=False)
+
+
+async def _startable_workflows(
+    subscription: SubscriptionTable, target: Target, user_model: OIDCUserModel | None
+) -> tuple[list[str], str | None]:
+    """Return the names of the `target` workflows of the product that the user may start, or why there are none."""
+    workflows = {w.name: get_workflow(w.name) for w in subscription.product.workflows if w.target == target}
+    registered = {name: workflow for name, workflow in workflows.items() if workflow is not None}
+    if not registered:
+        return [], f"No {target.lower()} workflow for product '{subscription.product.name}'"
+
+    for name, workflow in registered.items():
+        context = AuthContext(user=user_model, workflow=workflow, action="start_workflow")
+        if not await workflow.authorize_callback(context):
+            return [], f"User is not authorized to start '{name}' workflow"
+    return list(registered), None
+
+
+def _start_workflow(subscription_id: UUID, workflow_name: str, start: Callable[..., UUID]) -> UUID | Exception:
+    """Start one workflow for the subscription and return its process id, or the error when it fails to start."""
+    try:
+        return start(workflow_name, [{"subscription_id": str(subscription_id)}])
+    except Exception as e:
+        logger.exception("Bulk workflow start failed", subscription_id=subscription_id, workflow=workflow_name)
+        return e
+
+
+def _start_workflows(
+    subscription_id: UUID, workflow_names: list[str], start: Callable[..., UUID]
+) -> SubscriptionBulkItemResult:
+    """Start every workflow for the subscription; failures are reported on the item instead of raised."""
+    outcomes = [_start_workflow(subscription_id, name, start) for name in workflow_names]
+    process_ids = [outcome for outcome in outcomes if isinstance(outcome, UUID)]
+    errors = [str(outcome) for outcome in outcomes if isinstance(outcome, Exception)]
+    return SubscriptionBulkItemResult(
+        subscription_id=subscription_id, success=not errors, error="; ".join(errors) or None, process_ids=process_ids
+    )
+
+
+async def _bulk_start_workflows(
+    request: Request,
+    subscriptions: dict[UUID, SubscriptionTable],
+    target: Target,
+    user: str,
+    user_model: OIDCUserModel | None,
+) -> list[SubscriptionBulkItemResult]:
+    await run_in_threadpool(check_global_lock)
+
+    startable = {sid: await _startable_workflows(sub, target, user_model) for sid, sub in subscriptions.items()}
+    start = partial(start_process, user=user, user_model=user_model, broadcast_func=api_broadcast_process_data(request))
+
+    def start_item(sid: UUID, names: list[str], error: str | None) -> SubscriptionBulkItemResult:
+        if error is not None:
+            return SubscriptionBulkItemResult(subscription_id=sid, success=False, error=error)
+        return _start_workflows(sid, names, start)
+
+    def run() -> list[SubscriptionBulkItemResult]:
+        return [start_item(sid, names, error) for sid, (names, error) in startable.items()]
+
+    results = await run_in_threadpool(run)
+    await broadcast_invalidate_status_counts_async()
+    return results
+
+
+async def _update_subscriptions(subscription_ids: list[UUID], session: AsyncSession, **values: Any) -> None:
+    """Set `values` on the subscriptions in a single committed update."""
+    stmt = update(SubscriptionTable).where(SubscriptionTable.subscription_id.in_(subscription_ids)).values(**values)
+    await session.execute(stmt)
+    await session.commit()
+
+
+async def _bulk_set_note(
+    subscription_ids: list[UUID], note: str | None, session: AsyncSession
+) -> list[SubscriptionBulkItemResult]:
+    await _update_subscriptions(subscription_ids, session, note=note)
+    await _refresh_subscriptions(subscription_ids)
+    return [SubscriptionBulkItemResult(subscription_id=sid, success=True) for sid in subscription_ids]
+
+
+async def _bulk_set_in_sync(
+    subscriptions: dict[UUID, SubscriptionTable], session: AsyncSession
+) -> list[SubscriptionBulkItemResult]:
+    failed = await _failed_processes_by_subscription(list(subscriptions), session)
+    to_sync = [sid for sid, sub in subscriptions.items() if not sub.insync and sid not in failed]
+    if to_sync:
+        await _update_subscriptions(to_sync, session, insync=True)
+        await _refresh_subscriptions(to_sync)
+
+    return [
+        SubscriptionBulkItemResult(
+            subscription_id=sid,
+            success=sid not in failed,
+            error=f"Subscription has still failed processes with id's: {failed[sid]}" if sid in failed else None,
+        )
+        for sid in subscriptions
+    ]
+
+
+@router.post("/bulk", response_model=SubscriptionBulkResultSchema)
+async def bulk_subscription_action(
+    request: Request,
+    data: SubscriptionBulkSchema = Body(...),
+    user: str = Depends(user_name),
+    user_model: OIDCUserModel | None = Depends(authenticate),
+    session: AsyncSession = Depends(get_async_session),
+) -> SubscriptionBulkResultSchema:
+    """Apply one action to many subscriptions.
+
+    The whole request is rejected when a subscription is unknown (404). `note` overwrites the note of every
+    subscription. `set_in_sync` skips subscriptions that still have failed processes and reports them per item.
+    `validate` and `reconcile` start every validate/reconcile workflow of the product of each subscription; a product
+    without such a workflow, an unauthorized user or a failing start is reported per item. The ids of the started
+    processes are returned per subscription.
+    """
+    subscriptions = await _actionable_subscriptions(data.subscription_ids)
+
+    start_workflows = partial(_bulk_start_workflows, request, subscriptions, user=user, user_model=user_model)
+    match data.action:
+        case SubscriptionBulkAction.NOTE:
+            results = await _bulk_set_note(list(subscriptions), data.note, session)
+        case SubscriptionBulkAction.SET_IN_SYNC:
+            results = await _bulk_set_in_sync(subscriptions, session)
+        case SubscriptionBulkAction.VALIDATE:
+            results = await start_workflows(target=Target.VALIDATE)
+        case SubscriptionBulkAction.RECONCILE:
+            results = await start_workflows(target=Target.RECONCILE)
+
+    count = sum(result.success for result in results)
+    return SubscriptionBulkResultSchema(action=data.action, count=count, results=results)
